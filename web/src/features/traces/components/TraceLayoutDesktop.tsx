@@ -1,3 +1,5 @@
+import { useDefaultLayout } from "@/src/components/ui/resizable";
+import { useRouter } from "next/router";
 import { StringParam, useQueryParam } from "use-query-params";
 import {
   Group,
@@ -5,7 +7,6 @@ import {
   Panel,
   usePanelRef,
   useGroupRef,
-  useDefaultLayout,
   type PanelImperativeHandle,
 } from "react-resizable-panels";
 import {
@@ -27,6 +28,7 @@ import { TraceReviewLayout } from "./TraceReviewLayout";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { useReadPath } from "@/src/features/events";
 import { resolveEffectiveWidthFraction } from "@/src/components/table/peek/store/peekPanelStore";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
 const RESIZABLE_PANEL_NAVIGATION_ID = "trace-layout-panel-navigation";
@@ -90,14 +92,6 @@ const COLLAPSED_PANEL_PX = 40;
 // wrapper scrolls horizontally.
 const BOTH_PANELS_MIN_WIDTH_PX =
   NAVIGATION_PANEL_MIN_PX + DETAIL_PANEL_MIN_PX + RESIZE_HANDLE_PX;
-
-// A no-op layout storage so `useDefaultLayout` never touches a real Storage
-// during SSR / DOM-less tests (its default `= localStorage` is a bare global
-// that would throw). Mirrors the pattern in `ui/resizable-split-layout.tsx`.
-const NOOP_LAYOUT_STORAGE = {
-  getItem: () => null,
-  setItem: () => {},
-};
 
 // Detect whether a panel is sitting on its collapsed rail in a RESTORED layout.
 // `useDefaultLayout` returns a `{ [panelId]: number }` map of flexGrow shares
@@ -185,9 +179,16 @@ type TraceLayoutDesktopProps = {
 };
 
 export function TraceLayoutDesktop(props: TraceLayoutDesktopProps) {
+  const router = useRouter();
   const { reviewPanel, ...layoutProps } = props;
   return (
-    <TraceReviewLayout open={props.reviewOpen} review={reviewPanel}>
+    <TraceReviewLayout
+      open={props.reviewOpen}
+      review={reviewPanel}
+      collapseNavigationOnEntry={
+        router.query.annotation === "open" ? true : undefined
+      }
+    >
       {({ collapsed, toggle }) => (
         <TraceNavigationDetailLayout
           {...layoutProps}
@@ -221,29 +222,17 @@ function TraceNavigationDetailLayout({
   // Peek sizing depends on the drawer width; persistence scope is caller-owned.
   const { isPeekMode } = useViewPreferences();
 
-  // The caller owns the persistence scope and first-use default. Keeping that
-  // policy outside this layout lets annotation queues retain their workspace
-  // across keyed trace remounts without inheriting the full-page trace layout.
-  const storage =
-    typeof window === "undefined" ? NOOP_LAYOUT_STORAGE : window.localStorage;
-
-  // The width the trace container actually opens at, driving the computed
-  // default split. Peek: the drawer width — when expanded (a shared/reloaded
-  // `?peekView=expanded` link) the panel renders at ~viewport width, NOT the
-  // widget fraction — so we must size the split against that, or a first-open
-  // expanded peek on a big screen re-creates the wide-tree bug. Full-page: the
-  // viewport. Sidebar offsets are ignored in both (the nav is width-capped at
-  // these sizes, so the small overestimate only makes the tree slightly
-  // narrower, still within its comfortable band). 0 during SSR. Mount-time
-  // default only (a saved layout wins after the first resize), so it doesn't
-  // track viewport changes.
+  /** Mount-time defaults use the host width; saved inner splits take precedence. */
+  const getPanelWidthPx = usePeekTableState()?.getPanelWidthPx;
   const [peekView] = useQueryParam("peekView", StringParam);
   const isPeekExpanded = isPeekMode && peekView === "expanded";
   const containerWidthPx = useMemo(() => {
     if (typeof window === "undefined") return 0;
-    if (!isPeekMode || isPeekExpanded) return window.innerWidth;
+    if (!isPeekMode) return window.innerWidth;
+    if (getPanelWidthPx) return getPanelWidthPx();
+    if (isPeekExpanded) return window.innerWidth;
     return resolveEffectiveWidthFraction() * window.innerWidth;
-  }, [isPeekMode, isPeekExpanded]);
+  }, [isPeekMode, isPeekExpanded, getPanelWidthPx]);
 
   // Deterministic default split, computed from `containerWidthPx`. Only used on
   // first open (no saved layout); memoized so the Group sees a stable prop.
@@ -266,7 +255,7 @@ function TraceNavigationDetailLayout({
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: groupId,
     panelIds: [RESIZABLE_PANEL_NAVIGATION_ID, RESIZABLE_PANEL_PREVIEW_ID],
-    storage,
+    storage: "local",
   });
 
   // Collapse-seed threshold: width-aware, so a small-share-but-open nav on a
@@ -697,7 +686,7 @@ TraceLayoutDesktop.DetailPanel = function Detail({
             onClick={expandDetailPanel}
             className="h-7 w-7 shrink-0"
           >
-            <PanelRightOpen className="h-3.5 w-3.5" />
+            <PanelRightOpen className="icon-base text-icon-foreground" />
           </Button>
         </div>
       )}

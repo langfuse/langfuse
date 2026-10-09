@@ -28,7 +28,9 @@ export function CollapsibleBadgeRow({
   // Desktop: unchanged full wrapped badge row.
   if (!isMobile) {
     return (
-      <div className={cn("flex flex-wrap items-center gap-4", className)}>
+      <div
+        className={cn("flex flex-wrap items-center gap-x-4 gap-y-1", className)}
+      >
         {children}
       </div>
     );
@@ -39,7 +41,7 @@ export function CollapsibleBadgeRow({
     <div className="flex items-start gap-1">
       <div
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-4",
+          "flex min-w-0 flex-1 items-center gap-x-4 gap-y-1",
           // Collapsed: one clipped line. `[&>*]:shrink-0` stops flex from
           // squeezing badges below their content width (which made long ones
           // like "Time to first token" wrap vertically into a multi-line row);
@@ -59,9 +61,9 @@ export function CollapsibleBadgeRow({
         onClick={() => setExpanded((prev) => !prev)}
       >
         {expanded ? (
-          <ChevronUp className="h-4 w-4" />
+          <ChevronUp className="icon-sm text-icon-foreground" />
         ) : (
-          <ChevronDown className="h-4 w-4" />
+          <ChevronDown className="icon-sm text-icon-foreground" />
         )}
       </Button>
     </div>

@@ -11,11 +11,12 @@ import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
+import { OrganizationUsageBreakdown } from "@/src/features/organization-usage";
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { SSOSettings } from "@/src/ee/features/sso-settings";
-import { isCloudPlan } from "@langfuse/shared";
+import { type CloudConfigSchema, isCloudPlan } from "@langfuse/shared";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
@@ -25,10 +26,7 @@ import { env } from "@/src/env.mjs";
 import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
-import {
-  useIsFeatureEnabled,
-  useInternalFeaturesEnabled,
-} from "@/src/features/feature-flags";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import {
   GatewayApiKeysPage,
   GatewayConfigurationPage,
@@ -37,7 +35,6 @@ import {
 } from "@/src/features/ai-gateway";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
-import { OrganizationAnalyticsPage } from "./components/OrganizationAnalyticsPage/OrganizationAnalyticsPage";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -48,7 +45,6 @@ type OrganizationSettingsPage = {
 } & ({ content: React.ReactNode } | { href: string });
 
 export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const { organization } = useQueryProjectOrOrganization();
   const showBillingSettings = useHasEntitlement("cloud-billing");
   const hasAdminApiEntitlement = useHasEntitlement("admin-api");
@@ -66,6 +62,10 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     organizationId: organization?.id,
     scope: "gateway:manage",
   });
+  const canReadUsage = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organizationUsage:read",
+  });
   const plan = usePlan();
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
@@ -77,12 +77,16 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
 
   if (!organization) return [];
 
+  const showBillingPage = showBillingSettings && isCloudBillingAvailable;
+
   return getOrganizationSettingsPages({
     organization,
-    showBillingSettings: showBillingSettings && isCloudBillingAvailable,
+    showBillingSettings: showBillingPage,
+    // The billing page embeds the usage breakdown, so the usage page only
+    // covers deployments without one (self-hosted).
+    showUsageSettings: canReadUsage && !showBillingPage,
     showOrgApiKeySettings,
     showAuditLogs,
-    showAnalytics: internalFeaturesEnabled,
     isLangfuseCloud,
     showV4Migration,
     showAiGateway: canManageGateway && isAiGatewayEnabled,
@@ -94,18 +98,19 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
 export const getOrganizationSettingsPages = ({
   organization,
   showBillingSettings,
+  showUsageSettings,
   showOrgApiKeySettings,
   showAuditLogs,
   isLangfuseCloud,
   showV4Migration,
   showAiGateway,
   showFeaturePreviews,
-  showAnalytics,
 }: {
   organization: {
     id: string;
     name: string;
     metadata: Record<string, unknown>;
+    cloudConfig?: CloudConfigSchema | null;
     projects: Array<{
       id: string;
       name: string;
@@ -113,13 +118,13 @@ export const getOrganizationSettingsPages = ({
     }>;
   };
   showBillingSettings: boolean;
+  showUsageSettings: boolean;
   showOrgApiKeySettings: boolean;
   showAuditLogs: boolean;
   isLangfuseCloud: boolean;
   showV4Migration: boolean;
   showAiGateway: boolean;
   showFeaturePreviews: boolean;
-  showAnalytics: boolean;
 }): OrganizationSettingsPage[] => [
   {
     title: "General",
@@ -139,6 +144,10 @@ export const getOrganizationSettingsPages = ({
               ...organization.metadata,
               ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && {
                 cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+              }),
+              ...(organization.cloudConfig?.clickhouse?.organizationId && {
+                clickhouseOrganizationId:
+                  organization.cloudConfig.clickhouse.organizationId,
               }),
             }}
           />
@@ -205,20 +214,25 @@ export const getOrganizationSettingsPages = ({
     show: showAuditLogs,
   },
   {
+    title: "Usage",
+    slug: "usage",
+    section: "Organization",
+    cmdKKeywords: ["usage", "units", "traces", "observations", "scores"],
+    content: (
+      <div>
+        <Header title="Usage" />
+        <OrganizationUsageBreakdown orgId={organization.id} />
+      </div>
+    ),
+    show: showUsageSettings,
+  },
+  {
     title: "Billing",
     slug: "billing",
     section: "Organization",
     cmdKKeywords: ["payment", "subscription", "plan", "invoice"],
     content: <BillingSettings />,
     show: showBillingSettings,
-  },
-  {
-    title: "Analytics",
-    slug: "analytics",
-    show: showAnalytics,
-    section: "Organization",
-    cmdKKeywords: ["ingestion", "observations", "scores", "usage"],
-    content: <OrganizationAnalyticsPage organizationId={organization.id} />,
   },
   {
     title: "SSO",

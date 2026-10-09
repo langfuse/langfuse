@@ -123,7 +123,7 @@ export function DeleteButton({
         {({ openDialog }) =>
           icon ? (
             <IconOnlyButton
-              icon={<TrashIcon className="h-4 w-4" />}
+              icon={<TrashIcon className="icon-base" />}
               label={title ?? "Delete"}
               aria-label={ariaLabel ?? "delete"}
               disabledReason={
@@ -158,9 +158,9 @@ export function DeleteButton({
               }}
             >
               {hasAccess ? (
-                <TrashIcon className="mr-2 h-4 w-4" />
+                <TrashIcon className="icon-base text-icon-foreground mr-2" />
               ) : (
-                <LockIcon className="mr-2 h-4 w-4" />
+                <LockIcon className="icon-base text-icon-foreground mr-2" />
               )}
               Delete
             </Button>
@@ -185,7 +185,7 @@ export function DeleteButton({
         <PopoverAnchor asChild>
           <span className="inline-flex">
             <IconOnlyButton
-              icon={<TrashIcon className="h-4 w-4" />}
+              icon={<TrashIcon className="icon-base" />}
               label={title ?? "Delete"}
               aria-label={ariaLabel ?? "delete"}
               disabledReason={
@@ -224,9 +224,9 @@ export function DeleteButton({
             }}
           >
             {hasAccess ? (
-              <TrashIcon className="mr-2 h-4 w-4" />
+              <TrashIcon className="icon-base text-icon-foreground mr-2" />
             ) : (
-              <LockIcon className="mr-2 h-4 w-4" />
+              <LockIcon className="icon-base text-icon-foreground mr-2" />
             )}
             Delete
           </Button>
@@ -251,6 +251,7 @@ export function DeleteMonitorButton(props: DeleteButtonProps) {
   const monitorMutation = api.monitors.delete.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "monitor.delete",
         title: "Alert deleted",
         description: "The alert has been deleted successfully",
       });
@@ -302,6 +303,7 @@ export function DeleteEvalConfigButton(props: DeleteButtonProps) {
   const evaluatorMutation = api.evals.deleteEvalJob.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "evaluator.delete",
         title: "Running evaluator deleted",
         description: "The running evaluator has been deleted successfully",
       });
@@ -358,6 +360,7 @@ export function DeleteEvaluationModelButton(
     api.defaultLlmModel.deleteDefaultModel.useMutation({
       onSuccess: () => {
         showSuccessToast({
+          operation: "evaluation_model.delete",
           title: "Default evaluation model deleted",
           description:
             "The default evaluation model has been deleted. Any running evaluations relying on the default model will be inactivated. Queued jobs will fail.",

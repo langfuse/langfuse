@@ -3771,7 +3771,8 @@ export const getLatestEvaluatorRunCost = async (
   return rows[0] ? Number(rows[0].trace_total_cost) : null;
 };
 
-export const getRecentEvaluatorExecutionTraces = async (
+/** Counts execution traces by outcome over the last seven days, excluding tests. */
+export const getEvaluatorExecutionSummaries = async (
   projectId: string,
   evaluatorIds: string[],
 ) => {
@@ -3781,81 +3782,34 @@ export const getRecentEvaluatorExecutionTraces = async (
     projectId,
     groupByColumn: "e.trace_id, e.evaluator_id",
     selectExpression: [
-      "e.trace_id as id",
       "e.evaluator_id as evaluator_id",
-      "multiIf(countIf(e.level = 'ERROR') > 0, 'ERROR', countIf(e.level = 'WARNING') > 0, 'WARNING', 'DEFAULT') as level",
-      "min(e.start_time) as timestamp",
+      "countIf(e.level = 'ERROR') > 0 as failed",
     ].join(", "),
   })
     .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
     .whereRaw("e.evaluator_id IN ({evaluatorIds: Array(String)})", {
       evaluatorIds,
     })
-    .havingRaw(`countIf(${evaluatorTestEventCondition}) = 0`)
-    .orderBy("ORDER BY timestamp DESC, id DESC")
-    .limitByCount(5, "evaluator_id");
+    .havingRaw(`countIf(${evaluatorTestEventCondition}) = 0`);
 
+  // Aggregate the per-trace outcomes, rather than counting individual observations.
   const { query, params } = builder.buildWithParams();
   const rows = await queryClickhouse<{
-    id: string;
     evaluator_id: string;
-    level: string;
-    timestamp: string;
+    total: string;
+    failed_count: string;
   }>({
-    query,
+    query: `SELECT evaluator_id, count() as total, countIf(failed) as failed_count
+      FROM (${query}) GROUP BY evaluator_id`,
     params,
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.map((row) => ({
-    id: row.id,
     evaluatorId: row.evaluator_id,
-    level: row.level,
-    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
-  }));
-};
-
-export const getRecentRuleExecutionTraces = async (
-  projectId: string,
-  ruleIds: string[],
-) => {
-  if (ruleIds.length === 0) return [];
-
-  const builder = new EventsAggQueryBuilder({
-    projectId,
-    groupByColumn: "e.trace_id, e.evaluation_rule_id",
-    selectExpression: [
-      "e.trace_id as id",
-      "e.evaluation_rule_id as evaluation_rule_id",
-      "multiIf(countIf(e.level = 'ERROR') > 0, 'ERROR', countIf(e.level = 'WARNING') > 0, 'WARNING', 'DEFAULT') as level",
-      "min(e.start_time) as timestamp",
-    ].join(", "),
-  })
-    .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
-    .whereRaw("e.evaluation_rule_id IN ({ruleIds: Array(String)})", { ruleIds })
-    .orderBy("ORDER BY timestamp DESC, id DESC")
-    .limitByCount(5, "evaluation_rule_id");
-
-  const { query, params } = builder.buildWithParams();
-  const rows = await queryClickhouse<
-    {
-      id: string;
-      level: string;
-      timestamp: string;
-    } & { evaluation_rule_id: string }
-  >({
-    query,
-    params,
-    tags: { projectId },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
-  return rows.map((row) => ({
-    id: row.id,
-    ruleId: row.evaluation_rule_id,
-    level: row.level,
-    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+    total: Number(row.total),
+    failed: Number(row.failed_count),
   }));
 };
 

@@ -23,6 +23,13 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const WithShortcut = meta.story({
+  args: {
+    label: "Navigate up",
+    shortcut: { keys: ["K"] },
+  },
+});
+
 export const DisabledTrigger = meta.story({
   args: {
     label: "This action is unavailable",
@@ -48,11 +55,24 @@ export const TestHoverAndFocus = meta.story({
     const trigger = canvas.getByRole("button", { name: "Hover or focus me" });
 
     await userEvent.hover(trigger);
-    await waitFor(() =>
-      expect(body.getByRole("tooltip")).toHaveTextContent("Additional context"),
-    );
+    await waitFor(() => {
+      const tooltip = body.getByRole("tooltip");
+      expect(tooltip).toHaveTextContent("Additional context");
+      expect(getComputedStyle(tooltip).pointerEvents).toBe("auto");
+    });
 
     await userEvent.unhover(trigger);
+    const viewport = canvasElement.ownerDocument.documentElement;
+    await userEvent.pointer([
+      { target: trigger },
+      {
+        target: canvasElement.ownerDocument.body,
+        coords: {
+          clientX: viewport.clientWidth - 1,
+          clientY: viewport.clientHeight - 1,
+        },
+      },
+    ]);
     await waitFor(() =>
       expect(body.queryByRole("tooltip")).not.toBeInTheDocument(),
     );
@@ -63,5 +83,38 @@ export const TestHoverAndFocus = meta.story({
       "aria-describedby",
       body.getByRole("tooltip").id,
     );
+  },
+});
+
+export const TestShortcutRendersKeycap = meta.story({
+  name: "(Test) Shortcut renders as keycap",
+  args: {
+    label: "Navigate up",
+    shortcut: { keys: ["K"] },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const trigger = canvas.getByRole("button", { name: "Hover or focus me" });
+
+    await userEvent.hover(trigger);
+    const tooltip = await waitFor(() => body.getByRole("tooltip"));
+    await expect(tooltip).toHaveTextContent("Navigate up");
+    const kbd = tooltip.querySelector("kbd");
+    await expect(kbd).toHaveTextContent("K");
+    await expect(kbd).toHaveClass("border");
+  },
+});
+
+export const TestPointerTransparentContent = meta.story({
+  name: "(Test) Pointer transparent content",
+  args: { hoverableContent: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const trigger = canvas.getByRole("button", { name: "Hover or focus me" });
+    await userEvent.hover(trigger);
+    const tooltip = await waitFor(() => body.getByRole("tooltip"));
+    await expect(getComputedStyle(tooltip).pointerEvents).toBe("none");
   },
 });

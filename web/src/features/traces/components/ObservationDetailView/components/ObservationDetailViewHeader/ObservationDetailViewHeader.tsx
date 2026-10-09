@@ -1,15 +1,19 @@
+import { HeaderActionButton } from "@/src/components/HeaderActionButton";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
+import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 /**
  * ObservationDetailViewHeader - Extracted header component for ObservationDetailView
  *
  * Contains:
- * - Title row with ItemBadge, observation name, options menu
+ * - Title row with EntityTitle, observation name, options menu
  * - Action buttons (Add to, Annotate, Comment)
  * - Metadata badges (timestamp, latency, environment, cost, usage, model, etc.)
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
-import { memo, useMemo, useRef } from "react";
+import { memo, useRef } from "react";
 import {
   type ObservationType,
   isGenerationLike,
@@ -17,7 +21,8 @@ import {
   type ScoreDomain,
 } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { ItemBadge } from "@/src/components/ItemBadge";
+import { EntityTitle } from "@/src/components/EntityTitle";
+import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailViewHeaderShell";
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -26,7 +31,6 @@ import {
   LatencyBadge,
   TimeToFirstTokenBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
-import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
 import {
   CostBadge,
@@ -44,7 +48,6 @@ import type Decimal from "decimal.js";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useReadPath } from "@/src/features/events";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
@@ -52,7 +55,6 @@ import {
   LockIcon,
   MessageSquare,
   MessageSquareOff,
-  MoreHorizontal,
   PlusIcon,
   SquarePen,
 } from "lucide-react";
@@ -60,7 +62,6 @@ import { DropdownIndicator } from "@/src/components/design-system/DropdownIndica
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import { cn } from "@/src/utils/tailwind";
 import { resolveEvaluatorIdMetadata } from "@/src/features/traces/fns/resolveEvaluatorIdMetadata";
 import { api } from "@/src/utils/api";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
@@ -101,6 +102,7 @@ export const ObservationDetailViewHeader = memo(
     subtreeMetrics,
     treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
+    const { trace, serverScores } = useTraceData();
     const { isAnnotationMode } = useViewPreferences();
     const isMobile = useIsMobile();
     const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
@@ -110,12 +112,15 @@ export const ObservationDetailViewHeader = memo(
         ? `${commentActionLabel} (${commentCount})`
         : commentActionLabel;
     const { isV4: isV4Enabled } = useReadPath();
-    const { trace, serverScores } = useTraceData();
-
-    // Get trace-level scores for V4 dual annotation
-    const traceScores = useMemo(
-      () => serverScores.filter((s) => !s.observationId),
-      [serverScores],
+    const companionTrace = isV4Enabled
+      ? {
+          environment: trace.environment,
+          scores: serverScores.filter((score) => !score.observationId),
+        }
+      : undefined;
+    const prompt = api.prompts.byId.useQuery(
+      { id: observation.promptId ?? "", projectId },
+      { enabled: Boolean(observation.promptId) },
     );
 
     // Format cost and usage values
@@ -173,27 +178,37 @@ export const ObservationDetailViewHeader = memo(
 
     const timestampBadge = preparedDate && (
       <Badge
+        font="mono"
         color="ghost"
         text={preparedDate.display}
         title={preparedDate.title}
       />
     );
 
+    const renderAddToButton = (triggerProps: Record<string, unknown> = {}) => (
+      <Button
+        variant="ghost"
+        size="sm"
+        className={headerActionClassName}
+        {...triggerProps}
+      >
+        <PlusIcon className="icon-base text-icon-foreground" />
+        <span>Add to</span>
+        <DropdownIndicator size="sm" nudge />
+      </Button>
+    );
+
     return (
-      <div className="@container shrink-0 space-y-2 border-b p-2">
+      <DetailViewHeaderShell>
         {/* Title row with actions */}
-        <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[minmax(0,1fr)_auto]">
-          <div className="flex w-full min-w-0 flex-row items-center gap-1">
-            <ItemBadge type={observation.type as ObservationType} isSmall />
-            <span
-              className={cn(
-                "mb-0 min-w-0 truncate text-lg leading-7 font-bold",
-                isMobile && "flex-1",
-              )}
+        <div className="grid w-full grid-cols-1 items-center gap-2 @md:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="flex w-full min-w-0 flex-row items-center gap-2">
+            <EntityTitle
+              as="span"
+              type={observation.type as ObservationType}
               title={observation.name || observation.id}
-            >
-              {observation.name || observation.id}
-            </span>
+              level={observation.level}
+            />
             {isMobile && (
               <ConnectedTraceObservationAddToDropdownMenuController
                 analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
@@ -259,28 +274,16 @@ export const ObservationDetailViewHeader = memo(
                                           preventScroll: true,
                                         });
                                         openDrawer({
-                                          scoreTarget: {
-                                            type: "trace",
+                                          ...prepareTraceAnnotation({
                                             traceId,
-                                            observationId: observation.id,
-                                          },
-                                          scores: observationScores,
-                                          companionTrace: isV4Enabled
-                                            ? {
-                                                environment: trace.environment,
-                                                scores: traceScores,
-                                              }
-                                            : undefined,
-                                          analyticsData: {
-                                            type: "trace",
-                                            source: "TraceDetail",
-                                            isV4: isV4Enabled,
-                                          },
-                                          scoreMetadata: {
                                             projectId,
                                             environment:
                                               observation.environment,
-                                          },
+                                            observationId: observation.id,
+                                            scores: observationScores,
+                                            isV4: isV4Enabled,
+                                          }),
+                                          companionTrace,
                                         });
                                       },
                                     },
@@ -334,7 +337,7 @@ export const ObservationDetailViewHeader = memo(
                                   ref: mobileActionsTriggerRef,
                                 })}
                               >
-                                <MoreHorizontal className="h-4 w-4" />
+                                <EllipsisVertical className="icon-base text-icon-foreground" />
                               </Button>
                             )}
                           </DropdownMenu>
@@ -348,8 +351,8 @@ export const ObservationDetailViewHeader = memo(
           </div>
           {/* Action buttons (desktop inline cluster) */}
           {!isMobile && (
-            <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-              {observationWithIO && (
+            <div className="flex flex-wrap content-start items-center justify-start gap-1 @md:justify-end">
+              {observationWithIO ? (
                 <ConnectedTraceObservationAddToDropdownMenuController
                   analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
                   projectId={projectId}
@@ -366,58 +369,40 @@ export const ObservationDetailViewHeader = memo(
                       : undefined
                   }
                 >
-                  {({ getTriggerProps }) => (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="gap-1"
-                      {...getTriggerProps()}
-                    >
-                      <PlusIcon className="h-3.5 w-3.5" />
-                      <span>Add to</span>
-                      <DropdownIndicator size="sm" nudge />
-                    </Button>
-                  )}
+                  {({ getTriggerProps }) =>
+                    renderAddToButton(getTriggerProps())
+                  }
                 </ConnectedTraceObservationAddToDropdownMenuController>
+              ) : (
+                renderAddToButton({ disabled: true })
               )}
               {/* Hide annotation buttons in annotation mode (panel shown separately) */}
               {!isAnnotationMode && (
                 <AnnotateDrawerController projectId={projectId}>
                   {({ disabled, openDrawer }) => (
                     <Button
-                      variant="secondary"
+                      variant="ghost"
                       size="sm"
+                      className={headerActionClassName}
                       disabled={disabled}
                       onClick={() =>
                         openDrawer({
-                          scoreTarget: {
-                            type: "trace",
+                          ...prepareTraceAnnotation({
                             traceId,
-                            observationId: observation.id,
-                          },
-                          scores: observationScores,
-                          companionTrace: isV4Enabled
-                            ? {
-                                environment: trace.environment,
-                                scores: traceScores,
-                              }
-                            : undefined,
-                          analyticsData: {
-                            type: "trace",
-                            source: "TraceDetail",
-                            isV4: isV4Enabled,
-                          },
-                          scoreMetadata: {
                             projectId,
                             environment: observation.environment,
-                          },
+                            observationId: observation.id,
+                            scores: observationScores,
+                            isV4: isV4Enabled,
+                          }),
+                          companionTrace,
                         })
                       }
                     >
                       {disabled ? (
-                        <LockIcon className="mr-1.5 h-3 w-3" />
+                        <LockIcon className="icon-base text-icon-foreground" />
                       ) : (
-                        <SquarePen className="mr-1.5 h-3.5 w-3.5" />
+                        <SquarePen className="icon-base text-icon-foreground" />
                       )}
                       <span>Annotate</span>
                     </Button>
@@ -426,17 +411,17 @@ export const ObservationDetailViewHeader = memo(
               )}
               <Button
                 type="button"
-                variant="secondary"
+                variant="ghost"
                 size="sm"
                 disabled={commentDrawerControl.disabled}
                 onClick={commentDrawerControl.openDrawer}
-                className="gap-1"
+                className={headerActionClassName}
               >
                 {commentDrawerControl.disabled ? (
-                  <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
+                  <MessageSquareOff className="icon-base text-muted-foreground" />
                 ) : (
                   <>
-                    <MessageSquare className="h-3.5 w-3.5" />
+                    <MessageSquare className="icon-base text-icon-foreground" />
                     <span>{commentActionLabel}</span>
                     {!!commentCount ? (
                       <ActionButtonCountBadge count={commentCount} />
@@ -468,16 +453,13 @@ export const ObservationDetailViewHeader = memo(
                 }}
               >
                 {({ getTriggerProps }) => (
-                  <Button
-                    aria-label="Options"
-                    className="shrink-0"
-                    size="icon-sm"
-                    title="Options"
-                    variant="secondary"
+                  <HeaderActionButton
+                    label="Options"
+                    icon={
+                      <EllipsisVertical className="icon-base text-icon-foreground" />
+                    }
                     {...getTriggerProps()}
-                  >
-                    <EllipsisVertical className="h-4 w-4" />
-                  </Button>
+                  />
                 )}
               </ConnectedDetailHeaderActionsMenuController>
             </div>
@@ -492,10 +474,14 @@ export const ObservationDetailViewHeader = memo(
         ) : (
           <CollapsibleBadgeRow>
             {timestampBadge}
-            <LatencyBadge latencySeconds={latencySeconds} />
-            <TimeToFirstTokenBadge
-              timeToFirstToken={observation.timeToFirstToken}
-            />
+            {latencySeconds != null && (
+              <LatencyBadge latencySeconds={latencySeconds} />
+            )}
+            {observation.timeToFirstToken != null && (
+              <TimeToFirstTokenBadge
+                timeToFirstToken={observation.timeToFirstToken}
+              />
+            )}
             {evaluatorId &&
               (observation.environment ===
                 LangfuseInternalTraceEnvironment.LLMJudge ||
@@ -543,18 +529,16 @@ export const ObservationDetailViewHeader = memo(
                 usageDetails={observation.usageDetails}
               />
             )}
-            {observation.level !== "DEFAULT" && (
-              <ObservationLevelBadge level={observation.level} />
-            )}
-            {observation.promptId && (
+            {observation.promptId && !prompt.isLoading && prompt.data && (
               <PromptBadge
-                promptId={observation.promptId}
+                promptName={prompt.data.name}
+                promptVersion={prompt.data.version}
                 projectId={projectId}
               />
             )}
           </CollapsibleBadgeRow>
         )}
-      </div>
+      </DetailViewHeaderShell>
     );
   },
 );

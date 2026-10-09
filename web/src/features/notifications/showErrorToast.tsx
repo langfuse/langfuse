@@ -1,14 +1,20 @@
 import { toast } from "sonner";
 import { ErrorNotification } from "@/src/features/notifications/ErrorNotification";
+import { type ToastErrorAnalytics } from "@/src/features/notifications/toastAnalytics";
 
 const toastErrorStyleProps = {
   border: "1px solid hsl(var(--destructive))",
   backgroundColor: "hsl(var(--destructive))",
 };
 
+// `--light-yellow` is a tint with baked-in alpha, meant to sit on top of a
+// solid surface. A toast floats over arbitrary page content, so the tint is
+// layered over an opaque background here rather than used as the background
+// itself — otherwise the page shows through the toast.
 const toastWarningStyleProps = {
-  border: "1px solid var(--light-yellow)",
-  backgroundColor: "var(--light-yellow)",
+  border: "1px solid var(--dark-yellow)",
+  backgroundColor: "hsl(var(--background))",
+  backgroundImage: "linear-gradient(var(--light-yellow), var(--light-yellow))",
 };
 
 export const showErrorToast = (
@@ -16,6 +22,9 @@ export const showErrorToast = (
   description: string,
   type: "WARNING" | "ERROR" = "ERROR",
   path?: string,
+  traceId?: string,
+  source: "application" | "trpc" = "application",
+  analytics?: ToastErrorAnalytics,
 ) => {
   toast.custom(
     (t) => (
@@ -23,7 +32,10 @@ export const showErrorToast = (
         error={error}
         description={description}
         type={type}
+        source={source}
         path={path}
+        traceId={traceId}
+        analytics={analytics}
         dismissToast={toast.dismiss}
         toast={t}
       />

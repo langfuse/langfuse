@@ -28,7 +28,8 @@ const modeOptions = [
   {
     value: "test-filters",
     title: "Reuse the configured filters",
-    description: "Creates a rule from the sample observation filters.",
+    description:
+      "Reuses a matching rule or creates a new rule from these filters.",
   },
   {
     value: "different-scope",

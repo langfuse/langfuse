@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { type z } from "zod";
 import {
   type FilterCondition,
@@ -354,6 +353,7 @@ async function getEventListPage(
       minTimestamp: minStartTime,
       excludeMetadata: true,
       includeHasMetadata: true,
+      preferredClickhouseService: "ReadOnly",
     }),
     traceIds.length > 0
       ? getScoresForTraces({
@@ -845,7 +845,10 @@ export async function getEventFilterOptions(
       }
       return "categorical";
     })(); // CATEGORICAL + TEXT
-    const levels = (scoreNameLevelsByType[typeClass][score.name] ??= []);
+    if (scoreNameLevelsByType[typeClass][score.name] === undefined) {
+      scoreNameLevelsByType[typeClass][score.name] = [];
+    }
+    const levels = scoreNameLevelsByType[typeClass][score.name];
     if (!levels.includes(level)) levels.push(level);
   };
   observationLevelScoreNames.forEach((score) =>

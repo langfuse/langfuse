@@ -10,7 +10,12 @@ import {
   useColumnVisibility,
 } from "@/src/features/column-visibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useCompactRows,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 import { ClipboardPen, Lock } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -37,10 +42,39 @@ type RowData = {
   isAssigned: boolean;
 };
 
+function AnnotationQueueScoreConfigs({
+  fallbackCompact,
+  scoreConfigs,
+}: {
+  fallbackCompact: boolean;
+  scoreConfigs: RowData["scoreConfigs"];
+}) {
+  const compact = useCompactRows(fallbackCompact);
+  return (
+    <span
+      className={cn(
+        "grid h-full items-center overflow-auto",
+        compact && "leading-3",
+      )}
+    >
+      {scoreConfigs
+        .map(
+          (config) => `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
+        )
+        .join(", ")}
+    </span>
+  );
+}
+
 export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "annotationQueues",
     "s",
+  );
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
   );
 
   const [paginationState, setPaginationState] = useQueryParams({
@@ -111,19 +145,10 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
           row.getValue("scoreConfigs");
 
         return (
-          <span
-            className={cn(
-              "grid h-full items-center overflow-auto",
-              rowHeight === "s" && "leading-3",
-            )}
-          >
-            {scoreConfigs
-              .map(
-                (config) =>
-                  `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
-              )
-              .join(", ")}
-          </span>
+          <AnnotationQueueScoreConfigs
+            fallbackCompact={compactRows}
+            scoreConfigs={scoreConfigs}
+          />
         );
       },
     },
@@ -143,7 +168,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         const key: RowData["key"] = row.getValue("key");
         return !hasAccess ? (
           <Button size="sm" disabled>
-            <Lock className="mr-1 h-3 w-3" />
+            <Lock className="icon-base mr-1" />
             <span className="text-xs">Process queue</span>
           </Button>
         ) : (
@@ -151,7 +176,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
             <Link
               href={`/project/${projectId}/annotation-queues/${key.id}/items`}
             >
-              <ClipboardPen className="mr-1 h-3 w-3" />
+              <ClipboardPen className="icon-base mr-1" />
               <span className="text-xs">Process queue</span>
             </Link>
           </Button>
@@ -220,6 +245,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
       />
       <DataTable
         tableName="annotationQueues"
@@ -251,6 +277,9 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
         getRowClassName={(row) =>
           row.isAssigned ? "bg-primary/5 border-l-4 border-l-primary/40" : ""
         }

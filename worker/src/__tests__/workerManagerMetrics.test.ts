@@ -38,26 +38,31 @@ vi.mock("@opentelemetry/api", () => ({
   },
 }));
 
-vi.mock("@langfuse/shared/src/server", () => ({
-  QueueName: {
-    TraceDelete: "trace-delete",
-  },
-  contextWithLangfuseProps: vi.fn(() => ({})),
-  convertQueueNameToMetricName: (queueName: string) =>
-    `langfuse.queue.${queueName.replace(/-/g, "_").replace(/_queue$/, "")}`,
-  createBullMQWorkerOptionsWithRedis: vi.fn(() => ({ connection: {} })),
-  logger: {
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-  },
-  recordGauge: mocks.legacyRecordGauge,
-  recordHistogram: mocks.legacyRecordHistogram,
-  recordDistribution: mocks.recordDistribution,
-  recordIncrement: mocks.recordIncrement,
-  traceException: vi.fn(),
-}));
+vi.mock("@langfuse/shared/src/server", async () => {
+  const { isS3SlowDownError } =
+    await import("../../../packages/shared/src/server/services/s3ThrottleError");
+  return {
+    QueueName: {
+      TraceDelete: "trace-delete",
+    },
+    contextWithLangfuseProps: vi.fn(() => ({})),
+    convertQueueNameToMetricName: (queueName: string) =>
+      `langfuse.queue.${queueName.replace(/-/g, "_").replace(/_queue$/, "")}`,
+    createBullMQWorkerOptionsWithRedis: vi.fn(() => ({ connection: {} })),
+    isS3SlowDownError,
+    logger: {
+      debug: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+    },
+    recordGauge: mocks.legacyRecordGauge,
+    recordHistogram: mocks.legacyRecordHistogram,
+    recordDistribution: mocks.recordDistribution,
+    recordIncrement: mocks.recordIncrement,
+    traceException: vi.fn(),
+  };
+});
 
 vi.mock("../queues/shardedQueueRegistry", () => ({
   resolveQueueInstance: vi.fn(() => ({
@@ -73,6 +78,7 @@ vi.mock("../utils/hostId", () => ({
   WORKER_HOST_ID: "test-host",
 }));
 
+import { logger } from "@langfuse/shared/src/server";
 import { WorkerManager } from "../queues/workerManager";
 
 describe("WorkerManager queue metrics", () => {
@@ -124,7 +130,11 @@ describe("WorkerManager queue metrics", () => {
     mocks.handlers.get("stalled")?.("job-id");
 
     expect(mocks.recordIncrement.mock.calls).toEqual([
-      ["langfuse.queue.trace_delete.rate", 1, { type: "failed" }],
+      [
+        "langfuse.queue.trace_delete.rate",
+        1,
+        { type: "failed", reason: "other" },
+      ],
       ["langfuse.queue.trace_delete.rate", 1, { type: "error" }],
       ["langfuse.queue.trace_delete.rate", 1, { type: "stalled" }],
     ]);
@@ -140,5 +150,83 @@ describe("WorkerManager queue metrics", () => {
     expect(mocks.recordIncrement.mock.calls).toEqual([
       ["langfuse.queue.trace_upsert.rate", 1, { type: "completed" }],
     ]);
+  });
+
+  it("counts failed_terminal only once BullMQ moved the job to the failed set", () => {
+    WorkerManager.register("project-delete" as never, async () => undefined);
+
+    // BullMQ sets finishedOn only when it stops retrying.
+    mocks.handlers.get("failed")?.(
+      { id: "job-id", name: "job", attemptsMade: 1, opts: { attempts: 5 } },
+      new Error("retrying"),
+    );
+    mocks.handlers.get("failed")?.(
+      {
+        id: "job-id",
+        name: "job",
+        attemptsMade: 5,
+        opts: { attempts: 5 },
+        finishedOn: Date.now(),
+      },
+      new Error("exhausted"),
+    );
+
+    expect(mocks.recordIncrement.mock.calls).toEqual([
+      [
+        "langfuse.queue.project_delete.rate",
+        1,
+        { type: "failed", reason: "other" },
+      ],
+      [
+        "langfuse.queue.project_delete.rate",
+        1,
+        { type: "failed", reason: "other" },
+      ],
+      [
+        "langfuse.queue.project_delete.rate",
+        1,
+        { type: "failed_terminal", reason: "other" },
+      ],
+    ]);
+  });
+
+  it("logs retryable S3 SlowDown as a warning until retries are exhausted", () => {
+    WorkerManager.register("score-delete" as never, async () => undefined);
+    const slowDown = new Error("Failed to download file from S3", {
+      cause: Object.assign(new Error("Please reduce your request rate."), {
+        name: "SlowDown",
+      }),
+    });
+    vi.mocked(logger.warn).mockClear();
+    vi.mocked(logger.error).mockClear();
+
+    mocks.handlers.get("failed")?.(
+      {
+        id: "job-id",
+        name: "job",
+        attemptsMade: 1,
+        opts: { attempts: 6 },
+      },
+      slowDown,
+    );
+
+    expect(logger.warn).toHaveBeenCalled();
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(mocks.recordIncrement).toHaveBeenCalledWith(
+      "langfuse.queue.score_delete.rate",
+      1,
+      { type: "failed", reason: "s3_slowdown" },
+    );
+
+    mocks.handlers.get("failed")?.(
+      {
+        id: "job-id",
+        name: "job",
+        attemptsMade: 6,
+        opts: { attempts: 6 },
+      },
+      slowDown,
+    );
+    expect(logger.error).toHaveBeenCalled();
   });
 });

@@ -6,7 +6,7 @@ import { decrypt } from "@langfuse/shared/encryption";
 import {
   buildEvalExecutionData,
   compileLangfuseMediaMessages,
-  createTypeSafeDecisionModelClient,
+  createDecisionModelClient,
   createW3CTraceId,
   decryptAndParseExtraHeaders,
   DefaultEvalModelService,
@@ -16,7 +16,9 @@ import {
   extractObservationVariables,
   findModel,
   generateLLMText,
-  isDecisionModelAdapter,
+  isAllowedDecisionModel,
+  LLMAdapter,
+  OPENAI_DECISION_MODEL_IDS,
   LangfuseInternalTraceEnvironment,
   mapLegacyLLMCompletionParams,
   matchPricingTier,
@@ -134,17 +136,26 @@ async function testDecisionModelEvaluator(params: {
   if (!modelConfig.valid) {
     return { success: false as const, error: modelConfig.error };
   }
-  if (!isDecisionModelAdapter(modelConfig.config.apiKey.adapter)) {
+  if (
+    !isAllowedDecisionModel(
+      modelConfig.config.apiKey.adapter,
+      modelConfig.config.model,
+    )
+  ) {
     return {
       success: false as const,
-      error: `Connection "${params.definition.provider}" is not a decision-model connection.`,
+      error:
+        modelConfig.config.apiKey.adapter === LLMAdapter.OpenAI
+          ? `Model "${modelConfig.config.model}" is not supported for decision models. Use ${OPENAI_DECISION_MODEL_IDS.join(", ")}.`
+          : `Connection "${params.definition.provider}" is not a decision-model connection.`,
     };
   }
 
   const executionTraceId = createW3CTraceId();
   let request: DecisionModelRequest | undefined;
   try {
-    const client = createTypeSafeDecisionModelClient({
+    const client = createDecisionModelClient({
+      adapter: modelConfig.config.apiKey.adapter,
       apiKey: decrypt(modelConfig.config.apiKey.secretKey),
       model: modelConfig.config.model,
       baseURL: modelConfig.config.apiKey.baseURL,

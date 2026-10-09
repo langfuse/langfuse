@@ -61,9 +61,10 @@ import {
   optionDomId,
 } from "@/src/features/search-bar/components/presentation";
 import {
-  COMPOSER_SURFACE_CLASSES,
-  COMPOSER_TEXT_CLASSES,
-} from "@/src/features/search-bar/components/composer-chrome";
+  ComposerSurface,
+  type ComposerSize,
+  ComposerText,
+} from "@/src/features/search-bar/components/ComposerSurface";
 
 const LISTBOX_ID = "search-bar-listbox";
 // Word joiners (shared with ComposerTokens) give the DOM caret boundaries
@@ -327,8 +328,11 @@ export function SearchComposer({
   fieldReason,
   freeTextReason,
   registry = EVENTS_FIELD_REGISTRY,
+  size = "default",
 }: {
   projectId?: string;
+  /** `large` on full-page lists; embedded toolbars keep the default. */
+  size?: ComposerSize;
   /** Observed facet values for value suggestions; undefined = loading. */
   observed: ObservedOptions | undefined;
   /** Columns whose lazy fetch terminally errored — settle the value-stage
@@ -1401,159 +1405,149 @@ export function SearchComposer({
       role="search"
       className="ph-no-capture relative w-full"
     >
-      <div
-        data-testid="search-bar-surface"
-        data-composer-text={draft}
-        onMouseLeave={() => setHoveredTokenId(null)}
-        className={cn(
-          // Prominent primary control. Block (not flex) so inline pills never
-          // break across a wrap. Balanced padding: a small, even gutter on all
-          // sides (the left no longer dwarfs the inter-pill gap and top), py
-          // centers a single line near min-h-9 and the box grows when wrapped.
-          // Right gutter keeps the last token clear of the top-right control:
-          // the "Ask AI" button (pr-20), or the error icon (pr-8).
-          // Box + text metrics are shared with the preview surface
-          // (composer-chrome.ts) so the overlay renders pixel-identical.
-          COMPOSER_SURFACE_CLASSES,
+      <ComposerSurface
+        size={size}
+        interactive
+        error={showGlobalDiagnostics}
+        trailing={
           onActivateAi !== undefined && !showGlobalDiagnostics
-            ? "pr-20"
-            : "pr-8",
-          "focus-within:ring-ring focus-within:ring-1",
-          showGlobalDiagnostics &&
-            "border-destructive focus-within:ring-destructive/40",
-        )}
+            ? "button"
+            : "icon"
+        }
       >
-        {draft.length === 0 && (
-          <div
-            className={cn(
-              // Bound the right edge (not just pr-*) so `truncate` has a width
-              // to clip against — otherwise the placeholder grows to its full
-              // text width and runs under the top-right "Ask AI" button. The
-              // reserved gap matches the surface's pr-20/pr-8.
-              "text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate font-mono text-xs",
-              // Mirror the surface's right reservation exactly: the "Ask AI"
-              // button (right-20) is hidden while diagnostics show, when the
-              // error icon takes over the top-right corner (right-8).
-              onActivateAi !== undefined && !showGlobalDiagnostics
-                ? "right-20"
-                : "right-8",
-            )}
-            title={placeholder}
-          >
-            {placeholder}
-          </div>
-        )}
         <div
-          ref={rootRef}
-          role="combobox"
-          aria-label="Search"
-          aria-expanded={plan !== null}
-          aria-controls={plan !== null ? LISTBOX_ID : undefined}
-          aria-autocomplete="list"
-          aria-activedescendant={
-            plan !== null && highlightedId !== null
-              ? optionDomId(LISTBOX_ID, highlightedId)
-              : undefined
-          }
-          aria-describedby={describedBy}
-          contentEditable
-          suppressContentEditableWarning
-          // The query is code-like grammar, not prose: suppress every mobile-
-          // keyboard mutation, not just the spellcheck squiggle. Without these,
-          // iOS/Android default autocorrect + sentence-capitalization can
-          // rewrite a partial token (`tps` → something) before commit.
-          spellCheck={false}
-          autoCorrect="off"
-          autoCapitalize="none"
-          inputMode="text"
-          data-testid="search-bar-input"
-          // leading-6 (not 7): WebKit/Safari sizes the text caret to the line
-          // box, so a 28px (leading-7) line made the caret tower ~4px above/
-          // below the ~24px pills ("too big"). 24px matches the pill height so
-          // the caret aligns with the pills. Trade-off: tighter gap between
-          // wrapped lines of pills (single-line is unaffected).
-          className={cn(
-            COMPOSER_TEXT_CLASSES,
-            "ph-no-capture caret-[hsl(var(--foreground))] outline-none",
-          )}
-          onInput={(event) => {
-            if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
-          }}
-          onCompositionEnd={syncFromDom}
-          // Disable drag-and-drop: an intra-bar drag fires deleteByDrag (which
-          // the delete branch applies) without a matching insert, silently
-          // dropping the dragged text. Drop is unsupported anyway; selection
-          // and copy/cut/paste stay fully functional.
-          onDragStart={(e) => e.preventDefault()}
-          onKeyDown={onKeyDown}
-          onCopy={onCopy}
-          onCut={onCut}
-          onPaste={onPaste}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          onClick={onRootClick}
-          onMouseOver={onRootMouseOver}
+          data-testid="search-bar-surface"
+          data-composer-text={draft}
+          onMouseLeave={() => setHoveredTokenId(null)}
         >
-          <ComposerTokens
-            key={tokensGeneration}
-            draft={draft}
-            showDiagnostics={showTokenDiagnostics}
-            scoreTypes={scoreTypes}
-            fieldReason={fieldReason}
-            freeTextReason={freeTextReason}
-            registry={registry}
-            highlightedSegmentId={
-              explanation !== null ? explainTargetId : errorTarget?.id
-            }
-          />
-        </div>
-        {/* "Ask AI" affordance — a plain button, always available so filters can
+          {draft.length === 0 && (
+            <div
+              className={cn(
+                // Bound the right edge (not just pr-*) so `truncate` has a width
+                // to clip against — otherwise the placeholder grows to its full
+                // text width and runs under the top-right "Ask AI" button. The
+                // reserved gap matches the surface's pr-20/pr-8.
+                "text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate font-mono text-xs",
+                // Mirror the surface's right reservation exactly: the "Ask AI"
+                // button (right-20) is hidden while diagnostics show, when the
+                // error icon takes over the top-right corner (right-8).
+                onActivateAi !== undefined && !showGlobalDiagnostics
+                  ? "right-20"
+                  : "right-8",
+              )}
+              title={placeholder}
+            >
+              {placeholder}
+            </div>
+          )}
+          <ComposerText>
+            <div
+              ref={rootRef}
+              role="combobox"
+              aria-label="Search"
+              aria-expanded={plan !== null}
+              aria-controls={plan !== null ? LISTBOX_ID : undefined}
+              aria-autocomplete="list"
+              aria-activedescendant={
+                plan !== null && highlightedId !== null
+                  ? optionDomId(LISTBOX_ID, highlightedId)
+                  : undefined
+              }
+              aria-describedby={describedBy}
+              contentEditable
+              suppressContentEditableWarning
+              // The query is code-like grammar, not prose: suppress every mobile-
+              // keyboard mutation, not just the spellcheck squiggle. Without these,
+              // iOS/Android default autocorrect + sentence-capitalization can
+              // rewrite a partial token (`tps` → something) before commit.
+              spellCheck={false}
+              autoCorrect="off"
+              autoCapitalize="none"
+              inputMode="text"
+              data-testid="search-bar-input"
+              className="ph-no-capture caret-[hsl(var(--foreground))] outline-none"
+              onInput={(event) => {
+                if (!(event.nativeEvent as InputEvent).isComposing)
+                  syncFromDom();
+              }}
+              onCompositionEnd={syncFromDom}
+              // Disable drag-and-drop: an intra-bar drag fires deleteByDrag (which
+              // the delete branch applies) without a matching insert, silently
+              // dropping the dragged text. Drop is unsupported anyway; selection
+              // and copy/cut/paste stay fully functional.
+              onDragStart={(e) => e.preventDefault()}
+              onKeyDown={onKeyDown}
+              onCopy={onCopy}
+              onCut={onCut}
+              onPaste={onPaste}
+              onFocus={onFocus}
+              onBlur={onBlur}
+              onClick={onRootClick}
+              onMouseOver={onRootMouseOver}
+            >
+              <ComposerTokens
+                key={tokensGeneration}
+                draft={draft}
+                showDiagnostics={showTokenDiagnostics}
+                scoreTypes={scoreTypes}
+                fieldReason={fieldReason}
+                freeTextReason={freeTextReason}
+                registry={registry}
+                highlightedSegmentId={
+                  explanation !== null ? explainTargetId : errorTarget?.id
+                }
+              />
+            </div>
+          </ComposerText>
+          {/* "Ask AI" affordance — a plain button, always available so filters can
             be built from scratch OR refined. Placed AFTER the field in the DOM so
             forward Tab moves from the field onto this button (not past the bar).
             Deliberately NOT a Tab shortcut: while typing, Tab belongs to
             autocomplete navigation. Hidden while the error icon occupies the
             corner. bg-background keeps it legible; onMouseDown preventDefault so a
             click doesn't blur the editor first. */}
-        {onActivateAi !== undefined && !showGlobalDiagnostics && (
-          <button
-            type="button"
-            data-testid="search-bar-ask-ai"
-            aria-label="Ask AI to build or refine filters"
-            title={
-              draft.trim().length === 0
-                ? "Describe filters in natural language"
-                : "Refine these filters with AI"
-            }
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={(event) => {
-              event.stopPropagation();
-              onActivateAi();
-            }}
-            className={cn(
-              "absolute top-1.5 right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
-              "bg-background text-muted-foreground font-sans text-xs",
-              "hover:border-border hover:text-foreground hover:bg-accent transition-colors",
-              // Match the app's focus ring (ring-ring) instead of the browser's
-              // default blue outline, like the shared Button used elsewhere.
-              "ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
-            )}
-          >
-            <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Ask AI</span>
-          </button>
-        )}
-        {/* Bar-local overlay stacking ladder: token text (base) < remove-X
+          {onActivateAi !== undefined && !showGlobalDiagnostics && (
+            <button
+              type="button"
+              data-testid="search-bar-ask-ai"
+              aria-label="Ask AI to build or refine filters"
+              title={
+                draft.trim().length === 0
+                  ? "Describe filters in natural language"
+                  : "Refine these filters with AI"
+              }
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={(event) => {
+                event.stopPropagation();
+                onActivateAi();
+              }}
+              className={cn(
+                "absolute right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
+                size === "large" ? "top-1.25" : "top-0.75",
+                "bg-background text-muted-foreground font-sans text-xs",
+                "hover:text-foreground transition-colors",
+                // Match the app's focus ring (ring-ring) instead of the browser's
+                // default blue outline, like the shared Button used elsewhere.
+                "ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+              )}
+            >
+              <WandSparkles className="icon-base" aria-hidden="true" />
+              <span>Ask AI</span>
+            </button>
+          )}
+          {/* Bar-local overlay stacking ladder: token text (base) < remove-X
             (z-20). The autocomplete and token tooltip both render through app
             overlay layers so they escape clipped table, panel, and dialog
             ancestors. */}
-        {removeTarget !== null && removePosition !== null && (
-          <RemoveTokenButton
-            segment={removeTarget}
-            position={removePosition}
-            onRemove={removeSegment}
-          />
-        )}
-      </div>
+          {removeTarget !== null && removePosition !== null && (
+            <RemoveTokenButton
+              segment={removeTarget}
+              position={removePosition}
+              onRemove={removeSegment}
+            />
+          )}
+        </div>
+      </ComposerSurface>
 
       {showGlobalDiagnostics && (
         <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-1">
@@ -1562,7 +1556,7 @@ export function SearchComposer({
             title={visibleDiagnostics.map((d) => d.message).join("; ")}
             aria-label="invalid query"
           >
-            <AlertCircle className="h-4 w-4" />
+            <AlertCircle className="icon-base" />
           </span>
         </div>
       )}
@@ -1681,7 +1675,7 @@ function RemoveTokenButton({
         onRemove(segment);
       }}
     >
-      <X className="h-3 w-3" aria-hidden="true" />
+      <X className="icon-sm" aria-hidden="true" />
     </button>
   );
 }

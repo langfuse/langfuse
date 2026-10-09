@@ -17,7 +17,7 @@ export function NoMatchDisplay({ modelName }: NoMatchDisplayProps) {
     <Card className="border-destructive/50 bg-destructive/5">
       <CardHeader>
         <CardTitle className="text-destructive flex items-center gap-2 text-base">
-          <AlertCircle className="h-5 w-5" />
+          <AlertCircle className="icon-lg" />
           No Match Found
         </CardTitle>
       </CardHeader>

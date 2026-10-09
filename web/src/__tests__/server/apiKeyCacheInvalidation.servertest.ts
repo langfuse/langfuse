@@ -3,6 +3,7 @@ import { type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createApiKeyCacheKey,
+  AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   createAuthzContextCacheKey,
   createShaHash,
 } from "@langfuse/shared/src/server";
@@ -80,8 +81,11 @@ function cacheKeysFor({
 }) {
   return [
     createApiKeyCacheKey(fastHash),
-    createAuthzContextCacheKey(fastHash),
-    createAuthzContextCacheKey(createShaHash(publicKey, env.SALT!)),
+    `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${fastHash}`,
+    `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${createShaHash(publicKey, env.SALT!)}`,
+    createAuthzContextCacheKey("basic", fastHash),
+    createAuthzContextCacheKey("bearer", fastHash),
+    createAuthzContextCacheKey("bearer", createShaHash(publicKey, env.SALT!)),
   ];
 }
 
@@ -268,10 +272,20 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     ).resolves.toMatchObject({ deletedAt: null });
   });
 
-  it("admin handleDeleteProject evicts the org's cached keys", async () => {
+  it("admin project soft deletion preserves user permissions and evicts cached keys", async () => {
     const orgId = await createOrg();
     const projectId = await createProject(orgId);
     const keys = await seedOrgScopedKey(orgId);
+
+    const user = await createUserInOrgs([orgId]);
+    const assignment = await prisma.roleAssignment.create({
+      data: {
+        orgId,
+        principalUserId: user.id,
+        ownerProjectId: projectId,
+        systemRole: "VIEWER",
+      },
+    });
 
     const res = makeRes();
     await handleDeleteProject({} as any, res, projectId, {
@@ -281,6 +295,12 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
 
     expect(res.statusCode).toBe(202);
     expect(await survivingKeys(keys)).toEqual([]);
+    await expect(
+      prisma.roleAssignment.findUnique({ where: { id: assignment.id } }),
+    ).resolves.toEqual(assignment);
+    await expect(
+      prisma.project.findUnique({ where: { id: projectId } }),
+    ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
   });
 
   it("admin handleDeleteOrganization evicts cached keys before the cascade removes the rows", async () => {

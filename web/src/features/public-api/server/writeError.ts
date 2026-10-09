@@ -1,6 +1,6 @@
 import { type NextApiResponse } from "next";
 
-import { type BaseError } from "@langfuse/shared";
+import { type BaseError, ServiceUnavailableError } from "@langfuse/shared";
 
 /** ErrorOrgApiKeyRequired is the 403 message when a non-organization key hits an organization-scoped operation. */
 export const ErrorOrgApiKeyRequired =
@@ -30,4 +30,17 @@ export function writeProjectError(
   return res.status(error.httpCode).json({
     message: error.httpCode === 403 ? ErrorOrgApiKeyRequired : error.message,
   });
+}
+
+/** setRetryAfterHeader forwards a ServiceUnavailableError's retry hint as `Retry-After`. */
+export function setRetryAfterHeader(
+  res: NextApiResponse,
+  error: unknown,
+): void {
+  if (
+    error instanceof ServiceUnavailableError &&
+    error.retryAfterSeconds !== undefined
+  ) {
+    res.setHeader("Retry-After", String(error.retryAfterSeconds));
+  }
 }

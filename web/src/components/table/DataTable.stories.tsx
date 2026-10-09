@@ -15,7 +15,11 @@ import {
   type AsyncTableData,
 } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
+import {
+  resolveRowHeightRendering,
+  useRowHeightRendering,
+  type RowHeight,
+} from "@/src/components/table/data-table-row-height-switch";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
@@ -231,13 +235,40 @@ function loadedTraceData(count = 20): AsyncTableData<TraceRow[]> {
 // -----------------------------------------------------------------------------
 // Mirrors the visible-by-default Traces columns. The action/selection
 // cells use the standalone visual components (see FIDELITY GOAL note). The IO
-// cells use the same IOTableCell variants + the
-// `singleLine = rowHeight === "s"` rule the real table applies.
+// cells use the same IOTableCell variants. Single-line text versus the JSON
+// preview comes from the row's resolved height: below Medium it is one line,
+// at Medium and above it is the preview. A drag uses that same height.
+
+function StoryTraceInputCell({
+  data,
+  loading = false,
+}: {
+  data?: TraceRow["input"];
+  loading?: boolean;
+}) {
+  const live = useRowHeightRendering();
+  const singleLine = live?.compact ?? false;
+  return loading ? (
+    <IOTableCell
+      isLoading
+      singleLine={singleLine}
+      renderMediaReference={renderMediaReference}
+    />
+  ) : (
+    <IOTableCell
+      data={data}
+      singleLine={singleLine}
+      enableExpandOnHover={singleLine}
+      renderMediaReference={renderMediaReference}
+    />
+  );
+}
 
 function buildTraceColumns(
   rowHeight: RowHeight,
 ): LangfuseColumnDef<TraceRow>[] {
-  const singleLine = rowHeight === "s";
+  const rendering = resolveRowHeightRendering({ preset: rowHeight });
+  const singleLine = rendering.compact;
   return [
     {
       // Row-selection checkbox column (each real table authors its own; the
@@ -286,28 +317,15 @@ function buildTraceColumns(
       id: "input",
       size: 400,
       cellBackground: "gray",
-      loadingCell: () => (
-        <IOTableCell
-          isLoading
-          singleLine={singleLine}
-          renderMediaReference={renderMediaReference}
-        />
-      ),
-      cell: ({ row }) => (
-        <IOTableCell
-          data={row.original.input}
-          singleLine={singleLine}
-          enableExpandOnHover={singleLine}
-          renderMediaReference={renderMediaReference}
-        />
-      ),
+      loadingCell: () => <StoryTraceInputCell loading />,
+      cell: ({ row }) => <StoryTraceInputCell data={row.original.input} />,
     },
     createIOTableColumn<TraceRow>({
       accessorKey: "output",
       header: "Output",
       size: 400,
       singleLine,
-      enableExpandOnHover: singleLine,
+      enableExpandOnHover: true,
       variant: "output",
     }),
     {
@@ -378,7 +396,7 @@ function buildTraceColumns(
               ) : (
                 <span>-</span>
               )}
-              <InfoIcon className="h-3 w-3" />
+              <InfoIcon className="icon-sm" />
             </div>
           </BreakdownTooltip>
         ) : null;
@@ -411,14 +429,14 @@ function buildTraceColumns(
         description: "Group traces with tags.",
         href: "https://langfuse.com/docs/observability/features/tags",
       },
-      shouldWrap: rowHeight !== "s",
+      shouldWrap: !singleLine,
     }),
     createIOTableColumn<TraceRow>({
       accessorKey: "metadata",
       header: "Metadata",
       size: 400,
       singleLine,
-      enableExpandOnHover: singleLine,
+      enableExpandOnHover: true,
     }),
     createIdTableColumn<TraceRow>({
       accessorKey: "userId",
@@ -443,7 +461,7 @@ function buildTraceColumns(
       isFixedPosition: true,
       renderMenu: () => (
         <DropdownMenuItem className="text-destructive">
-          <Trash className="mr-2 h-4 w-4" />
+          <Trash className="icon-base mr-2" />
           Delete trace
         </DropdownMenuItem>
       ),
@@ -503,6 +521,10 @@ const plainColumns: LangfuseColumnDef<TraceRow>[] = [
 // opaque background, so the selected-row tint stops at the pin seam.
 const pinnedColumns: LangfuseColumnDef<TraceRow>[] = plainColumns.map((col) =>
   col.id === "id" ? { ...col, isPinnedLeft: true } : col,
+);
+
+const rightPinnedColumns: LangfuseColumnDef<TraceRow>[] = plainColumns.map(
+  (col) => (col.id === "latency" ? { ...col, isPinnedRight: true } : col),
 );
 
 // -----------------------------------------------------------------------------
@@ -693,6 +715,13 @@ export const WithPinnedColumn = meta.story({
   args: {
     tableName: "story-pinned-column",
     columns: pinnedColumns,
+  },
+});
+
+export const WithRightPinnedColumn = meta.story({
+  args: {
+    tableName: "story-right-pinned-column",
+    columns: rightPinnedColumns,
   },
 });
 
@@ -1278,17 +1307,17 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
               size="icon-xs"
               aria-label="Duplicate folder"
             >
-              <Copy className="h-4 w-4" />
+              <Copy className="icon-sm text-icon-foreground" />
             </Button>
             <Button variant="ghost" size="icon-xs" aria-label="Delete folder">
-              <Trash className="h-4 w-4" />
+              <Trash className="icon-sm text-icon-foreground" />
             </Button>
           </div>
         );
       }
       return (
         <Button variant="ghost" size="icon-xs" aria-label="Delete prompt">
-          <Trash className="h-4 w-4" />
+          <Trash className="icon-sm text-icon-foreground" />
         </Button>
       );
     },
@@ -1391,7 +1420,7 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
               className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1 text-left"
             >
               <IdTableCell value={name} />
-              <PlusCircle className="h-3.5 w-3.5 shrink-0" />
+              <PlusCircle className="icon-base shrink-0" />
             </button>
           );
         case "link":
@@ -1498,6 +1527,6 @@ export const TestManualIOCellBackground = meta.story({
     if (!row) throw new globalThis.Error("Row not found");
 
     await expect(row.cells[inputIndex]).toHaveClass("bg-muted/50");
-    await expect(row.cells[outputIndex]).toHaveClass("bg-accent-light-green");
+    await expect(row.cells[outputIndex]).toHaveClass("bg-surface-output");
   },
 });

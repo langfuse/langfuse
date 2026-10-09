@@ -86,7 +86,7 @@ export function GatewayProvidersTable({
                   if (targetId) onMove(row.original.id, targetId);
                 }}
               >
-                <ArrowUp className="size-3" />
+                <ArrowUp className="icon-sm text-icon-foreground" />
               </Button>
               <Button
                 size="icon-xs"
@@ -102,7 +102,7 @@ export function GatewayProvidersTable({
                   if (targetId) onMove(row.original.id, targetId);
                 }}
               >
-                <ArrowDown className="size-3" />
+                <ArrowDown className="icon-sm text-icon-foreground" />
               </Button>
             </div>
           </div>
@@ -213,11 +213,11 @@ function ModelCount({
 function ProviderName({ provider }: { provider: GatewayProvider }) {
   const icon =
     provider === "OPENAI" ? (
-      <SiOpenai className="size-4" aria-hidden="true" />
+      <SiOpenai className="icon-base" aria-hidden="true" />
     ) : provider === "ANTHROPIC" ? (
-      <SiAnthropic className="size-4" aria-hidden="true" />
+      <SiAnthropic className="icon-base" aria-hidden="true" />
     ) : (
-      <Route className="size-4" aria-hidden="true" />
+      <Route className="icon-base" aria-hidden="true" />
     );
 
   return (

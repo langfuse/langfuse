@@ -22,10 +22,12 @@ import { evaluatorRouter } from "@/src/features/evals/v2/server/evaluators/evalu
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
 import { mixpanelIntegrationRouter } from "@/src/features/mixpanel-integration/mixpanel-integration-router";
 import { blobStorageIntegrationRouter } from "@/src/features/blobstorage-integration/blobstorage-integration-router";
+import { externalMediaStorageRouter } from "@/src/features/external-media-storage/server";
 import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
 import { llmSchemaRouter } from "@/src/features/llm-schemas/server/router";
 import { llmToolRouter } from "@/src/features/llm-tools/server/router";
 import { organizationsRouter } from "@/src/features/organizations/server/organizationRouter";
+import { organizationUsageRouter } from "@/src/features/organization-usage/server/organizationUsageRouter";
 import { organizationApiKeysRouter } from "@/src/features/public-api/server/organizationApiKeyRouter";
 import { verifiedDomainRouter } from "@/src/ee/features/verified-domains/server/verifiedDomainRouter";
 import { ssoConfigRouter } from "@/src/ee/features/multi-tenant-sso/server/ssoConfigRouter";
@@ -62,8 +64,8 @@ import { webCalloutsRouter } from "@/src/features/web-callouts/server/router";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
 import { aiGatewayRouter } from "@/src/features/ai-gateway/server";
+import { topicsRouter } from "@/src/features/topics/server/topicsRouter";
 import { skillRouter } from "@/src/features/skills/server/skill-router";
-import { organizationIngestionRouter } from "@/src/features/organization-ingestion/server/organizationIngestionRouter";
 
 /**
  * This is the primary router for your server.
@@ -71,6 +73,7 @@ import { organizationIngestionRouter } from "@/src/features/organization-ingesti
  * All routers added in /api/routers should be manually added here.
  */
 export const appRouter = createTRPCRouter({
+  topics: topicsRouter,
   annotationQueues: queueRouter,
   annotationQueueItems: queueItemRouter,
   annotationQueueAssignments: queueAssignmentRouter,
@@ -84,8 +87,8 @@ export const appRouter = createTRPCRouter({
   scoreConfigs: scoreConfigsRouter,
   dashboard: dashboardRouter,
   organizations: organizationsRouter,
+  organizationUsage: organizationUsageRouter,
   organizationApiKeys: organizationApiKeysRouter,
-  organizationIngestion: organizationIngestionRouter,
   verifiedDomain: verifiedDomainRouter,
   ssoConfig: ssoConfigRouter,
   projects: projectsRouter,
@@ -106,6 +109,7 @@ export const appRouter = createTRPCRouter({
   posthogIntegration: posthogIntegrationRouter,
   mixpanelIntegration: mixpanelIntegrationRouter,
   blobStorageIntegration: blobStorageIntegrationRouter,
+  externalMediaStorage: externalMediaStorageRouter,
   llmApiKey: llmApiKeyRouter,
   llmSchemas: llmSchemaRouter,
   llmTools: llmToolRouter,

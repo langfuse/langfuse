@@ -428,7 +428,7 @@ describe("ClickhouseWriter", () => {
     expect(serverExports.recordIncrement).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.rows_dropped",
       1,
-      { entity_type: TableName.EventsFull, format: "native" },
+      { entity_type: TableName.EventsFull, format: "native", reason: "other" },
     );
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining("Max attempts reached"),
@@ -508,7 +508,7 @@ describe("ClickhouseWriter", () => {
     expect(serverExports.recordIncrement).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.rows_dropped",
       1,
-      { entity_type: TableName.Traces, format: "json" },
+      { entity_type: TableName.Traces, format: "json", reason: "other" },
     );
   });
 

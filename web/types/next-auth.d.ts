@@ -80,6 +80,9 @@ declare module "next-auth" {
       // Optional so existing session mocks need not set it; the real session
       // callback always populates it.
       v4WriteMode?: "legacy" | "dual" | "events_only";
+      // Role selection requires API_AUTH_MIGRATION=enforce and the scope's rollout flag.
+      apiKeyProjectRoleSelectionEnabled?: boolean;
+      apiKeyOrgRoleSelectionEnabled?: boolean;
     };
   }
 

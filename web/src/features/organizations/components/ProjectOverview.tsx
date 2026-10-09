@@ -5,7 +5,6 @@ import {
   Settings,
   Users,
   PlusIcon,
-  ChartNoAxesCombined,
 } from "lucide-react";
 import {
   Card,
@@ -46,7 +45,6 @@ import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeU
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { ErrorPage } from "@/src/components/error-page";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 
 const OrganizationProjectTiles = ({
   org,
@@ -150,7 +148,7 @@ const OrganizationProjectTiles = ({
                   </Button>
                   <Button asChild variant="ghost">
                     <Link href={`/project/${project.id}/settings`}>
-                      <Settings size={16} />
+                      <Settings className="icon-base text-icon-foreground" />
                     </Link>
                   </Button>
                 </CardFooter>
@@ -203,7 +201,6 @@ const OrganizationActionButtons = ({
   orgId: string;
   primaryButtonVariant?: "default" | "secondary";
 }) => {
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const membersViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "organizationMembers:read",
@@ -214,45 +211,33 @@ const OrganizationActionButtons = ({
   });
 
   return (
-    <div className="flex items-center gap-4">
-      <div className="flex items-center gap-0">
-        {internalFeaturesEnabled && (
-          <Button asChild variant="ghost" size="icon">
-            <Link
-              href={`/organization/${orgId}/settings/analytics`}
-              aria-label="Organization analytics"
-            >
-              <ChartNoAxesCombined size={14} />
-            </Link>
-          </Button>
-        )}
-        <Button asChild variant="ghost" size="icon">
-          <Link href={`/organization/${orgId}/settings`}>
-            <Settings size={14} />
+    <>
+      <Button asChild variant="ghost">
+        <Link href={`/organization/${orgId}/settings`}>
+          <Settings className="icon-base text-icon-foreground" />
+        </Link>
+      </Button>
+      {membersViewAccess && (
+        <Button asChild variant="ghost">
+          <Link href={`/organization/${orgId}/settings/members`}>
+            <Users className="icon-base text-icon-foreground" />
           </Link>
         </Button>
-        {membersViewAccess && (
-          <Button asChild variant="ghost" size="icon">
-            <Link href={`/organization/${orgId}/settings/members`}>
-              <Users size={14} />
-            </Link>
-          </Button>
-        )}
-      </div>
+      )}
       {createProjectAccess ? (
         <Button asChild variant={primaryButtonVariant}>
           <Link href={createProjectRoute(orgId)}>
-            <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+            <PlusIcon className="icon-base mr-2" aria-hidden="true" />
             New project
           </Link>
         </Button>
       ) : (
         <Button disabled variant={primaryButtonVariant}>
-          <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+          <LockIcon className="icon-base mr-2" aria-hidden="true" />
           New project
         </Button>
       )}
-    </div>
+    </>
   );
 };
 
@@ -396,7 +381,10 @@ export const OrganizationProjectOverview = () => {
             {canCreateOrg && (
               <Button data-testid="create-organization-btn" asChild>
                 <Link href={createOrganizationRoute}>
-                  <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                  <PlusIcon
+                    className="icon-base text-icon-foreground mr-1.5"
+                    aria-hidden="true"
+                  />
                   New Organization
                 </Link>
               </Button>
@@ -466,20 +454,20 @@ const Onboarding = () => {
         {canCreateOrgs && (
           <Button data-testid="create-project-btn" asChild>
             <Link href={createOrganizationRoute}>
-              <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+              <PlusIcon className="icon-base mr-2" aria-hidden="true" />
               New Organization
             </Link>
           </Button>
         )}
         <Button variant="secondary" asChild>
           <Link href="https://langfuse.com/docs" target="_blank">
-            <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
+            <BookOpen className="icon-base mr-2" aria-hidden="true" />
             Docs
           </Link>
         </Button>
         <Button variant="secondary" asChild>
           <Link href="https://langfuse.com/docs/ask-ai" target="_blank">
-            <MessageSquareText className="mr-2 h-4 w-4" aria-hidden="true" />
+            <MessageSquareText className="icon-base mr-2" aria-hidden="true" />
             Ask AI
           </Link>
         </Button>

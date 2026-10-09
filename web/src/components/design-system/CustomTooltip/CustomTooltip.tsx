@@ -18,12 +18,13 @@ import {
 import * as React from "react";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { cn } from "@/src/utils/tailwind";
 
 type CustomTooltipProps = {
   children: (controls: {
-    getTriggerProps: () => ReturnType<
-      ReturnType<typeof useInteractions>["getReferenceProps"]
-    >;
+    getTriggerProps: (props?: {
+      ref?: React.Ref<HTMLElement>;
+    }) => ReturnType<ReturnType<typeof useInteractions>["getReferenceProps"]>;
   }) => React.ReactNode;
   content: React.ReactElement;
   delay?: number;
@@ -31,10 +32,22 @@ type CustomTooltipProps = {
   placement?: Placement;
 };
 
+function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
+  return (value: T | null) => {
+    refs.forEach((ref) => {
+      if (typeof ref === "function") {
+        ref(value);
+      } else if (ref) {
+        ref.current = value;
+      }
+    });
+  };
+}
+
 function CustomTooltip({
   children,
   content,
-  delay = 700,
+  delay = 150,
   hoverableContent = true,
   placement = "top",
 }: CustomTooltipProps) {
@@ -66,16 +79,20 @@ function CustomTooltip({
   return (
     <>
       {children({
-        getTriggerProps: () =>
-          getReferenceProps({
-            ref: refs.setReference,
-          }),
+        getTriggerProps: (props = {}) => {
+          return getReferenceProps({
+            ref: mergeRefs(props.ref, refs.setReference),
+          });
+        },
       })}
       {isOpen ? (
         <FloatingPortal root={layerContainer}>
           <div
             ref={refs.setFloating}
-            className="bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 max-w-xs overflow-hidden rounded-md border px-3 py-1.5 text-sm shadow-md"
+            className={cn(
+              "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 max-w-xs overflow-hidden rounded-md border px-3 py-1.5 text-sm shadow-md",
+              !hoverableContent && "pointer-events-none",
+            )}
             style={floatingStyles}
             {...getFloatingProps()}
           >

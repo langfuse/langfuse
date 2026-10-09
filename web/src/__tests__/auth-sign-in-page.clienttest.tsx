@@ -369,3 +369,156 @@ describe("sign-in page SSO check transport errors", () => {
     expect(addBreadcrumbMock).not.toHaveBeenCalled();
   });
 });
+
+describe("sign-in page last used SSO email", () => {
+  const STORAGE_KEY = "langfuse_last_used_sso_email";
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  const storedSsoEmail = () => {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw === null ? null : (JSON.parse(raw) as string);
+  };
+
+  const ssoCheckReturns = (providerId: string) =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ providerId }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+  const ssoCheckFailsWith = (status: number) =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ message: "nope" }), {
+          status,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+  const continueWithEmail = (email: string) => {
+    fireEvent.change(screen.getByLabelText("Email"), {
+      target: { value: email },
+    });
+    fireEvent.click(screen.getByTestId("submit-email-password-sign-in-form"));
+  };
+
+  const renderTwoStepSignIn = () =>
+    renderSignIn({ authProviders: { ...authProviders, sso: true } });
+
+  beforeEach(() => {
+    captureExceptionMock.mockClear();
+    addBreadcrumbMock.mockClear();
+    signInMock.mockReset();
+    routerState.query = {};
+    window.localStorage.clear();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it("pre-fills the email input with the remembered SSO address", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify("jane@acme.com"));
+
+    renderTwoStepSignIn();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Email")).toHaveValue("jane@acme.com");
+    });
+    // Nothing else is revealed: the password step still waits on check-sso.
+    expect(screen.queryByLabelText(/Password/)).not.toBeInTheDocument();
+  });
+
+  it("lets an email query param win over the remembered address", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify("jane@acme.com"));
+    routerState.query = { email: "invited@acme.com" };
+
+    renderTwoStepSignIn();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Email")).toHaveValue("invited@acme.com");
+    });
+  });
+
+  it("remembers the address when check-sso redirects to an SSO provider", async () => {
+    ssoCheckReturns("acme.com.okta");
+
+    renderTwoStepSignIn();
+    continueWithEmail("jane@acme.com");
+
+    await waitFor(() => {
+      expect(signInMock).toHaveBeenCalledWith("acme.com.okta", undefined);
+    });
+    expect(storedSsoEmail()).toBe("jane@acme.com");
+  });
+
+  it("forgets a remembered address once an email falls back to a password", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify("jane@acme.com"));
+    ssoCheckFailsWith(404);
+
+    renderTwoStepSignIn();
+    continueWithEmail("someone-else@example.com");
+
+    // The password step appearing is what marks the email as not SSO-backed.
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
+    });
+    expect(storedSsoEmail()).toBe("");
+    expect(signInMock).not.toHaveBeenCalled();
+  });
+
+  // 404 is the only status that means "this domain has no SSO provider". A
+  // server or proxy failure says nothing about the domain, so it must not cost
+  // the user an address that was correctly remembered.
+  it("keeps the remembered address when check-sso fails with a server error", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify("jane@acme.com"));
+    ssoCheckFailsWith(500);
+
+    renderTwoStepSignIn();
+    continueWithEmail("jane@acme.com");
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
+    });
+    expect(storedSsoEmail()).toBe("jane@acme.com");
+  });
+
+  // An instance that removes its last SSO config renders the one-step password
+  // form, which never runs the lookup that would clear a remembered address.
+  it("drops a remembered address when the instance has no SSO configured", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify("jane@acme.com"));
+
+    renderSignIn({ authProviders: { ...authProviders, sso: false } });
+
+    // One-step form: password is visible immediately.
+    expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(storedSsoEmail()).toBe("");
+    });
+    expect(screen.getByLabelText("Email")).toHaveValue("");
+  });
+
+  // The transport path (fetch rejects) is likewise not a verdict on the domain.
+  it("keeps the remembered address when check-sso cannot be reached", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify("jane@acme.com"));
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+
+    renderTwoStepSignIn();
+    continueWithEmail("jane@acme.com");
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Unable to check SSO configuration/),
+      ).toBeInTheDocument();
+    });
+    expect(storedSsoEmail()).toBe("jane@acme.com");
+  });
+});

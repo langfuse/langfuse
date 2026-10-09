@@ -1,5 +1,6 @@
 import { useSession } from "next-auth/react";
 import {
+  isAdminOnlyFeaturePreviewFlag,
   INTERNAL_FEATURE_FLAG,
   isInternalFlag,
   isRestrictedFlag,
@@ -39,7 +40,7 @@ export default function useIsFeatureEnabled(
     );
   }
 
-  if (isRestrictedFlag(feature)) {
+  if (isRestrictedFlag(feature) || isAdminOnlyFeaturePreviewFlag(feature)) {
     return isFeatureEnabledOnUser;
   }
 

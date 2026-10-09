@@ -31,6 +31,7 @@ export function ConnectedDashboardTable() {
     onSuccess: () => {
       utils.dashboard.invalidate();
       showSuccessToast({
+        operation: "dashboard.clone",
         title: "Dashboard cloned",
         description: "The dashboard has been cloned successfully",
       });
@@ -43,6 +44,7 @@ export function ConnectedDashboardTable() {
     onSuccess: () => {
       capture("dashboard:delete_dashboard_button_click");
       showSuccessToast({
+        operation: "dashboard.delete",
         title: "Dashboard deleted",
         description: "The dashboard has been deleted successfully",
       });

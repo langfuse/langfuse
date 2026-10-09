@@ -23,6 +23,7 @@ export function DefinitionStepContainer({
   defaultModel,
   providerGroups,
   providerAdapters,
+  connectionsPending,
   canSetProjectDefault,
   onStepOpenChange,
   onConfigureProviders,
@@ -35,6 +36,7 @@ export function DefinitionStepContainer({
   defaultModel: JudgeModel | null;
   providerGroups: Array<[string, string[]]>;
   providerAdapters: Record<string, LLMAdapter>;
+  connectionsPending: boolean;
   canSetProjectDefault: boolean;
   onStepOpenChange: (step: number, open: boolean) => void;
   onConfigureProviders: () => void;
@@ -51,6 +53,7 @@ export function DefinitionStepContainer({
     })),
   );
   const changeType = (type: EvalTemplateType) => {
+    if (type === "FACET") return;
     const previousEvaluatorType = store.getState().type;
     state.actions.setType(type);
     if (type !== previousEvaluatorType) {
@@ -80,6 +83,7 @@ export function DefinitionStepContainer({
               defaultModel={defaultModel}
               providerGroups={providerGroups}
               providerAdapters={providerAdapters}
+              connectionsPending={connectionsPending}
               canSetProjectDefault={canSetProjectDefault}
               onConfigureProviders={onConfigureProviders}
               onSetProjectDefault={onSetProjectDefault}
@@ -116,7 +120,9 @@ export function DefinitionStepContainer({
               onConfigureProviders={onConfigureProviders}
             />
           }
-          questionsEditor={<DecisionModelQuestionsEditor store={store} />}
+          questionsEditor={
+            <DecisionModelQuestionsEditor projectId={projectId} store={store} />
+          }
         />
       );
   }
