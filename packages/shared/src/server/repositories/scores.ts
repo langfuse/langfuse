@@ -1214,6 +1214,7 @@ export const getScoresUiCount = async (props: {
     select: "count",
     excludeMetadata: true,
     ...props,
+    preferredClickhouseService: "ReadOnly",
   });
 
   return Number(rows[0].count);

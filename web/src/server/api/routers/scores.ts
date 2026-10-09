@@ -120,6 +120,7 @@ export const scoresRouter = createTRPCRouter({
         offset: input.page * input.limit,
         excludeMetadata: true,
         includeHasMetadataFlag: true,
+        preferredClickhouseService: "ReadOnly",
       });
 
       const [jobExecutions, users] = await Promise.all([
