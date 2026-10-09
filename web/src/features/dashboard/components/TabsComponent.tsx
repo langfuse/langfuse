@@ -1,6 +1,6 @@
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { type ReactNode, useState } from "react";
+import { type ChangeEvent, type ReactNode, useState } from "react";
 
 export type TabComponentProps = {
   tabs: {
@@ -12,6 +12,19 @@ export type TabComponentProps = {
 export const TabComponent = ({ tabs }: TabComponentProps) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const capture = usePostHogClientCapture();
+
+  const handleTabChange = (value: string) => {
+    const index = Number(value);
+    setSelectedIndex(index);
+    capture("dashboard:chart_tab_switch", {
+      tabLabel: tabs[index]?.tabTitle,
+    });
+  };
+
+  const handleSelectChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    setSelectedIndex(Number(e.target.value));
+  };
+
   return (
     // Fills the card's flex column so tab content (charts) can absorb extra
     // tile height on dashboards and a height-aware child can measure it.
@@ -20,13 +33,7 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
       <Tabs
         layout="fill"
         value={String(selectedIndex)}
-        onValueChange={(value) => {
-          const index = Number(value);
-          setSelectedIndex(index);
-          capture("dashboard:chart_tab_switch", {
-            tabLabel: tabs[index]?.tabTitle,
-          });
-        }}
+        onValueChange={handleTabChange}
       >
         <div className="px-4 sm:hidden">
           <label htmlFor="tabs" className="sr-only">
@@ -37,7 +44,7 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
             name="tabs"
             className="border-border bg-background focus:border-primary-accent focus:ring-primary-accent block w-full rounded-md py-2 pr-10 pl-3 text-base focus:outline-hidden sm:text-sm"
             value={selectedIndex}
-            onChange={(e) => setSelectedIndex(Number(e.target.value))}
+            onChange={handleSelectChange}
           >
             {tabs.map((tab, index) => (
               <option key={tab.tabTitle} value={index}>
