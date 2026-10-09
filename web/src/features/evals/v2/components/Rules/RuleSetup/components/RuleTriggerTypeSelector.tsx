@@ -18,7 +18,7 @@ const TRIGGER_OPTIONS = [
     icon: Gauge,
     title: "Evaluator results",
     summary: "Run when another evaluator returns a matching score.",
-    example: "When relevance drops below 0.5",
+    example: "The observation is hallucinated",
     headerAdornment: (
       <span className="ml-auto">
         <Badge text="Experimental" color="yellow" size="sm" />
