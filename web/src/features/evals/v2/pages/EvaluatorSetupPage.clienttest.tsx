@@ -181,9 +181,11 @@ describe("restoreEvaluatorVersion", () => {
       expectedDefinition: {
         type: "LLM_AS_JUDGE",
         promptMessages: [{ role: "user", content: "Judge {{output}}" }],
-        provider: "openai",
-        model: "gpt-4.1-mini",
-        vars: ["output"],
+        selectedModel: { provider: "openai", model: "gpt-4.1-mini" },
+        modelParams: { temperature: 0.2 },
+        variableFields: {
+          output: { selectedColumnId: "output", jsonSelector: null },
+        },
       },
     },
   ])(
