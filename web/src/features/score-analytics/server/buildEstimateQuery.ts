@@ -109,6 +109,7 @@ export async function buildEstimateQuery(params: {
       fromTimestamp,
       toTimestamp,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   const row = result[0];

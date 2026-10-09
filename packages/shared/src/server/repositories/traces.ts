@@ -1249,6 +1249,7 @@ const buildTracesForBlobStorageExportQuery = (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
+    preferredClickhouseService: "ReadOnly" as const,
   };
 };
 
