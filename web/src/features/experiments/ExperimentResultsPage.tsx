@@ -13,7 +13,7 @@ import { ExperimentDisplaySettings } from "@/src/features/experiments/components
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { ExperimentSelectionControls } from "@/src/features/experiments/components/ExperimentSelectionControls";
-import { useIoRenderModeLocalStorage } from "@/src/components/table/data-table-io-render-mode-switch";
+import { useExperimentIoRenderMode } from "@/src/features/experiments/hooks/useExperimentIoRenderMode";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   diffModeChangedProps,
@@ -45,10 +45,7 @@ export default function ExperimentResultsPage() {
     allExperimentIds,
     colorExperimentIds,
   } = useExperimentResultsState();
-  const [ioRenderMode, setIoRenderMode] = useIoRenderModeLocalStorage(
-    "experiment-items",
-    "json",
-  );
+  const [ioRenderMode, setIoRenderMode] = useExperimentIoRenderMode();
 
   const [isOverviewOpen, setIsOverviewOpen] = useSessionStorage(
     "overview-panel-experiment-detail",

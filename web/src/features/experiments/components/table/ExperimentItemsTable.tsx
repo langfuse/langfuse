@@ -52,7 +52,7 @@ import {
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
-import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createExperimentIOColumn } from "./createExperimentIOColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { ExperimentGridView } from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
@@ -75,7 +75,8 @@ import {
   getExperimentColorStyles,
 } from "./types";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
-import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
+import { ExperimentIOCell } from "./ExperimentIOCell";
+import { type ExperimentIoRenderMode } from "@/src/features/experiments/types/experimentIoRenderMode";
 import { Badge } from "@/src/components/ui/badge";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
@@ -327,7 +328,7 @@ const StackedExperimentCell = ({
 
 /**
  * A single experiment's output within the stacked list cell. Renders the
- * compact (truncated) output value from the list query.
+ * loaded output value from the list query.
  *
  * `h-full min-h-0` is what makes a long output scrollable rather than clipped:
  * the IO cell inside sizes itself to its parent, so an auto-height row hands it
@@ -336,14 +337,20 @@ const StackedExperimentCell = ({
  * scrollport takes over.
  */
 const StackedOutputRow = ({
+  projectId,
   output,
   markerClass,
-  singleLine,
+  ioRenderMode,
+  isTruncated,
+  traceId,
   chip,
 }: {
+  projectId: string;
   output: string;
   markerClass: string;
-  singleLine: boolean;
+  ioRenderMode: ExperimentIoRenderMode;
+  isTruncated: boolean;
+  traceId: string | undefined;
   /** Rendered after the value, e.g. the expected-output verdict. */
   chip?: React.ReactNode;
 }) => {
@@ -355,9 +362,14 @@ const StackedOutputRow = ({
           markerClass,
         )}
       />
-      <ConnectedIOTableCell
+      <ExperimentIOCell
+        projectId={projectId}
+        field="output"
         data={output}
-        singleLine={singleLine}
+        mode={ioRenderMode}
+        isLoading={false}
+        isTruncated={isTruncated}
+        traceId={traceId}
         variant="output"
       />
       {chip}
@@ -401,19 +413,22 @@ const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
  * Cell component that renders stacked output values for each experiment.
  */
 const StackedOutputCell = ({
+  projectId,
   outputs,
   allExperimentIds,
   colorExperimentIds,
-  singleLine,
+  ioRenderMode,
   isLoading,
   expectedOutput,
+  expectedOutputTruncated,
   row,
   onExperimentClick,
 }: {
+  projectId: string;
   outputs: ExperimentOutputData[];
   allExperimentIds: string[];
   colorExperimentIds?: string[];
-  singleLine: boolean;
+  ioRenderMode: ExperimentIoRenderMode;
   isLoading: boolean;
   /**
    * The item's expected output, shown as the cell's first line with a verdict on
@@ -421,6 +436,7 @@ const StackedOutputCell = ({
    * mode, and for the items that simply have no expected output.
    */
   expectedOutput?: string | null;
+  expectedOutputTruncated: boolean;
   row?: ExperimentItemsTableRow;
   /** Clicking one experiment's line opens that run, not the row's baseline. */
   onExperimentClick?: ExperimentCellClickHandler;
@@ -430,7 +446,7 @@ const StackedOutputCell = ({
     [outputs],
   );
 
-  const showExpectedLine = Boolean(expectedOutput);
+  const showExpectedLine = Boolean(expectedOutput) || expectedOutputTruncated;
 
   return (
     <div
@@ -445,10 +461,14 @@ const StackedOutputCell = ({
             <span className="text-muted-foreground mt-0.5 mr-1 shrink-0 text-[10px] font-bold uppercase">
               Exp
             </span>
-            <ConnectedIOTableCell
+            <ExperimentIOCell
+              projectId={projectId}
+              field="output"
               isLoading={false}
               data={expectedOutput ?? null}
-              singleLine={singleLine}
+              mode={ioRenderMode}
+              isTruncated={expectedOutputTruncated}
+              variant="default"
             />
           </div>
         </div>
@@ -460,9 +480,10 @@ const StackedOutputCell = ({
           colorExperimentIds ?? allExperimentIds,
         );
         // null when the loaded text cannot settle the question, so no chip.
-        const expectedMatch = showExpectedLine
-          ? matchesExpectedOutput(out?.output, expectedOutput)
-          : null;
+        const expectedMatch =
+          showExpectedLine && !out?.outputTruncated && !expectedOutputTruncated
+            ? matchesExpectedOutput(out?.output, expectedOutput)
+            : null;
         // Gated on the run existing for this item, never on the output being
         // truthy: a run that legitimately returned "" still has a trace to
         // open, and testing the text would drop the handler and let the click
@@ -487,13 +508,28 @@ const StackedOutputCell = ({
             {isLoading ? (
               <div className="flex h-full min-h-0 min-w-0 items-start">
                 <span className="bg-muted mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full" />
-                <ConnectedIOTableCell isLoading singleLine={singleLine} />
+                <ExperimentIOCell
+                  projectId={projectId}
+                  field="output"
+                  mode={ioRenderMode}
+                  data={null}
+                  isLoading
+                  isTruncated={false}
+                  variant="output"
+                />
               </div>
-            ) : out?.output ? (
+            ) : out && (out.output || out.outputTruncated) ? (
               <StackedOutputRow
-                output={out.output}
+                projectId={projectId}
+                output={out.output ?? ""}
                 markerClass={colorStyles.markerClass}
-                singleLine={singleLine}
+                ioRenderMode={ioRenderMode}
+                isTruncated={out.outputTruncated ?? false}
+                traceId={
+                  row?.experiments.find(
+                    (experiment) => experiment.experimentId === experimentId,
+                  )?.traceId
+                }
                 chip={
                   expectedMatch === null ? undefined : (
                     <ExpectedMatchChip matches={expectedMatch} />
@@ -624,7 +660,6 @@ export default function ExperimentItemsTable({
     "experiment-items-compact",
     "s",
   );
-  const ioSingleLine = ioRenderMode === "text";
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "startTime",
@@ -788,6 +823,7 @@ export default function ExperimentItemsTable({
   const { items, totalCount, dataUpdatedAt, ioLoading, isTotalCountLoading } =
     useExperimentItemsTableData({
       projectId,
+      includeFullIo: ioRenderMode === "formatted",
       baseExperimentId: baselineId,
       compExperimentIds: comparisonIds,
       filterByExperiment: filtersByExperiment.map((filter) => ({
@@ -813,7 +849,10 @@ export default function ExperimentItemsTable({
   // expected output must not take the column away again. Latched per selection:
   // once any page has shown one, the column stays until the selection changes.
   const expectedOutputOnPage = useMemo(
-    () => (items.rows ?? []).some((row) => Boolean(row.expectedOutput)),
+    () =>
+      (items.rows ?? []).some(
+        (row) => Boolean(row.expectedOutput) || row.expectedOutputTruncated,
+      ),
     [items.rows],
   );
   const experimentSelectionKey = useMemo(
@@ -1288,17 +1327,13 @@ export default function ExperimentItemsTable({
     scoreColumnDefs.observationScoreColumns.length > 0 &&
     scoreColumnDefs.traceScoreColumns.length > 0;
 
-  const expectedOutputColumn = createIOTableColumn<ExperimentItemsTableRow>({
-    accessorKey: "expectedOutput",
-    header: "Expected Output",
-    size: 300,
-    enableHiding: true,
+  const expectedOutputColumn = createExperimentIOColumn({
+    field: "expectedOutput",
+    projectId,
+    mode: ioRenderMode,
+    isLoading: ioLoading,
     defaultHidden: true,
-    // An empty expected output used to render as two literal quote characters.
-    getCell: (value) => (ioLoading ? { type: "loading" } : value || undefined),
-    singleLine: ioSingleLine,
-    variant: "output",
-  }) as LangfuseColumnDef<ExperimentItemsTableRow>;
+  });
 
   const baselineExperimentOf = (experiments: ExperimentItemData[]) =>
     hasBaseline && baselineId
@@ -1339,13 +1374,12 @@ export default function ExperimentItemsTable({
 
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
-    createIOTableColumn<ExperimentItemsTableRow>({
-      accessorKey: "input",
-      header: "Input",
-      size: 300,
-      enableHiding: true,
-      getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
-      singleLine: ioSingleLine,
+    createExperimentIOColumn({
+      field: "input",
+      projectId,
+      mode: ioRenderMode,
+      isLoading: ioLoading,
+      defaultHidden: false,
     }),
     // The scores sit between the item's input and its outputs: the input says
     // which item this is, the score headers carry the judgement, and the outputs
@@ -1388,12 +1422,13 @@ export default function ExperimentItemsTable({
         const outputs = row.original.outputs ?? [];
         return (
           <StackedOutputCell
+            projectId={projectId}
             outputs={outputs}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
             row={row.original}
             onExperimentClick={onExperimentCellClick}
-            singleLine={ioSingleLine}
+            ioRenderMode={ioRenderMode}
             isLoading={ioLoading}
             // Items with no expected output get no expected line and no
             // verdict, rather than a diff against nothing.
@@ -1401,6 +1436,9 @@ export default function ExperimentItemsTable({
               isExpectedDiff
                 ? (row.original.expectedOutput ?? undefined)
                 : undefined
+            }
+            expectedOutputTruncated={
+              isExpectedDiff && Boolean(row.original.expectedOutputTruncated)
             }
           />
         );
@@ -2156,7 +2194,7 @@ export default function ExperimentItemsTable({
                   }
                   useExperimentColors={hasBaseline}
                   showDiff={showComparisonDiff}
-                  singleLine={ioSingleLine}
+                  ioRenderMode={ioRenderMode}
                   rows={rows}
                   isLoading={items.status === "loading" || isViewLoading}
                   ioLoading={ioLoading}

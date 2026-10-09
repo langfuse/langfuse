@@ -23,6 +23,7 @@ type UseExperimentItemsTableDataParams = {
     order: "ASC" | "DESC";
   } | null;
   itemVisibility?: "baseline-only" | "all";
+  includeFullIo?: boolean;
 };
 
 /**
@@ -40,6 +41,7 @@ export function useExperimentItemsTableData({
   paginationState,
   orderByState,
   itemVisibility,
+  includeFullIo = false,
 }: UseExperimentItemsTableDataParams) {
   const hasSelectedRuns =
     Boolean(baseExperimentId) || compExperimentIds.length > 0;
@@ -113,8 +115,15 @@ export function useExperimentItemsTableData({
       itemIds: data.map((item) => item.itemId),
       baseExperimentId,
       compExperimentIds,
+      includeFullIo,
     };
-  }, [itemsQuery.data?.data, projectId, baseExperimentId, compExperimentIds]);
+  }, [
+    itemsQuery.data?.data,
+    projectId,
+    baseExperimentId,
+    compExperimentIds,
+    includeFullIo,
+  ]);
 
   // Fetch IO data for visible items
   const batchIOQuery = api.experiments.batchIO.useQuery(batchIOPayload!, {
@@ -155,6 +164,8 @@ export function useExperimentItemsTableData({
       {
         input: string | null;
         expectedOutput: string | null;
+        inputTruncated?: boolean;
+        expectedOutputTruncated?: boolean;
         outputs: ExperimentOutputData[];
       }
     >();
@@ -164,6 +175,8 @@ export function useExperimentItemsTableData({
         ioMap.set(io.itemId, {
           input: io.input,
           expectedOutput: io.expectedOutput,
+          inputTruncated: io.inputTruncated,
+          expectedOutputTruncated: io.expectedOutputTruncated,
           outputs: io.outputs,
         });
       }
@@ -176,6 +189,8 @@ export function useExperimentItemsTableData({
         ...item,
         input: io?.input ?? null,
         expectedOutput: io?.expectedOutput ?? null,
+        inputTruncated: io?.inputTruncated,
+        expectedOutputTruncated: io?.expectedOutputTruncated,
         outputs: io?.outputs ?? [],
       };
     });

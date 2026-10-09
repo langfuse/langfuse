@@ -1412,6 +1412,7 @@ export const getExperimentItemsFromEvents = async (
 export type ExperimentOutputData = {
   experimentId: string;
   output: string | null;
+  outputTruncated?: boolean;
 };
 
 /**
@@ -1421,21 +1422,26 @@ export type ExperimentItemBatchIO = {
   itemId: string;
   input: string | null; // From base experiment only
   expectedOutput: string | null; // From base experiment only
+  inputTruncated?: boolean;
+  expectedOutputTruncated?: boolean;
   outputs: ExperimentOutputData[]; // From ALL experiments
 };
 
 /**
  * Get batch IO data for experiment items.
  * Returns input/expectedOutput from base experiment, and output from all experiments.
- * All text fields are truncated to EXPERIMENT_IO_TRUNCATE_LENGTH characters.
+ * By default, text fields use compact previews. A size cap returns complete
+ * under-cap fields and identifies larger fields that are only preview heads.
  */
 export const getExperimentItemsBatchIO = async (props: {
   projectId: string;
   itemIds: string[];
   baseExperimentId?: string;
   compExperimentIds: string[];
+  ioSizeCap?: { inlineChars: number; previewChars: number };
 }): Promise<ExperimentItemBatchIO[]> => {
-  const { projectId, itemIds, baseExperimentId, compExperimentIds } = props;
+  const { projectId, itemIds, baseExperimentId, compExperimentIds, ioSizeCap } =
+    props;
 
   if (itemIds.length === 0) {
     return [];
@@ -1450,10 +1456,25 @@ export const getExperimentItemsBatchIO = async (props: {
     projectId,
     experimentIds: allExperimentIds,
     experimentItemIds: itemIds,
-  })
-    .selectIO(true, env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT)
+  });
+
+  if (ioSizeCap) {
+    queryBuilder
+      .selectIOWithSizeCap(ioSizeCap.inlineChars, ioSizeCap.previewChars)
+      .selectRaw(
+        "if(lengthUTF8(e.experiment_item_expected_output) <= {inlineChars: UInt32}, e.experiment_item_expected_output, leftUTF8(e.experiment_item_expected_output, {previewChars: UInt32})) as expected_output",
+        "lengthUTF8(e.experiment_item_expected_output) as expected_output_length",
+      );
+  } else {
+    queryBuilder
+      .selectIO(true, env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT)
+      .selectRaw(
+        "leftUTF8(e.experiment_item_expected_output, {truncateLength: UInt32}) as expected_output",
+      );
+  }
+
+  queryBuilder
     .selectRaw(
-      "leftUTF8(e.experiment_item_expected_output, {truncateLength: UInt32}) as expected_output",
       "e.experiment_item_id as item_id",
       "e.experiment_id as experiment_id",
     )
@@ -1469,11 +1490,15 @@ export const getExperimentItemsBatchIO = async (props: {
     input: string | null;
     output: string | null;
     expected_output: string | null;
+    input_length?: number;
+    output_length?: number;
+    expected_output_length?: number;
   }>({
     query,
     params: {
       ...params,
       truncateLength: EXPERIMENT_IO_TRUNCATE_LENGTH,
+      ...(ioSizeCap ?? {}),
     },
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
@@ -1488,6 +1513,8 @@ export const getExperimentItemsBatchIO = async (props: {
       input: string | null;
       expectedOutput: string | null;
       outputs: ExperimentOutputData[];
+      inputTruncated?: boolean;
+      expectedOutputTruncated?: boolean;
     }
   >();
 
@@ -1517,18 +1544,30 @@ export const getExperimentItemsBatchIO = async (props: {
     // Use baseline value if available, otherwise first non-null
     if (row.input !== null && (isBaseline || item.input === null)) {
       item.input = row.input;
+      if (ioSizeCap)
+        item.inputTruncated =
+          Number(row.input_length ?? 0) > ioSizeCap.inlineChars;
     }
     if (
       row.expected_output !== null &&
       (isBaseline || item.expectedOutput === null)
     ) {
       item.expectedOutput = row.expected_output;
+      if (ioSizeCap)
+        item.expectedOutputTruncated =
+          Number(row.expected_output_length ?? 0) > ioSizeCap.inlineChars;
     }
 
     // Collect output from all experiments
     item.outputs.push({
       experimentId: row.experiment_id,
       output: row.output,
+      ...(ioSizeCap
+        ? {
+            outputTruncated:
+              Number(row.output_length ?? 0) > ioSizeCap.inlineChars,
+          }
+        : {}),
     });
   }
 
@@ -1540,6 +1579,12 @@ export const getExperimentItemsBatchIO = async (props: {
       input: item?.input ?? null,
       expectedOutput: item?.expectedOutput ?? null,
       outputs: item?.outputs ?? [],
+      ...(ioSizeCap
+        ? {
+            inputTruncated: item?.inputTruncated ?? false,
+            expectedOutputTruncated: item?.expectedOutputTruncated ?? false,
+          }
+        : {}),
     };
   });
 };

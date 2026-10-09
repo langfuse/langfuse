@@ -268,12 +268,17 @@ describe("DataTableToolbar presentation controls", () => {
       />,
     );
 
-    expect(screen.queryByRole("menuitem", { name: "Formatted" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Compact" })).toBeNull();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Display" }), {
+      key: "Enter",
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Compact" }));
+    expect(onIoRenderModeChange).toHaveBeenCalledExactlyOnceWith("text");
     fireEvent.keyDown(screen.getByRole("button", { name: "Display" }), {
       key: "Enter",
     });
     fireEvent.click(screen.getByRole("menuitem", { name: "Formatted" }));
-    expect(onIoRenderModeChange).toHaveBeenCalledExactlyOnceWith("text");
+    expect(onIoRenderModeChange).toHaveBeenNthCalledWith(2, "formatted");
     fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Row height" })).toBeVisible();

@@ -3,7 +3,8 @@ import { ExperimentGridSummaryValues } from "./ExperimentGridSummary";
 import { DataTable } from "@/src/components/table/data-table";
 import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { type ExperimentIoRenderMode } from "@/src/features/experiments/types/experimentIoRenderMode";
+import { createExperimentIOColumn } from "./createExperimentIOColumn";
 import { Badge } from "@/src/components/ui/badge";
 import {
   ExperimentGridCell,
@@ -42,8 +43,7 @@ type ExperimentGridViewProps = {
   useExperimentColors?: boolean;
   /** Whether cells carry a delta against the baseline (the diff mode). */
   showDiff: boolean;
-  /** Render I/O cells as single-line text (true) or JSON tree (false). */
-  singleLine: boolean;
+  ioRenderMode: ExperimentIoRenderMode;
   rows: ExperimentItemsTableRow[];
   isLoading: boolean;
   /**
@@ -83,7 +83,7 @@ export const ExperimentGridView = ({
   comparisonExperimentIds,
   useExperimentColors = true,
   showDiff,
-  singleLine,
+  ioRenderMode,
   rows,
   isLoading,
   ioLoading,
@@ -207,6 +207,7 @@ export const ExperimentGridView = ({
               projectId={projectId}
               itemId={row.original.itemId}
               output={outputData?.output}
+              outputTruncated={outputData?.outputTruncated ?? false}
               isLoading={ioLoading}
               level={expData.level}
               startTime={expData.startTime}
@@ -216,7 +217,7 @@ export const ExperimentGridView = ({
               baselineLatencyMs={baselineData?.latencyMs}
               observationId={expData.observationId}
               traceId={expData.traceId}
-              singleLine={singleLine}
+              ioRenderMode={ioRenderMode}
               scores={expData.observationScores ?? {}}
               traceScores={expData.traceScores ?? {}}
               observationScoreOrder={observationScoreOrder}
@@ -286,7 +287,7 @@ export const ExperimentGridView = ({
     columnVisibility,
     useExperimentColors,
     showDiff,
-    singleLine,
+    ioRenderMode,
     peekView,
     canAnnotate,
     capture,
@@ -318,7 +319,8 @@ export const ExperimentGridView = ({
             itemId={row.original.itemId}
             input={row.original.input}
             isLoading={ioLoading}
-            singleLine={singleLine}
+            ioRenderMode={ioRenderMode}
+            isTruncated={row.original.inputTruncated ?? false}
           />
         ),
       },
@@ -326,16 +328,17 @@ export const ExperimentGridView = ({
       // characters, and a whole column of them is worse than no column.
       ...(showExpectedOutput
         ? [
-            createIOTableColumn<ExperimentItemsTableRow>({
-              accessorKey: "expectedOutput",
-              header: "Expected Output",
+            {
+              ...createExperimentIOColumn({
+                field: "expectedOutput",
+                projectId,
+                mode: ioRenderMode,
+                isLoading: ioLoading,
+                defaultHidden: false,
+              }),
               headerClassName: "align-top pt-3",
               size: 200,
-              getCell: (value) =>
-                ioLoading ? { type: "loading" } : value || undefined,
-              singleLine,
-              variant: "output",
-            }),
+            },
           ]
         : []),
       ...experimentColumns,
@@ -347,7 +350,7 @@ export const ExperimentGridView = ({
       ioLoading,
       selectActionColumn,
       showExpectedOutput,
-      singleLine,
+      ioRenderMode,
     ],
   );
 

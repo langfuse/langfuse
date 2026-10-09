@@ -1,8 +1,9 @@
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
+import { type ExperimentIoRenderMode } from "@/src/features/experiments/types/experimentIoRenderMode";
+import { ExperimentIOCell } from "./ExperimentIOCell";
 
 export function ExperimentInputCell({
   projectId,
@@ -10,14 +11,16 @@ export function ExperimentInputCell({
   itemId,
   input,
   isLoading,
-  singleLine,
+  ioRenderMode,
+  isTruncated = false,
 }: {
   projectId: string;
   datasetId: string | null;
   itemId: string;
   input: string | null | undefined;
   isLoading: boolean;
-  singleLine: boolean;
+  ioRenderMode: ExperimentIoRenderMode;
+  isTruncated?: boolean;
 }) {
   const router = useRouter();
   const href = datasetId
@@ -50,11 +53,15 @@ export function ExperimentInputCell({
           <ArrowUpRight className="icon-base" aria-hidden />
         </Link>
       ) : null}
-      {isLoading ? (
-        <ConnectedIOTableCell isLoading singleLine={singleLine} />
-      ) : (
-        <ConnectedIOTableCell data={input ?? null} singleLine={singleLine} />
-      )}
+      <ExperimentIOCell
+        projectId={projectId}
+        field="input"
+        mode={ioRenderMode}
+        data={input ?? null}
+        isLoading={isLoading}
+        isTruncated={isTruncated}
+        variant="default"
+      />
     </div>
   );
 }
