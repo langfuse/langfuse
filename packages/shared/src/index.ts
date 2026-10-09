@@ -50,6 +50,7 @@ export * from "./features/evals/evalConfigBlocking";
 export * from "./features/evals/validateEvaluatorFilters";
 export * from "./features/evals/experimentRuleNormalization";
 export * from "./features/evals/scoreResultTrigger";
+export * from "./features/evals/evaluatorScoreDefinitions";
 // table actions
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";

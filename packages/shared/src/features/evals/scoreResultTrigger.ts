@@ -35,7 +35,7 @@ export const ScoreResultTriggerSchema = z.object({
 });
 
 export type ScoreResultTrigger = z.infer<typeof ScoreResultTriggerSchema>;
-type ScoreResultPredicate = z.infer<typeof ScoreResultPredicateSchema>;
+export type ScoreResultPredicate = z.infer<typeof ScoreResultPredicateSchema>;
 type CategoricalScoreResultPredicate = Extract<
   ScoreResultPredicate,
   { value: string }
