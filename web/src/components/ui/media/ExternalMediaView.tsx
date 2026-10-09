@@ -6,6 +6,8 @@ import { MediaFileView } from "./MediaFileView";
 import { type MediaDescriptor } from "./mediaUtils";
 import { useResolvedExternalMedia } from "./useResolvedExternalMedia";
 
+const PREVIEW_AUTO_EXPAND_MAX_BYTES = 50 * 1024 * 1024;
+
 export type ExternalMediaViewProps = {
   descriptor: S3MediaDescriptor;
 };
@@ -22,7 +24,7 @@ export function ExternalMediaView({ descriptor }: ExternalMediaViewProps) {
 }
 
 function EnabledExternalMediaView({ descriptor }: ExternalMediaViewProps) {
-  const { status, url } = useResolvedExternalMedia(descriptor, {
+  const { status, url, contentLength } = useResolvedExternalMedia(descriptor, {
     enabled: true,
   });
 
@@ -38,7 +40,10 @@ function EnabledExternalMediaView({ descriptor }: ExternalMediaViewProps) {
     <MediaFileView
       src={url}
       contentType={descriptor.contentType as MediaContentType}
-      defaultExpanded
+      defaultExpanded={
+        contentLength !== undefined &&
+        contentLength <= PREVIEW_AUTO_EXPAND_MAX_BYTES
+      }
     />
   );
 }

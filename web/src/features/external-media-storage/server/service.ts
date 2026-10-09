@@ -215,14 +215,19 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
         await validateExternalMediaStorageEndpoint(integration.endpoint);
       }
 
-      const url = await createStorageService(integration).getSignedUrl(
-        parsed.key,
-        EXTERNAL_MEDIA_URL_TTL_SECONDS,
-        false,
-      );
+      const storageService = createStorageService(integration);
+      const [url, contentLength] = await Promise.all([
+        storageService.getSignedUrl(
+          parsed.key,
+          EXTERNAL_MEDIA_URL_TTL_SECONDS,
+          false,
+        ),
+        storageService.getObjectContentLength(parsed.key),
+      ]);
 
       return {
         url,
+        contentLength,
         expiresAt: new Date(Date.now() + EXTERNAL_MEDIA_URL_TTL_SECONDS * 1000),
       };
     },

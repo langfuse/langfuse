@@ -132,6 +132,7 @@ describe("external media storage service", () => {
     (StorageServiceFactory.getInstance as Mock).mockReturnValue({
       getSignedUrl,
       getObjectContentLength: vi.fn().mockResolvedValue(42),
+      getObjectContentLength: vi.fn().mockResolvedValue(42),
     });
     const project = await prepareIntegration({ prefix: "customer/" });
 
@@ -148,6 +149,7 @@ describe("external media storage service", () => {
     const getSignedUrl = vi.fn().mockResolvedValue("https://signed.example");
     (StorageServiceFactory.getInstance as Mock).mockReturnValue({
       getSignedUrl,
+      getObjectContentLength: vi.fn().mockResolvedValue(42),
     });
     const project = await prepareIntegration({ prefix: null });
 

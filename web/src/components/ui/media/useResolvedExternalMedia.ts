@@ -9,6 +9,7 @@ export function useResolvedExternalMedia(
 ): {
   status: MediaTagStatus;
   url?: string;
+  contentLength?: number;
   refreshIfNeeded: () => Promise<void>;
 } {
   const projectId = useProjectIdFromURL();
@@ -45,6 +46,7 @@ export function useResolvedExternalMedia(
     return {
       status: "ready",
       url: query.data.url,
+      contentLength: query.data.contentLength,
       refreshIfNeeded,
     };
   }
