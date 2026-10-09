@@ -222,7 +222,9 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
           EXTERNAL_MEDIA_URL_TTL_SECONDS,
           false,
         ),
-        storageService.getObjectContentLength(parsed.key),
+        storageService
+          .getObjectContentLength(parsed.key)
+          .catch(() => undefined),
       ]);
 
       return {
