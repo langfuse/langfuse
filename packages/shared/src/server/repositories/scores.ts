@@ -138,16 +138,19 @@ export const getScoreById = async ({
   projectId,
   scoreId,
   source,
+  preferredClickhouseService,
 }: {
   projectId: string;
   scoreId: string;
   source?: ScoreSourceType;
+  preferredClickhouseService?: PreferredClickhouseService;
 }): Promise<ScoreDomain | undefined> => {
   return _handleGetScoreById({
     projectId,
     scoreId,
     source,
     scoreScope: "all",
+    preferredClickhouseService,
   });
 };
 
@@ -1214,6 +1217,7 @@ export const getScoresUiCount = async (props: {
     select: "count",
     excludeMetadata: true,
     ...props,
+    preferredClickhouseService: "ReadOnly",
   });
 
   return Number(rows[0].count);
@@ -2197,6 +2201,7 @@ export const getAggregatedScoresForPrompts = async (
         : {}),
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.map((row) => ({
@@ -2547,6 +2552,7 @@ const buildScoresForBlobStorageExportQuery = (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
+    preferredClickhouseService: "ReadOnly" as const,
   };
 };
 
@@ -2836,6 +2842,7 @@ export const getScoreMetadataById = async (
       ...(source !== undefined ? { source } : {}),
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows
