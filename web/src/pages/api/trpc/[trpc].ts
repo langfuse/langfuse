@@ -2,11 +2,7 @@ import { createNextApiHandler } from "@trpc/server/adapters/next";
 import { createTRPCContext } from "@/src/server/api/trpc";
 import { appRouter } from "@/src/server/api/root";
 import { env } from "@/src/env.mjs";
-import { logger, traceException } from "@langfuse/shared/src/server";
-import {
-  getOriginalError,
-  getTRPCErrorReporting,
-} from "@/src/server/utils/trpc-utils";
+import { reportTRPCError } from "@/src/server/utils/trpc-utils";
 
 export const config = {
   maxDuration: 240,
@@ -28,24 +24,7 @@ export default createNextApiHandler({
   // option), but it only widens the accepted method for queries (read-only);
   // mutations remain POST-only, so the GET-mutation protection is unchanged.
   allowMethodOverride: true,
-  onError: ({ path, error }) => {
-    const { logLevel, shouldTrace } = getTRPCErrorReporting(error);
-    const message = `tRPC route failed on ${path ?? "<no-path>"}: ${error.message}`;
-
-    if (logLevel === "error") {
-      logger.error(message, error);
-    } else if (logLevel === "warn") {
-      logger.warn(message, error);
-    } else {
-      logger.info(message, error);
-    }
-
-    if (shouldTrace) {
-      traceException(getOriginalError(error) ?? error);
-    }
-
-    return error;
-  },
+  onError: reportTRPCError,
   responseMeta() {
     return {
       headers: {

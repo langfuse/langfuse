@@ -18,7 +18,8 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import { Prisma } from "@langfuse/shared/src/db";
-import { getOriginalError } from "@/src/server/utils/trpc-utils";
+import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
+import { reportTRPCError } from "@/src/server/utils/trpc-utils";
 import {
   createInnerTRPCContext,
   createTRPCRouter,
@@ -138,25 +139,24 @@ describe("tRPC error formatting", () => {
     expect(formattedWithStack.data["stack"]).toBe("dev stack");
   });
 
-  describe("5xx errors", () => {
-    const callFailing = async (thrown: unknown) => {
+  describe("over HTTP", () => {
+    const fetchFailing = (thrown: unknown) => {
       const router = createTRPCRouter({
         failing: protectedProcedureWithoutTracing.query(() => {
           throw thrown;
         }),
       });
-      const caller = router.createCaller(
-        createInnerTRPCContext({
-          session: { user: { id: "user-1" } } as Session,
-          headers: {},
-        }),
-      );
-      try {
-        await caller.failing();
-      } catch (caught) {
-        return caught as TRPCError;
-      }
-      throw new Error("expected the procedure to fail");
+      return fetchRequestHandler({
+        endpoint: "/api/trpc",
+        req: new Request("http://localhost/api/trpc/failing"),
+        router,
+        createContext: () =>
+          createInnerTRPCContext({
+            session: { user: { id: "user-1" } } as Session,
+            headers: {},
+          }),
+        onError: reportTRPCError,
+      });
     };
 
     it.each([
@@ -169,37 +169,30 @@ describe("tRPC error formatting", () => {
       ],
       ["generic", new Error("connection refused")],
     ])(
-      "traces the %s cause on the span but returns a generic error",
+      "traces the %s cause on the span but returns a generic 5xx",
       async (_, original) => {
-        const error = await callFailing(original);
+        const res = await fetchFailing(original);
+        const body = await res.text();
 
-        expect(traceException).toHaveBeenCalledWith(original);
-        expect(getOriginalError(error)).toBe(original);
-        expect(error.code).toBe("INTERNAL_SERVER_ERROR");
-        expect(error.message).toMatch(/^Internal error\. /);
-        expect(error.cause).toBeUndefined();
-        expect(JSON.stringify(error)).not.toContain(original.message);
+        expect(res.status).toBe(500);
+        expect(body).toContain("Internal error. ");
+        expect(body).not.toContain(original.message);
+        // once by the error middleware, once by onError
+        expect(vi.mocked(traceException).mock.calls).toEqual([
+          [original],
+          [original],
+        ]);
       },
     );
-  });
 
-  it("keeps the message of a 4xx error and does not trace it", async () => {
-    const router = createTRPCRouter({
-      failing: protectedProcedureWithoutTracing.query(() => {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid filter" });
-      }),
-    });
-    const caller = router.createCaller(
-      createInnerTRPCContext({
-        session: { user: { id: "user-1" } } as Session,
-        headers: {},
-      }),
-    );
+    it("keeps the message of a 4xx error and does not trace it", async () => {
+      const res = await fetchFailing(
+        new TRPCError({ code: "BAD_REQUEST", message: "Invalid filter" }),
+      );
 
-    await expect(caller.failing()).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message: "Invalid filter",
+      expect(res.status).toBe(400);
+      expect(await res.text()).toContain("Invalid filter");
+      expect(traceException).not.toHaveBeenCalled();
     });
-    expect(traceException).not.toHaveBeenCalled();
   });
 });

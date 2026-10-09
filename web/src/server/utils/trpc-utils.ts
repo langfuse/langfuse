@@ -1,5 +1,6 @@
 import type { TRPCError, TRPC_ERROR_CODE_KEY } from "@trpc/server";
 import { getHTTPStatusCodeFromError } from "@trpc/server/http";
+import { logger, traceException } from "@langfuse/shared/src/server";
 
 // Note: copied from official documentation: https://trpc.io/docs/server/error-handling#error-codes
 const HTTP_STATUS_CODE_TO_TRPC_ERROR_CODE: Record<number, TRPC_ERROR_CODE_KEY> =
@@ -26,6 +27,8 @@ const HTTP_STATUS_CODE_TO_TRPC_ERROR_CODE: Record<number, TRPC_ERROR_CODE_KEY> =
   };
 
 const DEFAULT_ERROR_CODE: TRPC_ERROR_CODE_KEY = "INTERNAL_SERVER_ERROR";
+
+const originalErrorKey = Symbol("trpc.originalError");
 
 export const getTRPCErrorCodeFromHTTPStatusCode = (
   httpStatus: number,
@@ -60,8 +63,6 @@ export const getTRPCErrorReporting = (
   };
 };
 
-const originalErrorKey = Symbol("trpc.originalError");
-
 /**
  * Attaches the unscrubbed error to the error sent to the client, so error
  * reporting can trace the real cause. Non-enumerable, so it never reaches the
@@ -75,5 +76,30 @@ export const attachOriginalError = (error: TRPCError, original: unknown) => {
   return error;
 };
 
-export const getOriginalError = (error: TRPCError): unknown =>
+const getOriginalError = (error: TRPCError): unknown =>
   (error as unknown as Record<symbol, unknown>)[originalErrorKey];
+
+export const reportTRPCError = ({
+  path,
+  error,
+}: {
+  path: string | undefined;
+  error: TRPCError;
+}) => {
+  const { logLevel, shouldTrace } = getTRPCErrorReporting(error);
+  const message = `tRPC route failed on ${path ?? "<no-path>"}: ${error.message}`;
+
+  if (logLevel === "error") {
+    logger.error(message, error);
+  } else if (logLevel === "warn") {
+    logger.warn(message, error);
+  } else {
+    logger.info(message, error);
+  }
+
+  if (shouldTrace) {
+    traceException(getOriginalError(error) ?? error);
+  }
+
+  return error;
+};
