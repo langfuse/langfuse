@@ -95,23 +95,25 @@ export function SessionTimelineContentMessage({
           return (
             <div
               key={`reasoning-${groupIndex}`}
-              className="group/bubble flex w-full flex-col gap-1"
+              className="flex w-full flex-col gap-1"
             >
               {group.parts.map((part, partIndex) => (
                 <SessionTimelinePart
                   key={`${part.content.kind}-${partIndex}`}
                   part={part}
+                  trailingContent={
+                    onOpenObservation && (
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground invisible shrink-0 font-mono text-xs group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible hover:underline"
+                        onClick={onOpenObservation}
+                      >
+                        Open generation
+                      </button>
+                    )
+                  }
                 />
               ))}
-              {onOpenObservation && groupIndex === groups.length - 1 && (
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:text-foreground invisible w-fit font-mono text-[10px] group-focus-within/bubble:visible group-hover/bubble:visible hover:underline"
-                  onClick={onOpenObservation}
-                >
-                  Open generation
-                </button>
-              )}
             </div>
           );
         }
