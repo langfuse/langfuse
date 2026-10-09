@@ -162,7 +162,8 @@ export function ConnectedDashboardTable() {
               }}
             >
               {({ openDialog: openDeleteDialog }) => (
-                <div className="flex min-h-0 flex-1 flex-col">
+                <div className="flex min-h-0 flex-1 flex-col [&>:first-child>:first-child]:border-t-0">
+                  {/* The page tabs above draw the divider. */}
                   <DashboardTable
                     projectId={projectId}
                     hasAccess={hasAccess}

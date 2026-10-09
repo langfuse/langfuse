@@ -263,7 +263,8 @@ function ConnectedDashboardWidgetTableContent({
   }, [widgetData, widgetError, widgetStatus]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    // The page tabs above draw the divider.
+    <div className="flex min-h-0 flex-1 flex-col [&>:first-child>:first-child]:border-t-0">
       <DashboardWidgetTable
         projectId={projectId}
         hasCUDAccess={hasCUDAccess}
