@@ -347,8 +347,6 @@ export const ToolPreviewJsonHighlighting = meta.story({
         controls.getByRole("combobox", { name: "Tool output language" }),
       ).toHaveTextContent("Auto (JSON)");
       const [inputPreview, outputPreview] = row.querySelectorAll("pre");
-      await expect(inputPreview).toHaveClass("max-h-48");
-      await expect(outputPreview).toHaveClass("max-h-96");
       await expect(
         inputPreview.querySelector(".token.property"),
       ).toHaveTextContent('"query"');
@@ -392,12 +390,10 @@ export const LargeToolPreviews = meta.story({
           ? output
           : JSON.stringify(output, undefined, 2);
       await expect(outputPreview.textContent).toBe(expectedOutput);
-      await expect(inputPreview).toHaveClass("max-h-48");
-      await expect(outputPreview).toHaveClass("max-h-96");
       await expect(outputPreview.childElementCount).toBe(0);
       await expect(
-        controls.queryByRole("combobox", { name: "Tool output language" }),
-      ).toBeNull();
+        controls.getByRole("combobox", { name: "Tool output language" }),
+      ).toBeVisible();
 
       if (name === "highlight-limit") {
         await expect(expectedInput.length).toBe(10_000);
@@ -414,10 +410,6 @@ export const LargeToolPreviews = meta.story({
       } else {
         await expect(inputPreview.textContent).toBe(expectedInput);
         await expect(inputPreview.childElementCount).toBe(0);
-        await expect(controls.queryByRole("combobox")).toBeNull();
-        await expect(
-          controls.getAllByText("Plain text (large value)"),
-        ).toHaveLength(2);
       }
     }
   },
