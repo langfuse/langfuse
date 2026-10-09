@@ -18,6 +18,7 @@ import ReactMarkdown, {
 } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";
 import { useTheme } from "next-themes";
 import { ImageOff, Info } from "lucide-react";
 import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
@@ -247,7 +248,7 @@ function MarkdownCode({
 
   return language || isMultiLine ? (
     <CodeBlock
-      language={language}
+      language={normalizeCodeblockLanguage(language)}
       value={codeContent}
       theme={theme === "dark" ? "dark" : "light"}
     />

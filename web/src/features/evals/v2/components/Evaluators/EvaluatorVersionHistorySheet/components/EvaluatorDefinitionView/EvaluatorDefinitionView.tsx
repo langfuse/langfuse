@@ -26,7 +26,6 @@ import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapp
 import { DecisionModelQuestionSummary } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelQuestionSummary/DecisionModelQuestionSummary";
 import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
 import { formatMappingLabel } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
-import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
 import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 
@@ -63,6 +62,10 @@ function CodeEvaluatorDefinitionView({
   definition: Extract<EvaluatorDefinition, { type: "CODE" }>;
 }) {
   const { sourceCode, sourceCodeLanguage } = definition;
+  const codeLanguages = {
+    PYTHON: "python",
+    TYPESCRIPT: "typescript",
+  } as const satisfies Record<EvalTemplateSourceCodeLanguage, string>;
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -86,9 +89,7 @@ function CodeEvaluatorDefinitionView({
         {/* The execution row above already names the language. */}
         <CodeBlock
           language={
-            sourceCodeLanguage
-              ? sourceCodeLanguageLabel(sourceCodeLanguage).toLowerCase()
-              : "text"
+            sourceCodeLanguage ? codeLanguages[sourceCodeLanguage] : "text"
           }
           value={sourceCode ?? ""}
           showLanguage={false}

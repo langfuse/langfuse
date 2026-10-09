@@ -1,5 +1,6 @@
 import { isMap, parseDocument, stringify } from "yaml";
 import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 
@@ -52,7 +53,9 @@ export function SkillFilePreview({
   };
   return (
     <Codeblock
-      language={languageAliases[extension] ?? (extension || "text")}
+      language={normalizeCodeblockLanguage(
+        languageAliases[extension] ?? extension,
+      )}
       value={content}
     />
   );
