@@ -11,7 +11,7 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { getVisibleTabIndices } from "@/src/utils/getVisibleTabIndices";
+import { getVisibleRowItemIndices } from "@/src/utils/getVisibleRowItemIndices";
 import { cn } from "@/src/utils/tailwind";
 
 type TabsVariant = "inset" | "underline";
@@ -483,7 +483,10 @@ function useTabsOverflow<
   }, [measureKey]);
 
   const visibleIndices = React.useMemo(
-    () => (metrics ? getVisibleTabIndices({ ...metrics, activeIndex }) : null),
+    () =>
+      metrics
+        ? getVisibleRowItemIndices({ ...metrics, pinnedIndex: activeIndex })
+        : null,
     [activeIndex, metrics],
   );
 

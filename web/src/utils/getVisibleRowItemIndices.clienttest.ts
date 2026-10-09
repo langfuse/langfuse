@@ -1,30 +1,30 @@
 import { describe, expect, it } from "vitest";
 
-import { getVisibleTabIndices } from "./getVisibleTabIndices";
+import { getVisibleRowItemIndices } from "./getVisibleRowItemIndices";
 
-// Preview, Messages, Attributes, Scores, Log View at roughly their real widths.
+// E.g. the detail tabs Preview, Messages, Attributes, Scores, Log View.
 const widths = [90, 150, 100, 80, 95];
 const overflowWidth = 32;
 
-describe("getVisibleTabIndices", () => {
-  it("shows every tab and no overflow trigger while they all fit", () => {
+describe("getVisibleRowItemIndices", () => {
+  it("shows every item and no overflow trigger while they all fit", () => {
     expect(
-      getVisibleTabIndices({
+      getVisibleRowItemIndices({
         widths,
         availableWidth: 515,
         overflowWidth,
-        activeIndex: 0,
+        pinnedIndex: 0,
       }),
     ).toEqual([0, 1, 2, 3, 4]);
   });
 
   it("tolerates a pixel of sub-pixel rounding at the boundary", () => {
     expect(
-      getVisibleTabIndices({
+      getVisibleRowItemIndices({
         widths,
         availableWidth: 514.2,
         overflowWidth,
-        activeIndex: 0,
+        pinnedIndex: 0,
       }),
     ).toEqual([0, 1, 2, 3, 4]);
   });
@@ -32,79 +32,79 @@ describe("getVisibleTabIndices", () => {
   it("fills the row in order and leaves room for the overflow trigger", () => {
     // 90 + 150 + 100 = 340 fits next to the 32px trigger; Scores would not.
     expect(
-      getVisibleTabIndices({
+      getVisibleRowItemIndices({
         widths,
         availableWidth: 400,
         overflowWidth,
-        activeIndex: 0,
+        pinnedIndex: 0,
       }),
     ).toEqual([0, 1, 2]);
   });
 
-  it("keeps the active tab visible by displacing the tabs after the prefix", () => {
+  it("keeps the pinned item visible by displacing the items after the prefix", () => {
     // Log View (95) takes the slot Attributes (100) would have had.
     expect(
-      getVisibleTabIndices({
+      getVisibleRowItemIndices({
         widths,
         availableWidth: 400,
         overflowWidth,
-        activeIndex: 4,
+        pinnedIndex: 4,
       }),
     ).toEqual([0, 1, 4]);
   });
 
-  it("continues past the active tab when later tabs still fit", () => {
+  it("continues past the pinned item when later items still fit", () => {
     expect(
-      getVisibleTabIndices({
+      getVisibleRowItemIndices({
         widths,
         availableWidth: 400,
         overflowWidth,
-        activeIndex: 1,
+        pinnedIndex: 1,
       }),
     ).toEqual([0, 1, 2]);
   });
 
-  it("keeps the default order: nothing after the active tab jumps a spilled one", () => {
-    // Messages spills before the active Attributes, so Scores stays hidden too.
+  it("keeps the order: nothing after the pinned item jumps a spilled one", () => {
+    // Messages spills before the pinned Attributes, so Scores stays hidden too.
     expect(
-      getVisibleTabIndices({
+      getVisibleRowItemIndices({
         widths,
         availableWidth: 320,
         overflowWidth,
-        activeIndex: 2,
+        pinnedIndex: 2,
       }),
     ).toEqual([0, 2]);
   });
 
-  it("shows only the active tab when nothing else fits", () => {
+  it("shows only the pinned item when nothing else fits", () => {
     expect(
-      getVisibleTabIndices({
+      getVisibleRowItemIndices({
         widths,
         availableWidth: 140,
         overflowWidth,
-        activeIndex: 3,
+        pinnedIndex: 3,
       }),
     ).toEqual([3]);
   });
 
-  it("still shows the active tab when even that one overflows", () => {
+  it("still shows the pinned item when even that one overflows", () => {
     expect(
-      getVisibleTabIndices({
+      getVisibleRowItemIndices({
         widths,
         availableWidth: 60,
         overflowWidth,
-        activeIndex: 2,
+        pinnedIndex: 2,
       }),
     ).toEqual([2]);
   });
 
-  it("falls back to the plain prefix without an active tab", () => {
+  it("falls back to the plain prefix without a pinned item", () => {
     expect(
-      getVisibleTabIndices({
+      getVisibleRowItemIndices({
         widths,
         availableWidth: 400,
         overflowWidth,
-        activeIndex: -1,
+        pinnedIndex: -1,
       }),
     ).toEqual([0, 1, 2]);
   });

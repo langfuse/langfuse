@@ -1,22 +1,22 @@
 /**
- * Picks the tab indices an underline tab row shows when its triggers do not all
- * fit. Tabs fill the row in order until the next one would spill, and the rest
- * go behind an overflow trigger that needs `overflowWidth` of the row itself.
+ * Picks which items of a single row stay visible when they do not all fit.
+ * Items fill the row in order until the next one would spill, and the rest go
+ * behind an overflow trigger that needs `overflowWidth` of the row itself.
  *
- * The active tab always stays visible: when it would overflow, it takes the
- * last slot and the tabs it displaces move behind the trigger instead. Tabs
- * keep their default order, so once one spills no later tab is shown.
+ * The pinned item always stays visible: when it would overflow, it takes the
+ * last slot and the items it displaces move behind the trigger instead. Items
+ * keep their order, so once one spills no later item is shown.
  */
-export function getVisibleTabIndices({
+export function getVisibleRowItemIndices({
   widths,
   availableWidth,
   overflowWidth,
-  activeIndex,
+  pinnedIndex,
 }: {
   widths: number[];
   availableWidth: number;
   overflowWidth: number;
-  activeIndex: number;
+  pinnedIndex: number;
 }): number[] {
   // Sub-pixel layout rounds against the content at the exact boundary, so
   // spend a pixel of slack rather than collapsing a row that just fits.
@@ -25,10 +25,10 @@ export function getVisibleTabIndices({
   if (total <= limit) return widths.map((_, index) => index);
 
   const budget = limit - overflowWidth;
-  const active =
-    activeIndex >= 0 && activeIndex < widths.length ? activeIndex : null;
+  const pinned =
+    pinnedIndex >= 0 && pinnedIndex < widths.length ? pinnedIndex : null;
   const visible: number[] = [];
-  let used = active === null ? 0 : widths[active];
+  let used = pinned === null ? 0 : widths[pinned];
 
   /** False once a tab spills. */
   const take = (from: number, to: number) => {
@@ -40,13 +40,13 @@ export function getVisibleTabIndices({
     return true;
   };
 
-  if (active === null) {
+  if (pinned === null) {
     take(0, widths.length);
     return visible;
   }
 
-  const prefixFits = take(0, active);
-  visible.push(active);
-  if (prefixFits) take(active + 1, widths.length);
+  const prefixFits = take(0, pinned);
+  visible.push(pinned);
+  if (prefixFits) take(pinned + 1, widths.length);
   return visible;
 }
