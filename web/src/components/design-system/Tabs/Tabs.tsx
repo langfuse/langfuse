@@ -611,6 +611,9 @@ function TabsOverflowList({
                 badge: trigger.props.internal ? (
                   <TabsInternalBadge />
                 ) : undefined,
+                disabled: trigger.props.disabled
+                  ? { reason: trigger.props.tooltip ?? "Not available" }
+                  : undefined,
                 id: trigger.props.value,
                 onClick: () => selectFromMenu(trigger.props.value),
                 title:
