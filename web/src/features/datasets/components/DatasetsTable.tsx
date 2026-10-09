@@ -134,6 +134,7 @@ function DatasetsMultiSelectActionMenu({
   const deleteManyMutation = api.datasets.deleteMany.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "dataset.bulk_delete",
         title: "Datasets deleted",
         description:
           "Selected datasets will be deleted. Associated run items and media links are cleaned up asynchronously.",
@@ -461,7 +462,7 @@ export function DatasetsTable(props: { projectId: string }) {
             >
               {({ disabled, openDialog }) => (
                 <IconOnlyButton
-                  icon={<Pen className="h-4 w-4" />}
+                  icon={<Pen className="icon-base" />}
                   label="Edit"
                   aria-label="edit"
                   disabledReason={disabled?.reason}
@@ -482,7 +483,7 @@ export function DatasetsTable(props: { projectId: string }) {
             >
               {({ disabled, openDialog }) => (
                 <IconOnlyButton
-                  icon={<Trash className="h-4 w-4" />}
+                  icon={<Trash className="icon-base" />}
                   label="Delete"
                   aria-label="delete"
                   disabledReason={disabled?.reason}

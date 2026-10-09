@@ -257,7 +257,7 @@ types:
         type: nullable<string>
         docs: Comment on the score
       metadata:
-        type: map<string, unknown>
+        type: optional<map<string, unknown>>
         docs: Metadata associated with the score
       configId:
         type: nullable<string>

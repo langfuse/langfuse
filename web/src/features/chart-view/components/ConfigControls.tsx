@@ -7,13 +7,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { cn } from "@/src/utils/tailwind";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   type AggregationFn,
   type DimensionKey,
@@ -145,49 +144,42 @@ export const GranularitySelect = React.memo(function GranularitySelect({
 export const ChartTypePicker = React.memo(function ChartTypePicker({
   value,
   onChange,
-  showLabels = false,
+  layout,
 }: {
   value: DashboardWidgetChartType;
   onChange: (value: DashboardWidgetChartType) => void;
-  showLabels?: boolean;
+  /** `full`: stretch across the host, one equal column per chart type. */
+  layout?: "full";
 }) {
   return (
-    <ToggleGroup
-      type="single"
+    <Tabs
+      activationMode="manual"
       value={value}
-      onValueChange={(v) => {
-        if (v) onChange(v as DashboardWidgetChartType);
-      }}
-      variant="outline"
-      className={cn(showLabels ? "grid grid-cols-3 gap-1" : "gap-0.5")}
+      onValueChange={(v) => onChange(v as DashboardWidgetChartType)}
     >
-      {CHART_TYPES.map((ct) => {
-        const Icon = ct.icon;
-        const item = (
-          <ToggleGroupItem
-            key={ct.value}
-            value={ct.value}
-            size={showLabels ? "default" : "xs"}
-            aria-label={ct.label}
-            className={cn(
-              showLabels
-                ? "flex h-auto flex-col gap-1 py-2 text-[11px]"
-                : "h-7 w-7 p-0",
-            )}
-          >
-            <Icon className={showLabels ? "h-4 w-4" : "h-3.5 w-3.5"} />
-            {showLabels ? <span>{ct.label}</span> : null}
-          </ToggleGroupItem>
-        );
-
-        if (showLabels) return item;
-        return (
-          <Tooltip key={ct.value}>
-            <TooltipTrigger asChild>{item}</TooltipTrigger>
-            <TooltipContent>{ct.label}</TooltipContent>
-          </Tooltip>
-        );
-      })}
-    </ToggleGroup>
+      <Tabs.List
+        variant="inset"
+        size="md"
+        layout={layout}
+        aria-label="Chart type"
+      >
+        {CHART_TYPES.map((ct) => {
+          const Icon = ct.icon;
+          return (
+            <Tooltip key={ct.value}>
+              <TooltipTrigger asChild>
+                <span className="h-full min-w-0">
+                  <Tabs.Trigger value={ct.value}>
+                    <Icon aria-hidden="true" className="icon-base shrink-0" />
+                    <span className="sr-only">{ct.label}</span>
+                  </Tabs.Trigger>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{ct.label}</TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </Tabs.List>
+    </Tabs>
   );
 });

@@ -11,11 +11,12 @@ import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
+import { OrganizationUsageBreakdown } from "@/src/features/organization-usage";
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { SSOSettings } from "@/src/ee/features/sso-settings";
-import { isCloudPlan } from "@langfuse/shared";
+import { type CloudConfigSchema, isCloudPlan } from "@langfuse/shared";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
@@ -60,6 +61,10 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     organizationId: organization?.id,
     scope: "gateway:manage",
   });
+  const canReadUsage = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organizationUsage:read",
+  });
   const plan = usePlan();
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
@@ -71,9 +76,14 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
 
   if (!organization) return [];
 
+  const showBillingPage = showBillingSettings && isCloudBillingAvailable;
+
   return getOrganizationSettingsPages({
     organization,
-    showBillingSettings: showBillingSettings && isCloudBillingAvailable,
+    showBillingSettings: showBillingPage,
+    // The billing page embeds the usage breakdown, so the usage page only
+    // covers deployments without one (self-hosted).
+    showUsageSettings: canReadUsage && !showBillingPage,
     showOrgApiKeySettings,
     showAuditLogs,
     isLangfuseCloud,
@@ -87,6 +97,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
 export const getOrganizationSettingsPages = ({
   organization,
   showBillingSettings,
+  showUsageSettings,
   showOrgApiKeySettings,
   showAuditLogs,
   isLangfuseCloud,
@@ -98,6 +109,7 @@ export const getOrganizationSettingsPages = ({
     id: string;
     name: string;
     metadata: Record<string, unknown>;
+    cloudConfig?: CloudConfigSchema | null;
     projects: Array<{
       id: string;
       name: string;
@@ -105,6 +117,7 @@ export const getOrganizationSettingsPages = ({
     }>;
   };
   showBillingSettings: boolean;
+  showUsageSettings: boolean;
   showOrgApiKeySettings: boolean;
   showAuditLogs: boolean;
   isLangfuseCloud: boolean;
@@ -130,6 +143,10 @@ export const getOrganizationSettingsPages = ({
               ...organization.metadata,
               ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && {
                 cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+              }),
+              ...(organization.cloudConfig?.clickhouse?.organizationId && {
+                clickhouseOrganizationId:
+                  organization.cloudConfig.clickhouse.organizationId,
               }),
             }}
           />
@@ -193,6 +210,19 @@ export const getOrganizationSettingsPages = ({
     cmdKKeywords: ["audit", "logs", "history", "changes"],
     content: <OrgAuditLogsSettingsPage orgId={organization.id} />,
     show: showAuditLogs,
+  },
+  {
+    title: "Usage",
+    slug: "usage",
+    section: "Organization",
+    cmdKKeywords: ["usage", "units", "traces", "observations", "scores"],
+    content: (
+      <div>
+        <Header title="Usage" />
+        <OrganizationUsageBreakdown orgId={organization.id} />
+      </div>
+    ),
+    show: showUsageSettings,
   },
   {
     title: "Billing",

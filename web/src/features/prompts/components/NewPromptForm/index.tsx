@@ -265,7 +265,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                             className="flex flex-row items-center"
                           >
                             Create a new version for it here.
-                            <SquareArrowOutUpRight className="ml-1 h-3 w-3" />
+                            <SquareArrowOutUpRight className="icon-sm ml-1" />
                           </Link>
                         ) : null}
                       </div>
@@ -296,7 +296,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               }}
             >
               {!initialPrompt ? (
-                <Tabs.List layout="full">
+                <Tabs.List variant="inset" size="md" layout="full">
                   <span className="flex-1">
                     <Tabs.Trigger
                       disabled={

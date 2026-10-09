@@ -105,6 +105,7 @@ async fn handle(state: InferenceRouteState, mut request: Request, route: Route) 
         Err(error) => error.into_native_response(route.api_format(), correlation.id()),
     };
     correlation.apply_generation_headers(response.headers_mut());
+    correlation.apply_resolution_headers(response.headers_mut());
     response
 }
 
@@ -121,7 +122,7 @@ async fn relay(
         .ok_or(InferenceHttpError::Unavailable)?;
     let gateway_key = gateway_key(request.headers(), route.api_format())?.to_owned();
     let (permit, context) = inference
-        .resolve_and_admit(&gateway_key, route.api_format(), correlation.id())
+        .resolve_and_admit(&gateway_key, route.api_format(), correlation)
         .await
         .map_err(|error| match error {
             RequestPreparationError::Resolution(error) => InferenceHttpError::Resolution(error),

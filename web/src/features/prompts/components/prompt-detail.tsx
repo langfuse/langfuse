@@ -9,15 +9,10 @@ import {
 } from "use-query-params";
 import type { z } from "zod";
 import { ChatMessageList } from "@/src/features/traces";
-import {
-  TabsBar,
-  TabsBarList,
-  TabsBarContent,
-  TabsBarTrigger,
-} from "@/src/components/ui/tabs-bar";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/ui/badge";
-import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
@@ -243,6 +238,7 @@ export const PromptDetail = ({
     utils.datasets.baseRunDataByDatasetId.invalidate();
     utils.datasets.runsByDatasetId.invalidate();
     showSuccessToast({
+      operation: "experiment.trigger",
       title: "Experiment triggered successfully",
       description: "Waiting for experiment to complete...",
       link: {
@@ -314,7 +310,7 @@ export const PromptDetail = ({
   } = {}) => (
     <Command
       className={cn(
-        "flex min-h-0 flex-col gap-2 overflow-hidden font-bold focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0",
+        "flex min-h-0 flex-col gap-2 overflow-hidden bg-transparent font-bold focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0",
         mobile ? "rounded-none" : "rounded-none border-r pr-3",
       )}
     >
@@ -343,7 +339,7 @@ export const PromptDetail = ({
             className="grid w-full grid-flow-col place-items-center"
             href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
           >
-            <Plus className={cn("h-4 w-4", mobile ? "mr-2" : "lg:mr-2")} />
+            <Plus className={cn("icon-base", mobile ? "mr-2" : "lg:mr-2")} />
             <span className={cn(mobile ? "inline" : "hidden lg:inline")}>
               New version
             </span>
@@ -474,7 +470,7 @@ export const PromptDetail = ({
                   variant="outline"
                   className="mb-3 w-full min-w-0 justify-start gap-2 px-3"
                 >
-                  <History className="h-4 w-4 shrink-0" />
+                  <History className="icon-base text-icon-foreground shrink-0" />
                   <span className="shrink-0">Version #{prompt.version}</span>
                   <span
                     className="text-muted-foreground min-w-0 flex-1 truncate text-left font-normal"
@@ -553,7 +549,7 @@ export const PromptDetail = ({
                             : "cursor-pointer",
                         )}
                       >
-                        <Terminal className="h-4 w-4" />
+                        <Terminal className="icon-base text-icon-foreground" />
                         <span className="hidden md:inline">Playground</span>
                         <DropdownIndicator size="sm" nudge />
                       </Button>
@@ -571,7 +567,7 @@ export const PromptDetail = ({
                         disabled={!hasExperimentWriteAccess}
                         onClick={() => capture("dataset_run:new_form_open")}
                       >
-                        <FlaskConical className="h-4 w-4" />
+                        <FlaskConical className="icon-base text-icon-foreground" />
                         <span className="hidden md:ml-2 md:inline">
                           Run experiment
                         </span>
@@ -619,10 +615,10 @@ export const PromptDetail = ({
                       className="gap-1"
                     >
                       {disabled ? (
-                        <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                        <MessageSquareOff className="icon-base text-muted-foreground" />
                       ) : (
                         <>
-                          <MessageSquare className="h-4 w-4" />
+                          <MessageSquare className="icon-base text-icon-foreground" />
                           <span>Add comment</span>
                           {getNumberFromMap(commentCounts, prompt.id) ? (
                             <ActionButtonCountBadge
@@ -639,7 +635,7 @@ export const PromptDetail = ({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="icon">
-                      <MoreVertical className="h-4 w-4" />
+                      <MoreVertical className="icon-base text-icon-foreground" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
@@ -658,24 +654,24 @@ export const PromptDetail = ({
               </div>
             </div>
           </div>
-          <TabsBar
+          <Tabs
             value={currentTab}
-            className="min-h-0"
+            layout="fill"
             onValueChange={(value) => setCurrentTab(value)}
           >
-            <TabsBarList className="max-w-full min-w-0 justify-start overflow-x-auto">
-              <TabsBarTrigger value="prompt">Prompt</TabsBarTrigger>
-              <TabsBarTrigger value="config">Config</TabsBarTrigger>
-              <TabsBarTrigger value="linked-generations">
-                Linked Generations
-              </TabsBarTrigger>
-              <TabsBarTrigger value="use-prompt">Use Prompt</TabsBarTrigger>
-            </TabsBarList>
-            <TabsBarContent
-              value="linked-generations"
-              className="mt-0 mb-2 flex max-h-full min-h-0 flex-1 flex-col overflow-hidden"
-            >
-              <div className="flex h-full flex-1 flex-col overflow-hidden">
+            <div className="max-w-full min-w-0 shrink-0 overflow-x-auto">
+              <Tabs.List variant="underline">
+                <Tabs.Trigger value="prompt" label="Prompt" />
+                <Tabs.Trigger value="config" label="Config" />
+                <Tabs.Trigger
+                  value="linked-generations"
+                  label="Linked Generations"
+                />
+                <Tabs.Trigger value="use-prompt" label="Use Prompt" />
+              </Tabs.List>
+            </div>
+            <Tabs.Content value="linked-generations" layout="fill">
+              <div className="flex h-full flex-1 flex-col overflow-hidden pb-2">
                 {isV4 ? (
                   <EventsTable
                     projectId={prompt.projectId}
@@ -693,11 +689,8 @@ export const PromptDetail = ({
                   />
                 )}
               </div>
-            </TabsBarContent>
-            <TabsBarContent
-              value="prompt"
-              className="mt-0 flex max-h-full min-h-0 flex-1 overflow-hidden"
-            >
+            </Tabs.Content>
+            <Tabs.Content value="prompt" layout="fill">
               <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
                 {promptGraph.data?.graph && (
                   <div className="flex items-center justify-end py-2">
@@ -707,17 +700,12 @@ export const PromptDetail = ({
                         setResolutionMode(value as "tagged" | "resolved");
                       }}
                     >
-                      <Tabs.List gap="sm" size="auto">
+                      <Tabs.List variant="inset" gap="sm" size="md">
                         <Tabs.Trigger
                           value="resolved"
-                          size="sm"
                           label="Resolved prompt"
                         />
-                        <Tabs.Trigger
-                          value="tagged"
-                          size="sm"
-                          label="Tagged prompt"
-                        />
+                        <Tabs.Trigger value="tagged" label="Tagged prompt" />
                       </Tabs.List>
                     </Tabs>
                   </div>
@@ -736,16 +724,14 @@ export const PromptDetail = ({
                   ) : typeof prompt.prompt === "string" ? (
                     resolutionMode === "resolved" &&
                     promptGraph.data?.resolvedPrompt ? (
-                      <CodeView
-                        content={String(promptGraph.data.resolvedPrompt)}
+                      <CodeSection
                         title="Text Prompt (resolved)"
+                        content={String(promptGraph.data.resolvedPrompt)}
                       />
                     ) : (
-                      <CodeView
-                        content={renderRichPromptContent(prompt.prompt)}
-                        originalContent={prompt.prompt}
-                        title="Text Prompt"
-                      />
+                      <CodeSection title="Text Prompt" content={prompt.prompt}>
+                        {renderRichPromptContent(prompt.prompt)}
+                      </CodeSection>
                     )
                   ) : (
                     <JSONView json={prompt.prompt} title="Prompt" />
@@ -755,11 +741,8 @@ export const PromptDetail = ({
                   <PromptVariableListPreview variables={extractedVariables} />
                 )}
               </div>
-            </TabsBarContent>
-            <TabsBarContent
-              value="config"
-              className="mt-0 flex max-h-full min-h-0 flex-1 overflow-hidden"
-            >
+            </Tabs.Content>
+            <Tabs.Content value="config" layout="fill">
               <div className="flex max-h-full min-h-0 w-full flex-col overflow-y-auto pb-4">
                 <JSONView
                   json={prompt.config}
@@ -767,14 +750,13 @@ export const PromptDetail = ({
                   className="pb-2"
                 />
               </div>
-            </TabsBarContent>
-            <TabsBarContent
-              value="use-prompt"
-              className="mt-0 flex max-h-full min-h-0 flex-1 overflow-hidden"
-            >
+            </Tabs.Content>
+            <Tabs.Content value="use-prompt" layout="fill">
               <div className="flex h-full min-h-0 w-full flex-col gap-2 overflow-y-auto pb-4">
-                {pythonCode && <CodeView content={pythonCode} title="Python" />}
-                {jsCode && <CodeView content={jsCode} title="JS/TS" />}
+                {pythonCode && (
+                  <CodeSection title="Python" content={pythonCode} />
+                )}
+                {jsCode && <CodeSection title="JS/TS" content={jsCode} />}
                 <p className="text-muted-foreground pl-1 text-xs">
                   See{" "}
                   <a
@@ -789,8 +771,8 @@ export const PromptDetail = ({
                   Langchain.
                 </p>
               </div>
-            </TabsBarContent>
-          </TabsBar>
+            </Tabs.Content>
+          </Tabs>
         </div>
       </div>
     </Page>

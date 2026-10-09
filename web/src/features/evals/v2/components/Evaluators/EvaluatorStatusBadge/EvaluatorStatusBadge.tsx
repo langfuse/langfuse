@@ -5,11 +5,7 @@ import {
   type EvaluatorBlockReason,
 } from "@langfuse/shared";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 type ExecutionSummary = { total: number; failed: number };
 
@@ -85,35 +81,44 @@ export function EvaluatorStatusBadge({
   );
 
   return (
-    <HoverCard openDelay={200}>
-      <HoverCardTrigger asChild>
-        {executionsHref ? (
-          <Link
-            href={executionsHref}
-            onClick={(event) => event.stopPropagation()}
-            aria-label={`View executions: ${status}`}
-            className="focus-visible:ring-ring inline-flex rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-          >
-            {badge}
-          </Link>
-        ) : (
-          <span className="inline-flex" tabIndex={0}>
-            {badge}
-          </span>
-        )}
-      </HoverCardTrigger>
-      <HoverCardContent align="start" className="w-80 text-sm">
-        <p>{explanation}</p>
-        {executionsHref && (
-          <Link
-            href={executionsHref}
-            onClick={(event) => event.stopPropagation()}
-            className="text-primary mt-2 inline-block underline"
-          >
-            View executions
-          </Link>
-        )}
-      </HoverCardContent>
+    <HoverCard
+      openDelay={200}
+      placement="bottom-start"
+      content={
+        <div className="w-80 p-3 text-sm">
+          <p>{explanation}</p>
+          {executionsHref && (
+            <Link
+              href={executionsHref}
+              onClick={(event) => event.stopPropagation()}
+              className="text-primary mt-2 inline-block underline"
+            >
+              View executions
+            </Link>
+          )}
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <>
+          {executionsHref ? (
+            <Link
+              {...getTriggerProps({
+                onClick: (event) => event.stopPropagation(),
+              })}
+              href={executionsHref}
+              aria-label={`View executions: ${status}`}
+              className="focus-visible:ring-ring inline-flex rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+            >
+              {badge}
+            </Link>
+          ) : (
+            <span className="inline-flex" tabIndex={0} {...getTriggerProps()}>
+              {badge}
+            </span>
+          )}
+        </>
+      )}
     </HoverCard>
   );
 }

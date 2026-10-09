@@ -26,6 +26,7 @@ export function ConnectedVerifiedDomainsSettingsTable({
       utils.ssoConfig.get.invalidate({ orgId });
       const domain = query.data?.find((row) => row.id === variables.id);
       showSuccessToast({
+        operation: "verified_domain.verify",
         title: "Domain verified",
         description: `${domain?.domain ?? "Domain"} is now verified.`,
       });
@@ -39,6 +40,7 @@ export function ConnectedVerifiedDomainsSettingsTable({
       utils.verifiedDomain.list.invalidate({ orgId });
       const domain = query.data?.find((row) => row.id === variables.id);
       showSuccessToast({
+        operation: "verified_domain.remove",
         title: "Domain removed",
         description: `${domain?.domain ?? "Domain"} has been removed.`,
       });

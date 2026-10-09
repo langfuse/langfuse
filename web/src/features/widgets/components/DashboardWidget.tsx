@@ -591,6 +591,7 @@ export function DashboardWidget({
         dashboard_id: dashboardId,
       });
       showSuccessToast({
+        operation: "widget.copy",
         title: "Widget copied",
         description: "Paste it on any dashboard with Cmd/Ctrl+V.",
       });
@@ -640,17 +641,14 @@ export function DashboardWidget({
         <div className="flex space-x-2">
           {!readOnly && (hasCUDAccess || isLockedEditable) && (
             <>
-              <GripVerticalIcon
-                size={16}
-                className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
-              />
+              <GripVerticalIcon className="icon-base drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block" />
               {isLockedEditable ? (
                 <button
                   onClick={onLockedEditAttempt}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon className="icon-base" />
                 </button>
               ) : widget.data.owner === "PROJECT" ? (
                 <button
@@ -658,7 +656,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon className="icon-base" />
                 </button>
               ) : widget.data.owner === "LANGFUSE" ? (
                 <button
@@ -672,7 +670,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon className="icon-base" />
                 </button>
               ) : null}
             </>
@@ -760,7 +758,7 @@ export function DashboardWidget({
                 aria-label="Widget actions"
                 {...getTriggerProps()}
               >
-                <MoreVerticalIcon size={16} />
+                <MoreVerticalIcon className="icon-base" />
               </button>
             )}
           </DropdownMenu>

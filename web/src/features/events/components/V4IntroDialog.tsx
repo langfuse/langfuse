@@ -4,6 +4,7 @@ import {
   DialogContent,
   DialogBody,
   DialogFooter,
+  DialogTitle,
 } from "@/src/components/ui/dialog";
 
 export function V4IntroDialog({
@@ -17,10 +18,13 @@ export function V4IntroDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onDismiss()}>
-      <DialogContent
-        className="[&>div:last-child]:hidden"
-        aria-label="Welcome to a faster Langfuse"
-      >
+      {/* `[&>div:last-child]:hidden` suppresses DialogContent's floating close
+          button; this dialog is dismissed through its footer action. The title
+          below is an h2, so it is not caught by that selector. */}
+      <DialogContent className="[&>div:last-child]:hidden">
+        <DialogTitle className="sr-only">
+          Welcome to a faster Langfuse
+        </DialogTitle>
         <DialogBody>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

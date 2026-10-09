@@ -7,6 +7,7 @@ import { RouteGroup, type Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess, hasOrganizationAccess } from "@/src/features/rbac";
 import type { Session } from "next-auth";
+import { isAdminOnlyFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -70,6 +71,12 @@ const filters = {
    */
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
+
+    if (isAdminOnlyFeaturePreviewFlag(route.featureFlag)) {
+      return ctx.session?.user?.featureFlags?.[route.featureFlag] === true
+        ? route
+        : null;
+    }
 
     if (route.featureFlag === "internalFeatures") {
       return ctx.internalFeaturesEnabled ? route : null;

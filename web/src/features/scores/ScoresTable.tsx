@@ -141,6 +141,8 @@ export type ScoresTableProps = {
   hiddenColumns?: ScoresTableHiddenColumn[];
   localStorageSuffix?: string;
   disableUrlPersistence?: boolean;
+  /** Detail panel: toolbar inset to the panel edge, search inline, no saved views. */
+  insetToolbar?: boolean;
   /**
    * When true, render the time-range picker and auto-refresh button in the
    * page header (next to the title) via the header controls slot, instead of
@@ -182,6 +184,7 @@ export default function ScoresTable({
   hiddenColumns = [],
   localStorageSuffix = "",
   disableUrlPersistence = false,
+  insetToolbar = false,
   showControlsInPageHeader = false,
   showAllEnvironments = false,
   renderTracePeek,
@@ -340,6 +343,7 @@ export default function ScoresTable({
   const scoreDeleteMutation = api.scores.deleteMany.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "score.bulk_delete",
         title: "Scores deleted",
         description:
           "Selected scores will be deleted. Scores are removed asynchronously and may continue to be visible for up to 15 minutes.",
@@ -1131,6 +1135,44 @@ export default function ScoresTable({
     ? totalCount
     : visibleSelectedScoreIds.length;
 
+  if (
+    insetToolbar &&
+    !scores.isPending &&
+    !scores.isError &&
+    !totalScoreCountQuery.isError &&
+    totalCount === 0 &&
+    queryFilter.effectiveFilterState.length === 0
+  ) {
+    return (
+      <div className="flex h-full w-full flex-col items-center gap-1 px-8 pt-24 pb-8">
+        <span className="text-muted-foreground text-lg">No scores found</span>
+        <a
+          href="https://langfuse.com/faq/all/what-are-scores"
+          className="text-primary text-sm underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          What are scores?
+        </a>
+      </div>
+    );
+  }
+
+  const scoresSearchBar = (
+    <ScoresSearchBar
+      size={showControlsInPageHeader ? "large" : "default"}
+      key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+      isV4={isV4}
+      projectId={projectId}
+      filterConfig={scoresFilterConfig}
+      filterState={queryFilter.searchBarFilterState}
+      setFilterState={setFiltersWrapper}
+      filterOptions={newFilterOptions}
+      isLoading={isSidebarFilterLoading}
+      inset={insetToolbar}
+    />
+  );
+
   return (
     <DataTableControlsProvider
       tableName={scoresFilterConfig.tableName}
@@ -1145,31 +1187,31 @@ export default function ScoresTable({
           />
         )}
         <SearchableTableFilterLayout
-          search={
-            <ScoresSearchBar
-              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
-              isV4={isV4}
-              projectId={projectId}
-              filterConfig={scoresFilterConfig}
-              filterState={queryFilter.searchBarFilterState}
-              setFilterState={setFiltersWrapper}
-              filterOptions={newFilterOptions}
-              isLoading={isSidebarFilterLoading}
-            />
-          }
+          search={insetToolbar ? null : scoresSearchBar}
           toolbar={
             <DataTableToolbar
+              className={insetToolbar ? "px-4 py-2" : undefined}
+              tableName={TableViewPresetTableName.Scores}
+              leadingControls={
+                insetToolbar ? (
+                  <div className="min-w-0 flex-1">{scoresSearchBar}</div>
+                ) : undefined
+              }
               columns={columns}
               filterState={queryFilter.explicitFilterState}
               columnVisibility={columnVisibility}
               setColumnVisibility={handleColumnVisibilityChange}
               columnOrder={columnOrder}
               setColumnOrder={handleColumnOrderChange}
-              viewConfig={{
-                tableName: TableViewPresetTableName.Scores,
-                projectId,
-                controllers: viewControllers,
-              }}
+              viewConfig={
+                insetToolbar
+                  ? undefined
+                  : {
+                      tableName: TableViewPresetTableName.Scores,
+                      projectId,
+                      controllers: viewControllers,
+                    }
+              }
               actionButtons={[
                 visibleSelectedScoreIds.length > 0 || selectAll ? (
                   <TableActionMenu

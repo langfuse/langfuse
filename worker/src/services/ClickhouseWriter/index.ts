@@ -22,6 +22,7 @@ import {
   type ClickhouseWriteStrategyFactory,
 } from "./writeStrategies";
 import { TableName, type RecordInsertType } from "./types";
+import { classifyJobFailure } from "../../queues/jobFailureReason";
 export { TableName } from "./types";
 
 const MULTI_PROJECT_LOG_COMMENT_PROJECT_ID = "MULTI_PROJECT";
@@ -472,6 +473,7 @@ export class ClickhouseWriter<
       );
 
       // Re-add the records to the queue with incremented attempts
+      const reason = classifyJobFailure(err);
       let droppedCount = 0;
       queueItems.forEach((item) => {
         if (item.attempts < this.maxAttempts) {
@@ -483,6 +485,7 @@ export class ClickhouseWriter<
           // TODO - Add to a dead letter queue in Redis rather than dropping
           recordIncrement("langfuse.queue.clickhouse_writer.error", 1, {
             format: this.strategyFactory.format,
+            reason,
           });
           droppedCount++;
         }
@@ -492,7 +495,11 @@ export class ClickhouseWriter<
         recordIncrement(
           "langfuse.queue.clickhouse_writer.rows_dropped",
           droppedCount,
-          { entity_type: tableName, format: this.strategyFactory.format },
+          {
+            entity_type: tableName,
+            format: this.strategyFactory.format,
+            reason,
+          },
         );
 
         const droppedIds = queueItems
