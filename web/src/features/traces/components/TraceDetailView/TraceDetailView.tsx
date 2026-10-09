@@ -465,7 +465,9 @@ function LoadedTraceDetailView({
                 {isAnnotationMode && trace.tags.length > 0 && (
                   <div className="space-y-1 pt-1 pb-2">
                     <div className="text-sm font-bold">Tags</div>
-                    <TagList selectedTags={trace.tags} isLoading={false} />
+                    <div className="flex flex-wrap items-center gap-1">
+                      <TagList selectedTags={trace.tags} isLoading={false} />
+                    </div>
                   </div>
                 )}
                 {/* I/O Preview (includes metadata in both views) */}
