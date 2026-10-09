@@ -41,7 +41,7 @@ export function TraceDetailTabsBarList(
 function TraceDetailTabsBarListLoading() {
   return (
     <div className={rowClassName}>
-      <Tabs.List variant="underline" aria-label="Detail views">
+      <Tabs.List variant="underline" overflow="menu" aria-label="Detail views">
         {LOADING_TAB_WIDTHS.map((width, index) => (
           <Tabs.Trigger key={width} value={`loading-${index}`}>
             <Skeleton className={cn("h-3.5", width)} />
