@@ -362,7 +362,7 @@ describe("role assignment rolling compatibility", () => {
         : OrganizationId(orgId);
       const updated = await prisma.roleAssignment.update({
         where: {
-          roleId_principalId_ownerId: {
+          ownerId_principalId_roleId: {
             roleId: SystemRoleId("ADMIN"),
             principalId,
             ownerId,
@@ -433,7 +433,7 @@ describe("role assignment foreign keys", () => {
       });
       const stored = await prisma.roleAssignment.findUniqueOrThrow({
         where: {
-          roleId_principalId_ownerId: {
+          ownerId_principalId_roleId: {
             roleId: assignment.roleId,
             principalId: assignment.principalId,
             ownerId: assignment.ownerId,

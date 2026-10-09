@@ -301,7 +301,7 @@ model RoleAssignment {
   @@unique([deprecatedPrincipalUserId, deprecatedOwnerProjectId, systemRole], map: "role_assignments_user_project_role_key")
   @@unique([deprecatedPrincipalApiKeyId, deprecatedOwnerOrgId, systemRole], map: "role_assignments_api_key_org_role_key")
   @@unique([deprecatedPrincipalApiKeyId, deprecatedOwnerProjectId, systemRole], map: "role_assignments_api_key_project_role_key")
-  @@unique([roleId, principalId, ownerId])
+  @@unique([ownerId, principalId, roleId])
   @@index([deprecatedOwnerOrgId], map: "role_assignments_owner_org_id_idx")
   @@index([deprecatedOwnerProjectId], map: "role_assignments_owner_project_id_idx")
   @@index([orgId])

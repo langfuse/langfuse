@@ -134,7 +134,7 @@ ALTER TABLE "role_assignments"
         AND "owner_org_id" IS NOT DISTINCT FROM CASE WHEN "project_id" IS NULL THEN "org_id" END
     );
 
-CREATE UNIQUE INDEX "role_assignments_role_id_principal_id_owner_id_key" ON "role_assignments"("role_id", "principal_id", "owner_id");
+CREATE UNIQUE INDEX "role_assignments_owner_id_principal_id_role_id_key" ON "role_assignments"("owner_id", "principal_id", "role_id");
 CREATE INDEX "role_assignments_project_id_idx" ON "role_assignments"("project_id");
 CREATE INDEX "role_assignments_principal_id_idx" ON "role_assignments"("principal_id");
 CREATE INDEX "role_assignments_user_id_idx" ON "role_assignments"("user_id");
