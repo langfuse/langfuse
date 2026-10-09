@@ -258,9 +258,12 @@ export async function writeTopicRule(
     throw new InvalidRequestError(
       "This project has more than one Topics rule.",
     );
-  // Saving without an id writes the project's rule, creating it if needed.
   const ruleId = rules[0]?.id;
   const name = input.name?.trim() || rules[0]?.name || "Topics";
+  if (ruleId && !input.id)
+    throw new InvalidRequestError(
+      "This project already has a Topics rule. Reload and save that rule instead.",
+    );
   if (input.id && input.id !== ruleId)
     throw new InvalidRequestError("Topic rule not found in this project.");
   const config = topicRuleSettingsSchema.parse(input);

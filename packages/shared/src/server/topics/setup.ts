@@ -44,6 +44,7 @@ export async function saveTopicsSetup(
   });
   return saveTopicRuleAndModels(
     {
+      id: setup.ruleId,
       projectId,
       filter: setup.filter,
       sampling: setup.sampling,

@@ -109,6 +109,8 @@ export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
 });
 
 export const topicsSetupSchema = topicsModelSettingsSchema.extend({
+  // The project's existing rule; omit only when the project has none yet.
+  ruleId: topicIdSchema.optional(),
   facets: z
     .array(
       z.object({

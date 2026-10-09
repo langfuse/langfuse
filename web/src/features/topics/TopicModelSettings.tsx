@@ -302,6 +302,7 @@ function ConfigureTopicsSettings({
           embeddingDimensions: parsedDimensions.data,
           clustering,
         }),
+        ruleId: rule?.id,
       });
     } catch (error) {
       const message =

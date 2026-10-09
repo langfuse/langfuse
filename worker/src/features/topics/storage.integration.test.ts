@@ -98,7 +98,7 @@ describe("Topics eval-backed configuration", () => {
   it("keeps one Topics rule per project when first saves race", async () => {
     const facets = await ensureDefaultTopicFacets(ruleProjectId);
     const facetIds = facets.slice(0, 2).map((facet) => facet.id);
-    const saved = await Promise.all(
+    const saved = await Promise.allSettled(
       [0.25, 0.5, 0.75].map((sampling) =>
         saveTopicRule({
           projectId: ruleProjectId,
@@ -109,8 +109,12 @@ describe("Topics eval-backed configuration", () => {
       ),
     );
 
-    // Every save succeeds and writes the same rule; none creates a second one.
-    expect(new Set(saved.map((rule) => rule.id)).size).toBe(1);
+    // One save creates the rule; the others see it and are rejected.
+    expect(
+      saved.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    for (const result of saved.filter((r) => r.status === "rejected"))
+      expect(String(result.reason)).toMatch(/already has a Topics rule/);
     const rules = await listTopicRules(ruleProjectId);
     expect(rules).toHaveLength(1);
     expect(rules[0].facetIds.sort()).toEqual([...facetIds].sort());
@@ -210,13 +214,15 @@ describe("Topics eval-backed configuration", () => {
       facetIds: [facet.id, facet.id],
     });
     expect(rule.facetIds).toEqual([facet.id]);
-    // A save without an id writes the project's single rule.
+    const second = { projectId, filter: [], facetIds: [facet.id] };
+    await expect(saveTopicRule(second)).rejects.toThrow(
+      /already has a Topics rule/,
+    );
     expect(
       await saveTopicRule({
-        projectId,
+        ...second,
+        id: rule.id,
         name: "Second selection",
-        filter: [],
-        facetIds: [facet.id],
       }),
     ).toMatchObject({ id: rule.id, name: "Second selection" });
     expect(

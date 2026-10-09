@@ -77,22 +77,27 @@ describe("saveTopicRule", () => {
     });
   });
 
-  it("updates the project's only rule when saved without an id", async () => {
+  it("rejects a save without an id once the project has a rule", async () => {
     mocks.findRules.mockResolvedValue([{ id: "rule-a", name: "Topics" }]);
-
-    await saveTopicRule({
+    const input = {
       projectId,
       filter: [],
       facetIds: ["intent"],
       sampling: 0.5,
       idleTimeMs: 60_000,
-    });
+    };
 
     // The rule is looked up under the project lock, so a racing first save
-    // updates the rule the other one created instead of adding a second.
+    // sees the rule the other one created and is rejected.
+    await expect(saveTopicRule(input)).rejects.toThrow(
+      "This project already has a Topics rule.",
+    );
     expect(mocks.lock.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.findRules.mock.invocationCallOrder[0],
     );
+    expect(mocks.update).not.toHaveBeenCalled();
+
+    await saveTopicRule({ ...input, id: "rule-a" });
     expect(mocks.create).not.toHaveBeenCalled();
     expect(mocks.update).toHaveBeenCalledWith(
       expect.objectContaining({
