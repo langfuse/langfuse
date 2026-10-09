@@ -223,7 +223,15 @@ export const Intermittent = meta.story({
       'rect[fill="transparent"]',
     )[1];
     if (!hoverArea) throw new Error("Missing hover area for data gap");
-    await userEvent.hover(hoverArea);
+    const bounds = hoverArea.getBoundingClientRect();
+    fireEvent.pointerEnter(hoverArea, {
+      clientX: bounds.left + bounds.width / 2,
+      clientY: bounds.top + bounds.height / 2,
+    });
+    fireEvent.pointerMove(hoverArea, {
+      clientX: bounds.left + bounds.width / 2,
+      clientY: bounds.top + bounds.height / 2,
+    });
     const tooltipHeading = await within(
       canvasElement.ownerDocument.body,
     ).findByText("Sep 2, 2026");
