@@ -67,15 +67,6 @@ your local app URL when using a port other than 3000.
 For Topics discovery and later assignment, run `pnpm run seed -- topics`.
 For the 100-trace Intent/Issues evaluation, run
 `pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42`.
-For a ready Topics map with meaningful zoom targets and source evidence, run
-`pnpm run seed -- topics --batch map-demo --id-prefix topics-map-demo` (816 traces,
-22 topics across Intent/Issues, saved coordinates, no model calls). Enable the
-local Topics deployment toggle, project allowlist, and personal feature preview
-before viewing; this fixture does not change those flags.
-Use the explicit `--demo-admin` option only when the default synthetic local
-account needs admin access to see the Topics opt-in; loopback deployment/database
-checks and the exact seeded identity constrain that grant. Ordinary runs leave
-account access unchanged.
 Read the [Topics fixture walkthrough](../../../packages/shared/scripts/seeder/README.md#topics)
 for batch IDs, dataset contents, and clustering settings.
 

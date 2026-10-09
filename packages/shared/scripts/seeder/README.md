@@ -70,8 +70,6 @@ After applying the normal Postgres and ClickHouse migrations, seed either fixtur
 ```bash
 pnpm run seed -- topics
 pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42
-pnpm run seed -- topics --batch map-demo --id-prefix topics-map-demo
-pnpm run seed -- topics --batch map-demo --id-prefix topics-map-demo --demo-admin  # local synthetic demo access
 ```
 
 The default batch creates 12 discovery traces across three themes and three
@@ -89,37 +87,6 @@ sample mode** with the default minimum-count settings.
 
 Seeding makes no model calls. Theme/outcome labels remain outside trace metadata
 and I/O.
-
-The `map-demo` batch is a renderer fixture: 816 source traces, two published maps,
-1,632 facet summaries, and 22 named topics. Intent has 12 related clouds spanning
-customer operations, engineering, integrations, and knowledge work, plus 24
-outliers. Issues has 10 cross-cutting mechanisms (timeouts, access failures,
-unsupported claims, incomplete pagination, and others); 173 successful
-interactions remain `not_applicable`. Each source runs a plan generation, matching
-tool, and final answer (2,448 observations, 3,264 v4 events). Every point has source trace/tool evidence
-that the summary inspector can load. Counts are derived from saved rows; no
-severity or quality score is invented. Source generations carry deterministic
-token estimates from message character lengths and explicitly illustrative
-rates ($0.20/$0.80 per million input/output tokens); tools have zero model usage
-and cost. These are synthetic source telemetry, not provider measurements.
-Topics processing usage/cost stays empty because seeding calls no models.
-Coordinates and embeddings
-are authored synthetic fixtures for navigation, not a clustering-quality test.
-
-This batch requires v4 and checks Topics storage before writing. It creates
-project-scoped facets and stable map IDs derived from the seed/prefix; rerunning
-it reads back the same cohorts and retains immutable topic definitions. Use a
-fresh `--id-prefix` for an independent fixture. To view it locally, set
-`LANGFUSE_TOPICS_ENABLED=true`, allowlist the target project in
-`LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`, opt the demo account into **Langfuse Topics**
-under **Feature previews**, and restart web. No model credentials are needed to
-explore the saved results. Set `NEXTAUTH_URL=http://localhost:<port>` when the app
-uses a port other than 3000; the CLI prints the complete Topics page link.
-The explicit `--demo-admin` option grants admin feature-preview access only to the
-existing `demo@langfuse.com` account in the default demo project's organization,
-and only when web, Postgres, and ClickHouse URLs are loopback addresses. Sign in
-again, then opt into Topics through Feature previews. Ordinary seed runs leave
-account access unchanged.
 
 ## The contract (additive-only)
 

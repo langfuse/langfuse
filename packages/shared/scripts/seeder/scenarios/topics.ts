@@ -8,8 +8,6 @@ import {
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { jitter, utcDayStartMs } from "./rng";
 import { topicEvaluationExamples } from "./topics-evaluation";
-import { seedTopicsMapDemo } from "./topics-map-demo";
-import { enableTopicsDemoAdmin } from "./topics-demo-access";
 import { ScenarioDefinition, SeedError } from "./types";
 import { countRows, traceLink, tracesListLink } from "./verify";
 
@@ -84,15 +82,14 @@ const ASSIGNMENT: ReadonlyArray<readonly [string, string]> = [
 export const topicsScenario: ScenarioDefinition = {
   name: "topics",
   description:
-    "Synthetic topic discovery, evaluation, or a ready-to-explore map-demo with saved topics, summaries, coordinates, and source traces. No model calls.",
+    "Synthetic topic discovery: 12 traces across three semantic themes, plus three separate assignment traces (two familiar requests and one new theme). Use evaluation for 100 varied requests with cross-cutting tool outcomes. No model calls.",
   supportsV4: true,
   flags: [
     {
       flag: "batch",
       type: "string",
       default: "all",
-      description:
-        "all, discovery (12), assignment (3), evaluation (100), or map-demo (816 with published maps)",
+      description: "all, discovery (12), assignment (3), or evaluation (100)",
     },
     {
       flag: "v4",
@@ -100,21 +97,13 @@ export const topicsScenario: ScenarioDefinition = {
       default: true,
       description: "also mirror traces/observations into v4 events tables",
     },
-    {
-      flag: "demo-admin",
-      type: "boolean",
-      default: false,
-      description:
-        "local only: enable admin feature previews for the existing synthetic demo account",
-    },
   ],
   run: async (ctx, params) => {
     const startedAt = Date.now();
     const batch = String(params.batch ?? "all");
-    if (batch === "map-demo") return seedTopicsMapDemo(ctx, params);
     if (!["all", "discovery", "assignment", "evaluation"].includes(batch)) {
       throw new SeedError(
-        "--batch must be all, discovery, assignment, evaluation, or map-demo",
+        "--batch must be all, discovery, assignment, or evaluation",
       );
     }
     const withV4 = params.v4 !== false;
@@ -165,7 +154,6 @@ export const topicsScenario: ScenarioDefinition = {
     if (ctx.dryRun) {
       return { ...summary, verified: {}, durationMs: Date.now() - startedAt };
     }
-    if (params["demo-admin"] === true) await enableTopicsDemoAdmin(ctx);
 
     const traces = examples.map(({ io: [input, output], batch }, index) =>
       createTrace({
