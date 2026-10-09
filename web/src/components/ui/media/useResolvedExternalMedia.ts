@@ -3,15 +3,13 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type MediaTagStatus } from "../../MediaTag/MediaTag";
 import { type MediaDescriptor } from "./mediaUtils";
 
-type S3MediaDescriptor = Extract<MediaDescriptor, { kind: "s3" }>;
-
 export function useResolvedExternalMedia(
   descriptor: S3MediaDescriptor,
   { enabled }: { enabled: boolean },
 ): {
   status: MediaTagStatus;
   url?: string;
-  refresh: () => Promise<void>;
+  refreshIfNeeded: () => Promise<void>;
 } {
   const projectId = useProjectIdFromURL();
   const query = api.media.resolveExternalMedia.useQuery(
@@ -21,29 +19,40 @@ export function useResolvedExternalMedia(
       retry: false,
       meta: { silentHttpCodes: [404] },
       refetchOnWindowFocus: false,
-      refetchOnMount: false,
+      refetchOnMount: true,
       refetchOnReconnect: false,
       staleTime: 4 * 60 * 1000,
     },
   );
-  const refresh = async () => {
+  const refreshIfNeeded = async () => {
+    if (!query.isError && !isExpired(query.data?.expiresAt)) return;
     await query.refetch();
   };
 
   if (!enabled || !projectId) {
-    return { status: "idle", refresh };
+    return { status: "idle", refreshIfNeeded };
   }
   if (query.isError) {
-    return { status: "error", refresh };
+    return { status: "error", refreshIfNeeded };
   }
-  if (
-    query.data?.expiresAt !== undefined &&
-    query.data.expiresAt.getTime() <= Date.now()
-  ) {
-    return { status: "error", refresh };
+  if (isExpired(query.data?.expiresAt)) {
+    return {
+      status: query.isFetching ? "loading" : "error",
+      refreshIfNeeded,
+    };
   }
   if (query.data?.url) {
-    return { status: "ready", url: query.data.url, refresh };
+    return {
+      status: "ready",
+      url: query.data.url,
+      refreshIfNeeded,
+    };
   }
-  return { status: "loading", refresh };
+  return { status: "loading", refreshIfNeeded };
 }
+
+function isExpired(expiresAt?: Date) {
+  return expiresAt !== undefined && expiresAt.getTime() <= Date.now();
+}
+
+type S3MediaDescriptor = Extract<MediaDescriptor, { kind: "s3" }>;

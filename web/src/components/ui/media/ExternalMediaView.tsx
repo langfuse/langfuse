@@ -6,14 +6,8 @@ import { MediaFileView } from "./MediaFileView";
 import { type MediaDescriptor } from "./mediaUtils";
 import { useResolvedExternalMedia } from "./useResolvedExternalMedia";
 
-type S3MediaDescriptor = Extract<MediaDescriptor, { kind: "s3" }>;
-
 export type ExternalMediaViewProps = {
   descriptor: S3MediaDescriptor;
-};
-
-type ExternalMediaFallbackProps = {
-  uri: string;
 };
 
 export function ExternalMediaView({ descriptor }: ExternalMediaViewProps) {
@@ -59,3 +53,9 @@ function ExternalMediaFallback({ uri }: ExternalMediaFallbackProps) {
     </span>
   );
 }
+
+type S3MediaDescriptor = Extract<MediaDescriptor, { kind: "s3" }>;
+
+type ExternalMediaFallbackProps = {
+  uri: string;
+};

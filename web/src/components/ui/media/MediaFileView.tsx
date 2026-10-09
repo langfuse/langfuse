@@ -16,13 +16,6 @@ export type MediaFileViewProps = {
   defaultExpanded?: boolean;
 };
 
-type MediaFilePreviewProps = {
-  src: string;
-  fileName: string;
-  fileType: "image" | "audio" | "video";
-  compactImageWidth?: string;
-};
-
 export function MediaFileView({
   src,
   contentType,
@@ -157,3 +150,10 @@ function VideoPlayer({ src }: { src: string }) {
     </video>
   );
 }
+
+type MediaFilePreviewProps = {
+  src: string;
+  fileName: string;
+  fileType: "image" | "audio" | "video";
+  compactImageWidth?: string;
+};

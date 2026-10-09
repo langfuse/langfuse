@@ -20,6 +20,76 @@ import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { cn } from "@/src/utils/tailwind";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 
+export function SessionTimelinePart({
+  part,
+  trailingContent,
+}: {
+  part: NormalizedMessage["parts"][number];
+  trailingContent?: ReactNode;
+}) {
+  if (part.type === "text") {
+    return (
+      <div className="flex flex-col gap-1">
+        {part.refusal ? (
+          <span className="text-dark-red text-[11px] font-bold">Refusal</span>
+        ) : null}
+        <div data-session-search-content>
+          <MarkdownView
+            markdown={decodeUnicodeEscapesOnly(part.text, true)}
+            className="px-0 py-0"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (part.type === "reasoning") {
+    return (
+      <SessionTimelineReasoning part={part} trailingContent={trailingContent} />
+    );
+  }
+
+  if (part.type === "file") {
+    return <SessionTimelineFile part={part} />;
+  }
+
+  if (part.type === "tool-call" || part.type === "tool-result") {
+    const isCall = part.type === "tool-call";
+    return (
+      <SessionTimelineCollapsiblePart
+        label={`${part.toolName ?? "Tool"} · ${isCall ? "Call" : "Result"}`}
+        icon={Wrench}
+        status={
+          part.type === "tool-result" && part.isError ? "error" : undefined
+        }
+        variant="plain"
+        alignment="row"
+      >
+        <PrettyJsonView
+          json={part.type === "tool-call" ? part.input : part.output}
+          currentView="pretty"
+        />
+      </SessionTimelineCollapsiblePart>
+    );
+  }
+
+  if (part.type === "data") {
+    return <PrettyJsonView json={part.value} currentView="pretty" />;
+  }
+
+  if (part.type === "custom") {
+    return (
+      <PrettyJsonView
+        title={part.kind}
+        json={part.value}
+        currentView="pretty"
+      />
+    );
+  }
+
+  return assertUnreachable(part);
+}
+
 function SessionTimelineReasoning({
   part,
   trailingContent,
@@ -108,53 +178,6 @@ function SessionTimelineFile({ part }: { part: FilePart }) {
   );
 }
 
-type SessionTimelineFileContent =
-  | { kind: "langfuse"; reference: string }
-  | {
-      kind: "s3";
-      descriptor: Extract<MediaDescriptor, { kind: "s3" }>;
-    }
-  | { kind: "image"; url: string }
-  | { kind: "link"; url: string; sourceUrl: string }
-  | { kind: "fallback"; part: FilePart };
-
-type SessionTimelineFileBodyProps = {
-  content: SessionTimelineFileContent;
-  filename: string;
-};
-
-function getSessionTimelineFileContent(
-  part: FilePart,
-): SessionTimelineFileContent {
-  const source = part.providerMetadata?.source;
-  const reference =
-    part.content.kind === "reference" &&
-    part.mediaType &&
-    typeof source === "string"
-      ? `@@@langfuseMedia:type=${part.mediaType}|id=${part.content.id}|source=${source}@@@`
-      : undefined;
-
-  if (reference) return { kind: "langfuse", reference };
-  if (part.content.kind !== "url") return { kind: "fallback", part };
-
-  const classifiedMedia = classifyMediaValue(part.content.url);
-  if (classifiedMedia?.kind === "s3") {
-    return { kind: "s3", descriptor: classifiedMedia };
-  }
-
-  const safeImageUrl = part.mediaType?.startsWith("image/")
-    ? getSafeImageUrl(part.content.url)
-    : null;
-  if (safeImageUrl) return { kind: "image", url: safeImageUrl };
-
-  const safeUrl = getSafeLinkUrl(part.content.url);
-  if (safeUrl) {
-    return { kind: "link", url: safeUrl, sourceUrl: part.content.url };
-  }
-
-  return { kind: "fallback", part };
-}
-
 function SessionTimelineFileBody({
   content,
   filename,
@@ -206,72 +229,49 @@ function SessionTimelineFileBody({
   );
 }
 
-export function SessionTimelinePart({
-  part,
-  trailingContent,
-}: {
-  part: NormalizedMessage["parts"][number];
-  trailingContent?: ReactNode;
-}) {
-  if (part.type === "text") {
-    return (
-      <div className="flex flex-col gap-1">
-        {part.refusal ? (
-          <span className="text-dark-red text-[11px] font-bold">Refusal</span>
-        ) : null}
-        <div data-session-search-content>
-          <MarkdownView
-            markdown={decodeUnicodeEscapesOnly(part.text, true)}
-            className="px-0 py-0"
-          />
-        </div>
-      </div>
-    );
+function getSessionTimelineFileContent(
+  part: FilePart,
+): SessionTimelineFileContent {
+  const source = part.providerMetadata?.source;
+  const reference =
+    part.content.kind === "reference" &&
+    part.mediaType &&
+    typeof source === "string"
+      ? `@@@langfuseMedia:type=${part.mediaType}|id=${part.content.id}|source=${source}@@@`
+      : undefined;
+
+  if (reference) return { kind: "langfuse", reference };
+  if (part.content.kind !== "url") return { kind: "fallback", part };
+
+  const classifiedMedia = classifyMediaValue(part.content.url);
+  if (classifiedMedia?.kind === "s3") {
+    return { kind: "s3", descriptor: classifiedMedia };
   }
 
-  if (part.type === "reasoning") {
-    return (
-      <SessionTimelineReasoning part={part} trailingContent={trailingContent} />
-    );
+  const safeImageUrl = part.mediaType?.startsWith("image/")
+    ? getSafeImageUrl(part.content.url)
+    : null;
+  if (safeImageUrl) return { kind: "image", url: safeImageUrl };
+
+  const safeUrl = getSafeLinkUrl(part.content.url);
+  if (safeUrl) {
+    return { kind: "link", url: safeUrl, sourceUrl: part.content.url };
   }
 
-  if (part.type === "file") {
-    return <SessionTimelineFile part={part} />;
-  }
-
-  if (part.type === "tool-call" || part.type === "tool-result") {
-    const isCall = part.type === "tool-call";
-    return (
-      <SessionTimelineCollapsiblePart
-        label={`${part.toolName ?? "Tool"} · ${isCall ? "Call" : "Result"}`}
-        icon={Wrench}
-        status={
-          part.type === "tool-result" && part.isError ? "error" : undefined
-        }
-        variant="plain"
-        alignment="row"
-      >
-        <PrettyJsonView
-          json={part.type === "tool-call" ? part.input : part.output}
-          currentView="pretty"
-        />
-      </SessionTimelineCollapsiblePart>
-    );
-  }
-
-  if (part.type === "data") {
-    return <PrettyJsonView json={part.value} currentView="pretty" />;
-  }
-
-  if (part.type === "custom") {
-    return (
-      <PrettyJsonView
-        title={part.kind}
-        json={part.value}
-        currentView="pretty"
-      />
-    );
-  }
-
-  return assertUnreachable(part);
+  return { kind: "fallback", part };
 }
+
+type SessionTimelineFileContent =
+  | { kind: "langfuse"; reference: string }
+  | {
+      kind: "s3";
+      descriptor: Extract<MediaDescriptor, { kind: "s3" }>;
+    }
+  | { kind: "image"; url: string }
+  | { kind: "link"; url: string; sourceUrl: string }
+  | { kind: "fallback"; part: FilePart };
+
+type SessionTimelineFileBodyProps = {
+  content: SessionTimelineFileContent;
+  filename: string;
+};

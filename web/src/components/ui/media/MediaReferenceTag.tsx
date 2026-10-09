@@ -58,15 +58,18 @@ function S3MediaTag({
   });
   const [armed, setArmed] = useState(false);
   const [open, setOpen] = useState(false);
-  const { status, url, refresh } = useResolvedExternalMedia(descriptor, {
-    enabled: isFeatureEnabled && armed,
-  });
+  const { status, url, refreshIfNeeded } = useResolvedExternalMedia(
+    descriptor,
+    {
+      enabled: isFeatureEnabled && armed,
+    },
+  );
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
     if (!nextOpen) return;
 
-    if (armed && status === "error") {
-      refresh().catch(() => undefined);
+    if (armed) {
+      refreshIfNeeded().catch(() => undefined);
     }
     setArmed(true);
   };
@@ -74,7 +77,7 @@ function S3MediaTag({
   if (!isFeatureEnabled) {
     return (
       <span
-        className="block max-w-full min-w-0 truncate"
+        className="inline-block max-w-full min-w-0 truncate align-middle"
         title={descriptor.uri}
       >
         {descriptor.uri}
