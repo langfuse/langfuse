@@ -2,6 +2,7 @@ import { Sha256 } from "@aws-crypto/sha256-browser";
 import { useCallback, useState } from "react";
 
 import { showErrorToast } from "@/src/features/notifications";
+import type { ToastErrorAnalytics } from "@/src/features/notifications/toastAnalytics";
 import { MediaContentType } from "@/src/features/media";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
@@ -103,7 +104,7 @@ export function useDatasetItemMediaUpload({
         { id: pendingId, fileName: file.name },
       ]);
 
-      let failurePhase: "frontend" | "trpc" | "network" = "frontend";
+      let failurePhase: MediaUploadFailurePhase = "frontend";
       try {
         const buffer = await file.arrayBuffer();
         const sha256Hash = await sha256Base64(buffer);
@@ -156,15 +157,7 @@ export function useDatasetItemMediaUpload({
         showErrorToast(
           "Media upload failed",
           error instanceof Error ? error.message : "Please try again.",
-          failurePhase === "trpc"
-            ? classifyTrpcToastError(error, "dataset_item_media.upload")
-            : {
-                operation: "dataset_item_media.upload",
-                errorOrigin:
-                  failurePhase === "network" ? "network" : "frontend",
-                errorCategory:
-                  failurePhase === "network" ? "transient" : "internal",
-              },
+          getMediaUploadFailureAnalytics(failurePhase, error),
         );
         return null;
       } finally {
@@ -176,3 +169,27 @@ export function useDatasetItemMediaUpload({
 
   return { uploadFile, pendingUploads, resetPendingUploads };
 }
+
+function getMediaUploadFailureAnalytics(
+  phase: MediaUploadFailurePhase,
+  error: unknown,
+): ToastErrorAnalytics {
+  switch (phase) {
+    case "trpc":
+      return classifyTrpcToastError(error, "dataset_item_media.upload");
+    case "network":
+      return {
+        operation: "dataset_item_media.upload",
+        errorOrigin: "network",
+        errorCategory: "transient",
+      };
+    case "frontend":
+      return {
+        operation: "dataset_item_media.upload",
+        errorOrigin: "frontend",
+        errorCategory: "internal",
+      };
+  }
+}
+
+type MediaUploadFailurePhase = "frontend" | "trpc" | "network";

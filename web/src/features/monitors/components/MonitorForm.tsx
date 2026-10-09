@@ -47,7 +47,10 @@ import { WidgetPropertySelectItem } from "@/src/features/widgets";
 import { MetricsFilterBuilder } from "@/src/features/metrics";
 import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { resolveMonitorNameForSave } from "@/src/features/monitors/fns/resolveMonitorNameForSave";
+import {
+  resolveMonitorNameForSave,
+  type MonitorNameResolution,
+} from "@/src/features/monitors/fns/resolveMonitorNameForSave";
 import { cn } from "@/src/utils/tailwind";
 
 import {
@@ -311,9 +314,9 @@ export const MonitorForm = ({
   /** onSubmit strips unsupported filter rows and dispatches the create or update mutation. */
   const onSubmit = form.handleSubmit(
     async (values) => {
-      let resolvedName: string | null;
+      let nameResolution: MonitorNameResolution;
       try {
-        resolvedName = await resolveMonitorNameForSave({
+        nameResolution = await resolveMonitorNameForSave({
           name: form.getValues("name"),
           fallbackName: namePlaceholderRef.current,
           aiAvailable: nameAIAssistanceAvailable,
@@ -327,7 +330,19 @@ export const MonitorForm = ({
         );
         return;
       }
-      if (!resolvedName) {
+      if (nameResolution.status === "generation-failed") {
+        showErrorToast(
+          "Couldn't generate an alert title",
+          "Please enter a title manually and try again.",
+          {
+            operation: "monitor_title.generate",
+            errorOrigin: "backend",
+            errorCategory: "internal",
+          },
+        );
+        return;
+      }
+      if (nameResolution.status === "validation-failed") {
         showErrorToast(
           "Couldn't generate an alert title",
           "Please enter a title manually and try again.",
@@ -342,7 +357,7 @@ export const MonitorForm = ({
 
       const normalizedValues = {
         ...values,
-        name: resolvedName,
+        name: nameResolution.name,
         filters: partitionWidgetUiTableFiltersToView(
           values.view as Parameters<
             typeof partitionWidgetUiTableFiltersToView

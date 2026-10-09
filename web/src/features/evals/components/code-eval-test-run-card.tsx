@@ -39,34 +39,6 @@ type CodeEvalInputPreviewData = Extract<
   { type: typeof EvalTargetObject.EVENT }
 >;
 
-const getCodeEvalErrorCategory = (
-  code: string,
-): "resource_limit" | "rate_limit" | "user_input" | "internal" => {
-  if (
-    [
-      "PAYLOAD_TOO_LARGE",
-      "RESULT_TOO_LARGE",
-      "SOURCE_TOO_LARGE",
-      "TIMEOUT",
-      "OUT_OF_MEMORY",
-    ].includes(code)
-  ) {
-    return "resource_limit";
-  }
-  if (code === "LAMBDA_CONCURRENCY_LIMIT") return "rate_limit";
-  if (
-    [
-      "INVALID_RESULT",
-      "INVALID_SOURCE",
-      "UNSUPPORTED_RUNTIME",
-      "USER_CODE_ERROR",
-    ].includes(code)
-  ) {
-    return "user_input";
-  }
-  return "internal";
-};
-
 export function CodeEvalTestRunCard({
   projectId,
   evalTemplate,
@@ -372,4 +344,32 @@ function toUserFacingCodeEvalScore(
   };
 
   return userFacingScore;
+}
+
+function getCodeEvalErrorCategory(
+  code: string,
+): "resource_limit" | "rate_limit" | "user_input" | "internal" {
+  if (
+    [
+      "PAYLOAD_TOO_LARGE",
+      "RESULT_TOO_LARGE",
+      "SOURCE_TOO_LARGE",
+      "TIMEOUT",
+      "OUT_OF_MEMORY",
+    ].includes(code)
+  ) {
+    return "resource_limit";
+  }
+  if (code === "LAMBDA_CONCURRENCY_LIMIT") return "rate_limit";
+  if (
+    [
+      "INVALID_RESULT",
+      "INVALID_SOURCE",
+      "UNSUPPORTED_RUNTIME",
+      "USER_CODE_ERROR",
+    ].includes(code)
+  ) {
+    return "user_input";
+  }
+  return "internal";
 }

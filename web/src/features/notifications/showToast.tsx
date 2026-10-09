@@ -8,48 +8,6 @@ import {
   type ToastShownEventProperties,
 } from "./toastAnalytics";
 
-type ToastMetadata =
-  | { type: "ERROR" | "WARNING"; analytics: ToastErrorAnalytics }
-  | {
-      type: "SUCCESS" | "INFO" | "LOADING" | "MESSAGE" | "CUSTOM";
-      analytics: { operation: ToastOperation };
-    };
-
-const getProperties = (metadata: ToastMetadata): ToastShownEventProperties => {
-  if (metadata.type === "ERROR" || metadata.type === "WARNING") {
-    return getToastErrorProperties(metadata.analytics, metadata.type);
-  }
-  return {
-    toastType: metadata.type,
-    source: "application",
-    operation: metadata.analytics.operation,
-    hasErrorId: false,
-  };
-};
-
-// Captures on mount, not enqueue, and guards rerenders/StrictMode reattachments.
-const ToastContent = ({
-  children,
-  properties,
-}: {
-  children: ReactNode;
-  properties: ToastShownEventProperties;
-}) => {
-  const capture = usePostHogClientCapture();
-  const captured = useRef(false);
-  return (
-    <span
-      ref={(element) => {
-        if (!element || captured.current) return;
-        captured.current = true;
-        capture("toast:shown", properties);
-      }}
-    >
-      {children}
-    </span>
-  );
-};
-
 /** Native Sonner presentation with the same mandatory metadata contract as custom cards. */
 export const showToast = (
   params: ToastMetadata & { title: ReactNode },
@@ -95,3 +53,40 @@ export const showCustomToast = (
   );
 
 export const dismissToast = toast.dismiss;
+
+/** Captures on mount and guards rerenders and StrictMode reattachments. */
+const ToastContent = ({ children, properties }: ToastContentProps) => {
+  const capture = usePostHogClientCapture();
+  const captured = useRef(false);
+  const captureShown = (element: HTMLSpanElement | null) => {
+    if (!element || captured.current) return;
+    captured.current = true;
+    capture("toast:shown", properties);
+  };
+
+  return <span ref={captureShown}>{children}</span>;
+};
+
+function getProperties(metadata: ToastMetadata): ToastShownEventProperties {
+  if (metadata.type === "ERROR" || metadata.type === "WARNING") {
+    return getToastErrorProperties(metadata.analytics, metadata.type);
+  }
+  return {
+    toastType: metadata.type,
+    source: "application",
+    operation: metadata.analytics.operation,
+    hasErrorId: false,
+  };
+}
+
+type ToastContentProps = {
+  children: ReactNode;
+  properties: ToastShownEventProperties;
+};
+
+type ToastMetadata =
+  | { type: "ERROR" | "WARNING"; analytics: ToastErrorAnalytics }
+  | {
+      type: "SUCCESS" | "INFO" | "LOADING" | "MESSAGE" | "CUSTOM";
+      analytics: { operation: ToastOperation };
+    };
