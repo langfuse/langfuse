@@ -56,7 +56,7 @@ pnpm --filter @langfuse/native run build
 ```
 
 Topics runs on the project's own LLM connections (the same connections evals
-and the playground use). Each project stores one `topics_model_configs` row with
+and the playground use). Each project stores one `topic_configs` row with
 three slots, each a connection plus a model ID: facet summaries, embeddings (plus
 dimensions), and topic clustering (the model that names and describes topics). Set them on the Topics page under **Models**.
 Processing is unavailable until all three are set. Any connection whose save-time

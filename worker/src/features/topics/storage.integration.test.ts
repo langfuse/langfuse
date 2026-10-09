@@ -144,7 +144,7 @@ describe("Topics eval-backed configuration", () => {
 
     expect(await listTopicRules(rollbackProjectId)).toEqual([]);
     expect(
-      await prisma.topicsModelConfig.findUnique({
+      await prisma.topicConfig.findUnique({
         where: { projectId: rollbackProjectId },
       }),
     ).toBeNull();

@@ -1834,7 +1834,7 @@ describe("llmApiKey.all RPC", () => {
       const connection = await prisma.llmApiKeys.findFirstOrThrow({
         where: { projectId, provider: PROVIDER },
       });
-      await prisma.topicsModelConfig.create({
+      await prisma.topicConfig.create({
         data: {
           projectId,
           enabled: true,
@@ -1850,7 +1850,7 @@ describe("llmApiKey.all RPC", () => {
       await caller.llmApiKey.delete({ projectId, id: connection.id });
 
       expect(
-        await prisma.topicsModelConfig.findUniqueOrThrow({
+        await prisma.topicConfig.findUniqueOrThrow({
           where: { projectId },
         }),
       ).toMatchObject({

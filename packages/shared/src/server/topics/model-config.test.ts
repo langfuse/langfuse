@@ -20,7 +20,7 @@ vi.mock("./embeddings", () => ({ generateTopicEmbedding: mocks.embed }));
 vi.mock("../../db", () => ({
   prisma: {
     llmApiKeys: { findMany: mocks.keys },
-    topicsModelConfig: {
+    topicConfig: {
       findMany: mocks.configs,
       findUnique: mocks.current,
       upsert: mocks.upsert,

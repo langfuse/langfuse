@@ -92,7 +92,7 @@
   - `text.ts` and `embeddings.ts`: model transport through the project's LLM
     connections (`generateLLMText` / `embedLLMText`); worker model calls own
     usage, cost and vector validation.
-  - `model-config.ts`: per-project `topics_model_configs` (three connection +
+  - `model-config.ts`: per-project `topic_configs` (three connection +
     model slots and the automatic-processing switch). Saving tests every slot
     with a real call; Anthropic works for summaries and clustering but fails the
     embedding test. The embedding model and dimensions are locked once embeddings

@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "topics_model_configs" (
+CREATE TABLE "topic_configs" (
     "id" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -17,29 +17,29 @@ CREATE TABLE "topics_model_configs" (
     "clustering_llm_api_key_id" TEXT,
     "clustering_model" TEXT,
 
-    CONSTRAINT "topics_model_configs_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "topic_configs_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "topics_model_configs_project_id_key" ON "topics_model_configs"("project_id");
+CREATE UNIQUE INDEX "topic_configs_project_id_key" ON "topic_configs"("project_id");
 
 -- CreateIndex
-CREATE INDEX "topics_model_configs_summary_llm_api_key_id_idx" ON "topics_model_configs"("summary_llm_api_key_id");
+CREATE INDEX "topic_configs_summary_llm_api_key_id_idx" ON "topic_configs"("summary_llm_api_key_id");
 
 -- CreateIndex
-CREATE INDEX "topics_model_configs_embedding_llm_api_key_id_idx" ON "topics_model_configs"("embedding_llm_api_key_id");
+CREATE INDEX "topic_configs_embedding_llm_api_key_id_idx" ON "topic_configs"("embedding_llm_api_key_id");
 
 -- CreateIndex
-CREATE INDEX "topics_model_configs_clustering_llm_api_key_id_idx" ON "topics_model_configs"("clustering_llm_api_key_id");
+CREATE INDEX "topic_configs_clustering_llm_api_key_id_idx" ON "topic_configs"("clustering_llm_api_key_id");
 
 -- AddForeignKey
-ALTER TABLE "topics_model_configs" ADD CONSTRAINT "topics_model_configs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "topic_configs" ADD CONSTRAINT "topic_configs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "topics_model_configs" ADD CONSTRAINT "topics_model_configs_summary_llm_api_key_id_fkey" FOREIGN KEY ("summary_llm_api_key_id") REFERENCES "llm_api_keys"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "topic_configs" ADD CONSTRAINT "topic_configs_summary_llm_api_key_id_fkey" FOREIGN KEY ("summary_llm_api_key_id") REFERENCES "llm_api_keys"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "topics_model_configs" ADD CONSTRAINT "topics_model_configs_embedding_llm_api_key_id_fkey" FOREIGN KEY ("embedding_llm_api_key_id") REFERENCES "llm_api_keys"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "topic_configs" ADD CONSTRAINT "topic_configs_embedding_llm_api_key_id_fkey" FOREIGN KEY ("embedding_llm_api_key_id") REFERENCES "llm_api_keys"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "topics_model_configs" ADD CONSTRAINT "topics_model_configs_clustering_llm_api_key_id_fkey" FOREIGN KEY ("clustering_llm_api_key_id") REFERENCES "llm_api_keys"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "topic_configs" ADD CONSTRAINT "topic_configs_clustering_llm_api_key_id_fkey" FOREIGN KEY ("clustering_llm_api_key_id") REFERENCES "llm_api_keys"("id") ON DELETE SET NULL ON UPDATE CASCADE;

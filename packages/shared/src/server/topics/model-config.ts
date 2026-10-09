@@ -2,7 +2,7 @@ import {
   EvaluatorBlockReason,
   type LlmApiKeys,
   type Prisma,
-  type TopicsModelConfig,
+  type TopicConfig,
 } from "@prisma/client";
 import { prisma } from "../../db";
 import { InvalidRequestError } from "../../errors";
@@ -45,7 +45,7 @@ const withConnections = {
   clusteringLlmApiKey: true,
 } as const;
 
-type ConfigWithConnections = TopicsModelConfig & {
+type ConfigWithConnections = TopicConfig & {
   summaryLlmApiKey: LlmApiKeys | null;
   embeddingLlmApiKey: LlmApiKeys | null;
   clusteringLlmApiKey: LlmApiKeys | null;
@@ -101,7 +101,7 @@ function resolveModels(row: ConfigWithConnections): TopicsModels | null {
 export async function getTopicsModels(
   projectId: string,
 ): Promise<TopicsModels | null> {
-  const row = await prisma.topicsModelConfig.findUnique({
+  const row = await prisma.topicConfig.findUnique({
     where: { projectId },
     include: withConnections,
   });
@@ -113,7 +113,7 @@ export async function getEnabledTopicsModels(
   projectIds: string[],
 ): Promise<Map<string, TopicsModels>> {
   if (!projectIds.length) return new Map();
-  const rows = await prisma.topicsModelConfig.findMany({
+  const rows = await prisma.topicConfig.findMany({
     where: { projectId: { in: projectIds }, enabled: true },
     include: withConnections,
   });
@@ -130,7 +130,7 @@ export async function pauseTopicsModels(
   projectId: string,
   block: { blockReason: EvaluatorBlockReason; blockMessage: string },
 ): Promise<void> {
-  await prisma.topicsModelConfig.updateMany({
+  await prisma.topicConfig.updateMany({
     where: { projectId, enabled: true },
     data: {
       enabled: false,
@@ -147,7 +147,7 @@ export async function pauseTopicsModelsUsingConnection(
   tx: Prisma.TransactionClient = prisma,
 ): Promise<void> {
   const { projectId, llmApiKeyId, provider } = params;
-  await tx.topicsModelConfig.updateMany({
+  await tx.topicConfig.updateMany({
     where: {
       projectId,
       OR: [
@@ -167,7 +167,7 @@ export async function pauseTopicsModelsUsingConnection(
 
 /** Settings shown in the Topics page; never includes secrets. */
 export async function readTopicsModelSettings(projectId: string) {
-  const row = await prisma.topicsModelConfig.findUnique({
+  const row = await prisma.topicConfig.findUnique({
     where: { projectId },
   });
   const slot = (llmApiKeyId: string | null, model: string | null) =>
@@ -249,7 +249,7 @@ export async function prepareTopicsModelSettings(
       "Choose a summary, embedding, and clustering model before turning Topics on.",
     );
 
-  const current = await prisma.topicsModelConfig.findUnique({
+  const current = await prisma.topicConfig.findUnique({
     where: { projectId },
   });
   const embeddingChanged =
@@ -285,7 +285,7 @@ export async function writeTopicsModelSettings(
   data: Awaited<ReturnType<typeof prepareTopicsModelSettings>>,
   tx: Prisma.TransactionClient = prisma,
 ): Promise<void> {
-  await tx.topicsModelConfig.upsert({
+  await tx.topicConfig.upsert({
     where: { projectId },
     create: { projectId, ...data },
     update: data,
