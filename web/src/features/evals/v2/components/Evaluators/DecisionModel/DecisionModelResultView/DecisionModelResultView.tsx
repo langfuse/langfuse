@@ -31,7 +31,7 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
       className="text-muted-foreground shrink-0 font-mono text-xs"
       title="How concentrated the distribution is (0–1). Not the winner's probability."
     >
-      confidence {confidence.toFixed(2)}
+      confidence {percent(confidence)}
     </span>
   );
 }
