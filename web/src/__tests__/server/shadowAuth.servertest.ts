@@ -363,7 +363,7 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
       ).toMatchObject([{ orgId: foreignOrgId }]);
     });
 
-    it("serializes concurrent first-use repairs", async () => {
+    it("creates one assignment across concurrent first-use repairs", async () => {
       const { apiKey, authorization } = await createUnassignedApiKey("PROJECT");
       setMode("enforce");
       const results = await Promise.all(

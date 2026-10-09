@@ -1,4 +1,5 @@
 import {
+  Prisma,
   type ApiKey,
   type PrismaClient,
   prisma as defaultPrisma,
@@ -135,22 +136,16 @@ async function backfillApiKeyRoleAssignment(
   apiKey: ApiKey,
   org: PrincipalOrganization,
 ): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    const keys = await tx.$queryRaw<{ id: string }[]>`
-      SELECT id FROM api_keys
-      WHERE id = ${apiKey.id} AND (expires_at IS NULL OR expires_at > NOW())
-      FOR UPDATE
-    `;
-    if (keys.length === 0) return;
-    const principalId = ApiKeyId(apiKey.id);
-    const existing = await tx.roleAssignment.findFirst({
-      where: { principalId },
-      select: { id: true },
-    });
-    if (existing) return;
+  const principalId = ApiKeyId(apiKey.id);
+  const existing = await prisma.roleAssignment.findFirst({
+    where: { principalId },
+    select: { id: true },
+  });
+  if (existing) return;
 
-    const isProject = apiKey.scope === "PROJECT";
-    await assignRole(tx, {
+  const isProject = apiKey.scope === "PROJECT";
+  try {
+    await assignRole(prisma, {
       tenantId: OrganizationId(org.orgId),
       principalId,
       ownerId: isProject
@@ -161,7 +156,14 @@ async function backfillApiKeyRoleAssignment(
       ),
       tags: [],
     });
-  });
+  } catch (error) {
+    if (
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== "P2002"
+    ) {
+      throw error;
+    }
+  }
 }
 
 /** publicBearerPolicies narrows a public-key bearer to scores:save on its own project, granted only when the key's stored roles allow it there. */

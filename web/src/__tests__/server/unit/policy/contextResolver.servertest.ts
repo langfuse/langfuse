@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { type ApiKey, type PrismaClient } from "@langfuse/shared/src/db";
+import { Prisma, type ApiKey, type PrismaClient } from "@langfuse/shared/src/db";
 import { InternalServerError } from "@langfuse/shared";
 import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 
@@ -348,6 +348,41 @@ describe("a verified key with no org is a 500 invariant break", () => {
 });
 
 describe("role lookup", () => {
+  it.each(["P2002", "P2003"])(
+    "handles a backfill %s error without swallowing other failures",
+    async (code) => {
+      const prisma = mockPrisma(orgRow());
+      const failure = new Prisma.PrismaClientKnownRequestError("write failed", {
+        code,
+        clientVersion: Prisma.prismaVersion.client,
+      });
+      prisma.roleAssignment.findMany = vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValue(assignmentsFor("apiKey/key_p"));
+      prisma.roleAssignment.findFirst = vi.fn().mockResolvedValue(null);
+      prisma.$transaction = vi.fn().mockRejectedValue(failure);
+      const resolver = new ContextResolver(
+        new OrganizationRepository(prisma),
+        prisma,
+      );
+      const result = resolver.resolve({
+        authorization: "privateKey",
+        apiKey: apiKey(),
+      });
+      if (code !== "P2002") {
+        await expect(result).rejects.toThrow(failure);
+        return;
+      }
+      const resolved = await result;
+      if (!resolved.success) throw resolved.error;
+      expect(
+        authorize(resolved.context, TENANT, "project:read", ProjectId(PRJ))
+          .success,
+      ).toBe(true);
+    },
+  );
+
   it("preserves a narrow grant added after the initial lookup", async () => {
     const prisma = mockPrisma(orgRow());
     prisma.roleAssignment.findMany = vi
@@ -356,10 +391,6 @@ describe("role lookup", () => {
       .mockResolvedValue(assignmentsFor("apiKey/key_v"));
     prisma.roleAssignment.findFirst = vi.fn().mockResolvedValue({ id: "grant" });
     prisma.roleAssignment.create = vi.fn();
-    prisma.$queryRaw = vi.fn().mockResolvedValue([{ id: "key_v" }]);
-    prisma.$transaction = vi
-      .fn()
-      .mockImplementation((callback) => callback(prisma));
     const resolver = new ContextResolver(
       new OrganizationRepository(prisma),
       prisma,
