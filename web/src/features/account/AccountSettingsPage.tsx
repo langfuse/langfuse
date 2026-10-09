@@ -1,5 +1,4 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import Header from "@/src/components/layouts/header";
 import { Card } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
@@ -28,8 +27,6 @@ import {
 import { useSession } from "next-auth/react";
 import { signOutCleanly } from "@/src/features/auth/lib/signOut";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
-import ContainerPage from "@/src/components/layouts/container-page";
-import { useRouter } from "next/router";
 import { StringNoHTML } from "@langfuse/shared";
 import Link from "next/link";
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
@@ -374,21 +371,3 @@ const getAccountSettingsPages = ({
     show: showV4Migration,
   },
 ];
-
-export default function AccountSettingsPage() {
-  const router = useRouter();
-  const pages = useAccountSettingsPages();
-
-  return (
-    <ContainerPage
-      headerProps={{
-        title: "Account Settings",
-      }}
-    >
-      <PagedSettingsContainer
-        activeSlug={router.query.page as string | undefined}
-        pages={pages}
-      />
-    </ContainerPage>
-  );
-}
