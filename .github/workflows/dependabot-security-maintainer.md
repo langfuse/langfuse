@@ -33,7 +33,7 @@ checkout:
 # rejects it and the awf api-proxy remaps it to a fallback model, and the
 # suffixed string matches no Langfuse price. gh-aw v0.86 has no frontmatter
 # knob for effort, so Claude Code uses its default effort for this model.
-model: claude-opus-5
+model: claude-opus-5-5
 
 engine:
   id: claude
