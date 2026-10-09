@@ -1,3 +1,5 @@
+import type { CodeblockLanguage } from "@/src/components/design-system/Codeblock/Codeblock";
+
 // Prism's bundled grammars and aliases, plus shell labels used by existing callers.
 const supportedLanguages = [
   "plain",
@@ -52,9 +54,11 @@ const supportedLanguages = [
   "webmanifest",
   "bash",
   "shell",
-] as const;
+] as const satisfies readonly CodeblockLanguage[];
 
-export function normalizeCodeblockLanguage(language: string) {
+export function normalizeCodeblockLanguage(
+  language: string,
+): CodeblockLanguage {
   return (
     supportedLanguages.find(
       (supported) => supported === language.toLowerCase(),

@@ -243,12 +243,17 @@ function MarkdownCode({
   const theme = forcedTheme ?? resolvedTheme;
   const languageMatch = /language-(\w+)/.exec(className || "");
   const language = languageMatch ? languageMatch[1] : "";
+  const codeLanguage = normalizeCodeblockLanguage(language);
   const codeContent = String(children).replace(/\n$/, "");
   const isMultiLine = codeContent.includes("\n");
 
   return language || isMultiLine ? (
     <CodeBlock
-      language={normalizeCodeblockLanguage(language)}
+      language={
+        codeLanguage === "text"
+          ? { value: codeLanguage, label: language }
+          : codeLanguage
+      }
       value={codeContent}
       theme={theme === "dark" ? "dark" : "light"}
     />

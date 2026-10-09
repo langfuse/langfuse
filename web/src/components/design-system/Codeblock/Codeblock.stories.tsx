@@ -42,7 +42,11 @@ export const LightThemeTokenRendering = Default.extend({
         if (!rule.types.includes("keyword")) return false;
         if (
           rule.languages &&
-          !rule.languages.includes(args.language ?? "text")
+          !rule.languages.includes(
+            typeof args.language === "string"
+              ? args.language
+              : (args.language?.value ?? "text"),
+          )
         ) {
           return false;
         }
@@ -120,6 +124,75 @@ export const LargeValue = meta.story({
     label: "Example",
     value: "x".repeat(10_001),
     allowFormatting: true,
+  },
+});
+
+export const LargeJson = meta.story({
+  name: "(Test) Formats Large JSON Without Highlighting",
+  args: {
+    label: "Example",
+    value: `{"value":"${"x".repeat(10_001)}"}`,
+    allowFormatting: true,
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const source = String(args.value);
+    await expect(
+      canvas.getByRole("button", { name: "Pretty-print JSON" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(canvasElement.querySelector("pre")?.textContent).toBe(
+      `{\n  "value": "${"x".repeat(10_001)}"\n}`,
+    );
+    await expect(canvasElement.querySelector("pre")?.childElementCount).toBe(0);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Pretty-print JSON" }),
+    );
+    await expect(canvasElement.querySelector("pre")?.textContent).toBe(source);
+  },
+});
+
+export const LosslessJson = meta.story({
+  name: "(Test) Copies Exact JSON Tokens In Both Formats",
+  args: {
+    value: '{"2":12345678901234567890,"1":"\\\\u0061"}',
+    allowFormatting: true,
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const writeText = spyOn(
+      navigator.clipboard,
+      "writeText",
+    ).mockResolvedValue();
+    try {
+      await userEvent.click(canvas.getByRole("button", { name: "Copy code" }));
+      await expect(writeText).toHaveBeenLastCalledWith(
+        '{\n  "2": 12345678901234567890,\n  "1": "\\\\u0061"\n}',
+      );
+      await userEvent.click(
+        canvas.getByRole("button", { name: "Pretty-print JSON" }),
+      );
+      await userEvent.click(canvas.getByRole("button", { name: "Copied" }));
+      await expect(writeText).toHaveBeenLastCalledWith(args.value);
+    } finally {
+      writeText.mockRestore();
+    }
+  },
+});
+
+export const ReadOnlyPlainText = ReadOnly.extend({
+  args: {
+    language: "text",
+    value:
+      "This intentionally long first line should scroll horizontally and remain clear of the copy control. ".repeat(
+        8,
+      ),
+  },
+});
+
+export const UnsupportedLanguageCaption = meta.story({
+  args: {
+    language: { value: "text", label: "java" },
+    value: "public class Example {}",
   },
 });
 

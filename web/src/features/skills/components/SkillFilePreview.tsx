@@ -51,11 +51,15 @@ export function SkillFilePreview({
     mdx: "text",
     txt: "text",
   };
+  const languageName = languageAliases[extension] ?? (extension || "text");
+  const language = normalizeCodeblockLanguage(languageName);
   return (
     <Codeblock
-      language={normalizeCodeblockLanguage(
-        languageAliases[extension] ?? extension,
-      )}
+      language={
+        language === "text"
+          ? { value: language, label: languageName }
+          : language
+      }
       value={content}
     />
   );

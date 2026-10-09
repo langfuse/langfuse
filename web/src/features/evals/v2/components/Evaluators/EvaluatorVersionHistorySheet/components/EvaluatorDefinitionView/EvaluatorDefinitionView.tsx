@@ -9,6 +9,8 @@ import {
 } from "@langfuse/shared";
 
 import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";
+import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
 import { Badge } from "@/src/components/ui/badge";
 import { Label } from "@/src/components/ui/label";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
@@ -62,10 +64,6 @@ function CodeEvaluatorDefinitionView({
   definition: Extract<EvaluatorDefinition, { type: "CODE" }>;
 }) {
   const { sourceCode, sourceCodeLanguage } = definition;
-  const codeLanguages = {
-    PYTHON: "python",
-    TYPESCRIPT: "typescript",
-  } as const satisfies Record<EvalTemplateSourceCodeLanguage, string>;
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -89,7 +87,11 @@ function CodeEvaluatorDefinitionView({
         {/* The execution row above already names the language. */}
         <CodeBlock
           language={
-            sourceCodeLanguage ? codeLanguages[sourceCodeLanguage] : "text"
+            sourceCodeLanguage
+              ? normalizeCodeblockLanguage(
+                  sourceCodeLanguageLabel(sourceCodeLanguage),
+                )
+              : "text"
           }
           value={sourceCode ?? ""}
           showLanguage={false}

@@ -392,8 +392,8 @@ export const LargeToolPreviews = meta.story({
       await expect(outputPreview.textContent).toBe(expectedOutput);
       await expect(outputPreview.childElementCount).toBe(0);
       await expect(
-        controls.queryByRole("combobox", { name: "Tool output language" }),
-      ).toBeNull();
+        controls.getByRole("combobox", { name: "Tool output language" }),
+      ).toBeVisible();
 
       if (name === "highlight-limit") {
         await expect(expectedInput.length).toBe(10_000);
@@ -410,10 +410,6 @@ export const LargeToolPreviews = meta.story({
       } else {
         await expect(inputPreview.textContent).toBe(expectedInput);
         await expect(inputPreview.childElementCount).toBe(0);
-        await expect(controls.queryByRole("combobox")).toBeNull();
-        await expect(
-          controls.getAllByText("Plain text (large value)"),
-        ).toHaveLength(2);
       }
     }
   },
