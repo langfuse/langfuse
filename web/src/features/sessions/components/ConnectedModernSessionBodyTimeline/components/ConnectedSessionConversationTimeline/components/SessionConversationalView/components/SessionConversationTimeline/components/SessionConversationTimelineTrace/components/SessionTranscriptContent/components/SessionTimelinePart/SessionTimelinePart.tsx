@@ -9,10 +9,12 @@ import {
   type ReasoningPart,
 } from "@langfuse/shared/src/utils/normalized-io";
 import { SessionTimelineCollapsiblePart } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelinePart/components/SessionTimelineCollapsiblePart/SessionTimelineCollapsiblePart";
-import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+import {
+  ExternalMediaView,
+  LangfuseMediaView,
+} from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { cn } from "@/src/utils/tailwind";
@@ -117,7 +119,7 @@ function SessionTimelineFile({ part }: { part: FilePart }) {
       {reference ? (
         <LangfuseMediaView mediaReferenceString={reference} variant="preview" />
       ) : s3Media ? (
-        <MediaReferenceTag descriptor={s3Media} />
+        <ExternalMediaView descriptor={s3Media} />
       ) : safeImageUrl ? (
         <a href={safeImageUrl} target="_blank" rel="noreferrer">
           {/* eslint-disable-next-line @next/next/no-img-element */}

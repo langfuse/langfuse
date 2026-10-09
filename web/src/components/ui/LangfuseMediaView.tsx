@@ -20,11 +20,67 @@ import {
   type MediaReturnType,
 } from "@/src/features/media";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
+import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
 import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 
 // Above this, "preview" media falls back to the click-to-open icon instead of
 // rendering inline, so a large file isn't fetched/decoded just by opening a view.
 const PREVIEW_AUTO_EXPAND_MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+const EXTERNAL_MEDIA_REFRESH_INTERVAL_MS = 4 * 60 * 1000;
+
+type S3MediaDescriptor = Extract<MediaDescriptor, { kind: "s3" }>;
+
+export function ExternalMediaView({
+  descriptor,
+}: {
+  descriptor: S3MediaDescriptor;
+}) {
+  const projectId = useProjectIdFromURL();
+  const isFeatureEnabled = useIsFeatureEnabled("externalMediaStorage", {
+    enableForAdmins: false,
+    projectId,
+  });
+
+  if (!isFeatureEnabled) return descriptor.uri;
+
+  return (
+    <EnabledExternalMediaView descriptor={descriptor} projectId={projectId} />
+  );
+}
+
+function EnabledExternalMediaView({
+  descriptor,
+  projectId,
+}: {
+  descriptor: S3MediaDescriptor;
+  projectId?: string;
+}) {
+  const resolved = api.media.resolveExternalMedia.useQuery(
+    { projectId: projectId ?? "", uri: descriptor.uri },
+    {
+      enabled: Boolean(projectId),
+      staleTime: EXTERNAL_MEDIA_REFRESH_INTERVAL_MS,
+      refetchInterval: EXTERNAL_MEDIA_REFRESH_INTERVAL_MS,
+      retry: false,
+      meta: { silentHttpCodes: [404] },
+    },
+  );
+  const isSignedUrlExpired =
+    resolved.data?.expiresAt !== undefined &&
+    resolved.data.expiresAt.getTime() <= Date.now();
+  const url = isSignedUrlExpired ? undefined : resolved.data?.url;
+
+  if (!url) return null;
+
+  return (
+    <FileViewer
+      src={url}
+      contentType={descriptor.contentType as MediaContentType}
+      defaultExpanded
+    />
+  );
+}
 
 export const LangfuseMediaView = ({
   mediaReferenceString,
