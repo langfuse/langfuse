@@ -1,10 +1,13 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import { buildSettingsPages } from "@/src/features/settings/SettingsPage";
 
-vi.mock("next/router", () => ({
-  useRouter: () => ({ asPath: "/account/settings", push: vi.fn() }),
+const router = vi.hoisted(() => ({
+  asPath: "/account/settings",
+  push: vi.fn(),
 }));
+
+vi.mock("next/router", () => ({ useRouter: () => router }));
 
 vi.mock("@/src/features/account", () => ({
   useAccountSettingsPages: () => [],
@@ -140,6 +143,26 @@ describe("buildSettingsPages", () => {
     expect(screen.getAllByRole("link", { name: "General" })).toHaveLength(1);
     expect(screen.getByRole("link", { name: "Billing" })).toHaveAttribute(
       "href",
+      "/organization/org-1/settings/billing",
+    );
+  });
+
+  it("drops table query params when switching pages", () => {
+    router.asPath = "/organization/org-1/settings/members?search=alice";
+    render(
+      <PagedSettingsContainer
+        pages={buildSettingsPages({
+          scope: "organization",
+          organizationId: "org-1",
+          accountPages,
+          organizationPages,
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Billing"));
+
+    expect(router.push).toHaveBeenCalledWith(
       "/organization/org-1/settings/billing",
     );
   });

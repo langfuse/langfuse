@@ -14,6 +14,10 @@ import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath
 
 type SettingsScope = "account" | "organization";
 
+type SettingsPageProps = { scope: SettingsScope };
+
+type OrganizationPickerProps = { scope: SettingsScope };
+
 type SettingsPageEntry = ComponentProps<
   typeof PagedSettingsContainer
 >["pages"][number];
@@ -21,93 +25,7 @@ type SettingsPageEntry = ComponentProps<
 const ACCOUNT_SECTION = "Account";
 const ORGANIZATION_SECTION = "Organization";
 
-const organizationSettingsPath = (organizationId: string, slug: string) =>
-  `/organization/${organizationId}/settings${slug === "index" ? "" : `/${slug}`}`;
-
-/**
- * Merges account and organization settings into one nav. Pages owned by the
- * other route become internal links, so each route only renders its own
- * content while the nav looks the same on both.
- */
-export function buildSettingsPages({
-  scope,
-  organizationId,
-  accountPages,
-  organizationPages,
-}: {
-  scope: SettingsScope;
-  organizationId: string | undefined;
-  accountPages: SettingsPageEntry[];
-  organizationPages: SettingsPageEntry[];
-}): SettingsPageEntry[] {
-  const account = accountPages.map((page): SettingsPageEntry => {
-    const base = { ...page, section: ACCOUNT_SECTION };
-    if (scope === "account" || !("content" in page)) return base;
-    return {
-      title: page.title,
-      slug: page.slug,
-      section: ACCOUNT_SECTION,
-      show: page.show,
-      href: accountSettingsPath(organizationId),
-      internal: true,
-    };
-  });
-
-  const accountHrefs = new Set(
-    accountPages.flatMap((page) => ("href" in page ? [page.href] : [])),
-  );
-
-  const organization = organizationPages
-    // The account section already links these (e.g. v4 Migration).
-    .filter((page) => !("href" in page && accountHrefs.has(page.href)))
-    .map((page): SettingsPageEntry => {
-      if (scope === "organization" || !("content" in page) || !organizationId)
-        return page;
-      return {
-        title: page.title,
-        slug: page.slug,
-        section: page.section,
-        show: page.show,
-        href: organizationSettingsPath(organizationId, page.slug),
-        internal: true,
-      };
-    });
-
-  return [...account, ...organization];
-}
-
-function OrganizationPicker({ scope }: { scope: SettingsScope }) {
-  const session = useSession();
-  const organization = useQueryOrganization();
-  const { getOrgPath: getOrgSwitchPath } = useOrgProjectSwitchPaths();
-  const organizations = session.data?.user?.organizations;
-  const organizationLabel = organization?.name ?? "Select organization";
-
-  return (
-    <OrganizationDropdownMenu
-      {...(organizations
-        ? { state: "loaded", organizations }
-        : { state: "loading" })}
-      canCreateOrganizations={!!session.data?.user?.canCreateOrganizations}
-      getOrgPath={scope === "account" ? accountSettingsPath : getOrgSwitchPath}
-    >
-      {({ getTriggerProps }) => (
-        <button
-          type="button"
-          className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-8 w-full items-center gap-1.5 rounded-sm px-2 text-left text-xs font-bold"
-          {...getTriggerProps()}
-        >
-          <span className="truncate" title={organizationLabel}>
-            {organizationLabel}
-          </span>
-          <DropdownIndicator size="sm" nudge />
-        </button>
-      )}
-    </OrganizationDropdownMenu>
-  );
-}
-
-export function SettingsPage({ scope }: { scope: SettingsScope }) {
+export function SettingsPage({ scope }: SettingsPageProps) {
   const router = useRouter();
   const organization = useQueryOrganization();
   const accountPages = useAccountSettingsPages();
@@ -149,4 +67,90 @@ export function SettingsPage({ scope }: { scope: SettingsScope }) {
       />
     </ContainerPage>
   );
+}
+
+function OrganizationPicker({ scope }: OrganizationPickerProps) {
+  const session = useSession();
+  const organization = useQueryOrganization();
+  const { getOrgPath: getOrgSwitchPath } = useOrgProjectSwitchPaths();
+  const organizations = session.data?.user?.organizations;
+  const organizationLabel = organization?.name ?? "Select organization";
+
+  return (
+    <OrganizationDropdownMenu
+      {...(organizations
+        ? { state: "loaded", organizations }
+        : { state: "loading" })}
+      canCreateOrganizations={!!session.data?.user?.canCreateOrganizations}
+      getOrgPath={scope === "account" ? accountSettingsPath : getOrgSwitchPath}
+    >
+      {({ getTriggerProps }) => (
+        <button
+          type="button"
+          className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-8 w-full items-center gap-1.5 rounded-sm px-2 text-left text-xs font-bold"
+          {...getTriggerProps()}
+        >
+          <span className="truncate" title={organizationLabel}>
+            {organizationLabel}
+          </span>
+          <DropdownIndicator size="sm" nudge />
+        </button>
+      )}
+    </OrganizationDropdownMenu>
+  );
+}
+
+const organizationSettingsPath = (organizationId: string, slug: string) =>
+  `/organization/${organizationId}/settings${slug === "index" ? "" : `/${slug}`}`;
+
+/**
+ * Merges account and organization settings into one nav. Pages owned by the
+ * other route become internal links, so each route only renders its own
+ * content while the nav looks the same on both.
+ */
+export function buildSettingsPages({
+  scope,
+  organizationId,
+  accountPages,
+  organizationPages,
+}: {
+  scope: SettingsScope;
+  organizationId: string | undefined;
+  accountPages: SettingsPageEntry[];
+  organizationPages: SettingsPageEntry[];
+}): SettingsPageEntry[] {
+  const account = accountPages.map((page): SettingsPageEntry => {
+    const base = { ...page, section: ACCOUNT_SECTION };
+    if (scope === "account" || !("content" in page)) return base;
+    return {
+      title: page.title,
+      slug: page.slug,
+      section: ACCOUNT_SECTION,
+      show: page.show,
+      href: accountSettingsPath(organizationId),
+      internal: true,
+    };
+  });
+
+  /** Org links the account section already has, e.g. v4 Migration */
+  const accountHrefs = new Set(
+    accountPages.flatMap((page) => ("href" in page ? [page.href] : [])),
+  );
+
+  const organization = organizationPages
+    .filter((page) => !("href" in page && accountHrefs.has(page.href)))
+    .map((page): SettingsPageEntry => {
+      if (scope === "organization" || !("content" in page) || !organizationId)
+        return page;
+      return {
+        title: page.title,
+        slug: page.slug,
+        section: page.section,
+        show: page.show,
+        href: organizationSettingsPath(organizationId, page.slug),
+        internal: true,
+      };
+    });
+
+  return [...account, ...organization];
 }

@@ -20,15 +20,18 @@ type SettingsPage = {
   show?: boolean | (() => boolean);
 } & (
   | { content: ReactNode }
-  // `internal` links stay inside the settings nav, so they skip the external arrow.
-  | { href: string; internal?: boolean }
+  | {
+      href: string;
+      /** Hides the external-link arrow for links that stay in the settings nav */
+      internal?: boolean;
+    }
 );
 
 type SettingsProps = {
   pages: Array<SettingsPage>;
   activeSlug?: string;
   fullHeight?: boolean;
-  // Replaces a section's label; rendered even when the section has no pages.
+  /** Replaces a section's label; rendered even when the section has no pages */
   sectionHeaders?: Record<string, ReactNode>;
 };
 
@@ -50,12 +53,18 @@ export const PagedSettingsContainer = ({
     contentPages.find((page) => page.slug === activeSlug) ?? contentPages[0];
 
   const onChange = (newSlug: string) => {
-    const [path, query] = router.asPath.split("?");
-    const pathSegments = path.split("/");
+    const pathSegments = router.asPath.split("?")[0].split("/");
     if (pathSegments[pathSegments.length - 1] !== "settings")
       pathSegments.pop();
     if (newSlug !== "index") pathSegments.push(newSlug);
-    router.push(pathSegments.join("/") + (query ? `?${query}` : ""));
+    router.push(pathSegments.join("/"));
+  };
+
+  const handleSelectPage = (key: string) => {
+    const page = availablePages.find((p) => pageKey(p) === key);
+    if (!page) return;
+    if ("href" in page) router.push(page.href);
+    else onChange(page.slug);
   };
 
   const groups = groupPagesBySection(availablePages);
@@ -82,12 +91,7 @@ export const PagedSettingsContainer = ({
             <div key={section}>{header}</div>
           ))}
           <Select
-            onValueChange={(key) => {
-              const page = availablePages.find((p) => pageKey(p) === key);
-              if (!page) return;
-              if ("href" in page) router.push(page.href);
-              else onChange(page.slug);
-            }}
+            onValueChange={handleSelectPage}
             value={currentPage ? pageKey(currentPage) : undefined}
           >
             <SelectTrigger>
