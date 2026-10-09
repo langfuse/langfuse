@@ -25,6 +25,7 @@ import {
   clampCustomRowHeightPx,
   getRowHeightTailwindClass,
   minCustomRowHeightPx,
+  mediumRowHeightPx,
   resolveRowHeightRendering,
   rowHeightPresetForPx,
 } from "@/src/components/table/data-table-row-height-switch";
@@ -1058,7 +1059,8 @@ function TableBodyComponent<TData>({
     rowIndex: number;
     px: number;
     committedPx: number;
-    customHeights: CustomHeights | undefined;
+    minPx: number;
+    mediumPx: number;
     frames: HTMLElement[];
   } | null>(null);
   const committedRendering = resolveRowHeightRendering(
@@ -1070,11 +1072,13 @@ function TableBodyComponent<TData>({
   );
   const previewCommitRef = useRef<number | null>(null);
   const keyGestureStartRef = useRef<number | null>(null);
+  const keyGestureHandleRef = useRef<HTMLDivElement | null>(null);
   const anchorRef = useRef<{ rowIndex: number; top: number } | null>(null);
   const [anchorEpoch, setAnchorEpoch] = useState(0);
   const tableBodyRef = useRef<HTMLTableSectionElement>(null);
   const [measuredPx, setMeasuredPx] = useState<number | undefined>(undefined);
   const minRowHeightPx = minCustomRowHeightPx(customRowHeights);
+  const compactThresholdPx = mediumRowHeightPx(customRowHeights);
   const announcedPx = rowHeightPx ?? measuredPx;
   const committedHeightRef = useRef(committedRendering.heightPx);
   committedHeightRef.current = committedRendering.heightPx;
@@ -1089,7 +1093,8 @@ function TableBodyComponent<TData>({
         rowIndex,
         px,
         committedPx: committedRendering.heightPx,
-        customHeights: customRowHeights,
+        minPx: minRowHeightPx,
+        mediumPx: compactThresholdPx,
         frames: Array.from(
           tableBodyRef.current?.querySelectorAll<HTMLElement>(
             `tr[data-row-index="${rowIndex}"] [data-row-height]`,
@@ -1106,10 +1111,7 @@ function TableBodyComponent<TData>({
     tableBodyRef.current
       ?.querySelector('[role="slider"]')
       ?.setAttribute("aria-valuenow", String(px));
-    const compact = resolveRowHeightRendering(
-      { preset: rowHeight ?? "s", previewPx: px },
-      customRowHeights,
-    ).compact;
+    const compact = px < compactThresholdPx;
     const current = previewStore.getState();
     if (current.rowIndex !== rowIndex || current.compact !== compact) {
       previewStore.setState({ rowIndex, compact });
@@ -1138,12 +1140,18 @@ function TableBodyComponent<TData>({
     }
     previewCommitRef.current = null;
     keyGestureStartRef.current = null;
+    keyGestureHandleRef.current = null;
     clearRowHeightPreview();
   }, [clearRowHeightPreview]);
 
   // Refreshed values can keep the same DOM frames. Retain the gesture in
   // that case, but cancel before paint if its row/cells or sizing are replaced.
   useLayoutEffect(() => {
+    const handle = dragRef.current?.handle ?? keyGestureHandleRef.current;
+    if (handle && !tableBodyRef.current?.contains(handle)) {
+      cancelRowHeightGesture();
+      return;
+    }
     const preview = previewRef.current;
     if (!preview) return;
     const frames = Array.from(
@@ -1154,7 +1162,8 @@ function TableBodyComponent<TData>({
     if (
       !rowResizeEnabled ||
       preview.committedPx !== committedRendering.heightPx ||
-      preview.customHeights !== customRowHeights ||
+      preview.minPx !== minRowHeightPx ||
+      preview.mediumPx !== compactThresholdPx ||
       frames.length !== preview.frames.length ||
       frames.some((frame, index) => frame !== preview.frames[index])
     ) {
@@ -1163,9 +1172,11 @@ function TableBodyComponent<TData>({
   }, [
     rowModelRows,
     visibleColumns,
+    data.isLoading,
     rowResizeEnabled,
     committedRendering.heightPx,
-    customRowHeights,
+    minRowHeightPx,
+    compactThresholdPx,
     cancelRowHeightGesture,
   ]);
 
@@ -1292,6 +1303,7 @@ function TableBodyComponent<TData>({
     if (next == null && start == null) return;
     previewCommitRef.current = null;
     keyGestureStartRef.current = null;
+    keyGestureHandleRef.current = null;
     rememberRowAnchor(0);
     clearRowHeightPreview();
     if (next == null || start == null || next === Math.round(start)) {
@@ -1319,6 +1331,7 @@ function TableBodyComponent<TData>({
     const current = previewCommitRef.current ?? fallback;
     if (keyGestureStartRef.current == null) {
       keyGestureStartRef.current = current;
+      keyGestureHandleRef.current = event.currentTarget;
     }
     const delta = event.key === "ArrowDown" ? 16 : -16;
     const next = clampCustomRowHeightPx(current + delta, minRowHeightPx);
@@ -1457,11 +1470,6 @@ function TableBodyComponent<TData>({
   );
 }
 
-type RowHeightPreviewStore = StoreApi<{
-  rowIndex: number | null;
-  compact: boolean;
-}>;
-
 function TableDataRow<TData>({
   row,
   lastRowIndex,
@@ -1485,32 +1493,7 @@ function TableDataRow<TData>({
   getRowClassName,
   highlightAllRows,
   selectionStore,
-}: Pick<
-  TableBodyComponentProps<TData>,
-  | "rowheighttw"
-  | "rowHeightPx"
-  | "renderRow"
-  | "onRowClick"
-  | "getRowClassName"
-  | "highlightAllRows"
-  | "selectionStore"
-> & {
-  row: Row<TData>;
-  lastRowIndex: number;
-  previewStore: RowHeightPreviewStore;
-  committedRendering: ReturnType<typeof resolveRowHeightRendering>;
-  rowResizeEnabled: boolean;
-  topAlignCells: boolean;
-  cellPadding: DataTableCellPadding;
-  minRowHeightPx: number;
-  announcedPx?: number;
-  onResizePointerDown: React.PointerEventHandler<HTMLDivElement>;
-  onResizePointerMove: React.PointerEventHandler<HTMLDivElement>;
-  finishResize: React.PointerEventHandler<HTMLDivElement>;
-  cancelResize: React.PointerEventHandler<HTMLDivElement>;
-  onResizeKeyDown: React.KeyboardEventHandler<HTMLDivElement>;
-  commitKeyboardResize: () => void;
-}) {
+}: TableDataRowProps<TData>) {
   const compact = useStore(previewStore, (state) =>
     state.rowIndex === row.index ? state.compact : committedRendering.compact,
   );
@@ -1711,3 +1694,35 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   // If all checks pass, components are equal
   return true;
 }) as typeof TableBodyComponent;
+
+type RowHeightPreviewStore = StoreApi<{
+  rowIndex: number | null;
+  compact: boolean;
+}>;
+
+type TableDataRowProps<TData> = Pick<
+  TableBodyComponentProps<TData>,
+  | "rowheighttw"
+  | "rowHeightPx"
+  | "renderRow"
+  | "onRowClick"
+  | "getRowClassName"
+  | "highlightAllRows"
+  | "selectionStore"
+> & {
+  row: Row<TData>;
+  lastRowIndex: number;
+  previewStore: RowHeightPreviewStore;
+  committedRendering: ReturnType<typeof resolveRowHeightRendering>;
+  rowResizeEnabled: boolean;
+  topAlignCells: boolean;
+  cellPadding: DataTableCellPadding;
+  minRowHeightPx: number;
+  announcedPx?: number;
+  onResizePointerDown: React.PointerEventHandler<HTMLDivElement>;
+  onResizePointerMove: React.PointerEventHandler<HTMLDivElement>;
+  finishResize: React.PointerEventHandler<HTMLDivElement>;
+  cancelResize: React.PointerEventHandler<HTMLDivElement>;
+  onResizeKeyDown: React.KeyboardEventHandler<HTMLDivElement>;
+  commitKeyboardResize: () => void;
+};

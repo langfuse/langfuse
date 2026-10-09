@@ -10,6 +10,9 @@ movement update only the target row's frame heights and the slider's announced
 value. Pixel movement does not render the body or cell content. Crossing Medium
 updates only the target row's mode. Release commits one shared height through the
 caller's persisted setting and restores the dragged row's scroll anchor.
+Gestures survive value refreshes and equivalent preset heights. Replacing their
+frames or active handle, loading placeholders, or losing capture cancels the
+preview before it can persist.
 
 `data-table-row-height-switch.tsx` owns presets, persisted custom heights, bounds
 and the compact/expanded rendering contract. Its context supplies that semantic
