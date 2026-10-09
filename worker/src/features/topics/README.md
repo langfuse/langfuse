@@ -55,25 +55,29 @@ dev commands also build it):
 pnpm --filter @langfuse/native run build
 ```
 
-The worker reads `LANGFUSE_AI_AWS_BEDROCK_REGION` for Topics model calls.
-Set `LANGFUSE_TOPICS_SUMMARY_MODEL` and `LANGFUSE_TOPICS_EMBEDDING_MODEL` on
-both web and worker to Bedrock model IDs. Neither has a default; Topics
-processing is unavailable until both are set. Changing either requires a new
-execution, and changing the embedding model requires rebuilding the map from
-the new vectors. These are internal Topics PoC settings, not part of the
-self-hosted configuration surface. Topic naming continues to use
-`us.openai.gpt-5.6-terra`.
+Topics runs on the project's own LLM connections (the same connections evals
+and the playground use). Each project stores one `topic_configs` row with
+three slots, each a connection plus a model ID: facet summaries, embeddings (plus
+dimensions), and topic clustering (the model that names and describes topics). Set them on the Topics page under **Models**.
+Processing is unavailable until all three are set. Any connection whose save-time
+test call succeeds can serve summaries and clustering, including Anthropic.
+Embeddings need OpenAI (including OpenAI-compatible base URLs), Azure OpenAI,
+Amazon Bedrock, Google AI Studio or Vertex AI; Anthropic has no embeddings API,
+so its embedding test call fails. Summary and clustering calls go through `generateLLMText`;
+embeddings go through `embedLLMText`. Both retry 429 and 5xx responses twice
+with backoff. On Cloud, Bedrock and Vertex connections need explicit
+credentials; the default credential chain is self-hosted only.
 
-Bedrock uses the default AWS credential chain; the worker role needs
-`bedrock:InvokeModel` access to the selected summary and embedding models,
-`us.openai.gpt-5.6-terra` for topic naming, and any routed foundation models.
-Usage is retained for custom models, but cost estimates are only available for
-the built-in summary, naming and embedding model IDs. Locally, set
-`LANGFUSE_AI_FEATURES_AWS_PROFILE=playground` to use the SSO profile without changing
-credentials for local object storage. `AWS_PROFILE` takes precedence when set.
-Assistant and Ask AI use the same profile; `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`
-remains a fallback for existing local setups.
-Restart web and worker after changing these values.
+Saving the settings makes one real call per configured slot (structured output
+for summaries and clustering, one embedding whose length must equal the
+configured dimensions) and rejects the save if any call fails.
+The embedding model and dimensions cannot change once the project has embedded
+summaries, so existing vectors stay comparable. Summary and clustering model changes apply
+to new work only; an execution frozen on another summary or embedding model
+fails and must be started again. Deleting a connection that a slot uses turns
+automatic processing off and records why. Usage is retained for any model, but
+cost estimates are only available for the model IDs priced in
+[models.ts](models.ts).
 Numerical fitting uses the worker's existing Node runtime and compiled
 `@langfuse/native` addon, with no extra runtime or service.
 Summary and assignment records use `trace_id` as their source when present;
@@ -88,37 +92,34 @@ Summaries snapshot source environment and trace name; assignments copy that
 snapshot, including empty environment strings. Reprocessing refreshes metadata
 even when text is reused; session results have no trace name.
 
-The summary model is selected with `LANGFUSE_TOPICS_SUMMARY_MODEL`. Use
-`us.openai.gpt-6-luna` for US routing or `global.openai.gpt-6-luna` for global
-routing; GPT-6 Luna has no EU geographic profile. Both support the existing
-Bedrock Converse tool-based structured output with reasoning disabled.
+For Bedrock summary models, use `us.openai.gpt-6-luna` for US routing or
+`global.openai.gpt-6-luna` for global routing; GPT-6 Luna has no EU geographic
+profile. Both support Bedrock Converse tool-based structured output; OpenAI
+models on Bedrock are called with reasoning effort `none`.
 Summary cost estimates include both GPT-6 Luna profiles and the existing
 `us.openai.gpt-5.6-luna` profile. See the
 [GPT-6 Luna model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html)
-for supported source regions and pricing. Topic
-naming uses `us.openai.gpt-5.6-terra` through Bedrock Converse with reasoning
-disabled. The AWS model cards for [GPT-5.6 Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
+for supported source regions and pricing. The
+recommended Bedrock clustering model is `us.openai.gpt-5.6-terra`. The AWS model cards for [GPT-5.6 Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
 and [GPT-5.6 Terra](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html)
 currently list `us.` geographic inference profiles in commercial Regions, but
 no `eu.` profiles; these profiles route within the US geography, including when
 invoked from `eu-west-1`.
-Embeddings use a regional Cohere Embed v4 inference profile on Amazon Bedrock:
-set `LANGFUSE_TOPICS_EMBEDDING_MODEL` to `eu.cohere.embed-v4:0` for EU routing
-or `us.cohere.embed-v4:0` for US routing. Avoid the global profile when
-geographic residency matters. Calls use float output, `clustering` input type
-for both discovery and assignment, and truncation disabled. Default: 1,024
-dimensions; supported choices: 256, 512, 1,024, 1,536. Calls embed one summary at a
+On Bedrock, Cohere Embed v4 uses `eu.cohere.embed-v4:0` for EU routing or
+`us.cohere.embed-v4:0` for US routing. Avoid the global profile when geographic
+residency matters. Every provider is asked for clustering vectors of the
+configured size (Cohere `clustering` input type with truncation disabled, Google
+`CLUSTERING` task type, OpenAI `dimensions`). Default: 1,024
+dimensions; any whole number from 64 to 4,096 is accepted, and a provider that
+returns a vector of another length fails the call. Calls embed one summary at a
 time, retaining per-summary Redis checkpointing.
 Embedding settings are independent of immutable facet versions; changing them
 with stored-summary reuse enabled regenerates vectors without summarization inference. This PoC does
 not use `aiEmbed` or change ingestion. It accepts traces already stored in v4
 events; legacy-only traces are unsupported.
 
-After changing embedding models, start a new **Process traces** execution with
-**Reuse stored summaries** to replace vectors without repeating summary inference,
-then **Update topics** to rebuild the map. Old vectors/maps cannot match the new
-configuration. Drain existing work before deploying; old-model staged jobs cannot
-resume under the new schema. Old execution history remains readable.
+Drain existing work before deploying model changes; old-model staged jobs cannot
+resume. Old execution history remains readable.
 After changing the summary model, start a new **Process traces** execution;
 stored-summary reuse cannot reuse results from a different summary model.
 Existing topic names remain until their definitions change during **Update topics**.
@@ -136,8 +137,13 @@ skipped on retry. A failing trace does not stop the batch: every trace is
 processed and outcomes are counted once per job (`langfuse.topics.trace_outcomes`
 by outcome and reason). Failed traces are not retried, because a retry would
 read the shared batch from ClickHouse again. Only a failed batch read fails the
-job. Summaries and embeddings use the same Bedrock models as manual
-processing.
+job. Summaries and embeddings use the same project models as manual
+processing. While the read starts, one Postgres query loads the enabled model
+settings of every allowlisted project in the batch; facets load once per
+project. Projects whose settings are off or incomplete are skipped, and new
+traces that arrive meanwhile are not queued. An authentication or billing error
+(HTTP 401, 402, 403) turns the project's automatic processing off with the
+failing slot as the reason, and the rest of the batch skips that project.
 
 Required for a local run, in addition to Postgres, ClickHouse, and Redis:
 
@@ -150,10 +156,6 @@ Required for a local run, in addition to Postgres, ClickHouse, and Redis:
 | `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | Allow the ClickHouse read. Default off.                                                                                                                                                                                                              |
 | `LANGFUSE_TRACE_BATCH_IDLE_MS`                | Idle time before a trace is ready. Unset is 2 minutes on `DEV` and 10 minutes otherwise.                                                                                                                                                             |
 | `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`         | Same allowlist on web and worker. Unset defaults to the demo project. These projects bypass trace-batch sampling at ingestion, so every trace is summarized automatically; set `LANGFUSE_TRACE_BATCH_SAMPLING_RATE=0` to run the flow for them only. |
-| `LANGFUSE_AI_AWS_BEDROCK_REGION`              | Bedrock region for summaries, naming, and embeddings.                                                                                                                                                                                                |
-| `LANGFUSE_TOPICS_SUMMARY_MODEL`               | Required internal PoC setting; Bedrock model ID used for trace summaries.                                                                                                                                                                            |
-| `LANGFUSE_TOPICS_EMBEDDING_MODEL`             | Required internal PoC setting; Bedrock embedding model ID.                                                                                                                                                                                           |
-| `LANGFUSE_AI_FEATURES_AWS_PROFILE`            | Optional shared local AI profile. `AWS_PROFILE` takes precedence; falls back to `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`.                                                                                                                                 |
 
 ## Run the experiment
 
@@ -401,7 +403,7 @@ Provider usage and calculated model costs use the events-style
 `provided_usage_details`, `usage_details`, `provided_cost_details` and `cost_details`
 maps. Summary and embedding keys are prefixed by stage; effective maps include
 combined totals.
-Global Bedrock text rates per million input/output tokens are $0.20/$1.20 for
+Priced model IDs: global Bedrock text rates per million input/output tokens are $0.20/$1.20 for
 [Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
 and $2/$12 for
 [Terra](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html).
@@ -411,7 +413,7 @@ is logged and omitted from usage/cost maps, never estimated with an OpenAI token
 Model prices and token budgets live in [models.ts](models.ts) and the shared
 Topics contracts. Summary input defaults to 120,000 tokens. Oversized naming
 input fails before calling the provider; member summaries are never silently discarded.
-Provider SDK retries are disabled. Embedding queue jobs retry transient failures
+Provider calls retry 429 and 5xx responses twice. Embedding queue jobs retry transient failures
 up to three attempts with exponential backoff; authentication and invalid
 input/output failures stop immediately. A manual resume can retry a failed batch
 while its Redis payload still exists; each manual resume resets the three-attempt

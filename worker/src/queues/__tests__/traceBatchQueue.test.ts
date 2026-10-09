@@ -30,6 +30,14 @@ import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { tokenCount } from "../../features/tokenisation/usage";
 import { TopicsProviderUnavailable } from "../../features/topics/provider-error";
 import { summarizeAssembledTrace } from "../../features/topics/summarizeAssembledTrace";
+import {
+  ensureDefaultTopicFacets,
+  getEnabledTopicsModels,
+  listTopicRules,
+  pauseTopicsModels,
+  type TopicsModels,
+} from "@langfuse/shared/topics/server";
+import type { TopicFacet, TopicRule } from "@langfuse/shared/topics";
 import { recordTraceBatchTranscript } from "../../features/traceBatching/traceBatchTranscript";
 import * as traceBatchTranscript from "../../features/traceBatching/traceBatchTranscript";
 import {
@@ -47,7 +55,18 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
 }));
 
 vi.mock("../../features/topics/summarizeAssembledTrace", () => ({
-  summarizeAssembledTrace: vi.fn(async () => "disabled"),
+  summarizeAssembledTrace: vi.fn(async () => "unchanged"),
+}));
+
+vi.mock("@langfuse/shared/topics/server", () => ({
+  isTopicsProjectEnabled: vi.fn(() => true),
+  getEnabledTopicsModels: vi.fn(
+    async (projectIds: string[]) =>
+      new Map(projectIds.map((projectId) => [projectId, { projectId }])),
+  ),
+  ensureDefaultTopicFacets: vi.fn(async () => []),
+  listTopicRules: vi.fn(async () => []),
+  pauseTopicsModels: vi.fn(),
 }));
 
 // Exercise real tokenization without starting the compiled worker-thread pool.
@@ -662,7 +681,7 @@ describe("trace batch queue", () => {
       resolveSecond();
       await processing;
       env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES = originalCap;
-      vi.mocked(summarizeAssembledTrace).mockResolvedValue("disabled");
+      vi.mocked(summarizeAssembledTrace).mockResolvedValue("unchanged");
     }
   });
   it("finishes the batch past a failed trace, reports outcomes and does not re-enqueue the failure", async () => {
@@ -734,7 +753,167 @@ describe("trace batch queue", () => {
     );
     expect(add).not.toHaveBeenCalled();
     vi.mocked(summarizeAssembledTrace).mockImplementation(
-      async () => "disabled",
+      async () => "unchanged",
+    );
+  });
+
+  it("summarizes only the saved rule's facets and skips traces outside its sampling", async () => {
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      for (const projectId of ["picked", "sampled-out"])
+        yield {
+          project_id: projectId,
+          trace_id: "trace",
+          environment: "default",
+          span_id: "span",
+          parent_span_id: null,
+          start_time: "2026-09-11 00:00:00.000000",
+          event_ts: "2026-09-11 00:00:00.000000",
+          type: "GENERATION",
+          name: "generation",
+          input: JSON.stringify([{ role: "user", content: projectId }]),
+          output: JSON.stringify({ role: "assistant", content: "answer" }),
+          metadata: {},
+          level: "DEFAULT",
+          status_message: null,
+          tool_definitions: {},
+          tool_calls: [],
+          tool_call_names: [],
+        };
+    });
+    const facet = (id: string) => ({ id }) as TopicFacet;
+    vi.mocked(ensureDefaultTopicFacets).mockResolvedValue([
+      facet("intent"),
+      facet("issues"),
+    ]);
+    vi.mocked(listTopicRules).mockImplementation(async (projectId) => [
+      {
+        facetIds: ["issues"],
+        sampling: projectId === "picked" ? 1 : 0,
+      } as TopicRule,
+    ]);
+    const job = {
+      data: {
+        id: "rule",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: ["picked", "sampled-out"].map((projectId) => ({
+            projectId,
+            traceId: "trace",
+            minStart: 0,
+            maxStart: 1,
+            revision: "r",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await traceBatchQueueProcessor(job, undefined);
+
+    expect(
+      vi
+        .mocked(summarizeAssembledTrace)
+        .mock.calls.map(([input]) => [
+          input.projectId,
+          input.facets.map(({ id }) => id),
+        ]),
+    ).toEqual([["picked", ["issues"]]]);
+    vi.mocked(ensureDefaultTopicFacets).mockResolvedValue([]);
+    vi.mocked(listTopicRules).mockResolvedValue([]);
+  });
+
+  it("skips projects without enabled Topics models and pauses a project whose connection is rejected", async () => {
+    const rows = [
+      ["off", "trace-1"],
+      ["on", "trace-1"],
+      ["on", "trace-2"],
+      ["on", "trace-3"],
+    ] as const;
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      for (const [projectId, traceId] of rows)
+        yield {
+          project_id: projectId,
+          trace_id: traceId,
+          environment: "default",
+          span_id: "span",
+          parent_span_id: null,
+          start_time: "2026-09-11 00:00:00.000000",
+          event_ts: "2026-09-11 00:00:00.000000",
+          type: "GENERATION",
+          name: "generation",
+          input: JSON.stringify([{ role: "user", content: traceId }]),
+          output: JSON.stringify({ role: "assistant", content: "answer" }),
+          metadata: {},
+          level: "DEFAULT",
+          status_message: null,
+          tool_definitions: {},
+          tool_calls: [],
+          tool_call_names: [],
+        };
+    });
+    const models = { projectId: "on" } as TopicsModels;
+    vi.mocked(getEnabledTopicsModels).mockResolvedValueOnce(
+      new Map([["on", models]]),
+    );
+    vi.mocked(summarizeAssembledTrace).mockImplementation(
+      async ({ traceId }) => {
+        if (traceId === "trace-2")
+          throw new TopicsProviderUnavailable(
+            "Connection rejected (HTTP 401).",
+            "authentication",
+            "summary",
+          );
+        return "summarized";
+      },
+    );
+    const job = {
+      data: {
+        id: "kill-switch",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: rows.map(([projectId, traceId]) => ({
+            projectId,
+            traceId,
+            minStart: 0,
+            maxStart: 1,
+            revision: "r",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await traceBatchQueueProcessor(job, undefined);
+
+    // One Postgres read for the whole batch, deduplicated by project.
+    expect(getEnabledTopicsModels).toHaveBeenCalledExactlyOnceWith([
+      "off",
+      "on",
+    ]);
+    expect(ensureDefaultTopicFacets).toHaveBeenCalledExactlyOnceWith("on");
+    expect(
+      vi
+        .mocked(summarizeAssembledTrace)
+        .mock.calls.map(([input]) => [
+          input.projectId,
+          input.traceId,
+          input.models,
+        ]),
+    ).toEqual([
+      ["on", "trace-1", models],
+      ["on", "trace-2", models],
+    ]);
+    expect(pauseTopicsModels).toHaveBeenCalledExactlyOnceWith("on", {
+      blockReason: "LLM_CONNECTION_AUTH_INVALID",
+      blockMessage: expect.stringContaining("Connection rejected (HTTP 401)."),
+    });
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcomes",
+      2,
+      { outcome: "disabled" },
+    );
+    vi.mocked(summarizeAssembledTrace).mockImplementation(
+      async () => "unchanged",
     );
   });
 

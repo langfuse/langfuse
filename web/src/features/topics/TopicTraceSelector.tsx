@@ -46,7 +46,16 @@ type TopicTraceSelection = { count: number } & (
       >["selection"];
     }
 );
-const registry = { ...RULE_FIELD_REGISTRY, aiFilterPrompt: false };
+const registry = {
+  ...RULE_FIELD_REGISTRY,
+  aiFilterPrompt: false,
+  fields: RULE_FIELD_REGISTRY.fields.filter(
+    (field) => field.id !== "isRootObservation",
+  ),
+  columns: RULE_FIELD_REGISTRY.columns.filter(
+    (column) => column.id !== "isRootObservation",
+  ),
+};
 
 export function useTopicTraceSelector({
   projectId,
@@ -169,11 +178,12 @@ export function useTopicTraceSelector({
       { ...options.filterOptions, tags: options.filterOptions?.traceTags },
       [...eventsEvalFilterColumns],
     ),
-  ).map((column) =>
-    column.id === "experimentId" && column.type === "stringOptions"
-      ? { ...column, options: options.filterOptions?.experimentId ?? [] }
-      : column,
-  );
+  ).flatMap((column) => {
+    if (column.id === "isRootObservation") return [];
+    return column.id === "experimentId" && column.type === "stringOptions"
+      ? [{ ...column, options: options.filterOptions?.experimentId ?? [] }]
+      : [column];
+  });
   const previewTraces = () => {
     setExcluded([]);
     setRequest({

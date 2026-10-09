@@ -13,8 +13,24 @@ import {
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
+import {
+  ensureDefaultTopicFacets,
+  getEnabledTopicsModels,
+  isTopicsProjectEnabled,
+  listTopicRules,
+  type TopicsModels,
+} from "@langfuse/shared/topics/server";
+import type { TopicFacet } from "@langfuse/shared/topics";
 import { env } from "../env";
-import { TopicsProviderUnavailable } from "../features/topics/provider-error";
+import {
+  getDeterministicSamplingValue,
+  shouldSampleEvaluation,
+} from "../features/evaluation/deterministicSampling";
+import {
+  isRejectedConnection,
+  pauseForRejectedConnection,
+  TopicsProviderUnavailable,
+} from "../features/topics/provider-error";
 import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 
@@ -22,8 +38,65 @@ type TraceOutcome =
   | { outcome: "disabled" | "unchanged" | "summarized" }
   | { outcome: "failed"; reason: string };
 
+/**
+ * Topics settings of one batch, loaded with one query while the read starts.
+ * A project paused mid-batch is skipped for the rest of the batch.
+ */
+class TopicsBatchProjects {
+  private readonly models: Promise<Map<string, TopicsModels>>;
+  private readonly settings = new Map<
+    string,
+    Promise<{ facets: TopicFacet[]; sampling: number }>
+  >();
+  private readonly paused = new Set<string>();
+
+  constructor(projectIds: Iterable<string>) {
+    const allowed = [...new Set(projectIds)].filter(isTopicsProjectEnabled);
+    this.models = getEnabledTopicsModels(allowed);
+    // A failed load fails each trace that reads it, not the whole batch.
+    this.models.catch(() => {});
+  }
+
+  async get(projectId: string) {
+    if (this.paused.has(projectId)) return null;
+    const models = (await this.models).get(projectId);
+    if (!models) return null;
+    let settings = this.settings.get(projectId);
+    if (!settings) {
+      settings = loadProjectRule(projectId);
+      this.settings.set(projectId, settings);
+      // A failed load fails this trace only; the next trace loads again.
+      settings.catch(() => this.settings.delete(projectId));
+    }
+    return { models, ...(await settings) };
+  }
+
+  async pause(projectId: string, error: TopicsProviderUnavailable) {
+    if (this.paused.has(projectId)) return;
+    // The project is skipped for this batch even if recording the pause fails.
+    this.paused.add(projectId);
+    await pauseForRejectedConnection(projectId, error);
+  }
+}
+
+/** The saved rule's facets and sampling; without a rule, every facet runs. */
+async function loadProjectRule(projectId: string) {
+  const [facets, rules] = await Promise.all([
+    ensureDefaultTopicFacets(projectId),
+    listTopicRules(projectId),
+  ]);
+  const rule = rules[0];
+  if (!rule) return { facets, sampling: 1 };
+  const selected = new Set(rule.facetIds);
+  return {
+    facets: facets.filter((facet) => selected.has(facet.id)),
+    sampling: rule.sampling,
+  };
+}
+
 async function summarizeTraceBatch(
   observations: Observation[],
+  topics: TopicsBatchProjects,
 ): Promise<TraceOutcome> {
   const first = observations[0];
   const traceId = first?.traceId;
@@ -43,6 +116,15 @@ async function summarizeTraceBatch(
   let outcome: TraceOutcome = { outcome: "disabled" };
   await recordTraceBatchTranscript(observations, async (transcript) => {
     try {
+      const project = await topics.get(first.projectId);
+      if (
+        !project ||
+        !shouldSampleEvaluation({
+          samplingValue: getDeterministicSamplingValue(traceId),
+          samplingRate: project.sampling,
+        })
+      )
+        return;
       outcome = {
         outcome: await summarizeAssembledTrace({
           projectId: first.projectId,
@@ -51,12 +133,16 @@ async function summarizeTraceBatch(
           environment: first.environment,
           traceName: first.name ?? "",
           transcript,
+          models: project.models,
+          facets: project.facets,
         }),
       };
     } catch (error) {
       // One trace's failure must not fail or re-read the shared batch.
       const reason =
         error instanceof TopicsProviderUnavailable ? error.reason : "other";
+      if (isRejectedConnection(error))
+        await topics.pause(first.projectId, error);
       outcome = { outcome: "failed", reason };
       logger.warn("Topics summary failed for trace", {
         projectId: first.projectId,
@@ -154,6 +240,9 @@ export const traceBatchQueueProcessor: Processor<
     }
     const batch = event.payload;
     const topicsOutcomes: TraceOutcome[] = [];
+    const topics = new TopicsBatchProjects(
+      batch.traces.map((trace) => trace.projectId),
+    );
     const queryOptions = {
       maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
       maxBlockSize: env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE,
@@ -226,7 +315,9 @@ export const traceBatchQueueProcessor: Processor<
             performance.now() - enqueuedAt,
           );
           if (!summaryFailed)
-            topicsOutcomes.push(await summarizeTraceBatch(observations));
+            topicsOutcomes.push(
+              await summarizeTraceBatch(observations, topics),
+            );
         })
         .catch((error: unknown) => {
           if (!summaryFailed) summaryError = error;

@@ -61,6 +61,7 @@ async function main() {
   const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
   const seedUserId1 = "user-1"; // Owner of org
   const seedUserId2 = "user-2"; // Member of org, admin of project
+  const seedAdminUserId = "user-admin"; // Langfuse instance admin, owner of org
 
   // Seeded identities skip Cloud signup auto-enable; pin v4 on so local dx
   // and PR previews land on the events traces view.
@@ -102,6 +103,26 @@ async function main() {
       name: "Demo User 2",
       email: "member@langfuse.com",
       password: await hash("password", 12),
+      v4BetaEnabled: true,
+    },
+  });
+
+  const adminUser = await prisma.user.upsert({
+    where: { id: seedAdminUserId },
+    update: {
+      name: "Admin User",
+      email: "admin@langfuse.com",
+      password: await hash("password", 12),
+      admin: true,
+      v4BetaEnabled: true,
+    },
+    create: {
+      id: seedAdminUserId,
+      name: "Admin User",
+      email: "admin@langfuse.com",
+      password: await hash("password", 12),
+      admin: true,
+      featureFlags: ["langfuseTopics"],
       v4BetaEnabled: true,
     },
   });
@@ -153,6 +174,21 @@ async function main() {
     },
     create: {
       userId: user.id,
+      orgId: seedOrgId,
+      role: "OWNER",
+    },
+    update: {},
+  });
+
+  await prisma.organizationMembership.upsert({
+    where: {
+      orgId_userId: {
+        userId: adminUser.id,
+        orgId: seedOrgId,
+      },
+    },
+    create: {
+      userId: adminUser.id,
       orgId: seedOrgId,
       role: "OWNER",
     },

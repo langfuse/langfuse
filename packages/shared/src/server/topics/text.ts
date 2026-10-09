@@ -1,13 +1,17 @@
-import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
-import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { Sha256 } from "@aws-crypto/sha256-js";
 import { SignatureV4 } from "@smithy/signature-v4";
-import { generateText, Output } from "ai";
+import { Output } from "ai";
 import { z } from "zod";
+import { decrypt } from "../../encryption";
+import { env } from "../../env";
+import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSchemas";
 import {
   assertValidBedrockRegion,
-  createDefaultBedrockProviderAuth,
+  resolveBedrockProviderAuth,
 } from "../llm/ai-sdk/providers/bedrock";
+import { generateLLMText } from "../llm/llmText";
+import { LLMAdapter } from "../llm/types";
+import type { TopicsModel } from "./model-config";
 
 /** A system prompt segment; `cache` ends a reusable prefix with a cache breakpoint. */
 export type TopicPromptPart = { text: string; cache?: boolean };
@@ -25,31 +29,30 @@ type TopicTextResult = {
 
 const TIMEOUT_MS = 60_000;
 
+const isBedrockOpenAI = (model: TopicsModel) =>
+  model.adapter === LLMAdapter.Bedrock && /(^|\.)openai\./.test(model.model);
+
 /**
- * Uses AWS credentials for Topics structured text. GPT-5.6+ models on Bedrock
- * reuse a shared prompt prefix only with explicit cache breakpoints, which
- * Converse does not accept for them, so cached prompts on OpenAI models use
- * InvokeModel at the same regional endpoint and model ID; others use Converse.
+ * Structured Topics text through the project's LLM connection. GPT-5.6+ models
+ * on Bedrock reuse a shared prompt prefix only with explicit cache breakpoints,
+ * which Converse does not accept for them, so cached prompts on those models
+ * use InvokeModel at the same regional endpoint and model ID.
  */
 export async function generateTopicText<T>(params: {
-  model: string;
+  model: TopicsModel;
   system: TopicPromptPart[];
   input: string;
   schema: z.ZodType<T>;
   maxOutputTokens: number;
-  region: string;
-  profile?: string;
 }): Promise<TopicTextResult> {
-  assertValidBedrockRegion(params.region);
-  if (/(^|\.)openai\./.test(params.model) && params.system.some((p) => p.cache))
+  if (isBedrockOpenAI(params.model) && params.system.some((p) => p.cache))
     return invokeWithCache(params);
 
-  const provider = createAmazonBedrock({
-    region: params.region,
-    ...createDefaultBedrockProviderAuth({ profile: params.profile }),
-  });
-  const result = await generateText({
-    model: provider(params.model),
+  const result = await generateLLMText({
+    model: { adapter: params.model.adapter, id: params.model.model },
+    connection: params.model.connection,
+    // The static system prompt comes first so providers with automatic prefix
+    // caching can reuse it across traces.
     messages: [
       {
         role: "system",
@@ -57,15 +60,22 @@ export async function generateTopicText<T>(params: {
       },
       { role: "user", content: params.input },
     ],
-    allowSystemInMessages: true,
     output: Output.object({ schema: params.schema }),
     maxOutputTokens: params.maxOutputTokens,
-    providerOptions: {
-      bedrock: {
-        additionalModelRequestFields: { reasoning: { effort: "none" } },
-      },
-    },
-    maxRetries: 0,
+    reasoning: "none",
+    // Bedrock ignores portable reasoning for OpenAI models; their default effort
+    // is not none.
+    ...(isBedrockOpenAI(params.model)
+      ? {
+          providerOptions: {
+            bedrock: {
+              additionalModelRequestFields: { reasoning: { effort: "none" } },
+            },
+          },
+        }
+      : {}),
+    // The AI SDK retries 429 and 5xx responses with exponential backoff.
+    maxRetries: 2,
     timeout: TIMEOUT_MS,
   });
   return {
@@ -74,22 +84,85 @@ export async function generateTopicText<T>(params: {
       inputTokens: result.usage.inputTokens,
       outputTokens: result.usage.outputTokens,
       totalTokens: result.usage.totalTokens,
+      cacheReadTokens: result.usage.inputTokenDetails?.cacheReadTokens,
+      cacheWriteTokens: result.usage.inputTokenDetails?.cacheWriteTokens,
     },
   };
 }
 
+function signingCredentials(
+  auth: ReturnType<typeof resolveBedrockProviderAuth>,
+) {
+  const { credentialProvider } = auth;
+  if (credentialProvider)
+    return async () => {
+      const resolved = await credentialProvider();
+      return {
+        accessKeyId: resolved.accessKeyId,
+        secretAccessKey: resolved.secretAccessKey,
+        sessionToken: resolved.sessionToken,
+      };
+    };
+  if (auth.accessKeyId && auth.secretAccessKey)
+    return {
+      accessKeyId: auth.accessKeyId,
+      secretAccessKey: auth.secretAccessKey,
+    };
+  return undefined;
+}
+
+/** SigV4 or bearer-token auth from the connection's stored Bedrock credential. */
+async function bedrockRequestHeaders(
+  model: TopicsModel,
+  url: URL,
+  region: string,
+  body: string,
+): Promise<Record<string, string>> {
+  const headers = {
+    host: url.hostname,
+    "content-type": "application/json",
+    accept: "application/json",
+  };
+  const auth = resolveBedrockProviderAuth({
+    secretKey: decrypt(model.connection.secretKey),
+    allowDefaultCredentials: !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  });
+  if (auth.apiKey)
+    return { ...headers, authorization: `Bearer ${auth.apiKey}` };
+  const credentials = signingCredentials(auth);
+  if (!credentials)
+    throw new Error(
+      "Invalid Bedrock credentials. Expected AWS access key JSON or a Bedrock API key.",
+    );
+  // AWS's own SigV4 signer, as used by the AWS SDK.
+  const signed = await new SignatureV4({
+    credentials,
+    region,
+    service: "bedrock",
+    sha256: Sha256,
+  }).sign({
+    method: "POST",
+    protocol: url.protocol,
+    hostname: url.hostname,
+    path: url.pathname,
+    headers,
+    body,
+  });
+  return signed.headers;
+}
+
 async function invokeWithCache(params: {
-  model: string;
+  model: TopicsModel;
   system: TopicPromptPart[];
   input: string;
   schema: z.ZodType;
   maxOutputTokens: number;
-  region: string;
-  profile?: string;
 }): Promise<TopicTextResult> {
+  const { region } = BedrockConfigSchema.parse(params.model.connection.config);
+  assertValidBedrockRegion(region);
   const { $schema: _, ...schema } = z.toJSONSchema(params.schema);
   const url = new URL(
-    `https://bedrock-runtime.${params.region}.amazonaws.com/model/${encodeURIComponent(params.model)}/invoke`,
+    `https://bedrock-runtime.${region}.amazonaws.com/model/${encodeURIComponent(params.model.model)}/invoke`,
   );
   const body = JSON.stringify({
     messages: [
@@ -113,30 +186,10 @@ async function invokeWithCache(params: {
       json_schema: { name: "topics", schema, strict: true },
     },
   });
-  // AWS's own SigV4 signer (as used by the AWS SDK), with the default credential chain.
-  const signed = await new SignatureV4({
-    credentials: fromNodeProviderChain(
-      params.profile ? { profile: params.profile } : {},
-    ),
-    region: params.region,
-    service: "bedrock",
-    sha256: Sha256,
-  }).sign({
-    method: "POST",
-    protocol: url.protocol,
-    hostname: url.hostname,
-    path: url.pathname,
-    headers: {
-      host: url.hostname,
-      "content-type": "application/json",
-      accept: "application/json",
-    },
-    body,
-  });
-  // A single attempt, like the Converse path (maxRetries: 0).
+  // A single attempt; the host is derived from the validated region.
   const response = await fetch(url, {
     method: "POST",
-    headers: signed.headers,
+    headers: await bedrockRequestHeaders(params.model, url, region, body),
     body,
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });

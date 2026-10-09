@@ -1,6 +1,6 @@
 import { createVertex } from "@ai-sdk/google-vertex";
 import { createVertexAnthropic } from "@ai-sdk/google-vertex/anthropic";
-import type { LanguageModel } from "ai";
+import type { EmbeddingModel, LanguageModel } from "ai";
 import { type GoogleAuthOptions } from "google-auth-library";
 
 import { env } from "../../../../env";
@@ -64,15 +64,12 @@ export function getLangfuseAIVertexLocation(): string | undefined {
  * allowed for self-hosted deployments and for Langfuse-operated AI, in which
  * case the project is resolved from the default credential chain.
  */
-export async function buildVertexModel(params: {
-  modelId: string;
+async function resolveVertexConnection(params: {
   apiKey: string;
   config?: LLMConnectionConfig | null;
-  extraHeaders?: Record<string, string>;
   credentialSource: LLMCredentialSource;
-  fetch: typeof fetch;
-}): Promise<LanguageModel> {
-  const { modelId, apiKey, config, extraHeaders, credentialSource } = params;
+}) {
+  const { apiKey, config, credentialSource } = params;
   const shouldUseLangfuseAPIKey = credentialSource === "langfuse";
 
   // Langfuse-operated AI carries no persisted connection, so its location comes
@@ -108,15 +105,25 @@ export async function buildVertexModel(params: {
     serviceAccountKey?.project_id ?? (await resolveVertexProjectIdFromADC());
 
   // Existing connections default the location to "global" for both families.
-  const resolvedLocation = location ?? "global";
+  return { project, location: location ?? "global", googleAuthOptions };
+}
+
+export async function buildVertexModel(params: {
+  modelId: string;
+  apiKey: string;
+  config?: LLMConnectionConfig | null;
+  extraHeaders?: Record<string, string>;
+  credentialSource: LLMCredentialSource;
+  fetch: typeof fetch;
+}): Promise<LanguageModel> {
+  const { modelId, extraHeaders } = params;
+  const connection = await resolveVertexConnection(params);
 
   if (isClaudeModel(modelId)) {
     assertValidAnthropicVertexModelName(modelId);
 
     const provider = createVertexAnthropic({
-      project,
-      location: resolvedLocation,
-      googleAuthOptions,
+      ...connection,
       headers: extraHeaders,
       fetch: params.fetch,
     });
@@ -125,12 +132,25 @@ export async function buildVertexModel(params: {
   }
 
   const provider = createVertex({
-    project,
-    location: resolvedLocation,
-    googleAuthOptions,
+    ...connection,
     headers: extraHeaders,
     fetch: params.fetch,
   });
 
   return provider(modelId);
+}
+
+export async function buildVertexEmbeddingModel(params: {
+  modelId: string;
+  apiKey: string;
+  config?: LLMConnectionConfig | null;
+  extraHeaders?: Record<string, string>;
+  credentialSource: LLMCredentialSource;
+  fetch: typeof fetch;
+}): Promise<EmbeddingModel> {
+  return createVertex({
+    ...(await resolveVertexConnection(params)),
+    headers: params.extraHeaders,
+    fetch: params.fetch,
+  }).embeddingModel(params.modelId);
 }

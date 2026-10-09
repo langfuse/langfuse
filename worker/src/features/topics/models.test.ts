@@ -4,20 +4,12 @@ const state = vi.hoisted(() => ({
   call: vi.fn(),
   embed: vi.fn(),
   increment: vi.fn(),
-  region: vi.fn(),
-  summaryModel: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server", () => ({
-  getLangfuseAIAwsProfile: () => "ai-test",
-  getLangfuseAIBedrockRegion: () => state.region(),
   logger: { warn: vi.fn() },
   recordIncrement: state.increment,
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
-  getTopicsModelConfig: () => ({
-    summaryModel: state.summaryModel(),
-    embeddingModel: "eu.cohere.embed-v4:0",
-  }),
   generateTopicText: (...args: unknown[]) => state.call(...args),
   generateTopicEmbedding: (...args: unknown[]) => state.embed(...args),
 }));
@@ -29,6 +21,31 @@ import {
   summarizeTopicTraceFacets,
 } from "./models";
 import { topicProcessingConfigSchema } from "@langfuse/shared/topics";
+import { LLMAdapter } from "@langfuse/shared";
+import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
+
+function slot(slot: TopicsModel["slot"], model: string): TopicsModel {
+  return {
+    slot,
+    provider: "bedrock",
+    adapter: LLMAdapter.Bedrock,
+    model,
+    connection: { secretKey: "encrypted", config: { region: "eu-west-1" } },
+  };
+}
+
+function topicsModels(summaryModel = "us.openai.gpt-5.6-luna"): TopicsModels {
+  return {
+    projectId: "project",
+    enabled: true,
+    summary: slot("summary", summaryModel),
+    embedding: {
+      ...slot("embedding", "eu.cohere.embed-v4:0"),
+      dimensions: 256,
+    },
+    clustering: slot("clustering", "us.openai.gpt-5.6-terra"),
+  };
+}
 
 const facet = {
   projectId: "project",
@@ -50,8 +67,6 @@ beforeEach(() => {
   state.call.mockReset();
   state.embed.mockReset();
   state.increment.mockReset();
-  state.region.mockReset().mockReturnValue("eu-west-1");
-  state.summaryModel.mockReset().mockReturnValue("us.openai.gpt-5.6-luna");
 });
 
 describe("Topics naming boundary", () => {
@@ -62,12 +77,12 @@ describe("Topics naming boundary", () => {
   ])(
     "summarizes a trace and prices %s usage",
     async (model, inputCost, outputCost) => {
-      state.summaryModel.mockReturnValue(model);
       state.call.mockResolvedValue({
         output: { summary: "A billing request.", status: "applicable" },
         usage: { inputTokens: 100, outputTokens: 30 },
       });
       const result = await summarizeTopicTrace(
+        topicsModels(model),
         facet,
         "RAW_TRANSCRIPT_SENTINEL",
         topicProcessingConfigSchema.parse({
@@ -92,11 +107,7 @@ describe("Topics naming boundary", () => {
       expect(result.costDetails.summary_output).toBeCloseTo(outputCost, 10);
       expect(result.costDetails.total).toBeCloseTo(inputCost + outputCost, 10);
       const request = state.call.mock.calls[0][0];
-      expect(request).toMatchObject({
-        model,
-        region: "eu-west-1",
-        profile: "ai-test",
-      });
+      expect(request.model).toMatchObject({ slot: "summary", model });
       expect(request.system).toEqual([
         { text: expect.stringContaining(facet.prompt), cache: true },
       ]);
@@ -106,17 +117,17 @@ describe("Topics naming boundary", () => {
     },
   );
 
-  it("rejects missing Bedrock configuration before calling the provider", async () => {
-    state.region.mockReturnValue(undefined);
+  it("rejects a request frozen on another summary model before calling the provider", async () => {
     await expect(
       summarizeTopicTrace(
+        topicsModels("us.openai.gpt-6-luna"),
         facet,
         "Trace evidence.",
         topicProcessingConfigSchema.parse({
           summaryModel: "us.openai.gpt-5.6-luna",
         }),
       ),
-    ).rejects.toMatchObject({ reason: "authentication" });
+    ).rejects.toMatchObject({ reason: "configuration" });
     expect(state.call).not.toHaveBeenCalled();
   });
 
@@ -129,6 +140,7 @@ describe("Topics naming boundary", () => {
       summaryModel: "us.openai.gpt-5.6-luna",
     });
     const result = await summarizeTopicTrace(
+      topicsModels(),
       facet,
       "A request for an invoice.",
       config,
@@ -151,6 +163,7 @@ describe("Topics naming boundary", () => {
   it("rejects an oversized shared transcript before calling the provider", async () => {
     await expect(
       summarizeTopicTrace(
+        topicsModels(),
         facet,
         "Trace evidence. ".repeat(1000),
         topicProcessingConfigSchema.parse({
@@ -165,7 +178,6 @@ describe("Topics naming boundary", () => {
   });
 
   it("prices cache reads and writes at their cache rates", async () => {
-    state.summaryModel.mockReturnValue("us.openai.gpt-6-luna");
     state.call.mockResolvedValue({
       output: { summary: "A billing request.", status: "applicable" },
       usage: {
@@ -177,6 +189,7 @@ describe("Topics naming boundary", () => {
       },
     });
     const result = await summarizeTopicTrace(
+      topicsModels("us.openai.gpt-6-luna"),
       facet,
       "RAW_TRANSCRIPT_SENTINEL",
       topicProcessingConfigSchema.parse({
@@ -219,7 +232,12 @@ describe("Topics naming boundary", () => {
       { key: "intent_1", facet, builtIn: true },
       { key: "issues_2", facet: issues, builtIn: false },
     ];
-    await summarizeTopicTraceFacets(facets, "RAW_TRANSCRIPT_SENTINEL", config);
+    await summarizeTopicTraceFacets(
+      topicsModels(),
+      facets,
+      "RAW_TRANSCRIPT_SENTINEL",
+      config,
+    );
     expect(state.call).toHaveBeenCalledOnce();
     const request = state.call.mock.calls[0][0];
     // Built-in facets end the first cached prefix, custom facets the second; the transcript is uncached.
@@ -252,6 +270,7 @@ describe("Topics naming boundary", () => {
     state.call.mockClear();
     await expect(
       summarizeTopicTraceFacets(
+        topicsModels(),
         facets,
         "Trace evidence. ".repeat(1000),
         topicProcessingConfigSchema.parse({
@@ -276,13 +295,19 @@ describe("Topics naming boundary", () => {
       },
       usage: { inputTokens: 16000, outputTokens: 30 },
     });
-    const result = await nameTopicGroup({ members, contrasts: [] });
+    const result = await nameTopicGroup(topicsModels(), {
+      members,
+      contrasts: [],
+    });
     expect(result.output).toMatchObject({
       name: "Invoice assistance",
       evidenceSummaryIds: [members[399].id],
     });
     expect(state.call).toHaveBeenCalledOnce();
-    expect(state.call.mock.calls[0][0].model).toBe("us.openai.gpt-5.6-terra");
+    expect(state.call.mock.calls[0][0].model).toMatchObject({
+      slot: "clustering",
+      model: "us.openai.gpt-5.6-terra",
+    });
     expect(result.costDetails.total).toBeCloseTo(0.03236, 10);
     const submitted = JSON.parse(state.call.mock.calls[0][0].input);
     expect(submitted.members).toEqual(members);
@@ -299,7 +324,7 @@ describe("Topics naming boundary", () => {
         },
         usage: { inputTokens: 100, outputTokens: 30 },
       });
-      await expect(nameTopicGroup(evidence)).rejects.toThrow();
+      await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
       // Provider work is billable even when local output validation rejects it.
       expect(state.increment.mock.calls).toEqual([
         [
@@ -319,7 +344,7 @@ describe("Topics naming boundary", () => {
   it("records embedding input usage even when the returned vector is invalid", async () => {
     state.embed.mockResolvedValue({ embedding: [], tokens: 12 });
     await expect(
-      embedTopicSummary("An invoice request.", 256, "eu.cohere.embed-v4:0"),
+      embedTopicSummary(topicsModels().embedding, "An invoice request.", 256),
     ).rejects.toMatchObject({
       reason: "invalid_output",
     });
@@ -340,9 +365,9 @@ describe("Topics naming boundary", () => {
         tokens,
       });
       await embedTopicSummary(
+        topicsModels().embedding,
         "An invoice request.",
         256,
-        "eu.cohere.embed-v4:0",
       );
       expect(state.increment.mock.calls).toEqual([
         [

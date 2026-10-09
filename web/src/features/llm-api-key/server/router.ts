@@ -51,6 +51,7 @@ import {
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { pauseTopicsModelsUsingConnection } from "@langfuse/shared/topics/server";
 import { TRPCError } from "@trpc/server";
 
 export function getDisplaySecretKey(secretKey: string) {
@@ -452,6 +453,15 @@ export const llmApiKeyRouter = createTRPCRouter({
                   projectId: input.projectId,
                 })
               : EMPTY_EVALUATOR_BLOCK;
+
+          await pauseTopicsModelsUsingConnection(
+            {
+              projectId: input.projectId,
+              llmApiKeyId: llmApiKey.id,
+              provider: llmApiKey.provider,
+            },
+            tx,
+          );
 
           await tx.llmApiKeys.delete({
             where: {

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   topicProcessingConfigSchema,
   topicEmbeddingConfigSchema,
+  DEFAULT_TOPIC_FACETS,
   type TopicExecution,
   type TopicExecutionInput,
 } from "@langfuse/shared/topics";
@@ -34,7 +35,9 @@ const mocks = vi.hoisted(() => ({
   loadTopicTranscript: vi.fn<typeof topicsServer.loadTopicTranscript>(),
   isTopicsEnabled: vi.fn(),
   isTopicsProjectEnabled: vi.fn(),
-  getTopicsModelConfig: vi.fn(),
+  getTopicsModels: vi.fn(),
+  checkTopicsModelSettings: vi.fn(),
+  saveTopicsSetup: vi.fn(),
   enqueueTopicExecution: vi.fn(),
   getTopicExecutionQueueState: vi.fn(),
   queryClickhouse: vi.fn(),
@@ -187,10 +190,10 @@ beforeEach(() => {
   mocks.queryClickhouse.mockResolvedValue([]);
   mocks.isTopicsEnabled.mockReturnValue(true);
   mocks.isTopicsProjectEnabled.mockReturnValue(true);
-  mocks.getTopicsModelConfig.mockReturnValue({
-    summaryModel: "us.openai.gpt-5.6-luna",
-    embeddingModel: "eu.cohere.embed-v4:0",
-  });
+  mocks.getTopicsModels.mockResolvedValue({
+    summary: { model: "us.openai.gpt-5.6-luna" },
+    embedding: { model: "eu.cohere.embed-v4:0", dimensions: 1024 },
+  } as Awaited<ReturnType<typeof topicsServer.getTopicsModels>>);
   mocks.getTopicFacetVersion.mockResolvedValue({
     facetId,
     version: facetVersion,
@@ -722,6 +725,15 @@ describe("Topics published scatter map", () => {
 });
 
 describe("Topics local execution access and publication", () => {
+  it("requires the project's Topics models before creating work", async () => {
+    mocks.getTopicsModels.mockResolvedValue(null);
+    await expect(caller().trigger(input)).rejects.toThrow(
+      "Choose summary, embedding, and clustering models",
+    );
+    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
+    expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
+  });
+
   it("rejects a foreign facet before creating or enqueuing work", async () => {
     mocks.getTopicFacetVersion.mockResolvedValue(null);
     await expect(caller().trigger(input)).rejects.toMatchObject({
@@ -764,7 +776,6 @@ describe("Topics local execution access and publication", () => {
     const request = {
       projectId,
       facets: selectedFacets,
-      embeddingConfig: input.embeddingConfig,
       timeRange,
     };
     mocks.getTopicSummaryCounts.mockResolvedValue([
@@ -1264,4 +1275,102 @@ describe("Topics current results", () => {
       ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     },
   );
+});
+
+describe("Topics model settings", () => {
+  const settings = {
+    projectId,
+    summary: null,
+    embedding: { llmApiKeyId: "key", model: "text-embedding-3-small" },
+    embeddingDimensions: 1024,
+    clustering: null,
+    enabled: false,
+  };
+
+  it("returns the slot check to a writer and rejects a viewer before testing", async () => {
+    const errors = {
+      embedding: "You are not allowed to generate embeddings from this model",
+    };
+    mocks.checkTopicsModelSettings.mockResolvedValue(errors);
+
+    await expect(
+      caller("VIEWER").testModelSettings(settings),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller().testModelSettings({ ...settings, projectId: "foreign" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(mocks.checkTopicsModelSettings).not.toHaveBeenCalled();
+
+    await expect(caller().testModelSettings(settings)).resolves.toEqual(errors);
+    expect(mocks.checkTopicsModelSettings).toHaveBeenCalledOnce();
+    expect(mocks.checkTopicsModelSettings).toHaveBeenCalledWith(projectId, {
+      summary: null,
+      embedding: settings.embedding,
+      embeddingDimensions: 1024,
+      clustering: null,
+      enabled: false,
+    });
+  });
+});
+
+describe("Topics setup", () => {
+  const setup = {
+    projectId,
+    summary: { llmApiKeyId: "key", model: "gpt" },
+    embedding: { llmApiKeyId: "key", model: "embed" },
+    embeddingDimensions: 1024,
+    clustering: { llmApiKeyId: "key", model: "cluster" },
+    enabled: true,
+    facets: DEFAULT_TOPIC_FACETS.map((facet) => ({
+      name: facet.name,
+      enabled: facet.name !== "Sentiment",
+    })),
+    filter: [
+      {
+        column: "name",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "billing",
+      },
+    ],
+    sampling: 0.25,
+    idleSeconds: 120,
+  };
+
+  it("saves setup for a writer and rejects a viewer before saving", async () => {
+    mocks.saveTopicsSetup.mockResolvedValue({ id: "rule-a" });
+
+    await expect(caller("VIEWER").saveSetup(setup)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    await expect(
+      caller().saveSetup({ ...setup, projectId: "foreign" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(mocks.saveTopicsSetup).not.toHaveBeenCalled();
+
+    await expect(caller().saveSetup(setup)).resolves.toEqual({ id: "rule-a" });
+    expect(mocks.saveTopicsSetup).toHaveBeenCalledOnce();
+    expect(mocks.saveTopicsSetup).toHaveBeenCalledWith(projectId, {
+      summary: setup.summary,
+      embedding: setup.embedding,
+      embeddingDimensions: 1024,
+      clustering: setup.clustering,
+      enabled: true,
+      facets: setup.facets,
+      customFacetIds: [],
+      filter: setup.filter,
+      sampling: 0.25,
+      idleSeconds: 120,
+    });
+  });
+
+  it("rejects a setup with every facet turned off", async () => {
+    await expect(
+      caller().saveSetup({
+        ...setup,
+        facets: setup.facets.map((facet) => ({ ...facet, enabled: false })),
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.saveTopicsSetup).not.toHaveBeenCalled();
+  });
 });
