@@ -347,7 +347,34 @@ describe("a verified key with no org is a 500 invariant break", () => {
   });
 });
 
-describe("role lookup failures", () => {
+describe("role lookup", () => {
+  it("preserves a narrow grant added after the initial lookup", async () => {
+    const prisma = mockPrisma(orgRow());
+    prisma.roleAssignment.findMany = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValue(assignmentsFor("apiKey/key_v"));
+    prisma.roleAssignment.findFirst = vi.fn().mockResolvedValue({ id: "grant" });
+    prisma.roleAssignment.create = vi.fn();
+    prisma.$queryRaw = vi.fn().mockResolvedValue([{ id: "key_v" }]);
+    prisma.$transaction = vi
+      .fn()
+      .mockImplementation((callback) => callback(prisma));
+    const resolver = new ContextResolver(
+      new OrganizationRepository(prisma),
+      prisma,
+    );
+    const resolved = await resolver.resolve({
+      authorization: "privateKey",
+      apiKey: apiKey({ id: "key_v" }),
+    });
+    if (!resolved.success) throw resolved.error;
+    expect(
+      new Set(resolved.context.policies.map((policy) => policy.roleId)),
+    ).toEqual(new Set([SystemRoleId("VIEWER")]));
+    expect(prisma.roleAssignment.create).not.toHaveBeenCalled();
+  });
+
   it("does not backfill after a database error", async () => {
     const prisma = mockPrisma(orgRow());
     const failure = new Error("role lookup unavailable");

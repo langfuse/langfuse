@@ -10,9 +10,10 @@ import {
   ProjectId,
   SystemRoleId,
   systemRoleAccessRights,
+  type TenantId,
 } from "@langfuse/shared/rbac";
 
-import { backfillApiKeyRoleAssignment } from "@langfuse/shared/rbac/server";
+import { assignRole } from "@langfuse/shared/rbac/server";
 
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
@@ -118,7 +119,7 @@ async function materialize(
   if (roles.length === 0) {
     await backfillApiKeyRoleAssignment(
       prisma,
-      apiKey.id,
+      apiKey,
       OrganizationId(org.orgId),
     );
     roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKey.id));
@@ -131,6 +132,41 @@ async function materialize(
     return { principal, policies: publicBearerPolicies(context, apiKey, org) };
   }
   return context;
+}
+
+/** backfillApiKeyRoleAssignment repairs a verified key without widening existing grants. */
+async function backfillApiKeyRoleAssignment(
+  prisma: PrismaClient,
+  apiKey: ApiKey,
+  tenantId: TenantId,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const keys = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM api_keys
+      WHERE id = ${apiKey.id} AND (expires_at IS NULL OR expires_at > NOW())
+      FOR UPDATE
+    `;
+    if (keys.length === 0) return;
+    const principalId = ApiKeyId(apiKey.id);
+    const existing = await tx.roleAssignment.findFirst({
+      where: { principalId },
+      select: { id: true },
+    });
+    if (existing) return;
+
+    const isProject = apiKey.scope === "PROJECT";
+    await assignRole(tx, {
+      tenantId,
+      principalId,
+      ownerId: isProject
+        ? ProjectId(apiKey.projectId!)
+        : OrganizationId(apiKey.orgId!),
+      roleId: SystemRoleId(
+        isProject ? "LEGACY_PROJECT_API_KEY" : "LEGACY_ORGANIZATION_API_KEY",
+      ),
+      tags: [],
+    });
+  });
 }
 
 /** publicBearerPolicies narrows a public-key bearer to scores:save on its own project, granted only when the key's stored roles allow it there. */

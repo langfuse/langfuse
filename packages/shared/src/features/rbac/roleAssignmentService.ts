@@ -1,6 +1,5 @@
 import {
   SystemRole,
-  type ApiKey,
   type Prisma,
   type RoleAssignment as StoredRoleAssignment,
 } from "@prisma/client";
@@ -8,10 +7,6 @@ import {
 import { InvalidRequestError, NotImplementedError } from "../../errors";
 import { withTransaction } from "../../server/utils/withTransaction";
 import {
-  ApiKeyId,
-  OrganizationId,
-  ProjectId,
-  SystemRoleId,
   hasApiKeyKind,
   hasOrganizationKind,
   hasSystemRoleKind,
@@ -51,51 +46,6 @@ export async function assignRole(
         ...principalFields(ra.principalId),
         ...roleFields,
       },
-    });
-  });
-}
-
-/** backfillApiKeyRoleAssignment repairs an unassigned key without widening existing grants. */
-export async function backfillApiKeyRoleAssignment(
-  prisma: Prisma.TransactionClient,
-  apiKeyId: string,
-  tenantId: TenantId,
-): Promise<void> {
-  await withTransaction(prisma, async (tx) => {
-    const [key] = await tx.$queryRaw<
-      Pick<ApiKey, "id" | "scope" | "projectId" | "orgId">[]
-    >`
-      SELECT id, scope, project_id AS "projectId", organization_id AS "orgId"
-      FROM api_keys
-      WHERE id = ${apiKeyId} AND (expires_at IS NULL OR expires_at > NOW())
-      FOR UPDATE
-    `;
-    if (!key) return;
-    const principalId = ApiKeyId(key.id);
-    const existing = await tx.roleAssignment.findFirst({
-      where: { principalId },
-      select: { id: true },
-    });
-    if (existing) return;
-
-    let ownerId: OwnerId;
-    if (key.scope === "PROJECT" && key.projectId !== null) {
-      ownerId = ProjectId(key.projectId);
-    } else if (key.scope === "ORGANIZATION" && key.orgId !== null) {
-      ownerId = OrganizationId(key.orgId);
-    } else {
-      throw new InvalidRequestError("API key requires an owner");
-    }
-    await assignRole(tx, {
-      tenantId,
-      ownerId,
-      principalId,
-      roleId: SystemRoleId(
-        key.scope === "PROJECT"
-          ? "LEGACY_PROJECT_API_KEY"
-          : "LEGACY_ORGANIZATION_API_KEY",
-      ),
-      tags: [],
     });
   });
 }
