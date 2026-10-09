@@ -30,7 +30,6 @@ export function useSessionTraceTranscripts({
         projectId,
         traceId: trace.id,
         timestamp: trace.timestamp,
-        recoverToolResponses: true,
         fallbackToRootIO: true,
       };
       return {
