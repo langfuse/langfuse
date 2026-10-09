@@ -6,12 +6,19 @@ vi.mock("@langfuse/shared/src/server", async () => ({
     error: vi.fn(),
     debug: vi.fn(),
   },
+  traceException: vi.fn(),
 }));
 
 import type { Session } from "next-auth";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
-import { ClickHouseResourceError, logger } from "@langfuse/shared/src/server";
+import {
+  ClickHouseResourceError,
+  logger,
+  traceException,
+} from "@langfuse/shared/src/server";
+import { Prisma } from "@langfuse/shared/src/db";
+import { getOriginalError } from "@/src/server/utils/trpc-utils";
 import {
   createInnerTRPCContext,
   createTRPCRouter,
@@ -129,5 +136,70 @@ describe("tRPC error formatting", () => {
     });
 
     expect(formattedWithStack.data["stack"]).toBe("dev stack");
+  });
+
+  describe("5xx errors", () => {
+    const callFailing = async (thrown: unknown) => {
+      const router = createTRPCRouter({
+        failing: protectedProcedureWithoutTracing.query(() => {
+          throw thrown;
+        }),
+      });
+      const caller = router.createCaller(
+        createInnerTRPCContext({
+          session: { user: { id: "user-1" } } as Session,
+          headers: {},
+        }),
+      );
+      try {
+        await caller.failing();
+      } catch (caught) {
+        return caught as TRPCError;
+      }
+      throw new Error("expected the procedure to fail");
+    };
+
+    it.each([
+      [
+        "Prisma",
+        new Prisma.PrismaClientKnownRequestError(
+          "Unique constraint failed on the fields: (`id`)",
+          { code: "P2002", clientVersion: "test" },
+        ),
+      ],
+      ["generic", new Error("connection refused")],
+    ])(
+      "traces the %s cause on the span but returns a generic error",
+      async (_, original) => {
+        const error = await callFailing(original);
+
+        expect(traceException).toHaveBeenCalledWith(original);
+        expect(getOriginalError(error)).toBe(original);
+        expect(error.code).toBe("INTERNAL_SERVER_ERROR");
+        expect(error.message).toMatch(/^Internal error\. /);
+        expect(error.cause).toBeUndefined();
+        expect(JSON.stringify(error)).not.toContain(original.message);
+      },
+    );
+  });
+
+  it("keeps the message of a 4xx error and does not trace it", async () => {
+    const router = createTRPCRouter({
+      failing: protectedProcedureWithoutTracing.query(() => {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid filter" });
+      }),
+    });
+    const caller = router.createCaller(
+      createInnerTRPCContext({
+        session: { user: { id: "user-1" } } as Session,
+        headers: {},
+      }),
+    );
+
+    await expect(caller.failing()).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Invalid filter",
+    });
+    expect(traceException).not.toHaveBeenCalled();
   });
 });

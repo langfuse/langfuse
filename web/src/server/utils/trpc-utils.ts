@@ -59,3 +59,21 @@ export const getTRPCErrorReporting = (
     shouldTrace: isServerErrorStatus(httpStatus),
   };
 };
+
+const originalErrorKey = Symbol("trpc.originalError");
+
+/**
+ * Attaches the unscrubbed error to the error sent to the client, so error
+ * reporting can trace the real cause. Non-enumerable, so it never reaches the
+ * response.
+ */
+export const attachOriginalError = (error: TRPCError, original: unknown) => {
+  Object.defineProperty(error, originalErrorKey, {
+    value: original,
+    enumerable: false,
+  });
+  return error;
+};
+
+export const getOriginalError = (error: TRPCError): unknown =>
+  (error as unknown as Record<symbol, unknown>)[originalErrorKey];
