@@ -155,39 +155,44 @@ export async function loadTraceTranscript(trace: {
     structure.totalCount > MAX_OBSERVATIONS_PER_TRACE ||
     content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS;
   return {
-    transcript:
-      transcript &&
-      content.observations.some(
-        (observation) =>
-          observation.level !== undefined ||
-          observation.statusMessage !== undefined,
-      )
-        ? {
-            ...transcript,
-            threads: transcript.threads.map((thread) => ({
-              ...thread,
-              currentTurn: {
-                ...thread.currentTurn,
-                messages: thread.currentTurn.messages.map((message) => {
-                  const observation = contentById.get(message.observationId);
-                  if (
-                    !observation ||
-                    (observation.level === undefined &&
-                      observation.statusMessage === undefined)
-                  ) {
-                    return message;
-                  }
-                  return {
-                    ...message,
-                    level: observation?.level,
-                    statusMessage: observation?.statusMessage,
-                  };
-                }),
-              },
-            })),
-          }
-        : transcript,
+    transcript: withToolObservationStatus(transcript, contentById),
     cutoff,
+  };
+}
+
+function withToolObservationStatus(
+  transcript: Transcript | null,
+  observationsById: ReadonlyMap<string, Observation>,
+): SessionTranscript | null {
+  if (!transcript) return null;
+  const hasToolStatus = [...observationsById.values()].some(
+    (observation) =>
+      observation.type === "TOOL" &&
+      (observation.level !== undefined ||
+        observation.statusMessage !== undefined),
+  );
+  if (!hasToolStatus) return transcript;
+  return {
+    ...transcript,
+    threads: transcript.threads.map((thread) => ({
+      ...thread,
+      currentTurn: {
+        ...thread.currentTurn,
+        messages: thread.currentTurn.messages.map((message) => {
+          const observation = observationsById.get(message.observationId);
+          if (
+            observation?.type !== "TOOL" ||
+            observation.traceId !== message.traceId
+          )
+            return message;
+          return {
+            ...message,
+            level: observation.level,
+            statusMessage: observation.statusMessage,
+          };
+        }),
+      },
+    })),
   };
 }
 
@@ -219,6 +224,19 @@ function assembleSessionTraceTranscript(
       messages,
       (message) => message.source === "input",
     );
+    if (
+      observation.type === "TOOL" &&
+      outputMessages.every((message) => message.parts.length === 0) &&
+      (observation.level === "ERROR" ||
+        observation.level === "WARNING" ||
+        observation.statusMessage)
+    ) {
+      outputMessages.push({
+        role: "tool",
+        source: "output",
+        parts: [{ type: "data", value: null }],
+      });
+    }
     const [input, output] = partition(
       [...inputMessages, ...transformOutput(observation, outputMessages)].map(
         (message) => ({ message, key: messageKey(message) }),
@@ -371,6 +389,28 @@ function recoverToolCalls(observations: Observation[]) {
         !resolvedCallIds.has(JSON.stringify([observation.traceId, callId]))
       )
         return messages;
+      if (
+        observation.output === null &&
+        (observation.level === "ERROR" ||
+          observation.level === "WARNING" ||
+          observation.statusMessage)
+      ) {
+        return [
+          {
+            role: "tool",
+            source: "output",
+            parts: [
+              {
+                type: "tool-result",
+                toolCallId: callId,
+                toolName: observation.name ?? "Tool",
+                output: null,
+                isError: observation.level === "ERROR",
+              },
+            ],
+          },
+        ];
+      }
       const parts = messages.flatMap((message) => message.parts);
       // Tool-result payloads are JSON; wrapping media would discard the file
       // parts the session renderer needs for previews.

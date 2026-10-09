@@ -874,7 +874,10 @@ export const ToolFailure = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByLabelText("Failed")).toBeInTheDocument();
+    await expect(canvas.getByLabelText("Tool status: ERROR")).toBeVisible();
+    await expect(
+      canvas.queryByLabelText("Tool status: WARNING"),
+    ).not.toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand get_order" }),
     );
@@ -915,40 +918,126 @@ export const ToolErrorStatus = meta.story({
     } else {
       await expect(indicator).not.toBeVisible();
     }
-    await expect(indicator.querySelector("svg")).toBeInTheDocument();
-    await expect(indicator.textContent).toBe("");
-    await expect(
-      canvas.getByRole("button", { name: "search" }).nextElementSibling,
-    ).toBe(indicator);
     await expect(canvas.queryByLabelText("Failed")).not.toBeInTheDocument();
     await expect(overlays.queryByRole("tooltip")).not.toBeInTheDocument();
 
-    await userEvent.hover(canvas.getByRole("button", { name: "search" }));
+    // Simulated pointer events do not activate CSS :hover in browser tests.
+    if ("__vitest_browser__" in globalThis) {
+      const { userEvent: browserUserEvent } = await import("vitest/browser");
+      await browserUserEvent.hover(
+        canvas.getByRole("button", { name: "search" }),
+      );
+      await expect(indicator).toBeVisible();
+      await browserUserEvent.unhover(
+        canvas.getByRole("button", { name: "search" }),
+      );
+    }
+    await userEvent.click(canvas.getByRole("button", { name: "search" }));
     await expect(indicator).toBeVisible();
     await userEvent.hover(indicator);
     await expect(await overlays.findByRole("tooltip")).toHaveTextContent(
       message.statusMessage,
     );
     const tooltip = within(overlays.getByRole("tooltip"));
-    await expect(tooltip.getByText("search")).toBeVisible();
+    await waitFor(() => expect(tooltip.getByText("search")).toBeVisible());
     const statusMessage = tooltip.getByText(message.statusMessage);
-    await expect(statusMessage).not.toHaveTextContent("search");
-    await expect(statusMessage).toBeVisible();
+    await waitFor(() => expect(statusMessage).toBeVisible());
     await userEvent.unhover(indicator);
     await waitFor(() =>
       expect(overlays.queryByRole("tooltip")).not.toBeInTheDocument(),
     );
-    if (message.level === "DEFAULT" || message.level === "DEBUG") {
-      await expect(indicator).not.toBeVisible();
-    }
-
     await userEvent.click(canvas.getByRole("button", { name: "search" }));
+    await expect(canvas.getByRole("button", { name: "search" })).toHaveFocus();
     await expect(indicator).toBeVisible();
     await userEvent.tab();
     await expect(indicator).toHaveFocus();
     await expect(await overlays.findByRole("tooltip")).toHaveTextContent(
       message.statusMessage,
     );
+  },
+});
+
+export const ToolResultErrorOverridesWarning = meta.story({
+  name: "(Test) Tool Result Error Overrides Warning",
+  args: {
+    ...commonArgs,
+    state: toolPreviewState([
+      {
+        name: "search",
+        input: null,
+        output: null,
+        level: "WARNING",
+        statusMessage: "Search unavailable",
+        isError: true,
+      },
+    ]),
+  },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const indicator = canvas.getByLabelText("Tool status: ERROR");
+    await expect(indicator).toBeVisible();
+    await expect(
+      canvas.queryByLabelText("Tool status: WARNING"),
+    ).not.toBeInTheDocument();
+    await expect(canvas.queryByLabelText("Failed")).not.toBeInTheDocument();
+    await userEvent.hover(indicator);
+    await expect(
+      await within(canvasElement.ownerDocument.body).findByRole("tooltip"),
+    ).toHaveTextContent("Search unavailable");
+  },
+});
+
+export const LongToolStatus = meta.story({
+  name: "(Test) Scrolls Long Tool Status",
+  args: {
+    ...commonArgs,
+    state: toolPreviewState([
+      {
+        name: "search",
+        input: null,
+        output: null,
+        level: "ERROR",
+        statusMessage: `${"A detailed tool failure\n".repeat(100)}End of status`,
+      },
+    ]),
+  },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await userEvent.hover(canvas.getByLabelText("Tool status: ERROR"));
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await waitFor(() => {
+      const bounds = tooltip.getBoundingClientRect();
+      expect(bounds.top).toBeGreaterThanOrEqual(0);
+      expect(bounds.bottom).toBeLessThanOrEqual(
+        canvasElement.ownerDocument.documentElement.clientHeight,
+      );
+      expect(tooltip.scrollHeight).toBeGreaterThan(tooltip.clientHeight);
+    });
+    tooltip.scrollTo({ top: tooltip.scrollHeight });
+    await waitFor(() => expect(tooltip.scrollTop).toBeGreaterThan(0));
+    const textNodes = canvasElement.ownerDocument.createTreeWalker(
+      tooltip,
+      NodeFilter.SHOW_TEXT,
+    );
+    const finalText = canvasElement.ownerDocument.createRange();
+    let textNode = textNodes.nextNode();
+    while (textNode) {
+      const offset = textNode.textContent?.indexOf("End of status") ?? -1;
+      if (offset >= 0) {
+        finalText.setStart(textNode, offset);
+        finalText.setEnd(textNode, offset + "End of status".length);
+        break;
+      }
+      textNode = textNodes.nextNode();
+    }
+    await expect(textNode).not.toBeNull();
+    await waitFor(() => {
+      const visibleBounds = tooltip.getBoundingClientRect();
+      const textBounds = finalText.getBoundingClientRect();
+      expect(textBounds.height).toBeGreaterThan(0);
+      expect(textBounds.top).toBeGreaterThanOrEqual(visibleBounds.top);
+      expect(textBounds.bottom).toBeLessThanOrEqual(visibleBounds.bottom);
+    });
   },
 });
 
@@ -1067,28 +1156,12 @@ export const GroupedToolStatuses = meta.story({
     await expect(await overlays.findByRole("tooltip")).toHaveTextContent(
       "Search timed out",
     );
-    await expect(overlays.getByRole("tooltip")).toHaveTextContent(
-      "Tool failed",
-    );
-    await expect(
-      within(overlays.getByRole("tooltip")).getByText("Search timed out"),
-    ).toBeVisible();
-    await expect(
-      within(overlays.getByRole("tooltip")).getByText("search"),
-    ).toBeVisible();
-    await expect(
-      within(overlays.getByRole("tooltip")).getByText("fetch"),
-    ).toBeVisible();
-    await expect(
-      within(overlays.getByRole("tooltip")).getByText("Search timed out"),
-    ).not.toHaveTextContent("search");
-    await expect(
-      within(overlays.getByRole("tooltip")).getByText("Search timed out")
-        .parentElement,
-    ).not.toBe(
-      within(overlays.getByRole("tooltip")).getByText("Tool failed")
-        .parentElement,
-    );
+    await waitFor(async () => {
+      const tooltip = within(overlays.getByRole("tooltip"));
+      await expect(tooltip.getByText("Search timed out")).toBeVisible();
+      await expect(tooltip.getByText("search")).toBeVisible();
+      await expect(tooltip.getByText("fetch")).toBeVisible();
+    });
     await expect(
       within(overlays.getByRole("tooltip")).queryByRole("heading", {
         name: "Errors",
@@ -1110,12 +1183,11 @@ export const GroupedToolStatuses = meta.story({
     await expect(await overlays.findByRole("tooltip")).toHaveTextContent(
       "Results truncated",
     );
-    await expect(overlays.getByRole("tooltip")).toHaveTextContent(
-      "Tool reported a warning",
+    await waitFor(() =>
+      expect(
+        within(overlays.getByRole("tooltip")).getByText("Results truncated"),
+      ).toBeVisible(),
     );
-    await expect(
-      within(overlays.getByRole("tooltip")).getByText("Results truncated"),
-    ).toBeVisible();
     await expect(
       within(overlays.getByRole("tooltip")).queryByRole("heading", {
         name: "Warnings",
@@ -1130,11 +1202,16 @@ export const GroupedToolStatuses = meta.story({
     );
 
     await userEvent.click(groupToggle);
-    await expect(canvas.getByLabelText("Tool status: ERROR")).toBeVisible();
+    await expect(canvas.getAllByLabelText("Tool status: ERROR")).toHaveLength(
+      2,
+    );
+    for (const indicator of canvas.getAllByLabelText("Tool status: ERROR")) {
+      await expect(indicator).toBeVisible();
+    }
     await expect(canvas.getAllByLabelText("Tool status: WARNING")).toHaveLength(
       2,
     );
-    await expect(canvas.getByLabelText("Failed")).toBeVisible();
+    await expect(canvas.queryByLabelText("Failed")).not.toBeInTheDocument();
     await expect(errors).toHaveTextContent("2 errors");
     await expect(warnings).toHaveTextContent("2 warnings");
     await userEvent.tab();

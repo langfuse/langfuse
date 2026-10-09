@@ -37,6 +37,7 @@ export const Warning = meta.story({
 });
 
 export const Error = meta.story({
+  name: "(Test) Renders Error Message",
   args: {
     currentView: "pretty",
     status: {

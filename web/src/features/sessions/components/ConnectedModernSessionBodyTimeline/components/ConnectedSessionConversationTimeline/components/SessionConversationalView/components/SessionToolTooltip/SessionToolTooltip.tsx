@@ -7,11 +7,7 @@ type ToolStatus = Pick<
   "name" | "message"
 >;
 
-export function SessionToolTooltip({
-  children,
-  variant,
-  content,
-}: {
+type SessionToolTooltipProps = {
   children: ComponentProps<typeof CustomTooltip>["children"];
   variant: "sidebar" | "timeline";
   content:
@@ -24,7 +20,13 @@ export function SessionToolTooltip({
     | ({ type: "status" } & ComponentProps<
         typeof SessionObservationStatusMessage
       >);
-}) {
+};
+
+export function SessionToolTooltip({
+  children,
+  variant,
+  content,
+}: SessionToolTooltipProps) {
   const sections =
     content.type === "group"
       ? [
@@ -35,6 +37,7 @@ export function SessionToolTooltip({
   return (
     <CustomTooltip
       padding="uniform"
+      overflow="scroll"
       placement={variant === "sidebar" ? "right" : "top"}
       delay={variant === "sidebar" && content.type === "group" ? 200 : 150}
       content={

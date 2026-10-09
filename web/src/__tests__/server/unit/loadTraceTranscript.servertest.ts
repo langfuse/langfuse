@@ -128,12 +128,14 @@ it("retains the source tool observation status on transcript messages", async ()
         type: "GENERATION",
         level: "DEFAULT",
         statusMessage: null,
+        traceId: "trace",
       },
       {
         id: "tool-0",
         type: "TOOL",
         level: "ERROR",
         statusMessage: "Search timed out",
+        traceId: "trace",
       },
     ],
     totalCount: 2,
@@ -150,6 +152,98 @@ it("retains the source tool observation status on transcript messages", async ()
     "level",
   );
 });
+
+it("does not copy generation errors onto unmatched tool calls", async () => {
+  const transcript = fixture(["search"], []);
+  mocks.observations.mockResolvedValue({
+    observations: [
+      {
+        id: "generation",
+        traceId: "trace",
+        type: "GENERATION",
+        level: "ERROR",
+        statusMessage: "Generation failed",
+      },
+    ],
+    totalCount: 1,
+  });
+  const result = await loadTraceTranscript(trace);
+  expect(result.transcript).toBe(transcript);
+  expect(
+    result.transcript?.threads[0]?.currentTurn.messages[0],
+  ).not.toHaveProperty("level");
+});
+
+it.each(["ERROR", "WARNING"] as const)(
+  "recovers %s tool status with null output",
+  async (level) => {
+    const generation = {
+      id: "generation",
+      traceId: "trace",
+      type: "GENERATION" as const,
+      name: "generation",
+      parentObservationId: null,
+      startTime: new Date(0),
+      endTime: new Date(1),
+      input: [{ role: "user", content: "Run a tool" }],
+      output: [
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolName: "search",
+              toolCallId: "call-1",
+              input: {},
+            },
+          ],
+        },
+      ],
+      metadata: {},
+    };
+    const tool = {
+      ...generation,
+      id: "tool",
+      type: "TOOL" as const,
+      name: "search",
+      parentObservationId: generation.id,
+      startTime: new Date(2),
+      input: {},
+      output: null,
+      level,
+      statusMessage: "Search unavailable",
+      metadata: { callID: "call-1" },
+    };
+    const observations = [generation, tool];
+    const snapshot = structuredClone(observations);
+    mocks.observations.mockResolvedValue({
+      observations,
+      totalCount: observations.length,
+    });
+    const result = await loadTraceTranscript({
+      ...trace,
+      recoverToolResponses: true,
+    });
+    expect(
+      result.transcript?.threads
+        .flatMap((thread) => thread.currentTurn.messages)
+        .find((message) => message.observationId === "tool"),
+    ).toMatchObject({
+      level,
+      statusMessage: tool.statusMessage,
+      role: "tool",
+      parts: [
+        {
+          type: "tool-result",
+          toolCallId: "call-1",
+          output: null,
+          isError: level === "ERROR",
+        },
+      ],
+    });
+    expect(observations).toEqual(snapshot);
+  },
+);
 
 it.each(["image", "media-token"])(
   "attaches reversed nested %s results by recovered call ID",

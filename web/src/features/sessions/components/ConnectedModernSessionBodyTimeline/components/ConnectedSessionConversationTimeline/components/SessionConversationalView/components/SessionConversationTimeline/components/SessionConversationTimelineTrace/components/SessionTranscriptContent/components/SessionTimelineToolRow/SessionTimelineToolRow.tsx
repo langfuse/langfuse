@@ -17,7 +17,6 @@ export function SessionTimelineToolRow({
   output,
   isExpanded,
   onExpandedChange,
-  isError,
   level,
   statusMessage,
   trailingContent,
@@ -27,7 +26,6 @@ export function SessionTimelineToolRow({
   output: unknown;
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
-  isError?: boolean;
   level?: Observation["level"];
   statusMessage?: Observation["statusMessage"];
   trailingContent?: ReactNode;
@@ -87,12 +85,6 @@ export function SessionTimelineToolRow({
                 </span>
               )}
             </SessionToolTooltip>
-          ) : null}
-          {isError && level !== "ERROR" ? (
-            <CircleAlert
-              className="icon-sm text-destructive ml-1 shrink-0"
-              aria-label="Failed"
-            />
           ) : null}
         </>
       }

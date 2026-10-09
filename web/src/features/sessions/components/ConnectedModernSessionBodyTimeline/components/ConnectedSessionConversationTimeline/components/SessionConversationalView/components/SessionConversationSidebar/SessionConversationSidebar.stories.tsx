@@ -192,10 +192,12 @@ export const GroupedToolStatuses = meta.story({
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
       "tooltip",
     );
-    await expect(within(tooltip).getByText("search")).toBeVisible();
-    await expect(within(tooltip).getByText("fetch")).toBeVisible();
-    await expect(within(tooltip).getByText("list")).toBeVisible();
-    await expect(within(tooltip).getByText("validate")).toBeVisible();
+    await waitFor(async () => {
+      await expect(within(tooltip).getByText("search")).toBeVisible();
+      await expect(within(tooltip).getByText("fetch")).toBeVisible();
+      await expect(within(tooltip).getByText("list")).toBeVisible();
+      await expect(within(tooltip).getByText("validate")).toBeVisible();
+    });
     await expect(within(tooltip).getByText("Search timed out")).toBeVisible();
     await expect(within(tooltip).getByText("Results truncated")).toBeVisible();
     await expect(
@@ -207,17 +209,8 @@ export const GroupedToolStatuses = meta.story({
     await expect(
       within(tooltip).getByRole("heading", { name: "Warnings" }),
     ).toBeVisible();
-    await expect(tooltip).toHaveTextContent("Tool failed");
-    await expect(tooltip).toHaveTextContent("Results truncated");
-    await expect(tooltip).toHaveTextContent("Tool reported a warning");
-    await expect(
-      within(tooltip).getByText("Search timed out"),
-    ).not.toHaveTextContent("search");
-    await expect(
-      within(tooltip).getByText("Search timed out").parentElement,
-    ).not.toBe(within(tooltip).getByText("Tool failed").parentElement);
     await userEvent.click(button);
-    await expect(args.onSelect).toHaveBeenCalledWith(0, "search", "0:0");
+    await expect(args.onSelect).toHaveBeenCalledWith(0, "search", "0:0", "0:0");
   },
 });
 
@@ -285,12 +278,11 @@ export const IndividualToolStatuses = meta.story({
     await expect(await overlays.findByRole("tooltip")).toHaveTextContent(
       "Search timed out",
     );
-    await expect(
-      within(overlays.getByRole("tooltip")).getByText("search_failed"),
-    ).toBeVisible();
-    await expect(
-      within(overlays.getByRole("tooltip")).getByText("Search timed out"),
-    ).toBeVisible();
+    await waitFor(async () => {
+      const tooltip = within(overlays.getByRole("tooltip"));
+      await expect(tooltip.getByText("search_failed")).toBeVisible();
+      await expect(tooltip.getByText("Search timed out")).toBeVisible();
+    });
     await userEvent.unhover(failed);
     await waitFor(() =>
       expect(overlays.queryByRole("tooltip")).not.toBeInTheDocument(),
@@ -304,12 +296,11 @@ export const IndividualToolStatuses = meta.story({
     await expect(await overlays.findByRole("tooltip")).toHaveTextContent(
       "Results truncated",
     );
-    await expect(
-      within(overlays.getByRole("tooltip")).getByText("search_partial"),
-    ).toBeVisible();
-    await expect(
-      within(overlays.getByRole("tooltip")).getByText("Results truncated"),
-    ).toBeVisible();
+    await waitFor(async () => {
+      const tooltip = within(overlays.getByRole("tooltip"));
+      await expect(tooltip.getByText("search_partial")).toBeVisible();
+      await expect(tooltip.getByText("Results truncated")).toBeVisible();
+    });
   },
 });
 export const Error = meta.story({

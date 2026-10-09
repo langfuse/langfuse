@@ -13,6 +13,8 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { groupConsecutiveTools } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/fns/groupConsecutiveTools";
 import { cn } from "@/src/utils/tailwind";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
+import { getSessionToolStatus } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/fns/getSessionToolStatus";
+import { SessionToolStatusCountBadge } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolStatusCountBadge/SessionToolStatusCountBadge";
 
 export function SessionTranscriptContent({
   result,
@@ -251,15 +253,20 @@ function SessionTranscriptToolGroup({
   for (const { row } of rows) {
     if (row.type !== "tool") continue;
     const name = row.call?.toolName ?? row.result?.toolName ?? "Tool";
-    if (row.message.level === "ERROR" || row.result?.isError) {
+    const status = getSessionToolStatus({
+      level: row.message.level,
+      statusMessage: row.message.statusMessage,
+      isError: row.result?.isError,
+    });
+    if (status.level === "ERROR") {
       errors.push({
         name,
-        message: row.message.statusMessage || "Tool failed",
+        message: status.statusMessage || "Tool failed",
       });
-    } else if (row.message.level === "WARNING") {
+    } else if (status.level === "WARNING") {
       warnings.push({
         name,
-        message: row.message.statusMessage || "Tool reported a warning",
+        message: status.statusMessage || "Tool reported a warning",
       });
     }
   }
@@ -281,15 +288,12 @@ function SessionTranscriptToolGroup({
         {
           tools: errors,
           label: "error" as const,
-          className: "border-destructive/40 text-destructive",
         },
         {
           tools: warnings,
           label: "warning" as const,
-          className:
-            "border-yellow-500/40 text-yellow-600 dark:text-yellow-500",
         },
-      ].map(({ tools, label, className }) => {
+      ].map(({ tools, label }) => {
         if (tools.length === 0) return null;
         const summary = `${tools.length} ${label}${tools.length === 1 ? "" : "s"}`;
         return (
@@ -304,17 +308,14 @@ function SessionTranscriptToolGroup({
             }}
           >
             {({ getTriggerProps }) => (
-              <span
+              <SessionToolStatusCountBadge
                 {...getTriggerProps()}
                 tabIndex={0}
                 aria-label={`Tool group: ${summary}`}
-                className={cn(
-                  "ml-1 rounded border px-1.5 py-0.5 text-[10px] font-medium",
-                  className,
-                )}
-              >
-                {summary}
-              </span>
+                count={tools.length}
+                severity={label}
+                variant="timeline"
+              />
             )}
           </SessionToolTooltip>
         );
@@ -337,14 +338,17 @@ function SessionTranscriptTool({
   trailingContent: ReactNode;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const status = getSessionToolStatus({
+    level: row.message.level,
+    statusMessage: row.message.statusMessage,
+    isError: row.result?.isError,
+  });
   return (
     <SessionTimelineToolRow
       name={row.call?.toolName ?? row.result?.toolName ?? "Tool"}
       input={row.call?.input}
       output={row.result?.output}
-      isError={row.result?.isError}
-      level={row.message.level}
-      statusMessage={row.message.statusMessage}
+      {...status}
       isExpanded={isExpanded}
       onExpandedChange={setIsExpanded}
       trailingContent={trailingContent}

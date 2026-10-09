@@ -11,6 +11,7 @@ import { ChevronDown, CircleAlert, Search, TriangleAlert } from "lucide-react";
 import { type Observation } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
+import { SessionToolStatusCountBadge } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolStatusCountBadge/SessionToolStatusCountBadge";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import {
   formatIdleGap,
@@ -530,28 +531,20 @@ export function SessionConversationSidebar(
                                                 : `Tool: ${group.summary}`}
                                             </span>
                                             {errors.length > 0 && (
-                                              <span
+                                              <SessionToolStatusCountBadge
                                                 aria-label={`${errors.length} tool ${errors.length === 1 ? "error" : "errors"}`}
-                                                className="text-destructive flex shrink-0 items-center gap-1 text-xs"
-                                              >
-                                                <CircleAlert
-                                                  className="icon-sm"
-                                                  aria-hidden="true"
-                                                />
-                                                {errors.length}
-                                              </span>
+                                                count={errors.length}
+                                                severity="error"
+                                                variant="sidebar"
+                                              />
                                             )}
                                             {warnings.length > 0 && (
-                                              <span
+                                              <SessionToolStatusCountBadge
                                                 aria-label={`${warnings.length} tool ${warnings.length === 1 ? "warning" : "warnings"}`}
-                                                className="flex shrink-0 items-center gap-1 text-xs text-yellow-600 dark:text-yellow-500"
-                                              >
-                                                <TriangleAlert
-                                                  className="icon-sm"
-                                                  aria-hidden="true"
-                                                />
-                                                {warnings.length}
-                                              </span>
+                                                count={warnings.length}
+                                                severity="warning"
+                                                variant="sidebar"
+                                              />
                                             )}
                                           </button>
                                         )}
