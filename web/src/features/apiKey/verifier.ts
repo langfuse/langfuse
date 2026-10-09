@@ -84,7 +84,10 @@ export class Verifier {
     return null;
   }
 
-  /** backfillSlowHash bcrypt-verifies keys without a fast hash and backfills matching secrets. */
+  /**
+   * backfillSlowHash bcrypt-verifies keys without a fast hash and backfills matching secrets.
+   * @deprecated Slow-hash backfill will be removed in the next major version.
+   */
   private async backfillSlowHash(
     publicKey: string,
     secretKey: string,
