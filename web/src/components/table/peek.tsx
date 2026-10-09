@@ -312,7 +312,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   // fresh provider, dropping that state. It unmounts only on close (the early
   // `return null` above), which is what resets the state (see README).
   return (
-    <PeekTableStateProvider>
+    <PeekTableStateProvider getPanelWidthPx={panel.getPanelWidthPx}>
       {isHandheld ? (
         // Mobile: a vaul bottom drawer with native swipe-down dismissal.
         <Drawer

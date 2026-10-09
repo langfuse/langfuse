@@ -12,6 +12,7 @@ import {
   createPeekPanelStore,
   PEEK_EXPAND_ENTER_FRACTION,
   PEEK_MIN_WIDTH_FRACTION,
+  resolveEffectiveWidthFraction,
   selectDraftExpanded,
   selectIsResizing,
   selectWidgetWidth,
@@ -29,6 +30,8 @@ export type PeekPanelView = {
   isResizing: boolean;
   /** Inline style (width) for the docked panel. */
   panelStyle: CSSProperties;
+  /** Read the host's live width for mount-time layouts without subscribing to drag updates. */
+  getPanelWidthPx: () => number;
   /** Toggle the expanded view (writes the URL via `onExpandedChange`). */
   toggleExpanded: () => void;
   /** Props to spread onto the left-edge resize handle. */
@@ -203,6 +206,17 @@ export function usePeekPanelState({
     "--peek-max-width": maxWidth,
     width: effectiveExpanded ? maxWidth : `min(${widgetWidth}, ${maxWidth})`,
   };
+  const getPanelWidthPx = useCallback(() => {
+    if (typeof window === "undefined") return 0;
+    const { draftFraction, widthFraction } = store.getState();
+    return (
+      resolveEffectiveWidthFraction({
+        widgetWidthFraction: draftFraction ?? widthFraction,
+        isExpanded: effectiveExpanded,
+        sidebarOffsetPx: sidebarOffset,
+      }) * window.innerWidth
+    );
+  }, [store, effectiveExpanded, sidebarOffset]);
 
   // End an in-flight drag (drop listeners, restore body styles, clear drag
   // state) on unmount and whenever the peek closes — the host outlives
@@ -292,6 +306,7 @@ export function usePeekPanelState({
     isExpanded: effectiveExpanded,
     isResizing,
     panelStyle,
+    getPanelWidthPx,
     toggleExpanded,
     resizeHandleProps: {
       role: "separator",

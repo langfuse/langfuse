@@ -79,10 +79,27 @@ function readStoredWidthFraction(
   return null;
 }
 
-// The shared peek width, including the saved preference when present. The inner
-// tree↔info split uses this to size its default without re-measuring the DOM.
-export function resolveEffectiveWidthFraction(): number {
-  return readStoredWidthFraction(STORAGE_KEY) ?? resolveDefaultWidthFraction();
+/** Resolve the host's visible width; hosts without sizing use the shared preference. */
+export function resolveEffectiveWidthFraction({
+  widgetWidthFraction,
+  isExpanded = false,
+  sidebarOffsetPx = 0,
+}: {
+  widgetWidthFraction?: number;
+  isExpanded?: boolean;
+  sidebarOffsetPx?: number;
+} = {}): number {
+  const viewportWidth = typeof window === "undefined" ? 0 : window.innerWidth;
+  const maximumFraction =
+    viewportWidth > 0
+      ? Math.max(0, (viewportWidth - sidebarOffsetPx) / viewportWidth)
+      : 1;
+  if (isExpanded) return maximumFraction;
+  const widgetFraction =
+    widgetWidthFraction ??
+    readStoredWidthFraction(STORAGE_KEY) ??
+    resolveDefaultWidthFraction();
+  return Math.min(widgetFraction, maximumFraction);
 }
 
 function writeStoredWidthFraction(storageKey: string, fraction: number): void {

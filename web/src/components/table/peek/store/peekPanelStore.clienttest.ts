@@ -7,6 +7,7 @@ import {
   PEEK_MAX_WIDGET_WIDTH_FRACTION,
   PEEK_MIN_WIDTH_FRACTION,
   resolveDefaultWidthFraction,
+  resolveEffectiveWidthFraction,
   selectDraftExpanded,
   selectWidgetWidth,
 } from "@/src/components/table/peek/store/peekPanelStore";
@@ -120,6 +121,48 @@ describe("peekPanelStore", () => {
     const reopened = createPeekPanelStore({ widthStorageKey: localKey });
     reopened.getState().actions.setDefaultWidth(0.32);
     expect(reopened.getState().widthFraction).toBe(0.55);
+  });
+
+  it("sizes a scoped peek's inner layout from its live width instead of the shared preference", () => {
+    withViewportWidth(1600, () => {
+      window.localStorage.setItem(STORAGE_KEY, "0.4");
+      const store = createPeekPanelStore({
+        widthStorageKey: "peek-width-topics",
+        allowLayoutWidths: true,
+      });
+      store.getState().actions.setDefaultWidth(1000 / 1600);
+
+      expect(
+        resolveEffectiveWidthFraction({
+          widgetWidthFraction: store.getState().widthFraction,
+        }) * window.innerWidth,
+      ).toBe(1000);
+      expect(resolveEffectiveWidthFraction() * window.innerWidth).toBe(640);
+    });
+  });
+
+  it("caps widget and expanded layout widths at the sidebar edge", () => {
+    withViewportWidth(1600, () => {
+      expect(
+        resolveEffectiveWidthFraction({
+          widgetWidthFraction: 0.96,
+          sidebarOffsetPx: 240,
+        }) * window.innerWidth,
+      ).toBe(1360);
+      expect(
+        resolveEffectiveWidthFraction({
+          widgetWidthFraction: 0.5,
+          isExpanded: true,
+          sidebarOffsetPx: 240,
+        }) * window.innerWidth,
+      ).toBe(1360);
+      expect(
+        resolveEffectiveWidthFraction({
+          isExpanded: true,
+          sidebarOffsetPx: 1800,
+        }),
+      ).toBe(0);
+    });
   });
 
   it("returns to a narrow layout width without reversing keyboard or drag resizing", () => {
