@@ -8,7 +8,7 @@ const DownloadFullTraceSchema = z.object({ traceId: z.string().min(1) });
 export const [downloadFullTraceTool, handleDownloadFullTrace] = defineTool({
   name: "downloadFullTrace",
   description:
-    "Returns a secret, 5-minute URL for trace JSON (observations with full input/output/tool calls/metadata and scores). Save to disk for local search without filling context. Limit at 350 observations per trace.",
+    "Returns a secret, 5-minute URL for trace JSON (observations and scores). Save to disk for local search without filling context. At 350+ observations, input/output, metadata and tool definitions/calls are omitted.",
   action: "traces:read",
   baseSchema: DownloadFullTraceSchema,
   inputSchema: DownloadFullTraceSchema,

@@ -33,63 +33,18 @@ const DownloadClaimsSchema = z.object({
   issuedAt: z.number().int().nonnegative(),
   expiresAt: z.number().int().positive(),
 });
-type DownloadClaims = z.infer<typeof DownloadClaimsSchema>;
-
-function signingSecret() {
-  if (!env.NEXTAUTH_SECRET) {
-    throw new InternalServerError(
-      "NEXTAUTH_SECRET must be configured for MCP downloads",
-    );
-  }
-  return env.NEXTAUTH_SECRET;
-}
-
 export async function createExportDownload(
   resource: { traceId: string } | { observationId: string },
   context: ServerContext,
 ) {
-  let traceId: string;
-  let observationId: string | undefined;
-  if ("observationId" in resource) {
-    observationId = resource.observationId;
-    const observations = await getObservationsV2FromEventsTableForPublicApi({
-      projectId: context.projectId,
-      page: 0,
-      limit: 1,
-      fields: ["core"],
-      advancedFilters: [
-        {
-          type: "string",
-          column: "id",
-          operator: "=",
-          value: observationId,
-        },
-      ],
-    });
-    const observation = observations.find((item) => item.id === observationId);
-    if (!observation?.traceId) {
-      throw new LangfuseNotFoundError("Observation not found");
-    }
-    traceId = observation.traceId;
-  } else {
-    traceId = resource.traceId;
-  }
-
+  const traceId = await resolveTraceId(resource, context.projectId);
+  const observationId =
+    "observationId" in resource ? resource.observationId : undefined;
   await getExportTrace({ traceId, projectId: context.projectId }, context.plan);
-  const issuedAt = Date.now();
-  const claims: DownloadClaims = {
-    projectId: context.projectId,
-    apiKeyId: context.apiKeyId,
-    traceId,
-    observationId,
-    issuedAt,
-    expiresAt: issuedAt + DOWNLOAD_TTL_MS,
-  };
-  const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
-  const signature = signHmacSha256(SIGNING_PREFIX + payload, signingSecret());
-  const url = new URL("api/mcp/download", getProductBaseUrl());
-  url.searchParams.set("token", `${payload}.${signature}`);
-
+  const { claims, downloadUrl } = createDownloadLink(
+    { traceId, observationId },
+    context,
+  );
   await auditLog({
     resourceType: observationId ? "observation" : "trace",
     resourceId: observationId ?? traceId,
@@ -100,7 +55,7 @@ export async function createExportDownload(
   });
 
   return {
-    downloadUrl: url.toString(),
+    downloadUrl,
     filename: downloadFilename(claims),
     mimeType: "application/json",
     expiresAt: new Date(claims.expiresAt).toISOString(),
@@ -182,23 +137,6 @@ export async function authorizeExportDownload(claims: DownloadClaims) {
   return scope;
 }
 
-async function getExportTrace(
-  resource: { traceId: string; projectId: string },
-  plan: ServerContext["plan"],
-) {
-  const trace = await getTraceByIdFromEventsTable({
-    traceId: resource.traceId,
-    projectId: resource.projectId,
-    renderingProps: { truncated: true, shouldJsonParse: false },
-  });
-  if (!trace) throw new LangfuseNotFoundError("Trace not found");
-  const { accessFloor } = clampToDataAccessDays({ plan });
-  if (accessFloor && trace.timestamp < accessFloor) {
-    throw new ForbiddenError("Trace is outside the plan's data access window");
-  }
-  return trace;
-}
-
 export async function buildExportDownload(
   claims: DownloadClaims,
   plan: ServerContext["plan"],
@@ -231,3 +169,81 @@ export function downloadFilename(claims: DownloadClaims) {
     ? `observation-${claims.observationId}.json`
     : `trace-${claims.traceId}.json`;
 }
+
+async function resolveTraceId(
+  resource: { traceId: string } | { observationId: string },
+  projectId: string,
+) {
+  if (!("observationId" in resource)) return resource.traceId;
+
+  const observations = await getObservationsV2FromEventsTableForPublicApi({
+    projectId,
+    page: 0,
+    limit: 1,
+    fields: ["core"],
+    advancedFilters: [
+      {
+        type: "string",
+        column: "id",
+        operator: "=",
+        value: resource.observationId,
+      },
+    ],
+  });
+  const observation = observations.find(
+    (item) => item.id === resource.observationId,
+  );
+  if (!observation?.traceId) {
+    throw new LangfuseNotFoundError("Observation not found");
+  }
+  return observation.traceId;
+}
+
+function createDownloadLink(
+  resource: Pick<DownloadClaims, "traceId" | "observationId">,
+  context: Pick<ServerContext, "projectId" | "apiKeyId">,
+) {
+  const issuedAt = Date.now();
+  const claims: DownloadClaims = {
+    projectId: context.projectId,
+    apiKeyId: context.apiKeyId,
+    traceId: resource.traceId,
+    observationId: resource.observationId,
+    issuedAt,
+    expiresAt: issuedAt + DOWNLOAD_TTL_MS,
+  };
+  const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+  const signature = signHmacSha256(SIGNING_PREFIX + payload, signingSecret());
+  const url = new URL("api/mcp/download", getProductBaseUrl());
+  url.searchParams.set("token", `${payload}.${signature}`);
+
+  return { claims, downloadUrl: url.toString() };
+}
+
+function signingSecret() {
+  if (!env.NEXTAUTH_SECRET) {
+    throw new InternalServerError(
+      "NEXTAUTH_SECRET must be configured for MCP downloads",
+    );
+  }
+  return env.NEXTAUTH_SECRET;
+}
+
+async function getExportTrace(
+  resource: { traceId: string; projectId: string },
+  plan: ServerContext["plan"],
+) {
+  const trace = await getTraceByIdFromEventsTable({
+    traceId: resource.traceId,
+    projectId: resource.projectId,
+    renderingProps: { truncated: true, shouldJsonParse: false },
+  });
+  if (!trace) throw new LangfuseNotFoundError("Trace not found");
+  const { accessFloor } = clampToDataAccessDays({ plan });
+  if (accessFloor && trace.timestamp < accessFloor) {
+    throw new ForbiddenError("Trace is outside the plan's data access window");
+  }
+  return trace;
+}
+
+type DownloadClaims = z.infer<typeof DownloadClaimsSchema>;

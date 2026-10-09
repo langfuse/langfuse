@@ -396,7 +396,9 @@ describe("MCP JSON downloads", () => {
   it("registers both tools behind the observation feature gate", async () => {
     expect(
       observationsFeature.tools.map((tool) => tool.definition.name),
-    ).toEqual(expect.arrayContaining(["downloadFullTrace", "exportObservation"]));
+    ).toEqual(
+      expect.arrayContaining(["downloadFullTrace", "exportObservation"]),
+    );
     const link = await createLink();
     Object.assign(env, { LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: "false" });
     expect(await observationsFeature.isEnabled()).toBe(false);
