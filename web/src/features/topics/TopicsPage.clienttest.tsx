@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import TopicsPage from "./TopicsPage";
+import { useGlobalDateRangeStore } from "@/src/features/global-time-range/globalDateRangeStore";
+import { rangeToString, type TimeRange } from "@/src/utils/date-range-utils";
 
 const state = vi.hoisted(() => ({
   status: "failed",
@@ -9,11 +11,34 @@ const state = vi.hoisted(() => ({
   updatedAt: "2026-09-23T12:00:00Z",
   retry: vi.fn(),
   refetchExecution: vi.fn(),
+  dateRange: undefined as string | undefined,
+  executionId: undefined as string | undefined,
+  setQueryParams: vi.fn(),
+  currentTopics: vi.fn(),
+  pipeline: vi.fn(),
 }));
 
+vi.mock("use-query-params", () => ({
+  StringParam: {},
+  useQueryParams: () => [{ dateRange: state.dateRange }, state.setQueryParams],
+}));
+vi.mock("@/src/components/layouts/page-header-controls-slot", () => ({
+  PageHeaderControlsPortal: ({ children }: { children: ReactNode }) => children,
+}));
+vi.mock("@/src/components/date-picker", () => ({
+  TimeRangePicker: ({
+    onTimeRangeChange,
+  }: {
+    onTimeRangeChange: (range: TimeRange) => void;
+  }) => (
+    <button onClick={() => onTimeRangeChange({ range: "last30Days" })}>
+      Select last 30 days
+    </button>
+  ),
+}));
 vi.mock("next/router", () => ({
   useRouter: () => ({
-    query: { projectId: "project", executionId: "execution" },
+    query: { projectId: "project", executionId: state.executionId },
   }),
 }));
 vi.mock("@/src/components/layouts/page", () => ({
@@ -32,20 +57,24 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
   default: () => true,
 }));
 vi.mock("./TopicPipelineForm", () => ({
-  useTopicPipelineForm: () => ({
-    primaryAction: null,
-    openConfiguration: vi.fn(),
-    configuration: null,
-  }),
+  useTopicPipelineForm: (input: unknown) => {
+    state.pipeline(input);
+    return {
+      primaryAction: null,
+      openConfiguration: vi.fn(),
+      configuration: null,
+    };
+  },
 }));
 vi.mock("./CurrentTopics", () => ({
-  useCurrentTopics: ({
-    running,
-    refreshAfter,
-  }: {
+  useCurrentTopics: (input: {
     running: boolean;
     refreshAfter: number;
-  }) => ({ running, refreshAfter, data: [] }),
+    timeRange: { from: Date; to: Date };
+  }) => {
+    state.currentTopics(input);
+    return { ...input, data: [] };
+  },
   CurrentTopics: ({
     result,
   }: {
@@ -103,6 +132,8 @@ vi.mock("@/src/utils/api", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-09T12:00:00Z"));
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -114,11 +145,74 @@ beforeEach(() => {
   state.status = "failed";
   state.executionUpdatedAt = 110;
   state.updatedAt = "2026-09-23T12:00:00Z";
+  state.dateRange = undefined;
+  state.executionId = undefined;
+  state.setQueryParams.mockImplementation(
+    ({ dateRange }: { dateRange: string }) => {
+      state.dateRange = dateRange;
+    },
+  );
+  useGlobalDateRangeStore.persist.setOptions({
+    storage: { getItem: () => null, setItem: vi.fn(), removeItem: vi.fn() },
+  });
+  useGlobalDateRangeStore.setState({ defaultsByProject: {} });
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+it.each([
+  ["30d", 30 * 24 * 60],
+  ["5m", 5],
+  ["6h", 6 * 60],
+])(
+  "uses the shared project range %s for results and processing",
+  (token, minutes) => {
+    useGlobalDateRangeStore
+      .getState()
+      .actions.setProjectDefault("project", token);
+    render(<TopicsPage />);
+    const { timeRange } = state.currentTopics.mock.lastCall![0];
+    expect(timeRange.to.getTime() - timeRange.from.getTime()).toBe(
+      minutes * 60_000,
+    );
+    expect(state.pipeline).toHaveBeenLastCalledWith(
+      expect.objectContaining({ timeRange }),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select last 30 days" }),
+    );
+    expect(state.dateRange).toBe("30d");
+    expect(useGlobalDateRangeStore.getState().defaultsByProject.project).toBe(
+      "30d",
+    );
+  },
+);
+
+it("keeps a URL custom range fixed when an execution completes", () => {
+  const timeRange = {
+    from: new Date("2026-09-01T12:34:00Z"),
+    to: new Date("2026-09-02T15:45:00Z"),
+  };
+  state.dateRange = rangeToString(timeRange);
+  state.status = "running";
+  const view = render(<TopicsPage />);
+  expect(state.currentTopics).toHaveBeenLastCalledWith(
+    expect.objectContaining({ timeRange }),
+  );
+
+  state.status = "completed";
+  view.rerender(<TopicsPage />);
+  expect(state.currentTopics).toHaveBeenLastCalledWith(
+    expect.objectContaining({ timeRange }),
+  );
+});
 
 it("refreshes current results through retry and completion for a selected run outside history", () => {
+  state.executionId = "execution";
   const view = render(<TopicsPage />);
   const status = screen.getByRole("dialog", { name: "Run status" });
   fireEvent.click(
@@ -148,4 +242,22 @@ it("refreshes current results through retry and completion for a selected run ou
   state.executionUpdatedAt = 140;
   view.rerender(<TopicsPage />);
   expect(current).toHaveAttribute("data-refresh-after", completedAt);
+});
+
+it("holds relative bounds between renders and advances them after completion", () => {
+  state.status = "running";
+  const view = render(<TopicsPage />);
+  const initialRange = state.currentTopics.mock.lastCall![0].timeRange;
+
+  vi.setSystemTime(new Date("2026-10-09T12:01:00Z"));
+  view.rerender(<TopicsPage />);
+  expect(state.currentTopics.mock.lastCall![0].timeRange).toEqual(initialRange);
+
+  state.status = "completed";
+  state.updatedAt = "2026-10-09T12:01:00Z";
+  view.rerender(<TopicsPage />);
+  expect(state.currentTopics.mock.lastCall![0].timeRange).toEqual({
+    from: new Date("2026-10-02T12:01:00Z"),
+    to: new Date("2026-10-09T12:01:00Z"),
+  });
 });
