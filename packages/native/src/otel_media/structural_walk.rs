@@ -149,23 +149,11 @@ struct ValueSummary {
     shape: ValueShape,
 }
 
-#[derive(Clone)]
 struct PendingCandidate {
     /// Bit zero tracks generic-payload eligibility; bit one tracks envelope
     /// eligibility. The root shape selects the active path when it closes.
     mask: u8,
-    kind: PendingKind,
-}
-
-#[derive(Clone)]
-enum PendingKind {
-    String(Range<usize>),
-    Text(Range<usize>),
-    Structured {
-        token_range: Range<usize>,
-        content_type: String,
-        kind: MediaPayloadKind,
-    },
+    candidate: Candidate,
 }
 
 struct MaskOperation {
@@ -359,7 +347,7 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
                             if mask != 0 {
                                 self.candidates.push(PendingCandidate {
                                     mask,
-                                    kind: PendingKind::String(range.clone()),
+                                    candidate: Candidate::String(range.clone()),
                                 });
                                 self.update_peak(&stack, &object_states);
                             }
@@ -506,7 +494,7 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
                     {
                         self.candidates.push(PendingCandidate {
                             mask,
-                            kind: PendingKind::Text(cursor..end),
+                            candidate: Candidate::Text(cursor..end),
                         });
                         self.update_peak_from_capacities(0);
                     }
@@ -568,7 +556,7 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
                 self.add_mask_operation(candidate_start, candidate_end, active);
                 self.candidates.push(PendingCandidate {
                     mask: active,
-                    kind: PendingKind::Structured {
+                    candidate: Candidate::Structured {
                         token_range: shape.token_range,
                         content_type: shape.content_type,
                         kind: shape.kind,
@@ -939,17 +927,5 @@ pub(super) fn scan(
     Ok(candidates
         .into_iter()
         .filter(|candidate| candidate.mask != 0)
-        .map(|candidate| match candidate.kind {
-            PendingKind::String(range) => Candidate::String(range),
-            PendingKind::Text(range) => Candidate::Text(range),
-            PendingKind::Structured {
-                token_range,
-                content_type,
-                kind,
-            } => Candidate::Structured {
-                token_range,
-                content_type,
-                kind,
-            },
-        }))
+        .map(|candidate| candidate.candidate))
 }
