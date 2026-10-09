@@ -64,6 +64,9 @@
   account for these pauses. Drain accepted summaries even on read failure. Never flush a failed
   stream's partial final trace; completion covers the query window, not future arrivals.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
+- Evaluator-result rules: completed observation evaluators enqueue
+  `evaluator-result-queue`; matching and downstream scheduling retry in
+  `src/features/evaluation/observationEval/processEvaluatorResult.ts`.
 - Service layer: `src/services/*`
 - `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues
   opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain

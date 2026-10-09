@@ -76,7 +76,7 @@ const codeEvalScoreBase = {
   metadata: z.record(z.string(), z.unknown()).optional(),
 };
 
-const CodeEvalScoreSchema = z.union([
+export const CodeEvalScoreSchema = z.union([
   z.object({
     ...codeEvalScoreBase,
     value: z.number(),

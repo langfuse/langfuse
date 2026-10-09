@@ -434,7 +434,6 @@ export class RuleService {
             "Evaluator result rules run for every matching result",
           );
         }
-        input.sampling = 1;
       }
       const scoreResultTrigger =
         input.scoreResultTrigger !== undefined
@@ -536,6 +535,10 @@ export class RuleService {
             ? undefined
             : (input.triggerKind as EvaluationRuleTriggerKind),
         scoreResultTrigger: scoreResultTriggerUpdate,
+        sampling:
+          triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT
+            ? 1
+            : undefined,
         clearTriggerInvalidReason:
           input.triggerKind !== undefined ||
           input.scoreResultTrigger !== undefined,

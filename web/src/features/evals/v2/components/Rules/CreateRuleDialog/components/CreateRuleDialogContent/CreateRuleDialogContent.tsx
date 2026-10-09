@@ -25,6 +25,7 @@ import { useProject } from "@/src/features/projects";
 import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 import { resolveInitialRuleFilters } from "./resolveInitialRuleFilters";
+import { prepareRuleDraftForSave } from "@/src/features/evals/v2/fns/prepareRuleDraftForSave";
 
 export function CreateRuleDialogContent({
   projectId,
@@ -104,7 +105,7 @@ export function CreateRuleDialogContent({
   });
 
   const create = async () => {
-    const draft = ruleSetupStore.getState();
+    const draft = prepareRuleDraftForSave(ruleSetupStore.getState());
     const createTargetObject =
       draft.triggerKind === "SCORE_RESULT" ? "event" : targetObject;
     const rule = await createRule.mutateAsync({

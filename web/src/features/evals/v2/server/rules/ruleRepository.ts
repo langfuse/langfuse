@@ -381,6 +381,7 @@ export function updateRule(params: {
   triggerKind?: EvaluationRuleTriggerKind;
   scoreResultTrigger?: ScoreResultTrigger | null;
   clearTriggerInvalidReason?: boolean;
+  sampling?: number;
 }) {
   return params.prisma.evaluationRule.update({
     where: {
@@ -394,9 +395,9 @@ export function updateRule(params: {
         : { targetObject: params.targetObject }),
       ...(params.input.name === undefined ? {} : { name: params.input.name }),
       ...(params.filter === undefined ? {} : { filter: params.filter }),
-      ...(params.input.sampling === undefined
+      ...(params.sampling === undefined && params.input.sampling === undefined
         ? {}
-        : { sampling: params.input.sampling }),
+        : { sampling: params.sampling ?? params.input.sampling }),
       ...(params.input.enabled === undefined
         ? {}
         : {

@@ -15,6 +15,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import { prepareRuleDraftForSave } from "@/src/features/evals/v2/fns/prepareRuleDraftForSave";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["get"];
 
@@ -70,7 +71,7 @@ export function EditRuleDialogContent({
   });
 
   const save = async () => {
-    const draft = ruleSetupStore.getState();
+    const draft = prepareRuleDraftForSave(ruleSetupStore.getState());
     const initialIds = new Set(
       rule.assignments.map((assignment) => assignment.evaluator.id),
     );

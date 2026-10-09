@@ -85,6 +85,12 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
           ? { variableMapping: params.variableMapping }
           : {}),
       };
+      const jobOptions = {
+        delay: params.delay,
+        ...(params.useJobExecutionIdAsQueueJobId
+          ? { jobId: params.jobExecutionId }
+          : {}),
+      };
 
       if (params.evalTemplateType === EvalTemplateType.CODE) {
         const queue = CodeEvalExecutionQueue.getInstance({ shardingKey });
@@ -100,7 +106,7 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
             timestamp: new Date(),
             payload,
           },
-          { delay: params.delay, jobId: params.jobExecutionId },
+          jobOptions,
         );
         return;
       }
@@ -125,7 +131,7 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
           timestamp: new Date(),
           payload,
         },
-        { delay: params.delay, jobId: params.jobExecutionId },
+        jobOptions,
       );
     },
   };

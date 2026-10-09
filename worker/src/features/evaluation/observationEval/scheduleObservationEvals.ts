@@ -318,6 +318,9 @@ async function processMatchingConfig(
     ...(assignment.variableMapping != null
       ? { variableMapping: assignment.variableMapping }
       : {}),
+    ...(preserveExistingJobExecution
+      ? { useJobExecutionIdAsQueueJobId: true }
+      : {}),
   });
 
   logger.debug("Scheduled observation eval job", {

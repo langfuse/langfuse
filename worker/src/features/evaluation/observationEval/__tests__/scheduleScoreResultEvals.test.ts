@@ -82,6 +82,11 @@ describe("scheduleScoreResultEvals", () => {
         preserveExistingStatus: true,
       }),
     );
+    expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        useJobExecutionIdAsQueueJobId: true,
+      }),
+    );
   });
 
   it("does not schedule when a returned score is missing", async () => {

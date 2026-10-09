@@ -35,13 +35,7 @@ export function createRuleSetupStore(initialDraft: RuleDraft): RuleSetupStore {
         })),
       setSelectedObservation: (selectedObservation) =>
         set({ selectedObservation }),
-      setTriggerKind: (triggerKind) =>
-        set({
-          triggerKind,
-          ...(triggerKind === "SCORE_RESULT"
-            ? { filter: [], sampling: 1 }
-            : { scoreResultTrigger: null }),
-        }),
+      setTriggerKind: (triggerKind) => set({ triggerKind }),
       setScoreResultTrigger: (scoreResultTrigger) =>
         set({ scoreResultTrigger }),
       setPreviewSourceRuleId: (previewSourceRuleId) =>

@@ -47,7 +47,7 @@ describe("createObservationEvalSchedulerDeps", () => {
         id: "job-1",
         payload: expect.objectContaining({ projectId: "project-1" }),
       }),
-      { delay: 10, jobId: "job-1" },
+      { delay: 10 },
     );
     expect(getCodeQueueInstance).not.toHaveBeenCalled();
   });
@@ -74,7 +74,7 @@ describe("createObservationEvalSchedulerDeps", () => {
         id: "job-2",
         payload: expect.objectContaining({ projectId: "project-1" }),
       }),
-      { delay: 20, jobId: "job-2" },
+      { delay: 20 },
     );
     expect(getLLMQueueInstance).not.toHaveBeenCalled();
   });
@@ -104,7 +104,27 @@ describe("createObservationEvalSchedulerDeps", () => {
           variableMapping,
         }),
       }),
-      { delay: 0, jobId: "job-3" },
+      { delay: 0 },
+    );
+  });
+
+  it("uses the execution id as the queue job id only when requested", async () => {
+    const { createObservationEvalSchedulerDeps } =
+      await import("../createSchedulerDeps");
+
+    await createObservationEvalSchedulerDeps().enqueueEvalJob({
+      projectId: "project-1",
+      jobExecutionId: "job-4",
+      observationS3Path: "evals/project-1/observations/obs-1.json",
+      delay: 0,
+      evalTemplateType: EvalTemplateType.CODE,
+      useJobExecutionIdAsQueueJobId: true,
+    });
+
+    expect(addToCodeQueue).toHaveBeenCalledWith(
+      "code-eval-execution-queue",
+      expect.any(Object),
+      { delay: 0, jobId: "job-4" },
     );
   });
 });

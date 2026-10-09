@@ -30,6 +30,9 @@
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
+- Evaluator-result rule handoff: `src/server/redis/evaluatorResultQueue.ts`;
+  the upstream execution id is the queue job id and the worker owns matching
+  and downstream scheduling retries.
 - Internal trace-batch queue: `src/server/redis/traceBatch.ts` (cloud-gated);
   payloads in `src/server/queues.ts` accept persisted single-project jobs.
   Full-event streaming reads live in `src/server/repositories/trace-batch.ts`;

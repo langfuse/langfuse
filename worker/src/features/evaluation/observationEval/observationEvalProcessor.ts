@@ -2,6 +2,9 @@ import { z } from "zod";
 import {
   DEFAULT_TRACE_ENVIRONMENT,
   ObservationEvalExecutionEventSchema,
+  EvaluatorResultQueue,
+  QueueJobs,
+  QueueName,
   extractObservationVariables,
   logger,
   recordIncrement,
@@ -39,9 +42,6 @@ import { executeCodeBasedEvaluation } from "../codeBased";
 import { runDecisionModelEvaluation } from "../decisionModel/runDecisionModelEvaluation";
 import { getEvalS3StorageClient } from "../s3StorageClient";
 import { type ObservationForEval } from "./types";
-import { fetchScoreResultEvalRules } from "./fetchScoreResultEvalRules";
-import { scheduleScoreResultEvals } from "./scheduleScoreResultEvals";
-import { createObservationEvalSchedulerDeps } from "./createSchedulerDeps";
 
 /**
  * Dependencies for processing observation evals.
@@ -53,7 +53,7 @@ export interface ObservationEvalProcessorDeps {
   scheduleEvaluatorResultRules?: (params: {
     projectId: string;
     evaluatorId: string;
-    observation: ObservationForEval;
+    observationS3Path: string;
     scores: CodeEvalScoreWithName[];
     upstreamJobExecutionId: string;
   }) => Promise<void>;
@@ -71,17 +71,19 @@ function createObservationEvalProcessorDeps(): ObservationEvalProcessorDeps {
     },
     evalExecutionDeps: createProductionEvalExecutionDeps(),
     scheduleEvaluatorResultRules: async (params) => {
-      const rules = await fetchScoreResultEvalRules({
-        projectId: params.projectId,
-        evaluatorId: params.evaluatorId,
-      });
-      await scheduleScoreResultEvals({
-        observation: params.observation,
-        scores: params.scores,
-        rules,
-        upstreamJobExecutionId: params.upstreamJobExecutionId,
-        schedulerDeps: createObservationEvalSchedulerDeps(),
-      });
+      const queue = EvaluatorResultQueue.getInstance();
+      if (!queue) throw new Error("EvaluatorResultQueue is not initialized");
+
+      await queue.add(
+        QueueName.EvaluatorResult,
+        {
+          name: QueueJobs.EvaluatorResult,
+          id: params.upstreamJobExecutionId,
+          timestamp: new Date(),
+          payload: params,
+        },
+        { jobId: params.upstreamJobExecutionId },
+      );
     },
   };
 }
@@ -335,7 +337,7 @@ export async function processObservationEval(
             await deps.scheduleEvaluatorResultRules?.({
               projectId: executionParams.projectId,
               evaluatorId: resolved.evaluatorId,
-              observation: observationData,
+              observationS3Path: event.observationS3Path,
               scores: result.scores,
               upstreamJobExecutionId: executionParams.jobExecutionId,
             });

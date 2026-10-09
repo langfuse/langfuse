@@ -1,4 +1,4 @@
-import type { ChangeEvent } from "react";
+import { useState, type ChangeEvent } from "react";
 import type { ScoreResultTrigger } from "@langfuse/shared";
 
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -37,10 +37,14 @@ export function RuleEvaluatorResultPredicateRow({
   onChange,
   onRemove,
 }: RuleEvaluatorResultPredicateRowProps) {
+  const [numericValue, setNumericValue] = useState(() =>
+    predicate.dataType === "NUMERIC" ? String(predicate.value) : "",
+  );
   const handleScoreNameChange = (event: ChangeEvent<HTMLInputElement>) => {
     onChange(index, { ...predicate, scoreName: event.target.value });
   };
   const handleDataTypeChange = (dataType: ScorePredicate["dataType"]) => {
+    if (dataType === "NUMERIC") setNumericValue("0");
     onChange(index, predicateForDataType(dataType, predicate.scoreName));
   };
   const handleOperatorChange = (operator: string) => {
@@ -51,11 +55,21 @@ export function RuleEvaluatorResultPredicateRow({
     onChange(index, { ...predicate, value: value === "true" });
   };
   const handleValueChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const value =
-      predicate.dataType === "NUMERIC"
-        ? event.target.valueAsNumber
-        : event.target.value;
-    onChange(index, { ...predicate, value } as ScorePredicate);
+    if (predicate.dataType !== "NUMERIC") {
+      onChange(index, { ...predicate, value: event.target.value });
+      return;
+    }
+    const rawValue = event.target.value;
+    setNumericValue(rawValue);
+    const value = Number(rawValue);
+    if (rawValue.trim() !== "" && Number.isFinite(value)) {
+      onChange(index, { ...predicate, value });
+    }
+  };
+  const handleNumericBlur = () => {
+    if (predicate.dataType === "NUMERIC") {
+      setNumericValue(String(predicate.value));
+    }
   };
   const handleRemove = () => {
     onRemove(index);
@@ -105,8 +119,11 @@ export function RuleEvaluatorResultPredicateRow({
         ) : (
           <Input
             type={predicate.dataType === "NUMERIC" ? "number" : "text"}
-            value={predicate.value}
+            value={
+              predicate.dataType === "NUMERIC" ? numericValue : predicate.value
+            }
             onChange={handleValueChange}
+            onBlur={handleNumericBlur}
             placeholder="Value"
           />
         )}

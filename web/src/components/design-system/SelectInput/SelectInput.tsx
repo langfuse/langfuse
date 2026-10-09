@@ -32,6 +32,7 @@ type SelectInputProps<V extends string> = Pick<
   search?: {
     placeholder: string;
     onValueChange?: (value: string) => void;
+    onOpenChange?: (open: boolean) => void;
   };
   error?: boolean;
 };
@@ -61,10 +62,14 @@ function SelectInputInner<V extends string>(
     .flatMap((node) => (isSelectGroup(node) ? node.options : [node]))
     .find((option) => option.value === value);
   const listId = React.useId();
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    search?.onOpenChange?.(nextOpen);
+  };
 
   if (search) {
     return (
-      <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+      <PopoverPrimitive.Root open={open} onOpenChange={handleOpenChange}>
         <InputControl
           contentLayout="spread"
           error={error}
@@ -126,7 +131,7 @@ function SelectInputInner<V extends string>(
                               disabled={option.disabled}
                               onSelect={() => {
                                 onValueChange(option.value);
-                                setOpen(false);
+                                handleOpenChange(false);
                               }}
                             >
                               <InputDropdown.OptionContent

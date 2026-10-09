@@ -125,6 +125,8 @@ export interface ObservationEvalSchedulerDeps {
     /** Evaluator v2 identity; omitted when scheduling a legacy config. */
     evaluatorId?: string;
     evaluationRuleId?: string;
+    /** Keep a failed queue job from being duplicated by downstream retries. */
+    useJobExecutionIdAsQueueJobId?: boolean;
     /**
      * Mapping override for a ruleless batch run. Omitted to inherit the
      * evaluator version mapping.

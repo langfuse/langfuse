@@ -98,4 +98,34 @@ describe("rule setup store", () => {
 
     expect(isRuleDraftDirty(store.getState())).toBe(false);
   });
+
+  it("preserves observation settings while switching trigger kinds", () => {
+    const filter = [{ type: "string", column: "name" }] as never;
+    const scoreResultTrigger = {
+      evaluatorId: "source-evaluator",
+      predicates: [
+        {
+          scoreName: "quality",
+          dataType: "NUMERIC" as const,
+          operator: ">" as const,
+          value: 0.5,
+        },
+      ],
+    };
+    const store = createRuleSetupStore({
+      ...initialDraft,
+      filter,
+      sampling: 0.25,
+      scoreResultTrigger,
+    });
+
+    store.getState().actions.setTriggerKind("SCORE_RESULT");
+    store.getState().actions.setTriggerKind("OBSERVATION");
+
+    expect(store.getState()).toMatchObject({
+      filter,
+      sampling: 0.25,
+      scoreResultTrigger,
+    });
+  });
 });

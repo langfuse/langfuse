@@ -16,13 +16,15 @@ import {
 
 type ScorePredicate = ScoreResultTrigger["predicates"][number];
 
+type RuleEvaluatorResultTriggerSectionProps = {
+  projectId: string;
+  store: RuleSetupStore;
+};
+
 export function RuleEvaluatorResultTriggerSection({
   projectId,
   store,
-}: {
-  projectId: string;
-  store: RuleSetupStore;
-}) {
+}: RuleEvaluatorResultTriggerSectionProps) {
   const trigger = useStore(store, (state) => state.scoreResultTrigger);
   const setTrigger = store.getState().actions.setScoreResultTrigger;
   const [searchQuery, setSearchQuery] = useState("");
@@ -46,6 +48,11 @@ export function RuleEvaluatorResultTriggerSection({
   };
   const handleSearchChange = (value: string) => {
     debouncedSearch(value);
+  };
+  const handleSearchOpenChange = (open: boolean) => {
+    if (open) return;
+    setSearchQuery("");
+    debouncedSearch("");
   };
   const handlePredicateChange = (index: number, predicate: ScorePredicate) => {
     if (!trigger) return;
@@ -95,6 +102,7 @@ export function RuleEvaluatorResultTriggerSection({
           search={{
             placeholder: "Search evaluators...",
             onValueChange: handleSearchChange,
+            onOpenChange: handleSearchOpenChange,
           }}
         />
       </div>
