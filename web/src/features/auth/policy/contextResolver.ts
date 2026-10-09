@@ -1,9 +1,10 @@
 import {
+  Prisma,
   type ApiKey,
   type PrismaClient,
   prisma as defaultPrisma,
 } from "@langfuse/shared/src/db";
-import { CloudConfigSchema, type InternalServerError } from "@langfuse/shared";
+import { CloudConfigSchema, InternalServerError } from "@langfuse/shared";
 import {
   ApiKeyId,
   OrganizationId,
@@ -11,6 +12,8 @@ import {
   SystemRoleId,
   systemRoleAccessRights,
 } from "@langfuse/shared/rbac";
+
+import { assignRole } from "@langfuse/shared/rbac/server";
 
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
@@ -20,7 +23,7 @@ import {
   type OrganizationWithProjects,
 } from "./organizationRepository";
 import { authorize } from "@/src/features/rbac/authorize";
-import { type Policy } from "@/src/features/rbac/types";
+import { type Policy, type Role } from "@/src/features/rbac/types";
 import {
   internalServerError,
   type AuthorizationContext,
@@ -40,6 +43,7 @@ export class ContextResolver {
 
   /** resolve turns a verified credential into its context, collapsing a missing org to a 500 invariant break. */
   async resolve(params: ResolveContextParams): Promise<Resolved> {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
     if (params.authorization === "admin") {
       return { success: true, context: adminContext() };
     }
@@ -49,6 +53,7 @@ export class ContextResolver {
       success: true,
       context: await materialize(
         params.apiKey,
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
         params.authorization,
         org.organization,
         this.prisma,
@@ -112,18 +117,71 @@ async function materialize(
     boundResource: boundResourceFor(apiKey, org),
   };
 
-  const roles = await getRolesForPrincipal(ApiKeyId(apiKey.id), prisma);
+  const roles = await getRolesForApiKey(apiKey.id);
   const context = {
     principal,
     policies: roles.flatMap((role) => role.policies),
   };
   if (authorization === "publicKey") {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
     return { principal, policies: publicBearerPolicies(context, apiKey, org) };
   }
   return context;
+
+  /** getRolesForApiKey restores missing assignments and rejects an empty result after repair. */
+  async function getRolesForApiKey(apiKeyId: string): Promise<Role[]> {
+    let roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
+    if (roles.length === 0) {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
+      await backfillApiKeyRoleAssignment(prisma, apiKey, org);
+      roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
+    }
+    if (roles.length === 0) {
+      throw new InternalServerError(
+        `API key ${apiKeyId} has no role assignments after backfill`,
+      );
+    }
+    return roles;
+  }
 }
 
-/** publicBearerPolicies narrows a public-key bearer to scores:save on its own project, granted only when the key's stored roles allow it there. */
+/**
+ * backfillApiKeyRoleAssignment restores a verified key's legacy role.
+ * @deprecated RoleAssignment backfill will be removed in the next major version.
+ */
+async function backfillApiKeyRoleAssignment(
+  prisma: PrismaClient,
+  apiKey: ApiKey,
+  org: PrincipalOrganization,
+): Promise<void> {
+  const isProject = apiKey.scope === "PROJECT";
+  await assignRole(prisma, {
+    tenantId: OrganizationId(org.orgId),
+    principalId: ApiKeyId(apiKey.id),
+    ownerId: isProject
+      ? ProjectId(apiKey.projectId!)
+      : OrganizationId(apiKey.orgId!),
+    roleId: SystemRoleId(
+      isProject ? "LEGACY_PROJECT_API_KEY" : "LEGACY_ORGANIZATION_API_KEY",
+    ),
+    tags: [],
+  }).catch((error: unknown) => {
+    if (!isUniqueConstraintFailedError(error)) throw error;
+  });
+}
+
+/** isUniqueConstraintFailedError identifies Prisma's P2002 uniqueness violation. */
+function isUniqueConstraintFailedError(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
+}
+
+/**
+ * publicBearerPolicies narrows a public-key bearer to scores:save on its own project, granted only when the key's stored roles allow it there.
+ * @deprecated Public bearer authentication will be removed in the next major version.
+ */
 function publicBearerPolicies(
   roleContext: AuthorizationContext,
   apiKey: ApiKey,
@@ -146,9 +204,7 @@ function publicBearerPolicies(
   }));
 }
 
-/** adminContext is the self-host superuser: an evaluated OWNER on every tenant. It binds the OWNER catalog to the org- and project-kind wildcards under the organization/* tenant, so the PDP grants it exactly what OWNER grants, on every tenant.
- *
- * The organization/* tenant is minted only here; a future custom-role loader must reject a wildcard tenant on a stored role. */
+/** adminContext grants the admin principal OWNER permissions across all tenants. */
 function adminContext(): AuthorizationContext {
   const principal: Principal = { kind: "admin", userId: null };
   const roleId = SystemRoleId("OWNER");
@@ -204,6 +260,7 @@ function getCloudConfig(
 /** ResolveContextParams is a verified credential: an api key with how it was presented, or the admin key. */
 export type ResolveContextParams =
   | {
+      /** @deprecated Remove in the next major version when all API-key authentication is private. */
       authorization: "publicKey" | "privateKey";
       apiKey: ApiKey;
     }

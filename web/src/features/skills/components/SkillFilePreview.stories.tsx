@@ -96,7 +96,7 @@ export const InvalidFrontmatter = meta.story({
       "Showing the original source",
     );
     await expect(canvasElement.querySelector("pre")?.textContent).toBe(
-      args.content.replace(/\n/g, ""),
+      args.content,
     );
   },
 });

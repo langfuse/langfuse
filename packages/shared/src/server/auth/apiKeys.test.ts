@@ -7,8 +7,10 @@ vi.mock("../../env", () => ({ env: { SALT: "test-salt" } }));
 
 import {
   createApiKey,
+  createShaHash,
   formatSubmittedPublicKeyForLog,
   redactLangfuseSecretKeys,
+  verifySecretKey,
 } from "./apiKeys";
 import {
   ApiKeyId,
@@ -100,13 +102,16 @@ describe("createApiKey assignment rows", () => {
   function makeTx() {
     const assignments: Array<{
       orgId: string;
-      principalApiKeyId: string;
-      ownerOrgId?: string;
-      ownerProjectId?: string;
+      apiKeyId: string;
+      principalId: string;
+      ownerId: string;
+      roleId: string;
+      projectId: string | null;
       systemRole: string;
     }> = [];
     let apiKeyData: Record<string, unknown> = {};
     const tx = {
+      $queryRaw: vi.fn(async () => [{ id: "proj_1" }]),
       apiKey: {
         create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
           apiKeyData = data;
@@ -150,8 +155,11 @@ describe("createApiKey assignment rows", () => {
     expect(assignments).toEqual([
       {
         orgId: ORG_ID,
-        principalApiKeyId: KEY_ID,
-        ownerProjectId: "proj_1",
+        apiKeyId: KEY_ID,
+        principalId: ApiKeyId(KEY_ID),
+        ownerId: ProjectId("proj_1"),
+        roleId: SystemRoleId("VIEWER"),
+        projectId: "proj_1",
         systemRole: "VIEWER",
       },
     ]);
@@ -176,8 +184,11 @@ describe("createApiKey assignment rows", () => {
     expect(assignments).toEqual([
       {
         orgId: ORG_ID,
-        principalApiKeyId: KEY_ID,
-        ownerOrgId: ORG_ID,
+        apiKeyId: KEY_ID,
+        principalId: ApiKeyId(KEY_ID),
+        ownerId: OrganizationId(ORG_ID),
+        roleId: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        projectId: null,
         systemRole: "LEGACY_ORGANIZATION_API_KEY",
       },
     ]);
@@ -188,6 +199,25 @@ describe("createApiKey assignment rows", () => {
     expect(data.createdByUserId).toBeUndefined();
     // An organization owner resolves to itself; no project lookup is needed.
     expect(tx.project.findFirstOrThrow).not.toHaveBeenCalled();
+  });
+
+  it("stores the secret only as a fast hash, with a placeholder no bcrypt check accepts", async () => {
+    const { tx, getApiKeyData } = makeTx();
+
+    const result = await createApiKey(asTx(tx), {
+      owner: ProjectId("proj_1"),
+      role: SystemRoleId("VIEWER"),
+      createdBy: UserId("user_1"),
+    });
+
+    const data = getApiKeyData();
+    expect(data.fastHashedSecretKey).toBe(
+      createShaHash(result.secretKey, "test-salt"),
+    );
+    expect(data.hashedSecretKey).toMatch(/^unused:/);
+    expect(
+      await verifySecretKey(result.secretKey, data.hashedSecretKey as string),
+    ).toBe(false);
   });
 
   it.each(["legacy name", ""])(

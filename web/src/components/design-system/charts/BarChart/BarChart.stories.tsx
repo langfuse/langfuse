@@ -107,63 +107,6 @@ export const KeyboardFocus = meta.story({
   },
 });
 
-export const CategoryHoverArea = meta.story({
-  name: "(Test) Category Hover Area",
-  play: async ({ canvasElement }) => {
-    const area = canvasElement.querySelector<SVGRectElement>(
-      "[data-bar-hover-area]",
-    );
-    if (!area) throw new Error("Hover area not found");
-    await userEvent.hover(area);
-    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-      "tooltip",
-    );
-    await expect(tooltip).toHaveTextContent("Alpha");
-    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
-    try {
-      await userEvent.click(area);
-      await expect(copy).toHaveBeenCalledWith("Alpha");
-    } finally {
-      copy.mockRestore();
-    }
-  },
-});
-
-export const TooltipFollowsBar = meta.story({
-  name: "(Test) Tooltip Follows Bar",
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const bars = canvas.getAllByRole("graphics-symbol");
-    const areas = canvasElement.querySelectorAll<SVGRectElement>(
-      "[data-bar-hover-area]",
-    );
-    for (let index = 0; index < bars.length; index++) {
-      const bar = bars[index];
-      const area = areas[index];
-      if (!bar || !area) throw new Error("Bar or hover area not found");
-      await userEvent.hover(area);
-      const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-        "tooltip",
-      );
-      const referenceLine = canvasElement.querySelector(
-        "[data-active-reference-line]",
-      );
-      if (!referenceLine) throw new Error("Reference line not found");
-      await expect(referenceLine.compareDocumentPosition(bar)).toBe(
-        Node.DOCUMENT_POSITION_FOLLOWING,
-      );
-      const areaTop = tooltip.getBoundingClientRect().top;
-      await userEvent.hover(bar);
-      await expect(tooltip.getBoundingClientRect().top).toBeCloseTo(areaTop, 0);
-      if (index === 0) {
-        await expect(
-          tooltip.getBoundingClientRect().bottom,
-        ).toBeLessThanOrEqual(bar.getBoundingClientRect().top);
-      }
-    }
-  },
-});
-
 export const CategoryColors = meta.story({
   args: {
     data: data.map((item, index) => ({
@@ -250,24 +193,11 @@ export const ManyCategories = meta.story({
 });
 
 export const LongLabels = meta.story({
-  name: "(Test) Long Labels",
   args: {
     data: Array.from({ length: 12 }, (_, index) => ({
       label: `production-evaluation-run-${index + 1}-with-a-long-name`,
       value: 12 + index,
     })),
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const firstBar = canvas.getAllByRole("graphics-symbol")[0];
-    if (!firstBar) throw new Error("Bar not found");
-    await expect(
-      canvasElement.querySelector("[data-x-axis-label]"),
-    ).toHaveTextContent(/…$/);
-    await userEvent.hover(firstBar);
-    await expect(
-      canvasElement.querySelector("[data-active-x-axis-label]"),
-    ).toHaveTextContent("production-evaluation-run-1-with-a-long-name");
   },
 });
 

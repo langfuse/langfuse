@@ -12,6 +12,8 @@ import {
 
 const SESSION_TIMELINE_OVERSCAN = 5;
 const SESSION_TIMELINE_ANCHOR_RATIO = 0.2;
+const SESSION_TIMELINE_SCROLL_TIME_CONSTANT_MS = 80;
+const SESSION_TIMELINE_HIGHLIGHT_MS = 1_500;
 export type SessionConversationTimelineScrollTarget = {
   itemId?: string;
   traceId: string;
@@ -63,11 +65,18 @@ export function useSessionConversationTimelineController(
     fallbackOffset?: number;
   } | null>(null);
   const navigationCleanupRef = useRef<(() => void) | null>(null);
+  const highlightCleanupRef = useRef<(() => void) | null>(null);
   const latestTracesRef = useRef(traces);
   useLayoutEffect(() => {
     latestTracesRef.current = traces;
   }, [traces]);
-  useEffect(() => () => navigationCleanupRef.current?.(), []);
+  useEffect(
+    () => () => {
+      navigationCleanupRef.current?.();
+      highlightCleanupRef.current?.();
+    },
+    [],
+  );
 
   useEffect(() => {
     const feed = feedRef.current;
@@ -87,7 +96,14 @@ export function useSessionConversationTimelineController(
     return () => feed.removeEventListener("scroll", clearFallback);
   }, [feedRef, selection]);
 
-  const onSelect = (index: number, observationId?: string, rowId?: string) => {
+  const onSelect = (
+    index: number,
+    observationId?: string,
+    rowId?: string,
+    toolGroupId?: string,
+  ) => {
+    highlightCleanupRef.current?.();
+    highlightCleanupRef.current = null;
     navigationCleanupRef.current?.();
     navigationCleanupRef.current = null;
     setSelection(null);
@@ -103,6 +119,11 @@ export function useSessionConversationTimelineController(
     let previousTarget: number | undefined;
     let stableSince = performance.now();
     let previousScrollTop = feed.scrollTop;
+    let previousFrameTime = performance.now();
+    let highlightedTarget: HTMLElement | null = null;
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
     let stopped = false;
     const cleanup = () => {
       stopped = true;
@@ -115,6 +136,7 @@ export function useSessionConversationTimelineController(
     };
     const cancel = () => {
       cleanup();
+      highlightCleanupRef.current?.();
       navigationCleanupRef.current = null;
       feed.scrollTo({ top: feed.scrollTop, behavior: "instant" });
       setSelection(null);
@@ -158,6 +180,7 @@ export function useSessionConversationTimelineController(
       }
       if (currentIndex === -1) {
         cleanup();
+        highlightCleanupRef.current?.();
         navigationCleanupRef.current = null;
         setSelection(null);
         return;
@@ -184,13 +207,15 @@ export function useSessionConversationTimelineController(
             )
           : undefined;
       const mountedTarget = rowId || observationId ? row : entry;
-      row
-        ?.querySelectorAll<HTMLDetailsElement>(
-          "details[data-markdown-fallback]",
-        )
-        .forEach((fallback) => {
-          fallback.open = true;
-        });
+      const highlightTarget = toolGroupId
+        ? Array.from(
+            entry?.querySelectorAll<HTMLElement>(
+              "[data-session-tool-group-id]",
+            ) ?? [],
+          ).find(
+            (element) => element.dataset.sessionToolGroupId === toolGroupId,
+          )
+        : mountedTarget;
       const measurements = virtualizer.measurementsCache;
       const itemOffset = measurements[currentIndex]?.start;
       if (itemOffset === undefined) {
@@ -212,10 +237,57 @@ export function useSessionConversationTimelineController(
         endTransitionRatio: 0.2,
         viewportInset: viewportHeight * SESSION_TIMELINE_ANCHOR_RATIO,
       });
-      if (previousTarget === undefined || Math.abs(previousTarget - top) > 1) {
+      const targetChanged =
+        previousTarget === undefined || Math.abs(previousTarget - top) > 1;
+      if (targetChanged) {
         previousTarget = top;
         stableSince = performance.now();
-        feed.scrollTo({ top, behavior: "smooth" });
+      }
+      const now = performance.now();
+      const elapsed = Math.max(0, now - previousFrameTime);
+      previousFrameTime = now;
+      // Retarget each frame as virtual rows mount and resize, without restarting
+      // a browser smooth-scroll animation or relying on estimated row heights.
+      const distance = top - feed.scrollTop;
+      // Integer scroll positions would otherwise stall on subpixel steps.
+      const step = Math.min(
+        Math.abs(distance),
+        Math.max(
+          elapsed > 0 ? 1 : 0,
+          Math.abs(distance) *
+            (1 - Math.exp(-elapsed / SESSION_TIMELINE_SCROLL_TIME_CONSTANT_MS)),
+        ),
+      );
+      const nextTop =
+        reduceMotion || Math.abs(distance) <= 1
+          ? top
+          : feed.scrollTop + Math.sign(distance) * step;
+      if (reduceMotion ? targetChanged : nextTop !== feed.scrollTop) {
+        feed.scrollTo({ top: nextTop, behavior: "instant" });
+      }
+      if (highlightTarget && highlightTarget !== highlightedTarget) {
+        const targetBounds = highlightTarget.getBoundingClientRect();
+        const viewportTop = feed.getBoundingClientRect().top + feed.clientTop;
+        if (
+          targetBounds.bottom > viewportTop &&
+          targetBounds.top < viewportTop + feed.clientHeight
+        ) {
+          highlightCleanupRef.current?.();
+          highlightedTarget = highlightTarget;
+          highlightTarget.dataset.sessionNavigationHighlight = "";
+          const clearHighlight = () => {
+            highlightTarget.removeAttribute(
+              "data-session-navigation-highlight",
+            );
+            window.clearTimeout(highlightTimeout);
+            highlightCleanupRef.current = null;
+          };
+          const highlightTimeout = window.setTimeout(
+            clearHighlight,
+            SESSION_TIMELINE_HIGHLIGHT_MS,
+          );
+          highlightCleanupRef.current = clearHighlight;
+        }
       }
       if (
         virtualizer.isScrolling ||

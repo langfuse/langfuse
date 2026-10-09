@@ -1477,6 +1477,7 @@ export const getObservationMetricsForPrompts = async (
         : {}),
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.map((r) => ({

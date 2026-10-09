@@ -23,7 +23,7 @@ import {
   roleHasProjectPolicy,
 } from "../../features/rbac/systemRoleAccessRights";
 import { logger } from "../logger";
-import { assignRole } from "../../features/rbac/roleAssignmentRepository";
+import { assignRole } from "../../features/rbac/roleAssignmentService";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 import { withTransaction } from "../utils/withTransaction";
 
@@ -60,10 +60,20 @@ export function formatSubmittedPublicKeyForLog(value: string): string {
   );
 }
 
+/** hashSecretKey produces the legacy bcrypt form of keys created before the fast hash; verification backfills their fast hash on first use. */
 export async function hashSecretKey(key: string) {
-  // legacy, uses bcrypt, transformed into hashed key upon first use
   const hashedKey = await hash(key, 11);
   return hashedKey;
+}
+
+/**
+ * createLegacySecretKeyPlaceholder fills the legacy bcrypt column
+ * (hashedSecretKey) of a new key. New keys verify only through their fast
+ * hash, so the column holds a unique non-secret value that no bcrypt
+ * comparison matches.
+ */
+export function createLegacySecretKeyPlaceholder(): string {
+  return `unused:${randomUUID()}`;
 }
 
 export async function generateKeySet() {
@@ -151,7 +161,7 @@ export async function createApiKey(
       ? { orgId: untag(opts.owner) }
       : { projectId: untag(opts.owner) }),
     publicKey: pk,
-    hashedSecretKey: await hashSecretKey(sk),
+    hashedSecretKey: createLegacySecretKeyPlaceholder(),
     displaySecretKey: getDisplaySecretKey(sk),
     fastHashedSecretKey: createShaHash(sk, salt),
     note: name ?? note,

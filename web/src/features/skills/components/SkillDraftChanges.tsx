@@ -11,18 +11,21 @@ export function SkillDraftChanges({
   projectId,
   store,
   isFirstVersion,
+  comparisonVersion,
 }: {
   projectId: string;
   store: SkillEditorStore;
   isFirstVersion: boolean;
+  comparisonVersion?: number;
 }) {
   const [selectedPath, setSelectedPath] = useState<string>();
   const name = useStore(store, (state) => state.name);
   const baseVersion = useStore(store, (state) => state.baseVersion);
   const draftFiles = useStore(store, (state) => state.files);
-  const hasBaseVersion = !isFirstVersion && baseVersion !== null;
+  const version = comparisonVersion ?? baseVersion;
+  const hasBaseVersion = !isFirstVersion && version !== null;
   const base = api.skills.byName.useQuery(
-    { projectId, name, version: baseVersion ?? 1 },
+    { projectId, name, version: version ?? 1 },
     {
       enabled: hasBaseVersion,
       refetchOnWindowFocus: false,
@@ -70,7 +73,7 @@ export function SkillDraftChanges({
               : null
           }
           newFile={newFile}
-          oldLabel={hasBaseVersion ? `Version ${baseVersion}` : "New skill"}
+          oldLabel={hasBaseVersion ? `Version ${version}` : "New skill"}
           newLabel="Draft"
         />
       ) : null}

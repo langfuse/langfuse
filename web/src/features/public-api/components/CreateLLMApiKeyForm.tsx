@@ -12,7 +12,6 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
-  isDecisionModelAdapter,
   resolveTypeSafeUpstream,
   type TypeSafeUpstream,
 } from "@langfuse/shared";
@@ -826,9 +825,7 @@ export function CreateLLMApiKeyForm({
                   <SelectContent>
                     {adapterOptions.map((provider) => (
                       <SelectItem value={provider} key={provider}>
-                        {isDecisionModelAdapter(provider)
-                          ? `${provider} (experimental)`
-                          : provider}
+                        {provider}
                       </SelectItem>
                     ))}
                     {mode === "create" && (

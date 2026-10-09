@@ -1,73 +1,79 @@
 import { type ReactNode } from "react";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { useFitsAvailableWidth } from "@/src/hooks/useFitsAvailableWidth";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 
-import { TraceDetailTabMenu } from "./TraceDetailTabMenu";
 import type { DetailTab } from "../contexts/SelectionContext";
 
-/**
- * Tab bar for the trace and observation detail panels. Keeps the tab triggers
- * visible for as long as they fit next to the trailing controls and replaces
- * them with a dropdown once they stop fitting.
- *
- * Which tabs a panel shows depends on the trace, the project role, and the
- * enabled features, so the row is anywhere between two and five tabs wide. The
- * swap therefore follows the measured width of the triggers: a fixed panel
- * width would have to assume the widest tab set and would collapse the narrow
- * ones while there is still room for them.
- */
-export function TraceDetailTabsBarList({
-  tabs,
-  selectedTab,
-  onSelect,
-  triggers,
-  trailingControls,
-}: {
-  tabs: DetailTab[];
-  selectedTab: DetailTab;
-  onSelect: (tab: DetailTab) => void;
-  triggers: ReactNode;
-  trailingControls: ReactNode;
-}) {
-  const { availableRef, contentRef, fits } = useFitsAvailableWidth<
-    HTMLDivElement,
-    HTMLDivElement
-  >();
+const labels: Record<DetailTab, string> = {
+  preview: "Preview",
+  messages: "Messages",
+  attributes: "Attributes",
+  scores: "Scores",
+  log: "Log View",
+};
 
+const rowClassName = "flex h-9 shrink-0 items-center border-b";
+
+const LOADING_TAB_WIDTHS = ["w-14", "w-16", "w-12"];
+
+type TraceDetailTabsBarListProps = {
+  tabs: DetailTab[];
+  logViewDescription: string;
+  trailingControls: ReactNode;
+};
+
+/**
+ * Tab bar for the trace and observation detail panels. Which tabs a panel
+ * shows depends on the trace, the project role, and the enabled features, so
+ * the row is anywhere between two and five tabs wide; the ones that do not fit
+ * next to the trailing controls move behind an overflow menu.
+ */
+export function TraceDetailTabsBarList(
+  props: TraceDetailTabsBarListProps | { isLoading: true },
+) {
+  if ("isLoading" in props) return <TraceDetailTabsBarListLoading />;
+  return <LoadedTraceDetailTabsBarList {...props} />;
+}
+
+/** Label bars in trigger-sized slots, no menu; the view toggle as one block. */
+function TraceDetailTabsBarListLoading() {
   return (
-    <Tabs.List variant="underline">
-      {/* A zero flex basis makes this the row space left over by the trailing
-          controls, so the triggers are compared against the width they can
-          actually occupy without that width depending on them in turn. */}
-      <div
-        ref={availableRef}
-        className="relative flex h-full min-w-0 flex-1 items-center overflow-hidden"
-      >
-        {/* The triggers stay mounted while the dropdown is shown so their
-            natural width remains measurable and the row can come back once
-            there is room. Hiding them also takes them out of the tab order.
-            Until the first measurement neither presentation shows. */}
-        <div
-          ref={contentRef}
-          className={cn(
-            "flex h-full w-max shrink-0 items-center",
-            fits !== true && "invisible",
-            fits === false && "absolute",
-          )}
-        >
-          {triggers}
-        </div>
-        {fits === false && (
-          <TraceDetailTabMenu
-            tabs={tabs}
-            selectedTab={selectedTab}
-            onSelect={onSelect}
-          />
-        )}
+    <div className={rowClassName}>
+      <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+        {LOADING_TAB_WIDTHS.map((width) => (
+          <div key={width} className="px-4">
+            <Skeleton className={cn("h-3.5", width)} />
+          </div>
+        ))}
       </div>
+      <div className="h-fit shrink-0 py-0.5 pr-4 pl-2">
+        <Skeleton className="h-6 w-32 rounded-md" />
+      </div>
+    </div>
+  );
+}
+
+function LoadedTraceDetailTabsBarList({
+  tabs,
+  logViewDescription,
+  trailingControls,
+}: TraceDetailTabsBarListProps) {
+  return (
+    <div className={rowClassName}>
+      <Tabs.List variant="underline" overflow="menu" aria-label="Detail views">
+        {tabs.map((tab) => (
+          <Tabs.Trigger
+            key={tab}
+            value={tab}
+            label={labels[tab]}
+            internal={tab === "messages"}
+            tooltip={tab === "log" ? logViewDescription : undefined}
+          />
+        ))}
+      </Tabs.List>
       {trailingControls}
-    </Tabs.List>
+    </div>
   );
 }

@@ -9,6 +9,8 @@ import {
 } from "@langfuse/shared";
 
 import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";
+import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
 import { Badge } from "@/src/components/ui/badge";
 import { Label } from "@/src/components/ui/label";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
@@ -26,7 +28,6 @@ import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapp
 import { DecisionModelQuestionSummary } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelQuestionSummary/DecisionModelQuestionSummary";
 import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
 import { formatMappingLabel } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
-import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
 import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 
@@ -87,7 +88,9 @@ function CodeEvaluatorDefinitionView({
         <CodeBlock
           language={
             sourceCodeLanguage
-              ? sourceCodeLanguageLabel(sourceCodeLanguage).toLowerCase()
+              ? normalizeCodeblockLanguage(
+                  sourceCodeLanguageLabel(sourceCodeLanguage),
+                )
               : "text"
           }
           value={sourceCode ?? ""}
