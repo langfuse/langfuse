@@ -5,7 +5,7 @@ import {
   type ClickHouseClientConfigOptions,
   type ClickHouseSettings,
 } from "@clickhouse/client";
-import { sql, type Expression, type SqlBool } from "kysely";
+import { sql, type SqlBool } from "kysely";
 import type {
   EventsObservation,
   MetadataDomain,
@@ -1026,11 +1026,6 @@ export const getObservationByIdFromEventsTable = async ({
 const EVENTS_METADATA_MAP_SQL =
   "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))";
 
-/** `sql` fragments are compile-only; Kysely's operand types reject RawBuilder. */
-function lit<T>(fragment: ReturnType<typeof sql>): Expression<T> {
-  return fragment as unknown as Expression<T>;
-}
-
 /** ClickHouse DateTime64(3) binds stay strings; the column type is Date. */
 function dateTimeParam(value: string): Date {
   return value as unknown as Date;
@@ -1096,7 +1091,7 @@ const TRACE_AGGREGATION_SELECTS = [
   sql`min(created_at)`.as("created_at"),
   sql`max(updated_at)`.as("updated_at"),
   sql`sum(total_cost)`.as("total_cost"),
-  sql`date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))`.as(
+  sql`if(max(end_time) IS NULL, NULL, date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time))))`.as(
     "latency_milliseconds",
   ),
   sql`groupUniqArrayIf(span_id, span_id <> '')`.as("observation_ids"),
@@ -1152,19 +1147,15 @@ function compileHasAnyFromEventsTable(opts: {
 
   const query = db
     .selectFrom("events_core")
-    .select(sql`1` as never)
+    .select(sql<number>`1`.as("one"))
     .$if(opts.kind === "user", (qb) =>
-      qb
-        .where(lit<SqlBool>(sql`user_id IS NOT NULL`))
-        .where(lit<SqlBool>(sql`user_id != ''`)),
+      qb.where("user_id", "is not", null).where("user_id", "!=", ""),
     )
     .$if(opts.kind === "session", (qb) =>
-      qb
-        .where(lit<SqlBool>(sql`session_id IS NOT NULL`))
-        .where(lit<SqlBool>(sql`session_id != ''`)),
+      qb.where("session_id", "is not", null).where("session_id", "!=", ""),
     )
-    .where(lit<SqlBool>(sql`is_deleted = 0`))
-    .limit(lit<number>(sql`1`));
+    .where("is_deleted", "=", 0)
+    .limit(1);
 
   return compileClickhouseQuery(query, ctx);
 }
@@ -1227,8 +1218,8 @@ function compileTraceMetadataByIdsFromEvents(opts: {
       sql`e.user_id`.as("user_id"),
       sql`e.tags`.as("tags"),
     ])
-    .where(lit<SqlBool>(sql`${sql.raw(eventsTableTraceNameSql)} IS NOT NULL`))
-    .where(lit<SqlBool>(sql`e.is_deleted = 0`))
+    .where(sql<SqlBool>`${sql.raw(eventsTableTraceNameSql)} IS NOT NULL`)
+    .where("e.is_deleted", "=", 0)
     .where("e.trace_id", "in", opts.traceIds)
     .$call(limitBy({ count: 1, columns: ["e.trace_id"] }));
 
@@ -1286,9 +1277,7 @@ function compileObservationByIdFromEventsTable(opts: {
       qb.where(
         "start_time",
         ">=",
-        lit<Date>(
-          sql`${convertDateToClickhouseDateTime(startTimeLowerBound!)} - ${sql.raw(OBSERVATIONS_TO_TRACE_INTERVAL)}`,
-        ),
+        sql<Date>`${convertDateToClickhouseDateTime(startTimeLowerBound!)} - ${sql.raw(OBSERVATIONS_TO_TRACE_INTERVAL)}`,
       ),
     )
     .$if(type != null, (qb) => qb.where("type", "=", type!))
@@ -1337,13 +1326,11 @@ function compileTraceByIdFromEventsTable(opts: {
         inner.where(
           "start_time",
           ">=",
-          lit<Date>(
-            sql`${startTimeFrom} - ${sql.raw(OBSERVATIONS_TO_TRACE_INTERVAL)}`,
-          ),
+          sql<Date>`${startTimeFrom} - ${sql.raw(OBSERVATIONS_TO_TRACE_INTERVAL)}`,
         ),
       )
       .groupBy(["trace_id", "project_id"])
-      .orderBy(lit<Date>(sql`timestamp`), "desc");
+      .orderBy(sql`timestamp`, "desc");
   };
 
   const metadataSelect = excludeMetadata
@@ -1578,7 +1565,7 @@ export const hasAnyTraceFromEventsTable = async (
     kind: "trace",
   });
 
-  const rows = await queryClickhouse<{ 1: number }>({
+  const rows = await queryClickhouse<{ one: number }>({
     query,
     params,
     tags: { projectId },
@@ -3508,7 +3495,7 @@ export const hasAnyUserFromEventsTable = async (
     kind: "user",
   });
 
-  const rows = await queryClickhouse<{ 1: number }>({
+  const rows = await queryClickhouse<{ one: number }>({
     query,
     params,
     tags: { projectId },
@@ -3749,7 +3736,7 @@ export const hasAnySessionFromEventsTable = async (
     kind: "session",
   });
 
-  const rows = await queryClickhouse<{ 1: number }>({
+  const rows = await queryClickhouse<{ one: number }>({
     query,
     params,
     tags: { projectId },
