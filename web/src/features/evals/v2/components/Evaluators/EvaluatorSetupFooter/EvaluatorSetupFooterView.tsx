@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { ArrowRight, WandSparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { EvaluatorAssistantActionButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupFooter/components/EvaluatorAssistantActionButton/EvaluatorAssistantActionButton";
 import {
   Tooltip,
   TooltipContent,
@@ -60,16 +61,7 @@ export function EvaluatorSetupFooterView(props: EvaluatorSetupFooterViewProps) {
       ) : null}
       <div className="ml-auto flex w-full flex-wrap justify-end gap-2 sm:w-auto">
         {props.assistantAction ? (
-          <Button
-            type="button"
-            variant="outline"
-            disabled={props.assistantAction.disabled}
-            className="w-full gap-1.5 sm:w-auto"
-            onClick={props.assistantAction.onClick}
-          >
-            <WandSparkles className="icon-base" aria-hidden="true" />
-            {props.assistantAction.label}
-          </Button>
+          <EvaluatorAssistantActionButton {...props.assistantAction} />
         ) : null}
         <Button type="button" variant="outline" onClick={onClose}>
           {closeLabel}
