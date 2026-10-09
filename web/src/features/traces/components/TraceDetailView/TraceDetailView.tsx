@@ -392,20 +392,26 @@ function LoadedTraceDetailView({
                         </Tabs.List>
                       </Tabs>
                     </div>
-                    {/* Beta toggle - only show when JSON is selected and not in virtualized log view */}
-                    {selectedViewTab === "json" &&
-                      !(selectedTab === "log" && isLogViewVirtualized) && (
-                        <div className="mr-1 flex items-center gap-1.5">
-                          <Switch
-                            size="sm"
-                            checked={jsonBetaEnabled}
-                            onCheckedChange={handleBetaToggle}
-                          />
-                          <span className="text-muted-foreground text-xs">
-                            Beta
-                          </span>
-                        </div>
-                      )}
+                    {/* Stays mounted so the row keeps its width; the virtualized log has no Raw view. */}
+                    {selectedViewTab === "json" && (
+                      <div
+                        className={cn(
+                          "mr-1 flex items-center gap-1.5",
+                          selectedTab === "log" &&
+                            isLogViewVirtualized &&
+                            "invisible",
+                        )}
+                      >
+                        <Switch
+                          size="sm"
+                          checked={jsonBetaEnabled}
+                          onCheckedChange={handleBetaToggle}
+                        />
+                        <span className="text-muted-foreground text-xs">
+                          Beta
+                        </span>
+                      </div>
+                    )}
                   </div>
                 }
               />

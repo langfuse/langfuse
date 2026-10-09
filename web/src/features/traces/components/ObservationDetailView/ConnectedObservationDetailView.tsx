@@ -451,20 +451,26 @@ export function ConnectedObservationDetailView({
                       </Tabs.List>
                     </Tabs>
                   </div>
-                  {selectedViewTab === "json" &&
-                    selectedTab !== "attributes" &&
-                    !(selectedTab === "log" && isLogViewVirtualized) && (
-                      <div className="mr-1 flex items-center gap-1.5">
-                        <Switch
-                          size="sm"
-                          checked={jsonBetaEnabled}
-                          onCheckedChange={handleBetaToggle}
-                        />
-                        <span className="text-muted-foreground text-xs">
-                          Beta
-                        </span>
-                      </div>
-                    )}
+                  {/* Stays mounted so the row keeps its width; attributes and the virtualized log have no Beta view. */}
+                  {selectedViewTab === "json" && (
+                    <div
+                      className={cn(
+                        "mr-1 flex items-center gap-1.5",
+                        (selectedTab === "attributes" ||
+                          (selectedTab === "log" && isLogViewVirtualized)) &&
+                          "invisible",
+                      )}
+                    >
+                      <Switch
+                        size="sm"
+                        checked={jsonBetaEnabled}
+                        onCheckedChange={handleBetaToggle}
+                      />
+                      <span className="text-muted-foreground text-xs">
+                        Beta
+                      </span>
+                    </div>
+                  )}
                 </div>
               }
             />
