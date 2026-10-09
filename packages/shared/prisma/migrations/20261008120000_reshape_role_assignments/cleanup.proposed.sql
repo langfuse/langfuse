@@ -1,5 +1,6 @@
 -- Apply in a later release after old replicas drain and their rollback window closes.
 -- Move this proposal into a new timestamped migration.sql; Prisma does not run it here.
+-- Remove the deprecated fields, relations, and indexes from schema.prisma in that release.
 BEGIN;
 
 LOCK TABLE "role_assignments" IN ACCESS EXCLUSIVE MODE;
