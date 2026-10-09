@@ -13,6 +13,7 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { api } from "@/src/utils/api";
 import { useSessionTraceTranscripts } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
 import { getSessionConversationEntries } from "./components/ConnectedSessionConversationTimeline/fns/getSessionConversationEntries";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 
 const SIDEBAR_TRACE_CHUNK_SIZE = 20;
 const EMPTY_TRACES: EventSessionTrace[] = [];
@@ -49,6 +50,19 @@ export function ConnectedModernSessionBodyTimeline({
     false,
   );
   const utils = api.useUtils();
+  const isAuthenticatedAndProjectMember =
+    useIsAuthenticatedAndProjectMember(projectId);
+  const activeVisualizations = api.customVisualizations.active.useQuery(
+    { projectId },
+    {
+      enabled: isAuthenticatedAndProjectMember,
+      refetchOnWindowFocus: false,
+    },
+  );
+  const sessionVisualizations =
+    activeVisualizations.data?.filter(
+      ({ definition }) => definition.placement.surface === "SESSION",
+    ) ?? [];
   const [collapsedTraceIds, setCollapsedTraceIds] = useState<Set<string>>(
     new Set(),
   );
@@ -99,6 +113,7 @@ export function ConnectedModernSessionBodyTimeline({
     projectId,
     traces: traces.map((trace, index) => ({ trace, turnNumber: index + 1 })),
     activeTraceIds: activeTranscriptTraceIds,
+    includeVisualizationObservations: sessionVisualizations.length > 0,
   });
   const allTranscriptsLoaded =
     tracesState.type === "loaded" &&
@@ -249,6 +264,7 @@ export function ConnectedModernSessionBodyTimeline({
       controller={timelineController}
       resultsByTraceId={resultsByTraceId}
       scrollTarget={scrollTarget}
+      visualizations={sessionVisualizations}
     />
   );
 }

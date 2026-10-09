@@ -3,11 +3,12 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import {
   ArrowLeft,
-  ArrowRight,
   Braces,
   ChartNoAxesCombined,
   Check,
+  ChevronDown,
   Code2,
+  Eye,
   FlaskConical,
   Play,
   Save,
@@ -30,6 +31,15 @@ import {
 } from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Badge } from "@/src/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { VisualizationFilterTokens } from "./VisualizationFilterTokens";
 import { api, sendAsPostOption } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
@@ -54,6 +64,7 @@ const DEFAULT_PROMPT =
 
 type ComparisonMode = "compare" | "default" | "visualized";
 type RendererPreference = "auto" | VisualizationDefinition["renderer"]["kind"];
+type StudioSection = "applies" | "placement" | "visualization";
 
 const contextFilters = (query: Record<string, unknown>): FilterState => {
   const source = typeof query.source === "string" ? query.source : "";
@@ -176,29 +187,17 @@ const matchRuleSummary = (filters: FilterState) => {
       const value = Array.isArray(filter.value)
         ? filter.value.join(", ")
         : String(filter.value ?? "");
+      if (
+        filter.operator === "=" ||
+        (filter.operator === "any of" &&
+          Array.isArray(filter.value) &&
+          filter.value.length === 1)
+      ) {
+        return `${filter.column}:${value}`;
+      }
       return `${filter.column} ${filter.operator} ${value}`;
     })
     .join(" · ");
-};
-
-const audienceSummary = (filters: FilterState) => {
-  if (filters.length === 0) return "Every observation";
-  const type = filters.find((filter) => filter.column === "type")?.value;
-  const name = filters.find((filter) => filter.column === "name")?.value;
-  const isRoot = filters.find(
-    (filter) => filter.column === "isRootObservation",
-  )?.value;
-  if (Array.isArray(type) && type.length === 1 && type[0] === "TOOL") {
-    return name ? `Tool calls named “${String(name)}”` : "Tool calls";
-  }
-  if (name) return `Observations named “${String(name)}”`;
-  if (isRoot === true) return "Root observations";
-  if (Array.isArray(type) && type.length === 1) {
-    return `${String(type[0]).toLowerCase()} observations`;
-  }
-  return `Observations matching ${filters.length} ${
-    filters.length === 1 ? "condition" : "conditions"
-  }`;
 };
 
 const describeShape = (value: unknown, depth = 0): unknown => {
@@ -459,12 +458,13 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
   const [savedDefinition, setSavedDefinition] = useState<string | null>(() =>
     props.mode === "edit" ? JSON.stringify(props.initialDefinition) : null,
   );
-  const [draftReady, setDraftReady] = useState(
-    () =>
-      props.mode === "edit" ||
-      routeContext.source === "trace" ||
-      routeContext.source === "observation",
+  const [draftReady, setDraftReady] = useState(() => props.mode === "edit");
+  const [openSections, setOpenSections] = useState<StudioSection[]>(() =>
+    props.mode === "edit" ? ["visualization"] : ["applies", "visualization"],
   );
+  const [previewExamplePickerOpen, setPreviewExamplePickerOpen] =
+    useState(false);
+  const [liveExamplePickerOpen, setLiveExamplePickerOpen] = useState(false);
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [comparisonMode, setComparisonMode] =
     useState<ComparisonMode>("compare");
@@ -508,6 +508,34 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
       filter.operator === "=" &&
       filter.value === true,
   );
+  const defaultMatch = api.events.listCursor.useQuery(
+    {
+      projectId,
+      filter: [
+        ...browseFilters,
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: ">=",
+          value: timeRange.from,
+        },
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: "<",
+          value: timeRange.to,
+        },
+      ],
+      searchQuery: null,
+      searchType: [],
+      limit: 1,
+    },
+    {
+      enabled: !selectedObservation,
+      refetchOnWindowFocus: false,
+    },
+  );
+  const firstMatchingObservation = defaultMatch.data?.observations[0];
 
   const selectedIO = api.events.batchIO.useQuery(
     {
@@ -808,6 +836,7 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
   const updateSource = (
     source: "TRACE" | "OBSERVATION_INPUT" | "OBSERVATION_OUTPUT",
   ) => {
+    if (source === definition.binding.source) return;
     if (source === "TRACE") {
       if (!canVisualizeTrace) {
         toast.info(
@@ -968,24 +997,29 @@ root.append(ui.stack([
         );
       }
       toast.success(`Generated version ${result.version}`);
+      return true;
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Could not generate version",
       );
+      return false;
     }
   };
 
   const handleGenerate = () => generateFromPrompt(prompt);
   const handleAutoGenerate = () => {
+    const additionalDirection = prompt.trim()
+      ? `\n\nUser direction: ${prompt.trim()}`
+      : "";
     if (definition.binding.source === "TRACE") {
       return generateFromPrompt(
-        "Analyze this whole trace structure and generate the most useful visualization for understanding its sequence, observation mix, latency, tool activity, errors, and outputs. Choose a renderer that fits the actual fields instead of producing generic HTML.",
+        `Analyze this whole trace structure and generate the most useful visualization for understanding its sequence, observation mix, latency, tool activity, errors, and outputs. Choose a renderer that fits the actual fields instead of producing generic HTML.${additionalDirection}`,
       );
     }
     const field =
       definition.binding.source === "OBSERVATION_INPUT" ? "input" : "output";
     return generateFromPrompt(
-      `Analyze this observation ${field} structure and generate the clearest visualization for understanding this data inside a session. Choose the renderer and hierarchy based on the actual shape.`,
+      `Analyze this observation ${field} structure and generate the clearest visualization for understanding this data inside a session. Choose the renderer and hierarchy based on the actual shape.${additionalDirection}`,
     );
   };
 
@@ -1026,7 +1060,6 @@ root.append(ui.stack([
   }
 
   const sourceLabel = bindingLabel(definition.binding.source);
-  const targetAudience = audienceSummary(browseFilters);
   const isTraceSurface = definition.placement.surface === "TRACE";
   const draftStatus = (() => {
     if (!draftReady) return "Not generated";
@@ -1056,7 +1089,7 @@ root.append(ui.stack([
     if (!draftReady) {
       return (
         <div className="text-muted-foreground flex min-h-[360px] flex-col items-center justify-center gap-2 p-8 text-center text-sm">
-          <Sparkles className="h-5 w-5" />
+          <Sparkles className="icon-lg" />
           <span>No visualization generated for this surface yet.</span>
         </div>
       );
@@ -1081,9 +1114,6 @@ root.append(ui.stack([
       />
     );
   })();
-  const generationButtonLabel = generateVersion.isPending
-    ? "Generating…"
-    : "Generate version";
   const generationModelLabel = generationModel.data
     ? `${generationModel.data.provider} / ${generationModel.data.modelId}`
     : "Instance model unavailable";
@@ -1095,10 +1125,8 @@ root.append(ui.stack([
     ? "preparing representative examples…"
     : `${generationExamples.length} data examples · ${generationReferences.length} saved references`;
   const rendererPicker = (
-    <label className="flex min-w-40 flex-col gap-1">
-      <span className="text-muted-foreground text-[10px] font-bold uppercase">
-        Renderer
-      </span>
+    <label className="flex min-w-0 flex-col gap-1">
+      <span className="text-muted-foreground text-xs font-bold">Renderer</span>
       <Select
         value={rendererPreference}
         onValueChange={(value) =>
@@ -1118,93 +1146,84 @@ root.append(ui.stack([
       </Select>
     </label>
   );
-  const generationPanel = !draftReady ? (
-    <div className="bg-muted/15 border-b p-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="max-w-2xl">
-          <div className="flex items-center gap-2 text-sm font-bold">
-            <Sparkles className="text-primary h-4 w-4" />
-            Generate a visualization from this example
-          </div>
-          <p className="text-muted-foreground mt-1 text-xs">
-            Langfuse studies this example, representative filter matches, and
-            relevant saved views to choose a useful story and renderer.
-          </p>
-        </div>
-        <div className="flex items-end gap-2">
-          {rendererPicker}
-          <Button
-            className="h-9 shrink-0"
-            onClick={handleAutoGenerate}
-            disabled={
-              !selectedObservation ||
-              !generationModel.data ||
-              generationContextPending ||
-              generateVersion.isPending
-            }
-          >
-            <WandSparkles className="mr-2 h-4 w-4" />
-            {generateVersion.isPending
-              ? "Generating visualization…"
-              : "Generate visualization"}
-          </Button>
-        </div>
-      </div>
-      <div className="text-muted-foreground mt-1.5 text-[10px]">
-        {generationModelLabel} · {generationContextLabel}
-      </div>
-    </div>
-  ) : (
-    <div className="bg-muted/15 border-b p-4">
-      <div className="mb-2 flex items-center gap-2">
-        <Sparkles className="text-primary h-4 w-4" />
-        <div>
-          <h2 className="text-sm font-bold">
-            Describe what should change below
-          </h2>
-          <p className="text-muted-foreground text-xs">
-            The next version uses bounded input/output samples from this filter
-            and relevant saved views. Samples are sent to the configured project
-            model.
-          </p>
-        </div>
-      </div>
-      <div className="flex items-end gap-3">
-        <Textarea
-          className="ph-no-capture min-h-16 flex-1"
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
-          rows={2}
-        />
-        {rendererPicker}
-        <Button
-          className="h-9 shrink-0"
-          onClick={handleGenerate}
-          disabled={
-            !selectedObservation ||
-            !generationModel.data ||
-            generationContextPending ||
-            generateVersion.isPending
-          }
+  const generationDisabled =
+    !selectedObservation ||
+    !generationModel.data ||
+    generationContextPending ||
+    generateVersion.isPending;
+  const effectiveComparisonMode = draftReady ? comparisonMode : "default";
+  const generationDialog = (
+    <DialogController
+      renderDialog={({ closeDialog }) => (
+        <Dialog
+          title={draftReady ? "Refine visualization" : "Generate visualization"}
+          actions={[
+            {
+              label: draftReady ? "Generate version" : "Generate",
+              icon: WandSparkles,
+              loading: generateVersion.isPending,
+              disabled: generationDisabled,
+              onClick: async () => {
+                const generated = draftReady
+                  ? await handleGenerate()
+                  : await handleAutoGenerate();
+                if (generated) closeDialog();
+              },
+            },
+          ]}
         >
-          <WandSparkles className="mr-2 h-4 w-4" />
-          {generationButtonLabel}
+          <Dialog.Body>
+            <div>
+              <label htmlFor="visualization-prompt" className="font-bold">
+                What should it show?
+              </label>
+              <p className="text-muted-foreground mt-1 text-xs">
+                We use the selected example, other filter matches, and relevant
+                saved visualizations to infer a useful view.
+              </p>
+              <Textarea
+                id="visualization-prompt"
+                className="ph-no-capture mt-3 min-h-28"
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                rows={4}
+              />
+            </div>
+            {rendererPicker}
+            <p className="text-muted-foreground text-xs">
+              {generationModelLabel} · {generationContextLabel}
+            </p>
+          </Dialog.Body>
+        </Dialog>
+      )}
+    >
+      {({ openDialog }) => (
+        <Button onClick={() => openDialog()} disabled={!selectedObservation}>
+          <WandSparkles className="icon-base mr-2" />
+          {draftReady ? "Refine" : "Generate"}
         </Button>
-      </div>
-      <div className="text-muted-foreground mt-1.5 text-[10px]">
-        {generationModelLabel} · {generationContextLabel}
-      </div>
-    </div>
+      )}
+    </DialogController>
   );
 
   return (
     <div className="bg-muted/15 flex min-h-full flex-col">
+      <div
+        hidden
+        ref={
+          !selectedObservation && firstMatchingObservation
+            ? (element) => {
+                if (element) setSelectedObservation(firstMatchingObservation);
+              }
+            : undefined
+        }
+      />
       <header className="bg-background sticky top-0 z-20 border-b px-5 py-3 md:px-8">
-        <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-4">
+        <div className="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <Button asChild variant="ghost" size="icon">
               <Link href={`/project/${projectId}/visualizations`}>
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="icon-base" />
                 <span className="sr-only">Back to visualizations</span>
               </Link>
             </Button>
@@ -1221,21 +1240,69 @@ root.append(ui.stack([
                   ? "New visualization"
                   : "Edit visualization"}
               </h1>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-muted-foreground hidden text-sm sm:block">
                 Choose where it appears, then design it with a real example.
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2">
             <Badge variant={isDirty ? "secondary" : "outline"}>
               {draftStatus}
             </Badge>
+            <Popover
+              open={liveExamplePickerOpen}
+              onOpenChange={setLiveExamplePickerOpen}
+            >
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  disabled={!selectedStoredVisualization?.activeVersion}
+                  title={
+                    selectedStoredVisualization?.activeVersion
+                      ? "Choose a matching example to open with the live visualization"
+                      : "Publish a version before previewing it live"
+                  }
+                >
+                  <Eye className="icon-base mr-2" />
+                  See live
+                  <ChevronDown className="icon-base ml-1" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                className="w-[min(34rem,calc(100vw-2rem))] p-4"
+              >
+                <div className="mb-3">
+                  <div className="text-sm font-bold">Preview live on</div>
+                  <p className="text-muted-foreground text-xs">
+                    Choose a matching observation to open in Langfuse.
+                  </p>
+                </div>
+                <div className="h-[min(50vh,420px)] overflow-hidden [&>div]:h-full">
+                  <EvaluatorSampleObservationSelector
+                    projectId={projectId}
+                    timeRange={timeRange}
+                    selectedObservationId={selectedObservation?.id ?? null}
+                    filterState={browseFilters}
+                    onFilterStateChange={updateMatchFilters}
+                    onSelect={setSelectedObservation}
+                    onActivate={(observation) => {
+                      setLiveExamplePickerOpen(false);
+                      openExampleContext(observation);
+                    }}
+                    onOpenTrace={openExampleContext}
+                    displayMode="compact-list"
+                    sections="matches"
+                  />
+                </div>
+              </PopoverContent>
+            </Popover>
             <Button
               variant="outline"
               onClick={handleSave}
               disabled={!draftReady || saveVersion.isPending}
             >
-              <Save className="mr-2 h-4 w-4" /> Save version
+              <Save className="icon-base mr-2" /> Save version
             </Button>
             <Button
               onClick={handlePublish}
@@ -1249,363 +1316,472 @@ root.append(ui.stack([
                 isDirty ? "Save this draft before publishing it" : undefined
               }
             >
-              <Play className="mr-2 h-4 w-4" />
+              <Play className="icon-base mr-2" />
               {isLive ? "Live" : "Publish version"}
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto grid w-full max-w-[1800px] gap-5 p-5 xl:grid-cols-[360px_minmax(0,1fr)] xl:p-6">
-        <aside className="min-h-0 xl:sticky xl:top-[86px] xl:h-[calc(100vh-108px)]">
-          <Card className="flex h-full min-h-[520px] flex-col overflow-hidden p-4">
-            <div className="mb-4">
-              <div className="text-muted-foreground text-[11px] font-bold tracking-wide uppercase">
-                1 · Applies to
-              </div>
-              <h2 className="mt-1 text-base font-bold">{targetAudience}</h2>
-              <p className="text-muted-foreground mt-1 text-xs">
-                Filter the observations that should receive this visualization.
-                Select any result to test it.
-              </p>
-              <div className="bg-muted/25 mt-3 flex items-center gap-2 rounded-md border px-3 py-2 text-xs">
-                <span className="font-bold">{targetAudience}</span>
-                <ArrowRight className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-                <span className="text-muted-foreground">{sourceLabel}</span>
-              </div>
-            </div>
-            <div className="min-h-0 flex-1 overflow-hidden [&>div]:h-full">
-              <EvaluatorSampleObservationSelector
-                projectId={projectId}
-                timeRange={timeRange}
-                selectedObservationId={selectedObservation?.id ?? null}
-                filterState={browseFilters}
-                onFilterStateChange={updateMatchFilters}
-                onSelect={setSelectedObservation}
-                onOpenTrace={openExampleContext}
-                displayMode="compact-list"
+      <main className="mx-auto w-full max-w-5xl p-4 md:p-8">
+        <div className="space-y-8">
+          <Card className="p-5 md:p-6">
+            <div className="min-w-0 space-y-1">
+              <Input
+                value={definition.title}
+                onChange={(event) =>
+                  updateDefinition({ ...definition, title: event.target.value })
+                }
+                className="h-auto border-0 px-0 text-xl font-bold shadow-none focus-visible:ring-0"
               />
+              <Input
+                value={definition.summary}
+                onChange={(event) =>
+                  updateDefinition({
+                    ...definition,
+                    summary: event.target.value,
+                  })
+                }
+                className="text-muted-foreground h-auto border-0 px-0 text-sm shadow-none focus-visible:ring-0"
+              />
+              <p className="text-muted-foreground pt-1 text-xs">
+                {selectedStoredVisualization?.activeVersion
+                  ? `Live v${selectedStoredVisualization.activeVersion.version} remains unchanged until you publish another version.`
+                  : "Nothing is shown to viewers until you publish a saved version."}
+              </p>
             </div>
           </Card>
-        </aside>
 
-        <div className="min-w-0 space-y-5">
-          <Card className="overflow-hidden">
-            <div className="border-b p-5">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <Input
-                    value={definition.title}
-                    onChange={(event) =>
-                      updateDefinition({
-                        ...definition,
-                        title: event.target.value,
-                      })
-                    }
-                    className="h-auto border-0 px-0 text-xl font-bold shadow-none focus-visible:ring-0"
-                  />
-                  <Input
-                    value={definition.summary}
-                    onChange={(event) =>
-                      updateDefinition({
-                        ...definition,
-                        summary: event.target.value,
-                      })
-                    }
-                    className="text-muted-foreground h-auto border-0 px-0 text-sm shadow-none focus-visible:ring-0"
-                  />
-                </div>
-                <div className="text-muted-foreground bg-muted/20 max-w-xs rounded-lg border px-3 py-2 text-xs">
-                  {selectedStoredVisualization?.activeVersion
-                    ? `Live v${selectedStoredVisualization.activeVersion.version} stays unchanged while you edit.`
-                    : "Nothing is visible to viewers until you publish a saved version."}
-                </div>
-              </div>
-            </div>
-
-            <div className="border-b p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-muted-foreground mb-1 text-[11px] font-bold tracking-wide uppercase">
-                    2 · Appears in
-                  </div>
-                  <div className="text-sm font-bold">{sourceLabel}</div>
-                  <div className="text-muted-foreground mt-1 flex items-center gap-2 text-xs">
-                    <span>Testing with</span>
-                    <div className="flex items-center gap-2 text-sm font-bold">
-                      {selectedObservation ? (
-                        <ItemBadge
-                          type={selectedObservation.type as LangfuseItemType}
-                          isSmall
+          <Accordion
+            type="multiple"
+            gap="lg"
+            value={openSections}
+            onValueChange={(value) => setOpenSections(value as StudioSection[])}
+          >
+            <Card className="overflow-hidden [&>div]:border-b-0">
+              <Accordion.Item value="applies">
+                <div className="px-5 md:px-6">
+                  <Accordion.Trigger>
+                    <div className="min-w-0 flex-1 py-3 text-left">
+                      <div className="text-muted-foreground text-xs font-normal">
+                        1 · Applies to
+                      </div>
+                      {!openSections.includes("applies") ? (
+                        <VisualizationFilterTokens
+                          filters={browseFilters}
+                          entity={definition.match.entity}
                         />
                       ) : null}
-                      <span
-                        className="truncate"
-                        title={
-                          selectedObservation?.name ?? "No example selected"
-                        }
+                    </div>
+                  </Accordion.Trigger>
+                  <Accordion.Content>
+                    <div className="space-y-6 pt-3 pb-6">
+                      <EvaluatorSampleObservationSelector
+                        projectId={projectId}
+                        timeRange={timeRange}
+                        selectedObservationId={selectedObservation?.id ?? null}
+                        filterState={browseFilters}
+                        onFilterStateChange={updateMatchFilters}
+                        onSelect={setSelectedObservation}
+                        onOpenTrace={openExampleContext}
+                        displayMode="compact-list"
+                        sections="filters"
+                      />
+                      <div>
+                        <div className="h-[min(45vh,420px)] min-h-64 overflow-hidden [&>div]:h-full">
+                          <EvaluatorSampleObservationSelector
+                            projectId={projectId}
+                            timeRange={timeRange}
+                            selectedObservationId={
+                              selectedObservation?.id ?? null
+                            }
+                            filterState={browseFilters}
+                            onFilterStateChange={updateMatchFilters}
+                            onSelect={setSelectedObservation}
+                            onOpenTrace={openExampleContext}
+                            displayMode="compact-list"
+                            sections="matches"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </Accordion.Content>
+                </div>
+              </Accordion.Item>
+            </Card>
+
+            <Card className="overflow-hidden [&>div]:border-b-0">
+              <Accordion.Item value="placement">
+                <div className="px-5 md:px-6">
+                  <Accordion.Trigger>
+                    <div className="min-w-0 flex-1 py-3 text-left">
+                      <div className="text-muted-foreground text-xs font-normal">
+                        2 · Appears in
+                      </div>
+                      <div
+                        className="mt-1 truncate text-sm font-bold"
+                        title={sourceLabel}
                       >
-                        {selectedObservation?.name ?? "No example selected"}
-                      </span>
-                      {selectedObservation ? (
-                        <span
-                          className="text-muted-foreground truncate text-xs font-normal"
-                          title={
-                            selectedObservation.traceName ??
-                            selectedObservation.traceId ??
-                            undefined
-                          }
-                        >
-                          in{" "}
-                          {selectedObservation.traceName ??
-                            selectedObservation.traceId}
-                        </span>
+                        {sourceLabel}
+                      </div>
+                    </div>
+                  </Accordion.Trigger>
+                  <Accordion.Content>
+                    <div className="space-y-5 pt-3 pb-6">
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {(
+                          [
+                            ["OBSERVATION_INPUT", "Session input"],
+                            ["OBSERVATION_OUTPUT", "Session output"],
+                            ["TRACE", "Trace data"],
+                          ] as const
+                        ).map(([source, label]) => {
+                          const selected = definition.binding.source === source;
+                          const disabled =
+                            source === "TRACE" &&
+                            !canVisualizeTrace &&
+                            definition.binding.source !== "TRACE";
+                          return (
+                            <button
+                              key={source}
+                              type="button"
+                              onClick={() => updateSource(source)}
+                              disabled={disabled}
+                              className={`rounded-lg border p-4 text-left transition-colors ${
+                                selected
+                                  ? "border-primary bg-primary/5 ring-primary/20 ring-1"
+                                  : "hover:bg-muted/40"
+                              } disabled:cursor-not-allowed disabled:opacity-40`}
+                            >
+                              <span className="block text-sm font-bold">
+                                {label}
+                              </span>
+                              <span className="text-muted-foreground mt-1 block text-xs">
+                                {source === "TRACE"
+                                  ? "A dedicated trace detail view"
+                                  : `Inserted after the observation ${source === "OBSERVATION_INPUT" ? "input" : "output"}`}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {!canVisualizeTrace && !isTraceSurface ? (
+                        <p className="text-muted-foreground text-xs">
+                          Trace data becomes available when the filter matches
+                          root observations.
+                        </p>
                       ) : null}
                     </div>
-                  </div>
+                  </Accordion.Content>
                 </div>
-                <div className="bg-muted/20 flex rounded-lg border p-1">
-                  {(
-                    [
-                      ["OBSERVATION_INPUT", "Session · input"],
-                      ["OBSERVATION_OUTPUT", "Session · output"],
-                      ["TRACE", "Trace data"],
-                    ] as const
-                  ).map(([source, label]) => (
-                    <button
-                      key={source}
-                      type="button"
-                      onClick={() => updateSource(source)}
-                      disabled={
-                        source === "TRACE" &&
-                        !canVisualizeTrace &&
-                        definition.binding.source !== "TRACE"
-                      }
-                      title={
-                        source === "TRACE" && !canVisualizeTrace
-                          ? "Choose the Root spans example filter first"
-                          : undefined
-                      }
-                      className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${
-                        definition.binding.source === source
-                          ? "bg-background shadow-sm"
-                          : "text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {!canVisualizeTrace && !isTraceSurface ? (
-                <p className="text-muted-foreground mt-2 text-right text-[10px]">
-                  Whole-trace views are available after filtering examples to
-                  Root spans.
-                </p>
-              ) : null}
-            </div>
+              </Accordion.Item>
+            </Card>
 
-            {generationPanel}
-
-            <div className="p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-bold">Preview</div>
-                  <div className="text-muted-foreground text-xs">
-                    Both panes update from the selected example.
-                  </div>
-                </div>
-                <div className="bg-muted/20 flex rounded-lg border p-1">
-                  {(["compare", "default", "visualized"] as const).map(
-                    (mode) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => setComparisonMode(mode)}
-                        className={`rounded-md px-3 py-1.5 text-xs capitalize transition-colors ${
-                          comparisonMode === mode
-                            ? "bg-background font-bold shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {mode}
-                      </button>
-                    ),
-                  )}
-                </div>
-              </div>
-
-              <div
-                className={`grid gap-3 ${
-                  comparisonMode === "compare"
-                    ? "lg:grid-cols-2"
-                    : "grid-cols-1"
-                }`}
-              >
-                {comparisonMode !== "visualized" ? (
-                  <section className="bg-background overflow-hidden rounded-xl border">
-                    <div className="flex items-center justify-between border-b px-4 py-2.5">
-                      <div>
-                        <div className="text-xs font-bold">Default</div>
-                        <div className="text-muted-foreground text-[11px]">
-                          {defaultSurfaceDescription}
-                        </div>
+            <Card className="overflow-hidden [&>div]:border-b-0">
+              <Accordion.Item value="visualization">
+                <div className="px-5 md:px-6">
+                  <Accordion.Trigger>
+                    <div className="min-w-0 flex-1 py-3 text-left">
+                      <div className="text-muted-foreground text-xs font-normal">
+                        3 · Visualization
                       </div>
-                      <Badge variant="outline">{sourceLabel}</Badge>
-                    </div>
-                    {defaultSurfacePreview}
-                  </section>
-                ) : null}
-
-                {comparisonMode !== "default" ? (
-                  <section className="ph-no-capture bg-background overflow-hidden rounded-xl border">
-                    <div className="flex items-center justify-between border-b px-4 py-2.5">
-                      <div>
-                        <div className="text-xs font-bold">Visualized</div>
-                        <div className="text-muted-foreground text-[11px]">
-                          {visualizedSurfaceDescription}
-                        </div>
-                      </div>
-                      <Badge variant="outline">
-                        {rendererLabel(definition)}
-                      </Badge>
-                    </div>
-                    {visualizedSurfacePreview}
-                  </section>
-                ) : null}
-              </div>
-            </div>
-          </Card>
-
-          <Card className="divide-y overflow-hidden">
-            {selectedStoredVisualization ? (
-              <details>
-                <summary className="flex cursor-pointer list-none items-center justify-between p-4">
-                  <span>
-                    <span className="text-sm font-bold">Version history</span>
-                    <span className="text-muted-foreground mt-0.5 block text-xs">
-                      Published versions stay unchanged while you create a new
-                      one.
-                    </span>
-                  </span>
-                  <Badge variant="outline">
-                    {selectedStoredVisualization.versions.length}
-                  </Badge>
-                </summary>
-                <div className="flex flex-wrap gap-2 border-t p-4">
-                  {selectedStoredVisualization.versions.map((version) => {
-                    const parsed = VisualizationDefinitionSchema.safeParse(
-                      version.definition,
-                    );
-                    if (!parsed.success) return null;
-                    const live =
-                      selectedStoredVisualization.activeVersionId ===
-                      version.id;
-                    return (
-                      <Button
-                        key={version.id}
-                        type="button"
-                        variant={
-                          selectedVersionId === version.id
-                            ? "secondary"
-                            : "outline"
-                        }
-                        size="sm"
-                        onClick={() =>
-                          selectDefinition(
-                            parsed.data,
-                            selectedStoredVisualization.id,
-                            version.id,
-                          )
+                      <div
+                        className="mt-1 truncate text-sm font-bold"
+                        title={
+                          draftReady
+                            ? `${rendererLabel(definition)} · ${draftStatus}`
+                            : "Ready to generate"
                         }
                       >
-                        v{version.version}
-                        {live ? " · live" : ""}
-                      </Button>
-                    );
-                  })}
-                </div>
-              </details>
-            ) : null}
+                        {draftReady
+                          ? `${rendererLabel(definition)} · ${draftStatus}`
+                          : "Ready to generate"}
+                      </div>
+                    </div>
+                  </Accordion.Trigger>
+                  <Accordion.Content>
+                    <div className="space-y-5 pt-3 pb-6">
+                      <div>
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <h2 className="text-sm font-bold">Preview</h2>
+                            <p className="text-muted-foreground text-xs">
+                              {draftReady
+                                ? "Compare this version with the current Langfuse view."
+                                : "Start from the current Langfuse view."}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <Popover
+                              open={previewExamplePickerOpen}
+                              onOpenChange={setPreviewExamplePickerOpen}
+                            >
+                              <PopoverTrigger asChild>
+                                <Button variant="outline">
+                                  {selectedObservation ? (
+                                    <ItemBadge
+                                      type={
+                                        selectedObservation.type as LangfuseItemType
+                                      }
+                                      isSmall
+                                    />
+                                  ) : null}
+                                  <span
+                                    className="max-w-48 truncate"
+                                    title={
+                                      selectedObservation?.name ??
+                                      "Choose example"
+                                    }
+                                  >
+                                    {selectedObservation?.name ??
+                                      "Choose example"}
+                                  </span>
+                                  <ChevronDown className="icon-base ml-1" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                align="end"
+                                className="w-[min(34rem,calc(100vw-2rem))] p-4"
+                              >
+                                <div className="mb-3">
+                                  <div className="text-sm font-bold">
+                                    Choose example
+                                  </div>
+                                  <p className="text-muted-foreground text-xs">
+                                    Matching observations from the rule above.
+                                  </p>
+                                </div>
+                                <div className="h-[min(50vh,420px)] overflow-hidden [&>div]:h-full">
+                                  <EvaluatorSampleObservationSelector
+                                    projectId={projectId}
+                                    timeRange={timeRange}
+                                    selectedObservationId={
+                                      selectedObservation?.id ?? null
+                                    }
+                                    filterState={browseFilters}
+                                    onFilterStateChange={updateMatchFilters}
+                                    onSelect={setSelectedObservation}
+                                    onActivate={(observation) => {
+                                      setSelectedObservation(observation);
+                                      setPreviewExamplePickerOpen(false);
+                                    }}
+                                    onOpenTrace={openExampleContext}
+                                    displayMode="compact-list"
+                                    sections="matches"
+                                  />
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                            {draftReady ? (
+                              <div className="bg-muted/20 flex rounded-lg border p-1">
+                                {(
+                                  ["compare", "default", "visualized"] as const
+                                ).map((mode) => (
+                                  <button
+                                    key={mode}
+                                    type="button"
+                                    onClick={() => setComparisonMode(mode)}
+                                    className={`rounded-md px-3 py-1.5 text-xs capitalize transition-colors ${
+                                      effectiveComparisonMode === mode
+                                        ? "bg-background font-bold shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                                  >
+                                    {mode}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
+                            {generationDialog}
+                          </div>
+                        </div>
 
-            <details>
-              <summary className="flex cursor-pointer list-none items-center justify-between p-4">
-                <span>
-                  <span className="text-sm font-bold">Renderer</span>
-                  <span className="text-muted-foreground mt-0.5 block text-xs">
-                    Choose the execution model for this draft.
-                  </span>
-                </span>
-                <Badge variant="outline">{rendererLabel(definition)}</Badge>
-              </summary>
-              <div className="flex flex-wrap gap-2 border-t p-4">
-                {(
-                  [
-                    ["template", Braces, "Template"],
-                    ["chart", ChartNoAxesCombined, "Chart"],
-                    ["react", Code2, "React lab"],
-                    ["shader", FlaskConical, "Three / shader lab"],
-                  ] as const
-                ).map(([kind, Icon, label]) => (
-                  <Button
-                    key={kind}
-                    type="button"
-                    variant={
-                      definition.renderer.kind === kind ? "default" : "outline"
-                    }
-                    size="sm"
-                    onClick={() => applyRenderer(kind)}
-                  >
-                    <Icon className="mr-2 h-3.5 w-3.5" /> {label}
-                  </Button>
-                ))}
-              </div>
-            </details>
+                        <div
+                          className={`grid gap-3 ${
+                            effectiveComparisonMode === "compare"
+                              ? "lg:grid-cols-2"
+                              : "grid-cols-1"
+                          }`}
+                        >
+                          {effectiveComparisonMode !== "visualized" ? (
+                            <section className="bg-background overflow-hidden rounded-xl border">
+                              <div className="flex items-center justify-between border-b px-4 py-2.5">
+                                <div>
+                                  <div className="text-xs font-bold">
+                                    Default
+                                  </div>
+                                  <div className="text-muted-foreground text-[11px]">
+                                    {defaultSurfaceDescription}
+                                  </div>
+                                </div>
+                                <Badge variant="outline">{sourceLabel}</Badge>
+                              </div>
+                              {defaultSurfacePreview}
+                            </section>
+                          ) : null}
 
-            <details>
-              <summary className="flex cursor-pointer list-none items-center justify-between p-4">
-                <span>
-                  <span className="text-sm font-bold">Edit definition</span>
-                  <span className="text-muted-foreground mt-0.5 block text-xs">
-                    Manually edit applicability, placement, binding, and
-                    renderer.
-                  </span>
-                </span>
-                <Badge variant="outline">Advanced</Badge>
-              </summary>
-              <div className="space-y-3 border-t p-4">
-                <Textarea
-                  className="ph-no-capture font-mono text-xs"
-                  rows={24}
-                  value={rawDefinition}
-                  onChange={(event) => setRawDefinition(event.target.value)}
-                />
-                <div className="flex justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      try {
-                        const parsed = VisualizationDefinitionSchema.parse(
-                          JSON.parse(rawDefinition),
-                        );
-                        setDefinition(parsed);
-                        setBrowseFilters(parsed.match.filters);
-                        toast.success("Definition applied to this draft");
-                      } catch (error) {
-                        toast.error(
-                          error instanceof Error
-                            ? error.message
-                            : "Invalid definition",
-                        );
-                      }
-                    }}
-                  >
-                    <Check className="mr-2 h-4 w-4" /> Apply definition
-                  </Button>
+                          {draftReady &&
+                          effectiveComparisonMode !== "default" ? (
+                            <section className="ph-no-capture bg-background overflow-hidden rounded-xl border">
+                              <div className="flex items-center justify-between border-b px-4 py-2.5">
+                                <div>
+                                  <div className="text-xs font-bold">
+                                    Visualized
+                                  </div>
+                                  <div className="text-muted-foreground text-[11px]">
+                                    {visualizedSurfaceDescription}
+                                  </div>
+                                </div>
+                                <Badge variant="outline">
+                                  {rendererLabel(definition)}
+                                </Badge>
+                              </div>
+                              {visualizedSurfacePreview}
+                            </section>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <details className="rounded-lg border">
+                        <summary className="flex cursor-pointer list-none items-center justify-between p-4">
+                          <span className="text-sm font-bold">Advanced</span>
+                          <Badge variant="outline">
+                            {rendererLabel(definition)}
+                          </Badge>
+                        </summary>
+                        <div className="space-y-6 border-t p-4">
+                          {selectedStoredVisualization ? (
+                            <section className="space-y-3">
+                              <div>
+                                <h3 className="text-sm font-bold">Versions</h3>
+                                <p className="text-muted-foreground text-xs">
+                                  Saved versions are immutable.
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedStoredVisualization.versions.map(
+                                  (version) => {
+                                    const parsed =
+                                      VisualizationDefinitionSchema.safeParse(
+                                        version.definition,
+                                      );
+                                    if (!parsed.success) return null;
+                                    const live =
+                                      selectedStoredVisualization.activeVersionId ===
+                                      version.id;
+                                    return (
+                                      <Button
+                                        key={version.id}
+                                        type="button"
+                                        variant={
+                                          selectedVersionId === version.id
+                                            ? "secondary"
+                                            : "outline"
+                                        }
+                                        size="sm"
+                                        onClick={() =>
+                                          selectDefinition(
+                                            parsed.data,
+                                            selectedStoredVisualization.id,
+                                            version.id,
+                                          )
+                                        }
+                                      >
+                                        v{version.version}
+                                        {live ? " · live" : ""}
+                                      </Button>
+                                    );
+                                  },
+                                )}
+                              </div>
+                            </section>
+                          ) : null}
+
+                          <section className="space-y-3">
+                            <h3 className="text-sm font-bold">Renderer</h3>
+                            <div className="flex flex-wrap gap-2">
+                              {(
+                                [
+                                  ["template", Braces, "Template"],
+                                  ["chart", ChartNoAxesCombined, "Chart"],
+                                  ["react", Code2, "React lab"],
+                                  [
+                                    "shader",
+                                    FlaskConical,
+                                    "Three / shader lab",
+                                  ],
+                                ] as const
+                              ).map(([kind, Icon, label]) => (
+                                <Button
+                                  key={kind}
+                                  type="button"
+                                  variant={
+                                    definition.renderer.kind === kind
+                                      ? "default"
+                                      : "outline"
+                                  }
+                                  size="sm"
+                                  onClick={() => applyRenderer(kind)}
+                                >
+                                  <Icon className="icon-base mr-2" /> {label}
+                                </Button>
+                              ))}
+                            </div>
+                          </section>
+
+                          <section className="space-y-3">
+                            <div>
+                              <h3 className="text-sm font-bold">Definition</h3>
+                              <p className="text-muted-foreground text-xs">
+                                Edit matching, placement, data binding, and
+                                renderer directly.
+                              </p>
+                            </div>
+                            <Textarea
+                              className="ph-no-capture font-mono text-xs"
+                              rows={20}
+                              value={rawDefinition}
+                              onChange={(event) =>
+                                setRawDefinition(event.target.value)
+                              }
+                            />
+                            <div className="flex justify-end">
+                              <Button
+                                variant="outline"
+                                onClick={() => {
+                                  try {
+                                    const parsed =
+                                      VisualizationDefinitionSchema.parse(
+                                        JSON.parse(rawDefinition),
+                                      );
+                                    setDefinition(parsed);
+                                    setBrowseFilters(parsed.match.filters);
+                                    setDraftReady(true);
+                                    toast.success(
+                                      "Definition applied to this draft",
+                                    );
+                                  } catch (error) {
+                                    toast.error(
+                                      error instanceof Error
+                                        ? error.message
+                                        : "Invalid definition",
+                                    );
+                                  }
+                                }}
+                              >
+                                <Check className="icon-base mr-2" /> Apply
+                                definition
+                              </Button>
+                            </div>
+                          </section>
+                        </div>
+                      </details>
+                    </div>
+                  </Accordion.Content>
                 </div>
-              </div>
-            </details>
-          </Card>
+              </Accordion.Item>
+            </Card>
+          </Accordion>
         </div>
       </main>
     </div>

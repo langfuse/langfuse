@@ -446,6 +446,7 @@ export const eventsRouter = createTRPCRouter({
         traceId: zodSchema.string(),
         timestamp: zodSchema.date().optional(),
         fallbackToRootIO: zodSchema.boolean().default(false),
+        includeVisualizationObservations: zodSchema.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -494,6 +495,8 @@ export const eventsRouter = createTRPCRouter({
             traceId: input.traceId,
             timestamp,
             fallbackToRootIO: input.fallbackToRootIO,
+            includeVisualizationObservations:
+              input.includeVisualizationObservations,
           });
         },
       );

@@ -13,6 +13,7 @@ import {
   VisualizationDefinitionSchema,
   type VisualizationDefinition,
 } from "../types";
+import { VisualizationFilterTokens } from "./VisualizationFilterTokens";
 
 const filterValue = (filters: FilterState, column: string) =>
   filters.find((filter) => filter.column === column)?.value;
@@ -56,29 +57,6 @@ const rendererLabel = (definition: VisualizationDefinition) =>
     react: "Interactive",
     shader: "Three / shader",
   })[definition.renderer.kind];
-
-const filterTokens = (
-  filters: FilterState,
-  entity: VisualizationDefinition["match"]["entity"],
-) => {
-  if (filters.length === 0) {
-    return entity === "TRACE"
-      ? [{ column: "isRootObservation", syntax: ":", value: "true" }]
-      : [{ column: "all", syntax: ":", value: "observations" }];
-  }
-  return filters.map((filter) => {
-    const value = Array.isArray(filter.value)
-      ? filter.value.join(",")
-      : String(filter.value ?? "");
-    let syntax: string = filter.operator;
-    if (filter.operator === "=" || filter.operator === "any of") syntax = ":";
-    if (filter.operator === "<>" || filter.operator === "none of") {
-      syntax = "!:";
-    }
-    if (filter.operator === "contains") syntax = "~";
-    return { column: filter.column, syntax, value };
-  });
-};
 
 function VisualizationCard({
   projectId,
@@ -133,25 +111,16 @@ function VisualizationCard({
           <Link
             href={`/project/${projectId}/visualizations/${visualization.id}`}
           >
-            <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+            <Pencil className="icon-base mr-2" /> Edit
           </Link>
         </Button>
       </div>
 
-      <div className="mt-4 flex min-h-8 flex-wrap items-center gap-1.5">
-        {filterTokens(definition.match.filters, definition.match.entity).map(
-          (token) => (
-            <span
-              key={`${token.column}-${token.syntax}-${token.value}`}
-              className="bg-muted/40 rounded-md px-2 py-1 font-mono text-xs"
-            >
-              <span className="text-primary">{token.column}</span>
-              <span className="text-muted-foreground">{token.syntax}</span>
-              <span className="text-emerald-400">{token.value}</span>
-            </span>
-          ),
-        )}
-      </div>
+      <VisualizationFilterTokens
+        filters={definition.match.filters}
+        entity={definition.match.entity}
+        variant="card"
+      />
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
         <div>
@@ -216,7 +185,7 @@ export function VisualizationLibrary({ projectId }: { projectId: string }) {
     if (visualizations.data?.length === 0) {
       return (
         <Card className="flex min-h-72 flex-col items-center justify-center p-8 text-center">
-          <Sparkles className="text-muted-foreground h-6 w-6" />
+          <Sparkles className="text-muted-foreground icon-lg" />
           <h2 className="mt-4 font-bold">No visualizations yet</h2>
           <p className="text-muted-foreground mt-1 max-w-sm text-sm">
             Start with a real trace or observation. AI will propose a focused
@@ -234,7 +203,7 @@ export function VisualizationLibrary({ projectId }: { projectId: string }) {
       <div className="space-y-9">
         <section>
           <div className="mb-3 flex items-center gap-2">
-            <Eye className="h-4 w-4" />
+            <Eye className="icon-base" />
             <h2 className="font-bold">Live</h2>
             <Badge variant="outline">{live.length}</Badge>
           </div>
@@ -259,7 +228,7 @@ export function VisualizationLibrary({ projectId }: { projectId: string }) {
         {notLive.length > 0 ? (
           <section>
             <div className="mb-3 flex items-center gap-2">
-              <Layers3 className="h-4 w-4" />
+              <Layers3 className="icon-base" />
               <h2 className="font-bold">Not live</h2>
               <Badge variant="outline">{notLive.length}</Badge>
             </div>
@@ -289,7 +258,7 @@ export function VisualizationLibrary({ projectId }: { projectId: string }) {
         </div>
         <Button asChild>
           <Link href={`/project/${projectId}/visualizations/new`}>
-            <Plus className="mr-2 h-4 w-4" /> New visualization
+            <Plus className="icon-base mr-2" /> New visualization
           </Link>
         </Button>
       </div>

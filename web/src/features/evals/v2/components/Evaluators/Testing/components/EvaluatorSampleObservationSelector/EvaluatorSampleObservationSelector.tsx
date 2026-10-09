@@ -35,8 +35,10 @@ export function EvaluatorSampleObservationSelector({
   filterState,
   onFilterStateChange,
   onSelect,
+  onActivate,
   onOpenTrace,
   displayMode = "table",
+  sections = "all",
 }: {
   projectId: string;
   timeRange: AbsoluteTimeRange | null;
@@ -44,8 +46,10 @@ export function EvaluatorSampleObservationSelector({
   filterState: FilterState;
   onFilterStateChange: (filters: FilterState) => void;
   onSelect: (observation: SampleObservation | null) => void;
+  onActivate?: (observation: SampleObservation) => void;
   onOpenTrace: (observation: SampleObservation) => void;
   displayMode?: "table" | "compact-list";
+  sections?: "all" | "filters" | "matches";
 }) {
   const selectionGroupName = useId();
   const leadingColumns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
@@ -97,6 +101,7 @@ export function EvaluatorSampleObservationSelector({
       registry={EVALUATOR_FIELD_REGISTRY}
       selectedObservationId={selectedObservationId}
       onSelect={onSelect}
+      onActivate={onActivate}
       onOpenTrace={onOpenTrace}
       leadingColumns={leadingColumns}
       resolveSelection={resolveSelection}
@@ -124,6 +129,7 @@ export function EvaluatorSampleObservationSelector({
       }
       mapObservedOptions={preserveObservedOptions}
       displayMode={displayMode}
+      sections={sections}
     />
   );
 }

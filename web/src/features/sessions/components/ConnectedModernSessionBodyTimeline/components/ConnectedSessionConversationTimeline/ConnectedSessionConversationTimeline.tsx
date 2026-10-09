@@ -7,6 +7,7 @@ import {
 } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { type SessionTraceTranscriptState } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
+import { type RouterOutputs } from "@/src/utils/api";
 
 export type ConnectedSessionConversationTimelineItem = {
   trace: EventSessionTrace;
@@ -33,6 +34,7 @@ export function ConnectedSessionConversationTimeline(
     controller: SessionConversationTimelineController;
     resultsByTraceId: ReadonlyMap<string, SessionTraceTranscriptState>;
     scrollTarget: SessionConversationTimelineScrollTarget | null;
+    visualizations: RouterOutputs["customVisualizations"]["active"];
   },
 ) {
   const { traces, openPeek, controller, resultsByTraceId, scrollTarget } =
@@ -65,6 +67,11 @@ export function ConnectedSessionConversationTimeline(
             openPeek(trace.id, { ...trace, observationId }),
           scrollTarget:
             scrollTarget?.traceId === trace.id ? scrollTarget : null,
+          visualizations: props.visualizations,
+          visualizationObservations:
+            result?.state === "loaded"
+              ? (result.visualizationObservations ?? [])
+              : [],
         };
       })}
       controller={controller}

@@ -41,7 +41,30 @@ export async function loadTraceTranscript(trace: {
   timestamp: Date;
   /** Use root observation I/O when no generation/tool transcript exists. */
   fallbackToRootIO?: boolean;
-}): Promise<{ transcript: SessionTranscript | null; cutoff: boolean }> {
+  /** Return the hydrated observations needed to match and render custom session views. */
+  includeVisualizationObservations?: boolean;
+}): Promise<{
+  transcript: SessionTranscript | null;
+  /** The trace has more observations than the transcript could read. */
+  cutoff: boolean;
+  visualizationObservations?: Array<{
+    id: string;
+    traceId: string | null;
+    parentObservationId: string | null;
+    name: string | null;
+    type: string;
+    environment: string;
+    level: string;
+    input: unknown;
+    output: unknown;
+    metadata: unknown;
+    startTime: Date;
+    endTime: Date | null;
+    statusMessage: string | null;
+  }>;
+}> {
+  // The structure of every observation orders the walk; only generations and
+  // tools carry I/O, which is what the transcript reads.
   const [structure, content] = await Promise.all([
     getObservationsForTraceFromEventsTable(trace),
     getObservationsForTraceFromEventsTable({
@@ -142,6 +165,23 @@ export async function loadTraceTranscript(trace: {
     cutoff:
       structure.totalCount > MAX_OBSERVATIONS_PER_TRACE ||
       content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS,
+    visualizationObservations: trace.includeVisualizationObservations
+      ? content.observations.map((observation) => ({
+          id: observation.id,
+          traceId: observation.traceId,
+          parentObservationId: observation.parentObservationId,
+          name: observation.name,
+          type: observation.type,
+          environment: observation.environment,
+          level: observation.level,
+          input: observation.input,
+          output: observation.output,
+          metadata: observation.metadata,
+          startTime: observation.startTime,
+          endTime: observation.endTime,
+          statusMessage: observation.statusMessage,
+        }))
+      : undefined,
   };
 }
 

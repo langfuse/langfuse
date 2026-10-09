@@ -6,6 +6,7 @@ import { cn } from "@/src/utils/tailwind";
 import { SessionTranscriptContent } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/SessionTranscriptContent";
 import { type SessionTraceTranscriptState } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
+import { type RouterOutputs } from "@/src/utils/api";
 
 type PreparedSessionConversationTimelineTraceState =
   | { type: "loading" }
@@ -26,6 +27,8 @@ export function SessionConversationTimelineTrace({
   itemId,
   threadIndex,
   displayNumber,
+  visualizations,
+  visualizationObservations,
 }: {
   itemId?: string;
   threadIndex?: number;
@@ -43,6 +46,13 @@ export function SessionConversationTimelineTrace({
     rowId?: string;
     requestId: number;
   } | null;
+  visualizations: RouterOutputs["customVisualizations"]["active"];
+  visualizationObservations: NonNullable<
+    Extract<
+      SessionTraceTranscriptState,
+      { state: "loaded" }
+    >["visualizationObservations"]
+  >;
 }) {
   const hiddenThreadCount =
     state.type === "transcript"
@@ -161,6 +171,8 @@ export function SessionConversationTimelineTrace({
           onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}
           threadIndex={threadIndex}
+          visualizations={visualizations}
+          visualizationObservations={visualizationObservations}
         />
       )}
     </div>

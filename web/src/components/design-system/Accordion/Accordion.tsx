@@ -10,6 +10,7 @@ const accordionVariants = cva("", {
     gap: {
       none: "",
       sm: "space-y-2",
+      lg: "space-y-6",
     },
   },
   defaultVariants: {
