@@ -22,7 +22,6 @@ import {
   MonitorWebhookQueueEventSchema,
 } from "../features/monitors/scheduler/types";
 import { ProjectNotificationWebhookQueueEventSchema } from "./notifications/types";
-import { CodeEvalScoreSchema } from "./evals/codeEvalDispatcherTypes";
 
 export type { MonitorQueueEvent, MonitorQueueEventInput };
 
@@ -179,13 +178,6 @@ export const ObservationEvalExecutionEventSchema = z.object({
   variableMapping: observationVariableMappingList.optional(),
 });
 
-export const EvaluatorResultQueueEventSchema = z.object({
-  projectId: z.string(),
-  evaluatorId: z.string(),
-  upstreamJobExecutionId: z.string(),
-  observationS3Path: z.string(),
-  scores: z.array(CodeEvalScoreSchema).min(1),
-});
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
@@ -367,9 +359,6 @@ export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
 export type ObservationEvalExecutionEventType = z.infer<
   typeof ObservationEvalExecutionEventSchema
 >;
-export type EvaluatorResultQueueEventType = z.infer<
-  typeof EvaluatorResultQueueEventSchema
->;
 export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
 export type OtelIngestionEventQueueType = z.infer<typeof OtelIngestionEvent>;
 export type ExperimentCreateEventType = z.infer<
@@ -414,7 +403,6 @@ export enum QueueName {
   EvaluationExecutionSecondaryQueue = "secondary-evaluation-execution-queue", // Separates high-throughput eval projects from other projects.
   LLMAsJudgeExecution = "llm-as-a-judge-execution-queue", // Observation-based LLM-as-judge eval execution
   CodeEvalExecution = "code-eval-execution-queue", // Observation-based code eval execution
-  EvaluatorResult = "evaluator-result-queue",
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
   OtelIngestionQueue = "otel-ingestion-queue",
@@ -460,7 +448,6 @@ export enum QueueJobs {
   EvaluationExecution = "evaluation-execution-job",
   LLMAsJudgeExecution = "llm-as-a-judge-execution-job",
   CodeEvalExecution = "code-eval-execution-job",
-  EvaluatorResult = "evaluator-result-job",
   BatchExportJob = "batch-export-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
   CloudSpendAlertJob = "cloud-spend-alert-job",
@@ -626,12 +613,6 @@ export type TQueueJobTypes = {
     payload: ObservationEvalExecutionEventType;
     name: QueueJobs.CodeEvalExecution;
     retryBaggage?: RetryBaggage;
-  };
-  [QueueName.EvaluatorResult]: {
-    timestamp: Date;
-    id: string;
-    payload: EvaluatorResultQueueEventType;
-    name: QueueJobs.EvaluatorResult;
   };
   [QueueName.BatchExport]: {
     timestamp: Date;

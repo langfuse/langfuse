@@ -14,7 +14,6 @@ import {
   llmAsJudgeExecutionQueueProcessorBuilder,
 } from "./queues/evalQueue";
 import { codeEvalExecutionQueueProcessorBuilder } from "./queues/codeEvalQueue";
-import { evaluatorResultQueueProcessor } from "./queues/evaluatorResultQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { drainAndClose, onShutdown } from "./utils/shutdown";
 import { installProcessErrorHandlers } from "@langfuse/shared/src/server";
@@ -335,19 +334,6 @@ if (env.QUEUE_CONSUMER_CODE_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
       },
     );
   });
-}
-
-if (
-  env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true" ||
-  env.QUEUE_CONSUMER_CODE_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true"
-) {
-  WorkerManager.register(
-    QueueName.EvaluatorResult,
-    evaluatorResultQueueProcessor,
-    {
-      concurrency: 10,
-    },
-  );
 }
 
 if (env.QUEUE_CONSUMER_EVAL_EXECUTION_SECONDARY_QUEUE_IS_ENABLED === "true") {

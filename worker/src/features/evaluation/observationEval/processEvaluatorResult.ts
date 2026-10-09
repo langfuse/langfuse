@@ -1,45 +1,49 @@
-import {
-  EvaluatorResultQueueEventSchema,
-  type EvaluatorResultQueueEventType,
-} from "@langfuse/shared/src/server";
-import { observationForEvalSchema } from "@langfuse/shared";
+import type { ObservationForEval } from "@langfuse/shared";
+import type { CodeEvalScoreWithName } from "@langfuse/shared/src/server";
 
-import { getEvalS3StorageClient } from "../s3StorageClient";
 import { createObservationEvalSchedulerDeps } from "./createSchedulerDeps";
 import { fetchScoreResultEvalRules } from "./fetchScoreResultEvalRules";
 import { scheduleScoreResultEvals } from "./scheduleScoreResultEvals";
 
 type ProcessEvaluatorResultDeps = {
-  downloadObservation: (path: string) => Promise<string>;
   fetchRules: typeof fetchScoreResultEvalRules;
-  scheduleEvals: typeof scheduleScoreResultEvals;
+  scheduleEvals: (params: {
+    observation: ObservationForEval;
+    scores: CodeEvalScoreWithName[];
+    rules: Awaited<ReturnType<typeof fetchScoreResultEvalRules>>;
+    upstreamJobExecutionId: string;
+  }) => Promise<void>;
 };
 
 const productionDeps: ProcessEvaluatorResultDeps = {
-  downloadObservation: async (path) => getEvalS3StorageClient().download(path),
   fetchRules: fetchScoreResultEvalRules,
-  scheduleEvals: scheduleScoreResultEvals,
+  scheduleEvals: async (params) =>
+    scheduleScoreResultEvals({
+      ...params,
+      schedulerDeps: createObservationEvalSchedulerDeps(),
+    }),
 };
 
 export async function processEvaluatorResult(
-  input: EvaluatorResultQueueEventType,
+  input: {
+    projectId: string;
+    evaluatorId: string;
+    upstreamJobExecutionId: string;
+    observation: ObservationForEval;
+    scores: CodeEvalScoreWithName[];
+  },
   deps: ProcessEvaluatorResultDeps = productionDeps,
 ) {
-  const event = EvaluatorResultQueueEventSchema.parse(input);
   const rules = await deps.fetchRules({
-    projectId: event.projectId,
-    evaluatorId: event.evaluatorId,
+    projectId: input.projectId,
+    evaluatorId: input.evaluatorId,
   });
   if (rules.length === 0) return;
 
-  const observation = observationForEvalSchema.parse(
-    JSON.parse(await deps.downloadObservation(event.observationS3Path)),
-  );
   await deps.scheduleEvals({
-    observation,
-    scores: event.scores,
+    observation: input.observation,
+    scores: input.scores,
     rules,
-    upstreamJobExecutionId: event.upstreamJobExecutionId,
-    schedulerDeps: createObservationEvalSchedulerDeps(),
+    upstreamJobExecutionId: input.upstreamJobExecutionId,
   });
 }

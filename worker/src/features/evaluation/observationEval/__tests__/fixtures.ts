@@ -31,8 +31,8 @@ type MockProcessorDeps = ObservationEvalProcessorDeps & {
     ObservationEvalProcessorDeps["downloadObservationFromS3"]
   >;
   evalExecutionDeps: EvalExecutionDeps;
-  scheduleEvaluatorResultRules: Mock<
-    NonNullable<ObservationEvalProcessorDeps["scheduleEvaluatorResultRules"]>
+  processEvaluatorResultRules: Mock<
+    NonNullable<ObservationEvalProcessorDeps["processEvaluatorResultRules"]>
   >;
 };
 
@@ -177,8 +177,8 @@ export function createMockProcessorDeps(
       ObservationEvalProcessorDeps["downloadObservationFromS3"]
     >;
     evalExecutionDeps: EvalExecutionDeps;
-    scheduleEvaluatorResultRules: Mock<
-      NonNullable<ObservationEvalProcessorDeps["scheduleEvaluatorResultRules"]>
+    processEvaluatorResultRules: Mock<
+      NonNullable<ObservationEvalProcessorDeps["processEvaluatorResultRules"]>
     >;
   }> = {},
 ): MockProcessorDeps {
@@ -192,12 +192,12 @@ export function createMockProcessorDeps(
         .mockResolvedValue(JSON.stringify(defaultObservation)),
     evalExecutionDeps:
       overrides.evalExecutionDeps ?? createMockEvalExecutionDeps(),
-    scheduleEvaluatorResultRules:
-      overrides.scheduleEvaluatorResultRules ??
+    processEvaluatorResultRules:
+      overrides.processEvaluatorResultRules ??
       vi
         .fn<
           NonNullable<
-            ObservationEvalProcessorDeps["scheduleEvaluatorResultRules"]
+            ObservationEvalProcessorDeps["processEvaluatorResultRules"]
           >
         >()
         .mockResolvedValue(undefined),
@@ -420,7 +420,7 @@ export function createFullyMockedEvalPipeline(
         return JSON.stringify(observation);
       }),
     evalExecutionDeps: executionDeps,
-    scheduleEvaluatorResultRules: vi.fn().mockResolvedValue(undefined),
+    processEvaluatorResultRules: vi.fn().mockResolvedValue(undefined),
   };
 
   return {

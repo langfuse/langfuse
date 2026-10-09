@@ -165,7 +165,6 @@ export * from "./prismaErrors";
 export * from "./redis/evalExecutionQueue";
 export * from "./redis/llmAsJudgeExecutionQueue";
 export * from "./redis/codeEvalExecutionQueue";
-export * from "./redis/evaluatorResultQueue";
 export * from "./services/sessions-ui-table-service";
 export * from "./services/sessions-ui-table-events-service";
 export * from "./services/DashboardService";

@@ -1031,10 +1031,10 @@ describe("processObservationEval", () => {
           executionTraceId: mockEvalExecutionResult.executionTraceId,
         }),
       });
-      expect(deps.scheduleEvaluatorResultRules).toHaveBeenCalledWith({
+      expect(deps.processEvaluatorResultRules).toHaveBeenCalledWith({
         projectId,
         evaluatorId: expect.any(String),
-        observationS3Path: baseEvent.observationS3Path,
+        observation,
         scores: mockEvalExecutionResult.scores,
         upstreamJobExecutionId: jobExecutionId,
       });

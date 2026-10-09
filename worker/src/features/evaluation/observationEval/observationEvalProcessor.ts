@@ -2,13 +2,9 @@ import { z } from "zod";
 import {
   DEFAULT_TRACE_ENVIRONMENT,
   ObservationEvalExecutionEventSchema,
-  EvaluatorResultQueue,
-  QueueJobs,
-  QueueName,
   extractObservationVariables,
   logger,
   recordIncrement,
-  type CodeEvalScoreWithName,
 } from "@langfuse/shared/src/server";
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
@@ -41,6 +37,7 @@ import { runLLMAsJudgeEvaluation } from "../evalService";
 import { executeCodeBasedEvaluation } from "../codeBased";
 import { runDecisionModelEvaluation } from "../decisionModel/runDecisionModelEvaluation";
 import { getEvalS3StorageClient } from "../s3StorageClient";
+import { processEvaluatorResult } from "./processEvaluatorResult";
 import { type ObservationForEval } from "./types";
 
 /**
@@ -50,13 +47,7 @@ import { type ObservationForEval } from "./types";
 export interface ObservationEvalProcessorDeps {
   downloadObservationFromS3: (path: string) => Promise<string>;
   evalExecutionDeps: EvalExecutionDeps;
-  scheduleEvaluatorResultRules?: (params: {
-    projectId: string;
-    evaluatorId: string;
-    observationS3Path: string;
-    scores: CodeEvalScoreWithName[];
-    upstreamJobExecutionId: string;
-  }) => Promise<void>;
+  processEvaluatorResultRules?: typeof processEvaluatorResult;
 }
 
 /**
@@ -70,21 +61,7 @@ function createObservationEvalProcessorDeps(): ObservationEvalProcessorDeps {
       return s3Client.download(path);
     },
     evalExecutionDeps: createProductionEvalExecutionDeps(),
-    scheduleEvaluatorResultRules: async (params) => {
-      const queue = EvaluatorResultQueue.getInstance();
-      if (!queue) throw new Error("EvaluatorResultQueue is not initialized");
-
-      await queue.add(
-        QueueName.EvaluatorResult,
-        {
-          name: QueueJobs.EvaluatorResult,
-          id: params.upstreamJobExecutionId,
-          timestamp: new Date(),
-          payload: params,
-        },
-        { jobId: params.upstreamJobExecutionId },
-      );
-    },
+    processEvaluatorResultRules: processEvaluatorResult,
   };
 }
 
@@ -331,13 +308,13 @@ export async function processObservationEval(
     environment: executionParams.environment,
     deps: executionParams.deps,
     result: executionResult,
-    ...(resolved.type === "v2" && deps.scheduleEvaluatorResultRules
+    ...(resolved.type === "v2" && deps.processEvaluatorResultRules
       ? {
           onEvaluatorCompleted: async (result: EvalExecutionResult) => {
-            await deps.scheduleEvaluatorResultRules?.({
+            await deps.processEvaluatorResultRules?.({
               projectId: executionParams.projectId,
               evaluatorId: resolved.evaluatorId,
-              observationS3Path: event.observationS3Path,
+              observation: observationData,
               scores: result.scores,
               upstreamJobExecutionId: executionParams.jobExecutionId,
             });

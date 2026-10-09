@@ -33,7 +33,6 @@ import { NotificationQueue } from "./notificationQueue";
 import { MonitorQueue } from "./monitorQueue";
 import { InAppAgentRunQueue } from "./inAppAgentRunQueue";
 import { V4LegacyApiUsageQueue } from "./v4LegacyApiUsageQueue";
-import { EvaluatorResultQueue } from "./evaluatorResultQueue";
 
 // Sharded queues require a sharding key.
 // Use the queue class directly, for example IngestionQueue.getInstance({ shardingKey }).
@@ -110,8 +109,6 @@ export function getQueue(
       return WebhookQueue.getInstance();
     case QueueName.EntityChangeQueue:
       return EntityChangeQueue.getInstance();
-    case QueueName.EvaluatorResult:
-      return EvaluatorResultQueue.getInstance();
     case QueueName.EventPropagationQueue:
       return EventPropagationQueue.getInstance();
     case QueueName.NotificationQueue:
