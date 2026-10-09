@@ -1,4 +1,3 @@
-/* eslint-disable @repo/prefer-stories-over-client-tests */
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
