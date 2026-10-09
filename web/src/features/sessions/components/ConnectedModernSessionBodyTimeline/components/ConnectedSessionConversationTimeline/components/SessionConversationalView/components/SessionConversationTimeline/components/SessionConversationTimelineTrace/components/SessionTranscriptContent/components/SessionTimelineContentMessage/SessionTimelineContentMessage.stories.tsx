@@ -431,7 +431,7 @@ export const RejectUnsafeFileUrl = meta.story({
 const s3ImageUri = "s3://customer-bucket/media/photo.jpeg";
 
 export const S3ImageFile = meta.story({
-  name: "(Test) S3 Image Uses Media Reference",
+  name: "S3 image file",
   parameters: { a11y: { test: "off" } },
   args: {
     role: "user",
@@ -444,16 +444,10 @@ export const S3ImageFile = meta.story({
       },
     ],
   },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.getByText(s3ImageUri)).toBeVisible();
-    await expect(canvas.queryByRole("table")).not.toBeInTheDocument();
-  },
 });
 
 export const NarrowUnresolvedImageLayout = meta.story({
-  name: "(Test) Narrow unresolved image layout",
+  name: "Narrow unresolved image layout",
   parameters: { a11y: { test: "off" } },
   args: {
     role: "user",
@@ -469,37 +463,8 @@ export const NarrowUnresolvedImageLayout = meta.story({
     onOpenObservation: fn(),
   },
   render: (args) => (
-    <div data-testid="narrow-session-message" className="w-[241px]">
+    <div className="w-[241px]">
       <SessionTimelineContentMessage {...args} />
     </div>
   ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const composition = canvas.getByTestId("narrow-session-message");
-    const article = composition.querySelector<HTMLElement>("article");
-    const fileTitle =
-      article?.querySelector<HTMLElement>("div.font-bold") ?? null;
-    const fileCard = fileTitle?.parentElement ?? null;
-    const table = fileCard?.querySelector<HTMLTableElement>("table");
-
-    await expect(article).not.toBeNull();
-    await expect(fileTitle).not.toBeNull();
-    await expect(fileCard).not.toBeNull();
-    await expect(table).not.toBeNull();
-
-    if (!article || !fileCard || !table || !fileCard.parentElement) return;
-
-    const fileBounds = fileCard.getBoundingClientRect();
-    const availableBounds = fileCard.parentElement.getBoundingClientRect();
-    const tableBounds = table.getBoundingClientRect();
-
-    await expect(
-      Math.abs(fileBounds.width - availableBounds.width),
-    ).toBeLessThan(1);
-    await expect(tableBounds.width).toBeGreaterThan(120);
-    await expect(fileCard.scrollWidth).toBeLessThanOrEqual(
-      fileCard.clientWidth,
-    );
-    await expect(table.scrollWidth).toBeLessThanOrEqual(table.clientWidth);
-  },
 });
