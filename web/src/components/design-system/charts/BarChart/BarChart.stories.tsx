@@ -10,18 +10,6 @@ const data = [
   { label: "Gamma", value: 18 },
 ];
 
-async function findOwnedTooltip(reference: Element) {
-  const tooltipId = reference.getAttribute("aria-describedby");
-  if (!tooltipId) throw new Error("Tooltip reference not found");
-  return waitFor(() => {
-    const tooltip = reference.ownerDocument.getElementById(tooltipId);
-    if (tooltip?.getAttribute("role") !== "tooltip") {
-      throw new Error("Tooltip not found");
-    }
-    return tooltip;
-  });
-}
-
 const meta = preview.meta({
   component: BarChart,
   parameters: { layout: "fullscreen" },
@@ -94,7 +82,9 @@ export const KeyboardFocus = meta.story({
     const canvas = within(canvasElement);
     const firstBar = canvas.getByRole("graphics-symbol", { name: "Alpha: 12" });
     firstBar.focus();
-    const tooltip = await findOwnedTooltip(firstBar);
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
     await expect(tooltip).toHaveTextContent("Alpha");
     await expect(tooltip).toHaveTextContent("12");
     await expect(tooltip).toHaveTextContent(
@@ -125,7 +115,9 @@ export const CategoryHoverArea = meta.story({
     );
     if (!area) throw new Error("Hover area not found");
     await userEvent.hover(area);
-    const tooltip = await findOwnedTooltip(area);
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
     await expect(tooltip).toHaveTextContent("Alpha");
     const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     try {
@@ -150,7 +142,9 @@ export const TooltipFollowsBar = meta.story({
       const area = areas[index];
       if (!bar || !area) throw new Error("Bar or hover area not found");
       await userEvent.hover(area);
-      const tooltip = await findOwnedTooltip(area);
+      const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+        "tooltip",
+      );
       const referenceLine = canvasElement.querySelector(
         "[data-active-reference-line]",
       );
@@ -196,9 +190,10 @@ export const CategoryColorTooltip = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const firstBar = canvas.getByRole("graphics-symbol", { name: "Alpha: 12" });
-    firstBar.focus();
-    const tooltip = await findOwnedTooltip(firstBar);
+    canvas.getByRole("graphics-symbol", { name: "Alpha: 12" }).focus();
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
     await expect(tooltip.querySelector("svg rect")).toHaveAttribute(
       "fill",
       chartColors[0],
@@ -330,7 +325,9 @@ export const FullyTruncatedLabels = meta.story({
       name: "Experiment 1: 1",
     });
     firstBar.focus();
-    const tooltip = await findOwnedTooltip(firstBar);
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
     await expect(tooltip).toHaveTextContent("Experiment 1");
   },
 });

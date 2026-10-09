@@ -12,7 +12,6 @@ import { Check } from "lucide-react";
 import {
   Fragment,
   useEffect,
-  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -88,7 +87,6 @@ export function ChartTooltip({
       onPointerLeave: () => void;
       onFocus: (event: FocusEvent<SVGElement | HTMLElement>) => void;
       onBlur: () => void;
-      "aria-describedby": string;
       onClick: (() => Promise<void>) | undefined;
       onKeyDown:
         | ((event: KeyboardEvent<SVGElement | HTMLElement>) => Promise<void>)
@@ -96,7 +94,6 @@ export function ChartTooltip({
     };
   }) => ReactNode;
 }) {
-  const tooltipId = useId();
   const [activeTooltip, setActiveTooltip] = useState<
     TooltipData & {
       reference: SVGElement | HTMLElement;
@@ -320,7 +317,6 @@ export function ChartTooltip({
     };
 
     return {
-      "aria-describedby": tooltipId,
       onPointerEnter: showAtPointer,
       onPointerMove: showAtPointer,
       onPointerLeave: () => setActiveTooltip(undefined),
@@ -449,7 +445,6 @@ export function ChartTooltip({
       {activeTooltip ? (
         <FloatingPortal root={layerContainer}>
           <div
-            id={tooltipId}
             ref={refs.setFloating}
             role="tooltip"
             className="border-border/50 bg-background pointer-events-none z-50 grid min-w-32 gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl"
