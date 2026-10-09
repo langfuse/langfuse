@@ -23,6 +23,7 @@ import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { ChevronLeft, ExternalLink, Plus } from "lucide-react";
 import {
   EvaluatorSelectionStep,
@@ -126,7 +127,11 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   const runEvaluationMutation =
     api.batchAction.runEvaluation.create.useMutation({
       onError: (error) => {
-        showErrorToast("Failed to schedule evaluation", error.message);
+        showErrorToast(
+          "Failed to schedule evaluation",
+          error.message,
+          classifyTrpcToastError(error, "evaluation.queue"),
+        );
       },
     });
 

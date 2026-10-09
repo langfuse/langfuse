@@ -4,6 +4,7 @@ import { Zap } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type SlackChannel } from "./ChannelSelector";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 /**
  * Props for the SlackTestMessageButton component
@@ -64,7 +65,11 @@ export const SlackTestMessageButton: React.FC<SlackTestMessageButtonProps> = ({
       onSuccess?.(data.channelInfo);
     },
     onError: (error) => {
-      showErrorToast("Failed to Send Test Message", error.message);
+      showErrorToast(
+        "Failed to Send Test Message",
+        error.message,
+        classifyTrpcToastError(error, "slack.test_message_send"),
+      );
       onError?.(new Error(error.message));
     },
   });

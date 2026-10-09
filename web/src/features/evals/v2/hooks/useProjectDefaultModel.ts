@@ -54,7 +54,8 @@ export function useProjectDefaultModel({
   const connections = connectionsQuery.data?.data ?? [];
   const upsertDefaultModel = api.defaultLlmModel.upsertDefaultModel.useMutation(
     {
-      onError: trpcErrorToast,
+      onError: (error) =>
+        trpcErrorToast(error, "default_evaluation_model.update"),
     },
   );
 

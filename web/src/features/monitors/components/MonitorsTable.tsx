@@ -30,6 +30,7 @@ import { TagList } from "@/src/features/tag";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { cn } from "@/src/utils/tailwind";
 import { type FilterState, TableViewPresetTableName } from "@langfuse/shared";
 import {
@@ -92,7 +93,12 @@ export function MonitorsTable() {
             : "Evaluations have resumed.",
       });
     },
-    onError: (e) => showErrorToast("Failed to update alert status", e.message),
+    onError: (e) =>
+      showErrorToast(
+        "Failed to update alert status",
+        e.message,
+        classifyTrpcToastError(e, "monitor.status_update"),
+      ),
   });
 
   /** paginationState is the bound page index + size, defaulting to 50 per page and synced to the `pageIndex`/`pageSize` URL params. */

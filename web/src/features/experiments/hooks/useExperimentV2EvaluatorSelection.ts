@@ -140,10 +140,10 @@ export function useExperimentV2EvaluatorSelection({
   }, [datasetRules]);
 
   const createRule = api.evalsV2.rules.create.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.create"),
   });
   const updateRule = api.evalsV2.rules.update.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.update"),
   });
   const isUpdating = createRule.isPending || updateRule.isPending;
 

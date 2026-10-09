@@ -5,6 +5,7 @@ import { showErrorToast } from "@/src/features/notifications";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { getDemoCallbackRedirectPath } from "../lib/demoCallbackRedirect";
 import {
   getSurveySubmittedEvent,
@@ -80,6 +81,7 @@ export function ConnectedOnboardingSurvey() {
         showErrorToast(
           "Failed to finish onboarding",
           error instanceof Error ? error.message : "Please try again.",
+          classifyTrpcToastError(error, "onboarding.complete"),
         );
       }
     },
@@ -108,6 +110,11 @@ export function ConnectedOnboardingSurvey() {
           showErrorToast(
             "Failed to continue onboarding",
             error instanceof Error ? error.message : "Please try again.",
+            {
+              operation: "onboarding.continue",
+              errorOrigin: "frontend",
+              errorCategory: "internal",
+            },
           );
         }
       },

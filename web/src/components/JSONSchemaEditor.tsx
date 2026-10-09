@@ -57,6 +57,11 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
       showErrorToast(
         "Failed to prettify JSON",
         "Please verify your input is valid JSON",
+        {
+          operation: "json_schema.prettify",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
         "WARNING",
       );
     }

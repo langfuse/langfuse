@@ -81,7 +81,7 @@ export function CreateRuleDialogContent({
   );
   const hasRequestedName = useRef(false);
   const suggestName = api.evalsV2.rules.suggestName.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule_name.generate"),
   });
 
   const requestNameSuggestion = async () => {
@@ -98,7 +98,7 @@ export function CreateRuleDialogContent({
     return name;
   };
   const createRule = api.evalsV2.rules.create.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.create"),
   });
 
   const create = async () => {

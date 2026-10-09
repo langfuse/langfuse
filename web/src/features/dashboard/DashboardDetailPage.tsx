@@ -87,6 +87,7 @@ import {
   RouteParamsPendingFallback,
   useReadyRouteParams,
 } from "@/src/hooks/useReadyRouteParams";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 // Position for a tile inserted "next to" an anchor tile: same size,
 // immediately to the right when that fits the 12-column grid, otherwise
@@ -230,7 +231,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         );
       },
       onError: (error) => {
-        showErrorToast("Error updating dashboard", error.message);
+        showErrorToast(
+          "Error updating dashboard",
+          error.message,
+          classifyTrpcToastError(error, "dashboard.update"),
+        );
       },
     });
 
@@ -248,7 +253,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       utils.dashboard.getHomeDashboard.invalidate();
     },
     onError: (error) => {
-      showErrorToast("Failed to update home dashboard", error.message);
+      showErrorToast(
+        "Failed to update home dashboard",
+        error.message,
+        classifyTrpcToastError(error, "dashboard_home.update"),
+      );
     },
   });
 
@@ -259,7 +268,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         utils.dashboard.invalidate();
       },
       onError: (error) => {
-        showErrorToast("Error renaming dashboard", error.message);
+        showErrorToast(
+          "Error renaming dashboard",
+          error.message,
+          classifyTrpcToastError(error, "dashboard.update"),
+        );
       },
     });
 
@@ -271,7 +284,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         setSavedFilters(currentFilters);
       },
       onError: (error) => {
-        showErrorToast("Error saving filters", error.message);
+        showErrorToast(
+          "Error saving filters",
+          error.message,
+          classifyTrpcToastError(error, "dashboard_filters.update"),
+        );
       },
     });
 
@@ -482,6 +499,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         showErrorToast(
           "Failed to duplicate widget",
           e instanceof Error ? e.message : "Unknown error",
+          classifyTrpcToastError(e, "widget.clone"),
         );
       }
     },
@@ -502,7 +520,16 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
           reason: "invalid",
           dashboard_id: dashboardId,
         });
-        showErrorToast("Cannot paste widget", parsed.reason, "WARNING");
+        showErrorToast(
+          "Cannot paste widget",
+          parsed.reason,
+          {
+            operation: "widget.paste",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
+          "WARNING",
+        );
         return;
       }
       // Don't create a widget row the placement step couldn't attach — a
@@ -529,6 +556,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
           showErrorToast(
             "Widget filters were adjusted",
             "Some pasted filters were removed because they are not available in this view.",
+            {
+              operation: "widget.paste",
+              errorOrigin: "frontend",
+              errorCategory: "product_state",
+            },
             "WARNING",
           );
         }
@@ -536,6 +568,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         showErrorToast(
           "Failed to paste widget",
           e instanceof Error ? e.message : "Unknown error",
+          classifyTrpcToastError(e, "widget.paste"),
         );
       }
     },
@@ -558,6 +591,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         showErrorToast(
           "Clipboard unavailable",
           "Your browser did not allow reading the clipboard. Paste with Cmd/Ctrl+V on the dashboard instead.",
+          {
+            operation: "widget.paste",
+            errorOrigin: "frontend",
+            errorCategory: "permission",
+          },
           "WARNING",
         );
         return;
@@ -575,7 +613,16 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
             reason: "invalid",
             dashboard_id: dashboardId,
           });
-          showErrorToast("Cannot paste card", preset.reason, "WARNING");
+          showErrorToast(
+            "Cannot paste card",
+            preset.reason,
+            {
+              operation: "dashboard_card.paste",
+              errorOrigin: "frontend",
+              errorCategory: "user_input",
+            },
+            "WARNING",
+          );
           return;
         }
         capture("dashboard:widget_paste_rejected", {
@@ -586,6 +633,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         showErrorToast(
           "No widget in clipboard",
           "The clipboard does not contain a Langfuse widget JSON. Copy one via a widget's ⋯ menu first.",
+          {
+            operation: "widget.paste",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
           "WARNING",
         );
         return;
@@ -625,7 +677,16 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
             reason: "invalid",
             dashboard_id: dashboardId,
           });
-          showErrorToast("Cannot paste card", preset.reason, "WARNING");
+          showErrorToast(
+            "Cannot paste card",
+            preset.reason,
+            {
+              operation: "dashboard_card.paste",
+              errorOrigin: "frontend",
+              errorCategory: "user_input",
+            },
+            "WARNING",
+          );
           return;
         }
         handlePastedPreset(preset.presetId, "cmd_v");
@@ -695,6 +756,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
             firstError instanceof Error
               ? firstError.message
               : "Could not create the dashboard's widgets.",
+            classifyTrpcToastError(firstError, "dashboard.import"),
           );
           return;
         }
@@ -758,6 +820,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
           showErrorToast(
             "Widget filters were adjusted",
             "Some imported filters were removed because they are not available in this view.",
+            {
+              operation: "dashboard.import",
+              errorOrigin: "frontend",
+              errorCategory: "product_state",
+            },
             "WARNING",
           );
         }
@@ -765,6 +832,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
           showErrorToast(
             "Some cards were skipped",
             `${imported.skippedPresetCount} preset card(s) in the file are not available in this Langfuse version.`,
+            {
+              operation: "dashboard.import",
+              errorOrigin: "frontend",
+              errorCategory: "product_state",
+            },
             "WARNING",
           );
         }
@@ -772,6 +844,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         showErrorToast(
           "Failed to import dashboard",
           e instanceof Error ? e.message : "Unknown error",
+          classifyTrpcToastError(e, "dashboard.import"),
         );
       }
     },
@@ -805,6 +878,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         showErrorToast(
           "Cannot import dashboard",
           dashboardResult.reason,
+          {
+            operation: "dashboard.import",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
           "WARNING",
         );
         return;
@@ -823,7 +901,16 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
             reason: "invalid",
             dashboard_id: dashboardId,
           });
-          showErrorToast("Cannot import card", preset.reason, "WARNING");
+          showErrorToast(
+            "Cannot import card",
+            preset.reason,
+            {
+              operation: "dashboard_card.import",
+              errorOrigin: "frontend",
+              errorCategory: "user_input",
+            },
+            "WARNING",
+          );
           return;
         }
         capture("dashboard:widget_paste_rejected", {
@@ -834,6 +921,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         showErrorToast(
           "Unsupported file",
           "Only Langfuse dashboard or widget JSON files can be dropped here.",
+          {
+            operation: "dashboard.import",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
           "WARNING",
         );
         return;
@@ -1056,7 +1148,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       }
     },
     onError: (e) => {
-      showErrorToast("Failed to clone dashboard", e.message);
+      showErrorToast(
+        "Failed to clone dashboard",
+        e.message,
+        classifyTrpcToastError(e, "dashboard.clone"),
+      );
     },
   });
 

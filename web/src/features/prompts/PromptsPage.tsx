@@ -16,7 +16,8 @@ import { ImportPromptsButtonDialogController } from "@/src/features/prompts/comp
 import { Button } from "@/src/components/ui/button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { toast } from "sonner";
+import { showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export default function PromptsPage() {
   const router = useRouter();
@@ -73,8 +74,12 @@ export default function PromptsPage() {
       a.click();
       URL.revokeObjectURL(url);
       capture("prompts:bulk_export", { mode });
-    } catch {
-      toast.error("Failed to export prompts. Please try again.");
+    } catch (error) {
+      showToast({
+        type: "ERROR",
+        title: "Failed to export prompts. Please try again.",
+        analytics: classifyTrpcToastError(error, "prompt.export"),
+      });
     } finally {
       setIsExporting(false);
     }

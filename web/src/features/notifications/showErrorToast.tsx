@@ -20,13 +20,13 @@ const toastWarningStyleProps = {
 export const showErrorToast = (
   error: string,
   description: string,
+  analytics: ToastErrorAnalytics,
   type: "WARNING" | "ERROR" = "ERROR",
   path?: string,
   traceId?: string,
   source: "application" | "trpc" = "application",
-  analytics?: ToastErrorAnalytics,
 ) => {
-  toast.custom(
+  return toast.custom(
     (t) => (
       <ErrorNotification
         error={error}
@@ -34,7 +34,7 @@ export const showErrorToast = (
         type={type}
         source={source}
         path={path}
-        traceId={traceId}
+        traceId={traceId ?? analytics.errorId}
         analytics={analytics}
         dismissToast={toast.dismiss}
         toast={t}

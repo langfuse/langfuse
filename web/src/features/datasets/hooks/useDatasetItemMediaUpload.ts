@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { showErrorToast } from "@/src/features/notifications";
 import { MediaContentType } from "@/src/features/media";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 import { type DatasetItemMediaField } from "@langfuse/shared";
 
@@ -74,6 +75,11 @@ export function useDatasetItemMediaUpload({
         showErrorToast(
           "Unsupported file type",
           `${file.type || "Unknown type"} is not supported for media uploads.`,
+          {
+            operation: "dataset_item_media.upload",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
         );
         return null;
       }
@@ -82,6 +88,11 @@ export function useDatasetItemMediaUpload({
         showErrorToast(
           "File too large",
           `Maximum file size is ${MAX_BROWSER_MEDIA_UPLOAD_SIZE_MB}MB`,
+          {
+            operation: "dataset_item_media.upload",
+            errorOrigin: "frontend",
+            errorCategory: "resource_limit",
+          },
         );
         return null;
       }
@@ -92,10 +103,12 @@ export function useDatasetItemMediaUpload({
         { id: pendingId, fileName: file.name },
       ]);
 
+      let failurePhase: "frontend" | "trpc" | "network" = "frontend";
       try {
         const buffer = await file.arrayBuffer();
         const sha256Hash = await sha256Base64(buffer);
 
+        failurePhase = "trpc";
         const { mediaId, uploadUrl, uploadHeaders } =
           await getUploadUrl.mutateAsync({
             projectId,
@@ -109,6 +122,7 @@ export function useDatasetItemMediaUpload({
 
         // uploadUrl is null when the content already exists (dedupe by hash)
         if (uploadUrl) {
+          failurePhase = "network";
           const uploadStart = Date.now();
           const headers = new Headers({ "Content-Type": file.type });
           Object.entries(uploadHeaders).forEach(([key, value]) => {
@@ -121,6 +135,7 @@ export function useDatasetItemMediaUpload({
             headers,
           });
 
+          failurePhase = "trpc";
           await markUploadComplete.mutateAsync({
             projectId,
             mediaId,
@@ -131,6 +146,7 @@ export function useDatasetItemMediaUpload({
           });
 
           if (!response.ok) {
+            failurePhase = "network";
             throw new Error(`Upload failed with status ${response.status}`);
           }
         }
@@ -140,6 +156,15 @@ export function useDatasetItemMediaUpload({
         showErrorToast(
           "Media upload failed",
           error instanceof Error ? error.message : "Please try again.",
+          failurePhase === "trpc"
+            ? classifyTrpcToastError(error, "dataset_item_media.upload")
+            : {
+                operation: "dataset_item_media.upload",
+                errorOrigin:
+                  failurePhase === "network" ? "network" : "frontend",
+                errorCategory:
+                  failurePhase === "network" ? "transient" : "internal",
+              },
         );
         return null;
       } finally {

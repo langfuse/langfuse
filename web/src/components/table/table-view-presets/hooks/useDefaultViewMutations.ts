@@ -1,6 +1,7 @@
 import { api } from "@/src/utils/api";
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type DefaultViewScope } from "@langfuse/shared/src/server";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 interface UseDefaultViewMutationsProps {
   tableName: string;
@@ -31,7 +32,11 @@ export function useDefaultViewMutations({
       });
     },
     onError: (error) => {
-      showErrorToast("Failed to set default", error.message);
+      showErrorToast(
+        "Failed to set default",
+        error.message,
+        classifyTrpcToastError(error, "saved_view.default_set"),
+      );
     },
   });
 
@@ -53,7 +58,11 @@ export function useDefaultViewMutations({
       });
     },
     onError: (error) => {
-      showErrorToast("Failed to clear default", error.message);
+      showErrorToast(
+        "Failed to clear default",
+        error.message,
+        classifyTrpcToastError(error, "saved_view.default_clear"),
+      );
     },
   });
 

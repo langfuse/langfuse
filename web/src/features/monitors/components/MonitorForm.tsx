@@ -11,6 +11,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { startCase } from "lodash";
 
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -229,21 +230,32 @@ export const MonitorForm = ({
   const suggestName = api.monitors.suggestName.useMutation();
   const generateNameSuggestion = async (): Promise<string | null> => {
     if (!nameAIAssistanceAvailable) return null;
-    try {
-      return await suggestName.mutateAsync({
-        projectId,
-        description: namePlaceholderRef.current,
-      });
-    } catch {
-      return null;
-    }
+    return suggestName.mutateAsync({
+      projectId,
+      description: namePlaceholderRef.current,
+    });
   };
   const requestNameSuggestion = async () => {
-    const generatedName = await generateNameSuggestion();
+    let generatedName: string | null;
+    try {
+      generatedName = await generateNameSuggestion();
+    } catch (error) {
+      showErrorToast(
+        "Couldn't generate an alert title",
+        "Please enter a title manually.",
+        classifyTrpcToastError(error, "monitor_title.generate"),
+      );
+      return;
+    }
     if (!generatedName) {
       showErrorToast(
         "Couldn't generate an alert title",
         "Please enter a title manually.",
+        {
+          operation: "monitor_title.generate",
+          errorOrigin: "backend",
+          errorCategory: "internal",
+        },
       );
       return;
     }
@@ -269,7 +281,12 @@ export const MonitorForm = ({
       });
       router.replace(`/project/${projectId}/alerts`);
     },
-    onError: (e) => showErrorToast("Failed to create alert", e.message),
+    onError: (e) =>
+      showErrorToast(
+        "Failed to create alert",
+        e.message,
+        classifyTrpcToastError(e, "monitor.create"),
+      ),
   });
 
   /** updateMutation saves edits to an existing monitor and returns to the monitors list on success. */
@@ -283,22 +300,42 @@ export const MonitorForm = ({
       });
       router.replace(`/project/${projectId}/alerts`);
     },
-    onError: (e) => showErrorToast("Failed to save alert", e.message),
+    onError: (e) =>
+      showErrorToast(
+        "Failed to save alert",
+        e.message,
+        classifyTrpcToastError(e, "monitor.update"),
+      ),
   });
 
   /** onSubmit strips unsupported filter rows and dispatches the create or update mutation. */
   const onSubmit = form.handleSubmit(
     async (values) => {
-      const resolvedName = await resolveMonitorNameForSave({
-        name: form.getValues("name"),
-        fallbackName: namePlaceholderRef.current,
-        aiAvailable: nameAIAssistanceAvailable,
-        generateName: generateNameSuggestion,
-      });
+      let resolvedName: string | null;
+      try {
+        resolvedName = await resolveMonitorNameForSave({
+          name: form.getValues("name"),
+          fallbackName: namePlaceholderRef.current,
+          aiAvailable: nameAIAssistanceAvailable,
+          generateName: generateNameSuggestion,
+        });
+      } catch (error) {
+        showErrorToast(
+          "Couldn't generate an alert title",
+          "Please enter a title manually and try again.",
+          classifyTrpcToastError(error, "monitor_title.generate"),
+        );
+        return;
+      }
       if (!resolvedName) {
         showErrorToast(
           "Couldn't generate an alert title",
           "Please enter a title manually and try again.",
+          {
+            operation: isEdit ? "monitor.update" : "monitor.create",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
         );
         return;
       }

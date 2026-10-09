@@ -333,7 +333,7 @@ export default function EvaluatorsPage() {
   );
   const utils = api.useUtils();
   const deleteMany = api.evalsV2.deleteMany.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator.delete"),
     onSuccess: async () => {
       selectionStore.getState().actions.clearSelection();
       setDeleteIds([]);

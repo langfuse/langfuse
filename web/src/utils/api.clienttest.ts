@@ -1,11 +1,14 @@
 // @vitest-environment node
 
 import { TRPCClientError } from "@trpc/client";
+import { observable } from "@trpc/server/observable";
 import { vi } from "vitest";
+import type { AppRouter } from "@/src/server/api/root";
 import {
   EXPECTED_TRPC_BAD_REQUEST_PATHS,
   EXPECTED_TRPC_CONFLICT_PATHS,
   EXPECTED_TRPC_ERROR_CODES,
+  buildIdLink,
   captureBuildId,
   fetchWithParseErrorStatus,
   getApproxTrpcGetUrlBytes,
@@ -21,6 +24,7 @@ import {
   reportTrpcErrorWithoutToast,
   shouldSendQueryAsPost,
 } from "@/src/utils/api";
+import { getTrpcToastOperation } from "@/src/utils/trpcToastOperation";
 
 const {
   captureExceptionMock,
@@ -91,6 +95,41 @@ const ZOD4_TOO_SMALL_MESSAGE = JSON.stringify([
     message: "Too small: expected string to have >=1 characters",
   },
 ]);
+
+describe("buildIdLink toast operation context", () => {
+  it("records the typed request path before forwarding a transport error", async () => {
+    const requestError = new TypeError("Failed to fetch");
+    const execute = buildIdLink()({} as never);
+    const result = execute({
+      op: {
+        id: 1,
+        type: "query",
+        path: "projects.create",
+        input: undefined,
+        context: {},
+        signal: undefined,
+      },
+      next: () =>
+        observable((observer) => {
+          // Exercise the defensive runtime seam even though compliant tRPC
+          // links normally wrap transport failures in TRPCClientError.
+          observer.error(requestError as unknown as TRPCClientError<AppRouter>);
+        }),
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      result.subscribe({
+        next: () => reject(new Error("expected request to fail")),
+        error: (error) => {
+          expect(error).toBe(requestError);
+          expect(getTrpcToastOperation(error)).toBe("projects.create");
+          resolve();
+        },
+        complete: () => reject(new Error("expected request to fail")),
+      });
+    });
+  });
+});
 
 describe("isNetworkConnectivityError", () => {
   it("detects the reported failed fetch error without a response", () => {

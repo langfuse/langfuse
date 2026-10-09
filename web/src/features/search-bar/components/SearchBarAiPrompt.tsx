@@ -194,6 +194,11 @@ export function SearchBarAiPrompt({
         showErrorToast(
           "Score filter skipped",
           unknownScoresMessage(result.unknownScoreNames),
+          {
+            operation: "filter_ai.generate",
+            errorOrigin: "backend",
+            errorCategory: "user_input",
+          },
           "WARNING",
         );
       }

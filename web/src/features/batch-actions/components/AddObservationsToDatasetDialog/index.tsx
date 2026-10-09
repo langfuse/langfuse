@@ -11,6 +11,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { api, sendAsPostOption } from "@/src/utils/api";
 import { showErrorToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { DatasetCreateStep } from "./DatasetCreateStep";
 import { DatasetMappingEditor } from "./DatasetMappingEditor";
 import { StatusStep } from "./StatusStep";
@@ -94,7 +95,11 @@ export function AddObservationsToDatasetDialog(
   const previewQuery = source.isV4 ? eventQuery : observationQuery;
   const mutation = api.batchAction.addToDataset.create.useMutation({
     onError: (error) =>
-      showErrorToast("Failed to schedule action", error.message),
+      showErrorToast(
+        "Failed to schedule action",
+        error.message,
+        classifyTrpcToastError(error, "dataset.add_observations"),
+      ),
   });
   return (
     <Dialog

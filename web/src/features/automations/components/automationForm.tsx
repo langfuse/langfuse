@@ -535,6 +535,11 @@ export const AutomationForm = ({
       showErrorToast(
         "Permission Denied",
         "You don't have permission to modify automations.",
+        {
+          operation: isEditing ? "automation.update" : "automation.create",
+          errorOrigin: "frontend",
+          errorCategory: "permission",
+        },
       );
       return;
     }
@@ -547,6 +552,11 @@ export const AutomationForm = ({
       showErrorToast(
         "Validation Error",
         validation.errors?.join(", ") || "Please fill in all required fields",
+        {
+          operation: isEditing ? "automation.update" : "automation.create",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
       );
       return;
     }

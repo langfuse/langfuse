@@ -8,6 +8,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 type WebCalloutTarget = {
   projectId: string;
@@ -36,7 +37,11 @@ export function useWebCalloutAction(props: WebCalloutTarget, enabled: boolean) {
       });
     },
     onError: (error) => {
-      showErrorToast("Web callout failed", error.message);
+      showErrorToast(
+        "Web callout failed",
+        error.message,
+        classifyTrpcToastError(error, "web_callout.invoke"),
+      );
     },
   });
 

@@ -19,6 +19,7 @@ import {
 import { parseSkillFrontmatterMetadata } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export function NewSkillPage() {
   const router = useRouter();
@@ -216,6 +217,7 @@ function ExistingSkillSession({
           showErrorToast(
             "Could not resume draft",
             error instanceof Error ? error.message : "Please try again.",
+            classifyTrpcToastError(error, "skill_draft.resume"),
           );
           return;
         }

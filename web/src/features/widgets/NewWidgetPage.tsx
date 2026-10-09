@@ -12,6 +12,7 @@ import { useReadPath } from "@/src/features/events";
 import { getDefaultView } from "@/src/features/widgets/utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   asSingleQueryParam,
   RouteParamsPendingFallback,
@@ -80,13 +81,21 @@ function NewWidgetView({ projectId }: { projectId: string }) {
       }
     },
     onError: (error) => {
-      showErrorToast("Failed to save widget", error.message);
+      showErrorToast(
+        "Failed to save widget",
+        error.message,
+        classifyTrpcToastError(error, "widget.create"),
+      );
     },
   });
 
   const handleSaveWidget = (widgetData: WidgetSavePayload) => {
     if (!widgetData.name.trim()) {
-      showErrorToast("Error", "Widget name is required");
+      showErrorToast("Error", "Widget name is required", {
+        operation: "widget.create",
+        errorOrigin: "frontend",
+        errorCategory: "user_input",
+      });
       return;
     }
 

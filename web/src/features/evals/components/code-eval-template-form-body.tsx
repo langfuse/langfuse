@@ -321,6 +321,11 @@ export function CodeEvalTemplateFormBody({
         error instanceof Error
           ? error.message
           : "The formatter could not process this code.",
+        {
+          operation: "evaluator_code.format",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
       );
     } finally {
       isFormattingRef.current = false;

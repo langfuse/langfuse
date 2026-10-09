@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { toast } from "sonner";
 import { isPresent, type ScoreConfigDomain } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -17,6 +16,8 @@ import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { validateNewCategoryLabel } from "@/src/features/scores/lib/annotationFormHelpers";
 import { type AnnotationAnalyticsContext } from "@/src/features/scores/lib/annotationAnalytics";
+import { showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export function AddScoreCategoryDialog({
   projectId,
@@ -57,7 +58,11 @@ export function AddScoreCategoryDialog({
       onClose();
     },
     onError: (error) => {
-      toast.error(error.message ?? "Failed to add category");
+      showToast({
+        type: "ERROR",
+        title: error.message ?? "Failed to add category",
+        analytics: classifyTrpcToastError(error, "score_category.create"),
+      });
     },
   });
 

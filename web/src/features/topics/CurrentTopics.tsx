@@ -489,6 +489,7 @@ export function useCurrentTopics({
     placeholderData: keepPreviousData,
     refetchInterval: running ? 3000 : false,
     enabled: isValidTopicTimeRange(timeRange),
+    meta: { toastOperation: "topics.load" },
   });
 }
 
