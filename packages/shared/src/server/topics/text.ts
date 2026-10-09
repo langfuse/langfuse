@@ -84,6 +84,8 @@ export async function generateTopicText<T>(params: {
       inputTokens: result.usage.inputTokens,
       outputTokens: result.usage.outputTokens,
       totalTokens: result.usage.totalTokens,
+      cacheReadTokens: result.usage.inputTokenDetails?.cacheReadTokens,
+      cacheWriteTokens: result.usage.inputTokenDetails?.cacheWriteTokens,
     },
   };
 }
