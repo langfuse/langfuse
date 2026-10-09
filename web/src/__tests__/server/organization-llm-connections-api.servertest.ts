@@ -2,19 +2,18 @@ import { randomUUID } from "node:crypto";
 
 import { LLMAdapter } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
+import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  createApiKey,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
-  createShaHash,
-  getDisplaySecretKey,
 } from "@langfuse/shared/src/server";
 
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
-import { env } from "@/src/env.mjs";
 import {
   DeleteLlmConnectionV1Response,
   GetLlmConnectionsV1Response,
@@ -22,31 +21,11 @@ import {
 } from "@/src/features/public-api/types/llm-connections";
 
 async function createOrganizationApiKey(orgId: string): Promise<string> {
-  const publicKey = `pk-lf-${randomUUID()}`;
-  const secretKey = `sk-lf-${randomUUID()}`;
-  const apiKeyId = randomUUID();
-
-  await prisma.$transaction([
-    prisma.apiKey.create({
-      data: {
-        id: apiKeyId,
-        orgId,
-        publicKey,
-        hashedSecretKey: `test-hashed-secret-key-${randomUUID()}`,
-        fastHashedSecretKey: createShaHash(secretKey, env.SALT as string),
-        displaySecretKey: getDisplaySecretKey(secretKey),
-        scope: "ORGANIZATION",
-      },
-    }),
-    prisma.roleAssignment.create({
-      data: {
-        orgId,
-        principalApiKeyId: apiKeyId,
-        systemRole: "LEGACY_ORGANIZATION_API_KEY",
-        ownerOrgId: orgId,
-      },
-    }),
-  ]);
+  const { publicKey, secretKey } = await createApiKey(prisma, {
+    owner: OrganizationId(orgId),
+    role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+    createdBy: "system",
+  });
 
   return createBasicAuthHeader(publicKey, secretKey);
 }
