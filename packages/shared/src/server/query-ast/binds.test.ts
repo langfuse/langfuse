@@ -80,6 +80,22 @@ describe("typed params from the column registry", () => {
     );
   });
 
+  it("does not type extra date-wrapper arguments as the column", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where((eb) =>
+          eb(
+            eb.fn("toStartOfDay", ["start_time", eb.val("UTC")]),
+            ">=",
+            "2026-01-01 00:00:00.000",
+          ),
+        ),
+    );
+    expect(sql).toMatch(/toStartOfDay\(start_time, \{p\d+:String\}\)/);
+  });
+
   it("does not type a subquery LIMIT from an outer column comparison", () => {
     const { sql } = compile(
       getClickhouseKysely()
