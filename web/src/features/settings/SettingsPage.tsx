@@ -9,14 +9,11 @@ import { DropdownIndicator } from "@/src/components/design-system/DropdownIndica
 import { useAccountSettingsPages } from "@/src/features/account";
 import { useQueryOrganization } from "@/src/features/organizations";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
-import { useOrgProjectSwitchPaths } from "@/src/features/projects";
 import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";
 
 type SettingsScope = "account" | "organization";
 
 type SettingsPageProps = { scope: SettingsScope };
-
-type OrganizationPickerProps = { scope: SettingsScope };
 
 type SettingsPageEntry = ComponentProps<
   typeof PagedSettingsContainer
@@ -62,47 +59,44 @@ export function SettingsPage({ scope }: SettingsPageProps) {
         pages={pages}
         fullHeight={fullHeight}
         sectionHeaders={{
-          [ORGANIZATION_SECTION]: <OrganizationPicker scope={scope} />,
+          [ORGANIZATION_SECTION]: <OrganizationSectionHeader />,
         }}
       />
     </ContainerPage>
   );
 }
 
-function OrganizationPicker({ scope }: OrganizationPickerProps) {
+/** Labels the org section; offers an org picker only when no org is in context */
+function OrganizationSectionHeader() {
   const session = useSession();
   const organization = useQueryOrganization();
-  const { getOrgPath: getOrgSwitchPath } = useOrgProjectSwitchPaths();
   const organizations = session.data?.user?.organizations;
-  const organizationLabel = organization?.name ?? "Select organization";
 
   return (
-    <div className="flex h-8 items-center gap-2 px-2">
-      <span className="text-foreground shrink-0 text-xs font-bold">
+    <div className="flex flex-col gap-1">
+      <span className="text-foreground flex h-8 items-center px-2 text-xs font-bold">
         Org Settings
       </span>
-      <OrganizationDropdownMenu
-        {...(organizations
-          ? { state: "loaded", organizations }
-          : { state: "loading" })}
-        canCreateOrganizations={!!session.data?.user?.canCreateOrganizations}
-        getOrgPath={
-          scope === "account" ? accountSettingsPath : getOrgSwitchPath
-        }
-      >
-        {({ getTriggerProps }) => (
-          <button
-            type="button"
-            className="border-border bg-background text-foreground hover:bg-muted flex h-6 min-w-0 items-center gap-1 rounded-md border px-1.5 text-xs"
-            {...getTriggerProps()}
-          >
-            <span className="truncate" title={organizationLabel}>
-              {organizationLabel}
-            </span>
-            <DropdownIndicator size="sm" nudge />
-          </button>
-        )}
-      </OrganizationDropdownMenu>
+      {organization ? null : (
+        <OrganizationDropdownMenu
+          {...(organizations
+            ? { state: "loaded", organizations }
+            : { state: "loading" })}
+          canCreateOrganizations={!!session.data?.user?.canCreateOrganizations}
+          getOrgPath={accountSettingsPath}
+        >
+          {({ getTriggerProps }) => (
+            <button
+              type="button"
+              className="border-border bg-background text-foreground hover:bg-muted flex h-8 w-full items-center justify-between gap-1 rounded-md border px-2 text-sm whitespace-nowrap"
+              {...getTriggerProps()}
+            >
+              <span>Select organization</span>
+              <DropdownIndicator size="sm" nudge />
+            </button>
+          )}
+        </OrganizationDropdownMenu>
+      )}
     </div>
   );
 }
