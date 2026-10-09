@@ -32,56 +32,41 @@ pub(super) enum Candidate {
     },
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum ShapeKey {
-    Type,
-    Data,
-    MediaType,
-    MimeType,
-    MimeTypeCamel,
-    MediaTypeCamel,
-    Content,
-    Image,
-    InlineData,
-    InlineDataCamel,
+macro_rules! shape_keys {
+    ($($variant:ident => $name:literal),+ $(,)?) => {
+        #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+        enum ShapeKey {
+            $($variant,)+
+        }
+
+        impl ShapeKey {
+            const COUNT: usize = [$(Self::$variant),+].len();
+
+            fn from_name(name: &str) -> Option<Self> {
+                match name {
+                    $($name => Some(Self::$variant),)+
+                    _ => None,
+                }
+            }
+
+            fn index(self) -> usize {
+                self as usize
+            }
+        }
+    };
 }
 
-impl ShapeKey {
-    const ALL: [Self; 10] = [
-        Self::Type,
-        Self::Data,
-        Self::MediaType,
-        Self::MimeType,
-        Self::MimeTypeCamel,
-        Self::MediaTypeCamel,
-        Self::Content,
-        Self::Image,
-        Self::InlineData,
-        Self::InlineDataCamel,
-    ];
-
-    fn from_name(name: &str) -> Option<Self> {
-        Some(match name {
-            "type" => Self::Type,
-            "data" => Self::Data,
-            "media_type" => Self::MediaType,
-            "mime_type" => Self::MimeType,
-            "mimeType" => Self::MimeTypeCamel,
-            "mediaType" => Self::MediaTypeCamel,
-            "content" => Self::Content,
-            "image" => Self::Image,
-            "inline_data" => Self::InlineData,
-            "inlineData" => Self::InlineDataCamel,
-            _ => return None,
-        })
-    }
-
-    fn index(self) -> usize {
-        Self::ALL
-            .iter()
-            .position(|key| *key == self)
-            .expect("shape keys belong to the fixed key set")
-    }
+shape_keys! {
+    Type => "type",
+    Data => "data",
+    MediaType => "media_type",
+    MimeType => "mime_type",
+    MimeTypeCamel => "mimeType",
+    MediaTypeCamel => "mediaType",
+    Content => "content",
+    Image => "image",
+    InlineData => "inline_data",
+    InlineDataCamel => "inlineData",
 }
 
 #[derive(Clone, Debug)]
@@ -122,7 +107,7 @@ fn to_inline_value(value: &ShapeValue) -> ShapeValue {
 
 #[derive(Clone, Debug, Default)]
 struct ProviderFields {
-    values: [Option<ShapeValue>; ShapeKey::ALL.len()],
+    values: [Option<ShapeValue>; ShapeKey::COUNT],
 }
 
 impl ProviderFields {
