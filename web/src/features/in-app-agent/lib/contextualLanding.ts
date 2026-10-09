@@ -82,7 +82,7 @@ export function getInAppAgentContextualLanding(projectId: string) {
   return registeredLandings.get(projectId, activeLandingId);
 }
 
-export function subscribeToInAppAgentContextualLanding(
+function subscribeToInAppAgentContextualLanding(
   projectId: string,
   listener: () => void,
 ) {

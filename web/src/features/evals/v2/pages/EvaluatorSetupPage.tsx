@@ -90,11 +90,11 @@ import type { SampleObservation } from "@/src/features/evals/v2/components/Evalu
 import { getEvaluatorAssistantLanding } from "@/src/features/evals/v2/fns/getEvaluatorAssistantLanding";
 import { useEvaluatorAssistantLanding } from "@/src/features/evals/v2/hooks/useEvaluatorAssistantLanding";
 
-export function getEvaluatorSetupHeaderState() {
+function getEvaluatorSetupHeaderState() {
   return { title: "Configure evaluator" } as const;
 }
 
-export function getEvaluatorAssistantLandingMode({
+function getEvaluatorAssistantLandingMode({
   mode,
   evaluatorType: _evaluatorType,
   isAssistantAvailable,
@@ -144,13 +144,11 @@ type InitialEvaluator = {
   sampleFilter?: FilterState;
 };
 
-export function shouldOfferRuleAttachment(evaluator: {
-  blockedAt: Date | null;
-}) {
+function shouldOfferRuleAttachment(evaluator: { blockedAt: Date | null }) {
   return evaluator.blockedAt === null;
 }
 
-export function applyEvaluatorSuggestion(
+function applyEvaluatorSuggestion(
   suggestion: string | null,
   setSuggestion: (suggestion: string) => void,
 ) {
@@ -177,7 +175,7 @@ export async function navigateToEvaluatorDetail({
   await replace(path);
 }
 
-export function getEvaluatorVersionDefinition(
+function getEvaluatorVersionDefinition(
   version: EvaluatorVersion,
 ): NormalizedEvaluatorDefinition {
   if (version.type === "FACET") {
