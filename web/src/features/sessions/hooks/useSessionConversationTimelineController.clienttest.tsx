@@ -313,7 +313,7 @@ describe("useSessionConversationTimelineController", () => {
     act(() => result.current.onSelect(0, "generation", "0:1"));
     expect(feed.scrollTo).toHaveBeenCalledWith({
       top: 250,
-      behavior: "smooth",
+      behavior: "auto",
     });
   });
 
@@ -413,7 +413,7 @@ describe("useSessionConversationTimelineController", () => {
     expect(result.current.activeItemId).toBe("trace:2");
     expect(feed.scrollTo).toHaveBeenCalledWith({
       top: 0,
-      behavior: "smooth",
+      behavior: "auto",
     });
   });
   it("scrolls to the exact row when multiple rows share an observation", () => {
@@ -439,7 +439,7 @@ describe("useSessionConversationTimelineController", () => {
     expect(result.current.activeItemId).toBe("trace");
     expect(feed.scrollTo).toHaveBeenCalledWith({
       top: 100,
-      behavior: "smooth",
+      behavior: "auto",
     });
   });
 
@@ -451,7 +451,7 @@ describe("useSessionConversationTimelineController", () => {
       useSessionConversationTimelineController([{ trace }]),
     );
     act(() => result.current.onSelect(0, "generation", "0:1"));
-    expect(feed.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+    expect(feed.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "auto" });
     vi.mocked(feed.scrollTo).mockClear();
 
     const traceElement = document.createElement("div");

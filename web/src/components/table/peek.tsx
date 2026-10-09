@@ -95,6 +95,8 @@ type TablePeekViewProps = Pick<
    */
   actionsMenu?: React.ReactNode;
   hideExpandToggle?: boolean;
+  /** Keep the content mounted across items instead of remounting per item. */
+  preserveContentAcrossItems?: boolean;
   // Content
   /**
    * The content to display in the peek view.
@@ -166,7 +168,14 @@ export const shouldClosePeekAfterDelete = (
 ): boolean => currentPeekTraceId === deletedTraceId;
 
 function TablePeekViewComponent(props: TablePeekViewProps) {
-  const { title, children, footer, tableName, isV4 } = props;
+  const {
+    title,
+    children,
+    footer,
+    tableName,
+    isV4,
+    preserveContentAcrossItems,
+  } = props;
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const itemId = router.query.peek as string | undefined;
@@ -293,7 +302,10 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
 
   const content = (
     <div className="flex max-h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex-1 overflow-auto" key={itemId}>
+      <div
+        className="flex-1 overflow-auto"
+        key={preserveContentAcrossItems ? undefined : itemId}
+      >
         {children}
       </div>
       {footer && (

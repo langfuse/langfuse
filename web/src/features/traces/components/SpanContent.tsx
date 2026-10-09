@@ -22,6 +22,7 @@ import { type TreeNode } from "../types/treeNode";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter, numberFormatter } from "@/src/utils/numbers";
@@ -42,7 +43,31 @@ interface SpanContentProps {
   className?: string;
 }
 
-export function SpanContent({
+const rootClassName =
+  "peer relative flex min-w-0 flex-1 items-start gap-2 rounded-md py-1 pr-2 pl-1 text-left";
+
+export function SpanContent(props: SpanContentProps | { isLoading: true }) {
+  if ("isLoading" in props) return <SpanContentLoading />;
+  return <LoadedSpanContent {...props} />;
+}
+
+/** Name and metrics lines at their text heights, so rows keep their height. */
+function SpanContentLoading() {
+  return (
+    <div className={rootClassName}>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex h-5 items-center">
+          <Skeleton className="h-3.5 w-32" />
+        </div>
+        <div className="flex h-4 items-center">
+          <Skeleton className="h-3 w-10" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LoadedSpanContent({
   node,
   emphasis,
   commentCount,
@@ -101,10 +126,7 @@ export function SpanContent({
       // No row-level title: it would pop a native tooltip from ANYWHERE in the
       // row — stacking on the score chips' own titles and the ScoreTag level
       // tooltip. The truncating name span below carries its own title.
-      className={cn(
-        "peer relative flex min-w-0 flex-1 items-start gap-2 rounded-md py-1 pr-2 pl-1 text-left",
-        className,
-      )}
+      className={cn(rootClassName, className)}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {/* Name and badges row */}
