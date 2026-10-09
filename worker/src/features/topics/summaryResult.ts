@@ -13,12 +13,9 @@ export function topicSummaryOutputError(output: {
   status: "applicable" | "not_applicable" | "insufficient_input";
 }): string | undefined {
   const summary = output.summary.trim();
-  if (output.status === "applicable") {
-    if (!summary || summary.length > 2000)
-      return "Applicable facet summary must contain a concise summary.";
-  } else if (summary) {
-    return "Non-applicable facet result contains a summary.";
-  }
+  // Models sometimes add text to a non-applicable result; callers keep the status and drop the text.
+  if (output.status === "applicable" && (!summary || summary.length > 2000))
+    return "Applicable facet summary must contain a concise summary.";
 }
 
 function mergeDetails(

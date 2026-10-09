@@ -44,6 +44,16 @@ const EnvSchema = z.object({
     .optional()
     .transform((date) => (date ? new Date(date) : null)),
 
+  // CHB REST credentials, mirroring web/src/env.mjs. The worker needs them for
+  // one read: the spend-alert job asks for the open period's accrued usage.
+  CLICKHOUSE_BILLING_BASE_URL: z.url().optional(),
+  CLICKHOUSE_BILLING_AUTH0_DOMAIN: z.string().optional(),
+  CLICKHOUSE_BILLING_AUTH0_CLIENT_ID: z.string().optional(),
+  CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET: z.string().optional(),
+  // CHB's resource-server identifier. Defaulted because it is the same value
+  // in every CHB tenant, and overridable in case that stops being true.
+  CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
+
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -787,6 +797,17 @@ const EnvSchema = z.object({
     .default(2),
   LANGFUSE_QUEUE_METRICS_INTERVAL_MS: z.coerce.number().min(100).default(1000),
   LANGFUSE_QUEUE_METRICS_ENABLED: z.enum(["true", "false"]).default("true"),
+  // Upper bound for a random delay before the worker registers its queues and
+  // starts its periodic runners. Spreads the Redis connection setup of tasks
+  // that boot together (e.g. an autoscaling step) over time. 0 disables it.
+  // Keep it below the container health check grace period: the HTTP server
+  // only starts listening after the delay.
+  LANGFUSE_WORKER_STARTUP_JITTER_MAX_MS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(120_000)
+    .default(0),
 });
 
 type ParsedEnv = z.infer<typeof EnvSchema>;

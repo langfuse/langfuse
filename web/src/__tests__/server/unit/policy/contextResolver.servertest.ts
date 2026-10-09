@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { Prisma, type ApiKey, type PrismaClient } from "@langfuse/shared/src/db";
+import {
+  Prisma,
+  type ApiKey,
+  type PrismaClient,
+} from "@langfuse/shared/src/db";
 import { InternalServerError } from "@langfuse/shared";
 import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 

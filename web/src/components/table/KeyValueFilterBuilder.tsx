@@ -346,7 +346,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   };
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-1">
+    <div className="flex flex-col gap-4 px-3 py-1">
       {/* Filter rows */}
       {localFilters.map((filter, index) => {
         const availableValuesForKey = filter.key
@@ -556,7 +556,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
         );
       })}
 
-      {/* Add filter button */}
+      {/* Add another condition within this facet. */}
       <Button
         onClick={handleAddFilter}
         size="sm"
@@ -564,7 +564,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
         className="w-full"
       >
         <Plus className="icon-base text-icon-foreground mr-2" />
-        Add filter
+        Add condition
       </Button>
     </div>
   );

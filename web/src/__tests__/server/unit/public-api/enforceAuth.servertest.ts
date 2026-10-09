@@ -119,9 +119,10 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
       ).toEqual({ success: true, projectId: PRJ });
     });
     it("ignores a URL disagreeing with the bound project", () => {
-      expect(
-        getProjectId(projectKey(), req({ projectId: "prj_2" })),
-      ).toEqual({ success: true, projectId: PRJ });
+      expect(getProjectId(projectKey(), req({ projectId: "prj_2" }))).toEqual({
+        success: true,
+        projectId: PRJ,
+      });
     });
     it("ignores conflicting URL and header projects when bound", () => {
       expect(

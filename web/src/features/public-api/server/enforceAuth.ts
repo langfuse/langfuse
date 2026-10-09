@@ -169,7 +169,9 @@ function getProjectId(
   req: NextApiRequest,
 ): ResolvedProject | ErrorResult<ForbiddenError> {
   const projectId =
-    getBoundProjectId(context) ?? getUrlProjectId(req) ?? getHeaderProjectId(req);
+    getBoundProjectId(context) ??
+    getUrlProjectId(req) ??
+    getHeaderProjectId(req);
   if (!projectId) {
     return forbiddenError();
   }

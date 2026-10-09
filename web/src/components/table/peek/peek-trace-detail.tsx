@@ -60,14 +60,27 @@ export const TablePeekViewTraceDetail = (
       {...tablePeekViewProps}
       title={traceId}
       hideExpandToggle
-      actions={<TraceDetailActions {...actionProps} />}
-      actionsMenu={<TraceDetailActions {...actionProps} layout="menu" />}
+      preserveContentAcrossItems
+      actions={
+        <TraceDetailActions
+          isPlaceholderData={trace.isPlaceholderData}
+          {...actionProps}
+        />
+      }
+      actionsMenu={
+        <TraceDetailActions
+          isPlaceholderData={trace.isPlaceholderData}
+          {...actionProps}
+          layout="menu"
+        />
+      }
     >
       <TraceDetailBody
         trace={trace.data}
         context="peek"
         layout={layout}
         truncatedAtObservations={trace.truncatedAtObservations}
+        isPlaceholderData={trace.isPlaceholderData}
       />
     </TablePeekView>
   );

@@ -85,19 +85,19 @@ export function ExperimentDisplaySettings({
           selected={layout === "list"}
           onSelect={() => onLayoutChange("list")}
         >
-          Diff — one row per item
+          List view: one column per metric
         </OptionItem>
         <OptionItem
           selected={layout === "grid"}
           onSelect={() => onLayoutChange("grid")}
         >
-          Side by side — a column per experiment
+          Grid view: one column per experiment
         </OptionItem>
         <OptionItem
           selected={layout === "matrix"}
           onSelect={() => onLayoutChange("matrix")}
         >
-          Score matrix — scores as rows, runs as columns
+          Score matrix: scores as rows, runs as columns
         </OptionItem>
 
         <DropdownMenuSeparator />

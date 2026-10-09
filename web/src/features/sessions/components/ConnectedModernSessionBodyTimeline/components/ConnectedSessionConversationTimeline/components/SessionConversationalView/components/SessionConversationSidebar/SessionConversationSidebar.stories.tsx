@@ -271,7 +271,12 @@ export const GroupedTools = meta.story({
       canvas.queryByRole("button", { name: "tool: apply_patch" }),
     ).not.toBeInTheDocument();
     await userEvent.click(group);
-    await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-1", "0:0");
+    await expect(args.onSelect).toHaveBeenCalledWith(
+      0,
+      "generation-1",
+      "0:0",
+      "0:0",
+    );
     await userEvent.type(canvas.getByRole("textbox"), "tool");
     await expect(
       canvas.queryByRole("button", { name: /^Tool:.*read_file.*apply_patch/ }),
