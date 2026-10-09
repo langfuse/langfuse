@@ -25,9 +25,13 @@ describe("eval config target behavior", () => {
         ? targetColumn.options.map((option) => option.value)
         : [];
 
-    expect(availableValues).toEqual(
-      expect.arrayContaining(Object.values(EvalTargetObject)),
-    );
+    expect(availableValues).toEqual([
+      EvalTargetObject.TRACE,
+      EvalTargetObject.DATASET,
+      EvalTargetObject.EVENT,
+      EvalTargetObject.EXPERIMENT,
+    ]);
+    expect(availableValues).not.toContain(EvalTargetObject.SCORE_RESULT);
 
     const result = resolveCheckboxOperator({
       colType: "stringOptions",
