@@ -141,7 +141,10 @@ async function materialize(
   }
 }
 
-/** backfillApiKeyRoleAssignment restores a verified key's legacy role. */
+/**
+ * backfillApiKeyRoleAssignment restores a verified key's legacy role.
+ * @deprecated RoleAssignment backfill will be removed in the next major version.
+ */
 async function backfillApiKeyRoleAssignment(
   prisma: PrismaClient,
   apiKey: ApiKey,
@@ -171,7 +174,8 @@ function isUniqueConstraintFailedError(error: unknown): boolean {
   );
 }
 
-/** publicBearerPolicies narrows a public-key bearer to scores:save on its own project, granted only when the key's stored roles allow it there.
+/**
+ * publicBearerPolicies narrows a public-key bearer to scores:save on its own project, granted only when the key's stored roles allow it there.
  * @deprecated Public bearer authentication will be removed in the next major version.
  */
 function publicBearerPolicies(

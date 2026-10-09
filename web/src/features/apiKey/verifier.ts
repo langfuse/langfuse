@@ -115,7 +115,8 @@ export class Verifier {
       : null;
   }
 
-  /** verifyPublicKey resolves a public-key token to its scores-only presentation, or null when it is not a public key or is unknown.
+  /**
+   * verifyPublicKey resolves a public-key token to its scores-only presentation, or null when it is not a public key or is unknown.
    * @deprecated Public bearer authentication will be removed in the next major version.
    */
   private async verifyPublicKey(
