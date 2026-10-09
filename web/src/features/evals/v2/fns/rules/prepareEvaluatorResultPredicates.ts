@@ -4,15 +4,9 @@ import {
   type EvaluatorScoreDefinitions,
   type SavedEvaluatorDefinitionForScoreDerivation,
   type ScoreResultPredicate,
-  type TriggerableScoreDefinition,
 } from "@langfuse/shared";
 
-export const DEFAULT_SCORE_RESULT_PREDICATE: ScoreResultPredicate = {
-  scoreName: "",
-  dataType: "BOOLEAN",
-  operator: "=",
-  value: false,
-};
+import { createDefaultFreeformScoreResultPredicate } from "@/src/features/evals/v2/fns/rules/createDefaultFreeformScoreResultPredicate";
 
 export function prepareEvaluatorResultPredicates(
   definition: SavedEvaluatorDefinitionForScoreDerivation,
@@ -34,7 +28,7 @@ export function prepareEvaluatorResultPredicates(
   if (scoreDefinitions.mode === "freeform") {
     return {
       scoreDefinitions,
-      predicates: [DEFAULT_SCORE_RESULT_PREDICATE],
+      predicates: [createDefaultFreeformScoreResultPredicate()],
     };
   }
 
@@ -42,12 +36,4 @@ export function prepareEvaluatorResultPredicates(
     scoreDefinitions,
     predicates: [],
   };
-}
-
-export function predicateForScoreName(
-  scoreName: string,
-  scoreDefinitions: TriggerableScoreDefinition[],
-) {
-  const definition = scoreDefinitions.find((score) => score.name === scoreName);
-  return definition ? createDefaultScoreResultPredicate(definition) : null;
 }

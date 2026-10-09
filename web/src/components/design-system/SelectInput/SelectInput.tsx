@@ -29,13 +29,7 @@ type SelectInputProps<V extends string> = Pick<
   | "disabled"
 > & {
   placeholder: string;
-  search?: {
-    placeholder: string;
-    value?: string;
-    onValueChange?: (value: string) => void;
-    onOpenChange?: (open: boolean) => void;
-  };
-  optionIndicator?: "radio" | "checkmark";
+  search?: { placeholder: string };
   error?: boolean;
 };
 
@@ -53,7 +47,6 @@ function SelectInputInner<V extends string>(
     placeholder,
     emptyMessage = "No options available.",
     search,
-    optionIndicator = "radio",
     error,
     ...triggerProps
   }: SelectInputProps<V>,
@@ -65,14 +58,10 @@ function SelectInputInner<V extends string>(
     .flatMap((node) => (isSelectGroup(node) ? node.options : [node]))
     .find((option) => option.value === value);
   const listId = React.useId();
-  const handleOpenChange = (nextOpen: boolean) => {
-    setOpen(nextOpen);
-    search?.onOpenChange?.(nextOpen);
-  };
 
   if (search) {
     return (
-      <PopoverPrimitive.Root open={open} onOpenChange={handleOpenChange}>
+      <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
         <InputControl
           contentLayout="spread"
           error={error}
@@ -107,11 +96,7 @@ function SelectInputInner<V extends string>(
               <InputDropdown.Root>
                 <CommandPrimitive>
                   <InputDropdown.Search>
-                    <CommandPrimitive.Input
-                      placeholder={search.placeholder}
-                      value={search.value}
-                      onValueChange={search.onValueChange}
-                    />
+                    <CommandPrimitive.Input placeholder={search.placeholder} />
                   </InputDropdown.Search>
                   <InputDropdown.Empty>
                     <CommandPrimitive.Empty>
@@ -135,11 +120,11 @@ function SelectInputInner<V extends string>(
                               disabled={option.disabled}
                               onSelect={() => {
                                 onValueChange(option.value);
-                                handleOpenChange(false);
+                                setOpen(false);
                               }}
                             >
                               <InputDropdown.OptionContent
-                                type={optionIndicator}
+                                type="radio"
                                 checked={value === option.value}
                                 label={option.label}
                                 title={

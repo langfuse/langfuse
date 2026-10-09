@@ -9,16 +9,14 @@ import {
 import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
+import { RuleEvaluatorResultPredicateRow } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorResultTriggerSection/components/RuleEvaluatorResultPredicateRow/RuleEvaluatorResultPredicateRow";
+import { RuleEvaluatorSelect } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorResultTriggerSection/components/RuleEvaluatorSelect/RuleEvaluatorSelect";
+import { createDefaultFreeformScoreResultPredicate } from "@/src/features/evals/v2/fns/rules/createDefaultFreeformScoreResultPredicate";
+import { predicateForScoreName } from "@/src/features/evals/v2/fns/rules/predicateForScoreName";
+import { prepareEvaluatorResultPredicates } from "@/src/features/evals/v2/fns/rules/prepareEvaluatorResultPredicates";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { RuleEvaluatorResultPredicateRow } from "./RuleEvaluatorResultPredicateRow";
-import {
-  DEFAULT_SCORE_RESULT_PREDICATE,
-  predicateForScoreName,
-  prepareEvaluatorResultPredicates,
-} from "./ruleEvaluatorResultPredicates";
 
 type ScorePredicate = ScoreResultTrigger["predicates"][number];
 type EvaluatorDefinition = RouterOutputs["evalsV2"]["get"];
@@ -124,7 +122,7 @@ export function RuleEvaluatorResultTriggerSection({
         : undefined;
     const predicate = scoreDefinition
       ? createDefaultScoreResultPredicate(scoreDefinition)
-      : DEFAULT_SCORE_RESULT_PREDICATE;
+      : createDefaultFreeformScoreResultPredicate();
     setTrigger({
       ...trigger,
       predicates: [...trigger.predicates, predicate],
@@ -150,13 +148,12 @@ export function RuleEvaluatorResultTriggerSection({
 
   return (
     <div className="flex flex-col gap-2">
-      <SectionHeader
-        title="Filter evaluator results"
-        meta={null}
-        description="Group conditions on the same evaluator to wait for all its scores."
-        tooltip="These conditions determine which evaluator results trigger this rule."
-        trailing={null}
-      />
+      <div>
+        <p className="text-sm font-medium">Filter evaluator results</p>
+        <p className="text-muted-foreground text-xs">
+          Group conditions on the same evaluator to wait for all its scores.
+        </p>
+      </div>
 
       <div className="grid grid-cols-[3.25rem_minmax(8rem,0.65fr)_6rem_minmax(12rem,1.5fr)_2rem] items-center gap-2">
         <span className="text-muted-foreground text-sm">Where</span>
@@ -174,20 +171,13 @@ export function RuleEvaluatorResultTriggerSection({
           placeholder="Operator"
           disabled
         />
-        <SelectInput
-          id="trigger-evaluator"
+        <RuleEvaluatorSelect
           value={trigger?.evaluatorId ?? ""}
           options={selectableEvaluators}
+          search={searchInput}
+          onSearchChange={handleSearchChange}
+          onSearchOpenChange={handleSearchOpenChange}
           onValueChange={handleEvaluatorValueChange}
-          placeholder="Select an evaluator"
-          emptyMessage="No evaluators found."
-          optionIndicator="checkmark"
-          search={{
-            placeholder: "Search evaluators...",
-            value: searchInput,
-            onValueChange: handleSearchChange,
-            onOpenChange: handleSearchOpenChange,
-          }}
         />
         <span aria-hidden />
       </div>
