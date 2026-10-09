@@ -12,6 +12,8 @@ import {
   systemRoleAccessRights,
 } from "@langfuse/shared/rbac";
 
+import { backfillApiKeyRoleAssignment } from "@langfuse/shared/rbac/server";
+
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import {
@@ -112,7 +114,15 @@ async function materialize(
     boundResource: boundResourceFor(apiKey, org),
   };
 
-  const roles = await getRolesForPrincipal(ApiKeyId(apiKey.id), prisma);
+  let roles = await getRolesForPrincipal(ApiKeyId(apiKey.id), prisma);
+  if (roles.length === 0) {
+    await backfillApiKeyRoleAssignment(
+      prisma,
+      apiKey.id,
+      OrganizationId(org.orgId),
+    );
+    roles = await getRolesForPrincipal(ApiKeyId(apiKey.id), prisma);
+  }
   const context = {
     principal,
     policies: roles.flatMap((role) => role.policies),

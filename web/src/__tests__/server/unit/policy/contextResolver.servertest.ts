@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { type ApiKey, type PrismaClient } from "@langfuse/shared/src/db";
 import { InternalServerError } from "@langfuse/shared";
@@ -344,5 +344,22 @@ describe("a verified key with no org is a 500 invariant break", () => {
     if (!resolved.success) {
       expect(resolved.error).toBeInstanceOf(InternalServerError);
     }
+  });
+});
+
+describe("role lookup failures", () => {
+  it("does not backfill after a database error", async () => {
+    const prisma = mockPrisma(orgRow());
+    const failure = new Error("role lookup unavailable");
+    prisma.roleAssignment.findMany = vi.fn().mockRejectedValue(failure);
+    prisma.$transaction = vi.fn();
+    const resolver = new ContextResolver(
+      new OrganizationRepository(prisma),
+      prisma,
+    );
+    await expect(
+      resolver.resolve({ authorization: "privateKey", apiKey: apiKey() }),
+    ).rejects.toThrow(failure);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

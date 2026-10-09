@@ -9,6 +9,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   assignRole,
+  backfillApiKeyRoleAssignment,
   getRoleAssignmentsForPrincipal,
   transferRoleAssignments,
 } from "@langfuse/shared/rbac/server";
@@ -22,6 +23,28 @@ import {
 } from "@langfuse/shared/rbac";
 
 describe("role assignment integrity", () => {
+  it("rechecks existing grants before backfilling a key", async () => {
+    const fixture = await createOrgProjectAndApiKey();
+    const key = await prisma.apiKey.findUniqueOrThrow({
+      where: { publicKey: fixture.publicKey },
+    });
+    await prisma.roleAssignment.updateMany({
+      where: { apiKeyId: key.id },
+      data: { roleId: "system/INGEST", systemRole: "INGEST" },
+    });
+    const before = await prisma.roleAssignment.findMany({
+      where: { apiKeyId: key.id },
+    });
+    await backfillApiKeyRoleAssignment(
+      prisma,
+      key.id,
+      OrganizationId(fixture.orgId),
+    );
+    expect(
+      await prisma.roleAssignment.findMany({ where: { apiKeyId: key.id } }),
+    ).toEqual(before);
+  });
+
   it.each(["system/UNKNOWN", "system/", "system/toString"])(
     "rejects invalid role %s before opening a transaction",
     async (roleId) => {
