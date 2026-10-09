@@ -34,6 +34,16 @@ const ARRAY_JOIN_SQL: Record<ArrayJoinNode["variant"], string> = {
   inner: "inner array join",
 };
 
+const DATE_WRAPPER_FNS = new Set([
+  "toDate",
+  "toDateTime",
+  "toStartOfMinute",
+  "toStartOfHour",
+  "toStartOfDay",
+  "toStartOfMonth",
+  "toStartOfYear",
+]);
+
 function canonicalParamValue(value: unknown): string {
   if (value instanceof Date) return `d:${value.toISOString()}`;
   if (Array.isArray(value)) {
@@ -386,24 +396,15 @@ function bindTypeOfColumnOperand(node: OperationNode): string | undefined {
   if (ReferenceNode.is(node) && ColumnNode.is(node.column)) {
     return COLUMN_BIND_TYPES[node.column.column.name];
   }
-  // Date wrappers (`toDate(timestamp)`, `toStartOfMinute(start_time)`) keep
-  // the inner column's bind type so the compared value is still DateTime64(3).
+  // Single-argument date wrappers (`toDate(timestamp)`) keep the inner
+  // column's bind type so the compared value is still DateTime64(3). Extra
+  // arguments such as a timezone are not column values.
   if (
     FunctionNode.is(node) &&
     DATE_WRAPPER_FNS.has(node.func) &&
-    node.arguments[0]
+    node.arguments.length === 1
   ) {
     return bindTypeOfColumnOperand(node.arguments[0]);
   }
   return undefined;
 }
-
-const DATE_WRAPPER_FNS = new Set([
-  "toDate",
-  "toDateTime",
-  "toStartOfMinute",
-  "toStartOfHour",
-  "toStartOfDay",
-  "toStartOfMonth",
-  "toStartOfYear",
-]);
