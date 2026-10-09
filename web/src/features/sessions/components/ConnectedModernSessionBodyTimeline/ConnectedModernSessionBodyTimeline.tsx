@@ -207,6 +207,7 @@ export function ConnectedModernSessionBodyTimeline({
     index: number,
     observationId?: string,
     rowId?: string,
+    toolGroupId?: string,
   ) => {
     const entry = entries[index];
     const traceId = entry
@@ -222,7 +223,7 @@ export function ConnectedModernSessionBodyTimeline({
         requestId: scrollRequestIdRef.current,
       });
     }
-    timelineController.onSelect(index, observationId, rowId);
+    timelineController.onSelect(index, observationId, rowId, toolGroupId);
   };
 
   return (

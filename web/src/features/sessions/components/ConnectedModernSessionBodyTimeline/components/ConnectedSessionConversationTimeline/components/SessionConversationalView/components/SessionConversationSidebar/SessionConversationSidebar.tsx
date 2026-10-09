@@ -27,6 +27,7 @@ export type SessionConversationSidebarTrace = {
   idleGapSeconds: number | null;
   threadCount?: number;
   hiddenThreadCount?: number;
+  emptyTranscriptReason?: "reasoning-only";
   transcriptRows:
     | Array<{
         id: string;
@@ -59,6 +60,7 @@ export function SessionConversationSidebar(
           index: number,
           observationId?: string,
           rowId?: string,
+          toolGroupId?: string,
         ) => void;
         onVisibleTraceIdsChange: (traceIds: string[]) => void;
         isLoadingTranscripts: boolean;
@@ -349,6 +351,12 @@ export function SessionConversationSidebar(
               const showThreadHeaders =
                 !sidebarTrace.itemId &&
                 (sidebarTrace.threadCount ?? threads.size) > 1;
+              const emptyTranscriptLabel = (() => {
+                if (props.search.trim()) return "No matching messages or tools";
+                if (sidebarTrace.emptyTranscriptReason === "reasoning-only")
+                  return "Reasoning only";
+                return "No messages or tools";
+              })();
               return (
                 <div
                   key={item.key}
@@ -429,9 +437,7 @@ export function SessionConversationSidebar(
                           )}
                           {transcriptRows?.length === 0 && (
                             <p className="text-muted-foreground px-1 py-2 text-xs">
-                              {props.search.trim()
-                                ? "No matching messages or tools"
-                                : "No messages or tools"}
+                              {emptyTranscriptLabel}
                             </p>
                           )}
                           <div className="flex flex-col">
@@ -493,6 +499,7 @@ export function SessionConversationSidebar(
                                               props.onSelect(
                                                 targetIndex,
                                                 firstTool.observationId,
+                                                firstTool.id,
                                                 firstTool.id,
                                               )
                                             }

@@ -127,6 +127,7 @@ export function SessionConversationalView(
   });
   if (props.state === "loaded" && !props.isSearchPending) {
     for (const [itemIndex, item] of timelineItems.entries()) {
+      let emptyTranscriptReason: "reasoning-only" | undefined;
       const transcriptRows = (() => {
         if (item.state.type === "error") return null;
         if (item.state.type === "loading") return undefined;
@@ -134,9 +135,17 @@ export function SessionConversationalView(
         let toolGroupId: string | undefined;
         return getSessionTranscriptRows(item.state.result.transcript)
           .filter((row) => row.threadIndex === item.threadIndex)
-          .map(({ id, threadIndex, row }) => {
+          .flatMap(({ id, threadIndex, row }) => {
             if (row.type !== "tool") toolGroupId = undefined;
             else if (toolGroupId === undefined) toolGroupId = id;
+            if (
+              row.type !== "tool" &&
+              row.message.parts.length > 0 &&
+              row.message.parts.every((part) => part.type === "reasoning")
+            ) {
+              emptyTranscriptReason = "reasoning-only";
+              return [];
+            }
             const label =
               row.type === "tool"
                 ? (row.call?.toolName ?? row.result?.toolName ?? "Tool")
@@ -150,17 +159,20 @@ export function SessionConversationalView(
                     .join(" ") ||
                   row.message.senderName ||
                   row.message.role;
-            return {
-              id,
-              threadIndex,
-              toolGroupId:
-                row.type === "tool"
-                  ? `${id.split(":")[0]}:${toolGroupId}`
-                  : undefined,
-              observationId: row.message.observationId,
-              label,
-              role: row.type === "tool" ? ("tool" as const) : row.message.role,
-            };
+            return [
+              {
+                id,
+                threadIndex,
+                toolGroupId:
+                  row.type === "tool"
+                    ? `${id.split(":")[0]}:${toolGroupId}`
+                    : undefined,
+                observationId: row.message.observationId,
+                label,
+                role:
+                  row.type === "tool" ? ("tool" as const) : row.message.role,
+              },
+            ];
           });
       })();
       const matchingRows =
@@ -191,6 +203,8 @@ export function SessionConversationalView(
                 item.trace,
               ),
         transcriptRows: matchingRows,
+        emptyTranscriptReason:
+          transcriptRows?.length === 0 ? emptyTranscriptReason : undefined,
         threadCount: threadVisibility?.visibleThreads.length,
         hiddenThreadCount: threadVisibility?.hiddenThreadCount,
       });

@@ -23,6 +23,8 @@ type UseExperimentItemsTableDataParams = {
     order: "ASC" | "DESC";
   } | null;
   itemVisibility?: "baseline-only" | "all";
+  /** Chars of I/O to load from the full event text. Omitted keeps the preview. */
+  ioCharLimit?: number;
 };
 
 /**
@@ -40,6 +42,7 @@ export function useExperimentItemsTableData({
   paginationState,
   orderByState,
   itemVisibility,
+  ioCharLimit,
 }: UseExperimentItemsTableDataParams) {
   const hasSelectedRuns =
     Boolean(baseExperimentId) || compExperimentIds.length > 0;
@@ -113,8 +116,15 @@ export function useExperimentItemsTableData({
       itemIds: data.map((item) => item.itemId),
       baseExperimentId,
       compExperimentIds,
+      ...(ioCharLimit !== undefined ? { ioCharLimit } : {}),
     };
-  }, [itemsQuery.data?.data, projectId, baseExperimentId, compExperimentIds]);
+  }, [
+    itemsQuery.data?.data,
+    projectId,
+    baseExperimentId,
+    compExperimentIds,
+    ioCharLimit,
+  ]);
 
   // Fetch IO data for visible items
   const batchIOQuery = api.experiments.batchIO.useQuery(batchIOPayload!, {
