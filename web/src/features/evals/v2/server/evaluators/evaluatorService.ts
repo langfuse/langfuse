@@ -779,6 +779,26 @@ async function patchEvaluator(params: {
     throw new LangfuseConflictError("Evaluator type cannot be changed");
   }
 
+  let definitionChanged = false;
+  if (input.definition) {
+    const latest = current.versions[0];
+    if (!latest) throw new LangfuseNotFoundError("Evaluator version not found");
+    definitionChanged = !isDeepStrictEqual(
+      toEvaluatorDefinition(current.type, latest),
+      input.definition,
+    );
+  }
+  const scoreNameChanged =
+    input.name !== undefined &&
+    input.name !== current.name &&
+    current.type !== EvalTemplateType.CODE;
+  if (definitionChanged || scoreNameChanged) {
+    await lockEvaluatorResultRuleGraph({
+      prisma: tx,
+      projectId: input.projectId,
+    });
+  }
+
   if (input.name !== undefined || input.description !== undefined) {
     await repository.updateEvaluatorMetadata({
       tx,
@@ -790,29 +810,16 @@ async function patchEvaluator(params: {
   }
 
   if (input.definition) {
-    const latest = current.versions[0];
-    if (!latest) throw new LangfuseNotFoundError("Evaluator version not found");
-    const definitionChanged = !isDeepStrictEqual(
-      toEvaluatorDefinition(current.type, latest),
-      input.definition,
-    );
     if (definitionChanged) {
-      await lockEvaluatorResultRuleGraph({
-        prisma: tx,
-        projectId: input.projectId,
-      });
+      const latest = current.versions[0];
+      if (!latest)
+        throw new LangfuseNotFoundError("Evaluator version not found");
       await repository.appendEvaluatorVersion({
         tx,
         evaluatorId: input.evaluatorId,
         version: latest.version + 1,
         definition: prepareEvaluatorDefinitionForPersistence(input.definition),
         createdByUserId,
-      });
-      await invalidateEvaluatorResultRules({
-        prisma: tx,
-        projectId: input.projectId,
-        evaluatorId: input.evaluatorId,
-        reason: "The trigger evaluator changed. Review the score conditions.",
       });
     }
     await reconcileEvaluatorBlock({
@@ -822,6 +829,14 @@ async function patchEvaluator(params: {
       validationResult: params.validationResult,
       existingBlockedAt: current.blockedAt,
       existingBlockReason: current.blockReason,
+    });
+  }
+  if (definitionChanged || scoreNameChanged) {
+    await invalidateEvaluatorResultRules({
+      prisma: tx,
+      projectId: input.projectId,
+      evaluatorId: input.evaluatorId,
+      reason: "The trigger evaluator changed. Review the score conditions.",
     });
   }
 
@@ -859,6 +874,17 @@ async function updateEvaluator(params: {
     toEvaluatorDefinition(current.type, latest),
     input.definition,
   );
+  const scoreNameChanged =
+    input.name !== current.name && current.type !== EvalTemplateType.CODE;
+
+  // All evaluator graph transactions acquire the project lock before writing
+  // evaluator rows so concurrent updates and deletes serialize consistently.
+  if (params.forceNewVersion || definitionChanged || scoreNameChanged) {
+    await lockEvaluatorResultRuleGraph({
+      prisma: tx,
+      projectId: input.projectId,
+    });
+  }
 
   await repository.updateEvaluatorMetadata({
     tx,
@@ -871,10 +897,6 @@ async function updateEvaluator(params: {
   // Name-based upserts from the unstable API preserve every write as a new
   // version. Stable ID-based updates only version actual definition changes.
   if (params.forceNewVersion || definitionChanged) {
-    await lockEvaluatorResultRuleGraph({
-      prisma: tx,
-      projectId: input.projectId,
-    });
     await repository.appendEvaluatorVersion({
       tx,
       evaluatorId: input.evaluatorId,
@@ -882,6 +904,8 @@ async function updateEvaluator(params: {
       definition: prepareEvaluatorDefinitionForPersistence(input.definition),
       createdByUserId,
     });
+  }
+  if (params.forceNewVersion || definitionChanged || scoreNameChanged) {
     await invalidateEvaluatorResultRules({
       prisma: tx,
       projectId: input.projectId,

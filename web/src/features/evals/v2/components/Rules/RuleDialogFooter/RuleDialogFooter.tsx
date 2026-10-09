@@ -18,6 +18,8 @@ export function RuleDialogFooter({
   nameGenerationPending,
   isEditing,
   allowUnchangedSave = false,
+  allowMissingScoreResultTrigger = false,
+  requireAssignments = true,
   canEdit,
   nameAIAssistanceAvailable,
   onCancel,
@@ -28,6 +30,8 @@ export function RuleDialogFooter({
   nameGenerationPending: boolean;
   isEditing: boolean;
   allowUnchangedSave?: boolean;
+  allowMissingScoreResultTrigger?: boolean;
+  requireAssignments?: boolean;
   canEdit: boolean;
   nameAIAssistanceAvailable: boolean;
   onCancel: () => void;
@@ -35,7 +39,9 @@ export function RuleDialogFooter({
 }) {
   const name = useStore(ruleSetupStore, (state) => state.name);
   const dirty = useStore(ruleSetupStore, isRuleDraftDirty);
-  const valid = useStore(ruleSetupStore, isRuleDraftValid);
+  const valid = useStore(ruleSetupStore, (state) =>
+    isRuleDraftValid(state, requireAssignments, allowMissingScoreResultTrigger),
+  );
   const nameMissing = !name.trim();
   const saveButton = (
     <Button

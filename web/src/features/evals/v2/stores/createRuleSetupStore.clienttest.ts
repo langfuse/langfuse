@@ -1,4 +1,40 @@
-import { createRuleSetupStore, isRuleDraftDirty } from "./createRuleSetupStore";
+import { describe, expect, it } from "vitest";
+
+import {
+  createRuleSetupStore,
+  isRuleDraftDirty,
+  isRuleDraftValid,
+} from "./createRuleSetupStore";
+
+describe("isRuleDraftValid", () => {
+  it("allows a disabled observation rule without assignments", () => {
+    const store = createRuleSetupStore({
+      name: "Disabled rule",
+      filter: [],
+      sampling: 1,
+      assignments: [],
+      triggerKind: "OBSERVATION",
+      scoreResultTrigger: null,
+    });
+
+    expect(isRuleDraftValid(store.getState(), false)).toBe(true);
+    expect(isRuleDraftValid(store.getState(), true)).toBe(false);
+  });
+
+  it("still requires a valid evaluator result trigger", () => {
+    const store = createRuleSetupStore({
+      name: "Invalid result rule",
+      filter: [],
+      sampling: 1,
+      assignments: [],
+      triggerKind: "SCORE_RESULT",
+      scoreResultTrigger: null,
+    });
+
+    expect(isRuleDraftValid(store.getState(), false)).toBe(false);
+    expect(isRuleDraftValid(store.getState(), false, true)).toBe(true);
+  });
+});
 
 describe("rule setup store", () => {
   const initialDraft = {

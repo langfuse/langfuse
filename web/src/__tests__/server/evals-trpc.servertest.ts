@@ -1207,12 +1207,12 @@ describe("legacy evaluator compatibility service", () => {
     ).resolves.toHaveLength(1);
   });
 
-  it("refuses to delete an evaluator used by an evaluator-result rule", async () => {
+  it("keeps evaluator-result rules out of legacy usage and invalidates them on deletion", async () => {
     const { project, service } = await prepare();
     const evaluator = await createLibraryEvaluator(project.id, {
       name: "Trigger source",
     });
-    await prisma.evaluationRule.create({
+    const resultRule = await prisma.evaluationRule.create({
       data: {
         projectId: project.id,
         name: "Dependent result rule",
@@ -1235,11 +1235,69 @@ describe("legacy evaluator compatibility service", () => {
     });
 
     await expect(
-      service.deleteTemplate(project.id, evaluator.versions[0]!.id),
-    ).rejects.toBeInstanceOf(LangfuseConflictError);
+      service.getTemplateUsage(project.id, evaluator.versions[0]!.id),
+    ).resolves.toEqual([]);
+    await expect(
+      service.resolveExecutionConfigIds(project.id, [resultRule.id]),
+    ).resolves.toEqual({});
+    await service.deleteTemplate(project.id, evaluator.versions[0]!.id);
     await expect(
       prisma.evaluator.findUnique({ where: { id: evaluator.id } }),
-    ).resolves.not.toBeNull();
+    ).resolves.toBeNull();
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: resultRule.id },
+        select: { status: true, triggerInvalidReason: true },
+      }),
+    ).resolves.toEqual({
+      status: "INACTIVE",
+      triggerInvalidReason: "The trigger evaluator was deleted.",
+    });
+  });
+
+  it("disables a hidden evaluator-result rule when legacy deletion removes its last assignment", async () => {
+    const { project, service } = await prepare();
+    const [sourceEvaluator, targetEvaluator] = await Promise.all([
+      createLibraryEvaluator(project.id, { name: "Trigger source" }),
+      createLibraryEvaluator(project.id, { name: "Downstream evaluator" }),
+    ]);
+    const resultRule = await prisma.evaluationRule.create({
+      data: {
+        projectId: project.id,
+        name: "Dependent result rule",
+        status: "ACTIVE",
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+        delay: 0,
+        triggerKind: "SCORE_RESULT",
+        triggerEvaluatorId: sourceEvaluator.id,
+        scoreResultPredicates: [
+          {
+            scoreName: "quality",
+            dataType: "NUMERIC",
+            operator: ">=",
+            value: 0.8,
+          },
+        ],
+        assignments: {
+          create: {
+            projectId: project.id,
+            evaluatorId: targetEvaluator.id,
+            variableMapping: [],
+          },
+        },
+      },
+    });
+
+    await service.deleteTemplate(project.id, targetEvaluator.versions[0]!.id);
+
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: resultRule.id },
+        select: { status: true, assignments: true },
+      }),
+    ).resolves.toMatchObject({ status: "INACTIVE", assignments: [] });
   });
 
   it("refuses to delete a Langfuse managed evaluator", async () => {

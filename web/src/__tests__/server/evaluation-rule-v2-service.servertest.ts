@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { EvalTargetObject } from "@langfuse/shared";
 import type * as SharedServer from "@langfuse/shared/src/server";
-import { prisma, type Prisma } from "@langfuse/shared/src/db";
+import {
+  EvaluationRuleTriggerKind,
+  prisma,
+  type Prisma,
+} from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   afterAll,
@@ -137,7 +141,8 @@ function createInput(evaluatorId: string | null = defaultEvaluatorId) {
 
 const createService = (
   audit: ConstructorParameters<typeof RuleService>[1] = async () => undefined,
-) => new RuleService(prisma, audit);
+  options?: ConstructorParameters<typeof RuleService>[2],
+) => new RuleService(prisma, audit, options);
 
 describe("RuleService", () => {
   describe("createOrAttachFromEvaluatorFilters", () => {
@@ -371,6 +376,53 @@ describe("RuleService", () => {
         new Set([eventRule.id, experimentRule.id]),
       );
       expect(result.totalItems).toBe(2);
+    });
+
+    it("can restrict legacy clients to observation-triggered rules", async () => {
+      const evaluator = await createEvaluator();
+      const service = createService();
+      const observationRule = await service.create(
+        createInput(evaluator.id),
+        null,
+      );
+      const resultRule = await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: "Evaluator result rule",
+          status: "INACTIVE",
+          targetObject: EvalTargetObject.EVENT,
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+          triggerKind: EvaluationRuleTriggerKind.SCORE_RESULT,
+          triggerEvaluatorId: evaluator.id,
+          scoreResultPredicates: [
+            {
+              scoreName: "quality",
+              dataType: "NUMERIC",
+              operator: ">=",
+              value: 0.8,
+            },
+          ],
+        },
+      });
+      const observationOnlyService = createService(undefined, {
+        visibleTriggerKinds: [EvaluationRuleTriggerKind.OBSERVATION],
+      });
+
+      await expect(
+        observationOnlyService.list({ projectId, page: 1, limit: 50 }),
+      ).resolves.toMatchObject({
+        rules: [{ id: observationRule.id }],
+        totalItems: 1,
+      });
+      await expect(
+        observationOnlyService.get(projectId, resultRule.id),
+      ).rejects.toThrow("Evaluation rule not found");
+      await expect(
+        observationOnlyService.delete(projectId, resultRule.id),
+      ).rejects.toThrow("Evaluation rule not found");
     });
   });
 
@@ -1432,6 +1484,53 @@ describe("RuleService", () => {
       ).resolves.toMatchObject({
         enabled: true,
         triggerInvalidReason: null,
+      });
+    });
+
+    it("allows partial updates after the trigger evaluator is deleted", async () => {
+      const [sourceEvaluator, targetEvaluator] = await Promise.all([
+        createEvaluator(),
+        createEvaluator(),
+      ]);
+      const service = createService();
+      const rule = await service.create(
+        {
+          ...createInput(targetEvaluator.id),
+          filter: [],
+          sampling: 1,
+          enabled: false,
+          triggerKind: "SCORE_RESULT",
+          scoreResultTrigger: {
+            evaluatorId: sourceEvaluator.id,
+            predicates: [
+              {
+                scoreName: "quality",
+                dataType: "NUMERIC",
+                operator: ">=",
+                value: 0.8,
+              },
+            ],
+          },
+        },
+        null,
+      );
+      await prisma.evaluationRule.update({
+        where: { id: rule.id },
+        data: { triggerInvalidReason: "The trigger evaluator was deleted." },
+      });
+      await prisma.evaluator.delete({ where: { id: sourceEvaluator.id } });
+
+      await expect(
+        service.update({
+          projectId,
+          ruleId: rule.id,
+          name: "Renamed invalid rule",
+        }),
+      ).resolves.toMatchObject({
+        name: "Renamed invalid rule",
+        triggerKind: "SCORE_RESULT",
+        scoreResultTrigger: null,
+        triggerInvalidReason: "The trigger evaluator was deleted.",
       });
     });
 

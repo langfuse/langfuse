@@ -105,6 +105,8 @@ export function CreateRuleDialogContent({
 
   const create = async () => {
     const draft = ruleSetupStore.getState();
+    const createTargetObject =
+      draft.triggerKind === "SCORE_RESULT" ? "event" : targetObject;
     const rule = await createRule.mutateAsync({
       projectId,
       name: draft.name.trim(),
@@ -113,11 +115,7 @@ export function CreateRuleDialogContent({
       enabled: true,
       triggerKind: draft.triggerKind,
       scoreResultTrigger: draft.scoreResultTrigger,
-      ...(draft.triggerKind === "SCORE_RESULT"
-        ? { targetObject: "event" as const }
-        : targetObject
-          ? { targetObject }
-          : {}),
+      ...(createTargetObject ? { targetObject: createTargetObject } : {}),
       evaluatorAssignments: draft.assignments.map((assignment) => ({
         evaluatorId: assignment.evaluatorId,
         variableMapping: assignment.variableMapping,

@@ -94,6 +94,50 @@ describe("score result triggers", () => {
         { name: "reason", dataType: "TEXT", value: "accepted" },
       ]),
     ).toBe(true);
+    expect(
+      matchesScoreResultTrigger(trigger, [
+        { name: "reason", dataType: "TEXT", value: "accepted" },
+      ]),
+    ).toBe(false);
+  });
+
+  it("matches categorical predicates against all returned values", () => {
+    const trigger = ScoreResultTriggerSchema.parse({
+      evaluatorId: "evaluator-1",
+      predicates: [
+        {
+          scoreName: "label",
+          dataType: "CATEGORICAL",
+          operator: "=",
+          value: "unsafe",
+        },
+        {
+          scoreName: "label",
+          dataType: "CATEGORICAL",
+          operator: "=",
+          value: "offtopic",
+        },
+        {
+          scoreName: "label",
+          dataType: "CATEGORICAL",
+          operator: "!=",
+          value: "safe",
+        },
+      ],
+    });
+
+    expect(
+      matchesScoreResultTrigger(trigger, [
+        { name: "label", dataType: "CATEGORICAL", value: "unsafe" },
+        { name: "label", dataType: "CATEGORICAL", value: "offtopic" },
+      ]),
+    ).toBe(true);
+    expect(
+      matchesScoreResultTrigger(trigger, [
+        { name: "label", dataType: "CATEGORICAL", value: "unsafe" },
+        { name: "label", dataType: "CATEGORICAL", value: "safe" },
+      ]),
+    ).toBe(false);
   });
 
   it("infers omitted code evaluator score types from their values", () => {

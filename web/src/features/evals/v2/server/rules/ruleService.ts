@@ -67,16 +67,22 @@ type RuleServiceUpdateInput = UpdateRuleInput & {
   targetObject?: EvalTargetObject;
 };
 
+type RuleServiceOptions = {
+  visibleTriggerKinds?: EvaluationRuleTriggerKind[];
+};
+
 export class RuleService {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly audit: (event: RuleAuditEvent) => Promise<void>,
+    private readonly options: RuleServiceOptions = {},
   ) {}
 
   async list(input: ListRulesInput) {
     const { rules, totalItems } = await repository.listRules({
       prisma: this.prisma,
       input,
+      triggerKinds: this.options.visibleTriggerKinds,
     });
     return { rules: rules.map(toRuleResponse), totalItems };
   }
@@ -89,6 +95,7 @@ export class RuleService {
     const { rules, nextCursor } = await repository.listRulesCursor({
       prisma: this.prisma,
       input,
+      triggerKinds: this.options.visibleTriggerKinds,
     });
     return { rules: rules.map(toRuleResponse), nextCursor };
   }
@@ -101,13 +108,9 @@ export class RuleService {
   }
 
   async get(projectId: string, ruleId: string) {
-    const rule = await repository.findRule({
-      prisma: this.prisma,
-      projectId,
-      ruleId,
-    });
-    if (!rule) throw new LangfuseNotFoundError("Evaluation rule not found");
-    return toRuleResponse(rule);
+    return toRuleResponse(
+      await this.requireRule(this.prisma, projectId, ruleId),
+    );
   }
 
   async getTotalCosts(params: { projectId: string; ruleIds: string[] }) {
@@ -494,17 +497,25 @@ export class RuleService {
       const targetEvaluatorIds = (
         input.evaluatorMappings ?? current.assignments
       ).map((assignment) => assignment.evaluatorId);
-      await this.validateEvaluatorResultTrigger({
-        prisma,
-        projectId: input.projectId,
-        ruleId: input.ruleId,
-        triggerKind,
-        scoreResultTrigger:
-          triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT
-            ? scoreResultTrigger
-            : null,
-        targetEvaluatorIds,
-      });
+      const preservesInvalidMissingTrigger =
+        triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT &&
+        scoreResultTrigger === null &&
+        current.triggerInvalidReason !== null &&
+        input.triggerKind === undefined &&
+        input.scoreResultTrigger === undefined;
+      if (!preservesInvalidMissingTrigger) {
+        await this.validateEvaluatorResultTrigger({
+          prisma,
+          projectId: input.projectId,
+          ruleId: input.ruleId,
+          triggerKind,
+          scoreResultTrigger:
+            triggerKind === EvaluationRuleTriggerKind.SCORE_RESULT
+              ? scoreResultTrigger
+              : null,
+          targetEvaluatorIds,
+        });
+      }
       let scoreResultTriggerUpdate: ScoreResultTrigger | null | undefined;
       if (
         input.triggerKind !== undefined ||
@@ -620,9 +631,10 @@ export class RuleService {
   }
 
   async delete(projectId: string, ruleId: string) {
-    const deleted = await this.prisma.$transaction((prisma) =>
-      repository.deleteRule({ prisma, projectId, ruleId }),
-    );
+    const deleted = await this.prisma.$transaction(async (prisma) => {
+      await this.requireRule(prisma, projectId, ruleId);
+      return repository.deleteRule({ prisma, projectId, ruleId });
+    });
     if (!deleted) throw new LangfuseNotFoundError("Evaluation rule not found");
     await invalidateProjectEvalConfigCaches(projectId);
     await this.audit({ action: "delete", projectId, ruleId });
@@ -846,11 +858,16 @@ export class RuleService {
   }
 
   private async requireRule(
-    prisma: Prisma.TransactionClient,
+    prisma: repository.RulePrisma,
     projectId: string,
     ruleId: string,
   ) {
-    const rule = await repository.findRule({ prisma, projectId, ruleId });
+    const rule = await repository.findRule({
+      prisma,
+      projectId,
+      ruleId,
+      triggerKinds: this.options.visibleTriggerKinds,
+    });
     if (!rule) throw new LangfuseNotFoundError("Evaluation rule not found");
     return rule;
   }

@@ -82,6 +82,7 @@ function ruleWhere(params: {
   search?: string;
   enabled?: boolean;
   targetObjects?: EvalTargetObject[];
+  triggerKinds?: EvaluationRuleTriggerKind[];
   filter?: FilterState;
 }): Prisma.EvaluationRuleWhereInput {
   const handlers = {
@@ -132,6 +133,9 @@ function ruleWhere(params: {
     ...(params.targetObjects === undefined
       ? {}
       : { targetObject: { in: params.targetObjects } }),
+    ...(params.triggerKinds === undefined
+      ? {}
+      : { triggerKind: { in: params.triggerKinds } }),
     AND: compilePrismaFilters<Prisma.EvaluationRuleWhereInput>(
       params.filter ?? [],
       handlers,
@@ -142,8 +146,12 @@ function ruleWhere(params: {
 export async function listRules(params: {
   prisma: PrismaClient;
   input: ListRulesInput;
+  triggerKinds?: EvaluationRuleTriggerKind[];
 }) {
-  const where = ruleWhere(params.input);
+  const where = ruleWhere({
+    ...params.input,
+    triggerKinds: params.triggerKinds,
+  });
   const requestedOrder = params.input.orderBy;
   const orderColumn =
     requestedOrder?.column === "enabled"
@@ -168,8 +176,12 @@ export async function listRulesCursor(params: {
   input: Omit<ListRulesInput, "page"> & {
     cursor?: { createdAt: Date; id: string };
   };
+  triggerKinds?: EvaluationRuleTriggerKind[];
 }) {
-  const baseWhere = ruleWhere(params.input);
+  const baseWhere = ruleWhere({
+    ...params.input,
+    triggerKinds: params.triggerKinds,
+  });
   const where: Prisma.EvaluationRuleWhereInput = params.input.cursor
     ? {
         AND: [
@@ -277,12 +289,16 @@ export function findRule(params: {
   prisma: RulePrisma;
   projectId: string;
   ruleId: string;
+  triggerKinds?: EvaluationRuleTriggerKind[];
 }) {
   return params.prisma.evaluationRule.findFirst({
     where: {
       id: params.ruleId,
       projectId: params.projectId,
       ...visibleRuleWhere,
+      ...(params.triggerKinds === undefined
+        ? {}
+        : { triggerKind: { in: params.triggerKinds } }),
     },
     include: ruleInclude,
   });

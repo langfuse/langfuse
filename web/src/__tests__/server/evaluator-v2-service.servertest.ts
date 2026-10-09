@@ -801,7 +801,7 @@ describe("EvaluatorService", () => {
     });
   });
 
-  it("updates metadata without invalidating result rules and invalidates them on definition changes", async () => {
+  it("invalidates result rules when score names or definitions change", async () => {
     const service = createService();
     const input = llmInput("Version decisions");
     const created = await service.create(input, null);
@@ -831,14 +831,13 @@ describe("EvaluatorService", () => {
       {
         ...input,
         evaluatorId: created.id,
-        name: "Renamed evaluator",
         description: "Changed only metadata",
       },
       null,
     );
     expect(metadataUpdate.versions).toHaveLength(1);
     expect(metadataUpdate).toMatchObject({
-      name: "Renamed evaluator",
+      name: input.name,
       description: "Changed only metadata",
     });
     await expect(
@@ -849,6 +848,26 @@ describe("EvaluatorService", () => {
     ).resolves.toEqual({
       status: "ACTIVE",
       triggerInvalidReason: null,
+    });
+
+    await service.update(
+      {
+        ...input,
+        evaluatorId: created.id,
+        name: "Renamed evaluator",
+        description: "Changed only metadata",
+      },
+      null,
+    );
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: dependentRule.id },
+        select: { status: true, triggerInvalidReason: true },
+      }),
+    ).resolves.toEqual({
+      status: "INACTIVE",
+      triggerInvalidReason:
+        "The trigger evaluator changed. Review the score conditions.",
     });
 
     const definitionUpdate = await service.update(

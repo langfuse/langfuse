@@ -68,8 +68,13 @@ export function isRuleDraftDirty(
 
 export function isRuleDraftValid(
   state: ReturnType<RuleSetupStore["getState"]>,
+  requireAssignments = true,
+  allowMissingScoreResultTrigger = false,
 ) {
-  if (state.assignments.length === 0) return false;
+  if (requireAssignments && state.assignments.length === 0) return false;
   if (state.triggerKind === "OBSERVATION") return true;
+  if (allowMissingScoreResultTrigger && state.scoreResultTrigger === null) {
+    return true;
+  }
   return ScoreResultTriggerSchema.safeParse(state.scoreResultTrigger).success;
 }

@@ -79,6 +79,7 @@ describe("scheduleScoreResultEvals", () => {
     expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith(
       expect.objectContaining({
         jobConfigurationId: "rule-1",
+        preserveExistingStatus: true,
       }),
     );
   });

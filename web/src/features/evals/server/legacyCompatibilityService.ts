@@ -563,6 +563,7 @@ async function applyScoreNameChange(params: {
   scoreName: string;
 }) {
   const { tx, projectId, assignmentId, evaluatorId, scoreName } = params;
+  await lockEvaluatorResultRuleGraph({ prisma: tx, projectId });
   const evaluator = await tx.evaluator.findFirst({
     where: { id: evaluatorId, projectId },
     include: {
@@ -580,6 +581,14 @@ async function applyScoreNameChange(params: {
       where: { id: evaluatorId, projectId, isBuiltIn: false },
       data: { name: scoreName },
     });
+    if (evaluator.type !== EvalTemplateType.CODE) {
+      await invalidateEvaluatorResultRules({
+        prisma: tx,
+        projectId,
+        evaluatorId,
+        reason: "The trigger evaluator changed. Review the score conditions.",
+      });
+    }
     return;
   }
 
@@ -840,14 +849,26 @@ export class LegacyEvalCompatibilityService {
     projectId: string,
     jobConfigurationIds: string[],
   ) {
+    const hiddenRules = await this.prisma.evaluationRule.findMany({
+      where: {
+        projectId,
+        id: { in: jobConfigurationIds },
+        triggerKind: "SCORE_RESULT",
+      },
+      select: { id: true },
+    });
+    const hiddenRuleIds = new Set(hiddenRules.map(({ id }) => id));
     const executionIdsByJobConfigurationId = new Map(
-      jobConfigurationIds.map((id) => [id, new Set([id])]),
+      jobConfigurationIds
+        .filter((id) => !hiddenRuleIds.has(id))
+        .map((id) => [id, new Set([id])]),
     );
     const assignments =
       await this.prisma.evaluationRuleEvaluatorAssignment.findMany({
         where: {
           projectId,
           evaluationRuleId: { in: jobConfigurationIds },
+          evaluationRule: visibleRuleWhere,
         },
         select: { evaluationRuleId: true, evaluatorId: true },
       });
@@ -1607,6 +1628,7 @@ export class LegacyEvalCompatibilityService {
     const rules = await this.prisma.evaluationRule.findMany({
       where: {
         projectId,
+        ...visibleRuleWhere,
         assignments: { some: { evaluatorId: version.evaluatorId } },
       },
       include: ruleInclude,
@@ -1644,10 +1666,8 @@ export class LegacyEvalCompatibilityService {
       const referencingRules = await tx.evaluationRule.findMany({
         where: {
           projectId,
-          OR: [
-            { assignments: { some: { evaluatorId: version.evaluatorId } } },
-            { triggerEvaluatorId: version.evaluatorId },
-          ],
+          ...visibleRuleWhere,
+          assignments: { some: { evaluatorId: version.evaluatorId } },
         },
         select: { name: true },
       });
@@ -1656,6 +1676,24 @@ export class LegacyEvalCompatibilityService {
           buildTemplateInUseMessage(referencingRules.map(({ name }) => name)),
         );
       }
+      await invalidateEvaluatorResultRules({
+        prisma: tx,
+        projectId,
+        evaluatorId: version.evaluatorId,
+        reason: "The trigger evaluator was deleted.",
+      });
+      await tx.evaluationRule.updateMany({
+        where: {
+          projectId,
+          triggerKind: "SCORE_RESULT",
+          status: JobConfigState.ACTIVE,
+          assignments: {
+            some: { evaluatorId: version.evaluatorId },
+            none: { evaluatorId: { not: version.evaluatorId } },
+          },
+        },
+        data: { status: JobConfigState.INACTIVE },
+      });
 
       const versions = await tx.evaluatorVersion.findMany({
         where: { evaluatorId: version.evaluatorId },

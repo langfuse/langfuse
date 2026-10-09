@@ -25,5 +25,6 @@ export async function scheduleScoreResultEvals(params: {
     configs: matchingRules,
     schedulerDeps: params.schedulerDeps,
     executionScopeId: params.upstreamJobExecutionId,
+    preserveExistingJobExecution: true,
   });
 }

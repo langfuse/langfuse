@@ -83,14 +83,22 @@ export function EditRuleDialogContent({
     const detachedCount = rule.assignments.filter(
       (assignment) => !nextIds.has(assignment.evaluator.id),
     ).length;
+    const preservesInvalidMissingTrigger =
+      Boolean(rule.triggerInvalidReason) &&
+      draft.triggerKind === "SCORE_RESULT" &&
+      draft.scoreResultTrigger === null;
     await update.mutateAsync({
       projectId,
       ruleId: rule.id,
       name: draft.name.trim(),
       filter: draft.filter,
       sampling: draft.sampling,
-      triggerKind: draft.triggerKind,
-      scoreResultTrigger: draft.scoreResultTrigger,
+      ...(preservesInvalidMissingTrigger
+        ? {}
+        : {
+            triggerKind: draft.triggerKind,
+            scoreResultTrigger: draft.scoreResultTrigger,
+          }),
       evaluatorMappings: draft.assignments.map((assignment) => ({
         evaluatorId: assignment.evaluatorId,
         variableMapping: assignment.variableMapping,
@@ -150,6 +158,10 @@ export function EditRuleDialogContent({
         nameGenerationPending={false}
         isEditing
         allowUnchangedSave={Boolean(rule.triggerInvalidReason)}
+        allowMissingScoreResultTrigger={
+          Boolean(rule.triggerInvalidReason) && rule.scoreResultTrigger === null
+        }
+        requireAssignments={rule.enabled}
         canEdit={hasWriteAccess}
         nameAIAssistanceAvailable={false}
         onCancel={onClose}

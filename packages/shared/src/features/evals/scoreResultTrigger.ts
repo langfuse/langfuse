@@ -40,6 +40,11 @@ export const ScoreResultTriggerSchema = z.object({
 });
 
 export type ScoreResultTrigger = z.infer<typeof ScoreResultTriggerSchema>;
+type ScoreResultPredicate = z.infer<typeof ScoreResultPredicateSchema>;
+type CategoricalScoreResultPredicate = Extract<
+  ScoreResultPredicate,
+  { value: string }
+> & { dataType: "CATEGORICAL" };
 
 type EvaluatorScore = {
   name: string;
@@ -56,12 +61,49 @@ export function matchesScoreResultTrigger(
     (predicate) => predicate.scoreName,
   );
 
-  return [...predicatesByScoreName].every(([name, predicates]) =>
-    scores.some(
-      (score) =>
-        score.name === name &&
-        predicates.every((predicate) => matchesPredicate(predicate, score)),
-    ),
+  return [...predicatesByScoreName].every(([name, predicates]) => {
+    const namedScores = scores.filter((score) => score.name === name);
+    const categoricalPredicates = predicates.filter(
+      (predicate): predicate is CategoricalScoreResultPredicate =>
+        predicate.dataType === "CATEGORICAL",
+    );
+    const perScorePredicates = predicates.filter(
+      (predicate) => predicate.dataType !== "CATEGORICAL",
+    );
+
+    return (
+      matchesCategoricalPredicates(categoricalPredicates, namedScores) &&
+      (perScorePredicates.length === 0 ||
+        namedScores.some((score) =>
+          perScorePredicates.every((predicate) =>
+            matchesPredicate(predicate, score),
+          ),
+        ))
+    );
+  });
+}
+
+function matchesCategoricalPredicates(
+  predicates: CategoricalScoreResultPredicate[],
+  scores: EvaluatorScore[],
+) {
+  if (predicates.length === 0) return true;
+  const values = new Set(
+    scores.flatMap((score) => {
+      const dataType =
+        score.dataType ??
+        (typeof score.value === "string" ? "CATEGORICAL" : "NUMERIC");
+      return dataType === "CATEGORICAL" && typeof score.value === "string"
+        ? [score.value]
+        : [];
+    }),
+  );
+  if (values.size === 0) return false;
+
+  return predicates.every((predicate) =>
+    predicate.operator === "="
+      ? values.has(predicate.value)
+      : !values.has(predicate.value),
   );
 }
 

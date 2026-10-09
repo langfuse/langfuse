@@ -1,5 +1,5 @@
 import { EvalTargetObject } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { EvaluationRuleTriggerKind, prisma } from "@langfuse/shared/src/db";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
@@ -21,15 +21,20 @@ import {
 } from "./evaluationAdapters";
 
 function ruleService(auditScope: ApiAccessScope) {
-  return new RuleService(prisma, ({ action, ruleId, projectId }) =>
-    auditLog({
-      action,
-      resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-      resourceId: ruleId,
-      projectId,
-      orgId: auditScope.orgId,
-      apiKeyId: auditScope.apiKeyId,
-    }),
+  return new RuleService(
+    prisma,
+    ({ action, ruleId, projectId }) =>
+      auditLog({
+        action,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: ruleId,
+        projectId,
+        orgId: auditScope.orgId,
+        apiKeyId: auditScope.apiKeyId,
+      }),
+    {
+      visibleTriggerKinds: [EvaluationRuleTriggerKind.OBSERVATION],
+    },
   );
 }
 

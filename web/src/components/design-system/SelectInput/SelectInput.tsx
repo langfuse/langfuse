@@ -31,7 +31,6 @@ type SelectInputProps<V extends string> = Pick<
   placeholder: string;
   search?: {
     placeholder: string;
-    value?: string;
     onValueChange?: (value: string) => void;
   };
   error?: boolean;
@@ -102,7 +101,6 @@ function SelectInputInner<V extends string>(
                   <InputDropdown.Search>
                     <CommandPrimitive.Input
                       placeholder={search.placeholder}
-                      value={search.value}
                       onValueChange={search.onValueChange}
                     />
                   </InputDropdown.Search>

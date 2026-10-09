@@ -26,6 +26,7 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
         jobInputObservationId,
         jobTemplateId,
         status,
+        preserveExistingStatus,
       } = params;
 
       const jobExecution = await prisma.jobExecution.upsert({
@@ -43,7 +44,7 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
           status,
           startTime: new Date(),
         },
-        update: {},
+        update: preserveExistingStatus ? {} : { status },
       });
 
       return { id: jobExecution.id, status: jobExecution.status };

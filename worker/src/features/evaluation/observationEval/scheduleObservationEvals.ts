@@ -43,6 +43,7 @@ interface ScheduleObservationEvalsParams {
    * stable while a second run gets its own executions.
    */
   executionScopeId?: string;
+  preserveExistingJobExecution?: boolean;
 }
 
 /**
@@ -105,6 +106,7 @@ export async function scheduleObservationEvals(
     schedulerDeps,
     executionMode,
     executionScopeId,
+    preserveExistingJobExecution,
   } = params;
 
   // Early return if no configs
@@ -192,6 +194,7 @@ export async function scheduleObservationEvals(
         schedulerDeps,
         executionMode,
         executionScopeId,
+        preserveExistingJobExecution,
       }),
     ),
   );
@@ -234,6 +237,7 @@ interface ProcessConfigParams {
   schedulerDeps: ObservationEvalSchedulerDeps;
   executionMode?: EvalExecutionMode;
   executionScopeId?: string;
+  preserveExistingJobExecution?: boolean;
 }
 
 async function processMatchingConfig(
@@ -247,6 +251,7 @@ async function processMatchingConfig(
     schedulerDeps,
     executionMode,
     executionScopeId,
+    preserveExistingJobExecution,
   } = params;
 
   const jobIdentity: string[] =
@@ -281,6 +286,7 @@ async function processMatchingConfig(
     // ran in the execution metadata instead.
     jobTemplateId: assignment.evalTemplateId,
     status: JobExecutionStatus.PENDING,
+    ...(preserveExistingJobExecution ? { preserveExistingStatus: true } : {}),
   });
 
   if (jobExecution.status === JobExecutionStatus.COMPLETED) {

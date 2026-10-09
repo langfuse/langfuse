@@ -102,6 +102,8 @@ export interface ObservationEvalSchedulerDeps {
     jobInputObservationId: string;
     jobTemplateId: string | null;
     status: JobExecutionStatus;
+    /** Keep terminal state when retrying downstream scheduling. */
+    preserveExistingStatus?: boolean;
   }) => Promise<{ id: string; status: JobExecutionStatus }>;
 
   /** Upload observation data to S3 for later retrieval */

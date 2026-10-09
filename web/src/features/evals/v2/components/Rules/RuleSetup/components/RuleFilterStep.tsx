@@ -5,6 +5,7 @@ import { Activity, Gauge } from "lucide-react";
 import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { RuleSampleObservationSelector } from "@/src/features/evals/v2/components/Evaluators/Testing/components/RuleSampleObservationSelector/RuleSampleObservationSelector";
+import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 import { RULE_SAMPLE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
@@ -41,36 +42,95 @@ export function RuleFilterStep({
     return { from: new Date(to.getTime() - SEVEN_DAYS_MS), to };
   });
   const actions = store.getState().actions;
-  const sourceRules = api.evalsV2.rules.listRulesForEvaluator.useQuery(
-    {
-      projectId,
-      evaluatorId: scoreResultTrigger?.evaluatorId ?? "",
-    },
-    { enabled: Boolean(scoreResultTrigger?.evaluatorId) },
-  );
-  const previewRuleOptions = [
-    { value: "incoming", label: "All incoming observations" },
-    ...(sourceRules.data ?? [])
-      .filter(
-        ({ evaluationRule }) => evaluationRule.triggerKind === "OBSERVATION",
-      )
-      .map(({ evaluationRule }) => ({
-        value: evaluationRule.id,
-        label: evaluationRule.name,
-      })),
-  ];
+  const { sourceRules, previewRuleOptions } = useSourceRulePreview({
+    projectId,
+    evaluatorId: scoreResultTrigger?.evaluatorId ?? null,
+  });
+  const handleTriggerKindChange = (value: string) => {
+    actions.setTriggerKind(value as "OBSERVATION" | "SCORE_RESULT");
+  };
+  const handleOpenTrace = (observation: SampleObservation) => {
+    if (!observation.traceId) return;
+    const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
+    window.open(
+      `${basePath}/project/${projectId}/traces/${observation.traceId}?observation=${observation.id}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
+  const handlePreviewRuleChange = (ruleId: string) => {
+    if (ruleId === "incoming") {
+      actions.setPreviewSourceRuleId(null);
+      actions.setPreviewFilter([]);
+      return;
+    }
+    const selected = sourceRules.find(
+      ({ evaluationRule }) => evaluationRule.id === ruleId,
+    );
+    actions.setPreviewSourceRuleId(ruleId);
+    actions.setPreviewFilter(selected?.evaluationRule.filter ?? []);
+  };
+  const scopeFields =
+    triggerKind === "OBSERVATION" ? (
+      <>
+        <RuleSampleObservationSelector
+          projectId={projectId}
+          timeRange={timeRange}
+          filterState={filter}
+          onFilterStateChange={actions.setFilter}
+          tableName="evaluation-rule-matching-observations"
+          registry={RULE_SAMPLE_FIELD_REGISTRY}
+          selectedObservationId={selectedObservationId}
+          onSelect={actions.setSelectedObservation}
+          onOpenTrace={handleOpenTrace}
+        />
+        <RuleSamplingSection store={store} />
+      </>
+    ) : (
+      <>
+        <RuleEvaluatorResultTriggerSection
+          projectId={projectId}
+          store={store}
+        />
+        {scoreResultTrigger && (
+          <div className="flex flex-col gap-2">
+            <label className="text-sm" htmlFor="preview-rule">
+              Preview observation source
+            </label>
+            <SelectInput
+              id="preview-rule"
+              value={previewSourceRuleId ?? "incoming"}
+              options={previewRuleOptions}
+              onValueChange={handlePreviewRuleChange}
+              placeholder="Select a source rule"
+            />
+            <p className="text-muted-foreground text-xs">
+              This selection only changes the preview. It does not restrict
+              which evaluator executions trigger the rule.
+            </p>
+            <RuleSampleObservationSelector
+              projectId={projectId}
+              timeRange={timeRange}
+              filterState={previewFilter}
+              onFilterStateChange={actions.setPreviewFilter}
+              tableName="evaluation-result-rule-preview"
+              registry={RULE_SAMPLE_FIELD_REGISTRY}
+              selectedObservationId={selectedObservationId}
+              onSelect={actions.setSelectedObservation}
+              onOpenTrace={handleOpenTrace}
+            />
+          </div>
+        )}
+      </>
+    );
+
   return (
     <Stepper
       number={1}
       title="Configure rule scope"
       description="Choose what should trigger attached evaluators."
     >
-      <RadioGroup
-        value={triggerKind}
-        onValueChange={(value) =>
-          actions.setTriggerKind(value as "OBSERVATION" | "SCORE_RESULT")
-        }
-      >
+      <RadioGroup value={triggerKind} onValueChange={handleTriggerKindChange}>
         <label
           className="border-border flex cursor-pointer items-start gap-3 rounded-md border p-3"
           htmlFor="rule-trigger-observation"
@@ -101,88 +161,37 @@ export function RuleFilterStep({
           </span>
         </label>
       </RadioGroup>
-
-      {triggerKind === "OBSERVATION" ? (
-        <>
-          <RuleSampleObservationSelector
-            projectId={projectId}
-            timeRange={timeRange}
-            filterState={filter}
-            onFilterStateChange={actions.setFilter}
-            tableName="evaluation-rule-matching-observations"
-            registry={RULE_SAMPLE_FIELD_REGISTRY}
-            selectedObservationId={selectedObservationId}
-            onSelect={actions.setSelectedObservation}
-            onOpenTrace={(observation) => {
-              if (!observation.traceId) return;
-              const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
-              window.open(
-                `${basePath}/project/${projectId}/traces/${observation.traceId}?observation=${observation.id}`,
-                "_blank",
-                "noopener,noreferrer",
-              );
-            }}
-          />
-          <RuleSamplingSection store={store} />
-        </>
-      ) : (
-        <>
-          <RuleEvaluatorResultTriggerSection
-            projectId={projectId}
-            store={store}
-          />
-          {scoreResultTrigger ? (
-            <div className="flex flex-col gap-2">
-              <label className="text-sm" htmlFor="preview-rule">
-                Preview observation source
-              </label>
-              <SelectInput
-                id="preview-rule"
-                value={previewSourceRuleId ?? "incoming"}
-                options={previewRuleOptions}
-                onValueChange={(ruleId) => {
-                  if (ruleId === "incoming") {
-                    actions.setPreviewSourceRuleId(null);
-                    actions.setPreviewFilter([]);
-                    return;
-                  }
-                  const selected = sourceRules.data?.find(
-                    ({ evaluationRule }) => evaluationRule.id === ruleId,
-                  );
-                  actions.setPreviewSourceRuleId(ruleId);
-                  actions.setPreviewFilter(
-                    selected?.evaluationRule.filter ?? [],
-                  );
-                }}
-                placeholder="Select a source rule"
-              />
-              <p className="text-muted-foreground text-xs">
-                This selection only changes the preview. It does not restrict
-                which evaluator executions trigger the rule.
-              </p>
-              <RuleSampleObservationSelector
-                projectId={projectId}
-                timeRange={timeRange}
-                filterState={previewFilter}
-                onFilterStateChange={actions.setPreviewFilter}
-                tableName="evaluation-result-rule-preview"
-                registry={RULE_SAMPLE_FIELD_REGISTRY}
-                selectedObservationId={selectedObservationId}
-                onSelect={actions.setSelectedObservation}
-                onOpenTrace={(observation) => {
-                  if (!observation.traceId) return;
-                  const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
-                  window.open(
-                    `${basePath}/project/${projectId}/traces/${observation.traceId}?observation=${observation.id}`,
-                    "_blank",
-                    "noopener,noreferrer",
-                  );
-                }}
-              />
-            </div>
-          ) : null}
-        </>
-      )}
+      {scopeFields}
     </Stepper>
   );
+}
+
+function useSourceRulePreview({
+  projectId,
+  evaluatorId,
+}: {
+  projectId: string;
+  evaluatorId: string | null;
+}) {
+  const query = api.evalsV2.rules.listRulesForEvaluator.useQuery(
+    {
+      projectId,
+      evaluatorId: evaluatorId ?? "",
+    },
+    { enabled: evaluatorId !== null },
+  );
+  const sourceRules = query.data ?? [];
+  const previewRuleOptions = [
+    { value: "incoming", label: "All incoming observations" },
+    ...sourceRules
+      .filter(
+        ({ evaluationRule }) => evaluationRule.triggerKind === "OBSERVATION",
+      )
+      .map(({ evaluationRule }) => ({
+        value: evaluationRule.id,
+        label: evaluationRule.name,
+      })),
+  ];
+
+  return { sourceRules, previewRuleOptions };
 }
