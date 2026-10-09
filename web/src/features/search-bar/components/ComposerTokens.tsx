@@ -43,7 +43,7 @@ const composerTokenVariants = cva("max-w-full", {
     kind: {
       filter: "",
       freeText:
-        "mr-1 inline rounded border px-1.5 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
+        "mr-1 inline rounded-sm border px-1.5 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border-contrast",
       operator: "font-bold uppercase text-qlang-keyword",
       paren: "text-muted-foreground",
       invalid:
@@ -55,7 +55,7 @@ const composerTokenVariants = cva("max-w-full", {
     deactivated: { true: "opacity-50 line-through decoration-1", false: "" },
     // The token whose explanation is showing. Mirrors the hover treatment, so
     // the caret (keyboard) path highlights exactly like the pointer does.
-    highlighted: { true: "border-border bg-accent", false: "" },
+    highlighted: { true: "border-ring", false: "" },
   },
   defaultVariants: { kind: "freeText", deactivated: false, highlighted: false },
 });

@@ -508,6 +508,7 @@ export function PromptTable() {
         <SearchableTableFilterLayout
           search={
             <TableSearchBar
+              size="large"
               key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
               projectId={projectId}
               tableName="prompts"

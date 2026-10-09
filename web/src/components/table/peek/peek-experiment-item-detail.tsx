@@ -35,6 +35,7 @@ const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {
   return (
     <TraceDetailBody
       trace={trace.data}
+      isPlaceholderData={trace.isPlaceholderData}
       context="peek"
       keySuffix={peekId}
       truncatedAtObservations={trace.truncatedAtObservations}

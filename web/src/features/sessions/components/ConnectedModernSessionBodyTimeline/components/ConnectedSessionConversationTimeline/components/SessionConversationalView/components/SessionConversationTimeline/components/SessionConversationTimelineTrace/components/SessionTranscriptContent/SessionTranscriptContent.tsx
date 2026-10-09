@@ -36,7 +36,7 @@ export function SessionTranscriptContent({
   return (
     <div className="ph-no-capture space-y-4">
       {rows.length === 0 && (
-        <p className="text-muted-foreground text-sm">No transcript messages.</p>
+        <p className="text-muted-foreground text-sm">No messages.</p>
       )}
       {visibleThreads
         .filter(
@@ -81,7 +81,7 @@ function SessionTranscriptThread({
   } | null;
 }) {
   const groups = groupConsecutiveTools(rows, {
-    minGroupSize: 4,
+    minGroupSize: 2,
     isTool: ({ row }) => row.type === "tool",
     getBoundary: ({ threadIndex }) => threadIndex,
     getToolName: ({ row }) =>
@@ -105,6 +105,9 @@ function SessionTranscriptThread({
     <div
       key={group.type === "tools" ? group.rows[0]!.id : group.row.id}
       data-session-compact-row={isCompact ? "" : undefined}
+      data-session-tool-group-id={
+        group.type === "tools" ? group.rows[0]!.id : undefined
+      }
       className={cn(
         index > 0 &&
           (() => {
@@ -142,6 +145,13 @@ function SessionTranscriptRow({
   item: ReturnType<typeof getSessionTranscriptRows>[number];
 } & Omit<ComponentProps<typeof SessionTranscriptThread>, "rows">) {
   const { row, id } = item;
+  const scrollRequestId = (
+    scrollTarget?.rowId
+      ? scrollTarget.rowId === id
+      : scrollTarget?.observationId === row.message.observationId
+  )
+    ? scrollTarget?.requestId
+    : undefined;
   const timing = row.message.timing;
   const isTool = row.type === "tool";
   const isSystem = row.message.role === "system";
@@ -177,22 +187,16 @@ function SessionTranscriptRow({
       className="group space-y-1"
       data-session-tool-row={isTool ? "" : undefined}
       data-session-system-row={isSystem ? "" : undefined}
+      data-session-message-row={!isTool && !isSystem ? "" : undefined}
       data-session-observation-id={row.message.observationId ?? undefined}
       data-session-transcript-row-id={id}
-      data-scroll-request-id={
-        (
-          scrollTarget?.rowId
-            ? scrollTarget.rowId === id
-            : scrollTarget?.observationId === row.message.observationId
-        )
-          ? scrollTarget?.requestId
-          : undefined
-      }
+      data-scroll-request-id={scrollRequestId}
     >
       {row.type === "tool" ? (
         <SessionTranscriptTool row={row} trailingContent={metadata} />
       ) : (
         <SessionTranscriptMessage
+          expandRequestId={scrollRequestId}
           message={row.message}
           trailingContent={isSystem ? metadata : null}
           onOpenObservation={onOpenObservation}
@@ -223,6 +227,15 @@ function SessionTranscriptToolGroup({
   const isOpen =
     expansion.isExpanded ||
     (containsTarget && props.scrollTarget?.requestId !== expansion.requestId);
+  if (rows.length < 4) {
+    return (
+      <div className="space-y-1">
+        {rows.map((item) => (
+          <SessionTranscriptRow key={item.id} {...props} item={item} />
+        ))}
+      </div>
+    );
+  }
   return (
     <SessionTimelineCollapsibleRow
       label={summary}
@@ -272,10 +285,12 @@ function SessionTranscriptMessage({
   message,
   trailingContent,
   onOpenObservation,
+  expandRequestId,
 }: {
   message: DisplayMessage;
   trailingContent: ReactNode;
   onOpenObservation: (observationId: string) => void;
+  expandRequestId?: number;
 }) {
   if (message.role === "system") {
     return (
@@ -288,6 +303,7 @@ function SessionTranscriptMessage({
   }
   return (
     <SessionTimelineContentMessage
+      expandRequestId={expandRequestId}
       role={message.role}
       parts={message.parts}
       senderName={message.senderName}

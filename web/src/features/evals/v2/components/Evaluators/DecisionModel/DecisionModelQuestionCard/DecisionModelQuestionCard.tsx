@@ -26,7 +26,6 @@ import { cn } from "@/src/utils/tailwind";
 
 export type DecisionModelQuestionCardProps = {
   question: DecisionModelQuestionDraft;
-  index: number;
   stateKeys: string[];
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
@@ -91,7 +90,6 @@ function CriteriaEditor({
  */
 export function DecisionModelQuestionCard({
   question,
-  index,
   stateKeys,
   expanded,
   onExpandedChange,
@@ -113,9 +111,6 @@ export function DecisionModelQuestionCard({
       triggerTitle={expanded ? "Collapse question" : "Expand question"}
       header={
         <span className="flex min-w-0 items-center gap-2">
-          <span className="text-muted-foreground shrink-0 font-mono text-xs leading-none">
-            {index + 1}
-          </span>
           <copy.icon className="icon-base shrink-0" aria-label={copy.label} />
           <Badge
             variant="secondary"

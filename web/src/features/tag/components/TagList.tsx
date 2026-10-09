@@ -1,4 +1,5 @@
-import { Badge } from "@/src/components/ui/badge";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { TagButton } from "@/src/features/tag/components/TagButton";
 import { TagIcon } from "lucide-react";
 
@@ -26,9 +27,16 @@ const TagList = ({
       />
     ))
   ) : (
-    <Badge variant="outline">
-      <TagIcon className="icon-sm text-foreground-tertiary" />
-    </Badge>
+    <Tooltip label="Add tag" hoverableContent={false}>
+      {({ getTriggerProps }) => (
+        <IconButton
+          {...getTriggerProps()}
+          icon={TagIcon}
+          label="Add tag"
+          size="sm"
+        />
+      )}
+    </Tooltip>
   );
 };
 

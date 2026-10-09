@@ -129,12 +129,7 @@ const PageHeader = ({
                 )
               )}
               <div className="flex flex-wrap items-center gap-1.5">
-                {envLabel.visible && (
-                  <EnvLabelBadge
-                    region={envLabel.region}
-                    onClick={envLabel.dismiss}
-                  />
-                )}
+                {envLabel.visible && <EnvLabelBadge region={envLabel.region} />}
                 <BreadcrumbComponent items={breadcrumb} />
                 {breadcrumbBadges}
               </div>
