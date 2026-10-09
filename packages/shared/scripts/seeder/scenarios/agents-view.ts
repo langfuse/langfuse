@@ -8,7 +8,10 @@ import {
   type TraceRecordInsertType,
 } from "../../../src/server";
 import { type ObservationType } from "../../../src/domain";
-import { AGENT_NAME_METADATA_KEY } from "../../../src/features/agents/constants";
+import {
+  AGENT_NAME_METADATA_KEY,
+  SKILL_TOOL_NAMES,
+} from "../../../src/features/agents/constants";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { generationUsageCost } from "./payload";
 import { jitter, utcDayStartMs } from "./rng";
@@ -23,6 +26,8 @@ import { countRows, traceLink } from "./verify";
 
 const SPECIAL_AGENT = "compose / résumé? v1#";
 const PARTIAL_AGENT = "native-name-only";
+const SKILL_TOOL_PATTERN = `(^|[^a-z0-9_])(${SKILL_TOOL_NAMES.join("|")})($|[^a-z0-9_])`;
+const skillToolPattern = new RegExp(SKILL_TOOL_PATTERN, "i");
 
 type PlannedSpan = {
   key: string;
@@ -37,6 +42,25 @@ type PlannedSpan = {
   output?: unknown;
   skill?: string;
 };
+
+const skillCalls = (
+  parent: string,
+  agent: string,
+  start: number,
+  skills: string[],
+): PlannedSpan[] =>
+  skills.map((skill, index) => ({
+    key: `${parent}-load-skill-${index}`,
+    parent,
+    name: "load_skill",
+    type: "TOOL",
+    agent,
+    start: start + index * 100,
+    end: start + index * 100 + 50,
+    input: { name: skill },
+    output: { loaded: true, resource: `${skill}/SKILL.md` },
+    skill,
+  }));
 
 const pipeline = (index: number, seed: number): PlannedSpan[] => {
   const spans: PlannedSpan[] = [
@@ -62,6 +86,12 @@ const pipeline = (index: number, seed: number): PlannedSpan[] => {
     end: 800,
     tokens: [120, 45],
   });
+  spans.push(
+    ...skillCalls("root", "agentique", 25, [
+      "task-routing",
+      "response-orchestration",
+    ]),
+  );
   const addStage = (agent: string, start: number, tokens: [number, number]) => {
     spans.push(
       {
@@ -86,6 +116,12 @@ const pipeline = (index: number, seed: number): PlannedSpan[] => {
     );
   };
   addStage("intake", 1_000, [240 + jitter(seed, index * 3, 90), 60]);
+  spans.push(
+    ...skillCalls("intake", "intake", 1_050, [
+      "requirements-extraction",
+      "intent-classification",
+    ]),
+  );
   // A quarter of requests skip research, so agents have different trace counts.
   if (index % 4 !== 0) {
     addStage("research", 9_000, [
@@ -103,8 +139,20 @@ const pipeline = (index: number, seed: number): PlannedSpan[] => {
       input: { query: "source evidence" },
       output: { results: 2 },
     });
+    spans.push(
+      ...skillCalls("research", "research", 9_450, [
+        "source-discovery",
+        "evidence-ranking",
+      ]),
+    );
   }
   addStage("verify", 17_000, [600, 140]);
+  spans.push(
+    ...skillCalls("verify", "verify", 17_050, [
+      "evidence-audit",
+      "consistency-check",
+    ]),
+  );
   for (let citation = 0; citation < 2; citation++) {
     const start = 18_000 + citation * 2_000;
     spans.push(
@@ -127,6 +175,10 @@ const pipeline = (index: number, seed: number): PlannedSpan[] => {
         end: start + 1_700,
         tokens: [400, 70],
       },
+      ...skillCalls(`citation-${citation}`, "verify-citation", start + 25, [
+        "citation-resolution",
+        "source-attribution",
+      ]),
     );
   }
   addStage("compose", 25_000, [
@@ -179,6 +231,10 @@ const pipeline = (index: number, seed: number): PlannedSpan[] => {
         end: 34_950,
         tokens: [900, 200],
       },
+      ...skillCalls("special", SPECIAL_AGENT, 33_025, [
+        "résumé-style",
+        "locale-adaptation",
+      ]),
     );
   }
   return spans;
@@ -193,7 +249,7 @@ const partialPipeline = (): PlannedSpan[] => [
     agent: PARTIAL_AGENT,
     start: 0,
     end: 2_000,
-    input: { question: "Name is only attached to the agent invocation." },
+    input: { question: "Agent identity is not propagated to the model call." },
   },
   {
     key: "llm",
@@ -204,6 +260,10 @@ const partialPipeline = (): PlannedSpan[] => [
     end: 1_900,
     tokens: [160, 50],
   },
+  ...skillCalls("root", PARTIAL_AGENT, 25, [
+    "integration-handshake",
+    "answer-normalization",
+  ]),
 ];
 
 const run = async (
@@ -214,6 +274,7 @@ const run = async (
   const traceCount = params.traces as number;
   const hours = params.hours as number;
   const endHour = params["end-hour"] as number;
+  const date = (params.date as string | undefined) ?? "";
   const withV4 = params.v4 as boolean;
   if (!Number.isInteger(traceCount) || traceCount < 4 || traceCount > 200) {
     throw new SeedError("--traces must be an integer between 4 and 200");
@@ -225,7 +286,16 @@ const run = async (
     throw new SeedError("--end-hour must be an integer between 0 and 23 (UTC)");
   }
 
-  const windowEnd = utcDayStartMs() + endHour * 3_600_000;
+  const dayStart = date ? Date.parse(`${date}T00:00:00.000Z`) : utcDayStartMs();
+  if (
+    date &&
+    (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      !Number.isFinite(dayStart) ||
+      new Date(dayStart).toISOString().slice(0, 10) !== date)
+  ) {
+    throw new SeedError("--date must be a valid UTC date in YYYY-MM-DD format");
+  }
+  const windowEnd = dayStart + endHour * 3_600_000;
   const windowStart = windowEnd - hours * 3_600_000;
   const secondaryEnvironment =
     ctx.environment === "staging" ? "production" : "staging";
@@ -344,6 +414,11 @@ const run = async (
   const namedObservations = observations.filter(
     (observation) => observation.metadata?.[AGENT_NAME_METADATA_KEY],
   );
+  const namedSkillCalls = namedObservations.filter(
+    (observation) =>
+      observation.type === "TOOL" &&
+      skillToolPattern.test(observation.name ?? ""),
+  );
   const counts: Record<string, number> = {
     traces: traces.length,
     observations: observations.length,
@@ -356,19 +431,31 @@ const run = async (
     namedObservations: namedObservations.length,
     runs: observations.filter((observation) => observation.type === "AGENT")
       .length,
+    skillCalls: namedSkillCalls.length,
+    agentsWithSkills: new Set(
+      namedSkillCalls.map(
+        (observation) => observation.metadata?.[AGENT_NAME_METADATA_KEY],
+      ),
+    ).size,
   };
+  const dateRange = `${windowStart}-${windowEnd}`;
+  const agentLinks = [
+    "agentique",
+    "intake",
+    "research",
+    "verify",
+    "verify-citation",
+    "compose",
+    SPECIAL_AGENT,
+    PARTIAL_AGENT,
+  ].map(
+    (agent) =>
+      `${ctx.baseUrl}/project/${ctx.projectId}/agents/${encodeURIComponent(agent)}?dateRange=${dateRange}`,
+  );
   const links = [
-    `${ctx.baseUrl}/project/${ctx.projectId}/agents`,
-    ...[
-      "research",
-      "verify-citation",
-      "compose",
-      SPECIAL_AGENT,
-      PARTIAL_AGENT,
-    ].map(
-      (agent) =>
-        `${ctx.baseUrl}/project/${ctx.projectId}/agents/${encodeURIComponent(agent)}`,
-    ),
+    `${ctx.baseUrl}/project/${ctx.projectId}/agents?dateRange=${dateRange}`,
+    ...agentLinks,
+    ...agentLinks.map((link) => `${link}&tab=skills`),
     traceLink(ctx, traces[0].id, windowStart),
     traceLink(
       ctx,
@@ -405,6 +492,7 @@ const run = async (
     projectId: ctx.projectId,
     traceIds,
     agentKey: AGENT_NAME_METADATA_KEY,
+    skillToolPattern: SKILL_TOOL_PATTERN,
   };
   const where =
     "project_id = {projectId: String} AND trace_id IN {traceIds: Array(String)}";
@@ -438,6 +526,19 @@ const run = async (
     queryParams,
     "uniqExact(metadata[{agentKey: String}])",
   );
+  const skillWhere = `${where} AND type = 'TOOL' AND match(lower(name), {skillToolPattern: String})`;
+  summary.verified.skillCalls = await countRows(
+    "observations",
+    `${skillWhere} AND metadata[{agentKey: String}] != ''`,
+    queryParams,
+    "uniqExact(id)",
+  );
+  summary.verified.agentsWithSkills = await countRows(
+    "observations",
+    `${skillWhere} AND metadata[{agentKey: String}] != ''`,
+    queryParams,
+    "uniqExact(metadata[{agentKey: String}])",
+  );
   if (withV4) {
     summary.verified.events = await countRows(
       "events_full",
@@ -456,6 +557,28 @@ const run = async (
         `Readback mismatch: expected ${counts.agents} agents in events_core, found ${summary.verified.coreAgents}`,
       );
     }
+    summary.verified.coreSkillCalls = await countRows(
+      "events_core",
+      `${skillWhere} AND has(metadata_names, {agentKey: String})`,
+      queryParams,
+      "uniqExact(span_id)",
+    );
+    summary.verified.coreAgentsWithSkills = await countRows(
+      "events_core",
+      `${skillWhere} AND has(metadata_names, {agentKey: String})`,
+      queryParams,
+      "uniqExact(metadata_values[indexOf(metadata_names, {agentKey: String})])",
+    );
+    for (const [verifiedKey, countKey] of [
+      ["coreSkillCalls", "skillCalls"],
+      ["coreAgentsWithSkills", "agentsWithSkills"],
+    ]) {
+      if (summary.verified[verifiedKey] !== counts[countKey]) {
+        throw new SeedError(
+          `Readback mismatch: expected ${counts[countKey]} ${countKey} in events_core, found ${summary.verified[verifiedKey]}`,
+        );
+      }
+    }
   }
   for (const key of [
     "traces",
@@ -463,6 +586,8 @@ const run = async (
     "runs",
     "namedObservations",
     "agents",
+    "skillCalls",
+    "agentsWithSkills",
     ...(withV4 ? ["events"] : []),
   ]) {
     if (summary.verified[key] !== counts[key]) {
@@ -495,11 +620,18 @@ export const agentsViewScenario: ScenarioDefinition = {
       description: "window width in hours (greater than 0, at most 24)",
     },
     {
+      flag: "date",
+      type: "string",
+      default: "",
+      description:
+        "UTC calendar day (YYYY-MM-DD; default today); use the original date/prefix when extending an existing fixture",
+    },
+    {
       flag: "end-hour",
       type: "number",
       default: 12,
       description:
-        "window ends at this UTC hour today (0–23); change timing flags with a fresh --id-prefix",
+        "window ends at this UTC hour on --date (0–23); change timing flags with a fresh --id-prefix",
     },
     {
       flag: "v4",

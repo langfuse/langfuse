@@ -32,7 +32,7 @@ this.
 | The same tree readable in the v4 events UI                                                                                                       | add `--v4` (writes `events_full`; `events_core` fills via MV)                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Async parents whose subtree outlives their own span (subtree wall-clock duration badge)                                                          | add `--async-parents` to `trace-tree` (root + hub end immediately while children keep running)                                                                                                                                                                                                                                                                                                                                                                                               |
 | A realistic agent flow over a timeline (graph view + scrubbable timeline)                                                                        | `pnpm run seed -- agent-timeline --turns 6 --v4` (LangGraph refine loop planner→retriever→generator→critic→loop, staggered in time; add `--timing-only` for the pure timing fallback)                                                                                                                                                                                                                                                                                                        |
-| Agents table/profile with propagated costs, nested agents, skills, Unicode/URL names and a partial-cost integration | `pnpm run seed -- agents-view --environment production` (20 pipelines + 2 name-only traces; v4 on; stable 08:00–12:00 UTC window today; `--traces`, `--hours`, `--end-hour` adjust it, with a fresh `--id-prefix` when changing timing) |
+| Agents table/profile with propagated costs, nested agents, skills, Unicode/URL names and a partial-cost integration                              | `pnpm run seed -- agents-view --environment production` (20 pipelines + 2 name-only traces; eight agents with two skills each; v4 on; 08:00–12:00 UTC today; printed list/profile/Skills links pin the window)                                                                                                                                                                                                                                                                               |
 | A trace that is large as a GRAPH (many distinct node names + connections, the trace-graph layout stress)                                         | `pnpm run seed -- agent-graph --v4` (~1,350 distinct connections from 350 observations; `--nodes 120 --steps 100 --parallel 8` crosses the layout ceiling, `--nodes 80 --steps 30 --parallel 4` is small-but-dense)                                                                                                                                                                                                                                                                          |
 | A dozen SMALL traces, each a different timeline shape (the everyday case, not a stress test)                                                     | `pnpm run seed -- timeline-shapes --v4` (12 hand-timed traces of 4-25 observations: rag answer, streamed chat with a TTFT split, 8-way fan-out, retry backoff with widening gaps, a 13-minute wait on a human, one slow tool dwarfing everything, an error cascade with failover, in-flight spans with no end time, zero-duration checkpoints, a ten-level ladder, 24 flat siblings, a three-turn agent loop with think time; `--shape <slug>` for one)                                      |
 | A row carrying every annotation at once, to judge whether the timeline is overloaded                                                             | `pnpm run seed -- timeline-annotated --v4` (ONE trace, 12 observations: one/two/four scores — the last collapsing into `+1` — one and twelve comments, a streaming first-token mark, costs and durations spread so the heat map paints some rows, plain rows beside them for contrast, and all three label placements on screen together)                                                                                                                                                    |
@@ -73,18 +73,26 @@ For the 100-trace Intent/Issues evaluation, run
 Read the [Topics fixture walkthrough](../../../packages/shared/scripts/seeder/README.md#topics)
 for batch IDs, dataset contents, and clustering settings.
 
+For an existing Agents fixture, preserve its original UTC date and reuse its
+prefix and other flags:
+`pnpm run seed -- agents-view --environment production --date YYYY-MM-DD --id-prefix original-prefix`.
+Replace the placeholders; keep `--seed`, `--traces`, `--hours` and `--end-hour`
+unchanged. Omitted or empty `--date` uses today. Use a fresh prefix when changing
+the date or timing so different `start_time` keys do not retain duplicate rows.
+Read the [Agents fixture walkthrough](../../../packages/shared/scripts/seeder/README.md#agents-view)
+for all-eight-agent skills coverage and window-pinned links.
+
 ## Contract
 
 - Last stdout line is a JSON summary: `traceIds`, `sessionIds`, `counts`,
   `verified` (ClickHouse readback), `links` (UI deep links). Use `--json` to
   suppress progress logs. Non-zero exit = data did not land; the error
   includes a `fix:` line.
-- Deterministic: same `--seed` (default 42) and flags → same ids (ids never
-  contain dates), with timestamps anchored to the current UTC day. Re-running
-  within the same day overwrites in place; a later-day re-run updates the
-  same ids with re-anchored timestamps (the previous day's rows persist
-  under their old dates until then). Independent copies come only from
-  `--id-prefix`.
+- Deterministic: same `--seed` (default 42), flags and UTC anchor date → same
+  ids and timestamps. Ids never contain dates. Timestamps default to the current
+  UTC day; `agents-view --date YYYY-MM-DD` pins the original day for later
+  re-runs. Keep the original date and timing when reusing a prefix; use a fresh
+  `--id-prefix` for a new date or independent copy.
 - Default project is the seeded `7a88fb47-b4e2-43b8-a06c-a5ce950dc53a`
   (login `demo@langfuse.com` / `password`); override with `--project`.
 - Open the printed `links` in the browser to verify visually. The v4
