@@ -22,7 +22,7 @@ type SettingsPageEntry = ComponentProps<
   typeof PagedSettingsContainer
 >["pages"][number];
 
-const ACCOUNT_SECTION = "Account";
+const ACCOUNT_SECTION = "Account Settings";
 const ORGANIZATION_SECTION = "Organization";
 
 export function SettingsPage({ scope }: SettingsPageProps) {
@@ -77,26 +77,33 @@ function OrganizationPicker({ scope }: OrganizationPickerProps) {
   const organizationLabel = organization?.name ?? "Select organization";
 
   return (
-    <OrganizationDropdownMenu
-      {...(organizations
-        ? { state: "loaded", organizations }
-        : { state: "loading" })}
-      canCreateOrganizations={!!session.data?.user?.canCreateOrganizations}
-      getOrgPath={scope === "account" ? accountSettingsPath : getOrgSwitchPath}
-    >
-      {({ getTriggerProps }) => (
-        <button
-          type="button"
-          className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-8 w-full items-center gap-1.5 rounded-sm px-2 text-left text-xs font-bold"
-          {...getTriggerProps()}
-        >
-          <span className="truncate" title={organizationLabel}>
-            {organizationLabel}
-          </span>
-          <DropdownIndicator size="sm" nudge />
-        </button>
-      )}
-    </OrganizationDropdownMenu>
+    <div className="flex h-8 items-center gap-2 px-2">
+      <span className="text-foreground shrink-0 text-xs font-bold">
+        Org Settings
+      </span>
+      <OrganizationDropdownMenu
+        {...(organizations
+          ? { state: "loaded", organizations }
+          : { state: "loading" })}
+        canCreateOrganizations={!!session.data?.user?.canCreateOrganizations}
+        getOrgPath={
+          scope === "account" ? accountSettingsPath : getOrgSwitchPath
+        }
+      >
+        {({ getTriggerProps }) => (
+          <button
+            type="button"
+            className="border-border bg-background text-foreground hover:bg-muted flex h-6 min-w-0 items-center gap-1 rounded-md border px-1.5 text-xs"
+            {...getTriggerProps()}
+          >
+            <span className="truncate" title={organizationLabel}>
+              {organizationLabel}
+            </span>
+            <DropdownIndicator size="sm" nudge />
+          </button>
+        )}
+      </OrganizationDropdownMenu>
+    </div>
   );
 }
 

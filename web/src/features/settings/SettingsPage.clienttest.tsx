@@ -68,9 +68,9 @@ describe("buildSettingsPages", () => {
     });
 
     expect(summarize(pages)).toEqual([
-      { section: "Account", slug: "index", content: true },
+      { section: "Account Settings", slug: "index", content: true },
       {
-        section: "Account",
+        section: "Account Settings",
         slug: "v4-migration",
         href: "/v4-migration",
         internal: false,
@@ -106,13 +106,13 @@ describe("buildSettingsPages", () => {
 
     expect(summarize(pages)).toEqual([
       {
-        section: "Account",
+        section: "Account Settings",
         slug: "index",
         href: "/account/settings?organizationId=org-1",
         internal: true,
       },
       {
-        section: "Account",
+        section: "Account Settings",
         slug: "v4-migration",
         href: "/v4-migration",
         internal: false,

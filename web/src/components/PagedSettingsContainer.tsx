@@ -133,7 +133,7 @@ export const PagedSettingsContainer = ({
             >
               {group.section
                 ? (sectionHeaders[group.section] ?? (
-                    <span className="text-muted-foreground flex h-8 items-center px-2 text-xs font-bold">
+                    <span className="text-foreground flex h-8 items-center px-2 text-xs font-bold">
                       {group.section}
                     </span>
                   ))
