@@ -364,11 +364,13 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   moved to "Legacy models (still available)"). API ID / alias / Bedrock ID /
   Google Cloud ID / Microsoft Foundry ID / Claude Platform on AWS ID are all
   the dateless `claude-sonnet-5-5` / `anthropic.claude-sonnet-5-5` pattern.
-  Pricing is numerically identical to `claude-sonnet-5`: $2/MTok input,
-  $10/MTok output, 5m cache write $2.50/MTok, 1h cache write $4/MTok, cache
-  read $0.20/MTok (standard 0.1x multiplier — the pricing page's cache-hits
-  footnote only lists Fable 5.1/Mythos 5.1 at 0.025x and Opus 5.5 at 0.05x as
-  non-standard, so Sonnet 5.5 is not an exception). On the flat 1M-context
+  Pricing matches `claude-sonnet-5` except for cache reads: $2/MTok input,
+  $10/MTok output, 5m cache write $2.50/MTok, 1h cache write $4/MTok. Cache
+  read launched at $0.20/MTok (0.1x) and was lowered to $0.10/MTok (0.05x,
+  the Opus 5.5 multiplier) on October 7, 2026, per the release notes
+  (`https://platform.claude.com/docs/en/release-notes/overview`); the pricing
+  page's cache-hits footnote now lists Opus 5.5 and Sonnet 5.5 at 0.05x.
+  Updated in the pricing file on October 9, 2026. On the flat 1M-context
   list (1M context window, 128K max output, no Large Context tier) since it is
   a Claude 4.6-or-later-generation model. **No Fast mode**: the Fast mode
   pricing table lists only Claude Opus 5.5, Claude Opus 5, and Claude Opus

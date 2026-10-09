@@ -4685,7 +4685,7 @@
     "modelName": "claude-sonnet-5-5",
     "matchPattern": "(?i)^((anthropic\\/)?claude-sonnet-5-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-5-5(-v1(:0)?)?)$",
     "createdAt": "2026-09-29T00:00:00.000Z",
-    "updatedAt": "2026-09-29T00:00:00.000Z",
+    "updatedAt": "2026-10-09T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4704,9 +4704,9 @@
           "input_cache_creation": 2.5e-6,
           "input_cache_creation_5m": 2.5e-6,
           "input_cache_creation_1h": 4e-6,
-          "cache_read_input_tokens": 2e-7,
-          "input_cached_tokens": 2e-7,
-          "input_cache_read": 2e-7
+          "cache_read_input_tokens": 0.1e-6,
+          "input_cached_tokens": 0.1e-6,
+          "input_cache_read": 0.1e-6
         }
       }
     ]
