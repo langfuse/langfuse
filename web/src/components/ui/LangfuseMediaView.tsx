@@ -1,27 +1,21 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { api } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
-import { useState } from "react";
-import { Button } from "@/src/components/ui/button";
+import { useMemo } from "react";
 
-import { ImageOff, ExternalLink } from "lucide-react";
+import { ImageOff } from "lucide-react";
 import {
   MediaReferenceStringSchema,
   OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
   type ParsedMediaReferenceType,
 } from "@langfuse/shared";
-import {
-  COMPACT_IMAGE_MAX_HEIGHT_REM,
-  ResizableImage,
-} from "@/src/components/ui/resizable-image";
+import { ResizableImage } from "@/src/components/ui/resizable-image";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   type MediaContentType,
   type MediaReturnType,
 } from "@/src/features/media";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
-import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
+import { MediaFileView } from "@/src/components/ui/media/MediaFileView";
 
 // Above this, "preview" media falls back to the click-to-open icon instead of
 // rendering inline, so a large file isn't fetched/decoded just by opening a view.
@@ -43,38 +37,42 @@ export const LangfuseMediaView = ({
   // Non-previewable types (e.g. PDF) are always a click-to-open icon.
   variant?: "inline" | "icon" | "preview";
 }) => {
-  let mediaData: {
+  const mediaData = useMemo<{
     id: string;
     type: MediaContentType;
     referenceString?: string;
     source?: string;
-  } | null = null;
+  } | null>(() => {
+    if (mediaReferenceString && typeof mediaReferenceString === "string") {
+      const { success, data: parsedTag } =
+        MediaReferenceStringSchema.safeParse(mediaReferenceString);
+      if (success)
+        return {
+          id: parsedTag.id,
+          type: parsedTag.type as MediaContentType,
+          referenceString: parsedTag.referenceString,
+          source: parsedTag.source,
+        };
+    } else if (
+      mediaReferenceString &&
+      typeof mediaReferenceString !== "string"
+    ) {
+      return {
+        id: mediaReferenceString.id,
+        type: mediaReferenceString.type as MediaContentType,
+        referenceString: mediaReferenceString.referenceString,
+        source: mediaReferenceString.source,
+      };
+    } else if (mediaAPIReturnValue) {
+      return {
+        id: mediaAPIReturnValue.mediaId,
+        type: mediaAPIReturnValue.contentType,
+      };
+    }
+    return null;
+  }, [mediaReferenceString, mediaAPIReturnValue]);
 
   const projectId = useProjectIdFromURL();
-
-  if (mediaReferenceString && typeof mediaReferenceString === "string") {
-    const { success, data: parsedTag } =
-      MediaReferenceStringSchema.safeParse(mediaReferenceString);
-    if (success)
-      mediaData = {
-        id: parsedTag.id,
-        type: parsedTag.type as MediaContentType,
-        referenceString: parsedTag.referenceString,
-        source: parsedTag.source,
-      };
-  } else if (mediaReferenceString && typeof mediaReferenceString !== "string") {
-    mediaData = {
-      id: mediaReferenceString.id,
-      type: mediaReferenceString.type as MediaContentType,
-      referenceString: mediaReferenceString.referenceString,
-      source: mediaReferenceString.source,
-    };
-  } else if (mediaAPIReturnValue) {
-    mediaData = {
-      id: mediaAPIReturnValue.mediaId,
-      type: mediaAPIReturnValue.contentType,
-    };
-  }
 
   if (!mediaData) {
     const text = "Invalid Langfuse Media Tag";
@@ -82,7 +80,7 @@ export const LangfuseMediaView = ({
     return (
       <div className="flex items-center gap-2">
         <span title={text}>
-          <ImageOff className="h-4 w-4" />
+          <ImageOff className="icon-base" />
         </span>
         <span className="truncate text-sm" title={text}>
           {text}
@@ -101,6 +99,7 @@ export const LangfuseMediaView = ({
     },
     {
       enabled: Boolean(projectId) && !isOversizedField,
+      meta: { silentHttpCodes: [404] },
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
@@ -131,7 +130,7 @@ export const LangfuseMediaView = ({
       variant === "preview" &&
       (data?.contentLength ?? 0) <= PREVIEW_AUTO_EXPAND_MAX_BYTES;
     return (
-      <FileViewer
+      <MediaFileView
         src={mediaUrl}
         contentType={mediaData.type}
         defaultExpanded={autoExpand}
@@ -152,110 +151,8 @@ export const LangfuseMediaView = ({
   } else if (mediaData.type.startsWith("video")) {
     return <VideoPlayer src={mediaUrl} />;
   }
-  return <FileViewer src={mediaUrl} contentType={mediaData.type} />;
+  return <MediaFileView src={mediaUrl} contentType={mediaData.type} />;
 };
-
-function FileViewer({
-  src,
-  contentType,
-  defaultExpanded = false,
-}: {
-  src?: string;
-  contentType: MediaContentType;
-  defaultExpanded?: boolean;
-}) {
-  const mimeType = String(contentType);
-  const fileType = mimeType.split("/")[0];
-  const isImage = fileType === "image";
-  const isAudio = fileType === "audio";
-  const isVideo = fileType === "video";
-  const isPreviewable = isImage || isAudio || isVideo;
-
-  const [isExpanded, setIsExpanded] = useState(
-    defaultExpanded && isPreviewable,
-  );
-  const [compactImageWidth, setCompactImageWidth] = useState<string>();
-
-  if (!src) return null;
-
-  const fileName = src.split("/").pop()?.split("?")[0] || "";
-  const openInNewTab = () => {
-    window.open(src, "_blank", "noopener,noreferrer");
-  };
-
-  const expandPreview = () => {
-    if (!isImage || compactImageWidth) {
-      setIsExpanded(true);
-      return;
-    }
-
-    const image = new window.Image();
-    image.onload = () => {
-      const { naturalWidth, naturalHeight } = image;
-      if (naturalWidth && naturalHeight) {
-        setCompactImageWidth(
-          `${COMPACT_IMAGE_MAX_HEIGHT_REM * (naturalWidth / naturalHeight)}rem`,
-        );
-      }
-      setIsExpanded(true);
-    };
-    image.onerror = () => setIsExpanded(true);
-    image.src = src;
-  };
-
-  const previewContent = isImage ? (
-    <ResizableImage
-      src={src}
-      alt={fileName}
-      isDefaultVisible={true}
-      shouldValidateImageSource={false}
-      fitContent
-      compactWidth={compactImageWidth}
-    />
-  ) : isAudio ? (
-    <AudioPlayer src={src} />
-  ) : isVideo ? (
-    <VideoPlayer src={src} />
-  ) : null;
-
-  return (
-    <div
-      className={cn(
-        "flex flex-col gap-2",
-        isPreviewable && isExpanded ? "basis-full" : "shrink-0",
-      )}
-    >
-      {isPreviewable && isExpanded ? (
-        <div className="flex max-w-3xl items-start gap-2">
-          <div className={cn(isImage ? "contents" : "min-w-0 flex-1")}>
-            {isAudio ? (
-              <div className="max-w-xl min-w-72">{previewContent}</div>
-            ) : (
-              previewContent
-            )}
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={openInNewTab}
-            aria-label={`Open ${fileName} in new tab`}
-            title={`Open ${fileName} in new tab`}
-            className="shrink-0"
-          >
-            <ExternalLink className="h-4 w-4" />
-          </Button>
-        </div>
-      ) : (
-        <MediaFileCard
-          contentType={contentType}
-          fileName={fileName}
-          onClick={() => (isPreviewable ? expandPreview() : openInNewTab())}
-        />
-      )}
-    </div>
-  );
-}
 
 function AudioPlayer({ src }: { src?: string }) {
   if (!src) return null;

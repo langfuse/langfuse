@@ -1,4 +1,6 @@
 /* eslint-disable no-nested-ternary */
+import { isOpenAIDecisionModel } from "@langfuse/shared";
+
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { buildScoreOutputDefinition } from "@/src/features/evals/v2/fns/scoreOutput/buildScoreOutputDefinition";
 import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
@@ -27,18 +29,25 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
   const outputDefinition = buildScoreOutputDefinition(params.scoreOutput);
   const promptMessagesValid =
     getPromptMessagesValidationError(params.promptMessages) === null;
-  const mappings =
-    params.type === "LLM_AS_JUDGE"
-      ? buildEvaluatorVariableMappings({
-          promptMessages: params.promptMessages,
-          variableFields: params.variableFields,
-        })
-      : params.type === "DECISION_MODEL"
-        ? buildDecisionModelStateFields({
-            stateKeys: params.stateKeys,
-            variableFields: params.variableFields,
-          })
-        : [];
+  const mappings = (() => {
+    if (params.type === "LLM_AS_JUDGE") {
+      return buildEvaluatorVariableMappings({
+        promptMessages: params.promptMessages,
+        variableFields: params.variableFields,
+      });
+    }
+    if (params.type === "DECISION_MODEL") {
+      return buildDecisionModelStateFields({
+        stateKeys:
+          params.selectedModel != null &&
+          isOpenAIDecisionModel(params.selectedModel.model)
+            ? ["input"]
+            : params.stateKeys,
+        variableFields: params.variableFields,
+      });
+    }
+    return [];
+  })();
 
   if (params.type === "DECISION_MODEL") {
     const questions = draftsToQuestions(params.questions);

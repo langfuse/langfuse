@@ -375,6 +375,87 @@ describe("llmApiKey.all RPC", () => {
     });
   });
 
+  it("should treat a decision-model connection as working when the probe is answered", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          model: "jev-1.13.0",
+          answers: {
+            kind: {
+              type: "choice",
+              choice: "greeting",
+              confidence: 0.9,
+              probabilities: { greeting: 0.9, other: 0.1 },
+            },
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const result = await caller.llmApiKey.test({
+        projectId,
+        secretKey: "sk-typesafe",
+        provider: "jev",
+        adapter: LLMAdapter.TypeSafe,
+        baseURL: "https://example.com/typesafe/v1",
+        extraHeaders: { "x-team": "evals" },
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(mockGenerateLLMText).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("https://example.com/typesafe/v1/systemone");
+      expect(new Headers(init.headers).get("authorization")).toBe(
+        "Bearer sk-typesafe",
+      );
+      expect(new Headers(init.headers).get("x-team")).toBe("evals");
+      expect(JSON.parse(init.body as string)).toEqual({
+        model: "jev-latest",
+        state: { message: "Hello, is anyone there?" },
+        questions: {
+          kind: {
+            type: "choice",
+            instructions: "What kind of message is `message`?",
+            criteria: { greeting: null, other: null },
+          },
+        },
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("should report the upstream error when a decision-model connection test fails", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: { message: "invalid api key" } }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const result = await caller.llmApiKey.test({
+        projectId,
+        secretKey: "sk-typesafe",
+        provider: "jev",
+        adapter: LLMAdapter.TypeSafe,
+        baseURL: "https://example.com/typesafe/v1",
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toEqual(expect.any(String));
+      expect(result.error!.length).toBeGreaterThan(0);
+      expect(mockGenerateLLMText).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("should block decision-model connections with an internal custom base URL", async () => {
     await expect(
       caller.llmApiKey.create({
@@ -401,6 +482,69 @@ describe("llmApiKey.all RPC", () => {
       includeDecisionModels: true,
     });
     expect(llmApiKeys).toHaveLength(0);
+  });
+
+  it("should reject decision-model base URLs that end in /systemone or have a query string", async () => {
+    const connection = {
+      projectId,
+      secretKey: "sk-proxy",
+      provider: "jev-via-proxy",
+      adapter: LLMAdapter.TypeSafe,
+    };
+
+    await expect(
+      caller.llmApiKey.create({
+        ...connection,
+        baseURL: "https://example.com/typesafe/v1/systemone",
+      }),
+    ).rejects.toThrow("Remove /systemone");
+    await expect(
+      caller.llmApiKey.test({
+        ...connection,
+        baseURL: "https://example.com/typesafe/v1/systemone/",
+      }),
+    ).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining("Remove /systemone"),
+    });
+    await expect(
+      caller.llmApiKey.create({
+        ...connection,
+        baseURL: "https://example.com/typesafe/v1/systemone?api-version=1",
+      }),
+    ).rejects.toThrow("Remove /systemone");
+    await expect(
+      caller.llmApiKey.create({
+        ...connection,
+        baseURL: "https://example.com/typesafe/v1?api-version=1",
+      }),
+    ).rejects.toThrow("Remove the query string");
+
+    await caller.llmApiKey.create({
+      ...connection,
+      baseURL: "https://example.com/typesafe/v1",
+    });
+    const { id } = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: connection.provider },
+    });
+
+    await expect(
+      caller.llmApiKey.update({
+        ...connection,
+        id,
+        baseURL: "https://example.com/typesafe/v1/systemone",
+      }),
+    ).rejects.toThrow("Remove /systemone");
+    await expect(
+      caller.llmApiKey.testUpdate({
+        ...connection,
+        id,
+        baseURL: "https://example.com/typesafe/v1/systemone",
+      }),
+    ).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining("Remove /systemone"),
+    });
   });
 
   it("should require a new secret key when moving a decision-model connection to another upstream", async () => {

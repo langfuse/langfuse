@@ -66,7 +66,7 @@ function AlertRoot({
       {Icon ? (
         <Icon
           data-slot="alert-icon"
-          className="absolute size-4"
+          className="icon-base absolute"
           aria-hidden="true"
         />
       ) : null}

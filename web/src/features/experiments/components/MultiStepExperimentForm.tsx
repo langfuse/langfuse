@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import React, { useEffect, useRef, useState } from "react";
@@ -459,7 +458,7 @@ export const MultiStepExperimentForm = ({
     }
 
     if (isStepValid(stepId)) {
-      return <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />;
+      return <Check className="icon-base mr-1.5 text-green-600" />;
     }
 
     if (
@@ -469,7 +468,7 @@ export const MultiStepExperimentForm = ({
       return (
         <CircleX
           aria-label={`${stepLabel} has errors`}
-          className="mr-1.5 h-3.5 w-3.5 text-red-500"
+          className="icon-base mr-1.5 text-red-500"
         />
       );
     }
@@ -482,12 +481,15 @@ export const MultiStepExperimentForm = ({
     .filter((step) => step.id !== "dataset" || !isDatasetValidationPending)
     .filter((step) => !isStepValid(step.id))
     .map((step) => step.label);
-  const reviewErrorMessage =
-    invalidRequiredStepLabels.length === 0
-      ? undefined
-      : invalidRequiredStepLabels.length === 1
-        ? `Complete the ${invalidRequiredStepLabels[0]} step before running the experiment.`
-        : `Complete the following steps before running the experiment: ${invalidRequiredStepLabels.join(", ")}.`;
+  const reviewErrorMessage = (() => {
+    if (invalidRequiredStepLabels.length === 0) {
+      return undefined;
+    }
+    if (invalidRequiredStepLabels.length === 1) {
+      return `Complete the ${invalidRequiredStepLabels[0]} step before running the experiment.`;
+    }
+    return `Complete the following steps before running the experiment: ${invalidRequiredStepLabels.join(", ")}.`;
+  })();
 
   if (
     !promptsByName ||
@@ -701,7 +703,7 @@ export const MultiStepExperimentForm = ({
                 }}
                 disabled={activeStep === "prompt"}
               >
-                <ChevronLeft className="mr-2 h-4 w-4" />
+                <ChevronLeft className="icon-base text-icon-foreground mr-2" />
                 Previous
               </Button>
 
@@ -723,7 +725,7 @@ export const MultiStepExperimentForm = ({
                     }
                   >
                     Next
-                    <ChevronRight className="ml-2 h-4 w-4" />
+                    <ChevronRight className="icon-base ml-2" />
                   </Button>
                 ) : (
                   <Button

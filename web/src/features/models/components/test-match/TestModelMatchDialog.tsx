@@ -35,6 +35,26 @@ export function TestModelMatchDialog({
   open,
   onOpenChange,
 }: TestModelMatchDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <TestModelMatchDialogContent
+        projectId={projectId}
+        open={open}
+        onClose={() => onOpenChange(false)}
+      />
+    </Dialog>
+  );
+}
+
+export function TestModelMatchDialogContent({
+  projectId,
+  open,
+  onClose,
+}: {
+  projectId: string;
+  open: boolean;
+  onClose: () => void;
+}) {
   const [modelName, setModelName] = useState("");
   const [usageDetails, setUsageDetails] = useState<Record<string, number>>({});
   const [modelParameterEntries, setModelParameterEntries] = useState<
@@ -82,7 +102,7 @@ export function TestModelMatchDialog({
   }, [open]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
       <DialogContent size="lg" className="min-h-[62vh] overflow-y-auto">
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col">
           <DialogHeader>
@@ -138,7 +158,7 @@ export function TestModelMatchDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => onOpenChange(false)}
+                  onClick={onClose}
                   className="flex-1"
                 >
                   Close
@@ -179,7 +199,7 @@ export function TestModelMatchDialog({
                         {data.matched ? (
                           <>
                             <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 dark:border-green-900 dark:bg-green-950">
-                              <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                              <CheckCircle className="icon-base text-green-600 dark:text-green-400" />
                               <span className="text-sm font-bold text-green-900 dark:text-green-100">
                                 Match Found
                               </span>
@@ -205,7 +225,7 @@ export function TestModelMatchDialog({
                       target="_blank"
                     >
                       View Model Details
-                      <SquareArrowOutUpRight className="ml-2 h-4 w-4" />
+                      <SquareArrowOutUpRight className="icon-base text-icon-foreground ml-2" />
                     </Link>
                   </Button>
                 </div>
@@ -214,6 +234,6 @@ export function TestModelMatchDialog({
           </DialogBody>
         </form>
       </DialogContent>
-    </Dialog>
+    </>
   );
 }

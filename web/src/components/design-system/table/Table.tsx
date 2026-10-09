@@ -102,7 +102,7 @@ export function Table<TData extends object>({
         loadingCell: (
           <div className="ml-auto flex h-4 w-6 items-center justify-center">
             <MoreVertical
-              className="text-muted-foreground/30 size-4 animate-pulse"
+              className="text-muted-foreground/30 icon-base animate-pulse"
               aria-hidden="true"
             />
           </div>
@@ -156,7 +156,7 @@ export function Table<TData extends object>({
                       key={header.id}
                       aria-sort={ariaSort}
                       className={cn(
-                        "group bg-background text-muted-foreground relative h-10 border-b p-2 text-left align-middle font-bold",
+                        "group bg-surface text-muted-foreground relative h-10 border-b p-2 text-left align-middle font-bold",
                         column.headerClassName,
                         column.hideBelowMd && "hidden md:table-cell",
                       )}
@@ -202,19 +202,19 @@ export function Table<TData extends object>({
                             </span>
                             {!isSorted && (
                               <ArrowUpDown
-                                className="ml-1.5 size-3 shrink-0 opacity-40 transition-opacity group-hover/sort:opacity-70"
+                                className="icon-sm ml-1.5 shrink-0 opacity-40 transition-opacity group-hover/sort:opacity-70"
                                 aria-hidden="true"
                               />
                             )}
                             {isSorted && orderBy.order === "ASC" && (
                               <ArrowUp
-                                className="ml-1.5 size-3 shrink-0"
+                                className="icon-sm ml-1.5 shrink-0"
                                 aria-hidden="true"
                               />
                             )}
                             {isSorted && orderBy.order === "DESC" && (
                               <ArrowDown
-                                className="ml-1.5 size-3 shrink-0"
+                                className="icon-sm ml-1.5 shrink-0"
                                 aria-hidden="true"
                               />
                             )}
@@ -278,6 +278,7 @@ export function Table<TData extends object>({
                             ? "p-0"
                             : "p-2",
                           column.columnDef.cellClassName,
+                          column.columnDef.sensitive && "ph-no-capture",
                           column.columnDef.hideBelowMd &&
                             "hidden md:table-cell",
                         )}
@@ -317,7 +318,7 @@ export function Table<TData extends object>({
                 <tr
                   key={row.id}
                   className={cn(
-                    "hover:bg-accent h-12 transition-colors",
+                    "group/row hover:bg-accent h-12 transition-colors",
                     rowHeight === "m" && "h-24",
                     rowHeight === "l" && "h-64",
                     onRowClick ? "cursor-pointer" : "cursor-default",
@@ -342,6 +343,7 @@ export function Table<TData extends object>({
                           "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
                           column.cellPadding === "none" ? "p-0" : "p-2",
                           column.cellClassName,
+                          column.sensitive && "ph-no-capture",
                           column.hideBelowMd && "hidden md:table-cell",
                         )}
                       >

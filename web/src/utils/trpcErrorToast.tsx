@@ -1,5 +1,6 @@
 import { TRPCClientError } from "@trpc/client";
 import { showErrorToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { formatTrpcZodValidationDescription } from "@/src/utils/trpcValidationError";
 
 // Catch network level errors, e.g. by proxy rate-limiting
@@ -89,6 +90,10 @@ export const trpcErrorToast = (error: unknown) => {
         "Unexpected Response",
         "The request could not be completed. Please try again or contact support if this persists.",
         "WARNING",
+        undefined,
+        undefined,
+        "trpc",
+        classifyTrpcToastError(error),
       );
       return;
     }
@@ -96,6 +101,11 @@ export const trpcErrorToast = (error: unknown) => {
     const { errorTitle, httpStatus } = getErrorTitleAndHttpCode(error);
 
     const path = error.data?.path;
+    // OTEL trace id attached by the tRPC errorFormatter; absent when OTEL is not
+    // running (self-hosted / unsampled). Surfaced so users can share it in
+    // support tickets for correlation.
+    const traceId =
+      typeof error.data?.traceId === "string" ? error.data.traceId : undefined;
     const validationDescription = formatTrpcZodValidationDescription(error);
     const description =
       validationDescription ?? error.message ?? getErrorDescription(httpStatus);
@@ -105,12 +115,19 @@ export const trpcErrorToast = (error: unknown) => {
       description,
       httpStatus >= 500 && httpStatus < 600 ? "ERROR" : "WARNING",
       path,
+      traceId,
+      "trpc",
+      classifyTrpcToastError(error),
     );
   } else {
     showErrorToast(
       "Unexpected Error",
       "An unexpected error occurred.",
       "ERROR",
+      undefined,
+      undefined,
+      "trpc",
+      classifyTrpcToastError(error),
     );
   }
 };

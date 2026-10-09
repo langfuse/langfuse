@@ -1,8 +1,16 @@
 /* eslint-disable no-nested-ternary */
 import { type ViewVersion } from "@langfuse/shared/query";
 import { DataTable } from "@/src/components/table/data-table";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useCompactRows,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
+import {
+  DataTableMobileFilterControls,
+  DataTableToolbar,
+} from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
@@ -14,7 +22,7 @@ import { createLinkTableColumn } from "@/src/components/design-system/table/colu
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import {
@@ -138,6 +146,8 @@ export type ScoresTableProps = {
   hiddenColumns?: ScoresTableHiddenColumn[];
   localStorageSuffix?: string;
   disableUrlPersistence?: boolean;
+  /** Detail panel: toolbar inset to the panel edge, search inline, no saved views. */
+  insetToolbar?: boolean;
   /**
    * When true, render the time-range picker and auto-refresh button in the
    * page header (next to the title) via the header controls slot, instead of
@@ -170,6 +180,21 @@ function createFilterState(
   }, userFilterState);
 }
 
+function ScoreTraceTags({
+  tags,
+  fallbackCompact,
+}: {
+  tags: string[];
+  fallbackCompact: boolean;
+}) {
+  const compact = useCompactRows(fallbackCompact);
+  return (
+    <div className={cn("flex gap-x-2 gap-y-1", !compact && "flex-wrap")}>
+      <TagList selectedTags={tags} isLoading={false} viewOnly />
+    </div>
+  );
+}
+
 export default function ScoresTable({
   projectId,
   userId,
@@ -179,6 +204,7 @@ export default function ScoresTable({
   hiddenColumns = [],
   localStorageSuffix = "",
   disableUrlPersistence = false,
+  insetToolbar = false,
   showControlsInPageHeader = false,
   showAllEnvironments = false,
   renderTracePeek,
@@ -213,7 +239,15 @@ export default function ScoresTable({
   });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "scores");
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "scores",
+    "s",
+  );
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
   // Convert timeRange to absolute date range for compatibility
@@ -337,6 +371,7 @@ export default function ScoresTable({
   const scoreDeleteMutation = api.scores.deleteMany.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "score.bulk_delete",
         title: "Scores deleted",
         description:
           "Selected scores will be deleted. Scores are removed asynchronously and may continue to be visible for up to 15 minutes.",
@@ -689,7 +724,7 @@ export default function ScoresTable({
       enableHiding: true,
       size: 400,
       getCell: (value) => value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     createBadgeTableColumn<ScoresTableRow>({
       accessorKey: "environment",
@@ -714,14 +749,7 @@ export default function ScoresTable({
         return (
           traceTags &&
           traceTags.length > 0 && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={traceTags} isLoading={false} viewOnly />
-            </div>
+            <ScoreTraceTags tags={traceTags} fallbackCompact={compactRows} />
           )
         );
       },
@@ -732,7 +760,7 @@ export default function ScoresTable({
       id: "metadata",
       size: 400,
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       headerTooltip: {
         description: "Add metadata to scores to track additional information.",
@@ -745,7 +773,7 @@ export default function ScoresTable({
           <ScoresMetadataCell
             scoreId={scoreId}
             projectId={projectId}
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         );
       },
@@ -1128,6 +1156,44 @@ export default function ScoresTable({
     ? totalCount
     : visibleSelectedScoreIds.length;
 
+  if (
+    insetToolbar &&
+    !scores.isPending &&
+    !scores.isError &&
+    !totalScoreCountQuery.isError &&
+    totalCount === 0 &&
+    queryFilter.effectiveFilterState.length === 0
+  ) {
+    return (
+      <div className="flex h-full w-full flex-col items-center gap-1 px-8 pt-24 pb-8">
+        <span className="text-muted-foreground text-lg">No scores found</span>
+        <a
+          href="https://langfuse.com/faq/all/what-are-scores"
+          className="text-primary text-sm underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          What are scores?
+        </a>
+      </div>
+    );
+  }
+
+  const scoresSearchBar = (
+    <ScoresSearchBar
+      size={showControlsInPageHeader ? "large" : "default"}
+      key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+      isV4={isV4}
+      projectId={projectId}
+      filterConfig={scoresFilterConfig}
+      filterState={queryFilter.searchBarFilterState}
+      setFilterState={setFiltersWrapper}
+      filterOptions={newFilterOptions}
+      isLoading={isSidebarFilterLoading}
+      inset={insetToolbar}
+    />
+  );
+
   return (
     <DataTableControlsProvider
       tableName={scoresFilterConfig.tableName}
@@ -1138,85 +1204,109 @@ export default function ScoresTable({
           <TableHeaderControls
             timeRange={timeRange}
             setTimeRange={setTimeRange}
+            desktopOnly
           />
         )}
-        <ScoresSearchBar
-          key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
-          isV4={isV4}
-          projectId={projectId}
-          filterConfig={scoresFilterConfig}
-          filterState={queryFilter.searchBarFilterState}
-          setFilterState={setFiltersWrapper}
-          filterOptions={newFilterOptions}
-          isLoading={isSidebarFilterLoading}
-        />
-        {/* Toolbar spanning full width */}
-        <DataTableToolbar
-          columns={columns}
-          filterState={queryFilter.explicitFilterState}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={handleColumnVisibilityChange}
-          columnOrder={columnOrder}
-          setColumnOrder={handleColumnOrderChange}
-          viewConfig={{
-            tableName: TableViewPresetTableName.Scores,
-            projectId,
-            controllers: viewControllers,
-          }}
-          actionButtons={[
-            visibleSelectedScoreIds.length > 0 || selectAll ? (
-              <TableActionMenu
-                key="scores-multi-select-actions"
-                projectId={projectId}
-                actions={tableActions}
-                tableName={BatchExportTableName.Scores}
-                selectedCount={selectedScoreCount}
-                onClearSelection={() => {
-                  setSelectedRows({});
-                  setSelectAll(false);
-                }}
-              />
-            ) : null,
-            hasBatchExportAccess ? (
-              <BatchExportTableButton
-                {...{
-                  projectId,
-                  filterState: backendFilterState,
-                  orderByState,
-                }}
-                tableName={BatchExportTableName.Scores}
-                key="batchExport"
-              />
-            ) : null,
-          ]}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
-          timeRange={
-            showControlsInPageHeader || isTraceScoped ? undefined : timeRange
+        <SearchableTableFilterLayout
+          search={insetToolbar ? null : scoresSearchBar}
+          toolbar={
+            <DataTableToolbar
+              className={insetToolbar ? "px-4 py-2" : undefined}
+              tableName={TableViewPresetTableName.Scores}
+              leadingControls={
+                insetToolbar ? (
+                  <div className="min-w-0 flex-1">{scoresSearchBar}</div>
+                ) : undefined
+              }
+              columns={columns}
+              filterState={queryFilter.explicitFilterState}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={handleColumnVisibilityChange}
+              columnOrder={columnOrder}
+              setColumnOrder={handleColumnOrderChange}
+              viewConfig={
+                insetToolbar
+                  ? undefined
+                  : {
+                      tableName: TableViewPresetTableName.Scores,
+                      projectId,
+                      controllers: viewControllers,
+                    }
+              }
+              actionButtons={[
+                visibleSelectedScoreIds.length > 0 || selectAll ? (
+                  <TableActionMenu
+                    key="scores-multi-select-actions"
+                    projectId={projectId}
+                    actions={tableActions}
+                    tableName={BatchExportTableName.Scores}
+                    selectedCount={selectedScoreCount}
+                    onClearSelection={() => {
+                      setSelectedRows({});
+                      setSelectAll(false);
+                    }}
+                  />
+                ) : null,
+                hasBatchExportAccess ? (
+                  <BatchExportTableButton
+                    {...{
+                      projectId,
+                      filterState: backendFilterState,
+                      orderByState,
+                    }}
+                    tableName={BatchExportTableName.Scores}
+                    key="batchExport"
+                  />
+                ) : null,
+              ]}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              customRowHeight={customRowHeightMenu(rowHeights)}
+              timeRange={
+                showControlsInPageHeader || isTraceScoped
+                  ? undefined
+                  : timeRange
+              }
+              setTimeRange={
+                showControlsInPageHeader || isTraceScoped
+                  ? undefined
+                  : setTimeRange
+              }
+              viewModeToggle={
+                chartEnabled && chartTimeRange ? (
+                  <ViewModeToggle
+                    mode={chartViewMode}
+                    onModeChange={setChartViewMode}
+                  />
+                ) : undefined
+              }
+              multiSelect={{
+                selectAll,
+                setSelectAll,
+                selectedRowIds: visibleSelectedScoreIds,
+                setRowSelection: setSelectedRows,
+                totalCount,
+                ...paginationState,
+              }}
+              hideMobileFilterControls
+            />
           }
-          setTimeRange={
-            showControlsInPageHeader || isTraceScoped ? undefined : setTimeRange
+          mobileControls={
+            <DataTableMobileFilterControls
+              viewConfig={{
+                tableName: TableViewPresetTableName.Scores,
+                projectId,
+                controllers: viewControllers,
+              }}
+              orderByState={orderByState}
+              filterState={queryFilter.explicitFilterState}
+              columnOrder={columnOrder}
+              columnVisibility={columnVisibility}
+              timeRange={isTraceScoped ? undefined : timeRange}
+              setTimeRange={isTraceScoped ? undefined : setTimeRange}
+            />
           }
-          viewModeToggle={
-            chartEnabled && chartTimeRange ? (
-              <ViewModeToggle
-                mode={chartViewMode}
-                onModeChange={setChartViewMode}
-              />
-            ) : undefined
-          }
-          multiSelect={{
-            selectAll,
-            setSelectAll,
-            selectedRowIds: visibleSelectedScoreIds,
-            setRowSelection: setSelectedRows,
-            totalCount,
-            ...paginationState,
-          }}
-        />
-
-        {/* Content area with sidebar and table */}
-        <ResizableFilterLayout>
+        >
           <DataTableControls
             // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
             key={viewControllers.filterEditorResetKey}
@@ -1297,10 +1387,13 @@ export default function ScoresTable({
                 columnOrder={columnOrder}
                 onColumnOrderChange={handleColumnOrderChange}
                 rowHeight={rowHeight}
+                customRowHeightPx={rowHeights.activeHeightPx}
+                onCustomRowHeightChange={rowHeights.setCustomPx}
+                onSelectRowHeight={setRowHeight}
               />
             )}
           </div>
-        </ResizableFilterLayout>
+        </SearchableTableFilterLayout>
         {peekEnabled &&
           renderTracePeek?.({
             closePeek: closeScorePeek,

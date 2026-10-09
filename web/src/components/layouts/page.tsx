@@ -45,7 +45,11 @@ const Page = ({
               leadingControl={headerProps.leadingControl}
             />
           ) : (
-            <PageHeader {...headerProps} container={false} className="top-0" />
+            <PageHeader
+              {...headerProps}
+              container={false}
+              className={cn("top-0", headerProps.className)}
+            />
           )}
         </header>
         {isMobile && <MobilePageTitle headerProps={headerProps} />}

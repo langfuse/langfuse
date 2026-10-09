@@ -3,7 +3,8 @@
 import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Command as CommandPrimitive } from "cmdk";
-import { ChevronDown, X } from "lucide-react";
+import { X } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
@@ -258,7 +259,7 @@ export function MultiSelectTagInput<V extends string>({
                           removeValue(option.value);
                         }}
                       >
-                        <X className="size-3.5" />
+                        <X className="icon-base" />
                       </button>
                     </span>
                   ))
@@ -275,12 +276,7 @@ export function MultiSelectTagInput<V extends string>({
                   +{hiddenOptionCount}
                 </span>
               )}
-              {value.length === 0 && (
-                <ChevronDown
-                  aria-hidden="true"
-                  className="size-4 shrink-0 opacity-50"
-                />
-              )}
+              {value.length === 0 && <DropdownIndicator />}
               {value.length > 0 && (
                 <button
                   type="button"
@@ -298,7 +294,7 @@ export function MultiSelectTagInput<V extends string>({
                     changeValue([]);
                   }}
                 >
-                  <X className="size-4" />
+                  <X className="icon-base" />
                 </button>
               )}
             </div>

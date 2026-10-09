@@ -4,8 +4,28 @@ import { randomUUID } from "crypto";
 import * as crypto from "crypto";
 import type { Cluster, Redis } from "ioredis";
 import { env } from "../../env";
+import { InvalidRequestError } from "../../errors";
+import {
+  ApiKeyId,
+  OrganizationId,
+  hasApiKeyKind,
+  hasOrganizationKind,
+  hasProjectKind,
+  hasSystemRoleKind,
+  toSystemRole,
+  untag,
+  type OwnerId,
+  type RoleId,
+  type UserId,
+} from "../../features/rbac/types";
+import {
+  isApiKeyRole,
+  roleHasProjectPolicy,
+} from "../../features/rbac/systemRoleAccessRights";
 import { logger } from "../logger";
+import { assignRole } from "../../features/rbac/roleAssignmentService";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
+import { withTransaction } from "../utils/withTransaction";
 
 export function getDisplaySecretKey(secretKey: string) {
   return secretKey.slice(0, 6) + "..." + secretKey.slice(-4);
@@ -24,21 +44,36 @@ export function redactLangfuseSecretKeys(value: string): string {
   );
 }
 
-/**
- * Formats a client-submitted public key for logging. Only a value that is
- * actually a Langfuse public key is echoed verbatim; anything else is masked to
- * its display form because it may be a secret placed in the wrong slot.
- */
+const MAX_LOGGED_PUBLIC_KEY_LENGTH = 64;
+
+/** formatSubmittedPublicKeyForLog masks values without a pk-lf- prefix and sanitizes untrusted input for logging. */
 export function formatSubmittedPublicKeyForLog(value: string): string {
-  if (value.startsWith("pk-lf-")) return value;
-  if (value.length < 12) return "****";
-  return getDisplaySecretKey(value);
+  let formatted: string;
+  if (value.startsWith("pk-lf-")) formatted = value;
+  else if (value.length < 12) formatted = "****";
+  else formatted = getDisplaySecretKey(value);
+
+  return JSON.stringify(
+    formatted
+      .slice(0, MAX_LOGGED_PUBLIC_KEY_LENGTH)
+      .replace(/[^\x20-\x7e]/g, "\uFFFD"),
+  );
 }
 
+/** hashSecretKey produces the legacy bcrypt form of keys created before the fast hash; verification backfills their fast hash on first use. */
 export async function hashSecretKey(key: string) {
-  // legacy, uses bcrypt, transformed into hashed key upon first use
   const hashedKey = await hash(key, 11);
   return hashedKey;
+}
+
+/**
+ * createLegacySecretKeyPlaceholder fills the legacy bcrypt column
+ * (hashedSecretKey) of a new key. New keys verify only through their fast
+ * hash, so the column holds a unique non-secret value that no bcrypt
+ * comparison matches.
+ */
+export function createLegacySecretKeyPlaceholder(): string {
+  return `unused:${randomUUID()}`;
 }
 
 export async function generateKeySet() {
@@ -63,62 +98,126 @@ export function createShaHash(privateKey: string, salt: string): string {
   return hash;
 }
 
-export async function createAndAddApiKeysToDb(p: {
-  // Accepts a transaction client so callers can commit key creation
-  // atomically with linking the key to its owner (e.g. an agent run row).
-  prisma: PrismaClient | Prisma.TransactionClient;
-  entityId: string;
-  scope: ApiKeyScope;
-  note?: string;
-  isInAppAgentKey?: boolean;
-  /** User who created the key, e.g. via the UI. */
-  createdByUserId?: string;
-  /** API key that created the key, e.g. an org-scoped key using the public API. */
-  createdByApiKeyId?: string;
-  predefinedKeys?: {
-    secretKey: string;
-    publicKey: string;
-  };
-}) {
+/** createApiKey inserts an api-key row and its single system-role assignment, keyed on the owner. */
+export async function createApiKey(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  {
+    name,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Accept the legacy alias at the compatibility boundary.
+    note,
+    ...opts
+  }: {
+    owner: OwnerId;
+    role: RoleId;
+    createdBy: ApiKeyId | UserId | "system";
+    name?: string;
+    /** @deprecated Use name instead; name and note are mutually exclusive. */
+    note?: string;
+    expiresAt?: Date | null;
+    isInAppAgentKey?: boolean;
+    predefinedKeys?: { secretKey: string; publicKey: string };
+  },
+): Promise<{
+  id: string;
+  createdAt: Date;
+  note: string | null;
+  publicKey: string;
+  displaySecretKey: string;
+  secretKey: string;
+}> {
+  if (name !== undefined && note !== undefined) {
+    throw new InvalidRequestError("Provide either name or note, not both");
+  }
+
   const salt = env.SALT;
   if (!salt) {
     throw new Error("SALT is not set");
   }
 
-  const { pk, sk } = p.predefinedKeys
-    ? { pk: p.predefinedKeys.publicKey, sk: p.predefinedKeys.secretKey }
+  if (hasSystemRoleKind(opts.role)) {
+    const role = toSystemRole(opts.role);
+    const isProjectOwner = hasProjectKind(opts.owner);
+    // A key can only carry a role tagged for api keys; a project owner also
+    // needs a project-kind policy, or the key grants nothing on its project.
+    if (
+      !isApiKeyRole(role) ||
+      (isProjectOwner && !roleHasProjectPolicy(role))
+    ) {
+      throw new InvalidRequestError(
+        `Role ${role} cannot back ${
+          isProjectOwner ? "a project" : "an organization"
+        } API key`,
+      );
+    }
+  }
+
+  const { pk, sk } = opts.predefinedKeys
+    ? { pk: opts.predefinedKeys.publicKey, sk: opts.predefinedKeys.secretKey }
     : await generateKeySet();
 
-  const hashedSk = await hashSecretKey(sk);
-  const displaySk = getDisplaySecretKey(sk);
+  const scope = hasOrganizationKind(opts.owner) ? "ORGANIZATION" : "PROJECT";
+  const data: Prisma.ApiKeyUncheckedCreateInput = {
+    ...(scope === "ORGANIZATION"
+      ? { orgId: untag(opts.owner) }
+      : { projectId: untag(opts.owner) }),
+    publicKey: pk,
+    hashedSecretKey: createLegacySecretKeyPlaceholder(),
+    displaySecretKey: getDisplaySecretKey(sk),
+    fastHashedSecretKey: createShaHash(sk, salt),
+    note: name ?? note,
+    scope,
+    expiresAt: opts.expiresAt ?? null,
+    isInAppAgentKey: opts.isInAppAgentKey ?? false,
+    ...creatorColumns(opts.createdBy),
+  };
 
-  const hashFromProvidedKey = createShaHash(sk, salt);
+  const created = await withTransaction(prisma, (tx) =>
+    insertApiKey(tx, data, opts),
+  );
+  return { ...created, secretKey: sk };
+}
 
-  const entity =
-    p.scope === "PROJECT" ? { projectId: p.entityId } : { orgId: p.entityId };
+/** creatorColumns maps a key's creator to its api-key columns; "system" records none. */
+function creatorColumns(
+  createdBy: ApiKeyId | UserId | "system",
+): Pick<
+  Prisma.ApiKeyUncheckedCreateInput,
+  "createdByApiKeyId" | "createdByUserId"
+> {
+  if (createdBy === "system") return {};
+  return hasApiKeyKind(createdBy)
+    ? { createdByApiKeyId: untag(createdBy) }
+    : { createdByUserId: untag(createdBy) };
+}
 
-  const apiKey = await p.prisma.apiKey.create({
-    data: {
-      ...entity,
-      publicKey: pk,
-      hashedSecretKey: hashedSk,
-      displaySecretKey: displaySk,
-      fastHashedSecretKey: hashFromProvidedKey,
-      note: p.note,
-      scope: p.scope,
-      isInAppAgentKey: p.isInAppAgentKey ?? false,
-      createdByUserId: p.createdByUserId,
-      createdByApiKeyId: p.createdByApiKeyId,
-    },
+/** insertApiKey writes the api-key row and its one owner-keyed role assignment on a single transaction client. */
+async function insertApiKey(
+  tx: Prisma.TransactionClient,
+  data: Prisma.ApiKeyUncheckedCreateInput,
+  opts: { owner: OwnerId; role: RoleId },
+) {
+  const apiKey = await tx.apiKey.create({ data });
+  const orgId = hasOrganizationKind(opts.owner)
+    ? untag(opts.owner)
+    : (
+        await tx.project.findFirstOrThrow({
+          where: { id: untag(opts.owner) },
+          select: { orgId: true },
+        })
+      ).orgId;
+  await assignRole(tx, {
+    tenantId: OrganizationId(orgId),
+    principalId: ApiKeyId(apiKey.id),
+    roleId: opts.role,
+    ownerId: opts.owner,
+    tags: [],
   });
-
   return {
     id: apiKey.id,
     createdAt: apiKey.createdAt,
     note: apiKey.note,
     publicKey: apiKey.publicKey,
-    secretKey: sk,
-    displaySecretKey: displaySk,
+    displaySecretKey: apiKey.displaySecretKey,
   };
 }
 

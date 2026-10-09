@@ -82,11 +82,15 @@ const PeekViewEvaluatorConfigDetail = ({
     isLegacyEvalTarget(evalConfig.targetObject) &&
     (readOnly || legacyEditingDisabled);
   const editModeDisabled = readOnly || !hasAccess || legacyEditingDisabled;
-  const editModeDisabledReason = readOnly
-    ? "This legacy evaluator is inactive and can only be viewed or deleted"
-    : legacyEditingDisabled
-      ? "Deprecated evaluators are only available in read-only mode"
-      : undefined;
+  const editModeDisabledReason = (() => {
+    if (readOnly) {
+      return "This legacy evaluator is inactive and can only be viewed or deleted";
+    }
+    if (legacyEditingDisabled) {
+      return "Deprecated evaluators are only available in read-only mode";
+    }
+    return undefined;
+  })();
 
   return (
     <div className="grid h-full flex-1 grid-rows-[auto_auto_1fr] gap-2 overflow-hidden p-3 contain-layout">
@@ -181,7 +185,7 @@ const PeekViewEvaluatorConfigDetail = ({
               {evalConfig.evalTemplate.projectId === null ? (
                 <LangfuseIcon size={16} />
               ) : (
-                <UserCircle2Icon className="h-4 w-4" />
+                <UserCircle2Icon className="icon-base" />
               )}
             </TooltipTrigger>
             <TooltipContent>
@@ -209,6 +213,7 @@ const PeekViewEvaluatorConfigDetail = ({
                 setIsEditMode(false);
                 utils.evals.invalidate();
                 showSuccessToast({
+                  operation: "evaluator.update",
                   title: "Running Evaluator updated",
                   description: "The evaluator configuration has been updated.",
                 });

@@ -3,10 +3,11 @@
  * Each filter is a pure function that can be tested in isolation
  */
 
-import type { Route } from "@/src/components/layouts/routes";
+import { RouteGroup, type Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess, hasOrganizationAccess } from "@/src/features/rbac";
 import type { Session } from "next-auth";
+import { isAdminOnlyFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -70,6 +71,16 @@ const filters = {
    */
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
+
+    if (isAdminOnlyFeaturePreviewFlag(route.featureFlag)) {
+      return ctx.session?.user?.featureFlags?.[route.featureFlag] === true
+        ? route
+        : null;
+    }
+
+    if (route.featureFlag === "internalFeatures") {
+      return ctx.internalFeaturesEnabled ? route : null;
+    }
 
     if (route.featureFlag === "experimentsV4Enabled") {
       return ctx.session?.user?.v4BetaEnabled === true ? route : null;
@@ -238,5 +249,10 @@ export function applyNavigationFilters(
 ): Route[] {
   return routes
     .map((route) => applyFiltersToRoute(route, ctx, organization))
-    .filter((route): route is Route => route !== null);
+    .filter((route): route is Route => route !== null)
+    .map((route) =>
+      ctx.internalFeaturesEnabled && route.group === RouteGroup.PromptManagement
+        ? { ...route, group: RouteGroup.ContextManagement }
+        : route,
+    );
 }

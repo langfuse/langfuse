@@ -1,6 +1,9 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
+import { shuffleBuildIntentOptions } from "../lib/buildIntent";
 import { OnboardingSurvey } from "./OnboardingSurvey";
+
+const buildIntentOptions = shuffleBuildIntentOptions();
 
 const meta = preview.meta({
   component: OnboardingSurvey,
@@ -10,6 +13,7 @@ const meta = preview.meta({
 export const Default = meta.story({
   args: {
     state: "form",
+    buildIntentOptions,
     canConfigureAiFeatures: true,
     onSubmit: fn(async () => undefined),
   },
@@ -19,6 +23,7 @@ export const WithoutAiFeaturesChoice = meta.story({
   name: "(Test) Without AI Features Choice",
   args: {
     state: "form",
+    buildIntentOptions,
     canConfigureAiFeatures: false,
     onSubmit: fn(async () => undefined),
   },
@@ -52,6 +57,7 @@ export const SubmitsAiFeaturesDefault = meta.story({
   name: "(Test) Submits AI Features Default",
   args: {
     state: "form",
+    buildIntentOptions,
     canConfigureAiFeatures: true,
     onSubmit: defaultSubmit,
   },
@@ -66,6 +72,8 @@ export const SubmitsAiFeaturesDefault = meta.story({
     await expect(defaultSubmit).toHaveBeenCalledWith({
       referralSource: undefined,
       aiFeaturesEnabled: true,
+      buildIntents: [],
+      buildIntentOther: undefined,
     });
   },
 });
@@ -76,6 +84,7 @@ export const SubmitsAiFeaturesOptOut = meta.story({
   name: "(Test) Submits AI Features Opt-Out",
   args: {
     state: "form",
+    buildIntentOptions,
     canConfigureAiFeatures: true,
     onSubmit: optOutSubmit,
   },
@@ -90,6 +99,57 @@ export const SubmitsAiFeaturesOptOut = meta.story({
     await expect(optOutSubmit).toHaveBeenCalledWith({
       referralSource: undefined,
       aiFeaturesEnabled: false,
+      buildIntents: [],
+      buildIntentOther: undefined,
+    });
+  },
+});
+
+const buildIntentSubmit = fn(async () => undefined);
+
+export const SubmitsBuildIntents = meta.story({
+  name: "(Test) Submits Build Intents",
+  args: {
+    state: "form",
+    buildIntentOptions,
+    canConfigureAiFeatures: false,
+    onSubmit: buildIntentSubmit,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(
+      canvas.getByRole("checkbox", { name: /Just exploring/ }),
+    );
+    await userEvent.click(canvas.getByRole("checkbox", { name: /RAG/ }));
+    await expect(
+      canvas.getByRole("checkbox", { name: /Just exploring/ }),
+    ).not.toBeChecked();
+
+    await userEvent.click(canvas.getByRole("checkbox", { name: /Other/ }));
+    await userEvent.type(
+      canvas.getByRole("textbox", {
+        name: "What else will you use Langfuse for?",
+      }),
+      "Eval pipeline",
+    );
+    await userEvent.click(
+      canvas.getByRole("checkbox", { name: /coding agents/ }),
+    );
+    await expect(
+      canvas.getByRole("checkbox", { name: /Autonomous agents/ }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("checkbox", { name: /Just exploring/ }),
+    ).toBeEnabled();
+
+    await userEvent.click(canvas.getByRole("button", { name: "Next" }));
+
+    await expect(buildIntentSubmit).toHaveBeenCalledWith({
+      referralSource: undefined,
+      aiFeaturesEnabled: true,
+      buildIntents: ["rag", "other", "coding_agents"],
+      buildIntentOther: "Eval pipeline",
     });
   },
 });

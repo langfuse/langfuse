@@ -120,6 +120,7 @@ export const scoresRouter = createTRPCRouter({
         offset: input.page * input.limit,
         excludeMetadata: true,
         includeHasMetadataFlag: true,
+        preferredClickhouseService: "ReadOnly",
       });
 
       const [jobExecutions, users] = await Promise.all([
@@ -178,6 +179,7 @@ export const scoresRouter = createTRPCRouter({
       const score = await getScoreById({
         projectId: input.projectId,
         scoreId: input.scoreId,
+        preferredClickhouseService: "ReadOnly",
       });
       if (!score) {
         throw new TRPCError({
@@ -577,7 +579,7 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:save",
       });
 
       const inflatedParams = isTraceScore(input.scoreTarget)
@@ -708,7 +710,7 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:save",
       });
 
       let updatedScore: ScoreDomain | null | undefined = null;
@@ -970,15 +972,19 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:delete",
       });
 
-      // Fetch the current score from Clickhouse
-      const clickhouseScore = await getScoreById({
+      // Corrections can be ingested via the API and are still deletable in the UI
+      const fetchedScore = await getScoreById({
         projectId: input.projectId,
         scoreId: input.id,
-        source: ScoreSourceEnum.ANNOTATION,
       });
+      const clickhouseScore =
+        fetchedScore?.source === ScoreSourceEnum.ANNOTATION ||
+        fetchedScore?.dataType === ScoreDataTypeEnum.CORRECTION
+          ? fetchedScore
+          : undefined;
       if (!clickhouseScore) {
         logger.warn(
           `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
@@ -1017,7 +1023,7 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:save",
       });
 
       // eslint-disable-next-line @typescript-eslint/no-deprecated
@@ -1176,7 +1182,7 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      return await hasAnyScore(input.projectId);
+      return await hasAnyScore(input.projectId, "ReadOnly");
     }),
   getScoreMetadataById: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), id: z.string() }))

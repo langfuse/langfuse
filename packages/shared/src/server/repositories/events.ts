@@ -852,12 +852,15 @@ async function getObservationsFromEventsTableInternal<T>(
     const key = positionFilter.key;
     const isFromEnd = key === "last" || key === "nthFromEnd";
     const direction = isFromEnd ? "DESC" : "ASC";
-    const position =
-      key === "last" || key === "first" || key === "root"
-        ? 1
-        : typeof positionFilter.value === "number"
-          ? positionFilter.value
-          : 1;
+    const position = (() => {
+      if (key === "last" || key === "first" || key === "root") {
+        return 1;
+      }
+      if (typeof positionFilter.value === "number") {
+        return positionFilter.value;
+      }
+      return 1;
+    })();
 
     // Build observation-only filter for CTE (no s.* or t.* references)
     const nativeFilter = new FilterList(
@@ -902,11 +905,13 @@ async function getObservationsFromEventsTableInternal<T>(
           : []),
       ]);
 
-      return isTraceDeleteCursorSelect
-        ? cursorOrderedBuilder.limitBy("e.trace_id", "e.project_id")
-        : opts.dedupeBySpanId
-          ? cursorOrderedBuilder.limitBy("e.span_id", "e.project_id")
-          : cursorOrderedBuilder;
+      if (isTraceDeleteCursorSelect) {
+        return cursorOrderedBuilder.limitBy("e.trace_id", "e.project_id");
+      }
+      if (opts.dedupeBySpanId) {
+        return cursorOrderedBuilder.limitBy("e.span_id", "e.project_id");
+      }
+      return cursorOrderedBuilder;
     })
     .when(
       !isCursorPagination &&
@@ -936,6 +941,8 @@ async function getObservationsFromEventsTableInternal<T>(
     tags: { projectId },
     clickhouseConfigs,
     preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
+    // Buffering reads ahead on every stream; wasted once LIMIT is filled.
+    clickhouseSettings: { read_in_order_use_buffering: 0 },
   });
 }
 
@@ -1608,7 +1615,11 @@ async function getObservationsRowsFromBuilder<T>(
     params,
     tags: { projectId, ...extraTags },
     preferredClickhouseService: "EventsReadOnly",
-    clickhouseSettings,
+    clickhouseSettings: {
+      // Buffering reads ahead on every stream; wasted once LIMIT is filled.
+      read_in_order_use_buffering: 0,
+      ...clickhouseSettings,
+    },
   });
 }
 
@@ -3687,7 +3698,8 @@ export const getLatestEvaluatorRunCost = async (
   return rows[0] ? Number(rows[0].trace_total_cost) : null;
 };
 
-export const getRecentEvaluatorExecutionTraces = async (
+/** Counts execution traces by outcome over the last seven days, excluding tests. */
+export const getEvaluatorExecutionSummaries = async (
   projectId: string,
   evaluatorIds: string[],
 ) => {
@@ -3697,81 +3709,34 @@ export const getRecentEvaluatorExecutionTraces = async (
     projectId,
     groupByColumn: "e.trace_id, e.evaluator_id",
     selectExpression: [
-      "e.trace_id as id",
       "e.evaluator_id as evaluator_id",
-      "multiIf(countIf(e.level = 'ERROR') > 0, 'ERROR', countIf(e.level = 'WARNING') > 0, 'WARNING', 'DEFAULT') as level",
-      "min(e.start_time) as timestamp",
+      "countIf(e.level = 'ERROR') > 0 as failed",
     ].join(", "),
   })
     .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
     .whereRaw("e.evaluator_id IN ({evaluatorIds: Array(String)})", {
       evaluatorIds,
     })
-    .havingRaw(`countIf(${evaluatorTestEventCondition}) = 0`)
-    .orderBy("ORDER BY timestamp DESC, id DESC")
-    .limitByCount(5, "evaluator_id");
+    .havingRaw(`countIf(${evaluatorTestEventCondition}) = 0`);
 
+  // Aggregate the per-trace outcomes, rather than counting individual observations.
   const { query, params } = builder.buildWithParams();
   const rows = await queryClickhouse<{
-    id: string;
     evaluator_id: string;
-    level: string;
-    timestamp: string;
+    total: string;
+    failed_count: string;
   }>({
-    query,
+    query: `SELECT evaluator_id, count() as total, countIf(failed) as failed_count
+      FROM (${query}) GROUP BY evaluator_id`,
     params,
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.map((row) => ({
-    id: row.id,
     evaluatorId: row.evaluator_id,
-    level: row.level,
-    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
-  }));
-};
-
-export const getRecentRuleExecutionTraces = async (
-  projectId: string,
-  ruleIds: string[],
-) => {
-  if (ruleIds.length === 0) return [];
-
-  const builder = new EventsAggQueryBuilder({
-    projectId,
-    groupByColumn: "e.trace_id, e.evaluation_rule_id",
-    selectExpression: [
-      "e.trace_id as id",
-      "e.evaluation_rule_id as evaluation_rule_id",
-      "multiIf(countIf(e.level = 'ERROR') > 0, 'ERROR', countIf(e.level = 'WARNING') > 0, 'WARNING', 'DEFAULT') as level",
-      "min(e.start_time) as timestamp",
-    ].join(", "),
-  })
-    .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
-    .whereRaw("e.evaluation_rule_id IN ({ruleIds: Array(String)})", { ruleIds })
-    .orderBy("ORDER BY timestamp DESC, id DESC")
-    .limitByCount(5, "evaluation_rule_id");
-
-  const { query, params } = builder.buildWithParams();
-  const rows = await queryClickhouse<
-    {
-      id: string;
-      level: string;
-      timestamp: string;
-    } & { evaluation_rule_id: string }
-  >({
-    query,
-    params,
-    tags: { projectId },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
-  return rows.map((row) => ({
-    id: row.id,
-    ruleId: row.evaluation_rule_id,
-    level: row.level,
-    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+    total: Number(row.total),
+    failed: Number(row.failed_count),
   }));
 };
 
@@ -3886,11 +3851,15 @@ ORDER BY last_seen DESC
   const hasAttribution =
     row.ingestion_sdk_name &&
     row.ingestion_sdk_name !== UNKNOWN_INGESTION_SDK_VALUE;
-  const version = hasAttribution
-    ? row.ingestion_sdk_version !== UNKNOWN_INGESTION_SDK_VALUE
-      ? row.ingestion_sdk_version
-      : ""
-    : undefined;
+  const version = (() => {
+    if (hasAttribution) {
+      if (row.ingestion_sdk_version !== UNKNOWN_INGESTION_SDK_VALUE) {
+        return row.ingestion_sdk_version;
+      }
+      return "";
+    }
+    return undefined;
+  })();
 
   return {
     isOtel: true,

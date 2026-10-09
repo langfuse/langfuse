@@ -42,6 +42,25 @@ const BaseEnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
+  // Internal Topics PoC controls; not a supported self-hosting configuration.
+  LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
+  // Unset model IDs make Topics model processing unavailable.
+  LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
+  LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
+  LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  LANGFUSE_TOPICS_REDIS_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10800),
   // NextAuth.js falls back to VERCEL_URL when NEXTAUTH_URL is unset; the
   // shared base-URL helper mirrors that (see web/src/env.mjs preprocess).
   VERCEL_URL: z.string().optional(),
@@ -481,6 +500,40 @@ const BaseEnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  // Buckets that keyless GOOGLE_CLOUD_STORAGE blob exports (default credentials,
+  // no service account key) may write to. Those run as the deployment's own GCP
+  // identity (ADC), so without this allowlist any project owner could export into
+  // any bucket that identity can write. Empty disables keyless GCS exports;
+  // exports with a service account key are unaffected.
+  LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? s
+            .split(",")
+            .map((s) => s.toLowerCase().trim())
+            .filter(Boolean)
+        : [],
+    ),
   LANGFUSE_SSO_DISCOVERY_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -575,6 +628,11 @@ const BaseEnvSchema = z.object({
       },
     ),
   LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+  // Local AI credentials; production normally uses the AWS role chain.
+  AWS_PROFILE: z.string().optional(),
+  LANGFUSE_AI_FEATURES_AWS_PROFILE: z.string().optional(),
+  // Legacy local profile alias.
+  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
   LANGFUSE_AI_VERTEX_LOCATION: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
   LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
@@ -619,6 +677,10 @@ const BaseEnvSchema = z.object({
 
   // EE License
   LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
+
+  // FIPS mode (EE feature): refuse to start without an enterprise license or
+  // an active OpenSSL FIPS provider. See server/ee/fips.
+  LANGFUSE_REQUIRE_FIPS: z.enum(["true", "false"]).default("false"),
 
   // Ingestion Masking (EE feature)
   LANGFUSE_INGESTION_MASKING_CALLBACK_URL: z.url().optional(),

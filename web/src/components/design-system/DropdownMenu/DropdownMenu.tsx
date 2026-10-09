@@ -24,7 +24,8 @@ import {
   type Placement,
 } from "@floating-ui/react";
 import { cva } from "class-variance-authority";
-import { ChevronRight, type LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 import * as React from "react";
 
@@ -55,6 +56,23 @@ const menuBodyVariants = cva(
     },
   },
 );
+
+const menuItemIconVariants = cva("", {
+  variants: {
+    variant: {
+      default: "text-icon-foreground",
+      destructive: "",
+    },
+    position: {
+      primary: "icon-base mr-1.5",
+      secondary: "icon-sm",
+    },
+  },
+  defaultVariants: {
+    variant: "default",
+    position: "primary",
+  },
+});
 
 const menuItemVariants = cva(
   "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex h-8 w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
@@ -121,6 +139,7 @@ type DropdownMenuItem = {
   id: string;
   title: string;
   tooltip?: string;
+  badge?: React.ReactNode;
   icon?: LucideIcon;
   searchBehavior?: SearchBehavior;
   type: "item";
@@ -450,17 +469,16 @@ function DropdownMenuNode({
                             <span className={primaryActionVariants()}>
                               {ItemIcon ? (
                                 <ItemIcon
-                                  className="mr-1.5 size-4"
+                                  className={menuItemIconVariants()}
                                   aria-hidden="true"
                                 />
                               ) : null}
                               <span className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap">
                                 {item.title}
                               </span>
-                              <ChevronRight
-                                className="ml-2 size-4"
-                                aria-hidden="true"
-                              />
+                              <span className="ml-2 flex">
+                                <DropdownIndicator direction="right" />
+                              </span>
                             </span>
                           </button>
                         )}
@@ -509,7 +527,7 @@ function DropdownMenuNode({
                         <span className={primaryActionVariants()}>
                           {ItemIcon ? (
                             <ItemIcon
-                              className="mr-1.5 size-4"
+                              className={menuItemIconVariants()}
                               aria-hidden="true"
                             />
                           ) : null}
@@ -565,7 +583,13 @@ function DropdownMenuNode({
                           }}
                           {...interactionProps}
                         >
-                          <SecondaryIcon size={12} aria-hidden="true" />
+                          <SecondaryIcon
+                            className={menuItemIconVariants({
+                              variant: item.variant,
+                              position: "secondary",
+                            })}
+                            aria-hidden="true"
+                          />
                         </Link>
                       );
                     } else {
@@ -584,7 +608,13 @@ function DropdownMenuNode({
                           }}
                           {...interactionProps}
                         >
-                          <SecondaryIcon size={12} aria-hidden="true" />
+                          <SecondaryIcon
+                            className={menuItemIconVariants({
+                              variant: item.variant,
+                              position: "secondary",
+                            })}
+                            aria-hidden="true"
+                          />
                         </button>
                       );
                     }
@@ -651,7 +681,9 @@ function DropdownMenuNode({
                         >
                           {ItemIcon ? (
                             <ItemIcon
-                              className="mr-1.5 size-4"
+                              className={menuItemIconVariants({
+                                variant: item.variant,
+                              })}
                               aria-hidden="true"
                             />
                           ) : null}
@@ -661,6 +693,9 @@ function DropdownMenuNode({
                           >
                             {item.title}
                           </span>
+                          {item.badge ? (
+                            <span className="ml-2 shrink-0">{item.badge}</span>
+                          ) : null}
                         </Link>
                       ) : (
                         <button
@@ -675,7 +710,9 @@ function DropdownMenuNode({
                         >
                           {ItemIcon ? (
                             <ItemIcon
-                              className="mr-1.5 size-4"
+                              className={menuItemIconVariants({
+                                variant: item.variant,
+                              })}
                               aria-hidden="true"
                             />
                           ) : null}
@@ -685,6 +722,9 @@ function DropdownMenuNode({
                           >
                             {item.title}
                           </span>
+                          {item.badge ? (
+                            <span className="ml-2 shrink-0">{item.badge}</span>
+                          ) : null}
                         </button>
                       )}
                       {renderedSecondaryAction}

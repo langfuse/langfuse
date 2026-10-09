@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useFieldArray, useForm } from "react-hook-form";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type BedrockApiKey,
@@ -12,7 +12,6 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
-  isDecisionModelAdapter,
   resolveTypeSafeUpstream,
   type TypeSafeUpstream,
 } from "@langfuse/shared";
@@ -405,6 +404,7 @@ export function CreateLLMApiKeyForm({
     TYPESAFE_UPSTREAMS.find(
       (upstream) => upstream.id === currentTypeSafeUpstreamId,
     ) ?? TYPESAFE_UPSTREAMS[0];
+  const customTypeSafeBaseURLDraft = useRef("");
   const isKeepingCurrentBedrockAuthMethod =
     mode === "update" &&
     currentAdapter === LLMAdapter.Bedrock &&
@@ -471,7 +471,7 @@ export function CreateLLMApiKeyForm({
                 variant="ghost"
                 onClick={() => remove(index)}
               >
-                <TrashIcon className="h-4 w-4" />
+                <TrashIcon className="icon-base text-icon-foreground" />
               </Button>
             </span>
           ))}
@@ -481,7 +481,10 @@ export function CreateLLMApiKeyForm({
             onClick={() => append({ value: "" })}
             className="w-full"
           >
-            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+            <PlusIcon
+              className="icon-base text-icon-foreground mr-1.5 -ml-0.5"
+              aria-hidden="true"
+            />
             Add custom model name
           </Button>
         </FormItem>
@@ -523,7 +526,7 @@ export function CreateLLMApiKeyForm({
                 variant="ghost"
                 onClick={() => removeHeader(index)}
               >
-                <TrashIcon className="h-4 w-4" />
+                <TrashIcon className="icon-base text-icon-foreground" />
               </Button>
             </div>
           ))}
@@ -534,7 +537,10 @@ export function CreateLLMApiKeyForm({
             onClick={() => appendHeader({ key: "", value: "" })}
             className="w-full"
           >
-            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+            <PlusIcon
+              className="icon-base text-icon-foreground mr-1.5 -ml-0.5"
+              aria-hidden="true"
+            />
             Add Header
           </Button>
         </FormItem>
@@ -739,6 +745,7 @@ export function CreateLLMApiKeyForm({
                         "typeSafeUpstream",
                         TYPESAFE_UPSTREAMS[0].id,
                       );
+                      customTypeSafeBaseURLDraft.current = "";
                     }
                     field.onChange(value as LLMAdapter);
                   }}
@@ -752,9 +759,7 @@ export function CreateLLMApiKeyForm({
                   <SelectContent>
                     {adapterOptions.map((provider) => (
                       <SelectItem value={provider} key={provider}>
-                        {isDecisionModelAdapter(provider)
-                          ? `${provider} (experimental)`
-                          : provider}
+                        {provider}
                       </SelectItem>
                     ))}
                     {mode === "create" && (
@@ -836,12 +841,18 @@ export function CreateLLMApiKeyForm({
                           aria-label="Upstream"
                           value={field.value}
                           onValueChange={(id) => {
+                            if (field.value === "custom") {
+                              customTypeSafeBaseURLDraft.current =
+                                form.getValues("baseURL");
+                            }
                             field.onChange(id);
                             form.setValue(
                               "baseURL",
-                              TYPESAFE_UPSTREAMS.find(
-                                (upstream) => upstream.id === id,
-                              )?.baseURL ?? "",
+                              id === "custom"
+                                ? customTypeSafeBaseURLDraft.current
+                                : (TYPESAFE_UPSTREAMS.find(
+                                    (upstream) => upstream.id === id,
+                                  )?.baseURL ?? ""),
                             );
                           }}
                         />
@@ -861,8 +872,10 @@ export function CreateLLMApiKeyForm({
                       <FormItem>
                         <FormLabel>Custom base URL</FormLabel>
                         <FormDescription>
-                          Base URL of a TypeSafe-compatible API, e.g.
+                          Base URL of a TypeSafe-compatible API, e.g.{" "}
                           <code>https://gateway.example.com/typesafe/v1</code>.
+                          Langfuse appends <code>/systemone</code>, so leave it
+                          out.
                         </FormDescription>
                         <FormControl>
                           <Input
@@ -896,15 +909,18 @@ export function CreateLLMApiKeyForm({
                                 field.onChange(value as BedrockAuthMethod)
                               }
                             >
-                              <Tabs.List layout="full" gap="sm" size="auto">
+                              <Tabs.List
+                                variant="inset"
+                                layout="full"
+                                gap="sm"
+                                size="md"
+                              >
                                 <Tabs.Trigger
                                   value={AuthMethod.AccessKeys}
-                                  size="sm"
                                   label="AWS access keys"
                                 />
                                 <Tabs.Trigger
                                   value={AuthMethod.ApiKey}
-                                  size="sm"
                                   label="API key"
                                 />
                               </Tabs.List>
@@ -1327,7 +1343,7 @@ export function CreateLLMApiKeyForm({
                         : "Show advanced settings"}
                     </span>
                     <ChevronDown
-                      className={`ml-1 h-4 w-4 transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
+                      className={`text-foreground-tertiary icon-base ml-1 translate-y-px transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
                     />
                   </Button>
                 </div>

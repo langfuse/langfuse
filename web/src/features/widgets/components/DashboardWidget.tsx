@@ -292,12 +292,15 @@ export function DashboardWidget({
     isV4Enabled: isV4,
     version: metricsVersion,
   });
-  const loadingStateLayout =
-    placement.y_size <= 2
-      ? "tight"
-      : placement.x_size <= 4
-        ? "compact"
-        : "default";
+  const loadingStateLayout = (() => {
+    if (placement.y_size <= 2) {
+      return "tight";
+    }
+    if (placement.x_size <= 4) {
+      return "compact";
+    }
+    return "default";
+  })();
   const loadingProgress = getChartLoadingProgress({
     isPending: queryResult.isPending,
     progress: queryResult.progress,
@@ -588,6 +591,7 @@ export function DashboardWidget({
         dashboard_id: dashboardId,
       });
       showSuccessToast({
+        operation: "widget.copy",
         title: "Widget copied",
         description: "Paste it on any dashboard with Cmd/Ctrl+V.",
       });
@@ -637,17 +641,14 @@ export function DashboardWidget({
         <div className="flex space-x-2">
           {!readOnly && (hasCUDAccess || isLockedEditable) && (
             <>
-              <GripVerticalIcon
-                size={16}
-                className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
-              />
+              <GripVerticalIcon className="icon-base drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block" />
               {isLockedEditable ? (
                 <button
                   onClick={onLockedEditAttempt}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon className="icon-base" />
                 </button>
               ) : widget.data.owner === "PROJECT" ? (
                 <button
@@ -655,7 +656,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon className="icon-base" />
                 </button>
               ) : widget.data.owner === "LANGFUSE" ? (
                 <button
@@ -669,7 +670,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon className="icon-base" />
                 </button>
               ) : null}
             </>
@@ -757,7 +758,7 @@ export function DashboardWidget({
                 aria-label="Widget actions"
                 {...getTriggerProps()}
               >
-                <MoreVerticalIcon size={16} />
+                <MoreVerticalIcon className="icon-base" />
               </button>
             )}
           </DropdownMenu>
@@ -773,7 +774,6 @@ export function DashboardWidget({
         {!queryValidation.valid ? (
           <div className="relative min-h-0 flex-1">
             <ChartLoadingState
-              isLoading={true}
               showSpinner={false}
               showHintImmediately={true}
               hintText={queryValidation.reason}
@@ -815,16 +815,17 @@ export function DashboardWidget({
                 )}
               />
             </div>
-            <ChartLoadingState
-              isLoading={chartLoadingState.isLoading}
-              showSpinner={chartLoadingState.showSpinner}
-              showHintImmediately={chartLoadingState.showHintImmediately}
-              hintText={chartLoadingState.hintText}
-              onRetry={queryResult.isError ? handleRetry : undefined}
-              progress={loadingProgress}
-              layout={loadingStateLayout}
-              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-            />
+            {chartLoadingState.isLoading && (
+              <ChartLoadingState
+                showSpinner={chartLoadingState.showSpinner}
+                showHintImmediately={chartLoadingState.showHintImmediately}
+                hintText={chartLoadingState.hintText}
+                onRetry={queryResult.isError ? handleRetry : undefined}
+                progress={loadingProgress}
+                layout={loadingStateLayout}
+                className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+              />
+            )}
           </div>
         )}
       </div>

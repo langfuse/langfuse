@@ -168,6 +168,7 @@ function SsoConfigDialogContent({
     onSuccess: () => {
       utils.ssoConfig.get.invalidate({ orgId });
       showSuccessToast({
+        operation: existing ? "sso.update" : "sso.configure",
         title: existing ? "SSO updated" : "SSO configured",
         description: `Active for @${domain} within 1 hour.`,
       });
@@ -480,9 +481,9 @@ function CopyableCallbackUrl({ value }: { value: string }) {
         }}
       >
         {isCopied ? (
-          <Check className="h-3 w-3" />
+          <Check className="icon-sm text-icon-foreground" />
         ) : (
-          <Copy className="h-3 w-3" />
+          <Copy className="icon-sm text-icon-foreground" />
         )}
       </Button>
     </div>

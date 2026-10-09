@@ -8,6 +8,7 @@ import {
   SafeLlmApiKeySchema,
   type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
+import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
@@ -26,6 +27,7 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
+  LangfuseNotFoundError,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
 
@@ -126,7 +128,7 @@ async function testDecisionModelConnection(params: {
         kind: {
           type: "choice",
           instructions: "What kind of message is `message`?",
-          criteria: { greeting: null, other: null },
+          choices: [{ value: "greeting" }, { value: "other" }],
         },
       },
     });
@@ -224,7 +226,30 @@ async function testLLMConnection(
   }
 }
 
+async function validateBaseURLForAdapter(params: {
+  adapter: LLMAdapter;
+  baseURL: string;
+}): Promise<void> {
+  // The TypeSafe provider appends /systemone to the raw base URL string.
+  if (params.adapter === LLMAdapter.TypeSafe) {
+    const url = new URL(params.baseURL);
+    if (/\/systemone\/?$/.test(url.pathname)) {
+      throw new Error(
+        "Remove /systemone from the end of the base URL. Langfuse appends it.",
+      );
+    }
+    if (url.search || url.hash) {
+      throw new Error(
+        "Remove the query string from the base URL. Langfuse appends /systemone to it.",
+      );
+    }
+  }
+
+  await validateLlmConnectionBaseURL(params.baseURL);
+}
+
 async function validateBaseURLForWrite(params: {
+  adapter: LLMAdapter;
   baseURL?: string | null;
   errorPrefix?: string;
 }): Promise<void> {
@@ -233,7 +258,10 @@ async function validateBaseURLForWrite(params: {
   }
 
   try {
-    await validateLlmConnectionBaseURL(params.baseURL);
+    await validateBaseURLForAdapter({
+      adapter: params.adapter,
+      baseURL: params.baseURL,
+    });
   } catch (error) {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -286,6 +314,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         });
 
         await validateBaseURLForWrite({
+          adapter: input.adapter,
           baseURL: input.baseURL,
         });
 
@@ -391,50 +420,62 @@ export const llmApiKeyRouter = createTRPCRouter({
         },
       });
 
-      const result = await ctx.prisma.$transaction(async (tx) => {
-        // Check if the llm api key is used for the default evaluation model
-        const defaultModel = await tx.defaultLlmModel.findFirst({
-          where: {
-            projectId: input.projectId,
-          },
-          select: {
-            llmApiKeyId: true,
-          },
-        });
+      if (!llmApiKey) {
+        throw new LangfuseNotFoundError("LLM API key not found");
+      }
 
-        const providerBlock = llmApiKey?.provider
-          ? await blockEvaluatorsUsingProvider({
-              tx,
+      let result;
+      try {
+        result = await ctx.prisma.$transaction(async (tx) => {
+          // Check if the llm api key is used for the default evaluation model
+          const defaultModel = await tx.defaultLlmModel.findFirst({
+            where: {
               projectId: input.projectId,
-              provider: llmApiKey.provider,
-            })
-          : EMPTY_EVALUATOR_BLOCK;
+            },
+            select: {
+              llmApiKeyId: true,
+            },
+          });
 
-        const defaultModelBlock =
-          !!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id
-            ? await blockEvaluatorsUsingDefaultModel({
+          const providerBlock = llmApiKey.provider
+            ? await blockEvaluatorsUsingProvider({
                 tx,
                 projectId: input.projectId,
+                provider: llmApiKey.provider,
               })
             : EMPTY_EVALUATOR_BLOCK;
 
-        await tx.llmApiKeys.delete({
-          where: {
-            id: input.id,
-            projectId: input.projectId,
-          },
-        });
+          const defaultModelBlock =
+            !!defaultModel && defaultModel.llmApiKeyId === llmApiKey.id
+              ? await blockEvaluatorsUsingDefaultModel({
+                  tx,
+                  projectId: input.projectId,
+                })
+              : EMPTY_EVALUATOR_BLOCK;
 
-        await auditLog({
-          session: ctx.session,
-          resourceType: "llmApiKey",
-          resourceId: input.id,
-          before: llmApiKey,
-          action: "delete",
-        });
+          await tx.llmApiKeys.delete({
+            where: {
+              id: input.id,
+              projectId: input.projectId,
+            },
+          });
 
-        return { providerBlock, defaultModelBlock };
-      });
+          await auditLog({
+            session: ctx.session,
+            resourceType: "llmApiKey",
+            resourceId: input.id,
+            before: llmApiKey,
+            action: "delete",
+          });
+
+          return { providerBlock, defaultModelBlock };
+        });
+      } catch (error) {
+        if (isPrismaRecordNotFoundError(error)) {
+          throw new LangfuseNotFoundError("LLM API key not found");
+        }
+        throw error;
+      }
 
       await finalizeEvaluatorBlocks({
         projectId: input.projectId,
@@ -521,7 +562,10 @@ export const llmApiKeyRouter = createTRPCRouter({
 
       if (input.baseURL) {
         try {
-          await validateLlmConnectionBaseURL(input.baseURL);
+          await validateBaseURLForAdapter({
+            adapter: input.adapter,
+            baseURL: input.baseURL,
+          });
         } catch (error) {
           return {
             success: false,
@@ -580,7 +624,10 @@ export const llmApiKeyRouter = createTRPCRouter({
         }
 
         if (input.baseURL && isBaseURLChanged) {
-          await validateLlmConnectionBaseURL(input.baseURL);
+          await validateBaseURLForAdapter({
+            adapter: input.adapter,
+            baseURL: input.baseURL,
+          });
         }
 
         const secretKey = hasNewSecretKey
@@ -670,6 +717,7 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         if (input.baseURL && isBaseURLChanged) {
           await validateBaseURLForWrite({
+            adapter: input.adapter,
             baseURL: input.baseURL,
           });
         }

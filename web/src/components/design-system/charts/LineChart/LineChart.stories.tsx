@@ -1,5 +1,6 @@
+import { useMemo } from "react";
 import preview from "../../../../../.storybook/preview";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import {
   LineChart,
   type LineChartLegend,
@@ -16,21 +17,36 @@ type LineChartStoryProps = {
     | "many-lines"
     | "boundary-points"
     | "negative-values"
+    | "intermittent"
+    | "intraday"
+    | "year-boundary"
+    | "monthly"
     | "category-short-labels"
     | "category-long-labels"
     | "category-hidden-labels";
 };
 
 const LineChartDemo = (props: LineChartStoryProps) => {
+  const chartData = useMemo(() => {
+    if (props.variant === "many-lines") return manyLinesData;
+    if (props.variant === "boundary-points") return boundaryPointData;
+    if (props.variant === "negative-values") return negativeData;
+    if (props.variant === "intermittent") return intermittentData;
+    if (props.variant === "intraday") return intradayData;
+    if (props.variant === "year-boundary") return yearBoundaryData;
+    if (props.variant === "monthly") return monthlyData;
+    if (props.variant === "empty") return [];
+    return data;
+  }, [props.variant]);
   if (
     props.variant === "category-short-labels" ||
     props.variant === "category-long-labels" ||
     props.variant === "category-hidden-labels"
   ) {
-    let categoryChartData = categoryData;
-    if (props.variant === "category-short-labels") {
-      categoryChartData = shortCategoryData;
-    }
+    const categoryChartData =
+      props.variant === "category-short-labels"
+        ? shortCategoryData
+        : categoryData;
     return (
       <LineChart
         data={categoryChartData}
@@ -44,14 +60,6 @@ const LineChartDemo = (props: LineChartStoryProps) => {
     );
   }
 
-  let chartData: Array<{
-    x: Date;
-    values: Record<string, number | null>;
-  }> = data;
-  if (props.variant === "many-lines") chartData = manyLinesData;
-  if (props.variant === "boundary-points") chartData = boundaryPointData;
-  if (props.variant === "negative-values") chartData = negativeData;
-  if (props.variant === "empty") chartData = [];
   const chartSeries = props.variant === "many-lines" ? manyLinesSeries : series;
 
   return (
@@ -89,6 +97,27 @@ const negativeData = [
   { x: new Date(Date.UTC(2026, 8, 1)), values: { api: -8, worker: null } },
   { x: new Date(Date.UTC(2026, 8, 2)), values: { api: -3, worker: null } },
 ];
+
+const intermittentData = [
+  { x: new Date(Date.UTC(2026, 8, 1)), values: { api: 8, worker: 3 } },
+  { x: new Date(Date.UTC(2026, 8, 2)), values: { api: null, worker: null } },
+  { x: new Date(Date.UTC(2026, 8, 3)), values: { api: 12, worker: 4 } },
+];
+
+const intradayData = Array.from({ length: 8 }, (_, index) => ({
+  x: new Date(Date.UTC(2026, 8, 1, index * 3)),
+  values: { api: index + 1, worker: index + 2 },
+}));
+
+const yearBoundaryData = [
+  { x: new Date(Date.UTC(2025, 11, 31)), values: { api: 8, worker: 3 } },
+  { x: new Date(Date.UTC(2026, 0, 1)), values: { api: 12, worker: 4 } },
+];
+
+const monthlyData = Array.from({ length: 12 }, (_, index) => ({
+  x: new Date(Date.UTC(2026, index, 1)),
+  values: { api: index + 1, worker: index + 2 },
+}));
 
 const manyLinesSeries: LineChartSeries[] = Array.from(
   { length: 24 },
@@ -141,6 +170,70 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const TooltipBelowChart = meta.story({
+  name: "(Test) Tooltip Below Chart",
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[420px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const hoverArea = canvasElement.querySelector<SVGRectElement>(
+      'rect[fill="transparent"]',
+    );
+    if (!hoverArea) throw new Error("Chart hover area not found");
+    fireEvent.pointerMove(hoverArea, {
+      clientX: hoverArea.getBoundingClientRect().left + 4,
+      clientY: hoverArea.getBoundingClientRect().top + 40,
+    });
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await waitFor(() => {
+      const hoverBottom = hoverArea.getBoundingClientRect().bottom;
+      const tooltipBounds = tooltip.getBoundingClientRect();
+      expect(tooltipBounds.top).toBeLessThan(hoverBottom);
+      expect(tooltipBounds.bottom).toBeGreaterThan(hoverBottom);
+    });
+  },
+});
+
+export const OnCardSurface = meta.story({
+  name: "(Test) On Card Surface",
+  decorators: [
+    (Story) => (
+      <div className="bg-card h-dvh w-full">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const hoverArea = canvasElement.querySelector<SVGRectElement>(
+      'rect[fill="transparent"]',
+    );
+    if (!hoverArea) throw new Error("Hover area not found");
+    await userEvent.hover(hoverArea);
+    const activeLabel = canvasElement.querySelector<SVGTextElement>(
+      "[data-active-x-axis-label]",
+    );
+    if (!activeLabel) throw new Error("Active label not found");
+    await expect(
+      canvasElement.querySelector("[data-active-x-axis-label-background]"),
+    ).not.toBeInTheDocument();
+    const activeBounds = activeLabel.getBoundingClientRect();
+    for (const label of canvasElement.querySelectorAll<SVGTextElement>(
+      "[data-x-axis-label]:not([data-active-x-axis-label])",
+    )) {
+      const bounds = label.getBoundingClientRect();
+      await expect(
+        bounds.right <= activeBounds.left || bounds.left >= activeBounds.right,
+      ).toBe(true);
+    }
+  },
+});
+
 export const BoundaryPoints = meta.story({
   name: "(Test) Boundary Points",
   args: { variant: "boundary-points" },
@@ -180,6 +273,72 @@ export const Empty = meta.story({
       canvas.getByRole("group", { name: "Line chart" }),
     ).toBeVisible();
     await expect(canvas.queryAllByRole("graphics-symbol")).toHaveLength(0);
+  },
+});
+
+export const Intermittent = meta.story({
+  name: "(Test) Intermittent",
+  args: { variant: "intermittent" },
+  play: async ({ canvasElement }) => {
+    const tickLabels = Array.from(
+      canvasElement.querySelectorAll('[data-x-axis-label=""]'),
+      (label) => label.textContent,
+    );
+    await expect(tickLabels).toEqual(["Sep 1", "Sep 2", "Sep 3"]);
+    const assertLabelsDoNotOverlap = () => {
+      const labels = Array.from(
+        canvasElement.querySelectorAll<SVGTextElement>(
+          '[data-x-axis-label=""]',
+        ),
+        (label) => label.getBoundingClientRect(),
+      ).sort((left, right) => left.left - right.left);
+      for (let index = 1; index < labels.length; index++) {
+        expect(labels[index]!.left).toBeGreaterThanOrEqual(
+          labels[index - 1]!.right,
+        );
+      }
+    };
+    assertLabelsDoNotOverlap();
+    const hoverArea = canvasElement.querySelectorAll<SVGRectElement>(
+      'rect[fill="transparent"]',
+    )[1];
+    if (!hoverArea) throw new Error("Missing hover area for data gap");
+    await userEvent.hover(hoverArea);
+    await expect(within(document.body).getByRole("tooltip")).toHaveTextContent(
+      "No data available",
+    );
+    assertLabelsDoNotOverlap();
+  },
+});
+
+export const Intraday = meta.story({
+  args: { variant: "intraday" },
+});
+
+export const YearBoundary = meta.story({
+  name: "(Test) Year Boundary",
+  args: { variant: "year-boundary" },
+  play: async ({ canvasElement }) => {
+    const labels = Array.from(
+      canvasElement.querySelectorAll('[data-x-axis-label=""]'),
+      (label) => label.textContent,
+    );
+    await expect(labels.some((label) => label?.includes("2025"))).toBe(true);
+    await expect(labels.some((label) => label?.includes("2026"))).toBe(true);
+  },
+});
+
+export const Monthly = meta.story({
+  name: "(Test) Monthly",
+  args: { variant: "monthly" },
+  play: async ({ canvasElement }) => {
+    const labels = Array.from(
+      canvasElement.querySelectorAll('[data-x-axis-label=""]'),
+      (label) => label.textContent,
+    );
+    await expect(labels.length).toBeGreaterThan(1);
+    await expect(new Set(labels).size).toBe(labels.length);
+    await expect(labels.every((label) => label?.includes("2026"))).toBe(true);
   },
 });
 
@@ -252,15 +411,13 @@ export const CategoryLongLabels = meta.story({
     await expect(activeLabel).toHaveTextContent(categoryData[0]?.x ?? "");
     await expect(activeLabel).toHaveAttribute("font-weight", "700");
     await expect(
-      canvasElement
-        .querySelector("[data-active-x-axis-label-background]")
-        ?.getAttribute("fill"),
-    ).toContain("url(#");
+      canvasElement.querySelector("[data-active-x-axis-label-background]"),
+    ).not.toBeInTheDocument();
 
     const renderedLabels = canvasElement.querySelectorAll(
       "[data-x-axis-label]",
     );
-    await expect(renderedLabels).toHaveLength(categoryData.length);
+    await expect(renderedLabels.length).toBeLessThan(categoryData.length);
     Array.from(renderedLabels)
       .filter((label) => !label.hasAttribute("data-active-x-axis-label"))
       .forEach((label) => {
@@ -306,21 +463,20 @@ export const KeyboardFocus = meta.story({
 
     firstPoint.focus();
 
-    const activeLabel = await waitFor(() => {
+    await waitFor(() => {
       const label = canvasElement.querySelector("[data-active-x-axis-label]");
       expect(label).toHaveTextContent("Sep 1");
-      return label;
+      expect(label).toHaveAttribute("font-weight", "700");
+      expect(
+        canvasElement.querySelector("[data-active-x-axis-label-background]"),
+      ).not.toBeInTheDocument();
     });
-    await expect(activeLabel).toHaveAttribute("font-weight", "700");
-    await expect(
-      canvasElement
-        .querySelector("[data-active-x-axis-label-background]")
-        ?.getAttribute("fill"),
-    ).toContain("url(#");
 
-    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-      "tooltip",
-    );
+    const tooltipHeading = await within(
+      canvasElement.ownerDocument.body,
+    ).findByText("Sep 1, 2026");
+    const tooltip = tooltipHeading.closest('[role="tooltip"]');
+    if (!tooltip) throw new Error("Tooltip not found");
     await expect(tooltip).toHaveTextContent("API");
     await expect(tooltip).toHaveTextContent("$18.00");
 

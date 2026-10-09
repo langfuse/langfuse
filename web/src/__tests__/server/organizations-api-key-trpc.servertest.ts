@@ -9,17 +9,52 @@ import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server";
+import { createApiKey } from "@langfuse/shared/src/server";
+import {
+  ApiKeyId,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
+import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
 
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const actual = await importOriginal<{ env: typeof env }>();
+  return { ...actual, env: { ...actual.env } };
+});
+
+const originalRoleConfig = {
+  API_AUTH_MIGRATION: env.API_AUTH_MIGRATION,
+  API_KEY_ORG_ROLES_ENABLE: env.API_KEY_ORG_ROLES_ENABLE,
+  API_KEY_PROJECT_ROLES_ENABLE: env.API_KEY_PROJECT_ROLES_ENABLE,
+};
+
+beforeEach(() => {
+  Object.assign(env, {
+    API_AUTH_MIGRATION: "enforce",
+    API_KEY_ORG_ROLES_ENABLE: "false",
+    API_KEY_PROJECT_ROLES_ENABLE: "false",
+  });
+});
+
+afterEach(() => {
+  Object.assign(env, originalRoleConfig);
+});
+
 describe("organization API keys trpc", () => {
-  const organizationId = "seed-org-id";
+  const organizationId = randomUUID();
 
   // The session user is persisted as the API key creator, so it must exist
   // in the database (CI does not run the seeder that creates user-1).
   // createMany + skipDuplicates is atomic, so concurrently running test
   // files can ensure the user without racing each other.
   beforeAll(async () => {
+    await prisma.organization.create({
+      data: { id: organizationId, name: "Test Organization" },
+    });
     await prisma.user.createMany({
       data: [
         {
@@ -169,7 +204,7 @@ describe("organization API keys trpc", () => {
       // Create a test API key first
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "Test API Key",
+        name: "Test API Key",
       });
 
       expect(apiKeyResult).toBeDefined();
@@ -189,11 +224,11 @@ describe("organization API keys trpc", () => {
     });
 
     it("filters in-app agent API keys", async () => {
-      const inAppAgentKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: organizationId,
-        scope: "ORGANIZATION",
-        note: "In-app agent key hidden from org UI",
+      const inAppAgentKey = await createApiKey(prisma, {
+        owner: OrganizationId(organizationId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: UserId("user-1"),
+        name: "In-app agent key hidden from org UI",
         isInAppAgentKey: true,
       });
 
@@ -236,7 +271,7 @@ describe("organization API keys trpc", () => {
     it("owner can create organization API keys", async () => {
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "Test API Key",
+        name: "Test API Key",
       });
 
       expect(apiKeyResult).toBeDefined();
@@ -248,7 +283,7 @@ describe("organization API keys trpc", () => {
     it("stores the creating user and returns it in the list", async () => {
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "Key for creator attribution test",
+        name: "Key for creator attribution test",
       });
 
       const dbKey = await prisma.apiKey.findUniqueOrThrow({
@@ -265,11 +300,20 @@ describe("organization API keys trpc", () => {
       expect(listedKey?.createdByApiKey).toBeNull();
     });
 
+    it("rejects an expiration date in the past", async () => {
+      await expect(
+        ownerCaller.organizationApiKeys.create({
+          orgId: organizationId,
+          expiresAt: new Date(Date.now() - 60_000),
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
     it("regular member cannot create organization API keys", async () => {
       await expect(
         memberCaller.organizationApiKeys.create({
           orgId: organizationId,
-          note: "Test API Key",
+          name: "Test API Key",
         }),
       ).rejects.toThrow(TRPCError);
     });
@@ -278,7 +322,7 @@ describe("organization API keys trpc", () => {
       await expect(
         adminCaller.organizationApiKeys.create({
           orgId: organizationId,
-          note: "Test API Key",
+          name: "Test API Key",
         }),
       ).rejects.toThrow(TRPCError);
     });
@@ -287,7 +331,7 @@ describe("organization API keys trpc", () => {
       await expect(
         unAuthedCaller.organizationApiKeys.create({
           orgId: organizationId,
-          note: "Test API Key",
+          name: "Test API Key",
         }),
       ).rejects.toThrow(TRPCError);
     });
@@ -295,12 +339,12 @@ describe("organization API keys trpc", () => {
     it("owner on a plan without admin-api cannot create organization API keys", async () => {
       // Unique note so the persistence assertion stays independent of other
       // tests and of keys left behind by earlier runs.
-      const note = `unentitled-create-${randomUUID()}`;
+      const name = `unentitled-create-${randomUUID()}`;
 
       await expect(
         unentitledOwnerCaller.organizationApiKeys.create({
           orgId: organizationId,
-          note,
+          name,
         }),
       ).rejects.toThrow(
         expect.objectContaining({
@@ -312,7 +356,9 @@ describe("organization API keys trpc", () => {
       // The rejection must happen before the key is persisted, otherwise the
       // plan gate would only hide a key that already works.
       await expect(
-        prisma.apiKey.findFirst({ where: { orgId: organizationId, note } }),
+        prisma.apiKey.findFirst({
+          where: { orgId: organizationId, note: name },
+        }),
       ).resolves.toBeNull();
     });
 
@@ -320,7 +366,7 @@ describe("organization API keys trpc", () => {
       const apiKeyResult = await entitledOwnerCaller.organizationApiKeys.create(
         {
           orgId: organizationId,
-          note: "Entitled plan key",
+          name: "Entitled plan key",
         },
       );
 
@@ -329,19 +375,19 @@ describe("organization API keys trpc", () => {
     });
   });
 
-  describe("organizationApiKeys.updateNote", () => {
+  describe("organizationApiKeys.updateName", () => {
     it("owner can update API key note", async () => {
       // Create a key first
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "Original Note",
+        name: "Original Note",
       });
 
       // Update the note
-      await ownerCaller.organizationApiKeys.updateNote({
+      await ownerCaller.organizationApiKeys.updateName({
         orgId: organizationId,
         keyId: apiKeyResult.id,
-        note: "Updated Note",
+        name: "Updated Note",
       });
 
       // Fetch to verify
@@ -354,20 +400,30 @@ describe("organization API keys trpc", () => {
       expect(updatedKey?.note).toBe("Updated Note");
     });
 
+    it("returns NOT_FOUND for a missing API key", async () => {
+      await expect(
+        ownerCaller.organizationApiKeys.updateName({
+          orgId: organizationId,
+          keyId: randomUUID(),
+          name: "Updated Note",
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+
     it("does not update in-app agent API keys", async () => {
-      const inAppAgentKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: organizationId,
-        scope: "ORGANIZATION",
-        note: "Original in-app agent note",
+      const inAppAgentKey = await createApiKey(prisma, {
+        owner: OrganizationId(organizationId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: UserId("user-1"),
+        name: "Original in-app agent note",
         isInAppAgentKey: true,
       });
 
       await expect(
-        ownerCaller.organizationApiKeys.updateNote({
+        ownerCaller.organizationApiKeys.updateName({
           orgId: organizationId,
           keyId: inAppAgentKey.id,
-          note: "Updated in-app agent note",
+          name: "Updated in-app agent note",
         }),
       ).rejects.toThrow();
 
@@ -381,15 +437,15 @@ describe("organization API keys trpc", () => {
       // Create a key as owner
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "Original Note",
+        name: "Original Note",
       });
 
       // Try to update as member
       await expect(
-        memberCaller.organizationApiKeys.updateNote({
+        memberCaller.organizationApiKeys.updateName({
           orgId: organizationId,
           keyId: apiKeyResult.id,
-          note: "Updated Note",
+          name: "Updated Note",
         }),
       ).rejects.toThrow(TRPCError);
     });
@@ -398,15 +454,15 @@ describe("organization API keys trpc", () => {
       // Create a key as owner
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "Original Note",
+        name: "Original Note",
       });
 
       // Try to update as admin
       await expect(
-        adminCaller.organizationApiKeys.updateNote({
+        adminCaller.organizationApiKeys.updateName({
           orgId: organizationId,
           keyId: apiKeyResult.id,
-          note: "Updated Note",
+          name: "Updated Note",
         }),
       ).rejects.toThrow(TRPCError);
     });
@@ -417,7 +473,7 @@ describe("organization API keys trpc", () => {
       // Create a key first
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "To Be Deleted",
+        name: "To Be Deleted",
       });
 
       // Delete the key
@@ -435,11 +491,20 @@ describe("organization API keys trpc", () => {
       expect(deletedKey).toBeUndefined();
     });
 
+    it("returns NOT_FOUND for a missing API key", async () => {
+      await expect(
+        ownerCaller.organizationApiKeys.delete({
+          orgId: organizationId,
+          id: randomUUID(),
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+
     it("does not delete in-app agent API keys", async () => {
-      const inAppAgentKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: organizationId,
-        scope: "ORGANIZATION",
+      const inAppAgentKey = await createApiKey(prisma, {
+        owner: OrganizationId(organizationId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: UserId("user-1"),
         isInAppAgentKey: true,
       });
 
@@ -459,7 +524,7 @@ describe("organization API keys trpc", () => {
       // Create a key as owner
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "To Be Deleted",
+        name: "To Be Deleted",
       });
 
       // Try to delete as member
@@ -475,7 +540,7 @@ describe("organization API keys trpc", () => {
       // Create a key as owner
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
-        note: "To Be Deleted",
+        name: "To Be Deleted",
       });
 
       // Try to delete as admin
@@ -491,11 +556,11 @@ describe("organization API keys trpc", () => {
       // Only creation is plan-gated. A downgraded organization must keep the
       // ability to see and revoke keys that were issued while entitled,
       // otherwise a downgrade would strand live credentials.
-      const existingKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: organizationId,
-        scope: "ORGANIZATION",
-        note: "Issued before downgrade",
+      const existingKey = await createApiKey(prisma, {
+        owner: OrganizationId(organizationId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: UserId("user-1"),
+        name: "Issued before downgrade",
       });
 
       const apiKeys =
@@ -513,5 +578,157 @@ describe("organization API keys trpc", () => {
         prisma.apiKey.findUnique({ where: { id: existingKey.id } }),
       ).resolves.toBeNull();
     });
+  });
+
+  describe("organizationApiKeys.create role scoping", () => {
+    const ownerCallerForOrg = (orgId: string) =>
+      callerForSession({
+        expires: "1",
+        user: {
+          id: "user-1",
+          canCreateOrganizations: true,
+          name: "Demo User",
+          organizations: [
+            {
+              id: orgId,
+              name: "Scoped Org",
+              role: "OWNER",
+              plan: "cloud:team",
+              cloudConfig: undefined,
+              metadata: {},
+              projects: [] as SessionOrg["projects"],
+            } as SessionOrg,
+          ],
+          featureFlags: testFeatureFlags(),
+          admin: false,
+        },
+        environment: {} as any,
+      });
+
+    // An org key owns a single assignment on the organization, and the resolver
+    // expands that owner to the project-kind wildcard, so a project-capable role
+    // reaches every project of the org rather than a chosen subset.
+    it("creates an org key that reaches every project via the project wildcard", async () => {
+      Object.assign(env, { API_KEY_ORG_ROLES_ENABLE: "true" });
+      const orgId = `org-${randomUUID()}`;
+      await prisma.organization.create({ data: { id: orgId, name: "Scoped" } });
+
+      const key = await ownerCallerForOrg(orgId).organizationApiKeys.create({
+        orgId,
+        role: "ADMIN",
+      });
+
+      const projectResources = (
+        await getRolesForPrincipal(prisma, ApiKeyId(key.id))
+      )
+        .flatMap((role) => role.policies)
+        .filter((policy) => policy.id.endsWith(":project"))
+        .flatMap((policy) => policy.resources);
+
+      expect(projectResources).toContain(ProjectId("*"));
+    });
+
+    it.each([
+      "ADMIN",
+      "VIEWER",
+      "INGEST",
+      "SCORES_INGEST",
+      "AI_GATEWAY",
+    ] as const)(
+      "creates an organization key with %s when role selection is enabled",
+      async (role) => {
+        Object.assign(env, { API_KEY_ORG_ROLES_ENABLE: "true" });
+        const orgId = `org-${randomUUID()}`;
+        await prisma.organization.create({
+          data: { id: orgId, name: "Scoped" },
+        });
+        const key = await ownerCallerForOrg(orgId).organizationApiKeys.create({
+          orgId,
+          role,
+        });
+        expect(
+          await prisma.roleAssignment.findFirstOrThrow({
+            where: { apiKeyId: key.id },
+          }),
+        ).toMatchObject({
+          systemRole: role,
+          orgId,
+          ownerId: `organization/${orgId}`,
+          projectId: null,
+        });
+      },
+    );
+
+    describe.each([
+      { migration: "legacy", enabled: "false" },
+      { migration: "legacy", enabled: "true" },
+      { migration: "shadow", enabled: "false" },
+      { migration: "shadow", enabled: "true" },
+      { migration: "enforce", enabled: "false" },
+      { migration: "enforce", enabled: "true" },
+    ])(
+      "role creation with $migration and exposure $enabled",
+      ({ migration, enabled }) => {
+        beforeEach(() => {
+          Object.assign(env, {
+            API_AUTH_MIGRATION: migration,
+            API_KEY_ORG_ROLES_ENABLE: enabled,
+            API_KEY_PROJECT_ROLES_ENABLE: "true",
+          });
+        });
+
+        it.each([{}, { role: undefined }, { role: null }])(
+          "defaults %j to the legacy role",
+          async (input) => {
+            const orgId = `org-${randomUUID()}`;
+            await prisma.organization.create({
+              data: { id: orgId, name: "Scoped" },
+            });
+            const key = await ownerCallerForOrg(
+              orgId,
+            ).organizationApiKeys.create({ orgId, ...input });
+            expect(
+              await prisma.roleAssignment.findFirstOrThrow({
+                where: { apiKeyId: key.id },
+              }),
+            ).toMatchObject({
+              systemRole: "LEGACY_ORGANIZATION_API_KEY",
+              orgId,
+              ownerId: `organization/${orgId}`,
+              projectId: null,
+            });
+          },
+        );
+
+        it("rejects explicit legacy, empty, invalid and disabled roles without creating keys", async () => {
+          const orgId = `org-${randomUUID()}`;
+          await prisma.organization.create({
+            data: { id: orgId, name: "Scoped" },
+          });
+          const caller = ownerCallerForOrg(orgId);
+          const rejectedRoles = [
+            "LEGACY_PROJECT_API_KEY",
+            "LEGACY_ORGANIZATION_API_KEY",
+            "",
+            "OWNER",
+            "invalid",
+          ];
+          if (migration !== "enforce" || enabled === "false")
+            rejectedRoles.push(
+              "ADMIN",
+              "VIEWER",
+              "INGEST",
+              "SCORES_INGEST",
+              "AI_GATEWAY",
+            );
+          for (const role of rejectedRoles) {
+            await expect(
+              caller.organizationApiKeys.create({ orgId, role: role as never }),
+            ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+          }
+          expect(await prisma.apiKey.count({ where: { orgId } })).toBe(0);
+        });
+      },
+    );
   });
 });

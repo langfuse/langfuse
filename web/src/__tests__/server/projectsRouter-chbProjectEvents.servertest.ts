@@ -13,6 +13,9 @@ vi.mock("@/src/ee/features/billing/server/chb/chbProjectEvents", () => ({
   emitChbProjectEvent: mocks.emit,
 }));
 
+import { createApiKey } from "@langfuse/shared/src/server";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { getRoleAssignmentsForPrincipal } from "@langfuse/shared/rbac/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -173,5 +176,97 @@ describe("projectsRouter CHB project lifecycle events", () => {
       orgId,
       projectId,
     });
+  });
+});
+
+describe("projectsRouter system role assignments", () => {
+  it("preserves user permissions while deleting project keys on soft deletion", async () => {
+    const orgId = await createOrg("Assignment Delete Org");
+    const projectId = await createProject(orgId);
+    const user = await createUserInOrgs([orgId]);
+    const caller = makeCaller({ userId: user.id, orgIds: [orgId], projectId });
+
+    const key = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(user.id),
+    });
+
+    await expect(
+      prisma.roleAssignment.count({
+        where: { apiKeyId: key.id },
+      }),
+    ).resolves.toBe(1);
+
+    const assignment = await prisma.roleAssignment.create({
+      data: {
+        orgId,
+        userId: user.id,
+        principalId: `user/${user.id}`,
+        projectId,
+        ownerId: `project/${projectId}`,
+        systemRole: "VIEWER",
+        roleId: "system/VIEWER",
+      },
+    });
+
+    await caller.projects.delete({ projectId });
+
+    await expect(
+      prisma.roleAssignment.count({
+        where: { apiKeyId: key.id },
+      }),
+    ).resolves.toBe(0);
+    await expect(
+      prisma.roleAssignment.findUnique({ where: { id: assignment.id } }),
+    ).resolves.toEqual(assignment);
+    await expect(
+      prisma.project.findUnique({ where: { id: projectId } }),
+    ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
+
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { deletedAt: null },
+    });
+    await expect(
+      getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: assignment.id,
+        projectId: projectId,
+        systemRole: "VIEWER",
+      }),
+    ]);
+  });
+
+  it("re-tags a project key's assignment orgId on transfer", async () => {
+    const sourceOrgId = await createOrg("Assignment Source Org");
+    const targetOrgId = await createOrg("Assignment Target Org");
+    const projectId = await createProject(sourceOrgId);
+    const user = await createUserInOrgs([sourceOrgId, targetOrgId]);
+    const caller = makeCaller({
+      userId: user.id,
+      orgIds: [sourceOrgId, targetOrgId],
+      projectId,
+    });
+
+    const key = await createApiKey(prisma, {
+      owner: ProjectId(projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(user.id),
+    });
+
+    const before = await prisma.roleAssignment.findFirstOrThrow({
+      where: { apiKeyId: key.id },
+    });
+    expect(before.orgId).toBe(sourceOrgId);
+
+    await caller.projects.transfer({ projectId, targetOrgId });
+
+    const after = await prisma.roleAssignment.findFirstOrThrow({
+      where: { apiKeyId: key.id },
+    });
+    expect(after.orgId).toBe(targetOrgId);
+    expect(after.projectId).toBe(projectId);
   });
 });

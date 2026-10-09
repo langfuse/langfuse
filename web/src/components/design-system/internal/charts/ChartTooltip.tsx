@@ -6,7 +6,6 @@ import {
   FloatingPortal,
   offset,
   shift,
-  useClientPoint,
   useFloating,
 } from "@floating-ui/react";
 import { Check } from "lucide-react";
@@ -14,6 +13,7 @@ import {
   Fragment,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type FocusEvent,
@@ -23,6 +23,7 @@ import {
 } from "react";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { CHART_TRANSITION_DURATION } from "@/src/components/design-system/charts/constants";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 type TooltipItem = {
@@ -36,7 +37,12 @@ type TooltipData = {
   heading?: string;
   hint?: string;
   copyLabel?: string;
-  focusPoint?: { x: number; y: number };
+  anchor:
+    | { type: "element" }
+    | { type: "point"; x: number; y: number }
+    | { type: "bar"; x: number; y: number }
+    | { type: "chart-column"; x: number }
+    | { type: "pointer" };
 } & (
   | {
       type: "items";
@@ -56,13 +62,25 @@ type TooltipData = {
       details?: Array<Omit<TooltipItem, "color">>;
       emphasizedItemId?: never;
     }
+  | {
+      type: "empty";
+      items?: never;
+      emphasizedItemId?: never;
+      label?: never;
+      value?: never;
+      color?: never;
+      details?: never;
+    }
 );
 
 export function ChartTooltip({
   children,
+  placementStrategy = "chart-top",
 }: {
+  placementStrategy?: "chart-top" | "chart-bottom" | "horizontal";
   children: (controller: {
     activeIndex: number | undefined;
+    hideTooltip: () => void;
     getReferenceProps: (data: TooltipData) => {
       onPointerEnter: (event: PointerEvent<SVGElement | HTMLElement>) => void;
       onPointerMove: (event: PointerEvent<SVGElement | HTMLElement>) => void;
@@ -79,8 +97,11 @@ export function ChartTooltip({
   const [activeTooltip, setActiveTooltip] = useState<
     TooltipData & {
       reference: SVGElement | HTMLElement;
+      chart: SVGElement | HTMLElement;
       clientPoint?: { x: number; y: number };
-      placement: "left" | "right";
+      pointerY?: number;
+      placement?: "left" | "right";
+      side?: "top" | "bottom";
     }
   >();
   const [copyFeedback, setCopyFeedback] = useState<{
@@ -113,36 +134,185 @@ export function ChartTooltip({
   }, [activeTooltip, children]);
 
   const layerContainer = useLayerContainer("tooltip");
-  const { context, floatingStyles, refs } = useFloating({
+  const chartAnchored =
+    placementStrategy === "chart-bottom" &&
+    activeTooltip?.anchor.type === "chart-column";
+  const fallbackPlacements = useMemo<
+    Array<"top" | "bottom" | "left" | "right">
+  >(() => {
+    if (placementStrategy === "horizontal") {
+      return ["left", "top", "bottom"];
+    }
+    if (chartAnchored) {
+      return [activeTooltip?.side === "top" ? "bottom" : "top"];
+    }
+    return ["bottom", "left", "right"];
+  }, [placementStrategy, chartAnchored, activeTooltip?.side]);
+  const placement = useMemo<"top" | "bottom" | "left" | "right">(() => {
+    if (activeTooltip?.placement) return activeTooltip.placement;
+    if (chartAnchored) return activeTooltip?.side ?? "bottom";
+    if (placementStrategy === "horizontal") return "right";
+    return "top";
+  }, [
+    activeTooltip?.placement,
+    activeTooltip?.side,
+    chartAnchored,
+    placementStrategy,
+  ]);
+  const { floatingStyles, refs } = useFloating({
     elements: { reference: activeTooltip?.reference },
-    placement: activeTooltip?.placement ?? "right",
+    placement,
     strategy: "fixed",
-    middleware: [offset(12), flip(), shift({ padding: 8 })],
+    middleware: [
+      offset(({ placement, rects }) => {
+        if (!activeTooltip || activeTooltip.placement) {
+          return 12;
+        }
+        if (chartAnchored) {
+          const chartBounds = activeTooltip.chart.getBoundingClientRect();
+          const spaceAbove = chartBounds.top - rects.floating.height - 8;
+          const spaceBelow =
+            window.innerHeight - chartBounds.bottom - rects.floating.height - 8;
+          const fitsAbove = spaceAbove >= 0;
+          const fitsBelow = spaceBelow >= 0;
+          if (
+            !fitsAbove &&
+            !fitsBelow &&
+            activeTooltip.pointerY !== undefined
+          ) {
+            if (placement === "top") {
+              return chartBounds.top - activeTooltip.pointerY + 12;
+            }
+            if (placement === "bottom") {
+              return activeTooltip.pointerY - chartBounds.bottom - 2;
+            }
+          }
+          if (placement === "top") {
+            return Math.min(12, Math.max(0, spaceAbove));
+          }
+          if (placement === "bottom") {
+            return -2;
+          }
+          return 12;
+        }
+        if (placementStrategy === "chart-bottom") return 12;
+        if (activeTooltip.anchor.type === "bar") return 12;
+        const chartBounds = activeTooltip.chart.getBoundingClientRect();
+        if (placement === "top") {
+          return rects.reference.y - chartBounds.top + 12;
+        }
+        if (placement === "bottom") {
+          return (
+            chartBounds.bottom -
+            (rects.reference.y + rects.reference.height) +
+            12
+          );
+        }
+        return 12;
+      }),
+      flip({
+        fallbackPlacements: activeTooltip?.placement
+          ? undefined
+          : fallbackPlacements,
+        fallbackStrategy: chartAnchored ? "initialPlacement" : "bestFit",
+      }),
+      shift({ padding: 8 }),
+    ],
     transform: false,
     whileElementsMounted: autoUpdate,
   });
-  useClientPoint(context, {
-    enabled: activeTooltip?.clientPoint !== undefined,
-    x: activeTooltip?.clientPoint?.x,
-    y: activeTooltip?.clientPoint?.y,
-  });
+  useLayoutEffect(() => {
+    if (!activeTooltip) return;
+    const { clientPoint, reference, chart } = activeTooltip;
+    if (chartAnchored && clientPoint) {
+      refs.setPositionReference({
+        contextElement: reference,
+        getBoundingClientRect: () => {
+          const bounds = chart.getBoundingClientRect();
+          return new DOMRect(clientPoint.x, bounds.top, 0, bounds.height);
+        },
+      });
+      return;
+    }
+    if (!clientPoint) {
+      refs.setPositionReference(reference);
+      return;
+    }
+    refs.setPositionReference({
+      contextElement: reference,
+      getBoundingClientRect: () =>
+        new DOMRect(clientPoint.x, clientPoint.y, 0, 0),
+    });
+  }, [activeTooltip, chartAnchored, refs]);
 
   const getReferenceProps = (data: TooltipData) => {
     const labelToCopy = data.copyLabel;
     const showAtPointer = (event: PointerEvent<SVGElement | HTMLElement>) => {
-      const { clientX, clientY, currentTarget } = event;
-      const chartBounds =
+      const { currentTarget } = event;
+      let chart: SVGElement | HTMLElement = currentTarget;
+      if (
+        placementStrategy !== "chart-bottom" ||
+        data.anchor.type !== "chart-column" ||
+        !(currentTarget instanceof SVGRectElement)
+      ) {
+        chart =
+          currentTarget instanceof SVGElement
+            ? (currentTarget.ownerSVGElement ?? currentTarget)
+            : (currentTarget.parentElement ?? currentTarget);
+      }
+      const svg =
         currentTarget instanceof SVGElement
-          ? currentTarget.ownerSVGElement?.getBoundingClientRect()
-          : currentTarget.parentElement?.getBoundingClientRect();
+          ? currentTarget.ownerSVGElement
+          : undefined;
+      const focusPoint = svg?.createSVGPoint();
+      if (
+        focusPoint &&
+        (data.anchor.type === "point" ||
+          data.anchor.type === "bar" ||
+          data.anchor.type === "chart-column")
+      ) {
+        focusPoint.x = data.anchor.x;
+        focusPoint.y = data.anchor.type === "chart-column" ? 0 : data.anchor.y;
+      }
+      const screenMatrix = svg?.getScreenCTM();
+      const transformedFocusPoint =
+        focusPoint &&
+        (data.anchor.type === "point" ||
+          data.anchor.type === "bar" ||
+          data.anchor.type === "chart-column") &&
+        screenMatrix
+          ? focusPoint.matrixTransform(screenMatrix)
+          : undefined;
+      let clientPoint = transformedFocusPoint
+        ? { x: transformedFocusPoint.x, y: transformedFocusPoint.y }
+        : undefined;
+      let placement: "left" | "right" | undefined;
+      if (data.anchor.type === "pointer") {
+        clientPoint = { x: event.clientX, y: event.clientY };
+        const chartBounds = chart.getBoundingClientRect();
+        placement =
+          event.clientX < chartBounds.left + chartBounds.width / 2
+            ? "left"
+            : "right";
+      }
+      let side: "top" | "bottom" | undefined;
+      if (
+        placementStrategy === "chart-bottom" &&
+        data.anchor.type === "chart-column"
+      ) {
+        const bounds = chart.getBoundingClientRect();
+        side =
+          bounds.top > window.innerHeight - bounds.bottom ? "top" : "bottom";
+      }
       setActiveTooltip({
         ...data,
         reference: currentTarget,
-        clientPoint: { x: clientX, y: clientY },
-        placement:
-          chartBounds && clientX < chartBounds.left + chartBounds.width / 2
-            ? "left"
-            : "right",
+        chart,
+        clientPoint,
+        pointerY:
+          data.anchor.type === "chart-column" ? event.clientY : undefined,
+        placement,
+        side,
       });
     };
 
@@ -151,36 +321,58 @@ export function ChartTooltip({
       onPointerMove: showAtPointer,
       onPointerLeave: () => setActiveTooltip(undefined),
       onFocus: (event: FocusEvent<SVGElement | HTMLElement>) => {
-        const sliceBounds = event.currentTarget.getBoundingClientRect();
+        let chart: SVGElement | HTMLElement = event.currentTarget;
+        if (
+          placementStrategy !== "chart-bottom" ||
+          data.anchor.type !== "chart-column" ||
+          !(event.currentTarget instanceof SVGRectElement)
+        ) {
+          chart =
+            event.currentTarget instanceof SVGElement
+              ? (event.currentTarget.ownerSVGElement ?? event.currentTarget)
+              : (event.currentTarget.parentElement ?? event.currentTarget);
+        }
         const svg =
           event.currentTarget instanceof SVGElement
             ? event.currentTarget.ownerSVGElement
             : undefined;
-        const chartBounds =
-          svg?.getBoundingClientRect() ??
-          event.currentTarget.parentElement?.getBoundingClientRect();
         const focusPoint = svg?.createSVGPoint();
-        if (focusPoint && data.focusPoint) {
-          focusPoint.x = data.focusPoint.x;
-          focusPoint.y = data.focusPoint.y;
+        if (
+          focusPoint &&
+          (data.anchor.type === "point" ||
+            data.anchor.type === "bar" ||
+            data.anchor.type === "chart-column")
+        ) {
+          focusPoint.x = data.anchor.x;
+          focusPoint.y =
+            data.anchor.type === "chart-column" ? 0 : data.anchor.y;
         }
         const screenMatrix = svg?.getScreenCTM();
         const transformedFocusPoint =
-          focusPoint && data.focusPoint && screenMatrix
+          focusPoint &&
+          (data.anchor.type === "point" ||
+            data.anchor.type === "bar" ||
+            data.anchor.type === "chart-column") &&
+          screenMatrix
             ? focusPoint.matrixTransform(screenMatrix)
             : undefined;
-        const referenceX =
-          transformedFocusPoint?.x ?? sliceBounds.left + sliceBounds.width / 2;
+        let side: "top" | "bottom" | undefined;
+        if (
+          placementStrategy === "chart-bottom" &&
+          data.anchor.type === "chart-column"
+        ) {
+          const bounds = chart.getBoundingClientRect();
+          side =
+            bounds.top > window.innerHeight - bounds.bottom ? "top" : "bottom";
+        }
         setActiveTooltip({
           ...data,
           reference: event.currentTarget,
+          chart,
           clientPoint: transformedFocusPoint
             ? { x: transformedFocusPoint.x, y: transformedFocusPoint.y }
             : undefined,
-          placement:
-            chartBounds && referenceX < chartBounds.left + chartBounds.width / 2
-              ? "left"
-              : "right",
+          side,
         });
       },
       onBlur: () => setActiveTooltip(undefined),
@@ -200,40 +392,43 @@ export function ChartTooltip({
     };
   };
 
-  const tooltipRows: Array<
-    TooltipItem & {
-      id: string;
-      emphasis: "default" | "emphasized" | "dimmed";
-      kind: "peer" | "primary" | "detail";
-    }
-  > = [];
-  if (activeTooltip?.type === "items") {
-    for (const item of activeTooltip.items) {
-      let emphasis: "default" | "emphasized" | "dimmed" = "dimmed";
-      if (activeTooltip.emphasizedItemId === undefined) emphasis = "default";
-      else if (activeTooltip.emphasizedItemId === item.id) {
-        emphasis = "emphasized";
+  const tooltipRows = useMemo(() => {
+    const tooltipRows: Array<
+      TooltipItem & {
+        id: string;
+        emphasis: "default" | "emphasized" | "dimmed";
+        kind: "peer" | "primary" | "detail";
       }
-      tooltipRows.push({ ...item, emphasis, kind: "peer" });
+    > = [];
+    if (activeTooltip?.type === "items") {
+      for (const item of activeTooltip.items) {
+        let emphasis: "default" | "emphasized" | "dimmed" = "dimmed";
+        if (activeTooltip.emphasizedItemId === undefined) emphasis = "default";
+        else if (activeTooltip.emphasizedItemId === item.id) {
+          emphasis = "emphasized";
+        }
+        tooltipRows.push({ ...item, emphasis, kind: "peer" });
+      }
+    } else if (activeTooltip?.type === "primary") {
+      tooltipRows.push({
+        id: "primary",
+        label: activeTooltip.label,
+        value: activeTooltip.value,
+        color: activeTooltip.color,
+        emphasis: "default",
+        kind: "primary",
+      });
+      tooltipRows.push(
+        ...(activeTooltip.details ?? []).map((item, index) => ({
+          ...item,
+          id: `detail-${index}`,
+          emphasis: "default" as const,
+          kind: "detail" as const,
+        })),
+      );
     }
-  } else if (activeTooltip?.type === "primary") {
-    tooltipRows.push({
-      id: "primary",
-      label: activeTooltip.label,
-      value: activeTooltip.value,
-      color: activeTooltip.color,
-      emphasis: "default",
-      kind: "primary",
-    });
-    tooltipRows.push(
-      ...(activeTooltip.details ?? []).map((item, index) => ({
-        ...item,
-        id: `detail-${index}`,
-        emphasis: "default" as const,
-        kind: "detail" as const,
-      })),
-    );
-  }
+    return tooltipRows;
+  }, [activeTooltip]);
 
   const activeCopyStatus =
     copyFeedback?.index === activeTooltip?.index
@@ -244,6 +439,7 @@ export function ChartTooltip({
     <>
       {children({
         activeIndex: activeTooltip?.index,
+        hideTooltip: () => setActiveTooltip(undefined),
         getReferenceProps,
       })}
       {activeTooltip ? (
@@ -266,7 +462,8 @@ export function ChartTooltip({
                   <div role="separator" className="border-border/50 border-t" />
                 ) : null}
                 <div
-                  className={`flex min-w-0 items-center gap-2 leading-tight transition-opacity duration-150 ${item.emphasis === "dimmed" ? "opacity-30" : "opacity-100"}`}
+                  className={`flex min-w-0 items-center gap-2 leading-tight transition-opacity ${item.emphasis === "dimmed" ? "opacity-30" : "opacity-100"}`}
+                  style={{ transitionDuration: CHART_TRANSITION_DURATION }}
                 >
                   {item.kind !== "detail" && item.color ? (
                     <svg
@@ -296,6 +493,9 @@ export function ChartTooltip({
                 </div>
               </Fragment>
             ))}
+            {activeTooltip.type === "empty" ? (
+              <div className="text-muted-foreground">No data available</div>
+            ) : null}
             {activeTooltip.hint ? (
               <div
                 className="border-border/50 text-muted-foreground/70 grid border-t pt-1.5 text-[10px]"
@@ -310,7 +510,7 @@ export function ChartTooltip({
                   className={`flex items-center gap-1 [grid-area:1/1] ${activeCopyStatus === "copied" ? "visible" : "invisible"}`}
                 >
                   Label copied to clipboard{" "}
-                  <Check className="size-3" aria-hidden="true" />
+                  <Check className="icon-sm" aria-hidden="true" />
                 </span>
                 <span
                   className={`[grid-area:1/1] ${activeCopyStatus === "error" ? "visible" : "invisible"}`}

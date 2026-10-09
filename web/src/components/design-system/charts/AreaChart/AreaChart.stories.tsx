@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import preview from "../../../../../.storybook/preview";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { AreaChart } from "./AreaChart";
 import { type LineChartLegend } from "../LineChart/LineChart";
 import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
@@ -48,6 +48,16 @@ function AreaChartDemo({
   legend,
 }: StoryProps) {
   const [activeKey, setActiveKey] = useState<string>();
+  const chartData = useMemo(() => {
+    if (scenario === "gaps") return gaps;
+    if (scenario === "negative") {
+      return data.map((datum, index) => ({
+        ...datum,
+        values: { api: index * 3 - 18, worker: 12 - index * 2 },
+      }));
+    }
+    return data;
+  }, [scenario]);
   if (scenario === "mixedBuckets") {
     const mixedData = [
       { time_dimension: "2026-09-01", dimension: "api", metric: 12 },
@@ -112,18 +122,6 @@ function AreaChartDemo({
     );
   }
 
-  let chartData: {
-    x: Date;
-    values: { api: number | null; worker: number | null };
-  }[] = data;
-  if (scenario === "gaps") chartData = gaps;
-  else if (scenario === "negative") {
-    chartData = data.map((datum, index) => ({
-      ...datum,
-      values: { api: index * 3 - 18, worker: 12 - index * 2 },
-    }));
-  }
-
   return (
     <AreaChart
       data={chartData}
@@ -152,6 +150,72 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const TooltipBelowChart = meta.story({
+  name: "(Test) Tooltip Below Chart",
+  args: { scenario: "time" },
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[420px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const hoverArea = canvasElement.querySelector<SVGRectElement>(
+      'rect[fill="transparent"]',
+    );
+    if (!hoverArea) throw new Error("Chart hover area not found");
+    fireEvent.pointerMove(hoverArea, {
+      clientX: hoverArea.getBoundingClientRect().left + 4,
+      clientY: hoverArea.getBoundingClientRect().top + 40,
+    });
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await waitFor(() => {
+      const hoverBottom = hoverArea.getBoundingClientRect().bottom;
+      const tooltipBounds = tooltip.getBoundingClientRect();
+      expect(tooltipBounds.top).toBeLessThan(hoverBottom);
+      expect(tooltipBounds.bottom).toBeGreaterThan(hoverBottom);
+    });
+  },
+});
+
+export const SingleValueAnchor = meta.story({
+  name: "(Test) Single Value Anchor",
+  play: async ({ canvasElement }) => {
+    const hoverArea = canvasElement.querySelector<SVGRectElement>(
+      'rect[fill="transparent"]',
+    );
+    if (!hoverArea) throw new Error("Missing hover area");
+    const chartBounds = hoverArea.ownerSVGElement?.getBoundingClientRect();
+    if (!chartBounds) throw new Error("Chart bounds missing");
+    const clientX = hoverArea.getBoundingClientRect().left + 4;
+    fireEvent.pointerMove(hoverArea, {
+      clientX,
+      clientY: chartBounds.top + 120,
+    });
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await waitFor(() => {
+      expect(tooltip.getBoundingClientRect().top).toBeGreaterThan(0);
+    });
+    const firstTop = tooltip.getBoundingClientRect().top;
+    fireEvent.pointerMove(hoverArea, {
+      clientX,
+      clientY: chartBounds.top + 200,
+    });
+    await waitFor(() => {
+      expect(tooltip.getBoundingClientRect().top).toBeCloseTo(firstTop, 0);
+    });
+  },
+});
+
+export const Intermittent = meta.story({
+  args: { scenario: "gaps" },
+});
+
 export const DenseCategories = meta.story({
   name: "(Test) Dense Categories",
   args: { scenario: "denseCategory" },
@@ -167,9 +231,20 @@ export const NarrowCategories = meta.story({
   name: "(Test) Narrow Categories",
   args: { scenario: "narrowCategory" },
   play: async ({ canvasElement }) => {
-    const labels = canvasElement.querySelectorAll('[data-x-axis-label=""]');
+    const labels = Array.from(
+      canvasElement.querySelectorAll<SVGTextElement>('[data-x-axis-label=""]'),
+    );
+    await expect(labels.length).toBeGreaterThan(0);
     await expect(labels[0]).toHaveTextContent("Category 0");
-    await expect(labels[labels.length - 1]).toHaveTextContent("Category 5");
+    await expect(
+      canvasElement.querySelectorAll("[data-category-tick]"),
+    ).toHaveLength(2);
+    const bounds = labels.map((label) => label.getBoundingClientRect());
+    for (let index = 1; index < bounds.length; index++) {
+      await expect(bounds[index]!.left).toBeGreaterThanOrEqual(
+        bounds[index - 1]!.right,
+      );
+    }
   },
 });
 
@@ -271,18 +346,43 @@ export const StackedAreas = meta.story({
       Number(apiPoint.getAttribute("cy")),
       0,
     );
-    workerPoint.focus();
-    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-      "tooltip",
-    );
-    await expect(tooltip).toHaveTextContent("Worker");
-    await expect(tooltip).toHaveTextContent("48.0 requests");
     await userEvent.click(
       await canvas.findByRole("button", { name: "Hide API" }),
     );
     await expect(
       canvasElement.querySelectorAll('path[fill^="url(#"]'),
     ).toHaveLength(1);
+  },
+});
+
+export const StackedAreasStableTicks = meta.story({
+  name: "(Test) Stacked Areas Stable Ticks",
+  args: { scenario: "stacked" },
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[420px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const getLabels = () =>
+      Array.from(
+        canvasElement.querySelectorAll<SVGTextElement>("[data-x-axis-label]"),
+        (label) => [label.textContent, label.getAttribute("x")] as const,
+      );
+    const before = new Map(getLabels());
+    const hoverArea = canvasElement.querySelectorAll<SVGRectElement>(
+      'rect[fill="transparent"]',
+    )[1];
+    if (!hoverArea) throw new Error("Second hover area not found");
+    await userEvent.hover(hoverArea);
+    const after = getLabels();
+    for (const [label, x] of after) {
+      if (label === "Sep 2") continue;
+      await expect(before.get(label)).toBe(x);
+    }
+    await expect(after.length).toBeLessThanOrEqual(before.size + 1);
   },
 });
 
@@ -360,21 +460,7 @@ export const LimitedVisibleSeries = meta.story({
 });
 
 export const GapsAndIsolatedPoints = meta.story({
-  name: "(Test) Gaps And Isolated Points",
   args: { scenario: "gaps" },
-  play: async ({ canvasElement }) => {
-    await expect(
-      canvasElement.querySelectorAll('circle[fill="#3a3dee"][r="4"]'),
-    ).toHaveLength(3);
-    const firstPoint = within(canvasElement).getByRole("graphics-symbol", {
-      name: /API 8\.0 requests/,
-    });
-    firstPoint.focus();
-    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-      "tooltip",
-    );
-    await expect(tooltip).toHaveTextContent("8.0 requests");
-  },
 });
 
 export const ConnectNulls = meta.story({

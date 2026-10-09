@@ -14,6 +14,7 @@ import {
   Grid2X2,
   Sparkle,
   FileJson,
+  FolderCode,
   Search,
   Home,
   SquarePercent,
@@ -26,7 +27,6 @@ import { type Entitlement } from "@/src/features/entitlements/constants/entitlem
 import { type Session } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac";
 import { SupportButton } from "@/src/components/nav/support-button";
-import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavItem";
 import { V4SidebarToggle } from "@/src/features/events";
 import { BookACallButton } from "@/src/components/nav/book-a-call-button";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
@@ -45,10 +45,12 @@ export enum RouteSection {
 export enum RouteGroup {
   Observability = "Observability",
   PromptManagement = "Prompt Management",
+  ContextManagement = "Context Management",
   Evaluation = "Evaluation",
 }
 
 export type Route = {
+  id?: "v4-migration";
   title: string;
   menuNode?: ReactNode;
   featureFlag?: Flag;
@@ -146,12 +148,31 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    title: "Topics",
+    href: "/project/[projectId]/topics",
+    icon: Grid2X2,
+    featureFlag: "langfuseTopics",
+    projectRbacScopes: ["topics:read"],
+    group: RouteGroup.Observability,
+    section: RouteSection.Main,
+  },
+  {
     title: "Alerts",
     href: "/project/[projectId]/alerts",
     icon: BellRing,
     projectRbacScopes: ["alerts:read"],
     show: ({ v4WriteMode }) => Boolean(v4WriteMode) && v4WriteMode !== "legacy",
     group: RouteGroup.Observability,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Skills",
+    featureFlag: "internalFeatures",
+    href: "/project/[projectId]/skills",
+    icon: FolderCode,
+    projectRbacScopes: ["skills:read"],
+    productModule: "prompt-management",
+    group: RouteGroup.PromptManagement,
     section: RouteSection.Main,
   },
   {
@@ -217,11 +238,11 @@ export const ROUTES: Route[] = [
     // Keep Action required first in the secondary nav so it is not sandwiched
     // between regular items like Upgrade Plan and Settings.
     title: "Update",
+    id: "v4-migration",
     href: "",
     section: RouteSection.Secondary,
     show: ({ projectId, v4UpgradeUiAvailable }) =>
       v4UpgradeUiAvailable && projectId !== undefined,
-    menuNode: <V4MigrationNavItem />,
   },
   {
     title: "Cloud Status",
@@ -300,9 +321,9 @@ function CommandMenuTrigger() {
       }}
       className="whitespace-nowrap"
     >
-      <Search className="h-4 w-4" />
+      <Search className="icon-base" />
       Go to...
-      <span className="ml-auto hidden md:inline-flex">
+      <span className="-mr-px ml-auto hidden md:inline-flex">
         <KeyboardShortcut keys={["Mod", "K"]} />
       </span>
     </SidebarMenuButton>

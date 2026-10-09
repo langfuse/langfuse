@@ -1,5 +1,3 @@
-/* eslint-disable no-nested-ternary */
-/* eslint-disable @repo/no-null-render */
 /**
  * The Timeline. `TraceTimelineCompact` measures a box and renders this inside it,
  * and the trace panel's Timeline view IS this — for everyone, on every device,
@@ -26,7 +24,7 @@
  *    grows only the rows — the whole duration stays on screen until the names
  *    come back — and after that both axes move together. Zoom is exponential in
  *    a zoom level and deltas accumulate per frame, as in mapping libraries — see
- *    the rate constants below.
+ *    the shared gesture adapter's rate constants.
  *  - Drag pans both axes too, and drag draws a box to zoom into — the one
  *    gesture where the user has stated the window on both axes, so it goes
  *    straight there. There are no scrollbars by design: a map has none, and the
@@ -59,6 +57,7 @@ import {
   type ReactNode,
 } from "react";
 import { useTheme } from "next-themes";
+import { usePanZoomGestures } from "@/src/hooks/usePanZoomGestures";
 import { Scan, Minus, Plus, UnfoldVertical } from "lucide-react";
 import {
   ItemTypeIcon,
@@ -162,8 +161,8 @@ const RAIL_SQUARE_MAX = 5;
 const RAIL_WIDTH = RAIL_MAX_DEPTH * RAIL_INDENT + RAIL_SQUARE_MAX + 2;
 /** Indent per level once the gutter is open, matching the production gutter. */
 const GUTTER_INDENT = 14;
-/** The ItemBadge box at `isSmall`, which is square. */
-const GUTTER_ICON = 16;
+/** Type icon size in the gutter, same as the tree rows. */
+const GUTTER_ICON = 12;
 /** A name needs at least this much to be worth indenting away from. */
 const GUTTER_NAME_MIN = 48;
 /**
@@ -184,18 +183,6 @@ const TOOLBAR_HEIGHT = 22;
 const AXIS_HEIGHT = 16;
 const READOUT_HEIGHT = 18;
 const FRAME_BORDER = 1;
-/**
- * Zoom is exponential in a zoom LEVEL — one level doubles the scale — and input
- * deltas accumulate into level deltas, which is how every mapping library does
- * it. The rate has to depend on the input device, and mapping libraries ship two
- * constants for exactly this reason: macOS sends pinch deltas of only a few
- * units while a mouse notch is ~100, so one divisor cannot serve both. A single
- * linear factor per event with a /100 divisor moved ~1% per pinch event, which
- * is why it felt like a lot of touching to get anywhere.
- */
-const PINCH_ZOOM_RATE = 1 / 40;
-/** A line, for the browsers that report wheel deltas in lines rather than pixels. */
-const WHEEL_LINE_PX = 16;
 /** Step for the toolbar buttons and the keyboard, in zoom levels. */
 const BUTTON_ZOOM_LEVELS = 0.6;
 const DRAG_THRESHOLD_PX = 3;
@@ -277,11 +264,6 @@ export type TimelineDenseProps = {
   /** Hover, for prefetching the observation the user is about to open. */
   onHover?: (nodeId: string) => void;
   /**
-   * Ids playing at the playhead, glowed while playback runs. A crossing changes
-   * the set, so this re-renders on boundaries only — never per frame.
-   */
-  activeIds?: ReadonlySet<string>;
-  /**
    * Extra facts for the hover tooltip, already formatted — cost and token usage
    * live on the app's node, not on the layout contract, and their formatters
    * live with the app. At this density hover is how a row is read at all, so it
@@ -322,22 +304,6 @@ export type TimelineDenseProps = {
      * over the whole trace, which is every bar this chart lights). */
     label: string;
   };
-  /**
-   * The trace playhead, handed in rather than read from context: this renderer
-   * takes data and nothing implicit, which is what lets Storybook mount it at
-   * every size. Absent means there is no playback surface here.
-   *
-   * `subscribe` is the ~60fps position feed and drives the line imperatively —
-   * a playhead that re-rendered 600 rows per frame would be a different kind of
-   * broken.
-   */
-  playhead?: {
-    visible: boolean;
-    getSec: () => number;
-    subscribe: (listener: (sec: number) => void) => () => void;
-    /** Click or drag the axis to place it. */
-    onSeek: (sec: number) => void;
-  };
 };
 
 export type GutterMode = "auto" | "expanded" | "collapsed";
@@ -345,22 +311,15 @@ export type GutterMode = "auto" | "expanded" | "collapsed";
 /**
  * What a row's background says about it. ONE decision, because two places draw a
  * row — the chart and the names floating over it — and a second copy is a second
- * chance to miss a state: the peek's copy only knew about selection and hover, so
- * during playback the row that was playing glowed in the chart and stayed plain
- * in the names right beside it.
- *
- * Playing rows glow UP rather than the others dimming down, which is the standing
- * rule for playback highlight here.
+ * chance to miss a state.
  */
 function rowWashClass(state: {
   selected: boolean;
   focused: boolean;
-  active: boolean;
 }): string | false {
   if (state.selected) return "bg-primary-accent/20";
-  if (state.focused) return "bg-primary-accent/15";
   // At 4px a tint is not enough to find yourself by, so these are full-width.
-  return state.active && "bg-primary/20";
+  return state.focused && "bg-primary-accent/15";
 }
 
 export function TimelineDense({
@@ -375,8 +334,6 @@ export function TimelineDense({
   selectedId,
   onSelect,
   onHover,
-  activeIds,
-  playhead,
   metricsOf,
   showDuration = true,
   search,
@@ -509,11 +466,15 @@ export function TimelineDense({
   // An explicit "Show labels" pin wins over a leftover rail-collapse
   // override; otherwise the names stay a peek overlay and never take
   // the gutter the user just asked for.
-  const wantsOpen = labelsPinned
-    ? true
-    : override === "collapsed"
-      ? false
-      : asked || gutterMode === "auto";
+  const wantsOpen = (() => {
+    if (labelsPinned) {
+      return true;
+    }
+    if (override === "collapsed") {
+      return false;
+    }
+    return asked || gutterMode === "auto";
+  })();
   const gutterFits =
     contentWidth - wantedGutter >=
     (asked ? MIN_LANE_WIDTH : AUTO_OPEN_MIN_LANE_WIDTH);
@@ -522,11 +483,15 @@ export function TimelineDense({
   // not: it floats over the timeline instead, so hovering the edge never shoves
   // the bars sideways while you are reading them.
   const committedOpen = canShowNames && gutterFits && wantsOpen;
-  const railWidth = canShowNames
-    ? committedOpen
-      ? wantedGutter
-      : RAIL_WIDTH
-    : 0;
+  const railWidth = (() => {
+    if (canShowNames) {
+      if (committedOpen) {
+        return wantedGutter;
+      }
+      return RAIL_WIDTH;
+    }
+    return 0;
+  })();
   const laneWidth = Math.max(contentWidth - railWidth, 0);
 
   const chartBox = useMemo(
@@ -797,12 +762,12 @@ export function TimelineDense({
     );
   };
 
-  // Selection is not always ours to place. The tree, a search hit, a deep link
-  // and playback all select rows, and a highlight you cannot see is not a
-  // highlight — on a trace this dense the chosen row is usually outside the
-  // window, and `layout()` does not even emit a node for it. So an EXTERNAL
-  // change reveals its row: pan both axes just far enough, never zoom, because
-  // "look at this one" is not a request to change how far in you are looking.
+  // Selection is not always ours to place. The tree, a search hit and a deep
+  // link all select rows, and a highlight you cannot see is not a highlight —
+  // on a trace this dense the chosen row is usually outside the window, and
+  // `layout()` does not even emit a node for it. So an EXTERNAL change reveals
+  // its row: pan both axes just far enough, never zoom, because "look at this
+  // one" is not a request to change how far in you are looking.
   // Adjusting state during render is React's own answer to "a prop changed and
   // some state must follow" — the superseded render never reaches the screen.
   // `undefined`, not `selectedId`: mounting with a selection already set IS the
@@ -963,83 +928,56 @@ export function TimelineDense({
     pending.current.frame = requestAnimationFrame(flushGesture);
   }, [flushGesture, releaseOverride, cancelTween]);
 
-  /**
-   * Wheel and trackpad pinch on a non-passive listener, so the page never takes
-   * the gesture. A Mac pinch arrives as wheel + ctrlKey and needs no special
-   * case; shift or a horizontal wheel pans instead. Pinch-zoom grows only the
-   * rows while labels are hidden, then both axes once they fit.
-   */
+  // Shared with spatial explorers: device input is independent of row layout.
+  // The timeline keeps its own pointer path because mouse drag draws a marquee.
+  usePanZoomGestures({
+    target: surfaceRef,
+    pointerPan: false,
+    onInteractionStart: () => {
+      cancelTween();
+      releaseOverride();
+    },
+    canPan: (dxPx, dyPx) => {
+      const { limits: live, laneWidth: width } = layoutRef.current;
+      return !viewportsEqual(
+        panViewport(viewportRef.current, live, { dxPx, dyPx, boxWidth: width }),
+        viewportRef.current,
+      );
+    },
+    onPan: (dxPx, dyPx) => {
+      const { limits: live, laneWidth: width } = layoutRef.current;
+      const next = panViewport(viewportRef.current, live, {
+        dxPx,
+        dyPx,
+        boxWidth: width,
+      });
+      viewportRef.current = next;
+      setViewport(next);
+      notifyHoverRef.current(next);
+    },
+    onZoom: (levels, anchor) => {
+      const { railWidth: rail, laneWidth: width } = layoutRef.current;
+      const surfaceWidth =
+        surfaceRef.current?.getBoundingClientRect().width ?? width + rail;
+      const next = zoomAndAnchorRef.current(viewportRef.current, {
+        factor: 2 ** levels,
+        xRatio:
+          (anchor.x * surfaceWidth - rail) / Math.max(surfaceWidth - rail, 1),
+        yRatio: anchor.y,
+      });
+      viewportRef.current = next;
+      setViewport(next);
+      notifyHoverRef.current(next);
+    },
+  });
+
   const attachSurface = useCallback(
     (element: HTMLDivElement | null) => {
       surfaceRef.current = element;
       if (!element) return;
-
-      const onWheel = (event: WheelEvent) => {
-        const rect = element.getBoundingClientRect();
-        const queued = pending.current;
-        const rail = layoutRef.current.railWidth;
-        // Deltas arrive in pixels, lines or pages depending on the browser and
-        // the device, so normalize before anything reads them: a line-mode wheel
-        // reports 3, and panning 3px per notch reads as stuck.
-        const unit =
-          event.deltaMode === 1
-            ? WHEEL_LINE_PX
-            : event.deltaMode === 2
-              ? Math.max(rect.height, 1)
-              : 1;
-        const deltaX = event.deltaX * unit;
-        const deltaY = event.deltaY * unit;
-        // A macOS pinch is the ONLY wheel event that carries ctrlKey. Holding
-        // ⌘/ctrl is the same intent by hand, and it is how you zoom with a mouse.
-        const pinch = event.ctrlKey || event.metaKey;
-
-        if (pinch) {
-          queued.xRatio =
-            rect.width > 0
-              ? (event.clientX - rect.left - rail) /
-                Math.max(rect.width - rail, 1)
-              : 0.5;
-          queued.yRatio =
-            rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
-          queued.levels += -deltaY * PINCH_ZOOM_RATE;
-          event.preventDefault();
-          scheduleGesture();
-          return;
-        }
-
-        // EVERY other wheel pans, whatever the device. Sniffing a "mouse notch"
-        // out of a big delta and zooming on it was wrong twice over: a fast
-        // two-finger flick on a Mac trackpad sends deltas far past any such
-        // threshold, so a quick scroll down zoomed OUT to the fitted view and
-        // the timeline looked like it kept snapping back to the top — and it
-        // swallowed the event either way, so there was no scrolling down at all.
-        // Zoom keeps the gestures that say zoom and nothing else: pinch,
-        // ⌘/ctrl + wheel, the toolbar buttons, double-click to focus.
-        const dxPx = event.shiftKey ? -deltaY : -deltaX;
-        const dyPx = event.shiftKey ? 0 : -deltaY;
-        const wouldMove = panViewport(
-          viewportRef.current,
-          layoutRef.current.limits,
-          { dxPx, dyPx, boxWidth: layoutRef.current.laneWidth },
-        );
-        // Only swallow the gesture if it actually moves us; at a clamp the page
-        // keeps its scroll instead of being trapped.
-        if (viewportsEqual(wouldMove, viewportRef.current)) return;
-        event.preventDefault();
-        queued.dxPx += dxPx;
-        queued.dyPx += dyPx;
-        scheduleGesture();
-      };
-
-      element.addEventListener("wheel", onWheel, { passive: false });
-      return () => {
-        cancelTween();
-        element.removeEventListener("wheel", onWheel);
-      };
+      return cancelTween;
     },
-    // Stable: everything live is read from layoutRef, so the listener attaches
-    // once and an animation is never cancelled by a re-attach.
-    [scheduleGesture, cancelTween],
+    [cancelTween],
   );
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -1141,8 +1079,8 @@ export function TimelineDense({
     // Two fingers: pinch to zoom BOTH axes about the midpoint, and pan by
     // however far that midpoint travelled — the two happen together on a map,
     // and separating them makes a pinch feel like it fights the drag. Both go
-    // through the same per-frame accumulator the wheel uses, so they inherit its
-    // zoom-then-reanchor and its cancelling of a focus flight.
+    // through a per-frame accumulator, with the same zoom-then-reanchor and
+    // cancelling of a focus flight as wheel input.
     const active = touches.current;
     // Self-heal the other way too: no contact for this pointer means it is not
     // down, whatever we were told.
@@ -1390,54 +1328,6 @@ export function TimelineDense({
     focusIndex == null
       ? null
       : (result.nodes.find((node) => node.index === focusIndex) ?? null);
-  // Seconds from the trace origin ↔ px in the lane, through the same
-  // compression and window the bars went through — so the playhead cannot
-  // disagree with what it is sweeping over.
-  const secToX = (sec: number) =>
-    (compression.toCompressedMs(Math.max(sec, 0) * 1000) - current.time.start) *
-    result.pxPerMs;
-  const xToSec = (px: number) =>
-    result.pxPerMs > 0
-      ? compression.toRealMs(current.time.start + px / result.pxPerMs) / 1000
-      : 0;
-  // The imperative feed reads the live mapping, so a pan or a zoom mid-playback
-  // moves the line to the right place on its next tick rather than drifting.
-  const mappingRef = useRef(secToX);
-  mappingRef.current = secToX;
-
-  const subscribePlayhead = playhead?.subscribe;
-  const getPlayheadSec = playhead?.getSec;
-  const attachPlayhead = useCallback(
-    (element: HTMLDivElement | null) => {
-      if (!element || !subscribePlayhead || !getPlayheadSec) return;
-      const apply = (sec: number) => {
-        element.style.transform = `translateX(${mappingRef.current(sec)}px)`;
-      };
-      apply(getPlayheadSec());
-      return subscribePlayhead(apply);
-    },
-    [subscribePlayhead, getPlayheadSec],
-  );
-
-  const onSeek = playhead?.onSeek;
-  const seekFromEvent = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!onSeek) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    onSeek(xToSec(event.clientX - rect.left - railWidth));
-  };
-  const onAxisPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!onSeek) return;
-    // Press to place it, drag to scrub — one gesture, as on the wide timeline.
-    event.currentTarget.setPointerCapture(event.pointerId);
-    seekFromEvent(event);
-  };
-  const onAxisPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!onSeek || !event.currentTarget.hasPointerCapture(event.pointerId)) {
-      return;
-    }
-    seekFromEvent(event);
-  };
-
   const windowLabel = formatDurationMs(
     compression.toRealMs(current.time.start + current.time.duration) -
       compression.toRealMs(current.time.start),
@@ -1458,7 +1348,7 @@ export function TimelineDense({
           label="Zoom out"
           onClick={() => zoomBy(2 ** -BUTTON_ZOOM_LEVELS, 0.5, 0.5)}
         >
-          <Minus className="h-3 w-3" />
+          <Minus className="icon-sm" />
         </ToolbarButton>
         <ToolbarButton
           label="Zoom in"
@@ -1468,11 +1358,11 @@ export function TimelineDense({
               : zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)
           }
         >
-          <Plus className="h-3 w-3" />
+          <Plus className="icon-sm" />
         </ToolbarButton>
         {offerShowLabels ? (
           <ToolbarButton label="Show labels" onClick={showLabels}>
-            <UnfoldVertical className="h-3 w-3" />
+            <UnfoldVertical className="icon-sm" />
             <span className="pr-0.5" style={{ fontSize: "10px" }}>
               Show labels
             </span>
@@ -1490,7 +1380,7 @@ export function TimelineDense({
             {/* A viewfinder, not the diagonal arrows this used to wear: those
                 read as "fullscreen", so a control that was merely spent looked
                 broken. */}
-            <Scan className="h-3 w-3" />
+            <Scan className="icon-sm" />
           </ToolbarButton>
         )}
         {/* What the dimming means, said in words. Without it "nothing lit up"
@@ -1517,16 +1407,9 @@ export function TimelineDense({
         ) : null}
       </div>
 
-      {/* The axis doubles as the scrub track: press to place the playhead, drag
-          to move it — the same gesture the wide timeline's scale has. */}
       <div
-        className={cn(
-          "border-border relative shrink-0 border-b",
-          onSeek && "cursor-ew-resize",
-        )}
+        className="border-border relative shrink-0 border-b"
         style={{ height: `${AXIS_HEIGHT}px`, touchAction: "none" }}
-        onPointerDown={onAxisPointerDown}
-        onPointerMove={onAxisPointerMove}
         data-testid="timeline-dense-axis"
       >
         {/* Font probe for the measurer, at the size a label ACTUALLY renders in —
@@ -1638,7 +1521,6 @@ export function TimelineDense({
 
             const isFocused = node.index === focusIndex;
             const isSelected = node.id === selectedId;
-            const isActive = activeIds?.has(node.id) ?? false;
             // A miss under a live query. Not "hidden": the row keeps its place
             // on the clock, its click target and its hover, so the matches read
             // in the context of everything they sit between.
@@ -1662,7 +1544,6 @@ export function TimelineDense({
                   rowWashClass({
                     selected: isSelected,
                     focused: isFocused,
-                    active: isActive,
                   }),
                 )}
                 style={{ top: `${y}px`, height: `${rowHeight}px` }}
@@ -1670,14 +1551,17 @@ export function TimelineDense({
                 onClick={(event) => selectRowOnClick(event, node.id)}
                 onDoubleClick={() => focusRow(node.index)}
               >
-                <GutterContent
-                  node={node}
-                  width={railWidth}
-                  rowHeight={rowHeight}
-                  barHeight={barHeight}
-                  showName={namesVisible}
-                  dimmed={isDimmed}
-                />
+                {/* Bird's-eye density has no rail; avoid invisible DOM per row. */}
+                {railWidth > 0 && (
+                  <GutterContent
+                    node={node}
+                    width={railWidth}
+                    rowHeight={rowHeight}
+                    barHeight={barHeight}
+                    showName={namesVisible}
+                    dimmed={isDimmed}
+                  />
+                )}
 
                 {/* Dimming sits on the lane, so the bar, the caret and the
                     label all fade together — a full-strength duration beside a
@@ -1780,25 +1664,6 @@ export function TimelineDense({
               data-testid="timeline-dense-marquee"
             />
           ) : null}
-
-          {/* The playhead sweeps in the lane, clipped by it, and is positioned
-              imperatively off the position feed — 600 rows must not re-render to
-              move a 2px line. */}
-          {playhead?.visible ? (
-            <div
-              className="pointer-events-none absolute inset-y-0 overflow-hidden"
-              style={{ left: `${railWidth}px`, width: `${laneWidth}px` }}
-            >
-              <div
-                ref={attachPlayhead}
-                className="bg-primary absolute inset-y-0 w-0.5"
-                style={{
-                  transform: `translateX(${secToX(playhead.getSec())}px)`,
-                }}
-                data-testid="timeline-dense-playhead"
-              />
-            </div>
-          ) : null}
         </div>
 
         {/* Peek: the same gutter content, floating OVER the chart. The bars keep
@@ -1821,7 +1686,6 @@ export function TimelineDense({
                     rowWashClass({
                       selected: node.id === selectedId,
                       focused: node.index === focusIndex,
-                      active: Boolean(activeIds?.has(node.id)),
                     }),
                   )}
                   style={{ top: `${y}px`, height: `${rowHeight}px` }}
@@ -1970,10 +1834,6 @@ function GutterContent({
    */
   dimmed?: boolean;
 }) {
-  // Nothing to show, so nothing to build: at bird's-eye density the rail has no
-  // width, and a box of invisible squares is one DOM node per row of the trace.
-  if (width <= 0) return null;
-
   // RAIL_MAX_DEPTH exists to keep a tiny square inside a 15px rail, and applying
   // it to the OPEN gutter flattened the tree: every node past depth 4 drew at the
   // same indent and the same connector column in a gutter up to 168px wide. The
@@ -2026,18 +1886,18 @@ function GutterContent({
         : null}
       {showName && depth > 0 ? (
         <>
+          {node.isLastSibling ? null : (
+            <div
+              className="bg-border-contrast absolute inset-y-0 w-px"
+              style={{ left: `${parentRailX}px` }}
+            />
+          )}
           <div
-            className={cn(
-              "bg-border-contrast absolute top-0 w-px",
-              node.isLastSibling ? "h-1/2" : "bottom-0",
-            )}
-            style={{ left: `${parentRailX}px` }}
-          />
-          <div
-            className="bg-border-contrast absolute top-1/2 h-px"
+            className="border-border-contrast absolute top-0 rounded-bl-md border-b border-l mask-r-from-40%"
             style={{
               left: `${parentRailX}px`,
-              width: `${Math.max(indent - parentRailX, 0)}px`,
+              height: "calc(50% + 0.5px)",
+              width: `${Math.max(indent - parentRailX - 1, 0)}px`,
             }}
           />
         </>
@@ -2045,10 +1905,10 @@ function GutterContent({
       {/* This row's own spine, descending from below its icon to its children. */}
       {showName && node.hasChildren && !node.isCollapsed ? (
         <div
-          className="bg-border-contrast absolute bottom-0 w-px"
+          className="bg-border-contrast absolute bottom-0 w-px mask-t-from-[calc(100%-var(--spacing)*2)]"
           style={{
             left: `${railX}px`,
-            top: `calc(50% + ${GUTTER_ICON / 2}px)`,
+            top: `calc(50% + ${GUTTER_ICON / 2 + 1}px)`,
           }}
         />
       ) : null}
@@ -2072,7 +1932,7 @@ function GutterContent({
           <span className="shrink-0">
             <ItemTypeIcon
               type={node.type as LangfuseItemType}
-              className="size-4"
+              className="icon-sm"
             />
           </span>
           <span

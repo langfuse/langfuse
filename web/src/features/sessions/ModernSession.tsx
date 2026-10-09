@@ -2,7 +2,7 @@ import { type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 
 import { ConnectedModernSessionBodyLegacy } from "@/src/features/sessions/ConnectedModernSessionBodyLegacy";
-import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/ConnectedModernSessionBodyTimeline";
+import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
 import { ModernSessionFilterControls } from "@/src/features/sessions/ModernSessionFilterControls";
 import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
 import { SessionReviewLeading } from "@/src/features/sessions/sessionReviewLeading";
@@ -21,7 +21,6 @@ type ModernSessionProps = {
     | "outputUsage"
     | "totalTokens"
     | "totalCost"
-    | "environment"
     | "users"
     | "scores"
     | "minTimestamp"
@@ -96,12 +95,12 @@ export function ModernSession({
             <ModernSessionHeader
               projectId={projectId}
               countTraces={session.countTraces}
-              traces={headerTraces}
+              minTimestamp={session.minTimestamp}
+              maxTimestamp={session.maxTimestamp}
               tokensIn={session.inputUsage}
               tokensOut={session.outputUsage}
               totalTokens={session.totalTokens}
               totalCost={session.totalCost ?? 0}
-              environment={session.environment ?? null}
               users={session.users ?? []}
               metadataJsonPaths={metadataJsonPaths}
               scores={session.scores}
@@ -109,14 +108,16 @@ export function ModernSession({
           </SessionReviewLeading>
         )}
       </SessionMetadataJsonPathControl>
-      <ModernSessionFilterControls {...filterControlsProps}>
-        {(sidebarFilterControls) =>
-          isTimelineEnabled ? (
-            <ConnectedModernSessionBodyTimeline
-              {...sharedBodyProps}
-              sidebarFilterControls={sidebarFilterControls}
-            />
-          ) : (
+      {isTimelineEnabled ? (
+        <ConnectedModernSessionBodyTimeline
+          tracesState={tracesState}
+          projectId={projectId}
+          sessionId={sessionId}
+          openPeek={openPeek}
+        />
+      ) : (
+        <ModernSessionFilterControls {...filterControlsProps}>
+          {(sidebarFilterControls) => (
             <ConnectedModernSessionBodyLegacy
               {...sharedBodyProps}
               traceCommentCounts={traceCommentCounts}
@@ -124,9 +125,9 @@ export function ModernSession({
               showSystemPrompt={showSystemPrompt}
               sidebarFilterControls={sidebarFilterControls}
             />
-          )
-        }
-      </ModernSessionFilterControls>
+          )}
+        </ModernSessionFilterControls>
+      )}
     </>
   );
 }

@@ -13,13 +13,16 @@ import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { useStore } from "zustand";
 import Page from "@/src/components/layouts/page";
 import { DataTable } from "@/src/components/table/data-table";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControls,
   DataTableControlsProvider,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -31,7 +34,6 @@ import { EvaluatorBulkDeleteDialog } from "../components/Evaluators/EvaluatorBul
 import { EvaluatorGalleryDialog } from "../components/EvaluatorGalleryDialog/EvaluatorGalleryDialog";
 import { EvaluatorStatusBadge } from "../components/Evaluators/EvaluatorStatusBadge/EvaluatorStatusBadge";
 import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
-import { EvaluatorExecutionHistory } from "@/src/features/evals/v2/components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
 import { OverviewSelectionBar } from "../components/OverviewSelectionBar/OverviewSelectionBar";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
@@ -126,7 +128,7 @@ function EvaluatorsOverviewSelectionBar({
         className="h-8"
         onClick={() => onDeleteSelection({ selectAll, selectedIds })}
       >
-        <Trash2 className="h-4 w-4 sm:mr-2" />
+        <Trash2 className="icon-base text-icon-foreground sm:mr-2" />
         <span className="hidden sm:inline">Delete</span>
       </Button>
     </OverviewSelectionBar>
@@ -189,7 +191,7 @@ export default function EvaluatorsPage() {
     column: "updatedAt",
     order: "DESC",
   });
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "evaluatorsV2",
     "s",
   );
@@ -287,6 +289,13 @@ export default function EvaluatorsPage() {
     evaluators.data.totalItems === 0 &&
     !searchQuery &&
     filterState.length === 0;
+  const openGalleryFromNewEvaluatorButton = () => {
+    capture("eval:onboarding_started", {
+      entryPoint: "new_evaluator_button",
+      hasExistingEvaluators: evaluators.isSuccess ? !showOnboarding : undefined,
+    });
+    setGalleryOpen(true);
+  };
   const hasExecutionReadAccess = useHasProjectAccess({
     projectId,
     scope: "evalJobExecution:read",
@@ -315,7 +324,7 @@ export default function EvaluatorsPage() {
       meta: { silentHttpCodes: [503] },
     },
   );
-  const recentExecutions = api.evalsV2.recentExecutions.useQuery(
+  const executionSummaries = api.evalsV2.executionSummaries.useQuery(
     { projectId, evaluatorIds },
     {
       enabled: hasExecutionReadAccess && evaluatorIds.length > 0,
@@ -338,6 +347,7 @@ export default function EvaluatorsPage() {
         isAllMatching: deleteAll,
       });
       showSuccessToast({
+        operation: "evaluator.bulk_delete",
         title: "Evaluators deleted",
         description: `${deletedCount} evaluator${deletedCount === 1 ? "" : "s"} deleted.`,
       });
@@ -362,7 +372,7 @@ export default function EvaluatorsPage() {
         accessorKey: "name",
         id: "name",
         header: "Name",
-        size: 320,
+        size: 240,
         isFixedPosition: true,
         enableSorting: true,
         cell: ({ row }) => (
@@ -375,52 +385,34 @@ export default function EvaluatorsPage() {
         accessorKey: "status",
         id: "status",
         header: "Status",
-        size: 130,
-        enableHiding: true,
-        cell: ({ row }) => (
-          <EvaluatorStatusBadge
-            ruleCount={row.original._count.assignments}
-            active={row.original.hasActiveRules}
-            blocked={Boolean(row.original.blockedAt)}
-            blockReason={row.original.blockReason}
-            blockMessage={row.original.blockMessage}
-          />
-        ),
-      },
-      {
-        accessorKey: "executionTraces",
-        id: "executionTraces",
-        header: "Last 5 runs",
-        size: 130,
+        size: 100,
         enableHiding: true,
         cell: ({ row }) => {
-          if (recentExecutions.isPending && hasExecutionReadAccess) {
+          if (
+            executionSummaries.isPending &&
+            hasExecutionReadAccess &&
+            !row.original.blockedAt &&
+            row.original._count.assignments > 0
+          ) {
             return <Skeleton className="h-4 w-16" />;
           }
-          const history = (
-            <EvaluatorExecutionHistory
-              traces={recentExecutions.data?.[row.original.id] ?? []}
-            />
-          );
-          return hasExecutionReadAccess ? (
-            <button
-              type="button"
-              className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-              aria-label={`View executions for ${row.original.name}`}
-              onClick={() =>
-                router.push(
-                  evaluatorExecutionsUrl(
-                    projectId,
-                    row.original.name,
-                    row.original.type,
-                  ),
-                )
+          return (
+            <EvaluatorStatusBadge
+              ruleCount={row.original._count.assignments}
+              summary={executionSummaries.data?.[row.original.id]}
+              blocked={Boolean(row.original.blockedAt)}
+              blockReason={row.original.blockReason}
+              blockMessage={row.original.blockMessage}
+              executionsHref={
+                hasExecutionReadAccess
+                  ? evaluatorExecutionsUrl(
+                      projectId,
+                      row.original.id,
+                      row.original.type,
+                    )
+                  : null
               }
-            >
-              {history}
-            </button>
-          ) : (
-            history
+            />
           );
         },
       },
@@ -428,7 +420,7 @@ export default function EvaluatorsPage() {
         accessorKey: "type",
         id: "type",
         header: "Type",
-        size: 160,
+        size: 130,
         enableHiding: true,
         enableSorting: true,
         cell: ({ row }) => <EvaluatorTypeBadge type={row.original.type} />,
@@ -436,8 +428,8 @@ export default function EvaluatorsPage() {
       createNumberTableColumn<EvaluatorRow>({
         accessorFn: (row) => costs.data?.[row.id],
         id: "totalCost",
-        header: "Total cost (7d)",
-        size: 140,
+        header: "Cost (7d)",
+        size: 110,
         enableHiding: true,
         formatter: (value) => usdFormatter(value, 2, 4),
         getValue: (value) => {
@@ -469,7 +461,7 @@ export default function EvaluatorsPage() {
       createUserTableColumn<EvaluatorRow>({
         accessorKey: "createdByUser",
         header: "Created by",
-        size: 180,
+        size: 90,
         enableHiding: true,
         variant: "text",
         emptyValue: "API",
@@ -497,8 +489,9 @@ export default function EvaluatorsPage() {
         accessorKey: "actions",
         id: "actions",
         header: "Actions",
-        size: 170,
+        size: 130,
         isFixedPosition: true,
+        isPinnedRight: true,
         enableSorting: false,
         enableResizing: false,
         cell: ({ row }) => (
@@ -519,7 +512,7 @@ export default function EvaluatorsPage() {
                 router.push(
                   evaluatorExecutionsUrl(
                     projectId,
-                    row.original.name,
+                    row.original.id,
                     row.original.type,
                   ),
                 )
@@ -527,11 +520,15 @@ export default function EvaluatorsPage() {
               onEdit={() =>
                 router.push(`/project/${projectId}/evals/${row.original.id}`)
               }
-              onClone={() =>
-                router.push(
+              onClone={() => {
+                capture("eval:onboarding_started", {
+                  entryPoint: "clone_evaluator",
+                  hasExistingEvaluators: true,
+                });
+                return router.push(
                   `/project/${projectId}/evals/new?evaluatorId=${encodeURIComponent(row.original.id)}`,
-                )
-              }
+                );
+              }}
               onDelete={() => setDeleteIds([row.original.id])}
             />
           </div>
@@ -539,12 +536,13 @@ export default function EvaluatorsPage() {
       },
     ],
     [
+      capture,
       costs.data,
       costs.isPending,
       hasExecutionReadAccess,
       projectId,
-      recentExecutions.data,
-      recentExecutions.isPending,
+      executionSummaries.data,
+      executionSummaries.isPending,
       router,
       selectActionColumn,
     ],
@@ -619,6 +617,12 @@ export default function EvaluatorsPage() {
           description:
             "Create reusable evaluator definitions and test them before activation.",
         },
+        mobileActionButtons: showOnboarding ? (
+          <Button size="sm" onClick={openGalleryFromNewEvaluatorButton}>
+            <Plus className="icon-base mr-2" />
+            New evaluator
+          </Button>
+        ) : undefined,
         actionButtonsRight: (
           <div className="flex gap-2">
             {showOnboarding ? null : (
@@ -672,8 +676,8 @@ export default function EvaluatorsPage() {
                 {...evaluatorAlerts}
               />
             )}
-            <Button onClick={() => setGalleryOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
+            <Button onClick={openGalleryFromNewEvaluatorButton}>
+              <Plus className="icon-base text-icon-foreground mr-2" />
               New evaluator
             </Button>
           </div>
@@ -694,46 +698,53 @@ export default function EvaluatorsPage() {
       ) : (
         <DataTableControlsProvider tableName={filterConfig.tableName}>
           <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
-            <TableSearchBar
-              key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
-              projectId={projectId}
-              tableName={filterConfig.tableName}
-              registry={EVALUATORS_LIST_FIELD_REGISTRY}
-              filterState={queryFilter.searchBarFilterState}
-              setFilterState={queryFilter.setFilterState}
-              observed={toObservedOptions(
-                filterOptions,
-                filterOptionsQuery.isPending,
-              )}
-              search={{
-                query: searchQuery ?? null,
-                setQuery: handleSearchChange,
-              }}
-              isV4={false}
-            />
-            <EvaluatorsTableToolbar
-              selectionStore={selectionStore}
-              pageRowIds={evaluatorIds}
-              pageSize={pagination.limit}
-              pageIndex={pagination.page - 1}
-              totalCount={evaluators.data?.totalItems ?? null}
-              columns={columns}
-              columnVisibility={columnVisibility}
-              setColumnVisibility={handleColumnVisibilityChange}
-              columnOrder={columnOrder}
-              setColumnOrder={handleColumnOrderChange}
-              rowHeight={rowHeight}
-              setRowHeight={setRowHeight}
-              filterState={filterState}
-              orderByState={orderBy}
-              currentSearchQuery={searchQuery ?? ""}
-              viewConfig={{
-                tableName: TableViewPresetTableName.Evaluators,
-                projectId,
-                controllers: viewControllers,
-              }}
-            />
-            <ResizableFilterLayout>
+            <SearchableTableFilterLayout
+              search={
+                <TableSearchBar
+                  size="large"
+                  key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+                  projectId={projectId}
+                  tableName={filterConfig.tableName}
+                  registry={EVALUATORS_LIST_FIELD_REGISTRY}
+                  filterState={queryFilter.searchBarFilterState}
+                  setFilterState={queryFilter.setFilterState}
+                  observed={toObservedOptions(
+                    filterOptions,
+                    filterOptionsQuery.isPending,
+                  )}
+                  search={{
+                    query: searchQuery ?? null,
+                    setQuery: handleSearchChange,
+                  }}
+                  isV4={false}
+                />
+              }
+              toolbar={
+                <EvaluatorsTableToolbar
+                  selectionStore={selectionStore}
+                  pageRowIds={evaluatorIds}
+                  pageSize={pagination.limit}
+                  pageIndex={pagination.page - 1}
+                  totalCount={evaluators.data?.totalItems ?? null}
+                  columns={columns}
+                  columnVisibility={columnVisibility}
+                  setColumnVisibility={handleColumnVisibilityChange}
+                  columnOrder={columnOrder}
+                  setColumnOrder={handleColumnOrderChange}
+                  rowHeight={rowHeight}
+                  setRowHeight={setRowHeight}
+                  customRowHeight={customRowHeightMenu(rowHeights)}
+                  filterState={filterState}
+                  orderByState={orderBy}
+                  currentSearchQuery={searchQuery ?? ""}
+                  viewConfig={{
+                    tableName: TableViewPresetTableName.Evaluators,
+                    projectId,
+                    controllers: viewControllers,
+                  }}
+                />
+              }
+            >
               <DataTableControls
                 key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
                 queryFilter={queryFilter}
@@ -783,6 +794,9 @@ export default function EvaluatorsPage() {
                   columnOrder={columnOrder}
                   onColumnOrderChange={handleColumnOrderChange}
                   rowHeight={rowHeight}
+                  customRowHeightPx={rowHeights.activeHeightPx}
+                  onCustomRowHeightChange={rowHeights.setCustomPx}
+                  onSelectRowHeight={setRowHeight}
                   orderBy={orderBy}
                   setOrderBy={handleOrderByChange}
                   onRowClick={(row) =>
@@ -791,7 +805,7 @@ export default function EvaluatorsPage() {
                   noResultsMessage="No evaluators found."
                 />
               </div>
-            </ResizableFilterLayout>
+            </SearchableTableFilterLayout>
           </div>
         </DataTableControlsProvider>
       )}

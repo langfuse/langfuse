@@ -4,7 +4,8 @@ import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useMemo, useRef } from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useRouter } from "next/router";
-import { ChevronDown, type LucideIcon, Plus } from "lucide-react";
+import { type LucideIcon, Plus } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { startCase } from "lodash";
@@ -262,6 +263,7 @@ export const MonitorForm = ({
         monitorCreateAnalyticsProperties(analyticsSource, variables),
       );
       showSuccessToast({
+        operation: "monitor.create",
         title: "Alert created",
         description: `"${variables.name}" is now active.`,
       });
@@ -275,6 +277,7 @@ export const MonitorForm = ({
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
+        operation: "monitor.update",
         title: "Alert saved",
         description: `Your changes to "${variables.name}" have been applied.`,
       });
@@ -751,7 +754,7 @@ export const MonitorForm = ({
                   <AccordionPrimitive.Item value="advanced">
                     <AccordionPrimitive.Header className="flex">
                       <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-start gap-2 py-2 text-sm font-bold transition-all hover:underline [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
-                        <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                        <DropdownIndicator nudge />
                         Advanced Options
                       </AccordionPrimitive.Trigger>
                     </AccordionPrimitive.Header>
@@ -854,7 +857,7 @@ export const MonitorForm = ({
                               size="sm"
                               className="gap-1"
                             >
-                              <Plus className="h-3 w-3" />
+                              <Plus className="icon-base" />
                               Add tag
                             </Button>
                           }
@@ -943,7 +946,7 @@ const Header = ({
           {step}
         </span>
       ) : null}
-      {Icon ? <Icon className="h-5 w-5" aria-hidden="true" /> : null}
+      {Icon ? <Icon className="icon-lg" aria-hidden="true" /> : null}
       {title}
     </h3>
   </div>

@@ -66,7 +66,7 @@ export function EvaluatorGalleryView({
   sections: GallerySection[];
   expandedSections: ReadonlySet<string>;
   onExpandedChange: (key: string, expanded: boolean) => void;
-  onSelectTemplate: (template: GalleryTemplate) => void;
+  onSelectTemplate: (template: GalleryTemplate, sectionKey: string) => void;
   onCreateFromScratch: (type: EvalTemplateType) => void;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
   isLoading: boolean;
@@ -144,7 +144,7 @@ export function EvaluatorGalleryView({
           >
             <div className="bg-modal sticky top-0 z-10 flex flex-col items-stretch gap-2 border-b px-4 py-3 @2xl:flex-row @2xl:items-center">
               <div className="relative min-w-0 flex-1">
-                <Search className="text-muted-foreground absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2" />
+                <Search className="text-muted-foreground icon-base absolute top-1/2 left-2 -translate-y-1/2" />
                 <Input
                   ref={searchInputRef}
                   value={search}
@@ -162,7 +162,7 @@ export function EvaluatorGalleryView({
                     onCreateFromScratch(EvalTemplateTypeEnum.LLM_AS_JUDGE)
                   }
                 >
-                  <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                  <Sparkles className="icon-base" aria-hidden="true" />
                   New LLM-as-a-judge
                 </Button>
                 <Button
@@ -171,19 +171,19 @@ export function EvaluatorGalleryView({
                   className="flex-1 shrink-0 gap-1.5 @2xl:flex-none"
                   onClick={() => onCreateFromScratch(EvalTemplateTypeEnum.CODE)}
                 >
-                  <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  <Code2 className="icon-base" aria-hidden="true" />
                   New code evaluator
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
                   className="flex-1 shrink-0 gap-1.5 @2xl:flex-none"
-                  title="Ask TypeSafe Jev typed questions and get calibrated answers in one call. Experimental."
+                  title="Ask Jev or the OpenAI Decisions API typed questions in one call."
                   onClick={() =>
                     onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
                   }
                 >
-                  <Scale className="h-3.5 w-3.5" aria-hidden="true" />
+                  <Scale className="icon-base" aria-hidden="true" />
                   New decision model evaluator
                 </Button>
               </div>

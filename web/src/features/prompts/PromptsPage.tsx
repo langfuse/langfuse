@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { ActionButton } from "@/src/components/ActionButton";
 import Page from "@/src/components/layouts/page";
@@ -35,12 +34,15 @@ export default function PromptsPage() {
   const isMetricsPage =
     segmentsArray.length > 0 &&
     segmentsArray[segmentsArray.length - 1] === "metrics";
-  const promptNameFromRoute =
-    segmentsArray.length > 0
-      ? isMetricsPage
-        ? segmentsArray.slice(0, -1).join("/")
-        : segmentsArray.join("/")
-      : "";
+  const promptNameFromRoute = (() => {
+    if (segmentsArray.length > 0) {
+      if (isMetricsPage) {
+        return segmentsArray.slice(0, -1).join("/");
+      }
+      return segmentsArray.join("/");
+    }
+    return "";
+  })();
 
   const hasCUDAccess = useHasProjectAccess({
     projectId,
@@ -150,7 +152,7 @@ export default function PromptsPage() {
                     disabled={isExporting}
                     {...getTriggerProps()}
                   >
-                    <UploadIcon className="mr-1 h-4 w-4" />
+                    <UploadIcon className="icon-base text-icon-foreground mr-1" />
                     {isExporting ? "Exporting…" : "Export"}
                   </Button>
                 )}
@@ -165,14 +167,19 @@ export default function PromptsPage() {
                     title={disabled?.reason}
                     onClick={openDialog}
                   >
-                    <Download className="mr-1 h-4 w-4" />
+                    <Download className="icon-base text-icon-foreground mr-1" />
                     Import
                   </Button>
                 )}
               </ImportPromptsButtonDialogController>
             )}
             <ActionButton
-              icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+              icon={
+                <PlusIcon
+                  className="icon-base text-icon-foreground"
+                  aria-hidden="true"
+                />
+              }
               hasAccess={hasCUDAccess}
               href={`/project/${projectId}/prompts/new${folderQueryParam ? `?folder=${encodeURIComponent(folderQueryParam)}` : ""}`}
               trackingEventName="prompts:new_form_open"

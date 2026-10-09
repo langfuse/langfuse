@@ -86,18 +86,19 @@ function getKeyboardKeyLabel(key: KeyboardKey, isMac: boolean) {
 }
 
 const keyboardShortcutVariants = cva(
-  "pointer-events-none inline-flex items-center justify-center gap-1 rounded-md border font-mono leading-none font-bold select-none",
+  "pointer-events-none inline-flex justify-center gap-1 rounded-sm font-mono leading-none font-normal select-none",
   {
     variants: {
       variant: {
-        default: "bg-muted text-muted-foreground shadow-xs",
-        subtle: "bg-transparent text-muted-foreground shadow-none",
-        inverse:
-          "border-primary-foreground/30 bg-primary-foreground/20 text-primary-foreground shadow-xs",
+        default: "items-baseline bg-transparent text-foreground-tertiary",
+        subtle: "items-baseline bg-transparent text-foreground-tertiary",
+        inverse: "items-baseline bg-transparent text-primary-foreground",
+        keycap:
+          "items-center border bg-muted px-1 align-middle text-muted-foreground",
       },
       size: {
-        default: "h-5 min-w-5 px-1.5 text-[10px]",
-        sm: "h-4 min-w-4 px-1 text-[9px]",
+        default: "h-5 min-w-5 text-xs",
+        sm: "h-4 min-w-4 px-1 text-[10px]",
         xs: "h-3.5 min-w-3.5 px-1 text-[9px]",
       },
     },
@@ -107,6 +108,12 @@ const keyboardShortcutVariants = cva(
     },
   },
 );
+
+const symbolSizeClass = {
+  default: "text-lg",
+  sm: "text-sm",
+  xs: "text-xs",
+} as const;
 
 export type KeyboardShortcutProps = {
   ref?: React.Ref<HTMLElement>;
@@ -118,10 +125,11 @@ export function KeyboardShortcut({
   ref,
   keys,
   title,
-  variant,
+  variant = "default",
   size,
 }: KeyboardShortcutProps) {
   const isMac = useIsMac();
+  const letterClass = variant === "keycap" ? undefined : "-translate-y-0.5";
 
   return (
     <kbd
@@ -129,9 +137,21 @@ export function KeyboardShortcut({
       className={keyboardShortcutVariants({ variant, size })}
       title={title}
     >
-      {keys.map((key, index) => (
-        <span key={index}>{getKeyboardKeyLabel(key, isMac)}</span>
-      ))}
+      {keys.map((key, index) => {
+        const label = getKeyboardKeyLabel(key, isMac);
+        // Modifier and arrow glyphs draw small and high in the mono face; one step up, letters nudged up to meet them.
+        const isSymbol = /^[^\p{L}\p{N}]$/u.test(label);
+        return (
+          <span
+            key={index}
+            className={
+              isSymbol ? symbolSizeClass[size ?? "default"] : letterClass
+            }
+          >
+            {label}
+          </span>
+        );
+      })}
     </kbd>
   );
 }

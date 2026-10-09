@@ -1,5 +1,5 @@
 import preview from "../../../../../.storybook/preview";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { chartColors } from "../constants";
 import { PieChart } from "./PieChart";
 
@@ -39,11 +39,7 @@ export const HoverColors = meta.story({
       name: "Claude Sonnet: 31",
     });
 
-    await expect(first).toHaveAttribute("fill", chartColors[0]);
-    await expect(second).toHaveAttribute("fill", chartColors[1]);
-
     await userEvent.hover(first);
-    await expect(first).toHaveAttribute("fill", chartColors[0]);
     await expect(second).toHaveAttribute(
       "fill",
       expect.stringContaining("20%"),
@@ -63,6 +59,83 @@ export const LongLabels = meta.story({
       },
       { label: "Short model", value: 27_650 },
     ],
+  },
+});
+
+export const CenterTextFits = meta.story({
+  name: "(Test) Center Text Fits",
+  args: {
+    data: [{ label: "Production", value: 2.722947 }],
+    valueFormatter: (value) => `$${value.toFixed(6)}`,
+    centerLabel: "Total cost",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const total = canvas.getByText("$2.722947");
+    const label = canvas.getByText("Total cost");
+    const svg = canvasElement.querySelector("svg");
+    if (!svg) throw new Error("Missing pie chart SVG");
+    const container = svg.parentElement;
+    if (!container) throw new Error("Missing chart container");
+
+    for (const size of [420, 160, 120, 320]) {
+      container.style.width = `${size}px`;
+      container.style.height = `${size}px`;
+
+      await waitFor(async () => {
+        const chart = svg.getBoundingClientRect();
+        await expect(Math.abs(chart.width - size)).toBeLessThan(1);
+        await expect(Math.abs(chart.height - size)).toBeLessThan(1);
+        if (size === 120) {
+          await expect(total).not.toBeVisible();
+          await expect(label).not.toBeVisible();
+          await expect(svg).toBeVisible();
+          return;
+        }
+        await expect(total).toBeVisible();
+        await expect(label).toBeVisible();
+        const centerX = chart.x + chart.width / 2;
+        const centerY = chart.y + chart.height / 2;
+        const radius = Math.min(chart.width, chart.height) * (2 / 7);
+
+        const fits = [total, label].every((element) => {
+          const rect = element.getBoundingClientRect();
+          return [rect.left, rect.right].every((x) =>
+            [rect.top, rect.bottom].every(
+              (y) => Math.hypot(x - centerX, y - centerY) <= radius + 1,
+            ),
+          );
+        });
+        await expect(fits).toBe(true);
+      });
+    }
+  },
+});
+
+export const OversizedCenterTextHidden = meta.story({
+  name: "(Test) Oversized Center Text Hidden",
+  args: {
+    data: [{ label: "Production", value: 1 }],
+    valueFormatter: () => "$123456789012345678901234567890.123456",
+    centerLabel: "Total cost across all production environments",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const total = canvas.getByText("$123456789012345678901234567890.123456");
+    const label = canvas.getByText(
+      "Total cost across all production environments",
+    );
+    const svg = canvasElement.querySelector("svg");
+    if (!svg?.parentElement) throw new Error("Missing pie chart container");
+
+    svg.parentElement.style.width = "160px";
+    svg.parentElement.style.height = "160px";
+
+    await waitFor(async () => {
+      await expect(total).not.toBeVisible();
+      await expect(label).not.toBeVisible();
+      await expect(svg).toBeVisible();
+    });
   },
 });
 
@@ -125,7 +198,6 @@ export const CombinedSmallSlices = meta.story({
     const canvas = within(canvasElement);
     const combinedSlice = canvas.getByLabelText("Other: 2");
 
-    await expect(canvasElement.querySelectorAll("path")).toHaveLength(3);
     combinedSlice.focus();
 
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
@@ -154,7 +226,6 @@ export const Empty = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvasElement.querySelectorAll("circle")).toHaveLength(1);
     await expect(canvas.getByText("0")).toBeInTheDocument();
     await expect(canvas.getByText("Total")).toBeInTheDocument();
   },

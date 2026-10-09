@@ -1,6 +1,6 @@
 import {
+  createEventUploadStorageService,
   StorageService,
-  StorageServiceFactory,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 
@@ -19,16 +19,9 @@ let s3StorageServiceClient: StorageService | null = null;
  */
 export function getEvalS3StorageClient(): StorageService {
   if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-      awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
-      awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
-    });
+    s3StorageServiceClient = createEventUploadStorageService(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    );
   }
 
   return s3StorageServiceClient;

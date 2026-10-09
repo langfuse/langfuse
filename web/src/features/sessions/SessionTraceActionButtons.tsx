@@ -8,13 +8,13 @@ import { CommentDrawerController } from "@/src/features/comments";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import { cn } from "@/src/utils/tailwind";
 import {
-  ChevronDown,
   LockIcon,
   MessageSquare,
   MessageSquareOff,
   PlusIcon,
   SquarePen,
 } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 type TraceScores =
   RouterOutputs["sessions"]["byIdWithScores"]["traces"][number]["scores"];
@@ -79,9 +79,9 @@ export function SessionTraceActionButtons({
               className="gap-1.5"
               {...getTriggerProps()}
             >
-              <PlusIcon className="h-4 w-4" />
+              <PlusIcon className="icon-base text-icon-foreground" />
               <span>Add to</span>
-              <ChevronDown className="h-3 w-3" />
+              <DropdownIndicator size="sm" nudge />
             </Button>
           )}
         </ConnectedTraceObservationAddToDropdownMenuController>
@@ -110,9 +110,9 @@ export function SessionTraceActionButtons({
               }
             >
               {disabled ? (
-                <LockIcon className="mr-1.5 h-3 w-3" />
+                <LockIcon className="icon-sm text-icon-foreground mr-1.5" />
               ) : (
-                <SquarePen className="mr-1.5 h-4 w-4" />
+                <SquarePen className="icon-base text-icon-foreground mr-1.5" />
               )}
               <span>Annotate</span>
             </Button>
@@ -136,10 +136,10 @@ export function SessionTraceActionButtons({
             className="gap-1"
           >
             {disabled ? (
-              <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+              <MessageSquareOff className="text-muted-foreground icon-base" />
             ) : (
               <>
-                <MessageSquare className="h-4 w-4" />
+                <MessageSquare className="icon-base text-icon-foreground" />
                 <span>{commentCount ? "Comments" : "Comment"}</span>
                 {!!commentCount ? (
                   <ActionButtonCountBadge count={commentCount} />

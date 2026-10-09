@@ -1,4 +1,12 @@
-import { expect, it, describe, beforeAll, beforeEach, afterEach } from "vitest";
+import {
+  expect,
+  it,
+  describe,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  vi,
+} from "vitest";
 import { env } from "../env";
 import { randomUUID } from "crypto";
 import {
@@ -18,8 +26,36 @@ import {
   toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { handleDataRetentionProcessingJob } from "../ee/dataRetention/handleDataRetentionProcessingJob";
 import { Job } from "bullmq";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
+
+type LicenseCheckModule =
+  typeof import("@langfuse/shared/src/server/ee/licenseCheck");
+
+// Overriding the shared env object is not observed by the license check at
+// runtime here, so cases cannot simulate a deployment that way. Wrap the real
+// implementation instead: it keeps the actual key-prefix rules under test
+// while letting a case choose the environment they are evaluated against.
+vi.mock(
+  "@langfuse/shared/src/server/ee/licenseCheck",
+  async (importOriginal) => {
+    const actual = await importOriginal<LicenseCheckModule>();
+    return {
+      ...actual,
+      isEnterpriseLicenseAvailable: vi.fn(actual.isEnterpriseLicenseAvailable),
+    };
+  },
+);
+
+const { isEnterpriseLicenseAvailable: actualIsEnterpriseLicenseAvailable } =
+  await vi.importActual<LicenseCheckModule>(
+    "@langfuse/shared/src/server/ee/licenseCheck",
+  );
 
 describe("DataRetentionProcessingJob", () => {
   let storageService: StorageService;
@@ -39,6 +75,10 @@ describe("DataRetentionProcessingJob", () => {
 
   beforeEach(() => {
     s3Prefix = `${randomUUID()}/`;
+    // Retention only runs under an enterprise license. Pin that here rather
+    // than inheriting it from the ambient env, so the suite does not depend on
+    // which .env example the run happens to have loaded.
+    vi.mocked(isEnterpriseLicenseAvailable).mockReturnValue(true);
   });
 
   afterEach(async () => {
@@ -51,6 +91,235 @@ describe("DataRetentionProcessingJob", () => {
 
     await storageService.deleteFiles(files.map((f) => f.file));
     s3Prefix = null;
+  });
+
+  it("deletes expired conversations and their runs and events, but keeps recent and active conversations", async () => {
+    const expiredAt = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const recentAt = new Date();
+    const expiredId = randomUUID();
+    const recentId = randomUUID();
+    const runningId = randomUUID();
+    const staleId = randomUUID();
+    const eventlessId = randomUUID();
+    const legacyId = randomUUID();
+    const recentLegacyId = randomUUID();
+    const keyIds: string[] = [];
+    const ids = [
+      expiredId,
+      recentId,
+      runningId,
+      staleId,
+      eventlessId,
+      legacyId,
+      recentLegacyId,
+    ];
+
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: 7 },
+    });
+
+    try {
+      const creator = await prisma.user.create({
+        data: {
+          email: `retention-${randomUUID()}@langfuse.com`,
+          name: "retention-user",
+        },
+      });
+      const key = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(creator.id),
+        isInAppAgentKey: true,
+      });
+      keyIds.push(key.id);
+      await prisma.inAppAgentConversation.createMany({
+        data: [
+          {
+            id: expiredId,
+            projectId,
+            createdAt: expiredAt,
+            updatedAt: expiredAt,
+          },
+          {
+            id: recentId,
+            projectId,
+            createdAt: expiredAt,
+            updatedAt: recentAt,
+          },
+          {
+            id: runningId,
+            projectId,
+            createdAt: expiredAt,
+            updatedAt: expiredAt,
+          },
+          {
+            id: staleId,
+            projectId,
+            createdAt: expiredAt,
+            updatedAt: expiredAt,
+          },
+          {
+            id: eventlessId,
+            projectId,
+            createdAt: expiredAt,
+            updatedAt: expiredAt,
+          },
+          {
+            id: legacyId,
+            projectId,
+            createdAt: expiredAt,
+            updatedAt: expiredAt,
+          },
+          {
+            id: recentLegacyId,
+            projectId,
+            createdAt: expiredAt,
+            updatedAt: expiredAt,
+          },
+        ],
+      });
+      const expiredRunIds = Array.from({ length: 101 }, () => randomUUID());
+      const runningRunId = randomUUID();
+      await prisma.inAppAgentRun.createMany({
+        data: [
+          ...expiredRunIds.map((id) => ({
+            id,
+            projectId,
+            conversationId: expiredId,
+            createdAt: expiredAt,
+            finishedAt: expiredAt,
+            mcpApiKeyId: key.id,
+          })),
+          { id: runningRunId, projectId, conversationId: runningId },
+          {
+            id: randomUUID(),
+            projectId,
+            conversationId: staleId,
+            status: InAppAgentRunStatus.RUNNING,
+            createdAt: expiredAt,
+            claimedAt: expiredAt,
+            heartbeatAt: expiredAt,
+          },
+          {
+            id: randomUUID(),
+            projectId,
+            conversationId: legacyId,
+            status: null,
+            createdAt: expiredAt,
+            request: { message: "old request" },
+          },
+          {
+            id: randomUUID(),
+            projectId,
+            conversationId: recentLegacyId,
+            status: null,
+            createdAt: recentAt,
+          },
+        ],
+      });
+      await prisma.inAppAgentEvent.createMany({
+        data: [
+          {
+            projectId,
+            conversationId: expiredId,
+            runId: expiredRunIds[0],
+            sequenceNumber: 0,
+            type: "test",
+            event: {},
+            createdAt: recentAt,
+          },
+          {
+            projectId,
+            conversationId: runningId,
+            runId: runningRunId,
+            sequenceNumber: 0,
+            type: "test",
+            event: {},
+            createdAt: expiredAt,
+          },
+        ],
+      });
+
+      await handleDataRetentionProcessingJob({
+        data: { payload: { projectId, retention: 7 } },
+      } as Job);
+
+      const conversations = await prisma.inAppAgentConversation.findMany({
+        where: { projectId, id: { in: ids } },
+        select: { id: true },
+      });
+      expect(conversations.map(({ id }) => id).sort()).toEqual(
+        [recentId, runningId, staleId, legacyId, recentLegacyId].sort(),
+      );
+      expect(
+        await prisma.inAppAgentRun.count({
+          where: { projectId, conversationId: expiredId },
+        }),
+      ).toBe(0);
+      expect(
+        await prisma.inAppAgentEvent.count({
+          where: { projectId, conversationId: expiredId },
+        }),
+      ).toBe(0);
+      expect(
+        await prisma.inAppAgentEvent.count({
+          where: { projectId, conversationId: runningId },
+        }),
+      ).toBe(1);
+      expect(await prisma.apiKey.count({ where: { id: key.id } })).toBe(0);
+      expect(
+        await prisma.inAppAgentRun.count({
+          where: { projectId, conversationId: legacyId },
+        }),
+      ).toBe(1);
+      expect(
+        await prisma.inAppAgentRun.count({
+          where: { projectId, conversationId: staleId },
+        }),
+      ).toBe(1);
+    } finally {
+      await prisma.inAppAgentConversation.deleteMany({
+        where: { projectId, id: { in: ids } },
+      });
+      await prisma.apiKey.deleteMany({ where: { id: { in: keyIds } } });
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: null },
+      });
+    }
+  });
+
+  it("retains assistant conversations when retention is disabled after the job was queued", async () => {
+    const id = randomUUID();
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: null },
+    });
+
+    try {
+      await prisma.inAppAgentConversation.create({
+        data: {
+          id,
+          projectId,
+          createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      await handleDataRetentionProcessingJob({
+        data: { payload: { projectId, retention: 7 } },
+      } as Job);
+
+      expect(
+        await prisma.inAppAgentConversation.findUnique({
+          where: { id_projectId: { id, projectId } },
+        }),
+      ).not.toBeNull();
+    } finally {
+      await prisma.inAppAgentConversation.deleteMany({
+        where: { id, projectId },
+      });
+    }
   });
 
   it("should NOT delete event files from cloud storage if after expiry cutoff", async () => {
@@ -557,6 +826,100 @@ describe("DataRetentionProcessingJob", () => {
     await prisma.project.update({
       where: { id: projectId },
       data: { retentionDays: null },
+    });
+  });
+
+  describe("enterprise license enforcement", () => {
+    /**
+     * Point the license check at a simulated self-hosted deployment holding
+     * the given license key. The real implementation is kept, so these cases
+     * still exercise the actual key-prefix rules; only the environment it
+     * reads is substituted. The cloud region has to be cleared too, because
+     * any cloud region counts as licensed.
+     */
+    const withSelfHostedLicense = async (
+      licenseKey: string | undefined,
+      fn: () => Promise<void>,
+    ) => {
+      vi.mocked(isEnterpriseLicenseAvailable).mockImplementation(() =>
+        actualIsEnterpriseLicenseAvailable({
+          ...sharedEnv,
+          NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+          LANGFUSE_EE_LICENSE_KEY: licenseKey,
+        }),
+      );
+      try {
+        await fn();
+      } finally {
+        vi.mocked(isEnterpriseLicenseAvailable).mockReturnValue(true);
+      }
+    };
+
+    const seedExpiredTrace = async (traceId: string) => {
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).getTime(), // 30 days in the past
+        }),
+      ]);
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: 7 },
+      });
+    };
+
+    afterEach(async () => {
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: null },
+      });
+    });
+
+    it("should not delete expired data when the self-hosted license key is removed", async () => {
+      const traceId = `${randomUUID()}-trace-unlicensed`;
+      await seedExpiredTrace(traceId);
+
+      await withSelfHostedLicense(undefined, async () => {
+        await handleDataRetentionProcessingJob({
+          data: { payload: { projectId, retention: 7 } },
+        } as Job);
+      });
+
+      // Retention is an enterprise entitlement, so a stored policy must stop
+      // being applied once the instance can no longer configure it.
+      const trace = await getTraceById({ traceId, projectId });
+      expect(trace).toBeDefined();
+    });
+
+    it("should not delete expired data on a self-hosted pro license", async () => {
+      const traceId = `${randomUUID()}-trace-pro`;
+      await seedExpiredTrace(traceId);
+
+      await withSelfHostedLicense("langfuse_pro_some-key", async () => {
+        await handleDataRetentionProcessingJob({
+          data: { payload: { projectId, retention: 7 } },
+        } as Job);
+      });
+
+      // Pro does not carry the data-retention entitlement.
+      const trace = await getTraceById({ traceId, projectId });
+      expect(trace).toBeDefined();
+    });
+
+    it("should delete expired data on a self-hosted enterprise license", async () => {
+      const traceId = `${randomUUID()}-trace-ee`;
+      await seedExpiredTrace(traceId);
+
+      await withSelfHostedLicense("langfuse_ee_some-key", async () => {
+        await handleDataRetentionProcessingJob({
+          data: { payload: { projectId, retention: 7 } },
+        } as Job);
+      });
+
+      // Pins that the guard is the license and not an unrelated skip.
+      const trace = await getTraceById({ traceId, projectId });
+      expect(trace).toBeUndefined();
     });
   });
 });

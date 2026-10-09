@@ -50,6 +50,7 @@ export default function EditWidgetPage() {
         filterCount: variables.filters.length,
       });
       showSuccessToast({
+        operation: "widget.update",
         title: "Widget updated successfully",
         description: "Your widget has been updated.",
       });

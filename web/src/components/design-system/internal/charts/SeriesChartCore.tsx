@@ -4,7 +4,8 @@ import { useId, useMemo, useState, type PointerEvent } from "react";
 import { scaleLinear, scalePoint, scaleUtc } from "d3-scale";
 import { area, line } from "d3-shape";
 
-import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
+import { ChartContainer } from "@/src/components/design-system/internal/charts/ChartContainer";
+import { CHART_TRANSITION_DURATION } from "@/src/components/design-system/charts/constants";
 import { CartesianChart } from "@/src/components/design-system/internal/charts/CartesianChart";
 import { CartesianLayout } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import { ChartLegend } from "@/src/components/design-system/internal/charts/ChartLegend";
@@ -66,8 +67,6 @@ type LineChartProps = CommonLineChartProps &
         data: TimeLineChartDatum[];
         xAxis: {
           type: "time";
-          tickFormatter?: (value: Date) => string;
-          tooltipFormatter?: (value: Date) => string;
         };
       }
     | {
@@ -86,17 +85,10 @@ type NormalizedDatum = LineChartValues & {
   x: Date | string;
 };
 
-const APPROX_TIME_TICK_WIDTH = 64;
 const CATEGORY_TICK_GAP = 16;
 const SERIES_HOVER_DISTANCE = 10;
 const MAX_VISIBLE_POINT_RADIUS = 5;
 const defaultValueFormatter = (value: number) => value.toLocaleString();
-const defaultTimeTickFormatter = (value: Date) =>
-  value.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
 
 const getSeriesSummaries = (
   data: LineChartProps["data"],
@@ -203,19 +195,21 @@ function useLineChartLegend(
       hiddenSeriesIds: new Set(hidden ? series.map((item) => item.id) : []),
     });
   };
-  const configuredSeries: ConfiguredLineChartSeries[] = series.flatMap(
-    (item) => {
-      if (hiddenSeriesIds.has(item.id)) return [];
-      let emphasis: ConfiguredLineChartSeries["emphasis"] = "dimmed";
-      if (highlightedSeriesId === undefined) emphasis = "default";
-      else if (highlightedSeriesId === item.id) emphasis = "emphasized";
-      return [
-        {
-          ...item,
-          emphasis,
-        },
-      ];
-    },
+  const configuredSeries = useMemo(
+    () =>
+      series.flatMap<ConfiguredLineChartSeries>((item) => {
+        if (hiddenSeriesIds.has(item.id)) return [];
+        let emphasis: ConfiguredLineChartSeries["emphasis"] = "dimmed";
+        if (highlightedSeriesId === undefined) emphasis = "default";
+        else if (highlightedSeriesId === item.id) emphasis = "emphasized";
+        return [
+          {
+            ...item,
+            emphasis,
+          },
+        ];
+      }),
+    [series, hiddenSeriesIds, highlightedSeriesId],
   );
 
   return {
@@ -337,10 +331,14 @@ export function SeriesChartCore(
           items={series.map((item) => {
             const hidden = hiddenSeriesIds.has(item.id);
             const focused = highlightedSeriesId === item.id;
-            let label = `Show only ${item.label}`;
-            if (legend.interaction === "toggle") {
-              label = hidden ? `Show ${item.label}` : `Hide ${item.label}`;
-            } else if (focused) label = "Show all series";
+            const toggleLabel = hidden
+              ? `Show ${item.label}`
+              : `Hide ${item.label}`;
+            const highlightLabel = focused
+              ? "Show all series"
+              : `Show only ${item.label}`;
+            const label =
+              legend.interaction === "toggle" ? toggleLabel : highlightLabel;
             return {
               id: item.id,
               label: item.label,
@@ -524,14 +522,61 @@ function LineChartContent(
     datum.x instanceof Date
       ? timeScale(datum.x)
       : (categoryScale(datum.key) ?? LEFT_MARGIN);
-  const getXFromKey = (key: string) =>
-    xAxis.type === "time"
-      ? timeScale(new Date(Number(key)))
-      : (categoryScale(key) ?? LEFT_MARGIN);
-
-  const maxXTicks = Math.max(2, Math.floor(plotWidth / APPROX_TIME_TICK_WIDTH));
-  const firstX = data[0]?.x;
-  const lastX = data[data.length - 1]?.x;
+  const timeDataDates = data.flatMap((datum) =>
+    datum.x instanceof Date ? [datum.x] : [],
+  );
+  const timeTickDates = timeDataDates.filter(
+    (date, index) =>
+      index === 0 || date.getTime() !== timeDataDates[index - 1]!.getTime(),
+  );
+  const sortedTimes = timeTickDates.map((date) => date.getTime());
+  const minTickGap = sortedTimes.reduce((gap, time, index) => {
+    const distance = time - (sortedTimes[index - 1] ?? time);
+    return distance > 0 ? Math.min(gap, distance) : gap;
+  }, Infinity);
+  // UTC-midnight date buckets must keep their calendar date; intraday instants use local time.
+  const showTooltipTime = timeDataDates.some(
+    (date, index) =>
+      date.getUTCHours() !== 0 ||
+      date.getUTCMinutes() !== 0 ||
+      date.getUTCSeconds() !== 0 ||
+      (index > 0 &&
+        date.getTime() - timeDataDates[index - 1]!.getTime() <
+          24 * 60 * 60 * 1000),
+  );
+  const crossesYear =
+    (showTooltipTime
+      ? timeTickDates[0]?.getFullYear()
+      : timeTickDates[0]?.getUTCFullYear()) !==
+    (showTooltipTime
+      ? timeTickDates[timeTickDates.length - 1]?.getFullYear()
+      : timeTickDates[timeTickDates.length - 1]?.getUTCFullYear());
+  const distinctTickMonths = new Set(
+    timeTickDates.map((date) =>
+      showTooltipTime
+        ? `${date.getFullYear()}-${date.getMonth()}`
+        : `${date.getUTCFullYear()}-${date.getUTCMonth()}`,
+    ),
+  ).size;
+  const formatTimeTick = (value: Date) =>
+    value.toLocaleString("en-US", {
+      ...(!showTooltipTime ? { timeZone: "UTC" } : {}),
+      ...(Number.isFinite(minTickGap) &&
+      minTickGap >= 28 * 24 * 60 * 60 * 1000 &&
+      distinctTickMonths === timeTickDates.length
+        ? { month: "short" as const, year: "numeric" as const }
+        : {
+            month: "short" as const,
+            day: "numeric" as const,
+            ...(crossesYear ? { year: "numeric" as const } : {}),
+            ...(minTickGap < 24 * 60 * 60 * 1000
+              ? { hour: "numeric" as const, minute: "2-digit" as const }
+              : {}),
+            ...(minTickGap < 60 * 60 * 1000
+              ? { second: "2-digit" as const }
+              : {}),
+          }),
+    });
   const categoryTickStep = Math.max(
     1,
     Math.ceil((80 * Math.max(1, data.length - 1)) / Math.max(1, plotWidth)),
@@ -547,30 +592,11 @@ function LineChartContent(
   if (data.length > 1) categoryTickIndices.push(data.length - 1);
   const xTicks =
     xAxis.type === "time"
-      ? [
-          ...(firstX instanceof Date ? [firstX] : []),
-          ...timeScale.ticks(Math.max(0, maxXTicks - 2)).filter((value) => {
-            const x = timeScale(value);
-            return (
-              x - LEFT_MARGIN >= APPROX_TIME_TICK_WIDTH &&
-              LEFT_MARGIN + plotWidth - x >= APPROX_TIME_TICK_WIDTH
-            );
-          }),
-          ...(lastX instanceof Date ? [lastX] : []),
-        ]
-          .filter(
-            (value, index, ticks) =>
-              ticks.findIndex(
-                (candidate) => candidate.getTime() === value.getTime(),
-              ) === index,
-          )
-          .sort((left, right) => left.getTime() - right.getTime())
-          .map((value) => ({
-            key: String(value.getTime()),
-            x: timeScale(value),
-            label:
-              xAxis.tickFormatter?.(value) ?? defaultTimeTickFormatter(value),
-          }))
+      ? timeTickDates.map((value) => ({
+          key: String(value.getTime()),
+          x: timeScale(value),
+          label: formatTimeTick(value),
+        }))
       : categoryTickIndices.map((index, tickIndex) => {
           const datum = data[index]!;
           const previous = categoryTickIndices[tickIndex - 1];
@@ -596,9 +622,7 @@ function LineChartContent(
   const activeDatum = data.find((datum) => datum.key === activeKey);
   const formatXAxisTick = (datum: NormalizedDatum) => {
     if (xAxis.type === "time" && datum.x instanceof Date) {
-      return (
-        xAxis.tickFormatter?.(datum.x) ?? defaultTimeTickFormatter(datum.x)
-      );
+      return formatTimeTick(datum.x);
     }
     if (xAxis.type === "category" && typeof datum.x === "string") {
       return xAxis.tickFormatter?.(datum.x) ?? datum.x;
@@ -612,15 +636,19 @@ function LineChartContent(
         label: formatXAxisTick(activeDatum),
       }
     : undefined;
-  const visibleXTicks = activeXAxisTick
-    ? [
-        ...xTicks.filter((tick) => tick.key !== activeXAxisTick.key),
-        { ...activeXAxisTick, maxWidth: undefined },
-      ].sort((left, right) => left.x - right.x)
-    : xTicks;
+  const showTooltipSeconds = timeDataDates.some(
+    (date) => date.getUTCSeconds() !== 0,
+  );
   const formatXTooltip = (datum: NormalizedDatum) => {
     if (xAxis.type === "time" && datum.x instanceof Date) {
-      return xAxis.tooltipFormatter?.(datum.x) ?? datum.x.toLocaleString();
+      return datum.x.toLocaleString("en-US", {
+        ...(!showTooltipTime ? { timeZone: "UTC" } : {}),
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        ...(showTooltipTime ? { hour: "numeric", minute: "2-digit" } : {}),
+        ...(showTooltipSeconds ? { second: "2-digit" } : {}),
+      });
     }
     if (xAxis.type === "category" && typeof datum.x === "string") {
       return xAxis.tooltipFormatter?.(datum.x) ?? datum.x;
@@ -676,22 +704,23 @@ function LineChartContent(
   const hasConfiguredEmphasis = series.some(
     (item) => item.emphasis && item.emphasis !== "default",
   );
-  const configuredEmphasizedSeries = series.filter(
-    (item) => item.emphasis === "emphasized",
-  );
-  let activeSeriesId: string | undefined;
-  if (configuredEmphasizedSeries.length === 1) {
-    activeSeriesId = configuredEmphasizedSeries[0]?.id;
-  } else if (!hasConfiguredEmphasis) {
-    activeSeriesId = hoveredSeriesId;
-  }
+  const activeSeriesId = useMemo(() => {
+    const configuredEmphasizedSeries = series.filter(
+      (item) => item.emphasis === "emphasized",
+    );
+    if (configuredEmphasizedSeries.length === 1) {
+      return configuredEmphasizedSeries[0]?.id;
+    }
+    if (!hasConfiguredEmphasis) return hoveredSeriesId;
+    return undefined;
+  }, [series, hasConfiguredEmphasis, hoveredSeriesId]);
 
   if (width <= 0 || height <= 0 || plotWidth <= 0 || plotHeight <= 0) {
     return <svg width={width} height={height} aria-hidden="true" />;
   }
 
   return (
-    <ChartTooltip>
+    <ChartTooltip placementStrategy="chart-bottom">
       {({ activeIndex, getReferenceProps }) => (
         <CartesianChart
           width={width}
@@ -710,11 +739,11 @@ function LineChartContent(
               ? yScale(0)
               : undefined
           }
+          activeX={activeXAxisTick}
           xAxis={
             showXAxisLabels
               ? {
-                  ticks: visibleXTicks,
-                  activeKey,
+                  ticks: xTicks,
                   showCategoryTicks: xAxis.type === "category",
                 }
               : undefined
@@ -802,7 +831,8 @@ function LineChartContent(
             return (
               <g
                 key={item.id}
-                className="transition-opacity duration-150"
+                className="transition-opacity"
+                style={{ transitionDuration: CHART_TRANSITION_DURATION }}
                 opacity={areaVariant || !dimmed ? 1 : 0.2}
               >
                 {areaVariant ? (
@@ -874,19 +904,6 @@ function LineChartContent(
             );
           })}
 
-          {activeKey !== undefined ? (
-            <line
-              x1={getXFromKey(activeKey)}
-              x2={getXFromKey(activeKey)}
-              y1={TOP_MARGIN}
-              y2={TOP_MARGIN + plotHeight}
-              stroke="hsl(var(--foreground))"
-              strokeDasharray="3 3"
-              opacity={0.35}
-              pointerEvents="none"
-            />
-          ) : null}
-
           {data.map((datum, index) => {
             const currentX = getX(datum);
             const left =
@@ -904,7 +921,6 @@ function LineChartContent(
               })
               .sort((left, right) => right.value - left.value);
             const first = values[0];
-            if (!first) return null;
             const heading = formatXTooltip(datum);
             const tooltipItems = values.map(({ item, value }) => ({
               id: item.id,
@@ -912,19 +928,39 @@ function LineChartContent(
               value: valueFormatter(value),
               color: hasDistinctColors ? item.color : undefined,
             }));
-            const referenceProps = getReferenceProps({
-              type: "items",
-              index,
-              heading,
-              focusPoint: {
-                x: currentX,
-                y: TOP_MARGIN + plotHeight / 2,
-              },
-              emphasizedItemId:
-                series.find((item) => item.emphasis === "emphasized")?.id ??
-                (!hasConfiguredEmphasis ? hoveredSeriesId : undefined),
-              items: tooltipItems,
-            });
+            const referenceProps = getReferenceProps(
+              first
+                ? {
+                    type: "items",
+                    index,
+                    heading,
+                    anchor:
+                      values.length === 1
+                        ? {
+                            type: "point" as const,
+                            x: currentX,
+                            y: yScale(
+                              stackedValues[index]?.get(first.item.id)?.top ??
+                                first.value,
+                            ),
+                          }
+                        : { type: "chart-column" as const, x: currentX },
+                    emphasizedItemId:
+                      series.find((item) => item.emphasis === "emphasized")
+                        ?.id ??
+                      (!hasConfiguredEmphasis ? hoveredSeriesId : undefined),
+                    items: tooltipItems,
+                  }
+                : {
+                    type: "empty",
+                    index,
+                    heading,
+                    anchor: {
+                      type: "chart-column",
+                      x: currentX,
+                    },
+                  },
+            );
             return (
               <g key={datum.key}>
                 <rect
@@ -962,7 +998,7 @@ function LineChartContent(
                     type: "items",
                     index,
                     heading,
-                    focusPoint: { x: currentX, y: pointY },
+                    anchor: { type: "point", x: currentX, y: pointY },
                     emphasizedItemId: item.id,
                     items: tooltipItems,
                   });

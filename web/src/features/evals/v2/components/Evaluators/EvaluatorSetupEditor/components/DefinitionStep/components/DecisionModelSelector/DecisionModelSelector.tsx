@@ -1,17 +1,27 @@
-import { isDecisionModelAdapter, supportedModels } from "@langfuse/shared";
+import { useState } from "react";
+import {
+  isAllowedDecisionModel,
+  isOpenAIDecisionModel,
+  OPENAI_DECISION_MODEL_IDS,
+} from "@langfuse/shared";
 import { useStore } from "zustand";
 
 import { Button } from "@/src/components/ui/button";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { PopoverTrigger } from "@/src/components/ui/popover";
+import {
+  JudgeModelPicker,
+  JudgeModelPickerTrigger,
+} from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
+import {
+  decisionModelsByProvider,
+  preferredDecisionModel,
+} from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { api } from "@/src/utils/api";
 
-const SEPARATOR = "::";
-
 /**
- * Picks the decision-model connection and model version. Decision models have
- * no project default and no sampling parameters, so this replaces the judge
- * model picker with a flat list of `provider :: model` options.
+ * Same content-width model menu as an LLM-as-a-judge, limited to decision
+ * models. No project default and no sampling parameters.
  */
 export function DecisionModelSelector({
   projectId,
@@ -22,6 +32,7 @@ export function DecisionModelSelector({
   store: EvaluatorSetupStore;
   onConfigureProviders: () => void;
 }) {
+  const [open, setOpen] = useState(false);
   const selectedModel = useStore(store, (state) => state.selectedModel);
   const selectModel = store.getState().actions.selectModel;
   const connections = api.llmApiKey.all.useQuery({
@@ -29,46 +40,74 @@ export function DecisionModelSelector({
     includeDecisionModels: true,
   });
 
-  const options = (connections.data?.data ?? [])
-    .filter((connection) => isDecisionModelAdapter(connection.adapter))
-    .flatMap((connection) => {
-      const models = connection.withDefaultModels
-        ? [...connection.customModels, ...supportedModels[connection.adapter]]
-        : connection.customModels;
-      return models.map((model) => ({
-        value: `${connection.provider}${SEPARATOR}${model}`,
-        label: `${connection.provider}: ${model}`,
-      }));
-    });
+  const rows = connections.data?.data ?? [];
+  const modelsByProvider = decisionModelsByProvider(rows);
 
-  if (connections.isSuccess && options.length === 0) {
+  const selectedConnection = rows.find(
+    (connection) => connection.provider === selectedModel?.provider,
+  );
+  // A saved TypeSafe version can outlive the connection's current list. An
+  // OpenAI model outside the decision-model list must not be offered again.
+  const selectedIsAllowed =
+    selectedModel != null &&
+    (selectedConnection == null ||
+      isAllowedDecisionModel(selectedConnection.adapter, selectedModel.model));
+  if (selectedModel && selectedIsAllowed) {
+    const listed = modelsByProvider.get(selectedModel.provider) ?? [];
+    if (!listed.includes(selectedModel.model)) {
+      modelsByProvider.set(selectedModel.provider, [
+        ...listed,
+        selectedModel.model,
+      ]);
+    }
+  }
+
+  const providerGroups = Array.from(modelsByProvider.entries()).sort(
+    (left, right) =>
+      Number(right[1].some(isOpenAIDecisionModel)) -
+      Number(left[1].some(isOpenAIDecisionModel)),
+  );
+  const unsupported = selectedModel != null && !selectedIsAllowed;
+  // Shown until the user picks a model. The store stays untouched.
+  const displayedModel = selectedModel ?? preferredDecisionModel(rows);
+
+  if (
+    connections.isSuccess &&
+    providerGroups.length === 0 &&
+    selectedModel == null
+  ) {
     return (
       <Button type="button" variant="outline" onClick={onConfigureProviders}>
-        Add a TypeSafe connection
+        Add an OpenAI or TypeSafe connection
       </Button>
     );
   }
 
   return (
-    <div className="max-w-xs min-w-56">
-      <SelectInput
-        aria-label="Decision model"
-        placeholder="Select a decision model"
-        value={
-          selectedModel
-            ? `${selectedModel.provider}${SEPARATOR}${selectedModel.model}`
-            : ""
-        }
-        options={options}
-        onValueChange={(value) => {
-          const separatorIndex = value.indexOf(SEPARATOR);
-          if (separatorIndex === -1) return;
-          selectModel({
-            provider: value.slice(0, separatorIndex),
-            model: value.slice(separatorIndex + SEPARATOR.length),
-          });
-        }}
-      />
+    <div className="flex w-fit max-w-full flex-col items-start gap-1.5">
+      <JudgeModelPicker
+        purpose="decision"
+        open={open}
+        onOpenChange={setOpen}
+        providerGroups={providerGroups}
+        selectedModel={displayedModel}
+        onSelect={selectModel}
+        onConfigureProviders={onConfigureProviders}
+      >
+        <PopoverTrigger asChild>
+          <JudgeModelPickerTrigger
+            mode="custom"
+            selectedModel={displayedModel}
+            disabled={false}
+          />
+        </PopoverTrigger>
+      </JudgeModelPicker>
+      {unsupported ? (
+        <p className="text-destructive text-xs">
+          {selectedModel.model} is not supported for decision models. Choose{" "}
+          {OPENAI_DECISION_MODEL_IDS.join(", ")}.
+        </p>
+      ) : null}
     </div>
   );
 }

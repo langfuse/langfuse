@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job, UnrecoverableError } from "bullmq";
@@ -31,6 +30,7 @@ import {
   enrichObservationWithModelData,
   createModelCache,
   blobStorageEndpointConnectionValidationOptions,
+  assertGcsBlobStorageBucketAllowed,
   validateBlobStorageEndpoint,
   dispatchProjectNotification,
 } from "@langfuse/shared/src/server";
@@ -77,10 +77,7 @@ import { SpanKind } from "@opentelemetry/api";
 import { env } from "../../env";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
-import {
-  recordExportFreshnessLag,
-  windowClassFromBlobFrequency,
-} from "../../services/exportFreshnessLagMetric";
+import { isExportCaughtUp } from "../../services/exportStalenessMetric";
 import {
   buildBlobExportManifest,
   buildBlobExportManifestKey,
@@ -364,10 +361,31 @@ type BlobStorageConnectionConfig = {
 
 const createBlobStorageService = (
   config: BlobStorageConnectionConfig,
-): StorageService =>
-  StorageServiceFactory.getInstance({
-    accessKeyId: config.accessKeyId,
-    secretAccessKey: config.secretAccessKey,
+): StorageService => {
+  const useGoogleCloudStorage =
+    config.type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE;
+  // GCS: a stored secret is the customer's service account JSON key; none means
+  // default credentials (the deployment identity).
+  const gcsServiceAccountKey = useGoogleCloudStorage
+    ? config.secretAccessKey
+    : undefined;
+  if (useGoogleCloudStorage && !gcsServiceAccountKey) {
+    // Re-checked per run so removing a bucket from the allowlist stops keyless
+    // exports that were saved while it was allowed.
+    assertGcsBlobStorageBucketAllowed(config.bucketName);
+  }
+  // The GCS client treats a non-JSON string as a key *file path*; a customer
+  // secret must never be read as one.
+  if (gcsServiceAccountKey && !gcsServiceAccountKey.trim().startsWith("{")) {
+    // Named so classifyCustomerFault disables the integration instead of retrying.
+    throw Object.assign(
+      new Error("GCS credentials must be a service account JSON key"),
+      { name: "InvalidGcsServiceAccountKey" },
+    );
+  }
+  return StorageServiceFactory.getInstance({
+    accessKeyId: useGoogleCloudStorage ? undefined : config.accessKeyId,
+    secretAccessKey: useGoogleCloudStorage ? undefined : config.secretAccessKey,
     bucketName: config.bucketName,
     endpoint: config.endpoint ?? undefined,
     region: config.region,
@@ -375,10 +393,13 @@ const createBlobStorageService = (
     awsSse: undefined,
     awsSseKmsKeyId: undefined,
     useAzureBlob: config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
-    useGoogleCloudStorage: false, // Not supported in blob storage integration
+    // Undefined → ADC (the deployment's own identity), allowlist-gated above.
+    useGoogleCloudStorage,
+    googleCloudCredentials: gcsServiceAccountKey,
     useOCIObjectStorage: false, // Not supported in blob storage integration
     connectionValidation: blobStorageEndpointConnectionValidationOptions(),
   });
+};
 
 const processBlobStorageExport = async (config: {
   projectId: string;
@@ -502,25 +523,37 @@ const processBlobStorageExport = async (config: {
           (config.table === "observations" ||
             config.table === "observations_v2");
 
-        const exportPath = parquetEligible
-          ? "parquet"
-          : passthroughEligible
-            ? "passthrough"
-            : "standard";
+        const exportPath = (() => {
+          if (parquetEligible) {
+            return "parquet";
+          }
+          if (passthroughEligible) {
+            return "passthrough";
+          }
+          return "standard";
+        })();
 
         const timestamp = formatBlobExportTimestamp(config.maxTimestamp);
         // Parquet: fixed `.parquet` extension (no `.gz`) and Parquet content type.
-        const extension = parquetEligible
-          ? "parquet"
-          : config.compressed
-            ? `${blobStorageProps.extension}.gz`
-            : blobStorageProps.extension;
+        const extension = (() => {
+          if (parquetEligible) {
+            return "parquet";
+          }
+          if (config.compressed) {
+            return `${blobStorageProps.extension}.gz`;
+          }
+          return blobStorageProps.extension;
+        })();
         const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
-        const uploadContentType = parquetEligible
-          ? "application/vnd.apache.parquet"
-          : config.compressed
-            ? "application/gzip"
-            : blobStorageProps.contentType;
+        const uploadContentType = (() => {
+          if (parquetEligible) {
+            return "application/vnd.apache.parquet";
+          }
+          if (config.compressed) {
+            return "application/gzip";
+          }
+          return blobStorageProps.contentType;
+        })();
 
         const exportFieldGroups =
           config.exportFieldGroups && config.exportFieldGroups.length > 0
@@ -788,7 +821,8 @@ const processBlobStorageExport = async (config: {
           partFailures: 0,
         };
         const producesUploadStats =
-          config.type !== BlobStorageIntegrationType.AZURE_BLOB_STORAGE &&
+          (config.type === BlobStorageIntegrationType.S3 ||
+            config.type === BlobStorageIntegrationType.S3_COMPATIBLE) &&
           sharedEnv.LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED === "true";
         let uploadStartMs: number | undefined;
         let uploadDurationMsFinal: number | undefined;
@@ -880,11 +914,15 @@ const processBlobStorageExport = async (config: {
               )
             : 0;
           // Measured backpressure (gzip / parquet boundary), else duration residual.
-          const uploadWaitMs = gzipStats
-            ? Math.round(gzipStats.backpressureMs)
-            : parquetEligible
-              ? Math.round(sourceStats.backpressureMs)
-              : Math.max(0, uploadDurationMs - chReadMs - enrichMs);
+          const uploadWaitMs = (() => {
+            if (gzipStats) {
+              return Math.round(gzipStats.backpressureMs);
+            }
+            if (parquetEligible) {
+              return Math.round(sourceStats.backpressureMs);
+            }
+            return Math.max(0, uploadDurationMs - chReadMs - enrichMs);
+          })();
 
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
@@ -940,11 +978,15 @@ const processBlobStorageExport = async (config: {
                   Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
                 )
               : 0;
-            const finalUploadWaitMs = gzipStats
-              ? Math.round(gzipStats.backpressureMs)
-              : parquetEligible
-                ? Math.round(sourceStats.backpressureMs)
-                : Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
+            const finalUploadWaitMs = (() => {
+              if (gzipStats) {
+                return Math.round(gzipStats.backpressureMs);
+              }
+              if (parquetEligible) {
+                return Math.round(sourceStats.backpressureMs);
+              }
+              return Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
+            })();
             span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
             span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
             const finalExportFormat = parquetEligible
@@ -1285,16 +1327,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
         nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
         lastError: null,
         lastErrorAt: null,
+        ...(isExportCaughtUp({
+          lastSyncAt: blobStorageIntegration.lastSyncAt,
+          runStartTime,
+        })
+          ? { backfill: false }
+          : {}),
       },
-    });
-    recordExportFreshnessLag({
-      integration: "blob_storage",
-      window: windowClassFromBlobFrequency(
-        blobStorageIntegration.exportFrequency,
-      ),
-      status: "success",
-      runStartTime,
-      maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
     });
     return;
   }
@@ -1303,7 +1342,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
   // self-hosted), so the deprecation notice below is Cloud-only too.
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
-  let watermarkAdvanced = false;
   try {
     // The catch persists lastError and notifies admins.
     assertExportSourceWritable(
@@ -1522,6 +1560,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
           lastError: null,
           lastErrorAt: null,
           runStartedAt: null,
+          ...(isExportCaughtUp({ lastSyncAt: maxTimestamp, runStartTime })
+            ? { backfill: false }
+            : {}),
         },
       },
     );
@@ -1531,20 +1572,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
       return;
     }
-
-    // The export watermark is committed. Catch-up enqueue below can still
-    // fail (Redis); that must not be recorded as an export-freshness failure
-    // against the pre-run lastSyncAt.
-    recordExportFreshnessLag({
-      integration: "blob_storage",
-      window: windowClassFromBlobFrequency(
-        blobStorageIntegration.exportFrequency,
-      ),
-      status: "success",
-      runStartTime,
-      maxExportedTimestamp: maxTimestamp,
-    });
-    watermarkAdvanced = true;
 
     // If still catching up, immediately queue the next chunk job
     if (!caughtUp) {
@@ -1602,18 +1629,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
         throw persistError;
       }
 
-      if (!watermarkAdvanced) {
-        recordExportFreshnessLag({
-          integration: "blob_storage",
-          window: windowClassFromBlobFrequency(
-            blobStorageIntegration.exportFrequency,
-          ),
-          status: "failure",
-          runStartTime,
-          maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
-        });
-      }
-
       // Cooldown-gated, not bypassed: the integration stays enabled and the
       // watermark does not advance, so every scheduled run re-attempts the same
       // too-large window and re-enters here. The cooldown caps this to one alert
@@ -1649,18 +1664,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     if (outcome.kind === "integration-deleted") {
       return; // obsolete job: complete it rather than fail it
-    }
-
-    if (!watermarkAdvanced) {
-      recordExportFreshnessLag({
-        integration: "blob_storage",
-        window: windowClassFromBlobFrequency(
-          blobStorageIntegration.exportFrequency,
-        ),
-        status: "failure",
-        runStartTime,
-        maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
-      });
     }
 
     switch (outcome.kind) {
@@ -1888,12 +1891,15 @@ function extractStorageErrorMessage(error: unknown): string {
   const errorDetails = (error as unknown as { Details?: unknown }).Details;
   const causeDetails = (cause as unknown as { Details?: unknown } | undefined)
     ?.Details;
-  const details =
-    typeof errorDetails === "string"
-      ? errorDetails
-      : typeof causeDetails === "string"
-        ? causeDetails
-        : undefined;
+  const details = (() => {
+    if (typeof errorDetails === "string") {
+      return errorDetails;
+    }
+    if (typeof causeDetails === "string") {
+      return causeDetails;
+    }
+    return undefined;
+  })();
 
   const full = details ? `${message} Details: ${details}` : message;
   return full.slice(0, 1000);

@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
+import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -12,7 +13,7 @@ import { createLinkTableColumn } from "@/src/components/design-system/table/colu
 import { createLinkListTableColumn } from "@/src/components/design-system/table/columns/createLinkListTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { StickySearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   useColumnVisibility,
@@ -43,6 +44,7 @@ import {
 } from "@langfuse/shared";
 
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { useOrderByState } from "@/src/features/orderBy";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -56,7 +58,12 @@ import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlace
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { joinSessionCoreAndMetrics } from "@/src/features/sessions/session-row-data";
 import { TagList } from "@/src/features/tag";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useCompactRows,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { cn } from "@/src/utils/tailwind";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -107,6 +114,21 @@ export type SessionTableProps = {
    */
   showControlsInPageHeader?: boolean;
 };
+
+function SessionTraceTags({
+  tags,
+  fallbackCompact,
+}: {
+  tags: string[];
+  fallbackCompact: boolean;
+}) {
+  const compact = useCompactRows(fallbackCompact);
+  return (
+    <div className={cn("flex gap-x-2 gap-y-1", !compact && "flex-wrap")}>
+      <TagList selectedTags={tags} isLoading={false} viewOnly />
+    </div>
+  );
+}
 
 export default function SessionsTable({
   projectId,
@@ -194,7 +216,15 @@ export default function SessionsTable({
     limit: "pageSize",
   });
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("sessions", "s");
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "sessions",
+    "s",
+  );
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
@@ -239,6 +269,23 @@ export default function SessionsTable({
   );
 
   const filterOptions = isV4 ? filterOptionsV4 : filterOptionsV3;
+  const eventToolOptions = useEventsFilterOptions({
+    projectId,
+    refiningFilter: [
+      {
+        column: "sessionId",
+        type: "string",
+        operator: "is not empty",
+        value: "",
+      },
+    ],
+    startTimeFilter: (dateRangeFilter as TimeFilter[]).map((item) => ({
+      ...item,
+      column: "startTime" as const,
+    })),
+    columns: ["toolNames", "calledToolNames"],
+    enabled: isV4,
+  });
 
   const newFilterOptions = useMemo(() => {
     const scoreCategories =
@@ -262,6 +309,8 @@ export default function SessionsTable({
         })) ?? undefined,
       // tags don't have counts; they read A→Z
       tags: sortOptionValues(filterOptions.data?.tags.map((t) => t.value)),
+      toolNames: eventToolOptions.filterOptions.toolNames,
+      calledToolNames: eventToolOptions.filterOptions.calledToolNames,
       sessionDuration: [],
       countTraces: [],
       inputTokens: [],
@@ -274,10 +323,17 @@ export default function SessionsTable({
       scores_avg: scoresNumeric,
       score_booleans: scoresBoolean,
     };
-  }, [environmentOptions, filterOptions.data]);
+  }, [
+    environmentOptions,
+    filterOptions.data,
+    eventToolOptions.filterOptions.toolNames,
+    eventToolOptions.filterOptions.calledToolNames,
+  ]);
 
   const isSidebarFilterLoading =
-    filterOptions.isPending || environmentFilterOptions.isPending;
+    filterOptions.isPending ||
+    environmentFilterOptions.isPending ||
+    (isV4 && eventToolOptions.isFilterOptionsPending);
 
   const { viewControllersRef, onExplicitFilterStateChange } =
     useTableViewFilterChange();
@@ -397,6 +453,7 @@ export default function SessionsTable({
         });
       }
       showSuccessToast({
+        operation: "session.add_to_annotation_queue",
         title: "Sessions added to queue",
         description: `Selected sessions will be added to queue "${data.queueName}". This may take a minute.`,
         link: {
@@ -728,14 +785,7 @@ export default function SessionsTable({
         return (
           value &&
           value.length > 0 && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={value} isLoading={false} viewOnly />
-            </div>
+            <SessionTraceTags tags={value} fallbackCompact={compactRows} />
           )
         );
       },
@@ -817,79 +867,77 @@ export default function SessionsTable({
             setTimeRange={setTimeRange}
           />
         )}
-        {/* In bar mode the composer and the toolbar stick together as one band
-            (matching EventsTable) so the toolbar cannot scroll under the
-            composer and render half-clipped; pb-1.5 gives the band the same
-            breathing room above the table that the events tables have. */}
-        <div className="bg-background sticky top-0 z-30 pb-1.5">
-          <TableSearchBar
-            key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
-            isV4={isV4}
-            filterState={queryFilter.searchBarFilterState}
-            setFilterState={setFiltersWrapper}
-            projectId={projectId}
-            tableName={sessionsFilterConfig.tableName}
-            observed={observedOptions}
-            registry={searchRegistry}
-          />
-          {/* Toolbar spanning full width */}
-          <DataTableToolbar
-            rowClassName="my-1"
-            filterState={queryFilter.explicitFilterState}
-            actionButtons={[
-              selectedSessionIds.length > 0 || selectAll ? (
-                <TableActionMenu
-                  key="sessions-multi-select-actions"
-                  projectId={projectId}
-                  actions={tableActions}
-                  tableName={BatchExportTableName.Sessions}
-                  selectedCount={selectedSessionCount}
-                  onClearSelection={() => {
-                    setSelectedRows({});
-                    setSelectAll(false);
-                  }}
-                />
-              ) : null,
-              hasBatchExportAccess ? (
-                <BatchExportTableButton
-                  {...{
-                    projectId,
-                    filterState: backendFilterState,
-                    orderByState,
-                  }}
-                  tableName={BatchExportTableName.Sessions}
-                  key="batchExport"
-                />
-              ) : null,
-            ]}
-            columns={columns}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={handleColumnVisibilityChange}
-            columnOrder={columnOrder}
-            setColumnOrder={handleColumnOrderChange}
-            viewConfig={{
-              tableName: TableViewPresetTableName.Sessions,
-              projectId,
-              controllers: viewControllers,
-            }}
-            timeRange={showControlsInPageHeader ? undefined : timeRange}
-            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-            columnsWithCustomSelect={["userIds"]}
-            rowHeight={rowHeight}
-            setRowHeight={setRowHeight}
-            multiSelect={{
-              selectAll,
-              setSelectAll,
-              selectedRowIds: selectedSessionIds,
-              setRowSelection: setSelectedRows,
-              totalCount,
-              ...paginationState,
-            }}
-          />
-        </div>
-
-        {/* Content area with sidebar and table */}
-        <ResizableFilterLayout>
+        <StickySearchableTableFilterLayout
+          search={
+            <TableSearchBar
+              size={showControlsInPageHeader ? "large" : "default"}
+              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+              isV4={isV4}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={setFiltersWrapper}
+              projectId={projectId}
+              tableName={sessionsFilterConfig.tableName}
+              observed={observedOptions}
+              registry={searchRegistry}
+            />
+          }
+          toolbar={
+            <DataTableToolbar
+              rowClassName="my-1"
+              filterState={queryFilter.explicitFilterState}
+              actionButtons={[
+                selectedSessionIds.length > 0 || selectAll ? (
+                  <TableActionMenu
+                    key="sessions-multi-select-actions"
+                    projectId={projectId}
+                    actions={tableActions}
+                    tableName={BatchExportTableName.Sessions}
+                    selectedCount={selectedSessionCount}
+                    onClearSelection={() => {
+                      setSelectedRows({});
+                      setSelectAll(false);
+                    }}
+                  />
+                ) : null,
+                hasBatchExportAccess ? (
+                  <BatchExportTableButton
+                    {...{
+                      projectId,
+                      filterState: backendFilterState,
+                      orderByState,
+                    }}
+                    tableName={BatchExportTableName.Sessions}
+                    key="batchExport"
+                  />
+                ) : null,
+              ]}
+              columns={columns}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={handleColumnVisibilityChange}
+              columnOrder={columnOrder}
+              setColumnOrder={handleColumnOrderChange}
+              viewConfig={{
+                tableName: TableViewPresetTableName.Sessions,
+                projectId,
+                controllers: viewControllers,
+              }}
+              timeRange={showControlsInPageHeader ? undefined : timeRange}
+              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+              columnsWithCustomSelect={["userIds"]}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              customRowHeight={customRowHeightMenu(rowHeights)}
+              multiSelect={{
+                selectAll,
+                setSelectAll,
+                selectedRowIds: selectedSessionIds,
+                setRowSelection: setSelectedRows,
+                totalCount,
+                ...paginationState,
+              }}
+            />
+          }
+        >
           <DataTableControls
             // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
             key={viewControllers.filterEditorResetKey}
@@ -938,6 +986,7 @@ export default function SessionsTable({
                 totalCount,
                 onChange: setPaginationState,
                 state: paginationState,
+                options: TRACING_PAGE_SIZE_OPTIONS,
               }}
               setOrderBy={handleOrderByChange}
               orderBy={orderByState}
@@ -954,9 +1003,12 @@ export default function SessionsTable({
                 href: "https://langfuse.com/docs/observability/features/sessions",
               }}
               rowHeight={rowHeight}
+              customRowHeightPx={rowHeights.activeHeightPx}
+              onCustomRowHeightChange={rowHeights.setCustomPx}
+              onSelectRowHeight={setRowHeight}
             />
           </div>
-        </ResizableFilterLayout>
+        </StickySearchableTableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );
