@@ -605,29 +605,31 @@ function TabsOverflowList({
             visible.has(index) ? trigger : null,
           )}
           {hiddenTriggers.length > 0 ? (
-            <DropdownMenu
-              ariaLabel={overflowTriggerLabel}
-              items={hiddenTriggers.map((trigger) => ({
-                badge: trigger.props.internal ? (
-                  <TabsInternalBadge />
-                ) : undefined,
-                disabled: trigger.props.disabled
-                  ? { reason: trigger.props.tooltip ?? "Not available" }
-                  : undefined,
-                id: trigger.props.value,
-                onClick: () => selectFromMenu(trigger.props.value),
-                title:
-                  trigger.props.label ??
-                  trigger.props.title ??
-                  trigger.props.value,
-                tooltip: trigger.props.tooltip,
-                type: "item" as const,
-              }))}
-            >
-              {({ getTriggerProps }) => (
-                <TabsOverflowTrigger {...getTriggerProps()} />
-              )}
-            </DropdownMenu>
+            <span className="flex shrink-0">
+              <DropdownMenu
+                ariaLabel={overflowTriggerLabel}
+                items={hiddenTriggers.map((trigger) => ({
+                  badge: trigger.props.internal ? (
+                    <TabsInternalBadge />
+                  ) : undefined,
+                  disabled: trigger.props.disabled
+                    ? { reason: trigger.props.tooltip ?? "Not available" }
+                    : undefined,
+                  id: trigger.props.value,
+                  onClick: () => selectFromMenu(trigger.props.value),
+                  title:
+                    trigger.props.label ??
+                    trigger.props.title ??
+                    trigger.props.value,
+                  tooltip: trigger.props.tooltip,
+                  type: "item" as const,
+                }))}
+              >
+                {({ getTriggerProps }) => (
+                  <TabsOverflowTrigger {...getTriggerProps()} />
+                )}
+              </DropdownMenu>
+            </span>
           ) : null}
         </div>
       </TabsPrimitive.List>
