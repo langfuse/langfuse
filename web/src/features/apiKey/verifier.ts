@@ -63,6 +63,7 @@ export class Verifier {
     const admin = this.verifyAdminKey(token);
     if (admin) return admin;
 
+    /** @deprecated Public bearer authentication will be removed in the next major version. */
     const byPublicKey = await this.verifyPublicKey(token);
     if (byPublicKey) return rejectExpired(byPublicKey);
 
