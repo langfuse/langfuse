@@ -69,7 +69,7 @@ export function Stepper({
           <span className="text-lg font-bold">{title}</span>
         </button>
         {expanded && (
-          <div className="flex flex-col gap-4 pl-5.5">
+          <div className="flex flex-col gap-4 pl-5">
             {description ? (
               <p className="text-muted-foreground text-sm">{description}</p>
             ) : null}
