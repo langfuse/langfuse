@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
   prepareModels: vi.fn(),
   writeModels: vi.fn(),
   ensureFacets: vi.fn(),
-  listRules: vi.fn(),
   saveRule: vi.fn(),
 }));
 
@@ -16,8 +15,13 @@ vi.mock("./model-config", () => ({
 }));
 vi.mock("./postgres", () => ({
   ensureDefaultTopicFacets: mocks.ensureFacets,
-  listTopicRules: mocks.listRules,
-  saveTopicRule: mocks.saveRule,
+  writeTopicRule: mocks.saveRule,
+}));
+vi.mock("../../db", () => ({
+  prisma: {
+    $transaction: (callback: (tx: string) => Promise<unknown>) =>
+      callback("tx"),
+  },
 }));
 
 import { saveTopicsSetup } from "./setup";
@@ -57,8 +61,6 @@ describe("Topics setup", () => {
   });
 
   it("creates the built-in facets and one rule for the enabled ones", async () => {
-    mocks.listRules.mockResolvedValue([]);
-
     await saveTopicsSetup(projectId, setup);
 
     expect(mocks.prepareModels).toHaveBeenCalledWith(projectId, {
@@ -69,68 +71,44 @@ describe("Topics setup", () => {
       enabled: true,
     });
     expect(mocks.ensureFacets).toHaveBeenCalledWith(projectId);
-    expect(mocks.saveRule).toHaveBeenCalledWith({
-      id: undefined,
+    expect(mocks.saveRule).toHaveBeenCalledWith("tx", {
       projectId,
-      name: "Topics",
       filter: setup.filter,
       sampling: 0.25,
       idleTimeMs: 120_000,
       facetIds: facets.flatMap((facet) => (facet.enabled ? [facet.id] : [])),
     });
-    expect(mocks.writeModels).toHaveBeenCalledWith(projectId, {
-      enabled: true,
-    });
+    expect(mocks.writeModels).toHaveBeenCalledWith(
+      projectId,
+      { enabled: true },
+      "tx",
+    );
   });
 
   it("enables the models only after the rule is saved", async () => {
-    mocks.listRules.mockResolvedValue([]);
     mocks.saveRule.mockRejectedValue(
-      new InvalidRequestError("This project already has a Topics rule."),
+      new InvalidRequestError("This project has more than one Topics rule."),
     );
 
     await expect(saveTopicsSetup(projectId, setup)).rejects.toThrow(
-      "already has a Topics rule",
+      "more than one Topics rule",
     );
     expect(mocks.prepareModels).toHaveBeenCalledOnce();
     expect(mocks.writeModels).not.toHaveBeenCalled();
   });
 
   it("keeps enabled custom facets assigned to the rule", async () => {
-    mocks.listRules.mockResolvedValue([]);
-
     await saveTopicsSetup(projectId, {
       ...setup,
       customFacetIds: ["custom-language"],
     });
 
     expect(mocks.saveRule).toHaveBeenCalledWith(
+      "tx",
       expect.objectContaining({
         facetIds: expect.arrayContaining(["intent", "custom-language"]),
       }),
     );
-  });
-
-  it("updates the existing rule instead of creating another", async () => {
-    mocks.listRules.mockResolvedValue([
-      { id: "rule-a", name: "Topics", facetIds: ["intent"] },
-    ]);
-
-    await saveTopicsSetup(projectId, setup);
-
-    expect(mocks.saveRule).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "rule-a", name: "Topics" }),
-    );
-  });
-
-  it("rejects a project that already has more than one Topics rule", async () => {
-    mocks.listRules.mockResolvedValue([{ id: "rule-a" }, { id: "rule-b" }]);
-
-    await expect(saveTopicsSetup(projectId, setup)).rejects.toBeInstanceOf(
-      InvalidRequestError,
-    );
-    expect(mocks.prepareModels).not.toHaveBeenCalled();
-    expect(mocks.saveRule).not.toHaveBeenCalled();
   });
 
   it("rejects a setup with every facet turned off", async () => {
@@ -140,7 +118,6 @@ describe("Topics setup", () => {
         facets: setup.facets.map((facet) => ({ ...facet, enabled: false })),
       }),
     ).rejects.toThrow(/at least one facet/);
-    expect(mocks.listRules).not.toHaveBeenCalled();
     expect(mocks.prepareModels).not.toHaveBeenCalled();
   });
 

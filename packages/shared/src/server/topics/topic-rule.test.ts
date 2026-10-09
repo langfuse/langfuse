@@ -3,8 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   lock: vi.fn(),
   facetCount: vi.fn(),
-  ruleCount: vi.fn(),
-  findRule: vi.fn(),
+  findRules: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
 }));
@@ -21,8 +20,7 @@ vi.mock("../../db", () => ({
         $executeRaw: mocks.lock,
         evaluator: { count: mocks.facetCount },
         evaluationRule: {
-          count: mocks.ruleCount,
-          findFirst: mocks.findRule,
+          findMany: mocks.findRules,
           create: mocks.create,
           update: mocks.update,
         },
@@ -48,7 +46,7 @@ describe("saveTopicRule", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.facetCount.mockResolvedValue(1);
-    mocks.ruleCount.mockResolvedValue(0);
+    mocks.findRules.mockResolvedValue([]);
     mocks.create.mockResolvedValue(savedRow);
     mocks.update.mockResolvedValue(savedRow);
   });
@@ -79,42 +77,54 @@ describe("saveTopicRule", () => {
     });
   });
 
-  it("rejects a second Topics rule in the same project", async () => {
-    mocks.ruleCount.mockResolvedValue(1);
-
-    await expect(
-      saveTopicRule({
-        projectId,
-        name: "Another",
-        filter: [],
-        facetIds: ["intent"],
-      }),
-    ).rejects.toThrow(/already has a Topics rule/);
-    // The project lock serializes concurrent first-time saves before the check.
-    expect(mocks.lock.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.ruleCount.mock.invocationCallOrder[0],
-    );
-    expect(mocks.create).not.toHaveBeenCalled();
-  });
-
-  it("updates the existing rule with a new sampling rate and idle time", async () => {
-    mocks.findRule.mockResolvedValue({ id: "rule-a" });
+  it("updates the project's only rule when saved without an id", async () => {
+    mocks.findRules.mockResolvedValue([{ id: "rule-a", name: "Topics" }]);
 
     await saveTopicRule({
-      id: "rule-a",
       projectId,
-      name: "Topics",
       filter: [],
       facetIds: ["intent"],
       sampling: 0.5,
       idleTimeMs: 60_000,
     });
 
-    expect(mocks.ruleCount).not.toHaveBeenCalled();
+    // The rule is looked up under the project lock, so a racing first save
+    // updates the rule the other one created instead of adding a second.
+    expect(mocks.lock.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.findRules.mock.invocationCallOrder[0],
+    );
+    expect(mocks.create).not.toHaveBeenCalled();
     expect(mocks.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ sampling: 0.5, idleTime: 60_000 }),
+        where: expect.objectContaining({ id: "rule-a" }),
+        data: expect.objectContaining({
+          name: "Topics",
+          sampling: 0.5,
+          idleTime: 60_000,
+        }),
       }),
     );
+  });
+
+  it("rejects another project's rule id and projects with several rules", async () => {
+    mocks.findRules.mockResolvedValue([{ id: "rule-a", name: "Topics" }]);
+    await expect(
+      saveTopicRule({
+        id: "rule-b",
+        projectId,
+        filter: [],
+        facetIds: ["intent"],
+      }),
+    ).rejects.toThrow("Topic rule not found in this project.");
+
+    mocks.findRules.mockResolvedValue([
+      { id: "rule-a", name: "Topics" },
+      { id: "rule-b", name: "Old" },
+    ]);
+    await expect(
+      saveTopicRule({ projectId, filter: [], facetIds: ["intent"] }),
+    ).rejects.toThrow("This project has more than one Topics rule.");
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 });

@@ -23,6 +23,7 @@ import {
   getTopicRule,
   listTopicRules,
   saveTopicRule,
+  saveTopicRuleAndModels,
   createTopicExecution,
   readTopicExecutionSummary,
   writeTopicExecution,
@@ -37,6 +38,8 @@ describe("Topics eval-backed configuration", () => {
   const orgId = randomUUID();
   const projectId = randomUUID();
   const otherProjectId = randomUUID();
+  const ruleProjectId = randomUUID();
+  const rollbackProjectId = randomUUID();
 
   beforeAll(async () => {
     await prisma.organization.create({
@@ -47,6 +50,8 @@ describe("Topics eval-backed configuration", () => {
           create: [
             { id: projectId, name: "Topics" },
             { id: otherProjectId, name: "Other project" },
+            { id: ruleProjectId, name: "Topics rule" },
+            { id: rollbackProjectId, name: "Topics rollback" },
           ],
         },
       },
@@ -88,6 +93,61 @@ describe("Topics eval-backed configuration", () => {
         prompt: "Replace the built-in instructions.",
       }),
     ).rejects.toThrow(/built-in/i);
+  });
+
+  it("keeps one Topics rule per project when first saves race", async () => {
+    const facets = await ensureDefaultTopicFacets(ruleProjectId);
+    const facetIds = facets.slice(0, 2).map((facet) => facet.id);
+    const saved = await Promise.all(
+      [0.25, 0.5, 0.75].map((sampling) =>
+        saveTopicRule({
+          projectId: ruleProjectId,
+          filter: [],
+          facetIds,
+          sampling,
+        }),
+      ),
+    );
+
+    // Every save succeeds and writes the same rule; none creates a second one.
+    expect(new Set(saved.map((rule) => rule.id)).size).toBe(1);
+    const rules = await listTopicRules(ruleProjectId);
+    expect(rules).toHaveLength(1);
+    expect(rules[0].facetIds.sort()).toEqual([...facetIds].sort());
+  });
+
+  it("leaves no rule behind when the model settings cannot be written", async () => {
+    const facets = await ensureDefaultTopicFacets(rollbackProjectId);
+    await expect(
+      saveTopicRuleAndModels(
+        {
+          projectId: rollbackProjectId,
+          filter: [],
+          facetIds: [facets[0].id],
+        },
+        {
+          enabled: true,
+          blockedAt: null,
+          blockReason: null,
+          blockMessage: null,
+          // No such connection: the foreign key rejects the model write.
+          summaryLlmApiKeyId: "missing-connection",
+          summaryModel: "gpt-6-luna",
+          embeddingLlmApiKeyId: null,
+          embeddingModel: null,
+          embeddingDimensions: 1024,
+          clusteringLlmApiKeyId: null,
+          clusteringModel: null,
+        },
+      ),
+    ).rejects.toThrow();
+
+    expect(await listTopicRules(rollbackProjectId)).toEqual([]);
+    expect(
+      await prisma.topicsModelConfig.findUnique({
+        where: { projectId: rollbackProjectId },
+      }),
+    ).toBeNull();
   });
 
   it("keeps versions and rule assignments scoped to this project's FACET evaluators", async () => {
@@ -150,14 +210,15 @@ describe("Topics eval-backed configuration", () => {
       facetIds: [facet.id, facet.id],
     });
     expect(rule.facetIds).toEqual([facet.id]);
-    await expect(
-      saveTopicRule({
+    // A save without an id writes the project's single rule.
+    expect(
+      await saveTopicRule({
         projectId,
         name: "Second selection",
         filter: [],
         facetIds: [facet.id],
       }),
-    ).rejects.toThrow(/already has a Topics rule/);
+    ).toMatchObject({ id: rule.id, name: "Second selection" });
     expect(
       await prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
     ).toMatchObject({

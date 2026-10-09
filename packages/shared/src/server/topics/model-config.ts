@@ -283,8 +283,9 @@ export async function prepareTopicsModelSettings(
 export async function writeTopicsModelSettings(
   projectId: string,
   data: Awaited<ReturnType<typeof prepareTopicsModelSettings>>,
+  tx: Prisma.TransactionClient = prisma,
 ): Promise<void> {
-  await prisma.topicsModelConfig.upsert({
+  await tx.topicsModelConfig.upsert({
     where: { projectId },
     create: { projectId, ...data },
     update: data,

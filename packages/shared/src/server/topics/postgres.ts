@@ -208,75 +208,94 @@ export async function getTopicRule(
   return row ? topicRule(row) : null;
 }
 
-export async function saveTopicRule(
-  input: Omit<TopicRule, "id" | "updatedAt" | "sampling" | "idleTimeMs"> &
-    Partial<Pick<TopicRule, "sampling" | "idleTimeMs">> & { id?: string },
+/**
+ * A project has at most one Topics rule: its trace filter, sampling, and idle
+ * time apply to every facet it runs, because trace readiness keeps one idle
+ * time per trace. Postgres has no constraint for this, so writers hold this
+ * per-project lock while they look up the rule; otherwise two first saves
+ * could each find none and create a rule.
+ */
+async function lockProjectTopicRule(
+  tx: Prisma.TransactionClient,
+  projectId: string,
+) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`topics-rule:${projectId}`}, 0))`;
+}
+
+export type TopicRuleInput = Omit<
+  TopicRule,
+  "id" | "name" | "updatedAt" | "sampling" | "idleTimeMs"
+> &
+  Partial<Pick<TopicRule, "name" | "sampling" | "idleTimeMs">> & {
+    id?: string;
+  };
+
+export async function saveTopicRule(input: TopicRuleInput): Promise<TopicRule> {
+  return prisma.$transaction((tx) => writeTopicRule(tx, input));
+}
+
+/** Writes the project's rule inside the caller's transaction, under its lock. */
+export async function writeTopicRule(
+  tx: Prisma.TransactionClient,
+  input: TopicRuleInput,
 ): Promise<TopicRule> {
   const facetIds = [...new Set(input.facetIds)];
-  return prisma.$transaction(async (tx) => {
-    // Serializes first-time creation; the single-rule check below is not a constraint.
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`topics-rule:${input.projectId}`}, 0))`;
-    const facetCount = await tx.evaluator.count({
-      where: {
-        projectId: input.projectId,
-        type: "FACET",
-        id: { in: facetIds },
-      },
-    });
-    if (!facetIds.length || facetCount !== facetIds.length)
-      throw new InvalidRequestError("Select facets from this project.");
-    if (
-      input.id &&
-      !(await tx.evaluationRule.findFirst({
-        where: { ...topicRuleWhere(input.projectId), id: input.id },
-      }))
-    )
-      throw new InvalidRequestError("Topic rule not found in this project.");
-    if (!input.id) {
-      const existing = await tx.evaluationRule.count({
-        where: topicRuleWhere(input.projectId),
-      });
-      if (existing > 0)
-        throw new InvalidRequestError(
-          "This project already has a Topics rule.",
-        );
-    }
-    const config = topicRuleSettingsSchema.parse(input);
-    const data = {
-      name: input.name.trim(),
-      filter: JSON.parse(
-        JSON.stringify(config.filter),
-      ) as Prisma.InputJsonValue,
-      sampling: config.sampling,
-      delay: 0,
-      idleTime: config.idleTimeMs,
-      targetObject: EvalTargetObject.TRACE,
-      timeScope: ["NEW"],
-      status: "ACTIVE" as const,
-    };
-    const assignments = facetIds.map((evaluatorId) => ({
+  await lockProjectTopicRule(tx, input.projectId);
+  const facetCount = await tx.evaluator.count({
+    where: {
       projectId: input.projectId,
-      evaluatorId,
-    }));
-    const row = input.id
-      ? await tx.evaluationRule.update({
-          where: { ...topicRuleWhere(input.projectId), id: input.id },
-          data: {
-            ...data,
-            assignments: { deleteMany: {}, create: assignments },
-          },
-          include: { assignments: true },
-        })
-      : await tx.evaluationRule.create({
-          data: {
-            ...data,
-            projectId: input.projectId,
-            assignments: { create: assignments },
-          },
-          include: { assignments: true },
-        });
-    return topicRule(row);
+      type: "FACET",
+      id: { in: facetIds },
+    },
   });
+  if (!facetIds.length || facetCount !== facetIds.length)
+    throw new InvalidRequestError("Select facets from this project.");
+  const rules = await tx.evaluationRule.findMany({
+    where: topicRuleWhere(input.projectId),
+    select: { id: true, name: true },
+  });
+  if (rules.length > 1)
+    throw new InvalidRequestError(
+      "This project has more than one Topics rule.",
+    );
+  // Saving without an id writes the project's rule, creating it if needed.
+  const ruleId = rules[0]?.id;
+  const name = input.name?.trim() || rules[0]?.name || "Topics";
+  if (input.id && input.id !== ruleId)
+    throw new InvalidRequestError("Topic rule not found in this project.");
+  const config = topicRuleSettingsSchema.parse(input);
+  const data = {
+    name,
+    filter: JSON.parse(JSON.stringify(config.filter)) as Prisma.InputJsonValue,
+    sampling: config.sampling,
+    delay: 0,
+    idleTime: config.idleTimeMs,
+    targetObject: EvalTargetObject.TRACE,
+    timeScope: ["NEW"],
+    status: "ACTIVE" as const,
+  };
+  const assignments = facetIds.map((evaluatorId) => ({
+    projectId: input.projectId,
+    evaluatorId,
+  }));
+  const row = ruleId
+    ? await tx.evaluationRule.update({
+        where: { ...topicRuleWhere(input.projectId), id: ruleId },
+        data: {
+          ...data,
+          assignments: { deleteMany: {}, create: assignments },
+        },
+        include: { assignments: true },
+      })
+    : await tx.evaluationRule.create({
+        data: {
+          ...data,
+          projectId: input.projectId,
+          assignments: { create: assignments },
+        },
+        include: { assignments: true },
+      });
+  return topicRule(row);
 }
 
 function runResult(
