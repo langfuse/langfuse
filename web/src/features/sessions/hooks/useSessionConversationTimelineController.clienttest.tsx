@@ -101,6 +101,32 @@ function appendMeasuredRow(
 }
 
 describe("useSessionConversationTimelineController", () => {
+  it("highlights the whole tool group for group selection, but only the row for individual selection", () => {
+    const feed = createMeasuredFeed();
+    const row = appendMeasuredRow(feed, "trace:0", "0:0", 700);
+    const entry = row.parentElement!;
+    const group = document.createElement("div");
+    group.dataset.sessionToolGroupId = "0:0";
+    group.getBoundingClientRect = () =>
+      new DOMRect(0, 200 + 700 - feed.scrollTop, 100, 200);
+    const secondRow = document.createElement("div");
+    secondRow.dataset.sessionTranscriptRowId = "0:1";
+    group.append(row, secondRow);
+    entry.append(group);
+    const { result } = renderHook(() =>
+      useSessionConversationTimelineController([{ trace, itemId: "trace:0" }]),
+    );
+    act(() => result.current.onSelect(0, undefined, "0:0", "0:0"));
+    expect(feed.scrollTop).toBe(600);
+    expect(group).toHaveAttribute("data-session-navigation-highlight");
+    expect(row).not.toHaveAttribute("data-session-navigation-highlight");
+    expect(secondRow).not.toHaveAttribute("data-session-navigation-highlight");
+    act(() => result.current.onSelect(0, undefined, "0:0"));
+    expect(group).not.toHaveAttribute("data-session-navigation-highlight");
+    expect(row).toHaveAttribute("data-session-navigation-highlight");
+    expect(secondRow).not.toHaveAttribute("data-session-navigation-highlight");
+  });
+
   it.each(["message", "tool", "thread"] as const)(
     "highlights the %s as it enters the viewport, restarts on repeat selection, and clears on expiry or unmount",
     async (targetType) => {

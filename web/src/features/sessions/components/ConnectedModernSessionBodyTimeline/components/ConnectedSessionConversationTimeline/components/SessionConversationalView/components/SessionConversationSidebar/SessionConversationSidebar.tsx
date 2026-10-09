@@ -60,6 +60,7 @@ export function SessionConversationSidebar(
           index: number,
           observationId?: string,
           rowId?: string,
+          toolGroupId?: string,
         ) => void;
         onVisibleTraceIdsChange: (traceIds: string[]) => void;
         isLoadingTranscripts: boolean;
@@ -498,6 +499,7 @@ export function SessionConversationSidebar(
                                               props.onSelect(
                                                 targetIndex,
                                                 firstTool.observationId,
+                                                firstTool.id,
                                                 firstTool.id,
                                               )
                                             }

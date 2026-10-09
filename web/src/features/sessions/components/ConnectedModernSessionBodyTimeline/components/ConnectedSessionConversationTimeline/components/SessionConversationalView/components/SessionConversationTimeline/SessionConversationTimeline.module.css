@@ -1,12 +1,45 @@
-.timeline [data-session-navigation-highlight] {
+.timeline {
+  --session-navigation-highlight: hsl(var(--muted));
+}
+
+.timeline [data-session-message-bubble] {
+  --session-navigation-highlight: color-mix(
+    in srgb,
+    hsl(var(--muted-foreground)) 20%,
+    hsl(var(--muted))
+  );
+}
+
+.timeline [data-session-message-role="user"] {
+  --session-navigation-highlight: color-mix(
+    in srgb,
+    var(--color-blue-400) 20%,
+    hsl(var(--muted))
+  );
+}
+
+.timeline [data-session-navigation-highlight]:not([data-session-message-row]) {
   border-radius: 0.5rem;
   animation: navigation-highlight 1.5s ease-out;
+}
+
+.timeline
+  [data-session-navigation-highlight][data-session-message-row]
+  [data-session-message-bubble] {
+  animation: message-highlight 1.5s ease-out;
+}
+
+@keyframes message-highlight {
+  0%,
+  20% {
+    background-color: var(--session-navigation-highlight);
+  }
 }
 
 @keyframes navigation-highlight {
   0%,
   20% {
-    background-color: hsl(var(--muted));
+    background-color: var(--session-navigation-highlight);
   }
   100% {
     background-color: transparent;
@@ -14,8 +47,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .timeline [data-session-navigation-highlight] {
+  .timeline [data-session-navigation-highlight]:not([data-session-message-row]),
+  .timeline
+    [data-session-navigation-highlight][data-session-message-row]
+    [data-session-message-bubble] {
     animation: none;
-    background-color: hsl(var(--muted));
+    background-color: var(--session-navigation-highlight);
   }
 }

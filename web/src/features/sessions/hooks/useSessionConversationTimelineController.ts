@@ -96,7 +96,12 @@ export function useSessionConversationTimelineController(
     return () => feed.removeEventListener("scroll", clearFallback);
   }, [feedRef, selection]);
 
-  const onSelect = (index: number, observationId?: string, rowId?: string) => {
+  const onSelect = (
+    index: number,
+    observationId?: string,
+    rowId?: string,
+    toolGroupId?: string,
+  ) => {
     highlightCleanupRef.current?.();
     highlightCleanupRef.current = null;
     navigationCleanupRef.current?.();
@@ -202,6 +207,15 @@ export function useSessionConversationTimelineController(
             )
           : undefined;
       const mountedTarget = rowId || observationId ? row : entry;
+      const highlightTarget = toolGroupId
+        ? Array.from(
+            entry?.querySelectorAll<HTMLElement>(
+              "[data-session-tool-group-id]",
+            ) ?? [],
+          ).find(
+            (element) => element.dataset.sessionToolGroupId === toolGroupId,
+          )
+        : mountedTarget;
       const measurements = virtualizer.measurementsCache;
       const itemOffset = measurements[currentIndex]?.start;
       if (itemOffset === undefined) {
@@ -251,18 +265,20 @@ export function useSessionConversationTimelineController(
       if (reduceMotion ? targetChanged : nextTop !== feed.scrollTop) {
         feed.scrollTo({ top: nextTop, behavior: "instant" });
       }
-      if (mountedTarget && mountedTarget !== highlightedTarget) {
-        const targetBounds = mountedTarget.getBoundingClientRect();
+      if (highlightTarget && highlightTarget !== highlightedTarget) {
+        const targetBounds = highlightTarget.getBoundingClientRect();
         const viewportTop = feed.getBoundingClientRect().top + feed.clientTop;
         if (
           targetBounds.bottom > viewportTop &&
           targetBounds.top < viewportTop + feed.clientHeight
         ) {
           highlightCleanupRef.current?.();
-          highlightedTarget = mountedTarget;
-          mountedTarget.dataset.sessionNavigationHighlight = "";
+          highlightedTarget = highlightTarget;
+          highlightTarget.dataset.sessionNavigationHighlight = "";
           const clearHighlight = () => {
-            mountedTarget.removeAttribute("data-session-navigation-highlight");
+            highlightTarget.removeAttribute(
+              "data-session-navigation-highlight",
+            );
             window.clearTimeout(highlightTimeout);
             highlightCleanupRef.current = null;
           };

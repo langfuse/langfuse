@@ -96,6 +96,8 @@ export function SessionTimelineContentMessage({
             <div
               key={`reasoning-${groupIndex}`}
               className="flex w-full flex-col gap-1"
+              data-session-message-bubble=""
+              data-session-message-role={role}
             >
               {group.parts.map((part, partIndex) => (
                 <SessionTimelinePart
@@ -132,6 +134,8 @@ export function SessionTimelineContentMessage({
             className={cn("flex w-full", presentation.wrapper)}
           >
             <article
+              data-session-message-bubble=""
+              data-session-message-role={role}
               className={cn(
                 "group/bubble min-w-0 overflow-hidden",
                 presentation.container,
