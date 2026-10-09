@@ -52,6 +52,7 @@ export class Verifier {
     const byPrivateKey = await this.verifyPrivateKey(secretKey);
     if (byPrivateKey) return rejectExpired(byPrivateKey);
 
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
     const bySlowHash = await this.backfillSlowHash(publicKey, secretKey);
     if (bySlowHash) return rejectExpired(bySlowHash);
 
@@ -63,6 +64,7 @@ export class Verifier {
     const admin = this.verifyAdminKey(token);
     if (admin) return admin;
 
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
     const byPublicKey = await this.verifyPublicKey(token);
     if (byPublicKey) return rejectExpired(byPublicKey);
 

@@ -43,6 +43,7 @@ export class ContextResolver {
 
   /** resolve turns a verified credential into its context, collapsing a missing org to a 500 invariant break. */
   async resolve(params: ResolveContextParams): Promise<Resolved> {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
     if (params.authorization === "admin") {
       return { success: true, context: adminContext() };
     }
@@ -52,6 +53,7 @@ export class ContextResolver {
       success: true,
       context: await materialize(
         params.apiKey,
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
         params.authorization,
         org.organization,
         this.prisma,
@@ -121,6 +123,7 @@ async function materialize(
     policies: roles.flatMap((role) => role.policies),
   };
   if (authorization === "publicKey") {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
     return { principal, policies: publicBearerPolicies(context, apiKey, org) };
   }
   return context;
@@ -129,6 +132,7 @@ async function materialize(
   async function getRolesForApiKey(apiKeyId: string): Promise<Role[]> {
     let roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
     if (roles.length === 0) {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
       await backfillApiKeyRoleAssignment(prisma, apiKey, org);
       roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
     }
