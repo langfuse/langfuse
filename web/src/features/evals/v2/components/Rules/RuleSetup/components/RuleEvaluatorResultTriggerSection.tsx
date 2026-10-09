@@ -10,6 +10,7 @@ import {
 import { Button } from "@/src/components/design-system/Button/Button";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -145,12 +146,13 @@ export function RuleEvaluatorResultTriggerSection({
 
   return (
     <div className="flex flex-col gap-2">
-      <div>
-        <p className="text-sm">Filter evaluator results</p>
-        <p className="text-muted-foreground text-sm">
-          Group conditions on the same evaluator to wait for all its scores.
-        </p>
-      </div>
+      <SectionHeader
+        title="Filter evaluator results"
+        meta={null}
+        description="Group conditions on the same evaluator to wait for all its scores."
+        tooltip="These conditions determine which evaluator results trigger this rule."
+        trailing={null}
+      />
 
       <div className="grid grid-cols-[3.25rem_minmax(8rem,0.65fr)_6rem_minmax(12rem,1.5fr)_2rem] items-center gap-2">
         <span className="text-muted-foreground text-sm">Where</span>
