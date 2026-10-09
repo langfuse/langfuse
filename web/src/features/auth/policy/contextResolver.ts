@@ -137,21 +137,19 @@ async function backfillApiKeyRoleAssignment(
   org: PrincipalOrganization,
 ): Promise<void> {
   const isProject = apiKey.scope === "PROJECT";
-  try {
-    await assignRole(prisma, {
-      tenantId: OrganizationId(org.orgId),
-      principalId: ApiKeyId(apiKey.id),
-      ownerId: isProject
-        ? ProjectId(apiKey.projectId!)
-        : OrganizationId(apiKey.orgId!),
-      roleId: SystemRoleId(
-        isProject ? "LEGACY_PROJECT_API_KEY" : "LEGACY_ORGANIZATION_API_KEY",
-      ),
-      tags: [],
-    });
-  } catch (error) {
+  await assignRole(prisma, {
+    tenantId: OrganizationId(org.orgId),
+    principalId: ApiKeyId(apiKey.id),
+    ownerId: isProject
+      ? ProjectId(apiKey.projectId!)
+      : OrganizationId(apiKey.orgId!),
+    roleId: SystemRoleId(
+      isProject ? "LEGACY_PROJECT_API_KEY" : "LEGACY_ORGANIZATION_API_KEY",
+    ),
+    tags: [],
+  }).catch((error: unknown) => {
     if (!isUniqueConstraintFailedError(error)) throw error;
-  }
+  });
 }
 
 /** isUniqueConstraintFailedError identifies Prisma's P2002 uniqueness violation. */
