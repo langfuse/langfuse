@@ -613,6 +613,7 @@ function hoverRectangle(
 
 type TraceHover = {
   point: MapPoint;
+  topicName: string | undefined;
   node: TopicMapNode;
   position: MapPosition;
   card: MapRectangle;
@@ -635,13 +636,16 @@ export function prepareMapHover(
       return { traces: [], zones: [] };
     const card = hoverRectangle(node.rect, frame.size, {
       width: 264,
-      height: 144,
+      height: 184,
     });
     return {
       traces: card
         ? [
             {
               point: node.point,
+              topicName: frame.model.zones.find(
+                (zone) => zone.id === node.point.groupId,
+              )?.name,
               node,
               position: node.center,
               card,
