@@ -1,4 +1,3 @@
-import { Plus } from "lucide-react";
 import { useRef, useState } from "react";
 import { useStore } from "zustand";
 import {
@@ -7,7 +6,7 @@ import {
   type ScoreResultTrigger,
 } from "@langfuse/shared";
 
-import { Button } from "@/src/components/design-system/Button/Button";
+import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
@@ -225,16 +224,11 @@ export function RuleEvaluatorResultTriggerSection({
           />
         ))}
 
-      <div>
-        <Button
-          text="Add filter"
-          variant="ghost"
-          size="sm"
-          icon={Plus}
-          disabled={addDisabled}
-          onClick={handleAddPredicate}
-        />
-      </div>
+      <TextActionButton
+        text="Add filter"
+        disabled={addDisabled}
+        onClick={handleAddPredicate}
+      />
     </div>
   );
 }
