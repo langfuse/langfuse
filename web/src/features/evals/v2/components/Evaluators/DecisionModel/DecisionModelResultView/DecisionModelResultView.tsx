@@ -131,14 +131,17 @@ function resultValue(result: DecisionModelQuestionResult) {
   }
 }
 
-function ResultBadge({ result }: { result: DecisionModelQuestionResult }) {
+function ResultAnswer({ result }: { result: DecisionModelQuestionResult }) {
   return (
-    <Badge className="shrink-0 font-mono">
-      {result.type === "noul"
-        ? `${percent(Math.max(result.probability, 1 - result.probability))} `
-        : null}
+    <span className="shrink-0 font-mono text-sm font-bold">
       {resultValue(result)}
-    </Badge>
+      {result.type === "noul" ? (
+        <span className="text-muted-foreground font-normal">
+          {" "}
+          ({percent(Math.max(result.probability, 1 - result.probability))})
+        </span>
+      ) : null}
+    </span>
   );
 }
 
@@ -190,7 +193,7 @@ function ResultRow({ result }: { result: DecisionModelQuestionResult }) {
           <ConfidenceBadge confidence={result.confidence} />
         ) : null}
       </div>
-      <div className="flex min-w-0 items-center gap-2 text-sm">
+      <div className="flex min-w-0 items-baseline gap-2 text-sm">
         <span
           className="text-muted-foreground min-w-0 truncate"
           title={result.instructions}
@@ -198,10 +201,10 @@ function ResultRow({ result }: { result: DecisionModelQuestionResult }) {
           {result.instructions}
         </span>
         <div
-          className="border-border mb-0.5 min-w-4 flex-1 self-end border-t border-dashed"
+          className="border-border min-w-4 flex-1 border-t border-dashed"
           aria-hidden="true"
         />
-        <ResultBadge result={result} />
+        <ResultAnswer result={result} />
       </div>
       <ResultVisual result={result} />
     </li>
