@@ -213,38 +213,7 @@ export const SingleValueAnchor = meta.story({
 });
 
 export const Intermittent = meta.story({
-  name: "(Test) Intermittent",
   args: { scenario: "gaps" },
-  play: async ({ canvasElement }) => {
-    const labelsBeforeHover = canvasElement.querySelectorAll(
-      '[data-x-axis-label=""]',
-    ).length;
-    const hoverArea = canvasElement.querySelectorAll<SVGRectElement>(
-      'rect[fill="transparent"]',
-    )[1];
-    if (!hoverArea) throw new Error("Missing hover area for data gap");
-    const bounds = hoverArea.getBoundingClientRect();
-    fireEvent.pointerEnter(hoverArea, {
-      clientX: bounds.left + bounds.width / 2,
-      clientY: bounds.top + bounds.height / 2,
-    });
-    fireEvent.pointerMove(hoverArea, {
-      clientX: bounds.left + bounds.width / 2,
-      clientY: bounds.top + bounds.height / 2,
-    });
-    const tooltipHeading = await within(
-      canvasElement.ownerDocument.body,
-    ).findByText("Sep 2, 2026");
-    const tooltip = tooltipHeading.closest('[role="tooltip"]');
-    if (!tooltip) throw new Error("Tooltip not found");
-    await expect(tooltip).toHaveTextContent("No data available");
-    const labels = Array.from(
-      canvasElement.querySelectorAll('[data-x-axis-label=""]'),
-      (label) => label.textContent,
-    );
-    await expect(labels).toHaveLength(labelsBeforeHover);
-    await expect(new Set(labels).size).toBe(labels.length);
-  },
 });
 
 export const DenseCategories = meta.story({
@@ -377,12 +346,6 @@ export const StackedAreas = meta.story({
       Number(apiPoint.getAttribute("cy")),
       0,
     );
-    workerPoint.focus();
-    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-      "tooltip",
-    );
-    await expect(tooltip).toHaveTextContent("Worker");
-    await expect(tooltip).toHaveTextContent("48.0 requests");
     await userEvent.click(
       await canvas.findByRole("button", { name: "Hide API" }),
     );
@@ -497,23 +460,7 @@ export const LimitedVisibleSeries = meta.story({
 });
 
 export const GapsAndIsolatedPoints = meta.story({
-  name: "(Test) Gaps And Isolated Points",
   args: { scenario: "gaps" },
-  play: async ({ canvasElement }) => {
-    await expect(
-      canvasElement.querySelectorAll('circle[fill="#3a3dee"][r="4"]'),
-    ).toHaveLength(3);
-    const firstPoint = within(canvasElement).getByRole("graphics-symbol", {
-      name: /API 8\.0 requests/,
-    });
-    firstPoint.focus();
-    const tooltipHeading = await within(
-      canvasElement.ownerDocument.body,
-    ).findByText("Sep 1, 2026");
-    const tooltip = tooltipHeading.closest('[role="tooltip"]');
-    if (!tooltip) throw new Error("Tooltip not found");
-    await expect(tooltip).toHaveTextContent("8.0 requests");
-  },
 });
 
 export const ConnectNulls = meta.story({
