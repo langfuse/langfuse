@@ -11,6 +11,7 @@ import {
 import { SessionConversationTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/SessionConversationTimeline";
 import { type SessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { getSessionTranscriptRows } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptRows";
+import { getSessionToolStatus } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/fns/getSessionToolStatus";
 import { getSessionTranscriptThreads } from "../../fns/getSessionTranscriptThreads";
 import { getSessionConversationEntries } from "../../fns/getSessionConversationEntries";
 import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
@@ -169,6 +170,12 @@ export function SessionConversationalView(
                     : undefined,
                 observationId: row.message.observationId,
                 label,
+                ...getSessionToolStatus({
+                  level: row.message.level,
+                  statusMessage: row.message.statusMessage,
+                  isError:
+                    row.type === "tool" ? row.result?.isError : undefined,
+                }),
                 role:
                   row.type === "tool" ? ("tool" as const) : row.message.role,
               },

@@ -15,7 +15,7 @@ const evaluatorTypeOptions = [
   { value: EvalTemplateType.CODE, displayValue: "Code" },
   {
     value: EvalTemplateType.DECISION_MODEL,
-    displayValue: "Decision model (experimental)",
+    displayValue: "Decision model",
   },
 ];
 

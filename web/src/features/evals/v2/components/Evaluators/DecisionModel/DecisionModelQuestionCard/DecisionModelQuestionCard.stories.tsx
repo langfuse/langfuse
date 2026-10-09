@@ -105,7 +105,9 @@ export const Collapsed = meta.story({
     expanded: false,
     question: {
       id: "q1",
-      ...QUESTION_EXAMPLES[DecisionModelQuestionType.CHOICE],
+      ...QUESTION_EXAMPLES[DecisionModelQuestionType.NOUL],
+      scoreName: "user_frustrated",
+      instructions: "Does the user seem frustrated?",
     },
   },
 });
