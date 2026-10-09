@@ -113,15 +113,23 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         ),
       ).toEqual({ success: true, projectId: PRJ });
     });
-    it("403s a header disagreeing with the bound project", () => {
+    it("ignores a header disagreeing with the bound project", () => {
       expect(
         getProjectId(projectKey(), req({}, { [projectIdHeader]: "prj_2" })),
-      ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
+      ).toEqual({ success: true, projectId: PRJ });
     });
-    it("403s a URL disagreeing with the bound project", () => {
+    it("ignores a URL disagreeing with the bound project", () => {
       expect(
         getProjectId(projectKey(), req({ projectId: "prj_2" })),
-      ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
+      ).toEqual({ success: true, projectId: PRJ });
+    });
+    it("ignores conflicting URL and header projects when bound", () => {
+      expect(
+        getProjectId(
+          projectKey(),
+          req({ projectId: "prj_2" }, { [projectIdHeader]: "prj_3" }),
+        ),
+      ).toEqual({ success: true, projectId: PRJ });
     });
     it("403s a URL disagreeing with the header", () => {
       expect(

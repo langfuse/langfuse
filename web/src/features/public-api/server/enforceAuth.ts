@@ -163,16 +163,15 @@ function getOrgId(
   return { success: true, orgId };
 }
 
-/** getProjectId resolves the target project the key's bound project, the URL param, and the header agree on. */
+/** getProjectId uses the bound project or requires the URL and header projects to agree. */
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
 ): ResolvedProject | ErrorResult<ForbiddenError> {
-  const requested = [
-    getBoundProjectId(context),
-    getUrlProjectId(req),
-    getHeaderProjectId(req),
-  ];
+  const boundProjectId = getBoundProjectId(context);
+  if (boundProjectId) return { success: true, projectId: boundProjectId };
+
+  const requested = [getUrlProjectId(req), getHeaderProjectId(req)];
 
   const projectId = first(requested);
   if (!equal(requested) || !projectId) {
