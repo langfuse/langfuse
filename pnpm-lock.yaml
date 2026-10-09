@@ -73,6 +73,7 @@ overrides:
   hono: 4.13.7
   axios: 1.20.0
   '@grpc/grpc-js': 1.14.5
+  handlebars: 4.7.10
   next-auth>nodemailer: ^10.0.9
 
 packageExtensionsChecksum: sha256-WsueXkDwaA1Mur66bfJz2RLd0+lO1INOq2n8H30Pf8M=
@@ -9076,8 +9077,8 @@ packages:
   hachure-fill@0.5.2:
     resolution: {integrity: sha512-3GKBOn+m2LX9iq+JC1064cSFprJY4jL1jCXTcpnfER5HYE2l/4EfWSGzkPa/ZDBmYI0ZOEj5VHV/eKnPGkHuOg==}
 
-  handlebars@4.7.9:
-    resolution: {integrity: sha512-4E71E0rpOaQuJR2A3xDZ+GM1HyWYv1clR58tC8emQNeQe3RH7MAzSbat+V0wG78LQBo6m6bzSG/L4pBuCsgnUQ==}
+  handlebars@4.7.10:
+    resolution: {integrity: sha512-P5VJMVM7qgBn6vjXMw8WG9uVI+ncf2pi72j4de4yz5ZULLj2RGqLYaKOYGsgyrViQ0tePOVlN1tDCCXXtFqXKg==}
     engines: {node: '>=0.4.7'}
     hasBin: true
 
@@ -13636,7 +13637,7 @@ snapshots:
     dependencies:
       eslint-import-resolver-node: 0.3.9(supports-color@8.1.1)
       eslint-module-utils: 2.12.1(eslint-import-resolver-node@0.3.9(supports-color@8.1.1))(eslint-import-resolver-typescript@3.10.1)(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
-      handlebars: 4.7.9
+      handlebars: 4.7.10
       is-core-module: 2.16.1
       micromatch: 4.0.8
     transitivePeerDependencies:
@@ -20484,7 +20485,7 @@ snapshots:
       eslint: 10.8.0(jiti@2.7.0)(supports-color@8.1.1)
       eslint-import-resolver-node: 0.3.9(supports-color@8.1.1)
       eslint-module-utils: 2.12.1(eslint-import-resolver-node@0.3.9(supports-color@8.1.1))(eslint-import-resolver-typescript@3.10.1)(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
-      handlebars: 4.7.9
+      handlebars: 4.7.10
       micromatch: 4.0.8
     transitivePeerDependencies:
       - '@typescript-eslint/parser'
@@ -21185,7 +21186,7 @@ snapshots:
 
   hachure-fill@0.5.2: {}
 
-  handlebars@4.7.9:
+  handlebars@4.7.10:
     dependencies:
       minimist: 1.2.8
       neo-async: 2.6.2
