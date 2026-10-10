@@ -2393,7 +2393,7 @@ describe("OTel Resource Span Mapping", () => {
       expect(observationEvent?.body.usageDetails.output_audio_tokens).toBe(7);
     });
 
-    it("should extract OpenInference llm.token_count.prompt_details.cache_read/cache_write into input_cached_tokens / input_cache_creation", async () => {
+    it("should extract OpenInference llm.token_count.prompt_details.cache_read/cache_write/audio into input_cached_tokens / input_cache_creation / input_audio_tokens", async () => {
       // OpenInference semantic conventions (used by openinference-instrumentation-{openai,anthropic,agno,...})
       // emit cache token counts under llm.token_count.prompt_details.cache_read and
       // llm.token_count.prompt_details.cache_write. Langfuse must recognize these
@@ -2461,6 +2461,12 @@ describe("OTel Resource Span Mapping", () => {
                       intValue: { low: 5000, high: 0, unsigned: false },
                     },
                   },
+                  {
+                    key: "llm.token_count.prompt_details.audio",
+                    value: {
+                      intValue: { low: 2000, high: 0, unsigned: false },
+                    },
+                  },
                 ],
                 events: [],
                 status: { code: 1 },
@@ -2478,9 +2484,9 @@ describe("OTel Resource Span Mapping", () => {
       const observationEvent = events.find((e) => e.type === "span-create");
 
       expect(observationEvent).toBeDefined();
-      // input must be the uncached remainder: prompt - cache_read - cache_write
-      // = 50000 - 40000 - 5000 = 5000
-      expect(observationEvent?.body.usageDetails.input).toBe(5000);
+      // input must be the uncached, non-audio remainder:
+      // prompt - cache_read - cache_write - audio = 50000 - 40000 - 5000 - 2000 = 3000
+      expect(observationEvent?.body.usageDetails.input).toBe(3000);
       expect(observationEvent?.body.usageDetails.output).toBe(200);
       expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(
         40000,
@@ -2488,6 +2494,7 @@ describe("OTel Resource Span Mapping", () => {
       expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
         5000,
       );
+      expect(observationEvent?.body.usageDetails.input_audio_tokens).toBe(2000);
       // The raw OpenInference keys must NOT be passed through after normalization
       // (otherwise they would double-count in the UI breakdown).
       expect(
@@ -2495,6 +2502,9 @@ describe("OTel Resource Span Mapping", () => {
       ).toBeUndefined();
       expect(
         observationEvent?.body.usageDetails["prompt_details.cache_write"],
+      ).toBeUndefined();
+      expect(
+        observationEvent?.body.usageDetails["prompt_details.audio"],
       ).toBeUndefined();
     });
 
