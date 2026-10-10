@@ -175,8 +175,8 @@ export function SSOButtons({
       });
   };
 
-  // Only show separator if credentials are enabled (for sign-in) or if action is sign-up (which always has the form)
-  const showSeparator = authProviders.credentials || action !== "sign in";
+  // Only show the separator when a credentials form is rendered above the provider buttons
+  const showSeparator = authProviders.credentials;
 
   return (
     <>
