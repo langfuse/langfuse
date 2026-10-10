@@ -70,6 +70,8 @@ class FakeWorker {
 
 /** Over PARSE_IN_WEBWORKER_THRESHOLD, so it is worth a round trip. */
 const BIG_IO = JSON.stringify({ deep: "x".repeat(110_000) });
+/** Megabyte-scale I/O: still a worker job, but the base deadline is too short. */
+const LARGE_IO = JSON.stringify({ deep: "x".repeat(1_000_000) });
 /** Under it: parsed on this thread, the worker is never involved. */
 const SMALL_IO = JSON.stringify({ deep: "small" });
 
@@ -285,6 +287,39 @@ describe("parseIoOffThread", () => {
         input: { deep: "x".repeat(110_000) },
       });
       expect(worker.terminated).toBe(true);
+    });
+
+    it("does not kill a still-answering worker on megabyte-scale I/O at the base deadline", async () => {
+      vi.useFakeTimers();
+      const client = await loadClient();
+      const pending = parse(client, LARGE_IO);
+      const worker = FakeWorker.instances[0]!;
+
+      await vi.advanceTimersByTimeAsync(client.PARSE_DEADLINE_MS);
+      expect(worker.terminated).toBe(false);
+      expect(mockCaptureException).not.toHaveBeenCalled();
+
+      worker.answer(worker.posted[0]!, { parsedInput: "still going" });
+      await expect(pending).resolves.toMatchObject({ input: "still going" });
+    });
+
+    it("falls back megabyte-scale I/O once the large-payload deadline passes", async () => {
+      vi.useFakeTimers();
+      const client = await loadClient();
+      const pending = parse(client, LARGE_IO);
+      const worker = FakeWorker.instances[0]!;
+
+      await vi.advanceTimersByTimeAsync(client.PARSE_DEADLINE_LARGE_MS);
+
+      await expect(pending).resolves.toMatchObject({
+        input: { deep: "x".repeat(1_000_000) },
+      });
+      expect(worker.terminated).toBe(true);
+      expect(mockCaptureException).toHaveBeenCalledTimes(1);
+      const [, options] = mockCaptureException.mock.calls[0]!;
+      expect(options).toMatchObject({
+        extra: { deadlineMs: client.PARSE_DEADLINE_LARGE_MS },
+      });
     });
 
     it("reports the outcome, which is otherwise invisible", async () => {
