@@ -119,7 +119,7 @@ export function getVisibleRowCount(rootNode: TreeNode): number {
  * Eventually we can update components to work directly with TreeNode.
  *
  * @param node - TreeNode to convert
- * @param index - Index in visible rows (for rowIndex)
+ * @param _index - Unused; kept for compatibility with row-mapping callers.
  * @returns FlatJSONRow
  */
 export function treeNodeToFlatRow(node: TreeNode, _index: number): FlatJSONRow {
