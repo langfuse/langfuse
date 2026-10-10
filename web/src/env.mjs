@@ -307,9 +307,10 @@ export const env = createEnv({
     // EMAIL
     EMAIL_FROM_ADDRESS: z.string().optional(),
     SMTP_CONNECTION_URL: z.string().optional(),
-    // Cloudflare Turnstile. When the secret is set, credentials sign-in and
-    // email sign-up require a valid token whose hostname is in
-    // TURNSTILE_HOSTNAMES (comma-separated frontend hostnames).
+    // Cloudflare Turnstile. When the secret is set, credentials sign-in,
+    // email sign-up, and password-reset code emails require a valid token
+    // whose hostname is in TURNSTILE_HOSTNAMES (comma-separated frontend
+    // hostnames).
     TURNSTILE_SECRET: z.string().optional(),
     TURNSTILE_HOSTNAMES: z.string().optional(),
 
