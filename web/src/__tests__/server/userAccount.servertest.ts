@@ -4,7 +4,7 @@ import type { JWT } from "next-auth/jwt";
 import { randomUUID } from "crypto";
 
 import type { Plan } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma, Role } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -187,6 +187,68 @@ describe("userAccountRouter.setViewMode", () => {
   });
 });
 
+describe("userAccountRouter.delete", () => {
+  it("refuses to delete the last owner of an organization", async () => {
+    const { caller, userId, orgId } = await createCaller();
+    await addOwnerMembership(orgId, userId);
+
+    await expect(caller.userAccount.delete()).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+    });
+    expect(
+      await prisma.user.findUnique({ where: { id: userId } }),
+    ).not.toBeNull();
+  });
+
+  it("deletes the user when another owner remains", async () => {
+    const { caller, userId, orgId } = await createCaller();
+    await addOwnerMembership(orgId, userId);
+    await addSecondOwner(orgId);
+
+    await expect(caller.userAccount.delete()).resolves.toEqual({
+      success: true,
+    });
+    expect(await prisma.user.findUnique({ where: { id: userId } })).toBeNull();
+    expect(
+      await prisma.organizationMembership.count({ where: { userId } }),
+    ).toBe(0);
+  });
+
+  it("retries a serializable write conflict and then deletes", async () => {
+    const { caller, userId, orgId } = await createCaller();
+    await addOwnerMembership(orgId, userId);
+    await addSecondOwner(orgId);
+
+    const writeConflict = new Prisma.PrismaClientKnownRequestError(
+      "Transaction failed due to a write conflict or a deadlock. Please retry your transaction",
+      { code: "P2034", clientVersion: "test" },
+    );
+    const originalTransaction = prisma.$transaction.bind(prisma);
+    let attempts = 0;
+    const spy = vi
+      .spyOn(prisma, "$transaction")
+      .mockImplementation((...args: Parameters<typeof originalTransaction>) => {
+        attempts += 1;
+        if (attempts === 1) {
+          return Promise.reject(writeConflict);
+        }
+        return originalTransaction(...args);
+      });
+
+    try {
+      await expect(caller.userAccount.delete()).resolves.toEqual({
+        success: true,
+      });
+      expect(attempts).toBe(2);
+      expect(
+        await prisma.user.findUnique({ where: { id: userId } }),
+      ).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
 describe("userAccountRouter.signOutAllSessions", () => {
   it("advances the user's session revocation timestamp", async () => {
     const { caller, userId } = await createCaller();
@@ -231,6 +293,35 @@ describe("userAccountRouter.signOutAllSessions", () => {
     expect(admitted.user).not.toBeNull();
   });
 });
+
+async function addOwnerMembership(orgId: string, userId: string) {
+  await prisma.organizationMembership.create({
+    data: {
+      orgId,
+      userId,
+      role: Role.OWNER,
+    },
+  });
+}
+
+async function addSecondOwner(orgId: string) {
+  const id = randomUUID();
+  const user = await prisma.user.create({
+    data: {
+      id: `co-owner-${id}`,
+      email: `co-owner-${id}@example.com`,
+      name: "Co-owner",
+    },
+  });
+  await prisma.organizationMembership.create({
+    data: {
+      orgId,
+      userId: user.id,
+      role: Role.OWNER,
+    },
+  });
+  return user;
+}
 
 async function createCaller({
   admin = false,
