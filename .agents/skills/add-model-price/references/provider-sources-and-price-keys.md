@@ -1044,6 +1044,87 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
      `gpt-5.5-cyber`/`gpt-5.4-cyber` — groupings of this restricted family
      continue to vary by fetch) and the AWS Bedrock Public Extended Access SKU
      were re-confirmed unchanged but remain standing, out-of-scope exclusions.
+- **October 10 2026 audit: 13 long-retired Claude models removed from
+  `anthropicModels`; no price drift; one ambiguous Gemini Flash disappearance
+  found; one OpenAI deprecations-page date confirmed NOT yet passed** —
+  Re-fetched the full Anthropic pricing page (model table, cache-hits
+  footnote, Fast mode and Batch tables — every price for every currently
+  active model matched verbatim, no updates needed), the Anthropic
+  models-overview comparison table, and — for the first time with an explicit
+  ask for the page's own "Model status" summary table — the full
+  `model-deprecations` page. That table has a `Current state` column
+  (`Active` / `Legacy` / `Deprecated` / `Retired`) that resolves several
+  long-standing "not re-verified, low priority" notes from prior audits
+  (see finding #1 and #3 in `model-audit-memory.md`'s prior unresolved list):
+  `claude-opus-4-1-20250805` (retired Aug 5 2026), `claude-opus-4-20250514`
+  (retired Jun 15 2026), `claude-sonnet-4-20250514` (retired Jun 15 2026),
+  `claude-3-7-sonnet-20250219` (retired Feb 19 2026), `claude-3-5-haiku-20241022`
+  (retired Feb 19 2026), and `claude-3-haiku-20240307` (retired Apr 20 2026)
+  are all explicitly `Retired` with passed dates; the page's "Deprecation
+  history" section additionally confirms `claude-3-5-sonnet-20241022` /
+  `claude-3-5-sonnet-20240620` (retired Oct 28 2025), `claude-3-opus-20240229`
+  (retired Jan 5 2026), `claude-3-sonnet-20240229` (retired Jul 21 2025),
+  `claude-2.1` / `claude-2.0` (retired Jul 21 2025), and `claude-instant-1.2`
+  (retired Nov 6 2024). The main pricing page's own model table now also
+  labels `claude-opus-4-1`/`claude-opus-4`/`claude-sonnet-4`/`claude-3-5-haiku`
+  "(retired, except on Bedrock and Google Cloud)" or "(... except on Google
+  Cloud)" directly in the row — the first time that exception wording was
+  read together with the deprecations page's firm dates in the same run.
+  That Bedrock/Google-Cloud exception does **not** save these IDs in
+  `anthropicModels`: that array feeds only `LLMAdapter.Anthropic`, whose
+  connection defaults to `https://api.anthropic.com` with no Bedrock/Vertex
+  routing (`packages/shared/src/server/llm/types.ts`'s `supportedModels` map
+  gives `LLMAdapter.Bedrock` an empty array and `LLMAdapter.VertexAI` its own
+  distinct `vertexAIModels` array) — confirmed by reading
+  `buildAnthropicModel` in `packages/shared/src/server/llm/ai-sdk/providers/anthropic.ts`
+  and the Anthropic connection form in
+  `web/src/features/public-api/components/CreateLLMApiKeyForm.tsx`, which
+  exposes a user-settable "API Base URL" but defaults to Anthropic's own host
+  with no model-ID validation. A user who manually repoints that base URL at
+  a Bedrock/Vertex-fronting proxy is an edge case the removal criteria does
+  not need to accommodate, the same way other removed entries elsewhere in
+  this file are not kept alive for hypothetical custom gateways. All 13 IDs
+  were removed from `anthropicModels` (pricing entries kept, per the
+  never-remove-pricing rule); `claude-sonnet-4-5-20250929` was **not**
+  removed — the deprecations page's history section now shows it
+  `Deprecated` (Sep 30 2026) with retirement **November 30, 2026**, which has
+  not passed yet, so it stays until that date (re-check and remove then).
+  Lesson for future audits: a dedicated ask for the deprecations page's own
+  "Model status" summary table (not just scanning "Deprecation history"
+  prose) surfaces `Current state`/dated retirement for every model at once —
+  prefer that table over only reading the narrative history blocks.
+  Separately: a targeted fetch of `developers.openai.com/api/docs/deprecations`
+  asked to compute whether the already-known "Legacy GPT model snapshots"
+  batch's **October 23, 2026** shutdown date had passed relative to today
+  (October 10, 2026) incorrectly answered "already passed by approximately 13
+  days" — October 23 is 13 days **after** October 10, not before. A follow-up
+  fetch that asked only for a verbatim quote (no date computation) returned
+  the correct raw text. **Lesson: never trust a WebFetch summary's own
+  date-comparison claim; extract the raw date string and compare it to the
+  audit's run date independently (mental math or `date -d` are sufficient —
+  no need for a script) before treating a deprecation as effective.** No
+  `openAIModels` removal was made this run — October 23, 2026 is still in the
+  future. Also found via the same verbatim-quote fetch: a **second OpenAI
+  deprecation batch dated April 1, 2027** retiring `gpt-5.3-codex` (→
+  `gpt-6-sol`), `gpt-5.1` (→ `gpt-6-sol`), and `gpt-5.4-nano` (→ `gpt-6-luna`)
+  — confirmed real text on the page, but 15+ months away; not actionable yet,
+  re-check as that date approaches. One finding left unresolved rather than
+  acted on: two independent targeted fetches (the Gemini 3.x pricing page and
+  the Gemini models catalog, each asked specifically and only about these two
+  model names) both reported **`gemini-3.7-flash` and `gemini-3.5-flash`
+  (non-Lite) entirely absent** — no price row, no catalog entry, and no
+  shutdown/deprecation label on either page or on
+  `ai.google.dev/gemini-api/docs/deprecations` (which was also checked this
+  run and says nothing about either ID). This does not cleanly meet any of
+  the three removal criteria in `automated-audit.md` (no explicit shutdown
+  label; neither is a preview/experimental/dated-snapshot ID; no evidence
+  about endpoint callability either way) — both were left in `vertexAIModels`
+  and `googleAIStudioModels` unchanged, pending a future audit's dedicated
+  re-check (e.g. a fetch of Google's release-notes/changelog for an explicit
+  retirement announcement, since `gemini-3.8-flash` is already in both arrays
+  as a plausible successor if one is ever confirmed). AWS Bedrock (Claude 3.5
+  Sonnet Public Extended Access, unchanged) and TypeSafe Jev ($42/Btok,
+  unchanged) were also re-confirmed this run.
 
 Capture:
 
