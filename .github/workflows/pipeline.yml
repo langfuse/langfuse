@@ -881,7 +881,10 @@ jobs:
         run: |
           pnpm --filter=shared ch:dev-tables
       - name: Start Langfuse
-        run: (pnpm run start&)
+        # Backgrounded, so this step reports success as soon as it has forked
+        # and says nothing about whether the server came up. Keep the output so
+        # the readiness gate below can show why it did not.
+        run: (pnpm run start > /tmp/langfuse-start.log 2>&1 &)
         env:
           LANGFUSE_INIT_ORG_ID: "seed-org-id"
           LANGFUSE_INIT_ORG_NAME: "Seed Org"
@@ -893,6 +896,20 @@ jobs:
           LANGFUSE_INIT_USER_EMAIL: "demo@langfuse.com"
           LANGFUSE_INIT_USER_NAME: "Demo User"
           LANGFUSE_INIT_USER_PASSWORD: "password"
+      - name: Check worker health
+        # `pnpm run start` brings the worker up alongside the server. The
+        # ingestion tests post to the API and then poll ClickHouse for the row
+        # the worker writes, giving it only a few seconds to be consuming.
+        run: |
+          timeout 180 bash -c 'until curl -fsS http://localhost:3030/api/health > /dev/null; do sleep 2; done' \
+            || { echo "Worker was not healthy within 180s"; cat /tmp/langfuse-start.log; exit 1; }
+      - name: Check server health
+        # The tests address a hardcoded localhost:3000 and run on 12 workers, so
+        # without this gate the ones scheduled during the server's cold start
+        # all fail on ECONNREFUSED while the rest pass once it finishes booting.
+        run: |
+          timeout 180 bash -c 'until curl -fsS http://localhost:3000/api/public/health > /dev/null; do sleep 2; done' \
+            || { echo "Langfuse was not healthy within 180s"; cat /tmp/langfuse-start.log; exit 1; }
       - name: run tests
         working-directory: web
         # The server tests are I/O-bound (Postgres/ClickHouse/HTTP roundtrips),
@@ -904,6 +921,12 @@ jobs:
         env:
           NODE_COMPILE_CACHE: /tmp/node-compile-cache
         run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers="${VITEST_MAX_WORKERS:-8}"
+      - name: Langfuse server log
+        # The server writes to a file rather than the job log, so surface it
+        # when something failed — a test that fails for a server-side reason is
+        # otherwise reported without the stack trace that explains it.
+        if: failure()
+        run: cat /tmp/langfuse-start.log || true
 
   tests-web-client:
     timeout-minutes: 10
