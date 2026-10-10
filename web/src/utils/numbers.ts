@@ -87,7 +87,14 @@ export const costFormatter = (totalCost?: number) => {
   // Cheap models routinely bill a fraction of a cent, and cent precision alone
   // reports those as "$0.00". Keep ~3 significant digits instead: 0.000601
   // needs 6 fraction digits to read as "$0.000601".
-  if (cost !== 0 && Math.abs(cost) < SUB_CENT_THRESHOLD) {
+  // The typeof guard keeps the arithmetic below on the one type it is valid
+  // for: callers reach this via `as number` casts over dynamic query values,
+  // and usdFormatter itself still accepts bigint and Decimal.
+  if (
+    typeof cost === "number" &&
+    cost !== 0 &&
+    Math.abs(cost) < SUB_CENT_THRESHOLD
+  ) {
     const fractionDigits = 2 + Math.ceil(-Math.log10(Math.abs(cost)));
     return usdFormatter(
       cost,
