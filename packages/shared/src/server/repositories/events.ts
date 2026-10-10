@@ -105,6 +105,7 @@ import type { AnalyticsObservationEvent } from "../analytics-integrations/types"
 import {
   getObservationByIdFromObservationsTable,
   ObservationTableQuery,
+  hashPromptNames,
 } from "./observations";
 import { convertEventsObservation } from "./observations_converters";
 import {
@@ -675,8 +676,8 @@ export const getObservationsWithPromptNameFromEvents = async (
   SELECT uniq(span_id) as count, prompt_name
   FROM events_core
   WHERE project_id = {projectId: String}
-  AND prompt_name IN ({promptNames: Array(String)})
   AND prompt_name != ''
+  AND hex(SHA256(prompt_name)) IN ({promptNameHashes: Array(String)})
   AND is_deleted = 0
   ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(6)}" : ""}
   ${toTimestamp ? "AND start_time <= {toTimestamp: DateTime64(6)}" : ""}
@@ -686,7 +687,7 @@ export const getObservationsWithPromptNameFromEvents = async (
     query,
     params: {
       projectId,
-      promptNames,
+      promptNameHashes: hashPromptNames(promptNames),
       fromTimestamp: fromTimestamp
         ? convertDateToClickhouseDateTime(fromTimestamp)
         : undefined,

@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary */
+import { createHash } from "crypto";
 import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
@@ -1383,8 +1384,8 @@ export const getObservationsWithPromptName = async (
   SELECT uniq(id) as count, prompt_name
   FROM observations
   WHERE project_id = {projectId: String}
-  AND prompt_name IN ({promptNames: Array(String)})
   AND prompt_name IS NOT NULL
+  AND hex(SHA256(prompt_name)) IN ({promptNameHashes: Array(String)})
   ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(3)}" : ""}
   ${toTimestamp ? "AND start_time <= {toTimestamp: DateTime64(3)}" : ""}
   GROUP BY prompt_name
@@ -1393,7 +1394,7 @@ export const getObservationsWithPromptName = async (
     query: query,
     params: {
       projectId,
-      promptNames,
+      promptNameHashes: hashPromptNames(promptNames),
       fromTimestamp: fromTimestamp
         ? convertDateToClickhouseDateTime(fromTimestamp)
         : undefined,
@@ -1409,6 +1410,16 @@ export const getObservationsWithPromptName = async (
     promptName: r.prompt_name,
   }));
 };
+
+/**
+ * Prompt names have no length limit, so passing them verbatim as a query
+ * parameter can exceed ClickHouse's HTTP URI and form-field limits. Callers
+ * match `hex(SHA256(prompt_name))` against these fixed-size digests instead.
+ */
+export const hashPromptNames = (promptNames: string[]) =>
+  promptNames.map((name) =>
+    createHash("sha256").update(name).digest("hex").toUpperCase(),
+  );
 
 export const getObservationMetricsForPrompts = async (
   projectId: string,
