@@ -116,6 +116,22 @@ const EnvSchema = z.object({
   LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    )
+    .refine((ids) => !ids.includes("*") || ids.length === 1, {
+      message:
+        'Use "*" alone to select all projects, or a comma-separated list of project IDs',
+    }),
   LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),

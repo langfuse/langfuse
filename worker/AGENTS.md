@@ -41,6 +41,10 @@
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
   scheduling, direct events-table writes, and trace-batch accounting.
+- Early OTEL media extraction requires both `LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED`
+  and `LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS`. Empty selects nobody;
+  `*` explicitly selects everyone. Rollout controls and telemetry semantics:
+  `src/features/otel-ingestion/README.md`.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads
@@ -73,10 +77,11 @@
   records its own metrics and logs; see `../packages/native/AGENTS.md`. Topics runs
   its synchronous numerical fit in a killable Node child via `src/features/topics/numeric.ts`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
-- Direct-event replay: `pnpm --filter worker run test:otel-replay` feeds raw S3
-  JSON through the production OTEL queue and JSON writer into isolated
-  ClickHouse tables, including retained legacy writes in dual-write mode. Setup
-  and scope: `src/features/otel-ingestion/README.md`.
+- Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the
+  original and early-media TypeScript paths from identical raw S3 JSON through
+  the production OTEL queue and JSON writer into isolated ClickHouse tables,
+  including retained legacy writes in dual-write mode. Setup and scope:
+  `src/features/otel-ingestion/README.md`.
 - Native codec checks: `pnpm --filter worker run test:native-codec` selects
   `nativeCodec` suites. Build the addon first; the command requires ClickHouse
   whenever the live parity suite is present.

@@ -1,23 +1,48 @@
 import "./helpers/otelReplaySetup";
 
+import { createHash, randomUUID } from "node:crypto";
 import { Decimal } from "decimal.js";
-import { randomUUID } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { validateOtelJson } from "@langfuse/native";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "../env";
+import { env as sharedEnv, type SharedEnv } from "@langfuse/shared/src/env";
+import { MediaAssociationOrigin } from "@langfuse/shared";
 import {
   createOrgProjectAndApiKey,
   IngestionQueue,
   QueueJobs,
   TraceUpsertQueue,
+  linkMediaToTraceOrObservation,
   type ResourceSpan,
+  uploadMediaForTrace,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import { runOtelReplay } from "./helpers/otelReplayHarness";
+import * as masking from "@langfuse/shared/src/server/ee/ingestionMasking";
+import * as otelPreparation from "../features/otel-ingestion/prepareOtelBatch";
+import {
+  comparableOtelReplayRows,
+  expectRawOtelReplayParity,
+  runOtelReplayComparison,
+  runOneOtelReplay,
+  type OtelRawReplayComparison,
+} from "./helpers/otelReplayHarness";
 import {
   configureDefaultOtelReplayMocks,
   configureOtelReplayEnvironment,
   otelReplayMocks,
 } from "./helpers/otelReplaySetup";
+
+vi.mock(
+  "@langfuse/shared/src/server/ee/ingestionMasking",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof masking>();
+    return {
+      ...actual,
+      applyIngestionMasking: vi.fn(actual.applyIngestionMasking),
+      isIngestionMaskingEnabled: vi.fn(actual.isIngestionMaskingEnabled),
+    };
+  },
+);
 
 const PROJECT_ID = "otel-replay-integration";
 const FILE_KEY = "otel-replay/integration.json";
@@ -54,6 +79,122 @@ async function getIngestionJobsForProject(projectId: string) {
   return jobsByShard
     .flat()
     .filter((job) => job.data.payload.authCheck.scope.projectId === projectId);
+}
+
+type MediaUploadCall = Parameters<typeof uploadMediaForTrace>[0];
+type MediaLinkCall = Parameters<typeof linkMediaToTraceOrObservation>[0];
+
+type MediaAssociation = {
+  mediaId: string;
+  traceId: string;
+  observationId?: string | null;
+  field: string;
+  contentType: string;
+  contentLength: number;
+  contentBase64: string;
+  contentDigest: string;
+  origin: string;
+};
+
+function mediaIdForField(field: string): string {
+  return field === "input" ? "image-media-id" : "overflow-media-id";
+}
+
+function mediaAssociationFromUpload(params: MediaUploadCall): MediaAssociation {
+  const contentBytes = Buffer.from(params.contentBytes);
+  const contentDigest = createHash("sha256")
+    .update(contentBytes)
+    .digest("base64");
+  if (params.sha256Hash !== undefined) {
+    expect(params.sha256Hash).toBe(contentDigest);
+  }
+  return {
+    mediaId: mediaIdForField(params.field),
+    traceId: params.traceId,
+    observationId: params.observationId,
+    field: params.field,
+    contentType: params.contentType,
+    contentLength: contentBytes.length,
+    contentBase64: contentBytes.toString("base64"),
+    contentDigest,
+    origin: params.origin,
+  };
+}
+
+function mediaAssociationKey(association: MediaAssociation): string {
+  return [
+    association.mediaId,
+    association.traceId,
+    association.observationId,
+    association.field,
+    association.origin,
+    association.contentDigest,
+  ]
+    .map((value) => value ?? "")
+    .join("\u0000");
+}
+
+function sortedMediaAssociations(
+  associations: MediaAssociation[],
+): MediaAssociation[] {
+  return associations.sort((left, right) =>
+    mediaAssociationKey(left).localeCompare(mediaAssociationKey(right)),
+  );
+}
+
+function createMediaAssociationCapture(): () => MediaAssociation[] {
+  let uploadCursor = 0;
+  let linkCursor = 0;
+
+  return () => {
+    const uploads = otelReplayMocks.uploadMediaForTrace.mock.calls
+      .slice(uploadCursor)
+      .map(([rawParams]) =>
+        mediaAssociationFromUpload(rawParams as MediaUploadCall),
+      );
+    const links = otelReplayMocks.linkMediaToTraceOrObservation.mock.calls
+      .slice(linkCursor)
+      .map(([rawParams]) => rawParams as MediaLinkCall);
+    uploadCursor = otelReplayMocks.uploadMediaForTrace.mock.calls.length;
+    linkCursor =
+      otelReplayMocks.linkMediaToTraceOrObservation.mock.calls.length;
+
+    const assetsById = new Map(
+      uploads.map((upload) => [upload.mediaId, upload]),
+    );
+    const associations = new Map(
+      uploads.map((upload) => [mediaAssociationKey(upload), upload]),
+    );
+    for (const link of links) {
+      const asset = assetsById.get(link.mediaId);
+      expect(asset, `media link ${link.mediaId} has no upload`).toBeDefined();
+      if (!asset) continue;
+      const association = {
+        ...asset,
+        traceId: link.traceId,
+        observationId: link.observationId,
+        field: link.field,
+        origin: link.origin,
+      };
+      associations.set(mediaAssociationKey(association), association);
+    }
+    return sortedMediaAssociations([...associations.values()]);
+  };
+}
+
+function expectLegacyReplayParity(comparison: OtelRawReplayComparison) {
+  for (const table of [
+    "traces",
+    "observations",
+    "observations_batch_staging",
+  ] as const) {
+    expect(
+      comparableOtelReplayRows(comparison.earlyTs.legacyRows?.[table]),
+      `early-ts ${table}`,
+    ).toEqual(
+      comparableOtelReplayRows(comparison.originalTs.legacyRows?.[table]),
+    );
+  }
 }
 
 function createBufferId(hex: string): Buffer {
@@ -158,6 +299,113 @@ function buildResourceSpans(
   ];
 }
 
+type RawOtelAttribute = {
+  key: string;
+  value: Record<string, unknown>;
+};
+
+type FocusedReplayParams = {
+  attributes?: RawOtelAttribute[];
+  resourceAttributes?: RawOtelAttribute[];
+  scopeName?: string;
+  scopeVersion?: string;
+  spanName?: string;
+};
+
+function buildFocusedResourceSpans(
+  params: FocusedReplayParams,
+): ResourceSpan[] {
+  return [
+    {
+      resource: { attributes: params.resourceAttributes ?? [] },
+      scopeSpans: [
+        {
+          scope: {
+            name: params.scopeName ?? "otel-replay",
+            ...(params.scopeVersion ? { version: params.scopeVersion } : {}),
+          },
+          spans: [
+            {
+              traceId: createBufferId(TRACE_ID),
+              spanId: createBufferId(FIRST_SPAN_ID),
+              name: params.spanName ?? "focused-replay",
+              kind: 1,
+              startTimeUnixNano: "1714488530686000000",
+              endTimeUnixNano: "1714488530687000000",
+              attributes: params.attributes ?? [],
+              status: { code: 0 },
+            },
+          ],
+        },
+      ],
+    },
+  ];
+}
+
+function focusedReplayBytes(params: FocusedReplayParams): Buffer {
+  return Buffer.from(JSON.stringify(buildFocusedResourceSpans(params)));
+}
+
+function structuredMetadataReplayBytes(params: {
+  scopeVersion: string;
+  telemetrySdkLanguage: "python" | "nodejs";
+  dataUri: string;
+}): {
+  bytes: Buffer;
+  jsonString: string;
+  escapedJsonString: string;
+  providerJson: string;
+} {
+  // A string-valued SDK metadata field can itself contain serialized JSON. The
+  // SDK then JSON-encodes that value again for the per-key OTLP attribute.
+  const jsonString = JSON.stringify({ image: params.dataUri });
+  // A second spelling checks that escaped source text remains eligible for
+  // restoration even when the later detector does not accept it for upload.
+  const escapedJsonString = JSON.stringify({ image: params.dataUri }).replace(
+    "data:image/",
+    "data:image\\/",
+  );
+  const providerJson = JSON.stringify({
+    type: "file",
+    mediaType: "image/png",
+    data: params.dataUri.slice(params.dataUri.indexOf(",") + 1),
+  });
+  const metadata = {
+    "": JSON.stringify({ collision: { key: "blob wins" } }),
+    ".quoted": JSON.stringify("quoted value"),
+    ".asset": JSON.stringify({ attachment: { image: params.dataUri } }),
+    ".json_string": JSON.stringify(jsonString),
+    ".escaped_json_string": JSON.stringify(escapedJsonString),
+    ".quoted_provider": JSON.stringify(providerJson),
+    ".truncated": '{"value":"cut',
+    ".collision.key": JSON.stringify("dotted loses"),
+  };
+
+  return {
+    bytes: focusedReplayBytes({
+      scopeName: "langfuse-sdk",
+      scopeVersion: params.scopeVersion,
+      resourceAttributes: [
+        stringAttribute("telemetry.sdk.language", params.telemetrySdkLanguage),
+      ],
+      attributes: Object.entries(metadata).map(([path, value]) =>
+        stringAttribute(`langfuse.observation.metadata${path}`, value),
+      ),
+    }),
+    jsonString,
+    escapedJsonString,
+    providerJson,
+  };
+}
+
+function eventMetadataByPath(
+  row: Record<string, unknown>,
+): Map<string, string> {
+  const names = row.metadata_names as string[];
+  const values = row.metadata_values as string[];
+  return new Map(names.map((name, index) => [name, values[index]]));
+}
+
 // Vitest retries can overlap unfinished ClickHouse I/O and shared replay mocks.
 describe(
   "OTEL replay persists enriched observations after media and overflow handling",
@@ -217,7 +465,7 @@ describe(
     });
 
     it("writes both enriched observations and preserves accounting through readback", async () => {
-      const { storedRows } = await runOtelReplay({
+      const comparison = await runOtelReplayComparison({
         bytes: Buffer.from(JSON.stringify(buildResourceSpans())),
         projectId: PROJECT_ID,
         fileKey: FILE_KEY,
@@ -226,85 +474,88 @@ describe(
         overflowSizeLimitBytes: 256,
       });
 
-      expect(storedRows).toHaveLength(2);
-      expect(otelReplayMocks.scheduleObservationEvals).toHaveBeenCalledTimes(2);
+      expectRawOtelReplayParity(comparison);
+      expect(otelReplayMocks.scheduleObservationEvals).toHaveBeenCalledTimes(4);
 
-      const rowsBySpanId = new Map(
-        storedRows.map((row) => [String(row.span_id), row]),
-      );
-      const firstRow = rowsBySpanId.get(FIRST_SPAN_ID);
-      const secondRow = rowsBySpanId.get(SECOND_SPAN_ID);
-      expect(firstRow).toBeDefined();
-      expect(secondRow).toBeDefined();
+      for (const result of [comparison.originalTs, comparison.earlyTs]) {
+        expect(result.storedRows, result.mode).toHaveLength(2);
+        const rowsBySpanId = new Map(
+          result.storedRows.map((row) => [String(row.span_id), row]),
+        );
+        const firstRow = rowsBySpanId.get(FIRST_SPAN_ID);
+        const secondRow = rowsBySpanId.get(SECOND_SPAN_ID);
+        expect(firstRow).toBeDefined();
+        expect(secondRow).toBeDefined();
 
-      expect(firstRow).toMatchObject({
-        project_id: PROJECT_ID,
-        trace_id: TRACE_ID,
-        span_id: FIRST_SPAN_ID,
-        parent_span_id: "",
-        name: "replay-generation-with-media",
-        type: "GENERATION",
-        environment: "integration",
-        release: "replay-release",
-        trace_name: "replay-trace",
-        user_id: "replay-user",
-        session_id: "replay-session",
-        prompt_id: "replay-prompt-id",
-        prompt_name: "replay-prompt",
-        prompt_version: 3,
-        model_id: "otel-replay-model",
-        provided_model_name: "gpt-4o-mini",
-        usage_pricing_tier_id: "otel-replay-tier",
-        usage_pricing_tier_name: "Replay default",
-        ingestion_sdk_name: "otel-replay",
-        ingestion_sdk_version: "test",
-        blob_storage_file_path: FILE_KEY,
-      });
-      expect(String(firstRow?.input)).toContain(
-        "@@@langfuseMedia:type=image/png|id=image-media-id|source=",
-      );
-      expect(firstRow?.output).toBe("short replay answer");
-      expect(firstRow?.metadata_names).toContain("source");
-      expect(firstRow?.metadata_values).toContain("integration");
-      expect(
-        Number((firstRow?.usage_details as Record<string, unknown>).input),
-      ).toBeGreaterThan(0);
-      expect(
-        Number((firstRow?.usage_details as Record<string, unknown>).output),
-      ).toBeGreaterThan(0);
-      expect(
-        Number((firstRow?.cost_details as Record<string, unknown>).total),
-      ).toBeGreaterThan(0);
+        expect(firstRow).toMatchObject({
+          project_id: PROJECT_ID,
+          trace_id: TRACE_ID,
+          span_id: FIRST_SPAN_ID,
+          parent_span_id: "",
+          name: "replay-generation-with-media",
+          type: "GENERATION",
+          environment: "integration",
+          release: "replay-release",
+          trace_name: "replay-trace",
+          user_id: "replay-user",
+          session_id: "replay-session",
+          prompt_id: "replay-prompt-id",
+          prompt_name: "replay-prompt",
+          prompt_version: 3,
+          model_id: "otel-replay-model",
+          provided_model_name: "gpt-4o-mini",
+          usage_pricing_tier_id: "otel-replay-tier",
+          usage_pricing_tier_name: "Replay default",
+          ingestion_sdk_name: "otel-replay",
+          ingestion_sdk_version: "test",
+          blob_storage_file_path: FILE_KEY,
+        });
+        expect(String(firstRow?.input)).toContain(
+          "@@@langfuseMedia:type=image/png|id=image-media-id|source=",
+        );
+        expect(firstRow?.output).toBe("short replay answer");
+        expect(firstRow?.metadata_names).toContain("source");
+        expect(firstRow?.metadata_values).toContain("integration");
+        expect(
+          Number((firstRow?.usage_details as Record<string, unknown>).input),
+        ).toBeGreaterThan(0);
+        expect(
+          Number((firstRow?.usage_details as Record<string, unknown>).output),
+        ).toBeGreaterThan(0);
+        expect(
+          Number((firstRow?.cost_details as Record<string, unknown>).total),
+        ).toBeGreaterThan(0);
 
-      expect(secondRow).toMatchObject({
-        project_id: PROJECT_ID,
-        trace_id: TRACE_ID,
-        span_id: SECOND_SPAN_ID,
-        parent_span_id: FIRST_SPAN_ID,
-        name: "replay-generation-with-overflow",
-        type: "GENERATION",
-        prompt_id: "replay-prompt-id",
-        model_id: "otel-replay-model",
-        provided_model_name: "gpt-4o-mini",
-        usage_details: {},
-        provided_cost_details: {
-          input: 999_999.999999,
-          output: -999_999.999999,
-          total: 999_999.999999,
-        },
-        cost_details: {
-          input: 999_999.999999,
-          output: -999_999.999999,
-          total: 999_999.999999,
-        },
-      });
-      expect(secondRow?.input).toBe("plain input");
-      expect(secondRow?.output).toBe(
-        "@@@langfuseMedia:type=text/plain|id=overflow-media-id|source=field_size_limit@@@",
-      );
+        expect(secondRow).toMatchObject({
+          project_id: PROJECT_ID,
+          trace_id: TRACE_ID,
+          span_id: SECOND_SPAN_ID,
+          parent_span_id: FIRST_SPAN_ID,
+          name: "replay-generation-with-overflow",
+          type: "GENERATION",
+          prompt_id: "replay-prompt-id",
+          model_id: "otel-replay-model",
+          provided_model_name: "gpt-4o-mini",
+          usage_details: {},
+          provided_cost_details: {
+            input: 999_999.999999,
+            output: -999_999.999999,
+            total: 999_999.999999,
+          },
+          cost_details: {
+            input: 999_999.999999,
+            output: -999_999.999999,
+            total: 999_999.999999,
+          },
+        });
+        expect(secondRow?.input).toBe("plain input");
+        expect(secondRow?.output).toBe(
+          "@@@langfuseMedia:type=text/plain|id=overflow-media-id|source=field_size_limit@@@",
+        );
 
-      for (const row of storedRows) {
-        expect(Number(row.event_bytes)).toBeGreaterThan(0);
+        for (const row of result.storedRows) {
+          expect(Number(row.event_bytes)).toBeGreaterThan(0);
+        }
       }
     });
 
@@ -314,42 +565,609 @@ describe(
       const bytes = Buffer.from(
         `[{"resource":{"attributes":[]},"scopeSpans":[{"scope":{"name":"otel-replay"},"spans":[{"traceId":"${TRACE_ID}","spanId":"${FIRST_SPAN_ID}","name":"unsafe-number","startTimeUnixNano":"1714488530686000000","endTimeUnixNano":"1714488530687000000","attributes":[{"key":"gen_ai.request.temperature","value":{"doubleValue":9007199254740993}}],"status":{"code":0}}]}]}]`,
       );
-      const { storedRows } = await runOtelReplay({
+      const comparison = await runOtelReplayComparison({
         bytes,
         projectId: `${PROJECT_ID}-unsafe-number`,
         fileKey: `${FILE_KEY}.unsafe-number`,
         mediaUploadEnabled: true,
       });
 
-      expect(storedRows).toHaveLength(1);
-      const metadataIndex = (storedRows[0].metadata_names as string[]).indexOf(
-        "attributes.gen_ai.request.temperature",
-      );
-      expect(metadataIndex).toBeGreaterThanOrEqual(0);
-      expect(storedRows[0].metadata_values?.[metadataIndex]).toBe(
-        "9007199254740992",
-      );
+      expectRawOtelReplayParity(comparison);
+      for (const result of [comparison.originalTs, comparison.earlyTs]) {
+        expect(result.storedRows, result.mode).toHaveLength(1);
+        const metadataIndex = (
+          result.storedRows[0].metadata_names as string[]
+        ).indexOf("attributes.gen_ai.request.temperature");
+        expect(metadataIndex).toBeGreaterThanOrEqual(0);
+        expect(result.storedRows[0].metadata_values?.[metadataIndex]).toBe(
+          "9007199254740992",
+        );
+      }
     });
 
-    it("persists legacy and events_full rows from raw OTEL bytes in dual mode", async () => {
+    it.each([
+      ...[
+        {
+          sdkLabel: "Python 5.0",
+          sdkName: "python",
+          sdkVersion: "5.0.0",
+          telemetrySdkLanguage: "python",
+          scopeVersion: "5.0.0",
+        },
+        {
+          sdkLabel: "JavaScript 6.0 fallback",
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          telemetrySdkLanguage: "nodejs",
+          scopeVersion: "6.0.0",
+        },
+      ].flatMap((sdk) =>
+        (["events_only", "dual"] as const).map((writeMode) => ({
+          ...sdk,
+          writeMode,
+          uploadOutcome: "success" as const,
+        })),
+      ),
+      {
+        sdkLabel: "Python 5.0 failure",
+        sdkName: "python",
+        sdkVersion: "5.0.0",
+        telemetrySdkLanguage: "python",
+        scopeVersion: "5.0.0",
+        writeMode: "events_only",
+        uploadOutcome: "failure",
+      },
+      {
+        sdkLabel: "JavaScript 6.0 fallback failure",
+        sdkName: "unknown",
+        sdkVersion: "unknown",
+        telemetrySdkLanguage: "nodejs",
+        scopeVersion: "6.0.0",
+        writeMode: "dual",
+        uploadOutcome: "failure",
+      },
+    ] as const)(
+      "processes structured metadata for $sdkLabel",
+      async ({
+        sdkName,
+        sdkVersion,
+        telemetrySdkLanguage,
+        scopeVersion,
+        writeMode,
+        uploadOutcome,
+      }) => {
+        const imageBytes = Buffer.alloc(1024, 42);
+        const dataUri = `data:image/png;base64,${imageBytes.toString("base64")}`;
+        const structuredMetadata = structuredMetadataReplayBytes({
+          scopeVersion,
+          telemetrySdkLanguage,
+          dataUri,
+        });
+        const createdProject =
+          writeMode === "dual" ? await createOrgProjectAndApiKey() : undefined;
+        const projectId =
+          createdProject?.projectId ??
+          `${PROJECT_ID}-${sdkName}-${uploadOutcome}`;
+        const fileKey = `${FILE_KEY}.structured-${sdkName}-${writeMode}-${uploadOutcome}`;
+        const compactedBatches: { json: string; references: string[] }[] = [];
+        const prepareOtelBatch = otelPreparation.prepareOtelBatch;
+        const preparation = vi
+          .spyOn(otelPreparation, "prepareOtelBatch")
+          .mockImplementation(async (params) => {
+            const prepared = await prepareOtelBatch(params);
+            if (prepared?.batch) {
+              // Snapshot native output before queue parsing and the TS media detector.
+              compactedBatches.push({
+                json: (await prepared.batch.copyJsonBuffer()).toString("utf8"),
+                references: prepared.batch.media.map(
+                  (media) => media.reference,
+                ),
+              });
+            }
+            return prepared;
+          });
+        if (uploadOutcome === "failure") {
+          otelReplayMocks.uploadMediaForTrace.mockRejectedValue(
+            new Error("simulated structured media upload failure"),
+          );
+        }
+
+        try {
+          const replayParams = {
+            bytes: structuredMetadata.bytes,
+            projectId,
+            orgId: createdProject?.orgId,
+            fileKey,
+            mediaUploadEnabled: true,
+            writeMode,
+            sdkName,
+            sdkVersion,
+          } as const;
+          const comparison = await runOtelReplayComparison(replayParams);
+          expectRawOtelReplayParity(comparison);
+          expectLegacyReplayParity(comparison);
+          const replayResults = [comparison.originalTs, comparison.earlyTs];
+
+          expect(compactedBatches).toHaveLength(1);
+          expect(compactedBatches[0].references).toHaveLength(4);
+          for (const reference of compactedBatches[0].references) {
+            expect(compactedBatches[0].json).toContain(reference);
+          }
+          expect(compactedBatches[0].json).not.toContain("data:image");
+          const uploadedBodies =
+            otelReplayMocks.uploadMediaForTrace.mock.calls.map(([params]) =>
+              Buffer.from(params.contentBytes),
+            );
+          expect(uploadedBodies.length).toBeGreaterThan(0);
+          expect(uploadedBodies.every((body) => body.equals(imageBytes))).toBe(
+            true,
+          );
+
+          const expectedImage =
+            uploadOutcome === "success"
+              ? "@@@langfuseMedia:type=image/png|id=overflow-media-id|source=base64_data_uri@@@"
+              : dataUri;
+          const expectedJsonString =
+            uploadOutcome === "success"
+              ? JSON.stringify({ image: expectedImage })
+              : structuredMetadata.jsonString;
+          const expectedEscapedJsonString =
+            structuredMetadata.escapedJsonString;
+          const expectedMetadata = {
+            quoted: "quoted value",
+            "asset.attachment.image": expectedImage,
+            json_string: expectedJsonString,
+            escaped_json_string: expectedEscapedJsonString,
+            quoted_provider: structuredMetadata.providerJson,
+            truncated: '{"value":"cut',
+            "collision.key": "blob wins",
+          };
+          for (const result of replayResults) {
+            expect(result.storedRows, result.mode).toHaveLength(1);
+            expect(
+              Object.fromEntries(eventMetadataByPath(result.storedRows[0])),
+              result.mode,
+            ).toMatchObject(expectedMetadata);
+            if (writeMode === "dual") {
+              expect(result.legacyRows?.observations, result.mode).toHaveLength(
+                1,
+              );
+              expect(
+                result.legacyRows!.observations![0].metadata,
+                result.mode,
+              ).toMatchObject({
+                quoted: "quoted value",
+                asset: JSON.stringify({
+                  attachment: { image: expectedImage },
+                }),
+                json_string: expectedJsonString,
+                escaped_json_string: expectedEscapedJsonString,
+                quoted_provider: structuredMetadata.providerJson,
+                truncated: '{"value":"cut',
+                collision: JSON.stringify({ key: "blob wins" }),
+                "collision.key": "dotted loses",
+              });
+            }
+          }
+        } finally {
+          preparation.mockRestore();
+          if (createdProject) {
+            await prisma.project.delete({
+              where: { id: createdProject.projectId },
+            });
+            await prisma.organization.delete({
+              where: { id: createdProject.orgId },
+            });
+          }
+        }
+      },
+    );
+
+    it.each([
+      {
+        sdkLabel: "Python 4.15",
+        sdkName: "python",
+        sdkVersion: "4.15.6",
+        telemetrySdkLanguage: "python",
+        scopeVersion: "4.15.6",
+      },
+      {
+        sdkLabel: "JavaScript 5.11",
+        sdkName: "javascript",
+        sdkVersion: "5.11.1",
+        telemetrySdkLanguage: "nodejs",
+        scopeVersion: "5.11.1",
+      },
+    ] as const)(
+      "keeps per-key values encoded for older $sdkLabel scope versions",
+      async ({ sdkName, sdkVersion, telemetrySdkLanguage, scopeVersion }) => {
+        const dataUri = `data:image/png;base64,${Buffer.alloc(1024, 42).toString("base64")}`;
+        const structuredMetadata = structuredMetadataReplayBytes({
+          scopeVersion,
+          telemetrySdkLanguage,
+          dataUri,
+        });
+        const comparison = await runOtelReplayComparison({
+          bytes: structuredMetadata.bytes,
+          projectId: `${PROJECT_ID}-old-${sdkName}`,
+          fileKey: `${FILE_KEY}.old-${sdkName}`,
+          mediaUploadEnabled: true,
+          sdkName,
+          sdkVersion,
+        });
+
+        expectRawOtelReplayParity(comparison);
+        for (const result of [comparison.originalTs, comparison.earlyTs]) {
+          expect(result.storedRows).toHaveLength(1);
+          const metadata = eventMetadataByPath(result.storedRows[0]);
+          expect(metadata.get("quoted")).toBe(JSON.stringify("quoted value"));
+          expect(metadata.get("asset")).toBe(
+            JSON.stringify({
+              attachment: {
+                image:
+                  "@@@langfuseMedia:type=image/png|id=overflow-media-id|source=base64_data_uri@@@",
+              },
+            }),
+          );
+          expect(metadata.get("json_string")).toBe(
+            JSON.stringify(structuredMetadata.jsonString),
+          );
+          expect(metadata.get("escaped_json_string")).toBe(
+            JSON.stringify(structuredMetadata.escapedJsonString),
+          );
+          expect(metadata.get("quoted_provider")).toBe(
+            JSON.stringify(structuredMetadata.providerJson),
+          );
+          expect(metadata.get("truncated")).toBe('{"value":"cut');
+          expect(metadata.get("collision.key")).toBe("blob wins");
+        }
+      },
+    );
+
+    it("extracts only media accepted by masking", async () => {
+      const originalMedia = Buffer.from("original-media".repeat(512));
+      const maskedMedia = Buffer.from("masked-media".repeat(512));
+      const rawBytes = focusedReplayBytes({
+        attributes: [
+          stringAttribute(
+            "langfuse.observation.input",
+            `data:image/png;base64,${originalMedia.toString("base64")}`,
+          ),
+        ],
+      });
+      const maskedBytes = focusedReplayBytes({
+        attributes: [
+          stringAttribute(
+            "langfuse.observation.input",
+            `data:image/png;base64,${maskedMedia.toString("base64")}`,
+          ),
+        ],
+      });
+      const maskingEnv: SharedEnv = {
+        ...sharedEnv,
+        LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
+          "https://masking.example.com/mask",
+        LANGFUSE_INGESTION_MASKING_CALLBACK_TIMEOUT_MS: 1_000,
+        LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED: "true",
+        LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 0,
+        LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS: [],
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+        LANGFUSE_EE_LICENSE_KEY: "langfuse_ee_test-license-key",
+      };
+      const configuredMasking = vi.mocked(masking.applyIngestionMasking);
+      const applyMasking = configuredMasking.getMockImplementation()!;
+      const configuredMaskingEnabled = vi.mocked(
+        masking.isIngestionMaskingEnabled,
+      );
+      const isMaskingEnabled =
+        configuredMaskingEnabled.getMockImplementation()!;
+      configuredMasking.mockImplementation((params, _env, transport) =>
+        applyMasking(params, maskingEnv, transport),
+      );
+      configuredMaskingEnabled.mockImplementation(() =>
+        isMaskingEnabled(maskingEnv),
+      );
+
+      const maskingRequests: Buffer[] = [];
+      const fetch = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async (_input, init) => {
+          const body = init?.body;
+          if (typeof body === "string") {
+            maskingRequests.push(Buffer.from(body));
+          } else if (body instanceof Uint8Array) {
+            maskingRequests.push(Buffer.from(body));
+          } else {
+            throw new Error("masking callback received an unexpected body");
+          }
+          return new Response(maskedBytes.toString("utf8"), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        });
+
+      const compactedBatches: {
+        json: string;
+        media: Array<{ reference: string; bodyBase64: string }>;
+      }[] = [];
+      const prepareOtelBatch = otelPreparation.prepareOtelBatch;
+      const preparation = vi
+        .spyOn(otelPreparation, "prepareOtelBatch")
+        .mockImplementation(async (params) => {
+          const result = await prepareOtelBatch(params);
+          if (result?.batch) {
+            const media = result.batch.media;
+            compactedBatches.push({
+              json: (await result.batch.copyJsonBuffer()).toString("utf8"),
+              media: await Promise.all(
+                media.map(async ({ index, reference }) => ({
+                  reference,
+                  bodyBase64: (await result.batch!.mediaBody(index)).toString(
+                    "base64",
+                  ),
+                })),
+              ),
+            });
+          }
+          return result;
+        });
+
+      try {
+        const comparison = await runOtelReplayComparison({
+          bytes: rawBytes,
+          projectId: `${PROJECT_ID}-masking-media`,
+          fileKey: `${FILE_KEY}.masking-media`,
+          mediaUploadEnabled: true,
+          captureSideEffects: createMediaAssociationCapture(),
+        });
+
+        expect(fetch).toHaveBeenCalledTimes(2);
+        expect(maskingRequests).toHaveLength(2);
+        for (const request of maskingRequests) {
+          expect(request).toEqual(rawBytes);
+          expect(JSON.parse(request.toString("utf8"))).toEqual(
+            JSON.parse(rawBytes.toString("utf8")),
+          );
+        }
+        expect(compactedBatches).toHaveLength(1);
+        const earlyBatch = compactedBatches[0]!;
+        expect(earlyBatch.media).toEqual([
+          {
+            reference: expect.any(String),
+            bodyBase64: maskedMedia.toString("base64"),
+          },
+        ]);
+        expect(earlyBatch.json).toContain(earlyBatch.media[0]!.reference);
+        expect(earlyBatch.json).not.toContain(
+          `data:image/png;base64,${maskedMedia.toString("base64")}`,
+        );
+        for (const result of [comparison.originalTs, comparison.earlyTs]) {
+          const associations = result.sideEffects as MediaAssociation[];
+          expect(associations, result.mode).toHaveLength(1);
+          expect(associations[0]?.contentBase64, result.mode).toBe(
+            maskedMedia.toString("base64"),
+          );
+          expect(result.storedRows, result.mode).toHaveLength(1);
+          expect(String(result.storedRows[0]?.input), result.mode).toContain(
+            "id=image-media-id",
+          );
+          expect(
+            String(result.storedRows[0]?.input),
+            result.mode,
+          ).not.toContain(originalMedia.toString("base64"));
+        }
+        expectRawOtelReplayParity(comparison);
+      } finally {
+        preparation.mockRestore();
+        fetch.mockRestore();
+        configuredMasking.mockImplementation(applyMasking);
+        configuredMaskingEnabled.mockImplementation(isMaskingEnabled);
+      }
+    });
+
+    it("restores tag media before scalar tag values are split", async () => {
+      const dataUri = `data:image/png;base64,${Buffer.from("tag-media").toString("base64")}`;
+      const comparison = await runOtelReplayComparison({
+        bytes: focusedReplayBytes({
+          attributes: [stringAttribute("langfuse.trace.tags", dataUri)],
+        }),
+        projectId: `${PROJECT_ID}-tag-media`,
+        fileKey: `${FILE_KEY}.tag-media`,
+        mediaUploadEnabled: true,
+      });
+
+      expectRawOtelReplayParity(comparison);
+      for (const result of [comparison.originalTs, comparison.earlyTs]) {
+        expect(result.storedRows, result.mode).toHaveLength(1);
+        expect(result.storedRows[0]?.tags, result.mode).toEqual([
+          "data:image/png;base64",
+          Buffer.from("tag-media").toString("base64"),
+        ]);
+      }
+    });
+
+    it.each([
+      ["scope name", { scopeName: "data:text/plain;base64,aGk=" }],
+      [
+        "attribute key",
+        {
+          attributes: [
+            stringAttribute("data:text/plain;base64,aGk=", "attribute-value"),
+          ],
+        },
+      ],
+    ] as const)(
+      "keeps structural media in the %s aligned",
+      async (name, options) => {
+        const comparison = await runOtelReplayComparison({
+          bytes: focusedReplayBytes(options),
+          projectId: `${PROJECT_ID}-structural-media-${name}`,
+          fileKey: `${FILE_KEY}.structural-media-${name}`,
+          mediaUploadEnabled: true,
+        });
+
+        expectRawOtelReplayParity(comparison);
+        for (const result of [comparison.originalTs, comparison.earlyTs]) {
+          expect(result.storedRows, result.mode).toHaveLength(1);
+        }
+      },
+    );
+
+    const deepValue = `${"[".repeat(200)}null${"]".repeat(200)}`;
+    const shallowDocument = focusedReplayBytes({
+      spanName: "deep-document",
+    })
+      .toString("utf8")
+      .replace("[{", `[{"ignored":${deepValue},`);
+    const overflowingNumber = focusedReplayBytes({
+      attributes: [
+        { key: "gen_ai.request.temperature", value: { doubleValue: 0.25 } },
+      ],
+    })
+      .toString("utf8")
+      .replace('"doubleValue":0.25', '"doubleValue":1e309');
+
+    let nestedInput: unknown = "leaf";
+    for (let depth = 0; depth < 120; depth++) nestedInput = { x: nestedInput };
+    const repeatedNestedInput = focusedReplayBytes({
+      attributes: [
+        stringAttribute(
+          "langfuse.observation.input",
+          JSON.stringify({
+            marker: "data: ",
+            items: Array.from({ length: 32 }, () => nestedInput),
+          }),
+        ),
+      ],
+    });
+
+    it.each([
+      ["repeated nested objects", repeatedNestedInput],
+      ["deep JSON nesting", Buffer.from(shallowDocument)],
+      [
+        "embedded lone surrogate",
+        focusedReplayBytes({
+          attributes: [
+            stringAttribute(
+              "langfuse.observation.input",
+              JSON.stringify({ text: "\ud800" }),
+            ),
+          ],
+        }),
+      ],
+      ["out-of-range number", Buffer.from(overflowingNumber)],
+    ] as const)(
+      "preserves persisted values for %s input",
+      async (name, bytes) => {
+        if (name === "repeated nested objects") {
+          // Native success is a separate assertion from persistence parity:
+          // the original TS path cannot rescue a scanner resource failure.
+          const validated = await validateOtelJson(bytes);
+          const batch = await validated.extract(true);
+          await batch.dispose();
+          await validated.dispose();
+        }
+        const comparison = await runOtelReplayComparison({
+          bytes,
+          projectId: `${PROJECT_ID}-edge-${name}`,
+          fileKey: `${FILE_KEY}.edge-${name}`,
+          mediaUploadEnabled: true,
+        });
+
+        expectRawOtelReplayParity(comparison);
+        expect(comparison.originalTs.storedRows).toHaveLength(1);
+        expect(comparison.earlyTs.storedRows).toHaveLength(1);
+      },
+    );
+
+    it("persists sanitized UTF-8 consistently across both paths", async () => {
+      const bytes = focusedReplayBytes({
+        attributes: [
+          stringAttribute("langfuse.observation.input", "utf8-probe"),
+        ],
+      });
+      bytes[bytes.indexOf("utf8-probe")] = 0xff;
+
+      const comparison = await runOtelReplayComparison({
+        bytes,
+        projectId: `${PROJECT_ID}-invalid-utf8`,
+        fileKey: `${FILE_KEY}.invalid-utf8`,
+        mediaUploadEnabled: true,
+      });
+      expectRawOtelReplayParity(comparison);
+      for (const result of [comparison.originalTs, comparison.earlyTs]) {
+        expect(result.storedRows).toHaveLength(1);
+        expect(result.storedRows[0].input).toContain("�tf8-probe");
+      }
+    });
+
+    it("persists matching legacy rows, media associations, and events_full rows in dual mode", async () => {
       const { projectId, orgId } = await createOrgProjectAndApiKey();
       const originalBlobStorageFileLogFlag =
         env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG;
       env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG = "true";
       try {
-        const { storedRows, legacyRows } = await runOtelReplay({
+        const captureMediaAssociations = createMediaAssociationCapture();
+        const comparison = await runOtelReplayComparison({
           bytes: Buffer.from(JSON.stringify(buildResourceSpans())),
           projectId,
           orgId,
           fileKey: `${FILE_KEY}.dual-write`,
+          mediaUploadEnabled: true,
+          overflowEnabled: true,
+          overflowSizeLimitBytes: 256,
           writeMode: "dual",
+          captureSideEffects: captureMediaAssociations,
         });
 
-        expect(storedRows).toHaveLength(2);
-        expect(legacyRows?.traces?.length).toBeGreaterThan(0);
-        expect(legacyRows?.observations).toHaveLength(2);
-        expect(legacyRows?.observations_batch_staging).toHaveLength(0);
         expect(await getTraceUpsertJobsForProject(projectId)).toHaveLength(0);
+        expectRawOtelReplayParity(comparison);
+        expect(comparison.originalTs.sideEffects).toEqual(
+          comparison.earlyTs.sideEffects,
+        );
+        const associations = comparison.originalTs
+          .sideEffects as MediaAssociation[];
+        expect(associations).toHaveLength(3);
+        expect(associations).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              mediaId: "image-media-id",
+              traceId: TRACE_ID,
+              observationId: FIRST_SPAN_ID,
+              field: "input",
+              contentType: "image/png",
+              contentBase64: Buffer.from("small-image").toString("base64"),
+              origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+            }),
+            expect.objectContaining({
+              mediaId: "image-media-id",
+              traceId: TRACE_ID,
+              observationId: undefined,
+              field: "input",
+              contentType: "image/png",
+              contentBase64: Buffer.from("small-image").toString("base64"),
+              origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+            }),
+            expect.objectContaining({
+              mediaId: "overflow-media-id",
+              traceId: TRACE_ID,
+              observationId: SECOND_SPAN_ID,
+              field: "output",
+              contentType: "text/plain",
+              contentBase64: Buffer.from("x".repeat(1024)).toString("base64"),
+              origin: MediaAssociationOrigin.INGESTION_FIELD_OVERFLOW,
+            }),
+          ]),
+        );
+
+        for (const result of [comparison.originalTs, comparison.earlyTs]) {
+          expect(result.storedRows, result.mode).toHaveLength(2);
+          expect(result.legacyRows?.traces?.length).toBeGreaterThan(0);
+          expect(result.legacyRows?.observations).toHaveLength(2);
+          expect(result.legacyRows?.observations_batch_staging).toHaveLength(0);
+        }
+
+        expectLegacyReplayParity(comparison);
       } finally {
         const traceJobs = await getTraceUpsertJobsForProject(projectId);
         await Promise.allSettled(traceJobs.map((job) => job.remove()));
@@ -360,64 +1178,198 @@ describe(
       }
     });
 
-    it("removes replay-owned ingestion jobs when a legacy replay job fails", async () => {
-      const { projectId, orgId } = await createOrgProjectAndApiKey();
-      const originalBlobStorageFileLogFlag =
-        env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG;
-      env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG = "false";
-
-      const unrelatedQueue = IngestionQueue.getInstance({
-        shardingKey: `${projectId}-unrelated`,
-      });
-      if (!unrelatedQueue)
-        throw new Error("Ingestion queue is not initialized");
-      const unrelatedJob = await unrelatedQueue.add(QueueJobs.IngestionJob, {
-        id: `otel-replay-unrelated-${randomUUID()}`,
-        timestamp: new Date(),
-        name: QueueJobs.IngestionJob,
-        payload: {
-          data: {
-            type: "span-create",
-            eventBodyId: `otel-replay-unrelated-${randomUUID()}`,
-            fileKey: "unrelated.json",
-            bucketPrefix: "otel-replay/unrelated/",
-            ingestionApiKey: "",
-            ingestionSdkName: "otel-replay-test",
-            ingestionSdkVersion: "test",
-          },
-          authCheck: {
-            validKey: true,
-            scope: { projectId, orgId, accessLevel: "project" },
-          },
-        },
-      });
-
-      try {
-        await expect(
-          runOtelReplay({
-            bytes: Buffer.from(
-              JSON.stringify(buildResourceSpans({ separateTraces: true })),
-            ),
+    it.each(["succeed", "fail"] as const)(
+      "preserves mixed existing and inline media in dual writes when uploads %s",
+      async (outcome) => {
+        const { projectId, orgId } = await createOrgProjectAndApiKey();
+        const existingReference =
+          "@@@langfuseMedia:type=image/png|id=preexisting-media-id|source=bytes@@@";
+        const content = Buffer.from("dual-inline-media".repeat(256));
+        const dataUri = `data:image/png;base64,${content.toString("base64")}`;
+        const input = JSON.stringify([existingReference, dataUri]);
+        const uploadFails = outcome === "fail";
+        if (uploadFails) {
+          otelReplayMocks.uploadMediaForTrace.mockRejectedValue(
+            new Error("simulated media upload failure"),
+          );
+        }
+        // Final rows can match even if the late detector does all the work. Capture the
+        // real compact document and registry before the queue parses and disposes them.
+        const compactedBatches: { json: string; references: string[] }[] = [];
+        const prepareOtelBatch = otelPreparation.prepareOtelBatch;
+        const preparation = vi
+          .spyOn(otelPreparation, "prepareOtelBatch")
+          .mockImplementation(async (params) => {
+            const result = await prepareOtelBatch(params);
+            if (result?.batch) {
+              compactedBatches.push({
+                json: (await result.batch.copyJsonBuffer()).toString("utf8"),
+                references: result.batch.media.map((media) => media.reference),
+              });
+            }
+            return result;
+          });
+        const captureMediaAssociations = createMediaAssociationCapture();
+        let uploadCursor = 0;
+        try {
+          const comparison = await runOtelReplayComparison({
+            bytes: focusedReplayBytes({
+              attributes: [
+                stringAttribute("langfuse.trace.input", input),
+                stringAttribute("langfuse.observation.input", input),
+              ],
+            }),
             projectId,
             orgId,
-            fileKey: `${FILE_KEY}.legacy-failure`,
+            fileKey: `${FILE_KEY}.dual-media-${outcome}`,
+            mediaUploadEnabled: true,
             writeMode: "dual",
-            failLegacyQueueProcessing: true,
-          }),
-        ).rejects.toThrow("simulated legacy ingestion read failure");
+            captureSideEffects: () => {
+              const uploads =
+                otelReplayMocks.uploadMediaForTrace.mock.calls.slice(
+                  uploadCursor,
+                );
+              uploadCursor =
+                otelReplayMocks.uploadMediaForTrace.mock.calls.length;
+              // Each mode must attempt the upload, including when it fails and the
+              // original inline content is therefore the correct persisted result.
+              expect(uploads.length).toBeGreaterThan(0);
+              for (const [params] of uploads) {
+                expect(params.contentBytes).toEqual(content);
+              }
+              return uploadFails ? [] : captureMediaAssociations();
+            },
+          });
+          expect(compactedBatches).toHaveLength(1);
+          for (const batch of compactedBatches) {
+            expect(batch.json).toContain(existingReference);
+            expect(batch.json).not.toContain(dataUri);
+            expect(batch.references.length).toBeGreaterThan(0);
+            for (const reference of batch.references) {
+              expect(reference).not.toBe(existingReference);
+              expect(batch.json).toContain(reference);
+            }
+          }
+          expectRawOtelReplayParity(comparison);
+          expectLegacyReplayParity(comparison);
+          const expectedInput = JSON.stringify([
+            existingReference,
+            uploadFails
+              ? dataUri
+              : "@@@langfuseMedia:type=image/png|id=image-media-id|source=base64_data_uri@@@",
+          ]);
+          for (const result of [comparison.originalTs, comparison.earlyTs]) {
+            expect(result.storedRows, result.mode).toHaveLength(1);
+            expect(result.legacyRows?.traces, result.mode).toHaveLength(1);
+            expect(result.legacyRows?.observations, result.mode).toHaveLength(
+              1,
+            );
+            for (const row of [
+              result.storedRows[0],
+              result.legacyRows?.traces?.[0],
+              result.legacyRows?.observations?.[0],
+            ]) {
+              expect(row?.input, result.mode).toBe(expectedInput);
+            }
+          }
+          if (uploadFails) {
+            expect(
+              otelReplayMocks.linkMediaToTraceOrObservation,
+            ).not.toHaveBeenCalled();
+          } else {
+            expect(comparison.earlyTs.sideEffects).toEqual(
+              comparison.originalTs.sideEffects,
+            );
+            expect(comparison.originalTs.sideEffects).toHaveLength(2);
+            expect(comparison.originalTs.sideEffects).toEqual(
+              expect.arrayContaining(
+                [undefined, FIRST_SPAN_ID].map((observationId) =>
+                  expect.objectContaining({
+                    traceId: TRACE_ID,
+                    observationId,
+                    field: "input",
+                    contentBase64: content.toString("base64"),
+                    origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+                  }),
+                ),
+              ),
+            );
+          }
+        } finally {
+          preparation.mockRestore();
+          await prisma.project.delete({ where: { id: projectId } });
+          await prisma.organization.delete({ where: { id: orgId } });
+        }
+      },
+    );
 
-        const remainingJobs = await getIngestionJobsForProject(projectId);
-        expect(remainingJobs.map((job) => job.id)).toEqual([unrelatedJob.id]);
-      } finally {
-        const remainingJobs = await getIngestionJobsForProject(projectId);
-        await Promise.allSettled(remainingJobs.map((job) => job.remove()));
-        const traceJobs = await getTraceUpsertJobsForProject(projectId);
-        await Promise.allSettled(traceJobs.map((job) => job.remove()));
-        env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG =
-          originalBlobStorageFileLogFlag;
-        await prisma.project.delete({ where: { id: projectId } });
-        await prisma.organization.delete({ where: { id: orgId } });
-      }
-    });
+    it.each([
+      ["original-ts", false],
+      ["original-ts", true],
+      ["early-ts", false],
+      ["early-ts", true],
+    ] as const)(
+      "removes replay-owned jobs after failure (%s, separate traces: %s)",
+      async (mode, separateTraces) => {
+        const { projectId, orgId } = await createOrgProjectAndApiKey();
+        const originalBlobStorageFileLogFlag =
+          env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG;
+        env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG = "false";
+
+        const unrelatedQueue = IngestionQueue.getInstance({
+          shardingKey: `${projectId}-unrelated`,
+        });
+        if (!unrelatedQueue)
+          throw new Error("Ingestion queue is not initialized");
+        const unrelatedJob = await unrelatedQueue.add(QueueJobs.IngestionJob, {
+          id: `otel-replay-unrelated-${randomUUID()}`,
+          timestamp: new Date(),
+          name: QueueJobs.IngestionJob,
+          payload: {
+            data: {
+              type: "span-create",
+              eventBodyId: `otel-replay-unrelated-${randomUUID()}`,
+              fileKey: "unrelated.json",
+              bucketPrefix: "otel-replay/unrelated/",
+              ingestionApiKey: "",
+              ingestionSdkName: "otel-replay-test",
+              ingestionSdkVersion: "test",
+            },
+            authCheck: {
+              validKey: true,
+              scope: { projectId, orgId, accessLevel: "project" },
+            },
+          },
+        });
+
+        try {
+          await expect(
+            runOneOtelReplay({
+              mode,
+              bytes: Buffer.from(
+                JSON.stringify(buildResourceSpans({ separateTraces })),
+              ),
+              projectId,
+              orgId,
+              fileKey: `${FILE_KEY}.legacy-failure`,
+              writeMode: "dual",
+              failLegacyQueueProcessing: true,
+            }),
+          ).rejects.toThrow("simulated legacy ingestion read failure");
+
+          const remainingJobs = await getIngestionJobsForProject(projectId);
+          expect(remainingJobs.map((job) => job.id)).toEqual([unrelatedJob.id]);
+        } finally {
+          const remainingJobs = await getIngestionJobsForProject(projectId);
+          await Promise.allSettled(remainingJobs.map((job) => job.remove()));
+          const traceJobs = await getTraceUpsertJobsForProject(projectId);
+          await Promise.allSettled(traceJobs.map((job) => job.remove()));
+          env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG =
+            originalBlobStorageFileLogFlag;
+          await prisma.project.delete({ where: { id: projectId } });
+          await prisma.organization.delete({ where: { id: orgId } });
+        }
+      },
+    );
   },
 );

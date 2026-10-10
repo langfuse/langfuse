@@ -1,3 +1,8 @@
+import type { EarlyOtelBatch } from "@langfuse/native";
+import {
+  resolveExtractedMedia,
+  restoreInlineMedia,
+} from "./resolveExtractedMedia";
 import {
   getClickhouseEntityType,
   instrumentAsync,
@@ -15,23 +20,13 @@ import { MediaAssociationOrigin } from "@langfuse/shared";
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
 /**
- * Worker integration point for media in normalized OTEL payloads selected for
- * persistence by the ingestion queue.
- *
- * Responsibilities are split across three layers:
- * - This adapter filters event shapes and owns storage configuration,
- *   instrumentation, and fail-open behavior.
- * - `processOtelMedia` iterates input/output/metadata, supplies OTEL upload
- *   context, and aggregates processing results.
- * - `transformMediaPayload`, called by `processOtelMedia`, contains the generic
- *   Data URI/provider-shape detection and replacement algorithm. It has no
- *   knowledge of OTEL, storage, projects, or tracing.
- *
- * Successful replacements mutate each target payload in place. Missing storage
- * configuration or unexpected processing errors are logged and swallowed so
- * media extraction cannot reject the enclosing OTEL ingestion job.
+ * Process media in normalized OTEL payloads selected by the ingestion queue.
+ * This adapter owns OTEL/storage context, instrumentation, and fail-open
+ * behavior; the shared processor handles legacy detection and the native
+ * resolver handles references discovered before normalization.
  */
 export async function processOtelEventMedia(params: {
+  earlyBatch?: EarlyOtelBatch;
   targets: OtelMediaTarget[];
   writePath: OtelMediaWritePath;
   projectId: string;
@@ -49,6 +44,7 @@ export async function processOtelEventMedia(params: {
     mediaPrefix,
     processMedia = processOtelMedia,
   } = params;
+  const mediaPath = params.earlyBatch ? "early" : "reference";
 
   if (!mediaBucket) {
     logger.warn(
@@ -65,11 +61,15 @@ export async function processOtelEventMedia(params: {
       { name: "langfuse.ingestion.otel.media.process" },
       async (span) => {
         const startedAt = Date.now();
+        span.setAttributes({
+          "langfuse.ingestion.otel.media_path": mediaPath,
+        });
         try {
           const result = await processMedia({
             targets,
             projectId,
             writePath,
+            mediaPath,
             mediaBucket,
             mediaPrefix,
             uploadMedia: (uploadParams) =>
@@ -78,6 +78,23 @@ export async function processOtelEventMedia(params: {
                 origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
               }),
           });
+
+          if (params.earlyBatch) {
+            const early = await resolveExtractedMedia({
+              batch: params.earlyBatch,
+              targets,
+              projectId,
+              mediaBucket,
+              mediaPrefix,
+              writePath,
+            });
+            result.uploaded += early.uploaded;
+            result.reused += early.reused;
+            result.failed += early.failed;
+            result.candidates += early.candidates;
+            result.bytesProcessed += early.bytesProcessed;
+            result.bytesRemoved += early.bytesRemoved;
+          }
 
           span.setAttributes({
             "langfuse.ingestion.otel.media.uploaded": result.uploaded,
@@ -107,7 +124,7 @@ export async function processOtelEventMedia(params: {
           recordDistribution(
             "langfuse.ingestion.otel.media.batch_byte_length",
             result.bytesProcessed,
-            { write_path: writePath },
+            { write_path: writePath, media_path: mediaPath },
           );
           recordDistribution(
             "langfuse.ingestion.otel.media.batch_checked_byte_length",
@@ -115,18 +132,28 @@ export async function processOtelEventMedia(params: {
               (total, bytes) => total + bytes,
               0,
             ),
-            { write_path: writePath },
+            { write_path: writePath, media_path: mediaPath },
           );
         } finally {
           recordDistribution(
             "langfuse.ingestion.otel.media.processing_duration_ms",
             Date.now() - startedAt,
-            { write_path: writePath },
+            { write_path: writePath, media_path: mediaPath },
           );
         }
       },
     );
   } catch (error) {
+    if (params.earlyBatch) {
+      // Unexpected detector failures must not leave pending references in persisted payloads.
+      await restoreInlineMedia(
+        params.earlyBatch,
+        targets.map(({ payload }) => payload),
+        {
+          includePayloads: true,
+        },
+      );
+    }
     logger.warn(
       "OTEL media processing failed; continuing ingestion with original span values",
       { projectId, fileKey, error },

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -42,57 +43,64 @@ describe("uploadMediaForTrace", () => {
     vi.clearAllMocks();
   });
 
-  it("creates, links, and uploads a new media asset", async () => {
-    mocks.findUnique.mockResolvedValue(null);
-    mocks.updateMany.mockResolvedValue({ count: 1 });
-    mocks.update.mockResolvedValue({});
-    mocks.uploadFile.mockResolvedValue(undefined);
+  it.each([
+    undefined,
+    createHash("sha256").update(CONTENT_BYTES).digest("base64"),
+  ])(
+    "creates, links, and uploads with precomputed digest %s",
+    async (sha256Hash) => {
+      mocks.findUnique.mockResolvedValue(null);
+      mocks.updateMany.mockResolvedValue({ count: 1 });
+      mocks.update.mockResolvedValue({});
+      mocks.uploadFile.mockResolvedValue(undefined);
 
-    const result = await uploadMediaForTrace({
-      projectId: "project-id",
-      traceId: "trace-id",
-      observationId: "observation-id",
-      field: "input",
-      contentType: MediaContentType.PNG,
-      contentBytes: CONTENT_BYTES,
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
-      origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
-    });
+      const result = await uploadMediaForTrace({
+        projectId: "project-id",
+        traceId: "trace-id",
+        observationId: "observation-id",
+        field: "input",
+        contentType: MediaContentType.PNG,
+        contentBytes: CONTENT_BYTES,
+        sha256Hash,
+        mediaBucket: "media-bucket",
+        mediaPrefix: "media/",
+        origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+      });
 
-    expect(result).toEqual({
-      mediaId: "n-vgG9Qb-2loPinXEdit_8",
-      outcome: "uploaded",
-    });
-    expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
-    expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
-    expect(mocks.queryRaw.mock.calls[0]).toContain(
-      MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
-    );
-    expect(mocks.uploadFile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fileName: "media/project-id/n-vgG9Qb-2loPinXEdit_8.png",
-        fileType: "image/png",
-      }),
-    );
-    expect(mocks.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          projectId_id: {
-            projectId: "project-id",
-            id: "n-vgG9Qb-2loPinXEdit_8",
+      expect(result).toEqual({
+        mediaId: "n-vgG9Qb-2loPinXEdit_8",
+        outcome: "uploaded",
+      });
+      expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
+      expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
+      expect(mocks.queryRaw.mock.calls[0]).toContain(
+        MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+      );
+      expect(mocks.uploadFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fileName: "media/project-id/n-vgG9Qb-2loPinXEdit_8.png",
+          fileType: "image/png",
+        }),
+      );
+      expect(mocks.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            projectId_id: {
+              projectId: "project-id",
+              id: "n-vgG9Qb-2loPinXEdit_8",
+            },
           },
-        },
-        data: expect.objectContaining({ uploadHttpStatus: 200 }),
-      }),
-    );
-    expect(mocks.uploadFile.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.update.mock.invocationCallOrder[0]!,
-    );
-    expect(mocks.update.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.queryRaw.mock.invocationCallOrder[0]!,
-    );
-  });
+          data: expect.objectContaining({ uploadHttpStatus: 200 }),
+        }),
+      );
+      expect(mocks.uploadFile.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.update.mock.invocationCallOrder[0]!,
+      );
+      expect(mocks.update.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.queryRaw.mock.invocationCallOrder[0]!,
+      );
+    },
+  );
 
   it("does not link media and records storage metrics when upload fails", async () => {
     const uploadError = Object.assign(new Error("S3 unavailable"), {

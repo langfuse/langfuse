@@ -62,6 +62,9 @@
   policy independent of in-memory representation. The callback always exchanges JSON;
   the optional transport supplies reusable JSON text or UTF-8 bytes and validates
   responses inside retries. Default callers retain JSON serialization.
+- OTEL media processing: `src/server/otel/OtelMediaProcessor.ts` accepts
+  `mediaPath` for metric attribution (`reference` by default, or `early`). It
+  identifies the pipeline and does not select a different detector.
 - Seeder and support scripts: `scripts/seeder/*`, `clickhouse/scripts/*`
 
 ## Export Entry Points

@@ -1,3 +1,5 @@
+import { restoreInlineMedia } from "../otel-media/resolveExtractedMedia";
+import type { EarlyOtelBatch } from "@langfuse/native";
 import { convertEventRecordToObservationForEval } from "@langfuse/shared";
 import {
   logger,
@@ -25,6 +27,7 @@ type ProcessOtelEventsParams = {
   projectId: string;
   fileKey: string;
   shouldWriteToEventsTable: boolean;
+  earlyBatch?: EarlyOtelBatch;
 };
 
 /**
@@ -43,6 +46,7 @@ export async function processOtelEvents({
   projectId,
   fileKey,
   shouldWriteToEventsTable,
+  earlyBatch,
 }: ProcessOtelEventsParams): Promise<void> {
   // Process events for observation evals and direct event writes
   // This phase handles two independent concerns:
@@ -52,6 +56,13 @@ export async function processOtelEvents({
   // Both require enriched event records with trace-level attributes
   // (userId, sessionId, tags, release) that processToEvent provides.
   const eventInputs = processor.processToEvent(resourceSpans);
+  if (earlyBatch) {
+    // Evaluation-only records skip direct media resolution, so restore their
+    // extracted references before evaluation scheduling reads their payloads.
+    await restoreInlineMedia(earlyBatch, eventInputs, {
+      includePayloads: !shouldWriteToEventsTable,
+    });
+  }
 
   if (eventInputs.length === 0) {
     return;
@@ -82,6 +93,7 @@ export async function processOtelEvents({
     await processOtelEventMedia({
       targets: createDirectOtelMediaTargets(eventInputs),
       writePath: "direct",
+      earlyBatch,
       projectId,
       fileKey,
       mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
