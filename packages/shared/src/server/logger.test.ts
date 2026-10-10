@@ -8,6 +8,9 @@ vi.mock("../env", () => ({
   },
 }));
 
+const getCurrentSpan = vi.hoisted(() => vi.fn());
+vi.mock("./instrumentation", () => ({ getCurrentSpan }));
+
 import { logger } from "./logger";
 
 const jsonLine = (meta: Record<string, unknown>) => {
@@ -63,5 +66,27 @@ describe("logger JSON format", () => {
         errors: [{ message: "part failed" }],
       },
     });
+  });
+});
+
+describe("logger trace correlation", () => {
+  it("nests the Datadog ids under dd and keeps the hex OTel ids", () => {
+    getCurrentSpan.mockReturnValueOnce({
+      spanContext: () => ({
+        traceId: "617222771252365135e4848d739614a8",
+        spanId: "00f067aa0ba902b7",
+      }),
+    });
+
+    const line = jsonLine({});
+
+    expect(line.dd).toEqual({
+      trace_id: "3883374521764680872",
+      span_id: "67667974448284343",
+    });
+    expect(line).not.toHaveProperty(["dd.trace_id"]);
+    expect(line).not.toHaveProperty(["dd.span_id"]);
+    expect(line.trace_id).toBe("617222771252365135e4848d739614a8");
+    expect(line.span_id).toBe("00f067aa0ba902b7");
   });
 });

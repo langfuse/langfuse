@@ -6,12 +6,20 @@ vi.mock("@langfuse/shared/src/server", async () => ({
     error: vi.fn(),
     debug: vi.fn(),
   },
+  traceException: vi.fn(),
 }));
 
 import type { Session } from "next-auth";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
-import { ClickHouseResourceError, logger } from "@langfuse/shared/src/server";
+import {
+  ClickHouseResourceError,
+  logger,
+  traceException,
+} from "@langfuse/shared/src/server";
+import { Prisma } from "@langfuse/shared/src/db";
+import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
+import { reportTRPCError } from "@/src/server/utils/trpc-utils";
 import {
   createInnerTRPCContext,
   createTRPCRouter,
@@ -129,5 +137,62 @@ describe("tRPC error formatting", () => {
     });
 
     expect(formattedWithStack.data["stack"]).toBe("dev stack");
+  });
+
+  describe("over HTTP", () => {
+    const fetchFailing = (thrown: unknown) => {
+      const router = createTRPCRouter({
+        failing: protectedProcedureWithoutTracing.query(() => {
+          throw thrown;
+        }),
+      });
+      return fetchRequestHandler({
+        endpoint: "/api/trpc",
+        req: new Request("http://localhost/api/trpc/failing"),
+        router,
+        createContext: () =>
+          createInnerTRPCContext({
+            session: { user: { id: "user-1" } } as Session,
+            headers: {},
+          }),
+        onError: reportTRPCError,
+      });
+    };
+
+    it.each([
+      [
+        "Prisma",
+        new Prisma.PrismaClientKnownRequestError(
+          "Unique constraint failed on the fields: (`id`)",
+          { code: "P2002", clientVersion: "test" },
+        ),
+      ],
+      ["generic", new Error("connection refused")],
+    ])(
+      "traces the %s cause on the span but returns a generic 5xx",
+      async (_, original) => {
+        const res = await fetchFailing(original);
+        const body = await res.text();
+
+        expect(res.status).toBe(500);
+        expect(body).toContain("Internal error. ");
+        expect(body).not.toContain(original.message);
+        // once by the error middleware, once by onError
+        expect(vi.mocked(traceException).mock.calls).toEqual([
+          [original],
+          [original],
+        ]);
+      },
+    );
+
+    it("keeps the message of a 4xx error and does not trace it", async () => {
+      const res = await fetchFailing(
+        new TRPCError({ code: "BAD_REQUEST", message: "Invalid filter" }),
+      );
+
+      expect(res.status).toBe(400);
+      expect(await res.text()).toContain("Invalid filter");
+      expect(traceException).not.toHaveBeenCalled();
+    });
   });
 });
