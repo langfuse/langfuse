@@ -280,7 +280,7 @@ export default defineConfig({
             instances: [{ browser: "chromium" }],
             commands: {
               async resetStorybookPointer({ page }) {
-                // Moving the pointer does not require the test iframe to exist.
+                /** Page-level pointer movement avoids depending on the test iframe. */
                 await page.mouse.move(-1000, -1000);
               },
             },

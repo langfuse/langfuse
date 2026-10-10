@@ -7,7 +7,7 @@ declare module "vitest/browser" {
   }
 }
 
-// Keep native hover events from overriding Storybook's simulated interactions.
+/** The pointer reset prevents native hover from overriding simulated interactions. */
 beforeEach(async () => {
   await commands.resetStorybookPointer();
 });
