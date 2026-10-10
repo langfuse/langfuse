@@ -1,5 +1,11 @@
 /* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
+import {
+  SkillsAvailableSchema,
+  SkillsResourceLoadedSchema,
+  type SkillsAvailable,
+  type SkillsResourceLoaded,
+} from "../../features/skills/trace";
 
 import {
   ForbiddenError,
@@ -611,6 +617,14 @@ export class OtelIngestionProcessor {
                     span.status?.message ??
                     null,
 
+                  ...this.extractSkills(
+                    spanAttributes,
+                    observationType,
+                    name,
+                    input,
+                    output,
+                    span.status?.code,
+                  ),
                   promptName: canLinkPrompt
                     ? (spanAttributes?.[
                         LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME
@@ -1311,6 +1325,14 @@ export class OtelIngestionProcessor {
         instrumentationScopeName,
       ) as any,
       model: isAiSdkAgentSpan ? undefined : this.extractModelName(attributes),
+      ...this.extractSkills(
+        attributes,
+        mappedObservationType,
+        this.extractName(span.name, attributes),
+        input,
+        output,
+        span.status?.code,
+      ),
       promptName: canLinkPrompt
         ? (attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME] ??
           attributes["langfuse.prompt.name"] ??
@@ -1867,6 +1889,7 @@ export class OtelIngestionProcessor {
       LangfuseOtelSpanAttributes.TRACE_OUTPUT,
       LangfuseOtelSpanAttributes.OBSERVATION_INPUT,
       LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT,
+      LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE,
       // Vercel AI SDK
       "ai.prompt.messages",
       "ai.prompt",
@@ -3765,6 +3788,142 @@ export class OtelIngestionProcessor {
     } catch {
       // Fallthrough
     }
+  }
+
+  private extractSkills(
+    attributes: Record<string, unknown>,
+    observationType: string,
+    toolName: string,
+    input: unknown,
+    output: unknown,
+    statusCode: number | undefined,
+  ): {
+    skillsAvailable?: SkillsAvailable;
+    skillsResourceLoaded?: SkillsResourceLoaded;
+  } {
+    const available = SkillsAvailableSchema.safeParse(
+      this.parseJsonPayload(
+        attributes[LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE],
+      ),
+    );
+    if (observationType === ObservationType.GENERATION) {
+      if (available.success) return { skillsAvailable: available.data };
+      return {};
+    }
+    if (
+      observationType !== ObservationType.TOOL ||
+      statusCode === 2 ||
+      parseObservationLevel(
+        attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL],
+      ) === ObservationLevel.ERROR
+    ) {
+      return {};
+    }
+
+    const loaded = SkillsResourceLoadedSchema.element.safeParse(
+      this.extractSkillResource(
+        toolName,
+        input,
+        output,
+        available.success ? available.data : [],
+      ),
+    );
+    if (!loaded.success) return {};
+
+    const reference = {
+      ...loaded.data,
+      skillName: loaded.data.skillName.replace(/^inline\//, ""),
+    };
+    if (!reference.skillName) return {};
+    const matches = (available.success ? available.data : []).filter(
+      (skill) => skill.skillName === reference.skillName,
+    );
+    const matchedSkill = matches.length === 1 ? matches[0] : undefined;
+    return {
+      skillsResourceLoaded: [
+        {
+          ...reference,
+          langfuseSkillId: matchedSkill?.langfuseSkillId,
+          langfuseSkillVersion: matchedSkill?.langfuseSkillVersion,
+        },
+      ],
+    };
+  }
+
+  private extractSkillResource(
+    toolName: string,
+    input: unknown,
+    output: unknown,
+    available: SkillsAvailable,
+  ) {
+    if (output == null) return;
+
+    const args = this.parseJsonPayload(input);
+    if (!OtelIngestionProcessor.isPlainObject(args)) return;
+
+    switch (toolName) {
+      case "skill":
+      case "Skill":
+      case "loadSkill":
+        if (this.isFailedSkillActivation(output)) return;
+        return {
+          skillName: args.name ?? args.skill,
+          filePath: "SKILL.md",
+        };
+      case "skill_read":
+        if (this.isFailedResourceRead(output)) return;
+        return {
+          skillName: args.skillName,
+          filePath: args.path,
+        };
+      case "readFile":
+      case "Read":
+        if (this.isFailedResourceRead(output)) return;
+        return this.extractSkillResourceFromPath(
+          args.path ?? args.file_path,
+          available,
+        );
+      default:
+        return;
+    }
+  }
+
+  private extractSkillResourceFromPath(
+    path: unknown,
+    available: SkillsAvailable,
+  ) {
+    if (typeof path !== "string") return;
+    const segments = path.split("/");
+    const matches = segments.filter((segment) =>
+      available.some((skill) => skill.skillName === segment),
+    );
+    if (matches.length !== 1) return;
+    const skillName = matches[0];
+    return {
+      skillName,
+      filePath: segments.slice(segments.indexOf(skillName) + 1).join("/"),
+    };
+  }
+
+  private isFailedSkillActivation(output: unknown): boolean {
+    const result = this.parseJsonPayload(output);
+    return (
+      this.isFailedResourceRead(output) ||
+      (OtelIngestionProcessor.isPlainObject(result) &&
+        (result.isError === true || result.error !== undefined))
+    );
+  }
+
+  private isFailedResourceRead(output: unknown): boolean {
+    if (OtelIngestionProcessor.isPlainObject(output)) {
+      return output.isError === true || output.error !== undefined;
+    }
+    // Resource contents can be JSON documents containing an "error" field.
+    const parsed = this.parseJsonPayload(output);
+    const text = typeof parsed === "string" ? parsed : output;
+    return (
+      typeof text === "string" && /^(?:Skill|File) ".*" not found/.test(text)
+    );
   }
 
   /**

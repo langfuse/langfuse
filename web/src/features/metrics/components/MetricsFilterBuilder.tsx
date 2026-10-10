@@ -74,6 +74,7 @@ const eventsFilterOptionsColumns = [
   "experimentName",
   "isRootObservation",
   "calledToolNames",
+  "skillName",
   "metadataKeys",
   "scores_avg",
   "score_categories",
@@ -388,6 +389,7 @@ const buildV2FilterColumnsParams = ({
     modelOptions: filterOptions?.providedModelName ?? [],
     toolNamesOptions: slowFilterOptions?.toolNames ?? [],
     calledToolNamesOptions: filterOptions?.calledToolNames ?? [],
+    skillNameOptions: filterOptions?.skillName ?? [],
     observationLevelOptions,
     experimentNameOptions: filterOptions?.experimentName ?? [],
     experimentDatasetOptions:

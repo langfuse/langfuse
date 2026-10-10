@@ -1,8 +1,13 @@
-/** Attributes, model parameters and metadata as three tables. */
+/** Stored skill references, attributes, model parameters and metadata. */
 
 import { useMemo } from "react";
+import {
+  type SkillsAvailable,
+  type SkillsResourceLoaded,
+} from "@langfuse/shared";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { cn } from "@/src/utils/tailwind";
 import { IO_SECTIONS_FLUSH_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
@@ -16,6 +21,8 @@ import {
 export function ObservationAttributesTab({
   attributes,
   attributesAnchorTime,
+  skillsAvailable = [],
+  skillsResourceLoaded = [],
   modelParameters,
   metadata,
   parsedMetadata,
@@ -25,6 +32,8 @@ export function ObservationAttributesTab({
 }: {
   attributes: Record<string, unknown>;
   attributesAnchorTime: Date;
+  skillsAvailable?: SkillsAvailable;
+  skillsResourceLoaded?: SkillsResourceLoaded;
   modelParameters: Record<string, unknown> | null;
   metadata: unknown;
   /** Avoids re-parsing. */
@@ -37,6 +46,10 @@ export function ObservationAttributesTab({
     projectId,
     filterTarget: "observations",
   };
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const hasSkills =
+    internalFeaturesEnabled &&
+    (skillsAvailable.length > 0 || skillsResourceLoaded.length > 0);
   const hasAttributes = Object.keys(attributes).length > 0;
   const hasMetadata =
     metadata !== null &&
@@ -93,7 +106,21 @@ export function ObservationAttributesTab({
             )}
           </div>
         ) : null}
-        {!hasAttributes && !modelParameters && !hasMetadata ? (
+        {hasSkills ? (
+          <>
+            <PrettyJsonView
+              title="Available skills"
+              json={skillsAvailable}
+              currentView={currentView}
+            />
+            <PrettyJsonView
+              title="Loaded resources"
+              json={skillsResourceLoaded}
+              currentView={currentView}
+            />
+          </>
+        ) : null}
+        {!hasSkills && !hasAttributes && !modelParameters && !hasMetadata ? (
           <p className="text-muted-foreground text-base">
             No attributes, model parameters or metadata on this observation.
           </p>

@@ -137,6 +137,28 @@ const viewFilterDefinitions: Record<
       sourceSpec("Status", { uiTableId: "level", aliases: ["Level"] }),
     ),
     defineField(
+      "skillName",
+      sourceSpec("Skill Name", { uiTableId: "skillName" }),
+    ),
+    defineField(
+      "availableSkillIds",
+      sourceSpec("Skill Version IDs (Available)", {
+        uiTableId: "availableSkillIds",
+      }),
+    ),
+    defineField(
+      "loadedSkillResourceIds",
+      sourceSpec("Skill Version Resources (Loaded)", {
+        uiTableId: "loadedSkillResourceIds",
+      }),
+    ),
+    defineField(
+      "loadedSkillResources",
+      sourceSpec("Skill Resources (Loaded)", {
+        uiTableId: "loadedSkillResources",
+      }),
+    ),
+    defineField(
       "toolNames",
       sourceSpec("Tool Names (Available)", { uiTableId: "toolNames" }),
       sourceSpec("Tool Names (Available)", {

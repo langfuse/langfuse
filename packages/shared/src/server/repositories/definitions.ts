@@ -1,4 +1,8 @@
 import z from "zod";
+import {
+  SkillsAvailableSchema,
+  SkillsResourceLoadedSchema,
+} from "../../features/skills/trace";
 import type { IngestionAttribution } from "../ingestion/ingestionAttribution";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../ingestion/types";
 import { toClickhouseDateTime } from "../clickhouse/client";
@@ -59,6 +63,8 @@ export const observationRecordBaseSchema = z.object({
   tool_definitions: z.record(z.string(), z.string()).optional(),
   tool_calls: z.array(z.string()).optional(),
   tool_call_names: z.array(z.string()).optional(),
+  skills_available: SkillsAvailableSchema.optional(),
+  skills_resource_loaded: SkillsResourceLoadedSchema.optional(),
   is_deleted: z.number(),
 });
 
@@ -512,6 +518,8 @@ export const eventRecordBaseSchema = z.object({
   tool_definitions: z.record(z.string(), z.string()).default({}),
   tool_calls: z.array(z.string()).default([]),
   tool_call_names: z.array(z.string()).default([]),
+  skills_available: SkillsAvailableSchema.optional(),
+  skills_resource_loaded: SkillsResourceLoadedSchema.optional(),
 
   // I/O
   input: z.string().nullish(),

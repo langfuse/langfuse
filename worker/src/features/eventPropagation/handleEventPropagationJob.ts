@@ -249,6 +249,8 @@ export const handleEventPropagationJob = async (
           tool_definitions,
           tool_calls,
           tool_call_names,
+          skills_available,
+          skills_resource_loaded,
 
           input,
           output,
@@ -307,6 +309,8 @@ export const handleEventPropagationJob = async (
           obs.tool_definitions,
           obs.tool_calls,
           obs.tool_call_names,
+          obs.skills_available,
+          obs.skills_resource_loaded,
 
           coalesce(obs.input, '') AS input,
           coalesce(obs.output, '') AS output,

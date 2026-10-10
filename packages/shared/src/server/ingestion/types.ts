@@ -5,6 +5,10 @@ import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
 import { ScoreSourceType } from "../../domain";
 import { TEXT_SCORE_MAX_LENGTH } from "../../domain/scores";
+import {
+  SkillsAvailableSchema,
+  SkillsResourceLoadedSchema,
+} from "../../features/skills/trace";
 import { applyScoreValidation } from "../../utils/scores";
 
 export const idSchema = z
@@ -440,6 +444,8 @@ export const LegacyObservationBody = z.object({
   level: ObservationLevel.nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
+  skillsAvailable: SkillsAvailableSchema.optional(),
+  skillsResourceLoaded: SkillsResourceLoadedSchema.optional(),
 });
 
 export const SdkLogEvent = z.object({
@@ -491,6 +497,8 @@ const createAllIngestionSchemas = ({
     statusMessage: z.string().nullish(),
     parentObservationId: z.string().nullish(),
     version: z.string().nullish(),
+    skillsAvailable: SkillsAvailableSchema.optional(),
+    skillsResourceLoaded: SkillsResourceLoadedSchema.optional(),
   });
 
   // Derivative schemas

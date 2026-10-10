@@ -1,6 +1,10 @@
 import z from "zod";
 import { jsonSchema } from "../utils/zod";
 import { MetadataDomain } from "./traces";
+import {
+  SkillsAvailableSchema,
+  SkillsResourceLoadedSchema,
+} from "../features/skills/trace";
 
 export const ObservationType = {
   SPAN: "SPAN",
@@ -98,6 +102,8 @@ export const ObservationSchema = z.object({
   toolDefinitions: z.record(z.string(), z.string()).nullable(),
   toolCalls: z.array(z.string()).nullable(),
   toolCallNames: z.array(z.string()).nullable(),
+  skillsAvailable: SkillsAvailableSchema.optional(),
+  skillsResourceLoaded: SkillsResourceLoadedSchema.optional(),
 });
 
 export type Observation = z.infer<typeof ObservationSchema>;
