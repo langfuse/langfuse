@@ -20,10 +20,10 @@
 // Object-valued keys are suggested with type "object"; their nested content
 // is matched as a substring of the JSON-encoded branch (`metadata.scope:*v*`).
 //
-// Types are DISPLAY-ONLY hints: metadata filters always lower to
-// `stringObject` (see fields.ts operatorIssue — numeric metadata comparisons
-// are rejected), so a key observed with more than one type simply drops its
-// hint rather than changing any filter behavior.
+// Types are DISPLAY-ONLY hints: equality/string ops still lower to
+// `stringObject`; comparisons (`>`, `<`, `>=`, `<=`) lower to `numberObject`.
+// A key observed with more than one type simply drops its hint rather than
+// changing any filter behavior.
 
 type MetadataLeafType = "string" | "number" | "boolean" | "array" | "object";
 

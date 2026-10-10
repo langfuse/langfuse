@@ -84,6 +84,13 @@ describe("parseGeneratedFilters", () => {
       },
       {
         type: "numberObject",
+        column: "metadata",
+        key: "timeout",
+        operator: ">",
+        value: 20,
+      },
+      {
+        type: "numberObject",
         column: "scores_avg",
         key: "accuracy",
         operator: ">",
@@ -105,7 +112,7 @@ describe("parseGeneratedFilters", () => {
       },
     ]);
     const { filters, droppedCount } = parseGeneratedFilters(completion);
-    expect(filters).toHaveLength(4);
+    expect(filters).toHaveLength(5);
     expect(droppedCount).toBe(0);
   });
 

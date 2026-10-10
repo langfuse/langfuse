@@ -387,31 +387,42 @@ export class QueryBuilder {
         }
       }
 
-      // Special validation for metadata filters
+      // Special validation for metadata filters: string match or numeric compare.
       else if (filter.column === "metadata") {
-        if (filter.type !== "stringObject") {
-          throw new InvalidRequestError(
-            `Invalid filter for field 'metadata': Metadata filters require type 'stringObject' with a 'key' property, not '${filter.type}'. ` +
-              `Example: {"column": "metadata", "type": "stringObject", "key": "environment", "operator": "=", "value": "production"}`,
-          );
-        }
-
-        // Validate stringObject has required key
-        if (filter.type === "stringObject" && !("key" in filter)) {
-          throw new InvalidRequestError(
-            `Invalid filter for field 'metadata': stringObject type requires a 'key' property to specify which metadata field to filter on. ` +
-              `Example: {"column": "metadata", "type": "stringObject", "key": "environment", "operator": "=", "value": "production"}`,
-          );
-        }
-
-        // Validate stringObject value type
+        const metadataType = filter.type;
         if (
-          filter.type === "stringObject" &&
-          typeof filter.value !== "string"
+          metadataType !== "stringObject" &&
+          metadataType !== "numberObject"
         ) {
           throw new InvalidRequestError(
-            // @ts-ignore
-            `Invalid filter for field 'metadata': stringObject type requires a string value, not '${typeof filter.value}'.`,
+            `Invalid filter for field 'metadata': Metadata filters require type 'stringObject' or 'numberObject' with a 'key' property, not '${metadataType}'. ` +
+              `Example: {"column": "metadata", "type": "stringObject", "key": "environment", "operator": "=", "value": "production"}`,
+          );
+        }
+
+        if (!("key" in filter)) {
+          throw new InvalidRequestError(
+            `Invalid filter for field 'metadata': ${metadataType} type requires a 'key' property to specify which metadata field to filter on. ` +
+              `Example: {"column": "metadata", "type": "stringObject", "key": "environment", "operator": "=", "value": "production"}`,
+          );
+        }
+
+        const metadataValue: unknown = filter.value;
+        if (
+          metadataType === "stringObject" &&
+          typeof metadataValue !== "string"
+        ) {
+          throw new InvalidRequestError(
+            `Invalid filter for field 'metadata': stringObject type requires a string value, not '${typeof metadataValue}'.`,
+          );
+        }
+
+        if (
+          metadataType === "numberObject" &&
+          typeof metadataValue !== "number"
+        ) {
+          throw new InvalidRequestError(
+            `Invalid filter for field 'metadata': numberObject type requires a numeric value, not '${typeof metadataValue}'.`,
           );
         }
       }
