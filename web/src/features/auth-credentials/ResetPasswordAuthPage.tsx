@@ -9,12 +9,10 @@ export default function ResetPasswordAuthPage({
   passwordResetAvailable,
 }: PageProps) {
   const router = useRouter();
-  // `?email=` carries the address already typed on the sign-in page so it does
-  // not have to be entered a second time. The page is server-rendered, so the
-  // query is populated on the first render and the value reaches the form's
-  // initial state. Prefilling only fills the field — requesting the reset email
-  // stays an explicit click, and an address that is not a valid email leaves
-  // that button disabled.
+  /** Prefills the email from `?email=`, which the sign-in page's reset link sets. */
+  // getServerSideProps keeps the query populated on the first render, which is
+  // what seeding ResetPasswordPage's useState depends on. A repeated param
+  // arrives as an array and is dropped.
   const emailParam = router.query.email;
 
   return (

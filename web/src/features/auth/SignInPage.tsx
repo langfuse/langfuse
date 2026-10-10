@@ -578,8 +578,7 @@ export default function SignInPage({
   const hasMultipleAuthMethods = availableProviders.length > 1;
 
   // Read query params for targetPath and email pre-population. A repeated
-  // `?email=a&email=b` arrives as an array, so it is dropped rather than cast:
-  // the field is seeded with it and read back out below as a string.
+  // `?email=` arrives as an array; dropping it keeps the form default a string.
   const queryTargetPath = router.query.targetPath as string | undefined;
   const queryEmail = router.query.email;
   const emailParam = typeof queryEmail === "string" ? queryEmail : undefined;
@@ -622,10 +621,7 @@ export default function SignInPage({
     setLastUsedSsoEmail,
   ]);
 
-  // Hand the address already typed here to the reset form, which reads it back
-  // out of `?email=`, so it does not have to be entered a second time. Whatever
-  // is in the field is carried over as-is: a half-typed address still saves
-  // typing, and the reset page only enables its request button for a valid one.
+  /** Reset-password link carrying the typed address for that page to prefill. */
   const typedEmail = credentialsForm.watch("email").trim();
   const resetPasswordHref = typedEmail
     ? `/auth/reset-password?email=${encodeURIComponent(typedEmail)}`

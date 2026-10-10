@@ -284,6 +284,9 @@ describe("reset-password page ?email= prefill", () => {
 
     render(<ResetPasswordAuthPage passwordResetAvailable />);
 
+    // Anchor the absences below: without this the test also passes when the
+    // prefill does nothing at all.
+    expect(screen.getByLabelText("Email")).toHaveValue("jane@example.com");
     // Jumping straight to the code step would imply an email had been sent.
     expect(
       screen.queryByLabelText("Verification code"),
