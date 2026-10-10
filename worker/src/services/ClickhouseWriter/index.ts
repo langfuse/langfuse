@@ -472,6 +472,8 @@ export class ClickhouseWriter<
         err,
       );
 
+      this.logRejectedRow(tableName, err, queueItems, writeStrategy);
+
       // Re-add the records to the queue with incremented attempts
       const reason = classifyJobFailure(err);
       let droppedCount = 0;
@@ -512,6 +514,27 @@ export class ClickhouseWriter<
         );
       }
     }
+  }
+
+  /** Log the row a ClickHouse parse error names, so its S3 event file can be found. */
+  private logRejectedRow<T extends TableName>(
+    tableName: T,
+    err: unknown,
+    queueItems: ClickhouseWriterQueueItem<PayloadMap[T]>[],
+    strategy: ClickhouseWriteStrategy<PayloadMap[TableName]>,
+  ) {
+    const row = queueItems[failedRowNumber(err) - 1]?.data;
+    if (!row) return;
+    this.logger.error(
+      `${this.logPrefix}ClickhouseWriter: ClickHouse rejected ${tableName} row`,
+      {
+        ...strategy.droppedId(row),
+        blobStorageFilePath:
+          "blob_storage_file_path" in row
+            ? row.blob_storage_file_path
+            : undefined,
+      },
+    );
   }
 
   public addToQueue<T extends TableName>(tableName: T, data: PayloadMap[T]) {
@@ -575,6 +598,12 @@ export class ClickhouseWriter<
       format: this.strategyFactory.format,
     });
   }
+}
+
+/** 1-based row from ClickHouse parse errors, e.g. "Cannot parse input: ... (at row 11)"; NaN if absent. */
+function failedRowNumber(err: unknown): number {
+  const message = err instanceof Error ? err.message : "";
+  return Number(/\(at row (\d+)\)/.exec(message)?.[1]);
 }
 
 type WriterPayloadMap = { [T in TableName]: object };
