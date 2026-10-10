@@ -11,6 +11,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
+import { GetExperimentsV1Query } from "@/src/features/public-api/types/experiments";
 import {
   listExperimentItemsForPublicApi,
   listExperimentsForPublicApi,
@@ -589,7 +590,7 @@ describe("Public API experiments repository", () => {
       );
     });
 
-    it("excludes experiments seen in the one day lookback on cursor pages", async () => {
+    it("excludes experiments seen on earlier cursor pages", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const startTimeMs = Date.now();
       const repeatedExperimentId = `exp-z-${randomUUID()}`;
@@ -650,6 +651,123 @@ describe("Public API experiments repository", () => {
       expect(secondPage.map((row) => row.experiment_id)).not.toContain(
         repeatedExperimentId,
       );
+    });
+
+    it("does not repeat an experiment across pages more than a day apart", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const dayMs = 24 * 60 * 60 * 1_000;
+      const spanningExperimentId = `exp-${randomUUID()}`;
+      const middleExperimentId = `exp-${randomUUID()}`;
+      const oldestExperimentId = `exp-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId: spanningExperimentId,
+          startTimeMs,
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: middleExperimentId,
+          startTimeMs: startTimeMs - 2 * dayMs,
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: spanningExperimentId,
+          startTimeMs: startTimeMs - 3 * dayMs,
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: oldestExperimentId,
+          startTimeMs: startTimeMs - 4 * dayMs,
+        }),
+      ]);
+
+      const fromStartTime = new Date(startTimeMs - 5 * dayMs).toISOString();
+      const listPage = async (cursor?: string) =>
+        listExperimentsForPublicApi({
+          projectId,
+          query: GetExperimentsV1Query.parse({
+            fields: "core",
+            fromStartTime,
+            limit: "1",
+            ...(cursor ? { cursor } : {}),
+          }),
+        });
+
+      const firstPage = await listPage();
+      expect(firstPage.data.map((row) => row.id)).toEqual([
+        spanningExperimentId,
+      ]);
+      expect(firstPage.meta.cursor).toBeDefined();
+
+      const secondPage = await listPage(firstPage.meta.cursor);
+      expect(secondPage.data.map((row) => row.id)).toEqual([
+        middleExperimentId,
+      ]);
+      expect(secondPage.meta.cursor).toBeDefined();
+
+      const thirdPage = await listPage(secondPage.meta.cursor);
+      expect(thirdPage.data.map((row) => row.id)).toEqual([oldestExperimentId]);
+      expect(thirdPage.meta.cursor).toBeUndefined();
+    });
+
+    it("does not exclude an experiment because of events after toTime", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const dayMs = 24 * 60 * 60 * 1_000;
+      const spanningExperimentId = `exp-${randomUUID()}`;
+      const firstExperimentId = `exp-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId: spanningExperimentId,
+          startTimeMs: startTimeMs - 1.5 * dayMs,
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: firstExperimentId,
+          startTimeMs: startTimeMs - 2 * dayMs,
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: spanningExperimentId,
+          startTimeMs: startTimeMs - 3 * dayMs,
+        }),
+      ]);
+
+      const fromTime = new Date(startTimeMs - 4 * dayMs);
+      const toTime = new Date(startTimeMs - 1.75 * dayMs);
+      const firstPage = await queryExperimentSummariesForPublicApi({
+        projectId,
+        fromTime,
+        toTime,
+        includeMetadata: false,
+        limit: 1,
+      });
+      expect(firstPage.map((row) => row.experiment_id)).toEqual([
+        firstExperimentId,
+      ]);
+
+      const firstRow = firstPage[0]!;
+      const secondPage = await queryExperimentSummariesForPublicApi({
+        projectId,
+        fromTime,
+        toTime,
+        includeMetadata: false,
+        cursor: {
+          lastTime: firstRow.cursor_time,
+          lastTraceId: firstRow.cursor_trace_id,
+          lastId: firstRow.cursor_span_id,
+          lastExperimentId: firstRow.experiment_id,
+        },
+        limit: 1,
+      });
+      expect(secondPage.map((row) => row.experiment_id)).toEqual([
+        spanningExperimentId,
+      ]);
     });
   });
 
