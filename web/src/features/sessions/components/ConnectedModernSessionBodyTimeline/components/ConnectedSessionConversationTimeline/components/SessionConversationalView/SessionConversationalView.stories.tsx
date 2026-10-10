@@ -2041,12 +2041,77 @@ const manySimpleTurnsWorkflow: WorkflowFixture[] = Array.from(
   },
 );
 
+const omittedToolContentWorkflow: WorkflowFixture[] = [
+  {
+    trace: {
+      ...trace,
+      id: "omitted-tool-content-story",
+      name: "Generate chart with attachments",
+      observationCount: 2,
+    },
+    turnNumber: 1,
+    observations: [
+      {
+        id: "chart-generation",
+        traceId: "omitted-tool-content-story",
+        parentObservationId: null,
+        type: "GENERATION",
+        name: "Plan chart",
+        startTime: trace.timestamp,
+        endTime: new Date(trace.timestamp.getTime() + 1000),
+        environment: "storybook",
+        metadata: {},
+        input: JSON.stringify([
+          { role: "user", content: "Generate a chart of monthly revenue." },
+        ]),
+        output: JSON.stringify({
+          role: "assistant",
+          tool_calls: [
+            {
+              id: "chart-call",
+              type: "function",
+              function: {
+                name: "generate_chart",
+                arguments: '{"metric":"revenue"}',
+              },
+            },
+          ],
+        }),
+      },
+      {
+        id: "chart-tool",
+        traceId: "omitted-tool-content-story",
+        parentObservationId: "chart-generation",
+        type: "TOOL",
+        name: "generate_chart",
+        startTime: new Date(trace.timestamp.getTime() + 1000),
+        endTime: new Date(trace.timestamp.getTime() + 2000),
+        environment: "storybook",
+        metadata: {},
+        input: JSON.stringify({ metric: "revenue" }),
+        output: JSON.stringify({
+          role: "tool",
+          content: [
+            { type: "text", text: "Monthly revenue chart generated." },
+            {
+              type: "image_url",
+              image_url: { url: "https://example.com/revenue-chart.png" },
+            },
+            { type: "vendor-chart", value: { chartId: "chart-revenue" } },
+          ],
+        }),
+      },
+    ],
+  },
+];
+
 const workflowTranscripts = new Map(
   [
     supportAgentWorkflow,
     codingAgentWorkflow,
     langfuseAssistantWorkflow,
     manySimpleTurnsWorkflow,
+    omittedToolContentWorkflow,
   ].map((workflow) => [
     workflow,
     workflow.map((item): WorkflowTrace => {
@@ -2524,6 +2589,28 @@ const meta = preview.meta({
   parameters: { layout: "fullscreen" },
 });
 export default meta;
+
+export const OmittedToolContent = meta.story({
+  name: "(Test) Omitted Tool Content",
+  args: { workflowTraces: omittedToolContentWorkflow },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const timeline = within(
+      canvas.getByLabelText("Session conversation timeline"),
+    );
+    await userEvent.click(
+      await timeline.findByRole("button", { name: "Expand generate_chart" }),
+    );
+    const notices = timeline.getAllByRole("note");
+    await expect(notices).toHaveLength(2);
+    for (const notice of notices) await expect(notice).toBeVisible();
+    await expect(timeline.queryByRole("img")).not.toBeInTheDocument();
+    const sidebar = within(canvas.getByRole("complementary"));
+    await expect(
+      sidebar.queryByRole("button", { name: "JSON message" }),
+    ).not.toBeInTheDocument();
+  },
+});
 
 export const ReasoningOnlyAndEmptySidebarStates = meta.story({
   name: "(Test) Reasoning-Only And Empty Sidebar States",

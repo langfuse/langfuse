@@ -31,6 +31,20 @@ const message = (parts: NormalizedMessagePart[]): NormalizedMessage => ({
 });
 
 describe("groupTranscriptMessages", () => {
+  it("keeps a media-only result and its omission metadata inside the tool row", () => {
+    const toolCall = call("a");
+    const toolResult: ToolResultPart = {
+      ...result("a"),
+      output: null,
+      omittedContent: [{ kind: "media", count: 2 }],
+    };
+    const response = { ...message([toolResult]), role: "tool" as const };
+
+    expect(groupTranscriptMessages([message([toolCall]), response])).toEqual([
+      { type: "tool", message: response, call: toolCall, result: toolResult },
+    ]);
+  });
+
   it("groups results at call positions while preserving surrounding parts and metadata", () => {
     const firstCall = call("a");
     const secondCall = call("b");

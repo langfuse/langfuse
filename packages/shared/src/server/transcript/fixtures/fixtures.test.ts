@@ -472,8 +472,10 @@ describe("transcript fixtures", () => {
     const observations = fixture.observations.map((observation) =>
       convertObservation(createObservation(observation)),
     );
+    const snapshot = structuredClone(observations);
     expect(assembleTranscript(orderObservations(observations))).toEqual(
       fixture.expected,
     );
+    expect(observations).toEqual(snapshot);
   });
 });

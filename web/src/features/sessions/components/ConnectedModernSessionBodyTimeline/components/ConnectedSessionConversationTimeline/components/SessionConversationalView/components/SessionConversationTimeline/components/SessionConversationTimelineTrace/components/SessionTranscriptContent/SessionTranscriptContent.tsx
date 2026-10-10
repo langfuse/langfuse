@@ -349,6 +349,7 @@ function SessionTranscriptTool({
       input={row.call?.input}
       output={row.result?.output}
       {...status}
+      omittedContent={row.result?.omittedContent}
       isExpanded={isExpanded}
       onExpandedChange={setIsExpanded}
       trailingContent={trailingContent}
