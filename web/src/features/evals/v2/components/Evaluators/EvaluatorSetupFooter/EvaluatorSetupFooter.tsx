@@ -19,6 +19,7 @@ export function EvaluatorSetupFooter({
   isSaving,
   nameAIAssistanceAvailable,
   codeValidation,
+  assistantAction,
   fallbackDecisionModel,
   onClose,
   onSave,
@@ -29,6 +30,10 @@ export function EvaluatorSetupFooter({
   isSaving: boolean;
   nameAIAssistanceAvailable: boolean;
   codeValidation: { isValid: boolean; isPending: boolean } | null;
+  assistantAction: {
+    label: "Create with AI" | "Edit with AI";
+    onClick: () => void;
+  } | null;
   fallbackDecisionModel: JudgeModel | null;
   onClose: () => void;
   onSave: () => void;
@@ -109,6 +114,12 @@ export function EvaluatorSetupFooter({
     isSaving,
     saveDisabled,
     disabledReason,
+    assistantAction: assistantAction
+      ? {
+          ...assistantAction,
+          disabled: isSaving,
+        }
+      : null,
     onClose,
     onSave,
   };

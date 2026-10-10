@@ -6,6 +6,7 @@ import {
   DecisionModelQuestionsSchema,
   DecisionModelStateKeySchema,
   EvalOutputDataTypeSchema,
+  EvaluatorPromptMessagesSchema,
   EvalTemplateType,
   observationVariableMapping,
 } from "@langfuse/shared";
@@ -136,6 +137,9 @@ export const McpEvaluatorInputBase = z.object({
     EvalTemplateType.DECISION_MODEL,
   ]),
   prompt: z.string().min(1).optional(),
+  promptMessages: EvaluatorPromptMessagesSchema.optional().describe(
+    "Structured prompt messages for LLM-as-a-judge evaluators. Use this instead of prompt to preserve system, user, and assistant message roles.",
+  ),
   modelConfig: McpEvaluatorModelConfigSchema.optional().describe(
     "Model configuration. Required for decision-model evaluators. Optional for LLM-as-a-judge evaluators, which use the project default when omitted.",
   ),
@@ -179,9 +183,11 @@ function toEvaluatorInput(input: z.infer<typeof McpEvaluatorRuntimeInputBase>) {
       description: input.description ?? null,
       definition: {
         type: input.type,
-        promptMessages: reconcileEvaluatorPromptMessages({
-          prompt: input.prompt!,
-        }),
+        promptMessages:
+          input.promptMessages ??
+          reconcileEvaluatorPromptMessages({
+            prompt: input.prompt!,
+          }),
         modelConfig: input.modelConfig ?? null,
         variableMapping: input.variableMapping ?? null,
         outputDefinition: input.outputDefinition,
@@ -217,11 +223,27 @@ function validateEvaluatorInput(
   input: z.infer<typeof McpEvaluatorRuntimeInputBase>,
   ctx: z.RefinementCtx,
 ) {
-  if (input.type === EvalTemplateType.LLM_AS_JUDGE && !input.prompt?.trim()) {
+  if (
+    input.type === EvalTemplateType.LLM_AS_JUDGE &&
+    !input.prompt?.trim() &&
+    !input.promptMessages
+  ) {
     ctx.addIssue({
       code: "custom",
       path: ["prompt"],
       message: "Prompt is required for LLM-as-a-judge evaluators.",
+    });
+  }
+
+  if (
+    input.type === EvalTemplateType.LLM_AS_JUDGE &&
+    input.prompt !== undefined &&
+    input.promptMessages !== undefined
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["promptMessages"],
+      message: "Provide either prompt or promptMessages, not both.",
     });
   }
 
@@ -264,13 +286,19 @@ function validateEvaluatorInput(
 
   if (
     input.type === EvalTemplateType.CODE &&
-    input.variableMapping !== undefined
+    (input.variableMapping !== undefined || input.promptMessages !== undefined)
   ) {
     ctx.addIssue({
       code: "custom",
-      path: ["variableMapping"],
+      path: [
+        input.variableMapping !== undefined
+          ? "variableMapping"
+          : "promptMessages",
+      ],
       message:
-        "Code evaluator mappings are managed by Langfuse and cannot be provided.",
+        input.variableMapping !== undefined
+          ? "Code evaluator mappings are managed by Langfuse and cannot be provided."
+          : "Prompt messages cannot be provided for code evaluators.",
     });
   }
 

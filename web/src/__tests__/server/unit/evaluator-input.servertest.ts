@@ -11,7 +11,7 @@ const llmEvaluatorInput = {
   type: EvalTemplateType.LLM_AS_JUDGE,
   prompt: "Judge {{output}}",
   outputDefinition: {
-    dataType: "NUMERIC",
+    dataType: "NUMERIC" as const,
     reasoning: { description: "Explain the score" },
     score: { description: "Return the score" },
   },

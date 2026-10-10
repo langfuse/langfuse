@@ -1,133 +1,75 @@
 // @vitest-environment node
 
-import { getInAppAgentScreenContextDescription } from "./context";
+import { sanitizeInAppAgentContext } from "./context";
 
-describe("getInAppAgentScreenContextDescription", () => {
-  it.each([
-    {
-      name: "trace detail",
-      url: "/project/project-1/traces/trace-1",
-      expected: { type: "trace" },
-    },
-    {
-      name: "selected observation in a trace",
-      url: "/project/project-1/traces/trace-1?observation=observation-1",
-      expected: { type: "observation" },
-    },
-    {
-      name: "empty observation selection",
-      url: "/project/project-1/traces/trace-1?observation=",
-      expected: { type: "trace" },
-    },
-    {
-      name: "observation peek",
-      url: "/project/project-1/observations?peek=observation-1&traceId=trace-1",
-      expected: { type: "observation" },
-    },
-    {
-      name: "observation peek in V4 events table",
-      url: "/project/project-1/traces?peek=trace-1&observation=observation-1",
-      expected: { type: "observation" },
-    },
-    {
-      name: "trace peek",
-      url: "/project/project-1/traces?peek=trace-1",
-      expected: { type: "trace" },
-    },
-    {
-      name: "trace list without filters",
-      url: "/project/project-1/traces",
-      expected: { type: "trace-list" },
-    },
-    {
-      name: "trace list with structured filters",
-      url: "/project/project-1/traces?filter=level%3BstringOptions%3B%3Bany+of%3BERROR",
-      expected: { type: "trace-list" },
-    },
-    {
-      name: "observations list with full-text search",
-      url: "/project/project-1/observations?search=checkout&searchType=id",
-      expected: { type: "observations-list" },
-    },
-    {
-      name: "trace setup page",
-      url: "/project/project-1/traces/setup",
-      expected: { type: "page" },
-    },
-    {
-      name: "prompt version",
-      url: "/project/project-1/prompts/folder%2Fcheckout?version=12",
-      expected: {
-        type: "prompt",
-        name: "folder/checkout",
-        selector: { type: "version", value: "12" },
+it("includes sanitized evaluator screen context", () => {
+  const selectedSampleContext = {
+    description: "selected_evaluator_sample",
+    value: JSON.stringify({
+      projectId: "project-1",
+      evaluatorId: "evaluator-1",
+      observationId: "observation-1",
+      traceId: "trace-1",
+      startTime: "2026-09-03T07:45:00.000Z",
+      input: "strip me",
+      output: "strip me",
+    }),
+  };
+  const workbenchContext = {
+    description: "evaluator_workbench",
+    value: JSON.stringify({
+      projectId: "project-1",
+      evaluatorId: "evaluator-1",
+      mode: "create",
+      evaluatorType: "LLM_AS_JUDGE",
+      sampleFilter: [],
+      selectedObservation: {
+        observationId: "observation-1",
+        traceId: "trace-1",
+        startTime: "2026-09-03T07:45:00.000Z",
+        input: "strip me",
       },
-    },
-    {
-      name: "prompt label",
-      url: "/project/project-1/prompts/checkout?label=production",
-      expected: {
-        type: "prompt",
-        name: "checkout",
-        selector: { type: "label", value: "production" },
-      },
-    },
-    {
-      name: "prompt metrics",
-      url: "/project/project-1/prompts/folder/checkout/metrics",
-      expected: { type: "prompt", name: "folder/checkout" },
-    },
-    {
-      name: "legacy prompt detail",
-      url: "/project/project-1/prompts/prompt-detail?promptName=checkout",
-      expected: { type: "prompt", name: "checkout" },
-    },
-    {
-      name: "session detail",
-      url: "/project/project-1/sessions/support%2F123",
-      expected: { type: "session", id: "support/123" },
-    },
-    {
-      name: "sessions list",
-      url: "/project/project-1/sessions",
-      expected: { type: "sessions-list" },
-    },
-    {
-      name: "prompts list",
-      url: "/project/project-1/prompts?filter=type%3BstringOptions%3B%3D%3Bchat",
-      expected: { type: "prompts-list" },
-    },
-    {
-      name: "dataset detail",
-      url: "/project/project-1/datasets/dataset-1/items",
-      expected: { type: "dataset" },
-    },
-    {
-      name: "dataset item detail",
-      url: "/project/project-1/datasets/dataset-1/items/item-1",
-      expected: { type: "datasetItem" },
-    },
-    {
-      name: "experiment run detail",
-      url: "/project/project-1/datasets/dataset-1/runs/run-1",
-      expected: { type: "experimentRun" },
-    },
-    {
-      name: "datasets list",
-      url: "/project/project-1/datasets",
-      expected: { type: "datasets-list" },
-    },
-    {
-      name: "unknown project page",
-      url: "/project/project-1/scores",
-      expected: { type: "page" },
-    },
-    {
-      name: "malformed encoded path",
-      url: "/project/project-1/prompts/%E0%A4%A",
-      expected: { type: "page" },
-    },
-  ])("describes $name", ({ url, expected }) => {
-    expect(getInAppAgentScreenContextDescription(url)).toEqual(expected);
+      unknown: "strip me",
+    }),
+  };
+  const sanitized = sanitizeInAppAgentContext(
+    [selectedSampleContext, workbenchContext],
+    "project-1",
+  );
+
+  expect(sanitized).toHaveLength(2);
+  const selectedSample = sanitized.find(
+    ({ description }) => description === "selected_evaluator_sample",
+  );
+  expect(JSON.parse(selectedSample?.value ?? "")).toEqual({
+    evaluatorId: "evaluator-1",
+    observationId: "observation-1",
+    traceId: "trace-1",
+    startTime: "2026-09-03T07:45:00.000Z",
   });
+  const workbench = sanitized.find(
+    ({ description }) => description === "evaluator_workbench",
+  );
+  expect(JSON.parse(workbench?.value ?? "")).toEqual({
+    evaluatorId: "evaluator-1",
+    mode: "create",
+    evaluatorType: "LLM_AS_JUDGE",
+    sampleFilter: [],
+    selectedObservation: {
+      observationId: "observation-1",
+      traceId: "trace-1",
+      startTime: "2026-09-03T07:45:00.000Z",
+    },
+  });
+  expect(
+    sanitizeInAppAgentContext(
+      [
+        {
+          ...workbenchContext,
+          value: workbenchContext.value.replace("project-1", "project-2"),
+        },
+      ],
+      "project-1",
+    ),
+  ).toEqual([]);
 });

@@ -102,7 +102,11 @@ function serializeContext(
 }
 
 function formatScreenContext(context: AgUiRunAgentInput["context"]): string {
-  const serializedContext = serializeContext(context, ["current_url"]);
+  const serializedContext = serializeContext(context, [
+    "current_url",
+    "selected_evaluator_sample",
+    "evaluator_workbench",
+  ]);
 
   if (serializedContext === "{}") {
     return "";

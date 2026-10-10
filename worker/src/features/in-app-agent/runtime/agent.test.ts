@@ -1019,6 +1019,16 @@ describe("createAgUiStream", () => {
           value: "https://cloud.langfuse.com/project/project-1/traces",
         },
         {
+          description: "selected_evaluator_sample",
+          value:
+            '{"evaluatorId":"evaluator-1","observationId":"observation-1","traceId":"trace-1","startTime":"2026-09-03T07:45:00.000Z"}',
+        },
+        {
+          description: "evaluator_workbench",
+          value:
+            '{"evaluatorId":"evaluator-1","mode":"edit","evaluatorType":"CODE","sampleFilter":[],"draft":{"variables":["input"],"mappings":[]}}',
+        },
+        {
           description: "user_name",
           value: "Ada Lovelace",
         },
@@ -1319,6 +1329,12 @@ describe("createAgUiStream", () => {
     expect(laterStepText).toContain("<screen_context>");
     expect(laterStepText).toContain(
       '"current_url": "https://cloud.langfuse.com/project/project-1/traces"',
+    );
+    expect(laterStepText).toContain(
+      '"selected_evaluator_sample": {\n    "evaluatorId": "evaluator-1"',
+    );
+    expect(laterStepText).toContain(
+      '"evaluator_workbench": {\n    "evaluatorId": "evaluator-1"',
     );
     const baseInstructions = vi.mocked(Agent).mock.calls[0]?.[0].instructions;
     expect(baseInstructions).toEqual(expect.any(Function));

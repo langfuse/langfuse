@@ -36,6 +36,16 @@ const decisionModelInput = {
   ],
 };
 
+const llmEvaluatorInput = {
+  name: "Answer quality",
+  type: "LLM_AS_JUDGE" as const,
+  outputDefinition: {
+    dataType: "NUMERIC" as const,
+    reasoning: { description: "Explain the score" },
+    score: { description: "Return the score" },
+  },
+};
+
 describe("MCP evaluator input", () => {
   it("converts a decision-model definition to evaluator service input", () => {
     expect(toEvaluatorServiceInput(decisionModelInput)).toEqual({
@@ -121,6 +131,38 @@ describe("MCP evaluator input", () => {
         ]),
       );
     }
+  });
+
+  it("accepts exactly one LLM prompt representation", () => {
+    const promptMessages = [
+      { role: "system" as const, content: "Judge consistently." },
+      { role: "user" as const, content: "Judge {{output}}." },
+    ];
+
+    expect(
+      toEvaluatorServiceInput({
+        ...llmEvaluatorInput,
+        promptMessages,
+      }).definition,
+    ).toMatchObject({ promptMessages });
+
+    expect(
+      McpEvaluatorInput.safeParse({
+        ...llmEvaluatorInput,
+        prompt: "Judge {{output}}.",
+        promptMessages,
+      }),
+    ).toMatchObject({
+      success: false,
+      error: {
+        issues: [
+          expect.objectContaining({
+            path: ["promptMessages"],
+            message: "Provide either prompt or promptMessages, not both.",
+          }),
+        ],
+      },
+    });
   });
 
   it("exposes decision-model assignments in MCP evaluation rules", () => {

@@ -7,6 +7,7 @@ import {
 
 import type { api } from "@/src/utils/api";
 import { assertUnreachable } from "@/src/utils/types";
+import { performEvaluatorAssistantToolSideEffects } from "@/src/features/evals";
 
 export type InAppAgentTrpcInvalidationTarget =
   | "annotationQueues"
@@ -17,6 +18,7 @@ export type InAppAgentTrpcInvalidationTarget =
   | "dashboardWidgets"
   | "datasets"
   | "evals"
+  | "evalsV2"
   | "experiments"
   | "externalMediaStorage"
   | "models"
@@ -72,10 +74,11 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_listEvaluators: [],
   langfuse_listManagedEvaluatorTemplates: [],
   langfuse_getEvaluator: [],
-  langfuse_testEvaluator: ["evals"],
-  langfuse_createEvaluator: ["evals", "models"],
+  langfuse_testEvaluator: ["evals", "evalsV2"],
+  langfuse_setEvaluatorWorkbenchFilter: [],
+  langfuse_createEvaluator: ["evals", "evalsV2", "models"],
   langfuse_updateEvaluator: ["evals", "models"],
-  langfuse_deleteEvaluator: ["evals", "models"],
+  langfuse_deleteEvaluator: ["evals", "evalsV2", "models"],
   langfuse_listEvaluationRules: [],
   langfuse_getEvaluationRule: [],
   langfuse_createEvaluationRule: ["evals"],
@@ -189,6 +192,9 @@ function performTargetInvalidation(
   if (target === "evals") {
     return utils.evals.invalidate();
   }
+  if (target === "evalsV2") {
+    return utils.evalsV2.invalidate();
+  }
   if (target === "experiments") {
     return utils.experiments.invalidate();
   }
@@ -217,6 +223,8 @@ function performTargetInvalidation(
 export type CompletedToolCall = {
   toolCallId: string;
   toolName: string;
+  toolArguments?: unknown;
+  toolResultContent?: string;
   toolError?: unknown;
 };
 
@@ -237,6 +245,7 @@ export function getCompletedToolCalls(
         toolCalls.set(toolCall.id, {
           toolCallId: toolCall.id,
           toolName: toolCall.function.name,
+          toolArguments: toolCall.function.arguments,
         });
       }
       continue;
@@ -250,7 +259,15 @@ export function getCompletedToolCalls(
   return Array.from(toolCalls.values()).flatMap((toolCall) => {
     const result = toolResults.get(toolCall.toolCallId);
     // No result message means the call never completed, so nothing was written.
-    return result ? [{ ...toolCall, toolError: result.error }] : [];
+    return result
+      ? [
+          {
+            ...toolCall,
+            toolResultContent: result.content,
+            toolError: result.error,
+          },
+        ]
+      : [];
   });
 }
 
@@ -263,13 +280,20 @@ export function getCompletedToolCalls(
 export function performToolSideEffectsForCompletedToolCalls({
   toolCalls,
   handledToolCallIds,
+  projectId,
+  conversationId,
+  source,
   utils,
 }: {
   toolCalls: readonly CompletedToolCall[];
   handledToolCallIds: Set<string>;
+  projectId: string;
+  conversationId: string | null;
+  source: "live" | "hydrated";
   utils: ReturnType<typeof api.useUtils>;
 }) {
   const targets = new Set<InAppAgentTrpcInvalidationTarget>();
+  const featureToolCalls: CompletedToolCall[] = [];
 
   for (const toolCall of toolCalls) {
     if (handledToolCallIds.has(toolCall.toolCallId)) {
@@ -281,6 +305,8 @@ export function performToolSideEffectsForCompletedToolCalls({
       continue;
     }
 
+    featureToolCalls.push(toolCall);
+
     for (const target of getInAppAgentTrpcInvalidationTargets(
       toolCall.toolName,
     )) {
@@ -288,7 +314,16 @@ export function performToolSideEffectsForCompletedToolCalls({
     }
   }
 
-  return Promise.all(
-    Array.from(targets, (target) => performTargetInvalidation(target, utils)),
-  );
+  return Promise.all([
+    ...performEvaluatorAssistantToolSideEffects({
+      toolCalls: featureToolCalls,
+      projectId,
+      conversationId,
+      source,
+      utils,
+    }),
+    ...Array.from(targets, (target) =>
+      performTargetInvalidation(target, utils),
+    ),
+  ]);
 }

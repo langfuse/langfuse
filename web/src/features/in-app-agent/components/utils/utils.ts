@@ -80,6 +80,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   proposeRedirect: "Opening page",
   queryMetrics: "Checking metrics",
   read: "Reading file",
+  setEvaluatorWorkbenchFilter: "Filtering evaluator observations",
   submitFeedback: "Submitting user feedback",
   testEvaluator: "Testing evaluator",
   testExternalMediaStorage: "Testing external media storage",

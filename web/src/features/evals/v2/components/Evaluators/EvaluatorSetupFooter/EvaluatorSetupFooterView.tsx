@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { EvaluatorAssistantActionButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupFooter/components/EvaluatorAssistantActionButton/EvaluatorAssistantActionButton";
 import {
   Tooltip,
   TooltipContent,
@@ -14,6 +15,11 @@ type EvaluatorSetupFooterViewBaseProps = {
   isSaving: boolean;
   saveDisabled: boolean;
   disabledReason: string | null;
+  assistantAction: {
+    label: "Create with AI" | "Edit with AI";
+    disabled: boolean;
+    onClick: () => void;
+  } | null;
   onClose: () => void;
   onSave: () => void;
 };
@@ -47,13 +53,16 @@ export function EvaluatorSetupFooterView(props: EvaluatorSetupFooterViewProps) {
   );
 
   return (
-    <div className="flex shrink-0 items-center gap-4 border-t px-6 py-3">
+    <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-t px-4 py-3 sm:px-6">
       {props.mode === "create" ? (
-        <p className="text-muted-foreground min-w-0 flex-1 text-sm">
+        <p className="text-muted-foreground min-w-0 basis-full text-sm sm:flex-1 sm:basis-0">
           {props.children}
         </p>
       ) : null}
-      <div className="ml-auto flex shrink-0 gap-2">
+      <div className="ml-auto flex w-full flex-wrap justify-end gap-2 sm:w-auto">
+        {props.assistantAction ? (
+          <EvaluatorAssistantActionButton {...props.assistantAction} />
+        ) : null}
         <Button type="button" variant="outline" onClick={onClose}>
           {closeLabel}
         </Button>

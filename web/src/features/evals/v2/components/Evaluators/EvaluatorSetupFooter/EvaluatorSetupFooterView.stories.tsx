@@ -17,6 +17,11 @@ export const Default = meta.story({
     isSaving: false,
     saveDisabled: false,
     disabledReason: null,
+    assistantAction: {
+      label: "Create with AI",
+      disabled: false,
+      onClick: fn(),
+    },
     onClose: fn(),
     onSave: fn(),
   },
@@ -30,6 +35,26 @@ export const Editing = meta.story({
     isSaving: false,
     saveDisabled: false,
     disabledReason: null,
+    assistantAction: {
+      label: "Edit with AI",
+      disabled: false,
+      onClick: fn(),
+    },
+    onClose: fn(),
+    onSave: fn(),
+  },
+});
+
+export const UnsupportedEvaluator = meta.story({
+  args: {
+    mode: "create",
+    children: createNextStep,
+    closeLabel: "Close",
+    saveLabel: "Create evaluator",
+    isSaving: false,
+    saveDisabled: false,
+    disabledReason: null,
+    assistantAction: null,
     onClose: fn(),
     onSave: fn(),
   },
@@ -44,6 +69,7 @@ export const Disabled = meta.story({
     isSaving: false,
     saveDisabled: true,
     disabledReason: "Add an evaluator name before saving.",
+    assistantAction: null,
     onClose: fn(),
     onSave: fn(),
   },

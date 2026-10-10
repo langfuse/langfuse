@@ -1,0 +1,35 @@
+.promptSurface > div > div:first-child {
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  border-radius: 0;
+  color: hsl(var(--header-foreground));
+  background: hsl(var(--header));
+}
+
+.groupSurface > div > div:first-child {
+  color: hsl(var(--secondary-foreground));
+  background: hsl(var(--secondary));
+}
+
+.promptSurface :global(.cm-editor),
+.promptSurface :global(.cm-gutters) {
+  border-right: 0;
+  border-left: 0;
+  border-radius: 0;
+  background: hsl(var(--card));
+}
+
+.promptSurface > div > div:nth-child(2) > p,
+.promptSurface > div > div:nth-child(2) > pre {
+  border-right: 0;
+  border-left: 0;
+  border-radius: 0;
+}
+
+.lastSurface > div > div:first-child,
+.lastSurface :global(.cm-editor),
+.lastSurface > div > div:nth-child(2) > p,
+.lastSurface > div > div:nth-child(2) > pre {
+  border-bottom: 0;
+}

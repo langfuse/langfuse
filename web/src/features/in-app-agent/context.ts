@@ -1,6 +1,10 @@
 import type { AgUiContext } from "@langfuse/shared/in-app-agent";
 import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
 import type { FilterState } from "@langfuse/shared";
+import {
+  sanitizeEvaluatorWorkbenchContext,
+  sanitizeSelectedEvaluatorSampleContext,
+} from "@/src/features/evals";
 
 type InAppAgentContext = AgUiContext;
 
@@ -193,6 +197,22 @@ export function sanitizeInAppAgentContext(
         value: boundedCurrentUrl,
       });
     }
+  }
+
+  const selectedEvaluatorSample = sanitizeSelectedEvaluatorSampleContext(
+    context,
+    projectId,
+  );
+  if (selectedEvaluatorSample) {
+    sanitizedContext.push(selectedEvaluatorSample);
+  }
+
+  const evaluatorWorkbench = sanitizeEvaluatorWorkbenchContext(
+    context,
+    projectId,
+  );
+  if (evaluatorWorkbench) {
+    sanitizedContext.push(evaluatorWorkbench);
   }
 
   sanitizedContext.push(...sanitizeUserContext(context));

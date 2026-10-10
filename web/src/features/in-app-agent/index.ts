@@ -1,3 +1,14 @@
+export {
+  getInAppAgentPageContext,
+  registerInAppAgentPageContext,
+} from "./lib/pageContext";
+export {
+  activateInAppAgentContextualLanding,
+  clearInAppAgentContextualLanding,
+  registerInAppAgentContextualLanding,
+  type InAppAgentContextualLanding,
+} from "./lib/contextualLanding";
+export { InAppAgentUpdateHighlight } from "./components/InAppAgentUpdateHighlight";
 // The in-app-agent feature's public client surface (RFC rule 8). Named
 // re-exports only — the provider, dialog controller, and widget composer
 // other features already imported by file path.
