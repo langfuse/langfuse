@@ -35,6 +35,10 @@ export function buildOpenAIModel(params: {
       headers: extraHeaders,
       fetch: params.fetch,
       supportsStructuredOutputs: true,
+      // Without this the provider omits `stream_options: { include_usage: true }`,
+      // so streamed generations against OpenAI-compatible endpoints record output
+      // with empty usage and no cost, unlike the first-party OpenAI path.
+      includeUsage: true,
     });
 
     return provider.languageModel(modelId);
