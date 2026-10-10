@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { makeZodVerifiedAPICallSilent } from "@/src/__tests__/test-utils";
 import { env } from "@/src/env.mjs";
+import * as mediaStorageClient from "@/src/features/media/server/getMediaStorageClient";
 import {
   type GetMediaResponse,
   GetMediaResponseSchema,
@@ -23,6 +24,7 @@ import {
   type TraceMedia,
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
+import { vi } from "vitest";
 
 describe("Media Upload API", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -838,6 +840,81 @@ describe("Media Upload API", () => {
           observationId,
         }),
       ).resolves.toEqual([]);
+    });
+
+    it("signs each media object with its own bucket", async () => {
+      const traceId = `trace-${crypto.randomUUID()}`;
+      const bucketPrefix = `media-test-${crypto.randomUUID()}`;
+      const mediaRows = [
+        {
+          id: crypto.randomUUID(),
+          bucketName: `${bucketPrefix}-one`,
+          bucketPath: "project/one.png",
+        },
+        {
+          id: crypto.randomUUID(),
+          bucketName: `${bucketPrefix}-two`,
+          bucketPath: "project/two.png",
+        },
+      ];
+      const mediaStorageClients = mediaRows.map(({ bucketName }) =>
+        mediaStorageClient.getMediaStorageServiceClient(bucketName),
+      );
+      const signedUrlSpies = mediaStorageClients.map((client, index) =>
+        vi
+          .spyOn(client, "getSignedUrl")
+          .mockResolvedValue(
+            `https://media.example/${mediaRows[index].bucketName}`,
+          ),
+      );
+
+      try {
+        for (const media of mediaRows) {
+          await prisma.media.create({
+            data: {
+              ...media,
+              projectId,
+              sha256Hash: crypto
+                .createHash("sha256")
+                .update(media.id)
+                .digest("base64"),
+              uploadHttpStatus: 200,
+              contentType: "image/png",
+              contentLength: 1n,
+            },
+          });
+          await prisma.traceMedia.create({
+            data: {
+              projectId,
+              traceId,
+              mediaId: media.id,
+              field: "input",
+            },
+          });
+        }
+
+        const result = await caller.media.getByTraceOrObservationId({
+          projectId,
+          traceId,
+        });
+
+        mediaRows.forEach((media, index) => {
+          expect(signedUrlSpies[index]).toHaveBeenCalledWith(
+            media.bucketPath,
+            env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS,
+            false,
+          );
+          expect(result.find(({ mediaId }) => mediaId === media.id)?.url).toBe(
+            `https://media.example/${media.bucketName}`,
+          );
+        });
+      } finally {
+        signedUrlSpies.forEach((spy) => spy.mockRestore());
+        await prisma.traceMedia.deleteMany({ where: { projectId, traceId } });
+        await prisma.media.deleteMany({
+          where: { projectId, id: { in: mediaRows.map(({ id }) => id) } },
+        });
+      }
     });
   });
 
