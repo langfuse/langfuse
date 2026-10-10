@@ -1945,12 +1945,9 @@ export class OtelIngestionProcessor {
       delete rawFilteredAttributes[key];
     });
 
-    // Gateway observation attributes are represented by canonical fields.
-    // Keep unknown attributes available for diagnostics.
-    if (instrumentationScopeName === AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME) {
-      for (const key of Object.values(LangfuseOtelSpanAttributes)) {
-        delete rawFilteredAttributes[key];
-      }
+    // Reserved Langfuse attributes are consumed by canonical mappers or control ingestion.
+    for (const key of Object.values(LangfuseOtelSpanAttributes)) {
+      delete rawFilteredAttributes[key];
     }
 
     // Delete gen_ai.prompt.*, gen_ai.completion.*, llm.input_messages.*, llm.output_messages.*,
