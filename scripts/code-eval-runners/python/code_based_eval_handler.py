@@ -5,6 +5,8 @@ import traceback
 from dataclasses import dataclass, field
 from typing import Any
 
+from langfuse_errors import LangfuseConfigurationError
+
 
 @dataclass
 class ToolCall:
@@ -115,7 +117,8 @@ def handler(event, context):
     evaluate = namespace.get("evaluate")
     if not callable(evaluate):
         return runner_error(
-            "INVALID_SOURCE", "Evaluator source must define an evaluate(ctx) function"
+            "INVALID_SOURCE",
+            format_error(LangfuseConfigurationError("Evaluator source must define an evaluate(ctx) function")),
         )
 
     try:
