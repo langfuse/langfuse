@@ -26,6 +26,33 @@ import { classifyJobFailure } from "../../queues/jobFailureReason";
 export { TableName } from "./types";
 
 const MULTI_PROJECT_LOG_COMMENT_PROJECT_ID = "MULTI_PROJECT";
+const LARGEST_ROWS_LOGGED = 3;
+const MAX_LOGGED_ERROR_MESSAGE_LENGTH = 2048;
+
+/** 1-based row index from ClickHouse parse errors, e.g. "Cannot parse input: ... (at row 11)". */
+function failedRowNumber(err: unknown): number | undefined {
+  const message = (err as { message?: unknown } | null)?.message;
+  if (typeof message !== "string") return undefined;
+  const match = /\(at row (\d+)\)/.exec(message);
+  return match ? Number(match[1]) : undefined;
+}
+
+function describeInsertError(err: unknown) {
+  if (!err || typeof err !== "object") return { message: String(err) };
+  const { code, type, message } = err as {
+    code?: unknown;
+    type?: unknown;
+    message?: unknown;
+  };
+  return {
+    code,
+    type,
+    message:
+      typeof message === "string"
+        ? message.slice(0, MAX_LOGGED_ERROR_MESSAGE_LENGTH)
+        : undefined,
+  };
+}
 
 export class ClickhouseWriter<
   PayloadMap extends WriterPayloadMap = JsonWriterPayloadMap,
@@ -510,8 +537,52 @@ export class ClickhouseWriter<
           `${this.logPrefix}ClickhouseWriter: Max attempts reached, dropped ${droppedCount} ${tableName} record(s)`,
           { droppedIds },
         );
+        // Separate line: droppedIds alone can exceed the log pipeline's line limit.
+        this.logger.error(
+          `${this.logPrefix}ClickhouseWriter: Failed ${tableName} batch diagnostics`,
+          {
+            table: tableName,
+            batchSize: queueItems.length,
+            reason,
+            error: describeInsertError(err),
+            ...this.describeFailedRows(
+              tableName,
+              err,
+              queueItems,
+              writeStrategy,
+            ),
+          },
+        );
       }
     }
+  }
+
+  /**
+   * Single out the row that poisoned an insert: the row ClickHouse names in a parse
+   * error, plus the largest rows for size errors that name none.
+   */
+  private describeFailedRows<T extends TableName>(
+    tableName: T,
+    err: unknown,
+    queueItems: ClickhouseWriterQueueItem<PayloadMap[T]>[],
+    strategy: ClickhouseWriteStrategy<PayloadMap[TableName]>,
+  ) {
+    const describe = strategy.describeRowSize;
+    if (!describe) return {};
+
+    const rowNumber = failedRowNumber(err);
+    const failedItem =
+      rowNumber !== undefined ? queueItems[rowNumber - 1] : undefined;
+    return {
+      failedRow: failedItem && {
+        rowNumber,
+        ...describe(tableName, failedItem.data),
+      },
+      largestRows: queueItems
+        .map((item) => describe(tableName, item.data))
+        .sort((a, b) => b.serializedBytes - a.serializedBytes)
+        .slice(0, LARGEST_ROWS_LOGGED),
+    };
   }
 
   public addToQueue<T extends TableName>(tableName: T, data: PayloadMap[T]) {

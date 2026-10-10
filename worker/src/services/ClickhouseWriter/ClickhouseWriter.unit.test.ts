@@ -437,6 +437,55 @@ describe("ClickhouseWriter", () => {
     expect(nativeWriter["queue"][TableName.EventsFull]).toHaveLength(0);
   });
 
+  it("logs the row ClickHouse rejected with its S3 location when dropping a batch", async () => {
+    writer.maxAttempts = 1;
+    const rows = ["obs-1", "obs-2", "obs-3"].map((id) => ({
+      id,
+      project_id: "project-1",
+      input: id === "obs-3" ? "x".repeat(1000) : "small",
+    }));
+    vi.spyOn(clickhouseClientMock, "insert").mockRejectedValue(
+      Object.assign(
+        new Error(
+          "Cannot parse input: expected ',' before: 'abc' (at row 2) : While executing WaitForAsyncInsert",
+        ),
+        { code: "27", type: "CANNOT_PARSE_INPUT_ASSERTION_FAILED" },
+      ),
+    );
+
+    rows.forEach((row) =>
+      writer.addToQueue(TableName.Observations, row as any),
+    );
+    await writer["flushAll"](true);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("Failed observations batch diagnostics"),
+      expect.objectContaining({
+        batchSize: 3,
+        reason: "invalid_data",
+        error: expect.objectContaining({ code: "27" }),
+        failedRow: expect.objectContaining({
+          rowNumber: 2,
+          id: "obs-2",
+          projectId: "project-1",
+          s3Location: expect.stringMatching(/project-1\/observation\/obs-2\/$/),
+        }),
+        largestRows: [
+          expect.objectContaining({
+            id: "obs-3",
+            largestFields: [
+              expect.objectContaining({ field: "input", bytes: 1002 }),
+              expect.anything(),
+              expect.anything(),
+            ],
+          }),
+          expect.anything(),
+          expect.anything(),
+        ],
+      }),
+    );
+  });
+
   it("should mark writer insert log comments as multi-project", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")

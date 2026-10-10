@@ -1,5 +1,10 @@
 import { Decimal } from "decimal.js";
-import { logger, recordIncrement } from "@langfuse/shared/src/server";
+import {
+  buildEventBucketPrefix,
+  logger,
+  recordIncrement,
+  type IngestionEntityTypes,
+} from "@langfuse/shared/src/server";
 import { TableName, type RecordInsertType } from "./types";
 
 // Decimal64(12): valid range is (-10^6, 10^6), i.e. 18 total digits with 12 fractional.
@@ -74,6 +79,66 @@ export function truncateOversizedRecord<
   }
 
   return record;
+}
+
+const TABLE_ENTITY_TYPES: Partial<Record<TableName, IngestionEntityTypes>> = {
+  [TableName.Traces]: "trace",
+  [TableName.Observations]: "observation",
+  [TableName.ObservationsBatchStaging]: "observation",
+  [TableName.Scores]: "score",
+  [TableName.DatasetRunItems]: "dataset_run_item",
+};
+
+export type RowSizeDiagnostics = {
+  id: string;
+  projectId: string;
+  serializedBytes: number;
+  largestFields: { field: string; bytes: number }[];
+  /** Event file, or the key prefix holding the entity's event files. */
+  s3Location: string | undefined;
+};
+
+function serializedBytes(value: unknown): number {
+  try {
+    return Buffer.byteLength(JSON.stringify(value) ?? "", "utf8");
+  } catch {
+    // Above V8's max string length.
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
+/** Size breakdown and S3 source of a row for failure logs. Never includes values. */
+export function describeRowSize<Row extends RecordInsertType<TableName>>(
+  tableName: TableName,
+  record: Row,
+): RowSizeDiagnostics {
+  const largestFields = Object.entries(record)
+    .map(([field, value]) => ({ field, bytes: serializedBytes(value) }))
+    .sort((a, b) => b.bytes - a.bytes)
+    .slice(0, 5);
+  return {
+    id: record.id,
+    projectId: record.project_id,
+    serializedBytes: serializedBytes(record),
+    largestFields,
+    s3Location: s3LocationOf(tableName, record),
+  };
+}
+
+function s3LocationOf(
+  tableName: TableName,
+  record: RecordInsertType<TableName>,
+): string | undefined {
+  if ("blob_storage_file_path" in record && record.blob_storage_file_path) {
+    return record.blob_storage_file_path;
+  }
+  const entityType = TABLE_ENTITY_TYPES[tableName];
+  if (!entityType) return undefined;
+  return buildEventBucketPrefix({
+    projectId: record.project_id,
+    entityType,
+    entityId: record.id,
+  });
 }
 
 export function clampDecimal64Value(value: number): [number, boolean] {
