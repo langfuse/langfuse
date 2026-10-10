@@ -19,6 +19,9 @@
 - tRPC router registry: `src/server/api/root.ts`
 - tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
 - Public REST API routes: `src/pages/api/public/*`
+- MCP JSON downloads: `src/features/mcp/server/observations/export-download.ts`
+  issues scoped links redeemed at `src/pages/api/mcp/download.ts`. Keep its
+  payload construction shared with the trace UI's Download JSON builder.
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
 - Topics PoC: `src/features/topics/TopicsPage.tsx` and

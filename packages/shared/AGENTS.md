@@ -152,6 +152,10 @@
   `toolResults`, `toolErrors`, `systemPrompt`, and `modelProvider`. These are
   storage/lifecycle, durable cross-process policy, or instance-model contracts;
   the Mastra runtime and sandbox belong to the worker.
+  Classify every web MCP tool in `mcpPolicy` so availability and approval rules
+  stay exhaustive. `availability: false` excludes a tool from in-app discovery
+  and calls; scope-based availability controls role access. Keep the web registry
+  and worker policy aligned.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
   `@langfuse/shared/src/server/clickhouse/clickhouseIdentifiers`,
