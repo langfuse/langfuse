@@ -40,6 +40,7 @@ export default function ObservationsPage() {
     <Page
       headerProps={{
         title: "Tracing",
+        divider: false,
         // Match traces/index.tsx: no delay badge while onboarding tells the
         // user to set up tracing for the first time.
         titleBadges: showOnboarding ? undefined : (
