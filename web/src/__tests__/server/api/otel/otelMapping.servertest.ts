@@ -2393,6 +2393,82 @@ describe("OTel Resource Span Mapping", () => {
       expect(observationEvent?.body.usageDetails.output_audio_tokens).toBe(7);
     });
 
+    it("should map pydantic-ai 2.0 cache usage emitted in both attribute families without double counting", async () => {
+      // pydantic-ai >= 2.0 (Anthropic/Bedrock) reports gross input_tokens that
+      // include cache reads and writes, and emits the cache counts both as
+      // gen_ai.usage.cache_{read,write}.input_tokens and as
+      // gen_ai.usage.details.cache_{read,write}_tokens on the same span.
+      const traceId = "abcdef0123456789abcdef0123456790";
+      const intAttr = (key: string, low: number) => ({
+        key,
+        value: { intValue: { low, high: 0, unsigned: false } },
+      });
+
+      const pydanticAiBedrockSpan = {
+        resource: {
+          attributes: [
+            { key: "service.name", value: { stringValue: "test-service" } },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: { name: "pydantic-ai", version: "2.0.0", attributes: [] },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("80854cd6bd218bf7", "hex"),
+                name: "chat claude-sonnet-4-5",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "gen_ai.system",
+                    value: { stringValue: "bedrock" },
+                  },
+                  intAttr("gen_ai.usage.input_tokens", 1000),
+                  intAttr("gen_ai.usage.output_tokens", 50),
+                  intAttr("gen_ai.usage.cache_read.input_tokens", 880),
+                  intAttr("gen_ai.usage.cache_write.input_tokens", 20),
+                  intAttr("gen_ai.usage.details.cache_read_tokens", 880),
+                  intAttr("gen_ai.usage.details.cache_write_tokens", 20),
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiBedrockSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent?.body.usageDetails).toEqual({
+        input: 100,
+        output: 50,
+        input_cached_tokens: 880,
+        input_cache_creation: 20,
+      });
+    });
+
     it("should extract OpenInference llm.token_count.prompt_details.cache_read/cache_write into input_cached_tokens / input_cache_creation", async () => {
       // OpenInference semantic conventions (used by openinference-instrumentation-{openai,anthropic,agno,...})
       // emit cache token counts under llm.token_count.prompt_details.cache_read and
