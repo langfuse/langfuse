@@ -141,6 +141,17 @@ describe("detail page deep-link route params", () => {
     expect(screen.getByTestId("session-page")).toHaveTextContent("s1");
   });
 
+  test("session detail waits inline, without the full-screen branded overlay", () => {
+    mockRouterQuery({});
+    const { container } = render(<SessionPageRoute />);
+    /** A spinner renders, so the negative assertions below cannot pass vacuously. */
+    expect(container.querySelector("svg")).not.toBeNull();
+    /** The branded auth screen is the only pending state with a heading, and the
+     * only one that paints over the navigation shell. */
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(container.querySelector(".fixed.inset-0")).toBeNull();
+  });
+
   test("annotation queue item does not mount while router.query is empty", () => {
     mockRouterQuery({});
     render(<AnnotationQueueItemRoute />);
