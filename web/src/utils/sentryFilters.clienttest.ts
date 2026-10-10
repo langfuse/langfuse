@@ -1124,6 +1124,61 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops Chromium setPointerCapture NotFoundError (pointer already gone)", () => {
+    // Real shape (LANGFUSE-63D): Chrome 152 / Windows on traces. Vaul's
+    // drawer onPress does `event.target.setPointerCapture(event.pointerId)`
+    // after the pointer was released. Mechanism is global onerror; stack
+    // is React dispatch + vaul. Capture cannot succeed once the pointer
+    // is gone.
+    const SET_POINTER_CAPTURE_NOT_FOUND =
+      "Failed to execute 'setPointerCapture' on 'Element': No active pointer with the given id is found.";
+
+    const setPointerCaptureNotFoundEvent = (
+      value = SET_POINTER_CAPTURE_NOT_FOUND,
+      type = "NotFoundError",
+      mechanismType = "auto.browser.global_handlers.onerror",
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type,
+              value,
+              mechanism: { type: mechanismType, handled: false },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the LANGFUSE-63D global-handler NotFoundError", () => {
+      expect(isDenylistedNoiseEvent(setPointerCaptureNotFoundEvent())).toBe(
+        true,
+      );
+    });
+
+    it("drops the same wording without a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          setPointerCaptureNotFoundEvent(
+            "Failed to execute 'setPointerCapture' on 'Element': No active pointer with the given id is found",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording via an addEventListener wrap", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          setPointerCaptureNotFoundEvent(
+            SET_POINTER_CAPTURE_NOT_FOUND,
+            "NotFoundError",
+            "auto.browser.browserapierrors.addEventListener",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1750,6 +1805,108 @@ describe("isDenylistedNoiseEvent", () => {
             {
               type: "TypeError",
               value: "undefined is not an object (evaluating 'addMore.click')",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes setPointerCapture NotFoundError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "NotFoundError",
+              value:
+                "Drawer drag failed: Failed to execute 'setPointerCapture' on 'Element': No active pointer with the given id is found.",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a TypeError with the same setPointerCapture wording", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Failed to execute 'setPointerCapture' on 'Element': No active pointer with the given id is found.",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a different NotFoundError on a browser handler", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "NotFoundError",
+              value: "The object can not be found here.",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the InvalidStateError setPointerCapture sibling (LANGFUSE-5WK)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "InvalidStateError",
+              value:
+                "Failed to execute 'setPointerCapture' on 'Element': InvalidStateError",
+              mechanism: {
+                type: "auto.browser.browserapierrors.addEventListener",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured setPointerCapture NotFoundError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Failed to execute 'setPointerCapture' on 'Element': No active pointer with the given id is found.",
+            "NotFoundError",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "NotFoundError",
+              value:
+                "Failed to execute 'setPointerCapture' on 'Element': No active pointer with the given id is found.",
               mechanism: {
                 type: "auto.core.capture_console",
                 handled: true,
