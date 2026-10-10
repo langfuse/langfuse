@@ -77,7 +77,21 @@ export const usdFormatter = (
 };
 
 export const costFormatter = (totalCost?: number) => {
-  return usdFormatter(totalCost, 2, 2);
+  const cost = totalCost ?? 0;
+  // Cheap models can cost a fraction of a cent per call. With exactly two
+  // decimals those totals all round to $0.00, so keep ~3 significant digits
+  // below one cent while leaving cent precision at/above it untouched.
+  if (cost !== 0 && Math.abs(cost) < 0.01) {
+    const maxDigits = Math.min(2 + Math.ceil(-Math.log10(Math.abs(cost))), 10);
+    // Dust below the display precision would still round to $0.00; show a
+    // nonzero bound instead so real spend never looks free.
+    if (Number(cost.toFixed(maxDigits)) === 0) {
+      const floor = usdFormatter(10 ** -maxDigits, 2, maxDigits);
+      return cost < 0 ? `>-${floor}` : `<${floor}`;
+    }
+    return usdFormatter(cost, 2, maxDigits);
+  }
+  return usdFormatter(cost, 2, 2);
 };
 
 export const formatTokenCounts = (
