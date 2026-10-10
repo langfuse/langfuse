@@ -63,9 +63,9 @@ types:
   CreateDatasetItemRequest:
     properties:
       datasetName: string
-      input: optional<unknown>
-      expectedOutput: optional<unknown>
-      metadata: optional<unknown>
+      input: optional<map<string, unknown>>
+      expectedOutput: optional<map<string, unknown>>
+      metadata: optional<map<string, unknown>>
       sourceTraceId: optional<string>
       sourceObservationId: optional<string>
       id:
