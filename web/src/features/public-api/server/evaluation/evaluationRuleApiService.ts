@@ -21,15 +21,25 @@ import {
 } from "./evaluationAdapters";
 
 function ruleService(auditScope: ApiAccessScope) {
-  return new RuleService(prisma, ({ action, ruleId, projectId }) =>
-    auditLog({
-      action,
-      resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-      resourceId: ruleId,
-      projectId,
-      orgId: auditScope.orgId,
-      apiKeyId: auditScope.apiKeyId,
-    }),
+  return new RuleService(
+    prisma,
+    ({ action, ruleId, projectId }) =>
+      auditLog({
+        action,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: ruleId,
+        projectId,
+        orgId: auditScope.orgId,
+        apiKeyId: auditScope.apiKeyId,
+      }),
+    {
+      visibleTargetObjects: [
+        EvalTargetObject.TRACE,
+        EvalTargetObject.DATASET,
+        EvalTargetObject.EVENT,
+        EvalTargetObject.EXPERIMENT,
+      ],
+    },
   );
 }
 

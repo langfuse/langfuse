@@ -1,6 +1,6 @@
 import { z } from "zod";
 import {
-  CreateRuleSchema,
+  CreateRuleBaseSchema,
   ListRulesSchema,
   RuleAssignmentInputSchema,
   RuleIdSchema,
@@ -65,11 +65,12 @@ export type EvaluationRuleAssignmentInput = z.infer<
   typeof EvaluationRuleAssignmentInputSchema
 >;
 
-export const CreateEvaluationRuleBaseSchema = CreateRuleSchema.omit({
+export const CreateEvaluationRuleBaseSchema = CreateRuleBaseSchema.omit({
   projectId: true,
   targetObject: true,
   filter: true,
   evaluatorAssignments: true,
+  scoreResultTrigger: true,
 }).extend({
   evaluatorAssignments: z
     .array(EvaluationRuleAssignmentInputSchema)
@@ -81,9 +82,10 @@ export const CreateEvaluationRuleBaseSchema = CreateRuleSchema.omit({
     .describe("Conditions selecting which observations the rule runs on."),
 });
 
-export const CreateEvaluationRuleInputSchema = CreateRuleSchema.omit({
+export const CreateEvaluationRuleInputSchema = CreateRuleBaseSchema.omit({
   projectId: true,
   targetObject: true,
+  scoreResultTrigger: true,
 }).extend({
   evaluatorAssignments: z
     .array(EvaluationRuleAssignmentInputSchema)
@@ -118,6 +120,8 @@ export const UpdateEvaluationRuleBaseSchema = UpdateRuleSchema.omit({
   ruleId: true,
   filter: true,
   evaluatorMappings: true,
+  targetObject: true,
+  scoreResultTrigger: true,
 }).extend({
   evaluationRuleId: RuleIdSchema.shape.ruleId,
   filter: z.array(RuleFilterBaseSchema).optional(),
@@ -132,6 +136,8 @@ export const UpdateEvaluationRuleInputSchema = UpdateRuleSchema.omit({
   projectId: true,
   ruleId: true,
   evaluatorMappings: true,
+  targetObject: true,
+  scoreResultTrigger: true,
 })
   .extend({
     evaluationRuleId: RuleIdSchema.shape.ruleId,

@@ -4,6 +4,7 @@ import {
   EvalTargetObject,
   EvalTemplateType,
   JobConfigState,
+  JobExecutionStatus,
 } from "@langfuse/shared";
 import {
   type ObservationEvalRule,
@@ -249,7 +250,10 @@ describe("processBatchedObservationEval", () => {
     const enqueueError = new Error("Simulated queue enqueue failure");
     const schedulerDeps: ObservationEvalSchedulerDeps = {
       uploadObservationToS3: vi.fn().mockResolvedValue("observation.json"),
-      upsertJobExecution: vi.fn().mockResolvedValue({ id: "execution-1" }),
+      upsertJobExecution: vi.fn().mockResolvedValue({
+        id: "execution-1",
+        status: JobExecutionStatus.PENDING,
+      }),
       enqueueEvalJob: vi.fn().mockRejectedValue(enqueueError),
     };
     const actualModule =

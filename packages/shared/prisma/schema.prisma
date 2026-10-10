@@ -1126,6 +1126,7 @@ model Evaluator {
 
   versions    EvaluatorVersion[]
   assignments EvaluationRuleEvaluatorAssignment[]
+  triggeredRules EvaluationRule[]                    @relation("EvaluationRuleTriggerEvaluator")
 
   @@index([projectId, createdAt(sort: Desc)])
   @@map("evaluators")
@@ -1247,9 +1248,14 @@ model EvaluationRule {
   idleTime        Int?           @map("idle_time") // milliseconds
   timeScope       String[]       @default(["NEW"]) @map("time_scope")
 
+  triggerEvaluatorId String?    @map("trigger_evaluator_id")
+  triggerEvaluator   Evaluator? @relation("EvaluationRuleTriggerEvaluator", fields: [triggerEvaluatorId], references: [id], onDelete: SetNull)
+  ruleInvalidReason  String?    @map("rule_invalid_reason")
+
   assignments EvaluationRuleEvaluatorAssignment[]
 
   @@index([projectId, updatedAt(sort: Desc)])
+  @@index([projectId, targetObject, triggerEvaluatorId])
   @@map("evaluation_rules")
 }
 

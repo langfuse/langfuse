@@ -12,6 +12,7 @@ import type {
   EvalTargetObject,
   FilterState,
   ObservationVariableMapping,
+  ScoreResultTrigger,
 } from "@langfuse/shared";
 
 /**
@@ -83,6 +84,10 @@ export type ObservationEvalRule =
   | EvaluationRuleWithAssignments
   | LegacyObservationEvalConfig;
 
+export type ScoreResultEvalRule = EvaluationRuleWithAssignments & {
+  scoreResultTrigger: ScoreResultTrigger;
+};
+
 /**
  * Dependencies for scheduling observation evals.
  * The scheduler receives pre-fetched rules and creates job executions.
@@ -97,7 +102,9 @@ export interface ObservationEvalSchedulerDeps {
     jobInputObservationId: string;
     jobTemplateId: string | null;
     status: JobExecutionStatus;
-  }) => Promise<{ id: string }>;
+    /** Keep terminal state when retrying downstream scheduling. */
+    preserveExistingStatus?: boolean;
+  }) => Promise<{ id: string; status: JobExecutionStatus }>;
 
   /** Upload observation data to S3 for later retrieval */
   uploadObservationToS3: (params: {
@@ -118,6 +125,8 @@ export interface ObservationEvalSchedulerDeps {
     /** Evaluator v2 identity; omitted when scheduling a legacy config. */
     evaluatorId?: string;
     evaluationRuleId?: string;
+    /** Keep a failed queue job from being duplicated by downstream retries. */
+    useJobExecutionIdAsQueueJobId?: boolean;
     /**
      * Mapping override for a ruleless batch run. Omitted to inherit the
      * evaluator version mapping.

@@ -49,6 +49,8 @@ const getSupportedColumnsForTarget = (
       return eventsEvalFilterColumns;
     case EvalTargetObject.EXPERIMENT:
       return experimentEvalFilterColumns;
+    case EvalTargetObject.SCORE_RESULT:
+      return [];
   }
 };
 

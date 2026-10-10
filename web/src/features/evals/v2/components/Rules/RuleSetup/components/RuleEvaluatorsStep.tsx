@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useStore } from "zustand";
+import { EvalTargetObject } from "@langfuse/shared";
 
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
 import { EvaluatorAssignmentsEditor } from "@/src/features/evals/v2/components/Rules/EvaluatorAssignmentsEditor/EvaluatorAssignmentsEditor";
@@ -60,6 +61,7 @@ export function RuleEvaluatorsStep({
     eventDetails: selectedObservationDetails.data,
   });
   const assignments = useStore(store, (state) => state.assignments);
+  const targetObject = useStore(store, (state) => state.targetObject);
   const costEstimate = useRuleCostEstimate({ projectId, store });
   const availableEstimates = costEstimate.estimates.filter(
     (estimate) => estimate.estimatedCostUsd !== null,
@@ -98,13 +100,13 @@ export function RuleEvaluatorsStep({
         )}
       </div>
     ) : null;
+  const description =
+    targetObject === EvalTargetObject.SCORE_RESULT
+      ? "Run on the observation each matching score belongs to."
+      : "Choose which evaluators should run on matching observations.";
 
   return (
-    <Stepper
-      number={2}
-      title="Attach evaluators"
-      description="Choose which evaluators should run on matching observations."
-    >
+    <Stepper number={2} title="Attach evaluators" description={description}>
       <EvaluatorAssignmentsEditor
         evaluatorOptions={evaluatorOptions}
         store={store}

@@ -6,6 +6,7 @@ import {
   type BatchActionQuery,
   type BatchEvalSourceTable,
   BatchEvalSourceTable as SourceTable,
+  EvalTargetObject,
   extractVariables,
   observationVariableMappingList,
 } from "@langfuse/shared";
@@ -89,6 +90,8 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       name: "Batch evaluation",
       filter: [],
       sampling: 1,
+      targetObject: EvalTargetObject.EVENT,
+      scoreResultTrigger: null,
       assignments: [],
     }),
   );

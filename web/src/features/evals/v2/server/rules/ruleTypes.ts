@@ -2,6 +2,7 @@ import {
   EvalTargetObject,
   observationVariableMappingList,
   paginationLimitZod,
+  ScoreResultTriggerSchema,
   singleFilterList,
 } from "@langfuse/shared";
 import { z } from "zod";
@@ -40,9 +41,15 @@ export const ListRulesSchema = z.object({
   search: z.string().trim().max(200).optional(),
   enabled: z.boolean().optional(),
   targetObjects: z
-    .array(z.enum([EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT]))
+    .array(
+      z.enum([
+        EvalTargetObject.EVENT,
+        EvalTargetObject.EXPERIMENT,
+        EvalTargetObject.SCORE_RESULT,
+      ]),
+    )
     .min(1)
-    .max(2)
+    .max(3)
     .optional(),
   filter: singleFilterList
     .superRefine((filters, ctx) => {
@@ -65,17 +72,61 @@ export const ListRulesSchema = z.object({
     .optional(),
 });
 
-export const CreateRuleSchema = RuleMetadataSchema.extend({
+export const CreateRuleBaseSchema = RuleMetadataSchema.extend({
   projectId: z.string(),
   targetObject: z
-    .enum([EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT])
+    .enum([
+      EvalTargetObject.EVENT,
+      EvalTargetObject.EXPERIMENT,
+      EvalTargetObject.SCORE_RESULT,
+    ])
     .default(EvalTargetObject.EVENT)
     .describe(
-      "Deprecated: modern rules are event rules and experiment scope is expressed through filters.",
+      "Rule trigger source. Experiment scope is normalized to event filters.",
     ),
   enabled: z.boolean(),
   evaluatorAssignments: z.array(RuleAssignmentInputSchema).max(100),
+  scoreResultTrigger: ScoreResultTriggerSchema.nullable().default(null),
 });
+
+export const CreateRuleSchema = CreateRuleBaseSchema.superRefine(
+  (rule, ctx) => {
+    if (rule.targetObject !== EvalTargetObject.SCORE_RESULT) {
+      if (rule.scoreResultTrigger !== null) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["scoreResultTrigger"],
+          message:
+            "Observation rules cannot define an evaluator result trigger",
+        });
+      }
+      return;
+    }
+
+    if (rule.scoreResultTrigger === null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["scoreResultTrigger"],
+        message:
+          "Evaluator result rules require a trigger evaluator and scores",
+      });
+    }
+    if (rule.filter.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["filter"],
+        message: "Evaluator result rules cannot define observation filters",
+      });
+    }
+    if (rule.sampling !== 1) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["sampling"],
+        message: "Evaluator result rules run for every matching result",
+      });
+    }
+  },
+);
 
 export const UpdateRuleSchema = RuleIdSchema.extend({
   name: RuleMetadataSchema.shape.name.optional(),
@@ -83,6 +134,14 @@ export const UpdateRuleSchema = RuleIdSchema.extend({
   sampling: RuleMetadataSchema.shape.sampling.optional(),
   enabled: z.boolean().optional(),
   evaluatorMappings: z.array(RuleAssignmentInputSchema).max(100).optional(),
+  targetObject: z
+    .enum([
+      EvalTargetObject.EVENT,
+      EvalTargetObject.EXPERIMENT,
+      EvalTargetObject.SCORE_RESULT,
+    ])
+    .optional(),
+  scoreResultTrigger: ScoreResultTriggerSchema.nullable().optional(),
 });
 
 export const SetRuleEnabledSchema = RuleIdSchema.extend({
@@ -149,7 +208,8 @@ export const CreateOrAttachFromEvaluatorFiltersSchema = z.object({
 });
 
 export type RuleAssignmentInput = z.infer<typeof RuleAssignmentInputSchema>;
-export type CreateRuleInput = z.infer<typeof CreateRuleSchema>;
+export type CreateRuleInput = z.input<typeof CreateRuleSchema>;
+export type ParsedCreateRuleInput = z.output<typeof CreateRuleSchema>;
 export type CreateOrAttachFromEvaluatorFiltersInput = z.infer<
   typeof CreateOrAttachFromEvaluatorFiltersSchema
 >;

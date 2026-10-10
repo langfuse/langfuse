@@ -9,6 +9,7 @@ import {
   EvalTemplateType,
   type FilterState,
   type ObservationVariableMapping,
+  type ScoreResultTrigger,
 } from "@langfuse/shared";
 import {
   compilePrismaFilters,
@@ -17,8 +18,8 @@ import {
   type PrismaFilterColumnHandlers,
 } from "@langfuse/shared/src/server";
 import type {
-  CreateRuleInput,
   ListRulesInput,
+  ParsedCreateRuleInput,
   RuleAssignmentInput,
   RuleSelectionInput,
   UpdateRuleInput,
@@ -139,8 +140,12 @@ function ruleWhere(params: {
 export async function listRules(params: {
   prisma: PrismaClient;
   input: ListRulesInput;
+  targetObjects?: EvalTargetObject[];
 }) {
-  const where = ruleWhere(params.input);
+  const where = ruleWhere({
+    ...params.input,
+    targetObjects: params.targetObjects ?? params.input.targetObjects,
+  });
   const requestedOrder = params.input.orderBy;
   const orderColumn =
     requestedOrder?.column === "enabled"
@@ -165,8 +170,12 @@ export async function listRulesCursor(params: {
   input: Omit<ListRulesInput, "page"> & {
     cursor?: { createdAt: Date; id: string };
   };
+  targetObjects?: EvalTargetObject[];
 }) {
-  const baseWhere = ruleWhere(params.input);
+  const baseWhere = ruleWhere({
+    ...params.input,
+    targetObjects: params.targetObjects ?? params.input.targetObjects,
+  });
   const where: Prisma.EvaluationRuleWhereInput = params.input.cursor
     ? {
         AND: [
@@ -273,12 +282,16 @@ export function findRule(params: {
   prisma: RulePrisma;
   projectId: string;
   ruleId: string;
+  targetObjects?: EvalTargetObject[];
 }) {
   return params.prisma.evaluationRule.findFirst({
     where: {
       id: params.ruleId,
       projectId: params.projectId,
       ...visibleRuleWhere,
+      ...(params.targetObjects === undefined
+        ? {}
+        : { targetObject: { in: params.targetObjects } }),
     },
     include: ruleInclude,
   });
@@ -318,7 +331,7 @@ export async function findActiveRuleWithMatchingFilterAndSampling(params: {
 
 export function createRule(params: {
   prisma: RulePrisma;
-  input: CreateRuleInput;
+  input: ParsedCreateRuleInput;
   createdByUserId: string | null;
 }) {
   return params.prisma.evaluationRule.create({
@@ -330,10 +343,17 @@ export function createRule(params: {
         ? JobConfigState.ACTIVE
         : JobConfigState.INACTIVE,
       targetObject: params.input.targetObject,
-      filter: params.input.filter as Prisma.InputJsonValue,
+      filter:
+        params.input.targetObject === EvalTargetObject.SCORE_RESULT &&
+        params.input.scoreResultTrigger
+          ? (params.input.scoreResultTrigger
+              .predicates as Prisma.InputJsonValue)
+          : (params.input.filter as Prisma.InputJsonValue),
       sampling: params.input.sampling,
       delay: 0,
       timeScope: ["NEW"],
+      triggerEvaluatorId: params.input.scoreResultTrigger?.evaluatorId ?? null,
+      ruleInvalidReason: null,
       assignments: {
         create: params.input.evaluatorAssignments.map((assignment) => ({
           projectId: params.input.projectId,
@@ -351,6 +371,9 @@ export function updateRule(params: {
   input: UpdateRuleInput;
   targetObject?: EvalTargetObject;
   filter?: Prisma.InputJsonValue;
+  scoreResultTrigger?: ScoreResultTrigger | null;
+  clearRuleInvalidReason?: boolean;
+  sampling?: number;
 }) {
   return params.prisma.evaluationRule.update({
     where: {
@@ -364,9 +387,9 @@ export function updateRule(params: {
         : { targetObject: params.targetObject }),
       ...(params.input.name === undefined ? {} : { name: params.input.name }),
       ...(params.filter === undefined ? {} : { filter: params.filter }),
-      ...(params.input.sampling === undefined
+      ...(params.sampling === undefined && params.input.sampling === undefined
         ? {}
-        : { sampling: params.input.sampling }),
+        : { sampling: params.sampling ?? params.input.sampling }),
       ...(params.input.enabled === undefined
         ? {}
         : {
@@ -374,9 +397,59 @@ export function updateRule(params: {
               ? JobConfigState.ACTIVE
               : JobConfigState.INACTIVE,
           }),
+      ...(params.scoreResultTrigger === undefined
+        ? {}
+        : {
+            triggerEvaluatorId: params.scoreResultTrigger?.evaluatorId ?? null,
+          }),
+      ...(params.clearRuleInvalidReason ? { ruleInvalidReason: null } : {}),
     },
     include: ruleInclude,
   });
+}
+
+export async function listEvaluatorResultRuleEdges(params: {
+  prisma: RulePrisma;
+  projectId: string;
+  excludeRuleId?: string;
+}) {
+  const rules = await params.prisma.evaluationRule.findMany({
+    where: {
+      projectId: params.projectId,
+      targetObject: EvalTargetObject.SCORE_RESULT,
+      triggerEvaluatorId: { not: null },
+      ...(params.excludeRuleId ? { id: { not: params.excludeRuleId } } : {}),
+    },
+    select: {
+      triggerEvaluatorId: true,
+      assignments: { select: { evaluatorId: true } },
+    },
+  });
+
+  return rules.flatMap((rule) =>
+    rule.triggerEvaluatorId
+      ? [
+          {
+            sourceEvaluatorId: rule.triggerEvaluatorId,
+            targetEvaluatorIds: rule.assignments.map(
+              (assignment) => assignment.evaluatorId,
+            ),
+          },
+        ]
+      : [],
+  );
+}
+
+export async function lockEvaluatorResultRuleGraph(params: {
+  prisma: RulePrisma;
+  projectId: string;
+}) {
+  // Graph validation and the corresponding rule write share a transaction.
+  // A project-scoped advisory lock prevents concurrent valid edges from
+  // committing as a cycle.
+  await params.prisma.$queryRaw`
+    SELECT pg_advisory_xact_lock(hashtext(${params.projectId})) IS NULL AS "acquired"
+  `;
 }
 
 export function setRuleStatus(params: {
@@ -401,6 +474,25 @@ export function setRuleStatus(params: {
     data: {
       status,
       ...(params.sampling === undefined ? {} : { sampling: params.sampling }),
+    },
+  });
+}
+
+export function invalidateEvaluatorResultRules(params: {
+  prisma: RulePrisma;
+  projectId: string;
+  evaluatorId: string;
+  reason: string;
+}) {
+  return params.prisma.evaluationRule.updateMany({
+    where: {
+      projectId: params.projectId,
+      targetObject: EvalTargetObject.SCORE_RESULT,
+      triggerEvaluatorId: params.evaluatorId,
+    },
+    data: {
+      status: JobConfigState.INACTIVE,
+      ruleInvalidReason: params.reason,
     },
   });
 }
@@ -624,7 +716,10 @@ export async function listRulesForEvaluator(params: {
         enabled: evaluationRule.status === JobConfigState.ACTIVE,
         targetObject: evaluationRule.targetObject,
         timeScope: evaluationRule.timeScope,
-        filter: evaluationRule.filter as FilterState,
+        filter:
+          evaluationRule.targetObject === EvalTargetObject.SCORE_RESULT
+            ? []
+            : (evaluationRule.filter as FilterState),
         sampling: evaluationRule.sampling.toNumber(),
       },
     }),

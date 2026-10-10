@@ -121,7 +121,10 @@ describe("scheduleObservationEvals", () => {
   const createMockSchedulerDeps = (): ObservationEvalSchedulerDeps => ({
     upsertJobExecution: vi
       .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
-      .mockResolvedValue({ id: "job-exec-1" }),
+      .mockResolvedValue({
+        id: "job-exec-1",
+        status: JobExecutionStatus.PENDING,
+      }),
     uploadObservationToS3: vi
       .fn<ObservationEvalSchedulerDeps["uploadObservationToS3"]>()
       .mockResolvedValue("observations/project-789/obs-123.json"),

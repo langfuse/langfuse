@@ -42,6 +42,9 @@ vi.mock("@langfuse/shared/src/db", () => ({
     jobExecution: {
       update: vi.fn(),
     },
+    evaluationRule: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   },
 }));
 

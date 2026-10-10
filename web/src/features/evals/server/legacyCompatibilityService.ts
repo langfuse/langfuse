@@ -46,6 +46,10 @@ import {
   reconcileEvaluatorPromptMessages,
   toEvaluatorDefinition,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import {
+  invalidateEvaluatorResultRules,
+  lockEvaluatorResultRuleGraph,
+} from "@/src/features/evals/v2/server/rules/ruleRepository";
 
 const MANAGED_TEMPLATE_ID_PREFIX = "managed:";
 
@@ -62,6 +66,7 @@ const LEGACY_TARGET_OBJECTS = [
 ];
 
 const visibleRuleWhere = {
+  targetObject: { not: EvalTargetObject.SCORE_RESULT },
   assignments: { none: { evaluator: { type: EvalTemplateType.FACET } } },
 } satisfies Prisma.EvaluationRuleWhereInput;
 
@@ -558,6 +563,7 @@ async function applyScoreNameChange(params: {
   scoreName: string;
 }) {
   const { tx, projectId, assignmentId, evaluatorId, scoreName } = params;
+  await lockEvaluatorResultRuleGraph({ prisma: tx, projectId });
   const evaluator = await tx.evaluator.findFirst({
     where: { id: evaluatorId, projectId },
     include: {
@@ -575,6 +581,14 @@ async function applyScoreNameChange(params: {
       where: { id: evaluatorId, projectId, isBuiltIn: false },
       data: { name: scoreName },
     });
+    if (evaluator.type !== EvalTemplateType.CODE) {
+      await invalidateEvaluatorResultRules({
+        prisma: tx,
+        projectId,
+        evaluatorId,
+        reason: "The trigger evaluator changed. Review the score conditions.",
+      });
+    }
     return;
   }
 
@@ -657,6 +671,7 @@ const legacyConfigIdsQuery = (params: {
     ) a ON a."evaluation_rule_id" = r."id"
     JOIN "evaluators" e ON e."id" = a."evaluator_id"
     WHERE r."project_id" = ${params.projectId}
+      AND r."target_object" <> ${EvalTargetObject.SCORE_RESULT}
       AND e."type"::text <> ${EvalTemplateType.FACET}
   ) jc
   WHERE TRUE
@@ -834,14 +849,26 @@ export class LegacyEvalCompatibilityService {
     projectId: string,
     jobConfigurationIds: string[],
   ) {
+    const hiddenRules = await this.prisma.evaluationRule.findMany({
+      where: {
+        projectId,
+        id: { in: jobConfigurationIds },
+        targetObject: EvalTargetObject.SCORE_RESULT,
+      },
+      select: { id: true },
+    });
+    const hiddenRuleIds = new Set(hiddenRules.map(({ id }) => id));
     const executionIdsByJobConfigurationId = new Map(
-      jobConfigurationIds.map((id) => [id, new Set([id])]),
+      jobConfigurationIds
+        .filter((id) => !hiddenRuleIds.has(id))
+        .map((id) => [id, new Set([id])]),
     );
     const assignments =
       await this.prisma.evaluationRuleEvaluatorAssignment.findMany({
         where: {
           projectId,
           evaluationRuleId: { in: jobConfigurationIds },
+          evaluationRule: visibleRuleWhere,
         },
         select: { evaluationRuleId: true, evaluatorId: true },
       });
@@ -1228,6 +1255,10 @@ export class LegacyEvalCompatibilityService {
         });
         if (!source) throw new LangfuseNotFoundError("Evaluator not found");
 
+        await lockEvaluatorResultRuleGraph({
+          prisma: tx,
+          projectId: params.projectId,
+        });
         // Serialize concurrent version creation: the next version number is
         // read here and written below, and the pair is unique.
         await tx.$executeRaw`SELECT "id" FROM "evaluators" WHERE "id" = ${source.evaluatorId} AND "project_id" = ${params.projectId} FOR UPDATE`;
@@ -1290,6 +1321,12 @@ export class LegacyEvalCompatibilityService {
             version: (evaluator.versions[0]?.version ?? 0) + 1,
             ...evaluatorVersionData(params.definition, params.createdByUserId),
           },
+        });
+        await invalidateEvaluatorResultRules({
+          prisma: tx,
+          projectId: params.projectId,
+          evaluatorId: source.evaluatorId,
+          reason: "The trigger evaluator changed. Review the score conditions.",
         });
         await Promise.all(
           upgradedAssignments.map((assignment) =>
@@ -1591,6 +1628,7 @@ export class LegacyEvalCompatibilityService {
     const rules = await this.prisma.evaluationRule.findMany({
       where: {
         projectId,
+        ...visibleRuleWhere,
         assignments: { some: { evaluatorId: version.evaluatorId } },
       },
       include: ruleInclude,
@@ -1620,6 +1658,7 @@ export class LegacyEvalCompatibilityService {
       });
       if (!version) throw new LangfuseNotFoundError("Evaluator not found");
 
+      await lockEvaluatorResultRuleGraph({ prisma: tx, projectId });
       // Lock the evaluator so a rule cannot be assigned to it between the
       // usage check and the delete.
       await tx.$executeRaw`SELECT "id" FROM "evaluators" WHERE "id" = ${version.evaluatorId} AND "project_id" = ${projectId} FOR UPDATE`;
@@ -1627,6 +1666,7 @@ export class LegacyEvalCompatibilityService {
       const referencingRules = await tx.evaluationRule.findMany({
         where: {
           projectId,
+          ...visibleRuleWhere,
           assignments: { some: { evaluatorId: version.evaluatorId } },
         },
         select: { name: true },
@@ -1636,6 +1676,24 @@ export class LegacyEvalCompatibilityService {
           buildTemplateInUseMessage(referencingRules.map(({ name }) => name)),
         );
       }
+      await invalidateEvaluatorResultRules({
+        prisma: tx,
+        projectId,
+        evaluatorId: version.evaluatorId,
+        reason: "The trigger evaluator was deleted.",
+      });
+      await tx.evaluationRule.updateMany({
+        where: {
+          projectId,
+          targetObject: EvalTargetObject.SCORE_RESULT,
+          status: JobConfigState.ACTIVE,
+          assignments: {
+            some: { evaluatorId: version.evaluatorId },
+            none: { evaluatorId: { not: version.evaluatorId } },
+          },
+        },
+        data: { status: JobConfigState.INACTIVE },
+      });
 
       const versions = await tx.evaluatorVersion.findMany({
         where: { evaluatorId: version.evaluatorId },

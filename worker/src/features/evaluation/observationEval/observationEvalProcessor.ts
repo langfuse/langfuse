@@ -37,6 +37,7 @@ import { runLLMAsJudgeEvaluation } from "../evalService";
 import { executeCodeBasedEvaluation } from "../codeBased";
 import { runDecisionModelEvaluation } from "../decisionModel/runDecisionModelEvaluation";
 import { getEvalS3StorageClient } from "../s3StorageClient";
+import { processEvaluatorResult } from "./processEvaluatorResult";
 import { type ObservationForEval } from "./types";
 
 /**
@@ -46,6 +47,7 @@ import { type ObservationForEval } from "./types";
 export interface ObservationEvalProcessorDeps {
   downloadObservationFromS3: (path: string) => Promise<string>;
   evalExecutionDeps: EvalExecutionDeps;
+  processEvaluatorResultRules?: typeof processEvaluatorResult;
 }
 
 /**
@@ -59,6 +61,7 @@ function createObservationEvalProcessorDeps(): ObservationEvalProcessorDeps {
       return s3Client.download(path);
     },
     evalExecutionDeps: createProductionEvalExecutionDeps(),
+    processEvaluatorResultRules: processEvaluatorResult,
   };
 }
 
@@ -305,6 +308,19 @@ export async function processObservationEval(
     environment: executionParams.environment,
     deps: executionParams.deps,
     result: executionResult,
+    ...(resolved.type === "v2" && deps.processEvaluatorResultRules
+      ? {
+          onEvaluatorCompleted: async (result: EvalExecutionResult) => {
+            await deps.processEvaluatorResultRules?.({
+              projectId: executionParams.projectId,
+              evaluatorId: resolved.evaluatorId,
+              observation: observationData,
+              scores: result.scores,
+              upstreamJobExecutionId: executionParams.jobExecutionId,
+            });
+          },
+        }
+      : {}),
   });
 
   return "completed";

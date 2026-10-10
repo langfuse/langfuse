@@ -1,10 +1,49 @@
-import { createRuleSetupStore, isRuleDraftDirty } from "./createRuleSetupStore";
+import { describe, expect, it } from "vitest";
+import { EvalTargetObject } from "@langfuse/shared";
+
+import {
+  createRuleSetupStore,
+  isRuleDraftDirty,
+  isRuleDraftValid,
+} from "./createRuleSetupStore";
+
+describe("isRuleDraftValid", () => {
+  it("allows a disabled observation rule without assignments", () => {
+    const store = createRuleSetupStore({
+      name: "Disabled rule",
+      filter: [],
+      sampling: 1,
+      assignments: [],
+      targetObject: EvalTargetObject.EVENT,
+      scoreResultTrigger: null,
+    });
+
+    expect(isRuleDraftValid(store.getState(), false)).toBe(true);
+    expect(isRuleDraftValid(store.getState(), true)).toBe(false);
+  });
+
+  it("still requires a valid evaluator result trigger", () => {
+    const store = createRuleSetupStore({
+      name: "Invalid result rule",
+      filter: [],
+      sampling: 1,
+      assignments: [],
+      targetObject: EvalTargetObject.SCORE_RESULT,
+      scoreResultTrigger: null,
+    });
+
+    expect(isRuleDraftValid(store.getState(), false)).toBe(false);
+    expect(isRuleDraftValid(store.getState(), false, true)).toBe(true);
+  });
+});
 
 describe("rule setup store", () => {
   const initialDraft = {
     name: "Initial",
     filter: [],
     sampling: 1,
+    targetObject: EvalTargetObject.EVENT,
+    scoreResultTrigger: null,
     assignments: [
       {
         evaluatorId: "first",

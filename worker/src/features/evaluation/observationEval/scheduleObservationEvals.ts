@@ -43,6 +43,7 @@ interface ScheduleObservationEvalsParams {
    * stable while a second run gets its own executions.
    */
   executionScopeId?: string;
+  preserveExistingJobExecution?: boolean;
 }
 
 /**
@@ -105,6 +106,7 @@ export async function scheduleObservationEvals(
     schedulerDeps,
     executionMode,
     executionScopeId,
+    preserveExistingJobExecution,
   } = params;
 
   // Early return if no configs
@@ -192,6 +194,7 @@ export async function scheduleObservationEvals(
         schedulerDeps,
         executionMode,
         executionScopeId,
+        preserveExistingJobExecution,
       }),
     ),
   );
@@ -234,6 +237,7 @@ interface ProcessConfigParams {
   schedulerDeps: ObservationEvalSchedulerDeps;
   executionMode?: EvalExecutionMode;
   executionScopeId?: string;
+  preserveExistingJobExecution?: boolean;
 }
 
 async function processMatchingConfig(
@@ -247,6 +251,7 @@ async function processMatchingConfig(
     schedulerDeps,
     executionMode,
     executionScopeId,
+    preserveExistingJobExecution,
   } = params;
 
   const jobIdentity: string[] =
@@ -270,7 +275,7 @@ async function processMatchingConfig(
   const jobExecutionId = createW3CTraceId(JSON.stringify(jobIdentity));
 
   // Create job execution
-  await schedulerDeps.upsertJobExecution({
+  const jobExecution = await schedulerDeps.upsertJobExecution({
     id: jobExecutionId,
     projectId: observation.project_id,
     jobConfigurationId: matchingConfig.id,
@@ -281,7 +286,17 @@ async function processMatchingConfig(
     // ran in the execution metadata instead.
     jobTemplateId: assignment.evalTemplateId,
     status: JobExecutionStatus.PENDING,
+    ...(preserveExistingJobExecution ? { preserveExistingStatus: true } : {}),
   });
+
+  if (jobExecution.status === JobExecutionStatus.COMPLETED) {
+    logger.debug("Skipping completed observation eval job", {
+      configId: matchingConfig.id,
+      observationId: observation.span_id,
+      jobExecutionId,
+    });
+    return;
+  }
 
   // Enqueue eval job. The evaluator identity travels with the payload so the
   // executor never has to re-derive it from ids the legacy backfill reuses.
@@ -302,6 +317,9 @@ async function processMatchingConfig(
       : {}),
     ...(assignment.variableMapping != null
       ? { variableMapping: assignment.variableMapping }
+      : {}),
+    ...(preserveExistingJobExecution
+      ? { useJobExecutionIdAsQueueJobId: true }
       : {}),
   });
 

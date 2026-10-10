@@ -116,7 +116,7 @@ describe("Production Dependency Factories Integration Tests", () => {
         expect(dbRecord?.startTime).toBeInstanceOf(Date);
       }, 15_000);
 
-      it("should preserve the original start time on upsert updates", async () => {
+      it("should reset an existing execution status by default", async () => {
         const { projectId } = await createOrgProjectAndApiKey();
 
         const jobConfig = await prisma.jobConfiguration.create({
@@ -143,7 +143,7 @@ describe("Production Dependency Factories Integration Tests", () => {
             jobConfigurationId: jobConfig.id,
             jobInputTraceId: randomUUID(),
             jobInputObservationId: randomUUID(),
-            status: "PENDING",
+            status: "ERROR",
             startTime: originalStartTime,
           },
         });
@@ -155,15 +155,58 @@ describe("Production Dependency Factories Integration Tests", () => {
           jobInputTraceId: randomUUID(),
           jobInputObservationId: randomUUID(),
           jobTemplateId: null,
-          status: "COMPLETED",
+          status: "PENDING",
         });
 
         const updatedRecord = await prisma.jobExecution.findUnique({
           where: { id: jobExecutionId },
         });
 
-        expect(updatedRecord?.status).toBe("COMPLETED");
+        expect(updatedRecord?.status).toBe("PENDING");
         expect(updatedRecord?.startTime).toEqual(originalStartTime);
+      }, 15_000);
+
+      it("should preserve an existing execution when requested", async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        const jobConfig = await prisma.jobConfiguration.create({
+          data: {
+            id: randomUUID(),
+            projectId,
+            filter: [],
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: EvalTargetObject.EVENT,
+            scoreName: "test-score",
+            variableMapping: [],
+          },
+        });
+        const jobExecutionId = randomUUID();
+
+        await prisma.jobExecution.create({
+          data: {
+            id: jobExecutionId,
+            projectId,
+            jobConfigurationId: jobConfig.id,
+            jobInputTraceId: randomUUID(),
+            jobInputObservationId: randomUUID(),
+            status: "COMPLETED",
+            startTime: new Date(),
+          },
+        });
+
+        const result = await deps.upsertJobExecution({
+          id: jobExecutionId,
+          projectId,
+          jobConfigurationId: jobConfig.id,
+          jobInputTraceId: randomUUID(),
+          jobInputObservationId: randomUUID(),
+          jobTemplateId: null,
+          status: "PENDING",
+          preserveExistingStatus: true,
+        });
+
+        expect(result.status).toBe("COMPLETED");
       }, 15_000);
     });
 
