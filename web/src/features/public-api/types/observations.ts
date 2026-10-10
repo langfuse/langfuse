@@ -335,6 +335,13 @@ export const GetObservationsV2Query = z.object({
   name: z.string().nullish(),
   userId: z.string().nullish(),
   sessionId: z.string().nullish(),
+  minSessionDuration: z
+    .string()
+    .trim()
+    .min(1)
+    .transform(Number)
+    .pipe(z.number().nonnegative())
+    .optional(),
   level: z.enum(ObservationLevel).nullish(),
   traceId: z.string().nullish(),
   version: z.string().nullish(),
