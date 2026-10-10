@@ -117,18 +117,23 @@ export const formatCompactRelativeTime = (timestamp: Date): string => {
   return `${Math.floor(days / 365)}y ago`;
 };
 
+const pluralize = (count: number, unit: string): string =>
+  `${count} ${unit}${count === 1 ? "" : "s"} ago`;
+
 export const getRelativeTimestampFromNow = (timestamp: Date): string => {
   const diffInMs = Math.max(0, new Date().getTime() - timestamp.getTime());
   const diffInMinutes = diffInMs / (1000 * 60);
   const diffInHours = diffInMinutes / 60;
   const diffInDays = diffInHours / 24;
 
-  if (diffInHours < 1) {
-    return `${Math.floor(diffInMinutes)} minutes ago`;
+  if (diffInMinutes < 1) {
+    return "just now";
+  } else if (diffInHours < 1) {
+    return pluralize(Math.floor(diffInMinutes), "minute");
   } else if (diffInHours < 24) {
-    return `${Math.floor(diffInHours)} hours ago`;
+    return pluralize(Math.floor(diffInHours), "hour");
   } else if (diffInDays < 7) {
-    return `${Math.floor(diffInDays)} days ago`;
+    return pluralize(Math.floor(diffInDays), "day");
   }
   return timestamp.toLocaleDateString("en-US", {
     year: "2-digit",
