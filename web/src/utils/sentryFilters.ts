@@ -405,6 +405,39 @@ function isSafariAddMoreClickMessage(value: string): boolean {
 }
 
 /**
+ * Safari / WebKit wording when injected WKWebView or Safari-extension JS
+ * reads `window.webkit.messageHandlers` and the native JS bridge is not
+ * registered. That property exists only inside WKWebView after native code
+ * registers a handler; desktop Safari and pages without a host app throw
+ * this exact TypeError. Langfuse Cloud is a web app and never calls this
+ * API.
+ *
+ * Observed: LANGFUSE-628 (Safari, `focusin` via Radix FocusScope → Sentry
+ * `addEventListener` wrap) and LANGFUSE-5SG (same session,
+ * `requestAnimationFrame` wrap). Sentry reports the HOST page's listener
+ * wrap, not Langfuse code.
+ *
+ * Whole-message only, and NOT via {@link coreMessage}: that helper strips
+ * a trailing `(…)` parenthetical, which *is* WebKit's signature here. An
+ * app error that quotes the phrase is longer and is KEPT. Chromium's
+ * generic `Cannot read properties of undefined (reading 'messageHandlers')`
+ * is also KEPT — that identifier is not vendor-namespaced.
+ *
+ * Unlike {@link isSafariAddMoreClickMessage}, first-party `/_next/` frames
+ * do NOT keep the event: the throw is captured while React / Radix call
+ * `element.focus()`, so the stack includes bundled vendor chunks even
+ * though the access is not ours.
+ */
+const SAFARI_WEBKIT_MESSAGE_HANDLERS_RE =
+  /^(?:undefined|null) is not an object \(evaluating 'window\.webkit\.messageHandlers(?:\.[A-Za-z_$][\w$]*)?'\)$/;
+
+function isSafariWebkitMessageHandlersMessage(value: string): boolean {
+  return SAFARI_WEBKIT_MESSAGE_HANDLERS_RE.test(
+    value.trim().replace(/\.$/, "").trim(),
+  );
+}
+
+/**
  * True when any stack frame is a first-party Next.js chunk. Used as a
  * negative guard so a future first-party throw that happens to share
  * WebKit's wording still reaches Sentry.
@@ -676,7 +709,12 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // Safari WKWebView `window.webkit.messageHandlers` is the iOS/macOS
+    // sibling: injected native-bridge JS on a page that is not inside a
+    // host WKWebView. Stack may include bundled React / Radix / Sentry
+    // chunks because Sentry wraps the `focusin` / rAF that triggered it.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -696,6 +734,12 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
         !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "TypeError" &&
+        isSafariWebkitMessageHandlersMessage(exceptionValue)
       ) {
         return true;
       }
