@@ -4,7 +4,7 @@ import type { TranscriptFixture } from "../fixture-types";
  * Adapted support-agent seed: every generation replays the full conversation.
  * Classification, calls, results, resolution, and final reply form one thread.
  * TOOL names match model call names; history preserves tool_call_id links.
- * Context-loading tools without model calls remain outside the transcript.
+ * Unmatched context-loading and reply tools append to the single thread.
  */
 
 const traceId = "sa2026083102o";
@@ -376,7 +376,7 @@ const observations = [
 export const supportCopilotRefundLoopFixture = {
   name: "support copilot refund loop with cumulative conversation history",
   description:
-    "Five generations replay all prior messages. Matching TOOL observations supply authoritative results, while replayed history is deduplicated and retains first-emitter provenance.",
+    "Five generations replay all prior messages. Matching TOOL observations supply authoritative results; unmatched context and reply tools append to the single thread. Replayed history is deduplicated and retains first-emitter provenance.",
   observations,
   expected: {
     threads: [
@@ -386,12 +386,16 @@ export const supportCopilotRefundLoopFixture = {
           nestingLevel: 2,
           observations: [
             "cls",
+            "crm",
+            "bill",
+            "tix",
             "llm1",
             "find",
             "llm2",
             "ref",
             "llm3",
             "drf",
+            "send",
           ].map((suffix) => ({ id: `sa2026083102o-${suffix}`, traceId })),
           messages: [
             {
@@ -420,6 +424,110 @@ export const supportCopilotRefundLoopFixture = {
               endTime: new Date("2026-08-31T12:33:14.818Z"),
               traceId,
               parts: [{ type: "text", text: classification.content }],
+            },
+            {
+              role: "assistant",
+              source: "output",
+              observationId: "sa2026083102o-crm",
+              startTime: new Date("2026-08-31T12:33:14.881Z"),
+              endTime: new Date("2026-08-31T12:33:15.129Z"),
+              traceId,
+              parts: [
+                {
+                  type: "tool-call",
+                  toolCallId: null,
+                  toolName: "crm.get-customer",
+                  input: { customer_id: customerId },
+                },
+              ],
+            },
+            {
+              role: "tool",
+              source: "output",
+              observationId: "sa2026083102o-crm",
+              startTime: new Date("2026-08-31T12:33:14.881Z"),
+              endTime: new Date("2026-08-31T12:33:15.129Z"),
+              traceId,
+              parts: [
+                {
+                  type: "tool-result",
+                  toolCallId: null,
+                  toolName: "crm.get-customer",
+                  output: { name: "Jordan Rivera", plan: "pro", mrr_usd: 99 },
+                },
+              ],
+            },
+            {
+              role: "assistant",
+              source: "output",
+              observationId: "sa2026083102o-bill",
+              startTime: new Date("2026-08-31T12:33:14.886Z"),
+              endTime: new Date("2026-08-31T12:33:15.994Z"),
+              traceId,
+              parts: [
+                {
+                  type: "tool-call",
+                  toolCallId: null,
+                  toolName: "billing.list-invoices",
+                  input: {
+                    customer_id: customerId,
+                    period: "2026-06..2026-07",
+                  },
+                },
+              ],
+            },
+            {
+              role: "tool",
+              source: "output",
+              observationId: "sa2026083102o-bill",
+              startTime: new Date("2026-08-31T12:33:14.886Z"),
+              endTime: new Date("2026-08-31T12:33:15.994Z"),
+              traceId,
+              parts: [
+                {
+                  type: "tool-result",
+                  toolCallId: null,
+                  toolName: "billing.list-invoices",
+                  output: {
+                    invoices: [
+                      { id: "inv_20260709" },
+                      { id: "inv_20260709-2" },
+                    ],
+                  },
+                },
+              ],
+            },
+            {
+              role: "assistant",
+              source: "output",
+              observationId: "sa2026083102o-tix",
+              startTime: new Date("2026-08-31T12:33:14.893Z"),
+              endTime: new Date("2026-08-31T12:33:15.263Z"),
+              traceId,
+              parts: [
+                {
+                  type: "tool-call",
+                  toolCallId: null,
+                  toolName: "tickets.search",
+                  input: { query: "duplicate charge cus_LqT4v8" },
+                },
+              ],
+            },
+            {
+              role: "tool",
+              source: "output",
+              observationId: "sa2026083102o-tix",
+              startTime: new Date("2026-08-31T12:33:14.893Z"),
+              endTime: new Date("2026-08-31T12:33:15.263Z"),
+              traceId,
+              parts: [
+                {
+                  type: "tool-result",
+                  toolCallId: null,
+                  toolName: "tickets.search",
+                  output: { hits: 1 },
+                },
+              ],
             },
             {
               role: "assistant",
@@ -499,6 +607,38 @@ export const supportCopilotRefundLoopFixture = {
               endTime: new Date("2026-08-31T12:33:24.377Z"),
               traceId,
               parts: [{ type: "text", text: finalReply }],
+            },
+            {
+              role: "assistant",
+              source: "output",
+              observationId: "sa2026083102o-send",
+              startTime: new Date("2026-08-31T12:33:24.609Z"),
+              endTime: new Date("2026-08-31T12:33:24.881Z"),
+              traceId,
+              parts: [
+                {
+                  type: "tool-call",
+                  toolCallId: null,
+                  toolName: "zendesk.send-reply",
+                  input: { thread_id: "thread_7Hf3kX", body: finalReply },
+                },
+              ],
+            },
+            {
+              role: "tool",
+              source: "output",
+              observationId: "sa2026083102o-send",
+              startTime: new Date("2026-08-31T12:33:24.609Z"),
+              endTime: new Date("2026-08-31T12:33:24.881Z"),
+              traceId,
+              parts: [
+                {
+                  type: "tool-result",
+                  toolCallId: null,
+                  toolName: "zendesk.send-reply",
+                  output: { message_id: "msg_9uTb4w", status: "sent" },
+                },
+              ],
             },
           ],
         },
