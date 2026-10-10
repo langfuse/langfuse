@@ -1,0 +1,4 @@
+interface:
+  display_name: "Integration Repo Setup"
+  short_description: "Files, workflows and release path for a plugin repo"
+  default_prompt: "Use $integration-repo-setup to scaffold or audit a Langfuse coding-agent plugin repository and its release workflow."
