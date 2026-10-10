@@ -84,7 +84,6 @@ const MAX_SUB_CENT_FRACTION_DIGITS = 10;
 export const costFormatter = (totalCost?: number) => {
   const cost = totalCost ?? 0;
 
-  /** Callers cast dynamic query values with `as number`, so the type is not a guarantee. */
   if (
     typeof cost === "number" &&
     cost !== 0 &&
