@@ -35,6 +35,13 @@ const searchFixture = `
     ('output-match-cjk', 'plain name', 'unrelated input', 'contains 東京 token'),
     ('input-match-escaped-cjk', 'plain name', 'contains \\\\u6771\\\\u4eac token', 'unrelated output'),
     ('output-match-escaped-cjk', 'plain name', 'unrelated input', 'contains \\\\u6771\\\\u4eac token'),
+    ('name-literal-underscore', 'gpt_4-run', 'unrelated input', 'unrelated output'),
+    ('name-wildcard-underscore', 'gpt-4-run', 'unrelated input', 'unrelated output'),
+    ('name-literal-percent', 'save 100% now', 'unrelated input', 'unrelated output'),
+    ('name-wildcard-percent', 'save 1000 now', 'unrelated input', 'unrelated output'),
+    ('name-literal-backslash', 'C:\\\\temp', 'unrelated input', 'unrelated output'),
+    ('input-literal-underscore-escaped-cjk', 'plain name', 'contains \\\\u6771_\\\\u4eac token', 'unrelated output'),
+    ('input-wildcard-underscore-escaped-cjk', 'plain name', 'contains \\\\u6771x\\\\u4eac token', 'unrelated output'),
     ('miss', 'plain name', 'unrelated input', 'unrelated output')
   ) AS e
 `;
@@ -160,6 +167,46 @@ describe("clickhouseSearchCondition", () => {
           matchingIds({
             query,
             searchType: searchType as TracingSearchType[],
+          }),
+        ).resolves.toEqual(expectedIds);
+      },
+    );
+
+    it.each([
+      {
+        query: "gpt_4",
+        searchType: ["id"],
+        expectedIds: ["name-literal-underscore"],
+      },
+      {
+        query: "GPT_4",
+        searchType: ["id"],
+        useEventsTablePath: true,
+        expectedIds: ["name-literal-underscore"],
+      },
+      {
+        query: "100%",
+        searchType: ["id"],
+        expectedIds: ["name-literal-percent"],
+      },
+      {
+        query: "C:\\",
+        searchType: ["id"],
+        expectedIds: ["name-literal-backslash"],
+      },
+      {
+        query: "東_京",
+        searchType: ["content"],
+        expectedIds: ["input-literal-underscore-escaped-cjk"],
+      },
+    ])(
+      "matches LIKE wildcard characters in $query literally",
+      async ({ query, searchType, useEventsTablePath, expectedIds }) => {
+        await expect(
+          matchingIds({
+            query,
+            searchType: searchType as TracingSearchType[],
+            useEventsTablePath,
           }),
         ).resolves.toEqual(expectedIds);
       },
@@ -310,7 +357,7 @@ describe("clickhouseSearchCondition", () => {
 
       expect(search.params).toMatchObject({
         searchString: "%東京%",
-        searchStringEscaped: "%\\u6771\\u4eac%",
+        searchStringEscaped: "%\\\\u6771\\\\u4eac%",
       });
       expect(search.query).toContain("{searchStringEscaped: String}");
       expect(search.query).toContain("arraySlice");
