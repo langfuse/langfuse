@@ -599,6 +599,21 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
+    it("drops MetaMask extension console errors (LANGFUSE-627, message event)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "MetaMask: Failed to get initial state. Please report this bug. [object Object]",
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent("MetaMask - RPC Error: Internal JSON-RPC error."),
+        ),
+      ).toBe(true);
+    });
+
     it("does not treat [kitesurf] wraps as denylist prefixes (dedicated predicate)", () => {
       expect(
         isDenylistedNoiseEvent(
@@ -665,6 +680,21 @@ describe("isDenylistedNoiseEvent", () => {
           nonErrorRejectionEvent(
             "Object Not Found Matching Id:2, MethodName:update, ParamCount:4",
           ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the wallet user-cancelled request string (LANGFUSE-626)", () => {
+      // MetaMask EIP-1193 code 4001 as a bare string (no stack). Same session
+      // also console.error'd MetaMask init/RPC failures (LANGFUSE-627).
+      expect(
+        isDenylistedNoiseEvent(
+          nonErrorRejectionEvent("user rejected the request"),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          nonErrorRejectionEvent("User rejected the request"),
         ),
       ).toBe(true);
     });
@@ -1430,6 +1460,31 @@ describe("isDenylistedNoiseEvent", () => {
             "Non-Error promise rejection captured with value: undefined is not a function",
             "UnhandledRejection",
           ),
+        ),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Non-Error promise rejection captured with value: user rejected the request to save",
+            "UnhandledRejection",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a real Error whose message quotes the wallet cancellation string", () => {
+      // A rejected real Error keeps type Error — never UnhandledRejection.
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent("User rejected the request", "Error"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an app message that mentions MetaMask but is not vendor-prefixed", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent("Failed to persist settings after MetaMask: timeout"),
         ),
       ).toBe(false);
     });
