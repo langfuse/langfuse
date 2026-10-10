@@ -29,6 +29,11 @@ import { envDetector, resourceFromAttributes } from "@opentelemetry/resources";
 import { awsEcsDetector } from "@opentelemetry/resource-detector-aws";
 import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { env } from "@/src/env.mjs";
+import { extractNextApiRoute } from "@/src/features/otel/nextApiRouteSpanName";
+
+// http.server span (from HttpInstrumentation) keyed to its request method, so
+// the muted-scope tracer can rename it "<method> <route>" when Next resolves it.
+const methodByHttpServerSpan = new WeakMap<Span, string>();
 
 /**
  * Tracer that never records spans but keeps the caller's parent span context
@@ -42,13 +47,26 @@ import { env } from "@/src/env.mjs";
  */
 class PassthroughTracer implements Tracer {
   startSpan(
-    _name: string,
+    name: string,
     _options?: SpanOptions,
     ctx: Context = context.active(),
   ): Span {
+    this.stampRouteOnHttpServerSpan(name, ctx);
     return trace.wrapSpanContext(
       trace.getSpanContext(ctx) ?? INVALID_SPAN_CONTEXT,
     );
+  }
+
+  // Next resolves the route before the handler runs, so stamping here beats the
+  // http.server span's socket-close end; its post-handler parent copy does not.
+  private stampRouteOnHttpServerSpan(name: string, ctx: Context): void {
+    const route = extractNextApiRoute(name);
+    if (!route) return;
+    const target = trace.getSpan(ctx);
+    if (!target?.isRecording()) return;
+    target.setAttribute("http.route", route);
+    const method = methodByHttpServerSpan.get(target);
+    target.updateName(method ? `${method} ${route}` : route);
   }
 
   startActiveSpan<F extends (span: Span) => unknown>(
@@ -143,6 +161,7 @@ const sdk = new NodeSDK({
         // Incoming requests (IncomingMessage) carry headers; outgoing
         // ClientRequests expose `path` instead.
         if (!("path" in req) && req?.headers) {
+          methodByHttpServerSpan.set(span, req?.method ?? "GET");
           const { sdkName, sdkVersion } = extractSdkAttributes(req.headers);
           if (sdkName) span.setAttribute(SDK_NAME_ATTRIBUTE, sdkName);
           if (sdkVersion) {
@@ -174,9 +193,9 @@ sdk.start();
 // "executing api route" internals) on every request whenever a global tracer
 // provider is registered; there is no Next.js setting to turn them off.
 // Muting the scope means those spans are never started: child spans attach
-// directly to the http.server span, and Next.js still stamps the resolved
-// route template onto http.server (BaseServer.handleRequest propagates
-// http.route to the parent span), so resource names keep route templates.
+// directly to the http.server span. Next.js's own route propagation onto
+// http.server happens post-handler and races the span's socket-close end, so
+// PassthroughTracer stamps the route itself from the route-handler span name.
 // The swap must happen after sdk.start(): instrumentations registered by the
 // SDK keep the tracers they already resolved, while Next.js resolves its
 // tracer through the global provider on every call.
