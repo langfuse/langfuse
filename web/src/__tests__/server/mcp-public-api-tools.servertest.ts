@@ -376,6 +376,7 @@ describe("MCP public API tools", () => {
         action: "create",
       },
     });
+    expect(assignmentAuditLogCount).toBe(1);
 
     await expect(
       handleCreateAnnotationQueueAssignment(
@@ -388,8 +389,8 @@ describe("MCP public API tools", () => {
       projectId,
     });
 
-    // Assignment creation uses an upsert for public API parity, so duplicate
-    // calls are audited even when the assignment already exists.
+    // Reassigning an existing user is an idempotent no-op and must not create
+    // another audit log entry.
     await expect(
       prisma.auditLog.count({
         where: {
@@ -398,7 +399,7 @@ describe("MCP public API tools", () => {
           action: "create",
         },
       }),
-    ).resolves.toBe(assignmentAuditLogCount + 1);
+    ).resolves.toBe(assignmentAuditLogCount);
 
     const auditLogCreateSpy = vi
       .spyOn(prisma.auditLog, "create")
