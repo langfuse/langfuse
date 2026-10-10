@@ -18,7 +18,17 @@ vi.mock("@/src/utils/api", () => {
         test: mutation,
         testUpdate: mutation,
       },
-      useUtils: () => ({ llmApiKey: { invalidate: vi.fn() } }),
+      organizationLlmApiKey: {
+        all: { useQuery: () => ({ data: { data: [] } }) },
+        create: mutation,
+        update: mutation,
+        test: mutation,
+        testUpdate: mutation,
+      },
+      useUtils: () => ({
+        llmApiKey: { invalidate: vi.fn() },
+        organizationLlmApiKey: { invalidate: vi.fn() },
+      }),
     },
     reportNonTrpcError: vi.fn(),
   };
@@ -51,7 +61,7 @@ describe("CreateLLMApiKeyForm", () => {
 
     render(
       <CreateLLMApiKeyForm
-        projectId="project"
+        owner={{ scope: "project", projectId: "project" }}
         onSuccess={vi.fn()}
         customization={null}
         mode="update"

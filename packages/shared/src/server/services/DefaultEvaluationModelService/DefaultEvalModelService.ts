@@ -4,6 +4,7 @@ import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
 import { getClientInitiatedNonStreamingLlmTimeoutMs } from "../../llm/llmText";
 import { LLMAdapter, LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
 import { testModelCall } from "../../llm/testModelCall";
+import { resolveLlmApiKey } from "../LLMApiKeys";
 
 type ValidConfig = {
   provider: string;
@@ -34,15 +35,9 @@ export class DefaultEvalModelService {
     model: string;
     modelParams?: z.infer<typeof ZodModelConfig>;
   }) {
-    const { projectId, provider, adapter, model, modelParams } = params;
+    const { projectId, provider, model, modelParams } = params;
 
-    // Find the LLM API key for the provider
-    const llmApiKey = await prisma.llmApiKeys.findFirst({
-      where: {
-        projectId,
-        provider,
-      },
-    });
+    const llmApiKey = await resolveLlmApiKey({ projectId, provider });
 
     if (!llmApiKey) {
       throw new LangfuseNotFoundError(
@@ -74,17 +69,15 @@ export class DefaultEvalModelService {
         projectId,
       },
       update: {
-        llmApiKeyId: llmApiKey.id,
         provider,
-        adapter,
+        adapter: llmApiKey.adapter,
         model,
         modelParams: modelParams ? modelParams : undefined,
       },
       create: {
         projectId,
-        llmApiKeyId: llmApiKey.id,
         provider,
-        adapter,
+        adapter: llmApiKey.adapter,
         model,
         modelParams: modelParams ? modelParams : undefined,
       },
@@ -182,12 +175,9 @@ export class DefaultEvalModelService {
       };
     }
 
-    // Check if API key exists for this provider
-    const apiKey = await prisma.llmApiKeys.findFirst({
-      where: {
-        projectId,
-        provider: selectedModel.provider,
-      },
+    const apiKey = await resolveLlmApiKey({
+      projectId,
+      provider: selectedModel.provider,
     });
 
     const parsedKey = LLMApiKeySchema.safeParse(apiKey);
@@ -204,6 +194,7 @@ export class DefaultEvalModelService {
       config: {
         ...selectedModel,
         apiKey: parsedKey.data,
+        adapter: parsedKey.data.adapter,
       },
     };
   }

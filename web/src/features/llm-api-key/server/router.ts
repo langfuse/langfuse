@@ -1,403 +1,35 @@
-/* eslint-disable no-nested-ternary */
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/server";
 import {
-  AuthMethod,
   CreateLlmApiKey,
   UpdateLlmApiKey,
-  SafeLlmApiKeySchema,
-  type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
-import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
   protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
-import {
-  type ChatMessage,
-  ChatMessageRole,
-  supportedModels,
-  GCPServiceAccountKeySchema,
-  BedrockConfigSchema,
-  BedrockCredentialSchema,
-  OpenAIConfigSchema,
-  VertexAIConfigSchema,
-  BEDROCK_USE_DEFAULT_CREDENTIALS,
-  VERTEXAI_USE_DEFAULT_CREDENTIALS,
-  EvaluatorBlockReason,
-  LangfuseNotFoundError,
-  type LLMConnectionConfig,
-} from "@langfuse/shared";
-
-import { encrypt, decrypt } from "@langfuse/shared/encryption";
-import {
-  ChatMessageType,
-  createTypeSafeDecisionModelClient,
-  DECISION_MODEL_ADAPTERS,
-  generateLLMText,
-  getClientInitiatedNonStreamingLlmTimeoutMs,
-  isDecisionModelAdapter,
-  LLMAdapter,
-  logger,
-  mapLegacyLLMCompletionParams,
-  decryptAndParseExtraHeaders,
-  blockEvaluatorsUsingDefaultModel,
-  blockEvaluatorsUsingProvider,
-  EMPTY_EVALUATOR_BLOCK,
-  EvaluatorBlockSource,
-  finalizeEvaluatorBlocks,
-  validateLlmConnectionBaseURL,
-} from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
-import { TRPCError } from "@trpc/server";
-
-export function getDisplaySecretKey(secretKey: string) {
-  if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
-    return "Default AWS credentials";
-  }
-  if (secretKey === VERTEXAI_USE_DEFAULT_CREDENTIALS) {
-    return "Default GCP credentials (ADC)";
-  }
-  return secretKey.endsWith('"}')
-    ? "..." + secretKey.slice(-6, -2)
-    : "..." + secretKey.slice(-4);
-}
-
-function validateBedrockSecretKey(secretKey: string) {
-  if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
-    return;
-  }
-
-  try {
-    BedrockCredentialSchema.parse(JSON.parse(secretKey));
-  } catch {
-    throw new Error(
-      "Invalid Bedrock credentials. Expected a JSON object with either {accessKeyId, secretAccessKey} or {apiKey}.",
-    );
-  }
-}
-
-function getBedrockAuthMethod(
-  secretKey: string,
-): BedrockAuthMethod | undefined {
-  if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
-    return AuthMethod.DefaultCredentials;
-  }
-
-  try {
-    const parsed = BedrockCredentialSchema.parse(JSON.parse(secretKey));
-    return parsed && "apiKey" in parsed
-      ? AuthMethod.ApiKey
-      : AuthMethod.AccessKeys;
-  } catch (error) {
-    logger.warn("Failed to derive Bedrock auth method from stored secret", {
-      error,
-    });
-    return undefined;
-  }
-}
-
-type TestLLMConnectionParams = {
-  adapter: LLMAdapter;
-  provider: string;
-  secretKey: string;
-  baseURL?: string | null;
-  customModels?: string[];
-  extraHeaders?: Record<string, string>;
-  config?: unknown;
-};
-
-async function testDecisionModelConnection(params: {
-  secretKey: string;
-  model: string;
-  baseURL?: string | null;
-  extraHeaders?: Record<string, string>;
-}): Promise<{ success: boolean; error?: string }> {
-  try {
-    const client = createTypeSafeDecisionModelClient({
-      apiKey: params.secretKey,
-      model: params.model,
-      baseURL: params.baseURL,
-      extraHeaders: params.extraHeaders,
-    });
-    await client.evaluate({
-      state: { message: "Hello, is anyone there?" },
-      questions: {
-        kind: {
-          type: "choice",
-          instructions: "What kind of message is `message`?",
-          choices: [{ value: "greeting" }, { value: "other" }],
-        },
-      },
-    });
-    return { success: true };
-  } catch (err) {
-    logger.error(err);
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Unknown error",
-    };
-  }
-}
-
-async function testLLMConnection(
-  params: TestLLMConnectionParams,
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const model = params.customModels?.length
-      ? params.customModels[0]
-      : supportedModels[params.adapter][0];
-
-    if (!model) throw Error("No model found");
-
-    if (isDecisionModelAdapter(params.adapter)) {
-      return await testDecisionModelConnection({
-        secretKey: params.secretKey,
-        model,
-        baseURL: params.baseURL,
-        extraHeaders: params.extraHeaders,
-      });
-    }
-
-    if (params.adapter === LLMAdapter.VertexAI) {
-      // Skip validation if using ADC (Application Default Credentials)
-      if (params.secretKey !== VERTEXAI_USE_DEFAULT_CREDENTIALS) {
-        const parsed = GCPServiceAccountKeySchema.safeParse(
-          JSON.parse(params.secretKey),
-        );
-        if (!parsed.success)
-          throw Error("Invalid GCP service account JSON key");
-      }
-    }
-
-    const testMessages: ChatMessage[] = [
-      {
-        role: ChatMessageRole.User,
-        content: "How are you?",
-        type: ChatMessageType.User,
-      },
-    ];
-
-    // Parse config properly for type safety
-    let parsedConfig: LLMConnectionConfig | null = null;
-    if (params.config && params.adapter === LLMAdapter.Bedrock) {
-      const bedrockConfig = BedrockConfigSchema.parse(params.config);
-
-      parsedConfig = { region: bedrockConfig.region };
-    } else if (params.config && params.adapter === LLMAdapter.OpenAI) {
-      parsedConfig = OpenAIConfigSchema.parse(params.config);
-    } else if (params.config && params.adapter === LLMAdapter.VertexAI) {
-      const vertexAIConfig = VertexAIConfigSchema.parse(params.config);
-      parsedConfig = vertexAIConfig.location
-        ? { location: vertexAIConfig.location }
-        : null;
-    }
-
-    await generateLLMText({
-      ...mapLegacyLLMCompletionParams({
-        modelParams: {
-          adapter: params.adapter,
-          provider: params.provider,
-          model,
-        },
-        connection: {
-          secretKey: encrypt(params.secretKey),
-          extraHeaders:
-            params.extraHeaders && encrypt(JSON.stringify(params.extraHeaders)),
-          baseURL: params.baseURL || undefined,
-          config: parsedConfig,
-        },
-        messages: testMessages,
-      }),
-      maxRetries: 1,
-      timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
-    });
-
-    return { success: true };
-  } catch (err) {
-    logger.error(err);
-
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Unknown error",
-    };
-  }
-}
-
-async function validateBaseURLForAdapter(params: {
-  adapter: LLMAdapter;
-  baseURL: string;
-}): Promise<void> {
-  // The TypeSafe provider appends /systemone to the raw base URL string.
-  if (params.adapter === LLMAdapter.TypeSafe) {
-    const url = new URL(params.baseURL);
-    if (/\/systemone\/?$/.test(url.pathname)) {
-      throw new Error(
-        "Remove /systemone from the end of the base URL. Langfuse appends it.",
-      );
-    }
-    if (url.search || url.hash) {
-      throw new Error(
-        "Remove the query string from the base URL. Langfuse appends /systemone to it.",
-      );
-    }
-  }
-
-  await validateLlmConnectionBaseURL(params.baseURL);
-}
-
-async function validateBaseURLForWrite(params: {
-  adapter: LLMAdapter;
-  baseURL?: string | null;
-  errorPrefix?: string;
-}): Promise<void> {
-  if (!params.baseURL) {
-    return;
-  }
-
-  try {
-    await validateBaseURLForAdapter({
-      adapter: params.adapter,
-      baseURL: params.baseURL,
-    });
-  } catch (error) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message:
-        error instanceof Error
-          ? `${params.errorPrefix ?? "Invalid base URL"}: ${error.message}`
-          : (params.errorPrefix ?? "Invalid base URL"),
-    });
-  }
-}
-
-function resolveUpdatedExtraHeaders(params: {
-  inputHeaders: Record<string, string | null | undefined> | undefined;
-  storedHeaders: string | null;
-  isBaseURLChanged: boolean;
-}): Record<string, string> | undefined {
-  const existingHeaders: Record<string, string> = params.isBaseURLChanged
-    ? {}
-    : (decryptAndParseExtraHeaders(params.storedHeaders) ?? {});
-
-  if (params.inputHeaders === undefined) {
-    return Object.keys(existingHeaders).length > 0
-      ? existingHeaders
-      : undefined;
-  }
-
-  const extraHeaders: Record<string, string> = {};
-  for (const [key, value] of Object.entries(params.inputHeaders)) {
-    if (value === null || value === undefined || value === "") {
-      if (existingHeaders[key] !== undefined) {
-        extraHeaders[key] = existingHeaders[key];
-      }
-    } else {
-      extraHeaders[key] = value;
-    }
-  }
-
-  return Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined;
-}
+import { LlmConnectionService } from "./llmConnectionService";
 
 export const llmApiKeyRouter = createTRPCRouter({
   create: protectedProjectProcedureWithoutTracing
     .input(CreateLlmApiKey)
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "llmApiKeys:create",
-        });
-
-        await validateBaseURLForWrite({
-          adapter: input.adapter,
-          baseURL: input.baseURL,
-        });
-
-        // Validate that default credentials sentinel is only allowed for Bedrock/VertexAI in self-hosted deployments
-        const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
-
-        if (input.secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
-          if (isLangfuseCloud || input.adapter !== LLMAdapter.Bedrock) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message:
-                "Default AWS credentials are only allowed for Bedrock in self-hosted deployments.",
-            });
-          }
-        }
-
-        if (input.adapter === LLMAdapter.Bedrock) {
-          try {
-            validateBedrockSecretKey(input.secretKey);
-          } catch (e) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message:
-                e instanceof Error ? e.message : "Invalid Bedrock credentials.",
-            });
-          }
-        }
-
-        if (input.secretKey === VERTEXAI_USE_DEFAULT_CREDENTIALS) {
-          if (isLangfuseCloud || input.adapter !== LLMAdapter.VertexAI) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message:
-                "Default GCP credentials (ADC) are only allowed for Vertex AI in self-hosted deployments.",
-            });
-          }
-        }
-
-        if (!env.ENCRYPTION_KEY) {
-          if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-            throw new TRPCError({
-              code: "INTERNAL_SERVER_ERROR",
-              message: "Internal server error",
-            });
-          } else {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message:
-                "Missing environment variable: `ENCRYPTION_KEY`. Please consult our docs: https://langfuse.com/self-hosting",
-            });
-          }
-        }
-
-        const key = await ctx.prisma.llmApiKeys.create({
-          data: {
-            projectId: input.projectId,
-            secretKey: encrypt(input.secretKey),
-            extraHeaders: input.extraHeaders
-              ? encrypt(JSON.stringify(input.extraHeaders))
-              : undefined,
-            extraHeaderKeys: input.extraHeaders
-              ? Object.keys(input.extraHeaders)
-              : undefined,
-            adapter: input.adapter,
-            displaySecretKey: getDisplaySecretKey(input.secretKey),
-            provider: input.provider,
-            baseURL: input.baseURL,
-            withDefaultModels: input.withDefaultModels,
-            customModels: input.customModels,
-            config: input.config,
-          },
-        });
-
-        await auditLog({
-          session: ctx.session,
-          resourceType: "llmApiKey",
-          resourceId: key.id,
-          action: "create",
-        });
-      } catch (e) {
-        logger.error(e);
-        throw e;
-      }
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:create",
+      });
+      const { projectId, ...connectionInput } = input;
+      return new LlmConnectionService().create({
+        owner: {
+          type: "project",
+          projectId,
+          organizationId: ctx.session.orgId,
+        },
+        input: connectionInput,
+        actor: { session: ctx.session },
+      });
     }),
   delete: protectedProjectProcedure
     .input(
@@ -412,82 +44,15 @@ export const llmApiKeyRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "llmApiKeys:delete",
       });
-
-      const llmApiKey = await ctx.prisma.llmApiKeys.findUnique({
-        where: {
-          id: input.id,
+      await new LlmConnectionService().delete({
+        owner: {
+          type: "project",
           projectId: input.projectId,
+          organizationId: ctx.session.orgId,
         },
+        id: input.id,
+        actor: { session: ctx.session },
       });
-
-      if (!llmApiKey) {
-        throw new LangfuseNotFoundError("LLM API key not found");
-      }
-
-      let result;
-      try {
-        result = await ctx.prisma.$transaction(async (tx) => {
-          // Check if the llm api key is used for the default evaluation model
-          const defaultModel = await tx.defaultLlmModel.findFirst({
-            where: {
-              projectId: input.projectId,
-            },
-            select: {
-              llmApiKeyId: true,
-            },
-          });
-
-          const providerBlock = llmApiKey.provider
-            ? await blockEvaluatorsUsingProvider({
-                tx,
-                projectId: input.projectId,
-                provider: llmApiKey.provider,
-              })
-            : EMPTY_EVALUATOR_BLOCK;
-
-          const defaultModelBlock =
-            !!defaultModel && defaultModel.llmApiKeyId === llmApiKey.id
-              ? await blockEvaluatorsUsingDefaultModel({
-                  tx,
-                  projectId: input.projectId,
-                })
-              : EMPTY_EVALUATOR_BLOCK;
-
-          await tx.llmApiKeys.delete({
-            where: {
-              id: input.id,
-              projectId: input.projectId,
-            },
-          });
-
-          await auditLog({
-            session: ctx.session,
-            resourceType: "llmApiKey",
-            resourceId: input.id,
-            before: llmApiKey,
-            action: "delete",
-          });
-
-          return { providerBlock, defaultModelBlock };
-        });
-      } catch (error) {
-        if (isPrismaRecordNotFoundError(error)) {
-          throw new LangfuseNotFoundError("LLM API key not found");
-        }
-        throw error;
-      }
-
-      await finalizeEvaluatorBlocks({
-        projectId: input.projectId,
-        source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
-        evaluatorIdsByReason: {
-          [EvaluatorBlockReason.LLM_CONNECTION_MISSING]:
-            result.providerBlock.blockedEvaluatorIds,
-          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
-            result.defaultModelBlock.blockedEvaluatorIds,
-        },
-      });
-
       return { success: true };
     }),
   all: protectedProjectProcedure
@@ -503,52 +68,60 @@ export const llmApiKeyRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "llmApiKeys:read",
       });
-
-      const where = {
-        projectId: input.projectId,
-        ...(input.includeDecisionModels
-          ? {}
-          : { adapter: { notIn: [...DECISION_MODEL_ADAPTERS] } }),
-      };
-
-      const storedApiKeys = await ctx.prisma.llmApiKeys.findMany({
-        // secretKey is selected server-side only to derive a safe auth-method enum for Bedrock
-        select: {
-          id: true,
-          createdAt: true,
-          updatedAt: true,
-          provider: true,
-          displaySecretKey: true,
-          projectId: true,
-          adapter: true,
-          baseURL: true,
-          customModels: true,
-          withDefaultModels: true,
-          extraHeaderKeys: true,
-          config: true,
-          secretKey: true,
+      return new LlmConnectionService().list({
+        owner: {
+          type: "project",
+          projectId: input.projectId,
+          organizationId: ctx.session.orgId,
         },
-        where,
+        includeDecisionModels: input.includeDecisionModels,
       });
+    }),
 
-      const apiKeys = z.array(SafeLlmApiKeySchema).parse(
-        storedApiKeys.map(({ secretKey, ...apiKey }) => ({
-          ...apiKey,
-          secretKey: undefined,
-          extraHeaders: undefined,
-          authMethod:
-            apiKey.adapter === LLMAdapter.Bedrock
-              ? getBedrockAuthMethod(decrypt(secretKey))
-              : undefined,
-        })),
-      );
+  inherited: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        includeDecisionModels: z.boolean().optional().default(false),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:read",
+      });
+      return new LlmConnectionService().listInherited({
+        owner: {
+          type: "project",
+          projectId: input.projectId,
+          organizationId: ctx.session.orgId,
+        },
+        includeDecisionModels: input.includeDecisionModels,
+      });
+    }),
 
-      const count = await ctx.prisma.llmApiKeys.count({ where });
-
-      return {
-        data: apiKeys, // does not contain the secret key
-        totalCount: count,
-      };
+  effective: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        includeDecisionModels: z.boolean().optional().default(false),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:read",
+      });
+      return new LlmConnectionService().listEffective({
+        owner: {
+          type: "project",
+          projectId: input.projectId,
+          organizationId: ctx.session.orgId,
+        },
+        includeDecisionModels: input.includeDecisionModels,
+      });
     }),
 
   test: protectedProjectProcedureWithoutTracing
@@ -559,30 +132,8 @@ export const llmApiKeyRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "llmApiKeys:create",
       });
-
-      if (input.baseURL) {
-        try {
-          await validateBaseURLForAdapter({
-            adapter: input.adapter,
-            baseURL: input.baseURL,
-          });
-        } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : "Invalid base URL",
-          };
-        }
-      }
-
-      return testLLMConnection({
-        adapter: input.adapter,
-        provider: input.provider,
-        secretKey: input.secretKey,
-        baseURL: input.baseURL,
-        customModels: input.customModels,
-        extraHeaders: input.extraHeaders,
-        config: input.config,
-      });
+      const { projectId: _projectId, ...connectionInput } = input;
+      return new LlmConnectionService().test(connectionInput);
     }),
 
   testUpdate: protectedProjectProcedureWithoutTracing
@@ -593,214 +144,34 @@ export const llmApiKeyRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "llmApiKeys:update",
       });
-
-      try {
-        // Get the existing key from the database
-        const existingKey = await ctx.prisma.llmApiKeys.findUnique({
-          where: {
-            id: input.id,
-            projectId: input.projectId,
-          },
-        });
-
-        if (!existingKey) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "API key not found",
-          });
-        }
-
-        const hasNewSecretKey =
-          typeof input.secretKey === "string" && input.secretKey.length > 0;
-        const baseURL =
-          input.baseURL !== undefined ? input.baseURL : existingKey.baseURL;
-        const isBaseURLChanged = baseURL !== existingKey.baseURL;
-
-        if (isBaseURLChanged && !hasNewSecretKey) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Secret key is required when changing the base URL",
-          });
-        }
-
-        if (input.baseURL && isBaseURLChanged) {
-          await validateBaseURLForAdapter({
-            adapter: input.adapter,
-            baseURL: input.baseURL,
-          });
-        }
-
-        const secretKey = hasNewSecretKey
-          ? (input.secretKey as string)
-          : decrypt(existingKey.secretKey);
-
-        // Merge existing key with provided input, giving priority to input
-        const adapter = input.adapter ?? (existingKey.adapter as LLMAdapter);
-        const provider = input.provider ?? existingKey.provider;
-        const customModels = input.customModels ?? existingKey.customModels;
-        const config = input.config ?? existingKey.config;
-
-        const extraHeaders = resolveUpdatedExtraHeaders({
-          inputHeaders: input.extraHeaders,
-          storedHeaders: existingKey.extraHeaders,
-          isBaseURLChanged,
-        });
-
-        return testLLMConnection({
-          adapter,
-          provider,
-          secretKey,
-          baseURL,
-          customModels,
-          extraHeaders,
-          config,
-        });
-      } catch (err) {
-        logger.error(err);
-
-        return {
-          success: false,
-          error: err instanceof Error ? err.message : "Unknown error",
-        };
-      }
+      const { projectId, ...connectionInput } = input;
+      return new LlmConnectionService().testUpdate({
+        owner: {
+          type: "project",
+          projectId,
+          organizationId: ctx.session.orgId,
+        },
+        input: connectionInput,
+      });
     }),
 
   update: protectedProjectProcedureWithoutTracing
     .input(UpdateLlmApiKey)
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "llmApiKeys:update",
-        });
-
-        // Get existing key to verify provider and adapter
-        const existingKey = await ctx.prisma.llmApiKeys.findUnique({
-          where: {
-            id: input.id,
-            projectId: input.projectId,
-          },
-        });
-
-        if (!existingKey) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "API key not found",
-          });
-        }
-
-        // Ensure provider and adapter cannot be changed
-        if (
-          input.provider !== existingKey.provider ||
-          input.adapter !== existingKey.adapter
-        ) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Provider and adapter cannot be changed",
-          });
-        }
-
-        // Validate that default credentials sentinel is only allowed for Bedrock/VertexAI in self-hosted deployments
-        const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
-        const isBaseURLChanged =
-          input.baseURL !== undefined
-            ? input.baseURL !== existingKey.baseURL
-            : false;
-
-        if (isBaseURLChanged && !input.secretKey) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Secret key is required when changing the base URL",
-          });
-        }
-
-        if (input.baseURL && isBaseURLChanged) {
-          await validateBaseURLForWrite({
-            adapter: input.adapter,
-            baseURL: input.baseURL,
-          });
-        }
-
-        if (input.secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
-          if (isLangfuseCloud || input.adapter !== LLMAdapter.Bedrock) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message:
-                "Default AWS credentials are only allowed for Bedrock in self-hosted deployments.",
-            });
-          }
-        }
-
-        if (input.secretKey && input.adapter === LLMAdapter.Bedrock) {
-          try {
-            validateBedrockSecretKey(input.secretKey);
-          } catch (e) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message:
-                e instanceof Error ? e.message : "Invalid Bedrock credentials.",
-            });
-          }
-        }
-
-        if (input.secretKey === VERTEXAI_USE_DEFAULT_CREDENTIALS) {
-          if (isLangfuseCloud || input.adapter !== LLMAdapter.VertexAI) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message:
-                "Default GCP credentials (ADC) are only allowed for Vertex AI in self-hosted deployments.",
-            });
-          }
-        }
-
-        // Ensure we delete extra headers if they existed before and were removed
-        if (input.extraHeaders === undefined && existingKey.extraHeaders) {
-          input.extraHeaders = {};
-        }
-
-        const extraHeaders = resolveUpdatedExtraHeaders({
-          inputHeaders: input.extraHeaders,
-          storedHeaders: existingKey.extraHeaders,
-          isBaseURLChanged,
-        });
-
-        const key = await ctx.prisma.llmApiKeys.update({
-          where: {
-            id: input.id,
-            projectId: input.projectId,
-          },
-          data: {
-            ...(input.secretKey ? { secretKey: encrypt(input.secretKey) } : {}),
-            extraHeaders: extraHeaders
-              ? encrypt(JSON.stringify(extraHeaders))
-              : isBaseURLChanged
-                ? null
-                : undefined,
-            extraHeaderKeys: extraHeaders
-              ? Object.keys(extraHeaders)
-              : isBaseURLChanged
-                ? []
-                : undefined,
-            displaySecretKey: input.secretKey
-              ? getDisplaySecretKey(input.secretKey)
-              : undefined,
-            baseURL: input.baseURL,
-            withDefaultModels: input.withDefaultModels,
-            customModels: input.customModels,
-            config: input.config,
-          },
-        });
-
-        await auditLog({
-          session: ctx.session,
-          resourceType: "llmApiKey",
-          resourceId: key.id,
-          action: "update",
-        });
-      } catch (e) {
-        logger.error(e);
-        throw e;
-      }
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:update",
+      });
+      const { projectId, ...connectionInput } = input;
+      return new LlmConnectionService().update({
+        owner: {
+          type: "project",
+          projectId,
+          organizationId: ctx.session.orgId,
+        },
+        input: connectionInput,
+        actor: { session: ctx.session },
+      });
     }),
 });

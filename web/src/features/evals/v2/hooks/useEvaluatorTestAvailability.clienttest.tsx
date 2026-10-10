@@ -12,7 +12,7 @@ vi.mock("@/src/features/evals/v2/hooks/useEvaluatorSetupSample", () => ({
 vi.mock("@/src/utils/api", () => ({
   api: {
     llmApiKey: {
-      all: {
+      effective: {
         useQuery: () => ({ data: undefined }),
       },
     },

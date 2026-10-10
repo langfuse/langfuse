@@ -78,7 +78,9 @@ const isMatchingBedrockAuthMethod = (
     (existingAuthMethod === AuthMethod.AccessKeys ||
       existingAuthMethod === AuthMethod.DefaultCredentials));
 
-type LlmApiKeyListItem = RouterOutputs["llmApiKey"]["all"]["data"][number];
+export type LlmApiKeyListItem =
+  | RouterOutputs["llmApiKey"]["all"]["data"][number]
+  | RouterOutputs["organizationLlmApiKey"]["all"]["data"][number];
 
 const getInitialBedrockAuthMethod = (params: {
   mode: "create" | "update";
@@ -269,8 +271,12 @@ const createFormSchema = (params: {
       },
     );
 
+export type LlmConnectionFormOwner =
+  | { scope: "project"; projectId: string }
+  | { scope: "organization"; organizationId: string };
+
 interface CreateLLMApiKeyFormProps {
-  projectId?: string;
+  owner: LlmConnectionFormOwner;
   onSuccess: () => void;
   customization: ReturnType<typeof useUiCustomization>;
   mode?: "create" | "update";
@@ -278,7 +284,7 @@ interface CreateLLMApiKeyFormProps {
 }
 
 export function CreateLLMApiKeyForm({
-  projectId,
+  owner,
   onSuccess,
   customization,
   mode = "create",
@@ -292,13 +298,24 @@ export function CreateLLMApiKeyForm({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
-  const existingKeys = api.llmApiKey.all.useQuery(
+  const projectExistingKeys = api.llmApiKey.all.useQuery(
     {
-      projectId: projectId as string,
+      projectId: owner.scope === "project" ? owner.projectId : "",
       includeDecisionModels: true,
     },
-    { enabled: Boolean(projectId) },
+    { enabled: owner.scope === "project" },
   );
+  const organizationExistingKeys = api.organizationLlmApiKey.all.useQuery(
+    {
+      orgId: owner.scope === "organization" ? owner.organizationId : "",
+      includeDecisionModels: true,
+    },
+    { enabled: owner.scope === "organization" },
+  );
+  const existingKeys =
+    owner.scope === "project"
+      ? projectExistingKeys.data?.data
+      : organizationExistingKeys.data?.data;
   const adapterOptions = Object.values(LLMAdapter);
 
   const mutCreateLlmApiKey = api.llmApiKey.create.useMutation({
@@ -311,6 +328,28 @@ export function CreateLLMApiKeyForm({
 
   const mutTestLLMApiKey = api.llmApiKey.test.useMutation();
   const mutTestUpdateLLMApiKey = api.llmApiKey.testUpdate.useMutation();
+  const mutCreateOrganizationLlmApiKey =
+    api.organizationLlmApiKey.create.useMutation({
+      onSuccess: async () => {
+        await Promise.all([
+          utils.organizationLlmApiKey.invalidate(),
+          utils.llmApiKey.invalidate(),
+        ]);
+      },
+    });
+  const mutUpdateOrganizationLlmApiKey =
+    api.organizationLlmApiKey.update.useMutation({
+      onSuccess: async () => {
+        await Promise.all([
+          utils.organizationLlmApiKey.invalidate(),
+          utils.llmApiKey.invalidate(),
+        ]);
+      },
+    });
+  const mutTestOrganizationLlmApiKey =
+    api.organizationLlmApiKey.test.useMutation();
+  const mutTestUpdateOrganizationLlmApiKey =
+    api.organizationLlmApiKey.testUpdate.useMutation();
 
   const defaultAdapter: LLMAdapter = customization?.defaultModelAdapter
     ? LLMAdapter[customization.defaultModelAdapter]
@@ -555,27 +594,29 @@ export function CreateLLMApiKeyForm({
   };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!projectId) return console.error("No project ID found.");
-
     if (mode === "create") {
-      if (
-        existingKeys?.data?.data
-          .map((k) => k.provider)
-          .includes(values.provider)
-      ) {
+      if (existingKeys?.map((key) => key.provider).includes(values.provider)) {
         form.setError("provider", {
           type: "manual",
           message: "There already exists an API key for this provider.",
         });
         return;
       }
-      capture("project_settings:llm_api_key_create", {
-        provider: values.provider,
-      });
+      if (owner.scope === "project") {
+        capture("project_settings:llm_api_key_create", {
+          provider: values.provider,
+        });
+      } else {
+        capture("organization_settings:llm_api_key_create");
+      }
     } else {
-      capture("project_settings:llm_api_key_update", {
-        provider: values.provider,
-      });
+      if (owner.scope === "project") {
+        capture("project_settings:llm_api_key_update", {
+          provider: values.provider,
+        });
+      } else {
+        capture("organization_settings:llm_api_key_update");
+      }
     }
 
     let secretKey = values.secretKey;
@@ -641,20 +682,21 @@ export function CreateLLMApiKeyForm({
           : undefined;
     }
 
-    const extraHeaders =
-      values.extraHeaders.length > 0
-        ? values.extraHeaders.reduce(
-            (acc, header) => {
-              acc[header.key] = header.value ?? "";
-              return acc;
-            },
-            {} as Record<string, string>,
-          )
-        : undefined;
+    let extraHeaders: Record<string, string> | undefined;
+    if (values.extraHeaders.length > 0) {
+      extraHeaders = values.extraHeaders.reduce<Record<string, string>>(
+        (headers, header) => {
+          headers[header.key] = header.value ?? "";
+          return headers;
+        },
+        {},
+      );
+    } else if (mode === "update") {
+      extraHeaders = {};
+    }
 
-    const newLlmApiKey = {
+    const connectionInput = {
       id: existingKey?.id ?? "",
-      projectId,
       secretKey: secretKey ?? "",
       provider: values.provider,
       adapter: values.adapter,
@@ -674,10 +716,20 @@ export function CreateLLMApiKeyForm({
     };
 
     try {
-      const testResult =
-        mode === "create"
-          ? await mutTestLLMApiKey.mutateAsync(newLlmApiKey)
-          : await mutTestUpdateLLMApiKey.mutateAsync(newLlmApiKey);
+      let testResult;
+      if (owner.scope === "project") {
+        const input = { ...connectionInput, projectId: owner.projectId };
+        testResult =
+          mode === "create"
+            ? await mutTestLLMApiKey.mutateAsync(input)
+            : await mutTestUpdateLLMApiKey.mutateAsync(input);
+      } else {
+        const input = { ...connectionInput, orgId: owner.organizationId };
+        testResult =
+          mode === "create"
+            ? await mutTestOrganizationLlmApiKey.mutateAsync(input)
+            : await mutTestUpdateOrganizationLlmApiKey.mutateAsync(input);
+      }
 
       if (!testResult.success) throw new Error(testResult.error);
     } catch (error) {
@@ -692,8 +744,22 @@ export function CreateLLMApiKeyForm({
       return;
     }
 
-    return (mode === "create" ? mutCreateLlmApiKey : mutUpdateLlmApiKey)
-      .mutateAsync(newLlmApiKey)
+    let mutation;
+    if (owner.scope === "project") {
+      const input = { ...connectionInput, projectId: owner.projectId };
+      mutation =
+        mode === "create"
+          ? mutCreateLlmApiKey.mutateAsync(input)
+          : mutUpdateLlmApiKey.mutateAsync(input);
+    } else {
+      const input = { ...connectionInput, orgId: owner.organizationId };
+      mutation =
+        mode === "create"
+          ? mutCreateOrganizationLlmApiKey.mutateAsync(input)
+          : mutUpdateOrganizationLlmApiKey.mutateAsync(input);
+    }
+
+    return mutation
       .then(() => {
         form.reset();
         onSuccess();

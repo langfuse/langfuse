@@ -17,7 +17,9 @@ import ContainerPage from "@/src/components/layouts/container-page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { SSOSettings } from "@/src/ee/features/sso-settings";
 import { type CloudConfigSchema, isCloudPlan } from "@langfuse/shared";
+import { Building2 } from "lucide-react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { LlmConnectionEmptyState } from "@/src/features/public-api";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing";
@@ -34,6 +36,7 @@ import {
 } from "@/src/features/ai-gateway";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
+import { ConnectedLLMApiKeySettingsTable } from "@/src/features/public-api/components/LLMApiKeySettingsTable/ConnectedLLMApiKeySettingsTable";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -60,6 +63,10 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   const canManageGateway = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "gateway:manage",
+  });
+  const canReadOrganizationLlmConnections = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organizationLlmApiKeys:read",
   });
   const canReadUsage = useHasOrganizationAccess({
     organizationId: organization?.id,
@@ -89,6 +96,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     isLangfuseCloud,
     showV4Migration,
     showAiGateway: canManageGateway && isAiGatewayEnabled,
+    showOrganizationLlmConnections: canReadOrganizationLlmConnections,
     showFeaturePreviews:
       canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
   });
@@ -103,6 +111,7 @@ export const getOrganizationSettingsPages = ({
   isLangfuseCloud,
   showV4Migration,
   showAiGateway,
+  showOrganizationLlmConnections,
   showFeaturePreviews,
 }: {
   organization: {
@@ -123,6 +132,7 @@ export const getOrganizationSettingsPages = ({
   isLangfuseCloud: boolean;
   showV4Migration: boolean;
   showAiGateway: boolean;
+  showOrganizationLlmConnections: boolean;
   showFeaturePreviews: boolean;
 }): OrganizationSettingsPage[] => [
   {
@@ -195,6 +205,35 @@ export const getOrganizationSettingsPages = ({
       </div>
     ),
     show: showOrgApiKeySettings,
+  },
+  {
+    title: "LLM Connections",
+    slug: "llm-connections",
+    section: "Organization",
+    cmdKKeywords: ["llm", "models", "providers", "credentials"],
+    content: (
+      <div>
+        <Header title="Organization LLM Connections" />
+        <p className="text-muted-foreground mb-4 text-sm">
+          Connections are available to all current and future projects. Project
+          connections with the same provider take precedence.
+        </p>
+        <ConnectedLLMApiKeySettingsTable
+          owner={{
+            scope: "organization",
+            organizationId: organization.id,
+          }}
+          emptyState={
+            <LlmConnectionEmptyState
+              icon={Building2}
+              title="No organization connections"
+              description={`Organization connections are shared with every project in ${organization.name}.`}
+            />
+          }
+        />
+      </div>
+    ),
+    show: showOrganizationLlmConnections,
   },
   {
     title: "Members",
