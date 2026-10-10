@@ -1490,15 +1490,31 @@ jobs:
           pnpm --filter=shared run ch:up
           pnpm --filter=shared run db:seed:examples
       - name: Run server
-        run: (pnpm run start&)
+        # Backgrounded, so this step reports success the moment it has forked
+        # and says nothing about whether anything came up. Keep the output so
+        # the readiness gates below can show why it did not.
+        run: (pnpm run start > /tmp/langfuse-start.log 2>&1 &)
       - name: Check worker health
+        # 60s rather than the previous 10s. Measured across recent runs this
+        # gate clears in 0-4s, so 60s is headroom for a slow boot without
+        # sitting on a run that is never going to come up. `-S` keeps curl's
+        # error line while `-s` drops the progress meter, so "connection
+        # refused" stays distinguishable from "bound but returning 503".
         run: |
-          timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
+          timeout 60 bash -c 'until curl -fsS http://localhost:3030/api/health > /dev/null; do sleep 2; done' \
+            || { echo "Worker was not healthy within 60s"; cat /tmp/langfuse-start.log; exit 1; }
       - name: Check server health
         run: |
-          timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
+          timeout 60 bash -c 'until curl -fsS http://localhost:3000/api/public/health > /dev/null; do sleep 2; done' \
+            || { echo "Langfuse was not healthy within 60s"; cat /tmp/langfuse-start.log; exit 1; }
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e:server
+      - name: Langfuse server log
+        # The server writes to a file rather than the job log, so surface it
+        # when something failed — a startup crash is otherwise indistinguishable
+        # from a slow boot, and both just look like a flake.
+        if: failure()
+        run: cat /tmp/langfuse-start.log || true
 
   test-ai-gateway-e2e:
     timeout-minutes: 25

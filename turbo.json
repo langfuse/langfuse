@@ -35,7 +35,13 @@
       "outputLogs": "errors-only"
     },
     "start": {
-      "dependsOn": ["^start"]
+      "dependsOn": ["^start"],
+      // Launches long-running servers, so it produces no output to restore and
+      // a cache hit would be actively wrong: turbo replays the logs and returns
+      // without starting anything, leaving the ports unbound. Every other
+      // long-running task here (dev, dev:web, dev:worker, worker#dev) already
+      // opts out.
+      "cache": false
     },
     "db:migrate": {
       "env": ["DATABASE_URL", "DIRECT_URL"],
