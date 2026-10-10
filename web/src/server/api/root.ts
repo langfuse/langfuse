@@ -50,6 +50,7 @@ import { batchActionRouter } from "@/src/features/batch-actions/server/batchActi
 import { cloudStatusRouter } from "@/src/features/cloud-status-notification/server/cloud-status-router";
 import { dashboardWidgetRouter } from "./routers/dashboardWidgets";
 import { TableViewPresetsRouter } from "@/src/server/api/routers/tableViewPresets";
+import { sessionViewsRouter } from "@/src/server/api/routers/sessionViews";
 import { automationsRouter } from "@/src/features/automations/server/router";
 import { monitorsRouter } from "@/src/server/api/routers/monitors";
 import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalModelRouter";
@@ -127,6 +128,7 @@ export const appRouter = createTRPCRouter({
   cloudStatus: cloudStatusRouter,
   dashboardWidgets: dashboardWidgetRouter,
   TableViewPresets: TableViewPresetsRouter,
+  sessionViews: sessionViewsRouter,
   automations: automationsRouter,
   monitors: monitorsRouter,
   slack: slackRouter,
