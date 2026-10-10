@@ -242,6 +242,32 @@ describe("AI SDK Adapter", () => {
       expect(typeof bedrockResult.data?.[0].content).toBe("string");
     });
 
+    it("should not overwrite tool message role or tool_call_id when result object has colliding keys", () => {
+      const input = {
+        messages: [
+          {
+            role: "tool",
+            tool_call_id: "call_real_123",
+            name: "get_user",
+            content: {
+              name: "Alice",
+              role: "admin",
+              email: "a@x.io",
+              tool_call_id: "fake_tool_call_id",
+            },
+          },
+        ],
+      };
+
+      const result = normalizeInput(input, { framework: "aisdk" });
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].role).toBe("tool");
+      expect(result.data?.[0].name).toBe("get_user");
+      expect(result.data?.[0].tool_call_id).toBe("call_real_123");
+      expect(typeof result.data?.[0].content).toBe("string");
+      expect(result.data?.[0].content).toContain("Alice");
+    });
+
     it("should strip provider-specific metadata", () => {
       // OpenAI providerOptions
       const openaiInput = {
