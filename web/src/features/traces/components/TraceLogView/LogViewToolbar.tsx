@@ -139,8 +139,9 @@ export const LogViewToolbar = memo(function LogViewToolbar({
         <Command className="flex-1 rounded-none border-0 bg-transparent">
           <CommandInput
             showBorder={false}
+            variant="toolbar"
             placeholder="Search observations..."
-            className="placeholder:text-muted-foreground h-7 border-0 text-xs placeholder:font-mono focus:ring-0"
+            className="border-0 focus:ring-0"
             value={searchQuery}
             onValueChange={onSearchChange}
             onFocus={onSearchFocus}
