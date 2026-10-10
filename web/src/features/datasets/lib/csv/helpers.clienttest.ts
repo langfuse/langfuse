@@ -44,6 +44,19 @@ describe("CSV dataset parsing", () => {
     expect(parseValue("FALSE")).toBe(false);
   });
 
+  it("keeps number-like values whose canonical form does not round-trip as strings", () => {
+    // Zip code: a leading zero that Number() silently drops.
+    expect(parseValue("02134")).toBe("02134");
+    // Phone number: a leading "+" that Number() accepts but JSON numbers do not.
+    expect(parseValue("+14155552671")).toBe("+14155552671");
+    // Hex literal: Number() parses "0x" strings, JSON numbers never do.
+    expect(parseValue("0x1A")).toBe("0x1A");
+    // Zero-padded id.
+    expect(parseValue("007")).toBe("007");
+    // Whitespace-only: Number() coerces this to 0.
+    expect(parseValue("   ")).toBe("   ");
+  });
+
   it("explains the preview truncation when a >2MB file has a quoted cell cut at the preview boundary", async () => {
     const hugeCell = "A".repeat(3 * 1024 * 1024);
     const file = new File([`input\n"${hugeCell}"\n`], "large.csv", {
