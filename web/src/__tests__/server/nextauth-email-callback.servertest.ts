@@ -1,4 +1,4 @@
-import { createHash, randomInt, randomUUID } from "crypto";
+import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { describe, expect, it, vi } from "vitest";
@@ -14,14 +14,32 @@ vi.hoisted(() => {
 
 import { env } from "@/src/env.mjs";
 import {
+  TURNSTILE_ACTIONS,
+  TURNSTILE_FAILED_MESSAGE,
+} from "@/src/features/auth/constants";
+import {
   hashPassword,
   verifyPassword,
 } from "@/src/features/auth-credentials/lib/passwordHash";
+import { verifyTurnstileToken } from "@/src/features/auth/server/verifyTurnstile";
+import type * as VerifyTurnstileModule from "@/src/features/auth/server/verifyTurnstile";
 import auth from "@/src/pages/api/auth/[...nextauth]";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { getAuthOptions } from "@/src/server/auth";
+import { getCookieName } from "@/src/server/utils/cookies";
 import { prisma } from "@langfuse/shared/src/db";
+
+vi.mock(
+  "@/src/features/auth/server/verifyTurnstile",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof VerifyTurnstileModule>();
+    return {
+      ...actual,
+      verifyTurnstileToken: vi.fn(actual.verifyTurnstileToken),
+    };
+  },
+);
 
 const OLD_PASSWORD = "Oldpass1!";
 const NEW_PASSWORD = "Newpass1!";
@@ -83,7 +101,10 @@ describe("GET /api/auth/callback/email", () => {
 describe("NextAuth signIn callback for the email provider", () => {
   it("allows the send request but rejects the consume request", async () => {
     const { email } = await createUser({ password: OLD_PASSWORD });
-    const authOptions = await getAuthOptions();
+    const authOptions = await getAuthOptions(undefined, {
+      turnstileToken: "reset-token",
+      turnstileRemoteIp: "203.0.113.5",
+    });
     const signIn = authOptions.callbacks!.signIn!;
     const user = { id: email, email };
     const account = {
@@ -95,9 +116,93 @@ describe("NextAuth signIn callback for the email provider", () => {
     await expect(
       signIn({ user, account, email: { verificationRequest: true } }),
     ).resolves.toBe(true);
+    expect(verifyTurnstileToken).toHaveBeenCalledWith({
+      token: "reset-token",
+      action: TURNSTILE_ACTIONS.passwordReset,
+      remoteIp: "203.0.113.5",
+    });
+
+    vi.mocked(verifyTurnstileToken).mockClear();
     await expect(signIn({ user, account })).resolves.toBe(false);
+    expect(verifyTurnstileToken).not.toHaveBeenCalled();
+  });
+
+  it("rejects the reset-email request when captcha verification fails", async () => {
+    vi.mocked(verifyTurnstileToken).mockResolvedValueOnce(false);
+    const authOptions = await getAuthOptions(undefined, {
+      turnstileToken: "bad-token",
+    });
+    const signIn = authOptions.callbacks!.signIn!;
+
+    await expect(
+      signIn({
+        user: { id: "nobody@example.com", email: "nobody@example.com" },
+        account: {
+          provider: "email",
+          type: "email",
+          providerAccountId: "nobody@example.com",
+        },
+        email: { verificationRequest: true },
+      }),
+    ).rejects.toThrow(TURNSTILE_FAILED_MESSAGE);
+    await expect(
+      prisma.verificationToken.findFirst({
+        where: { identifier: "nobody@example.com" },
+      }),
+    ).resolves.toBeNull();
   });
 });
+
+describe("POST /api/auth/signin/email captcha", () => {
+  it("passes the posted token to Turnstile and does not store a code when it fails", async () => {
+    const { email } = await createUser({ password: OLD_PASSWORD });
+    vi.mocked(verifyTurnstileToken).mockResolvedValueOnce(false);
+    const { csrfToken, cookie } = csrfPair();
+
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "POST",
+      headers: {
+        host: "localhost:3000",
+        "x-forwarded-for": "203.0.113.9, 10.0.0.1",
+      },
+      query: { nextauth: ["signin", "email"] },
+      body: {
+        email,
+        csrfToken,
+        callbackUrl: "http://localhost:3000/auth/reset-password",
+        json: "true",
+        turnstileToken: "posted-token",
+      },
+    });
+    req.cookies = {
+      [getCookieName("next-auth.csrf-token")]: cookie,
+    };
+
+    await auth(req, res);
+
+    expect(verifyTurnstileToken).toHaveBeenCalledWith({
+      token: "posted-token",
+      action: TURNSTILE_ACTIONS.passwordReset,
+      remoteIp: "203.0.113.9",
+    });
+    expect(res.statusCode).toBe(200);
+    const url = res._getJSONData().url as string;
+    expect(new URL(url).searchParams.get("error")).toContain(
+      TURNSTILE_FAILED_MESSAGE,
+    );
+    await expect(
+      prisma.verificationToken.findFirst({ where: { identifier: email } }),
+    ).resolves.toBeNull();
+  });
+});
+
+function csrfPair() {
+  const csrfToken = randomBytes(32).toString("hex");
+  const csrfTokenHash = createHash("sha256")
+    .update(`${csrfToken}${process.env.NEXTAUTH_SECRET ?? ""}`)
+    .digest("hex");
+  return { csrfToken, cookie: `${csrfToken}|${csrfTokenHash}` };
+}
 
 function uniqueOtp() {
   return randomInt(100000, 1000000).toString();
