@@ -2009,17 +2009,36 @@ export default function ObservationsEventsTable({
               searchBarMode && "bg-background sticky top-0 z-30 pb-1.5",
             )}
           >
-            {/* Search bar row: full-width query composer. In bar mode it sticks
-                together with the toolbar below, so the toolbar controls cannot
-                scroll underneath and render half-clipped. When
-                showControlsInPageHeader is set (the standalone traces/
-                observations pages), time-range + refresh are hoisted to the
-                page header via TableHeaderControls; otherwise they remain in
-                the toolbar row below. */}
+            {/* Search bar row: "My Views" + the query composer filling the rest.
+                In bar mode it sticks together with the toolbar below, so the
+                toolbar controls cannot scroll underneath and render
+                half-clipped. When showControlsInPageHeader is set (the
+                standalone traces/observations pages), time-range + refresh are
+                hoisted to the page header via TableHeaderControls; otherwise
+                they remain in the toolbar row below. The row owns the bar's
+                padding so both controls share one left edge with the toolbar. */}
             {searchBarMode && (
-              <div className="flex min-w-0 items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2 px-2 pt-2 pb-1">
+                {!tableStatePolicy.disableSavedViews && (
+                  <TableViewPresetsDrawer
+                    size={showControlsInPageHeader ? "large" : "default"}
+                    viewConfig={{
+                      tableName: TableViewPresetTableName.ObservationsEvents,
+                      projectId,
+                      controllers: viewControllers,
+                    }}
+                    currentState={{
+                      orderBy: orderByState ?? null,
+                      filters: queryFilter.explicitFilterState ?? [],
+                      columnOrder,
+                      columnVisibility,
+                      searchQuery: searchQuery ?? "",
+                    }}
+                  />
+                )}
                 <div className="min-w-0 flex-1">
                   <EventsSearchBarRow
+                    className="p-0"
                     size={showControlsInPageHeader ? "large" : "default"}
                     key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                     registry={searchRegistry}
@@ -2094,14 +2113,6 @@ export default function ObservationsEventsTable({
               customRowHeight={customRowHeightMenu(rowHeights)}
               timeRange={showControlsInPageHeader ? undefined : timeRange}
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-              viewModeToggle={
-                chartEnabled ? (
-                  <ViewModeToggle
-                    mode={chartViewMode}
-                    onModeChange={setChartViewMode}
-                  />
-                ) : undefined
-              }
               refreshConfig={
                 showControlsInPageHeader ? undefined : refreshConfig
               }
@@ -2189,13 +2200,22 @@ export default function ObservationsEventsTable({
               }
               // Scoped registries keep AI filtering in the sidebar.
               filterWithAI={sidebarAiFiltersEnabled}
-              // Category-preset chips + "My Views" pill share the toolbar row,
-              // left-aligned, so they sit on the same line as the right-aligned
-              // Columns/Export controls.
+              // Table/Chart toggle, then the category-preset chips, left-
+              // aligned on the same line as the right-aligned Columns/Export
+              // controls. "My Views" lives on the search row; without the bar
+              // it falls back to this row.
               leadingControls={
-                tableStatePolicy.disableSavedViews ? undefined : (
-                  <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {chartEnabled && (
+                    <ViewModeToggle
+                      offset="none"
+                      mode={chartViewMode}
+                      onModeChange={setChartViewMode}
+                    />
+                  )}
+                  {!tableStatePolicy.disableSavedViews && (
                     <CategoryPresetChips
+                      variant="ghost"
                       projectId={projectId}
                       // URL viewId only — the sessionStorage appliedViewId
                       // can go stale under explicit URL state and light the
@@ -2205,6 +2225,8 @@ export default function ObservationsEventsTable({
                       applyViewState={viewControllers.applyViewState}
                       onPreviewView={previewViewInSearchBar}
                     />
+                  )}
+                  {!tableStatePolicy.disableSavedViews && !searchBarMode && (
                     <TableViewPresetsDrawer
                       viewConfig={{
                         tableName: TableViewPresetTableName.ObservationsEvents,
@@ -2219,8 +2241,8 @@ export default function ObservationsEventsTable({
                         searchQuery: searchQuery ?? "",
                       }}
                     />
-                  </div>
-                )
+                  )}
+                </div>
               }
             />
           </div>

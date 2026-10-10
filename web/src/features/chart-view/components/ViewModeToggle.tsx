@@ -1,6 +1,7 @@
 import React from "react";
 import { BarChart3, Table } from "lucide-react";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { cn } from "@/src/utils/tailwind";
 import { type ViewMode } from "../types";
 
 /**
@@ -10,13 +11,16 @@ import { type ViewMode } from "../types";
 export const ViewModeToggle = React.memo(function ViewModeToggle({
   mode,
   onModeChange,
+  offset = "default",
 }: {
   mode: ViewMode;
   onModeChange: (mode: ViewMode) => void;
+  /** `none` when the toggle leads its row; `default` offsets it from the
+   *  controls to its left. */
+  offset?: "default" | "none";
 }) {
   return (
-    // Offset from the filter-preset cluster to its left.
-    <div className="ml-1">
+    <div className={cn(offset === "default" && "ml-1")}>
       <Tabs
         activationMode="manual"
         value={mode}

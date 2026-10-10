@@ -167,6 +167,8 @@ interface TableViewPresetsDrawerContentProps {
 interface TableViewPresetsDrawerProps extends TableViewPresetsDrawerContentProps {
   /** Optional DOM id on the trigger button so other UI can open the drawer. */
   triggerId?: string;
+  /** Trigger height; `large` matches the large search bar on its row. */
+  size?: "default" | "large";
 }
 
 type TableViewPresetsDrawerRootProps = {
@@ -236,6 +238,7 @@ export function TableViewPresetsDrawer({
   currentState,
   systemFilterPresets,
   triggerId,
+  size,
 }: TableViewPresetsDrawerProps) {
   const { tableName, projectId, controllers } = viewConfig;
   const { TableViewPresetsList, defaultAssignments } =
@@ -260,6 +263,7 @@ export function TableViewPresetsDrawer({
       <DrawerTrigger asChild>
         <TableViewPresetsButton
           id={triggerId}
+          size={size}
           count={drawerPresetCount}
           selectedView={
             selectedView
