@@ -108,5 +108,13 @@ export function useDashboardFilterOptions({
       : (traceFilterOptions.data?.tags ?? []),
   );
 
-  return { nameOptions, tagsOptions };
+  // The events.filterOptions query is v4-gated above, so the legacy read
+  // path yields no options for this facet.
+  const ingestionApiKeyOptions = useMemo(
+    () =>
+      normalizeSingleValueOptions(eventsFilterOptions.data?.ingestionApiKey),
+    [eventsFilterOptions.data?.ingestionApiKey],
+  );
+
+  return { nameOptions, tagsOptions, ingestionApiKeyOptions };
 }
