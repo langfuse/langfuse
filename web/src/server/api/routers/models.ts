@@ -21,6 +21,7 @@ import {
   Prisma,
 } from "@langfuse/shared";
 import {
+  assertModelDefinitionsEnabled,
   clearModelCacheForProject,
   queryClickhouse,
   findModel,
@@ -47,8 +48,17 @@ const paginateArray = <T>(params: {
   return data.slice(startIndex, endIndex);
 };
 
+// Every procedure here reads or writes model definitions, so the instance-wide
+// switch is applied once at the procedure level rather than per handler.
+const modelDefinitionsProcedure = protectedProjectProcedure.use(
+  async ({ next }) => {
+    assertModelDefinitionsEnabled();
+    return next();
+  },
+);
+
 export const modelRouter = createTRPCRouter({
-  getById: protectedProjectProcedure
+  getById: modelDefinitionsProcedure
     .input(z.object({ projectId: z.string(), modelId: z.string() }))
     .query(async ({ input, ctx }) => {
       const modelQueryResult = await ctx.prisma.$queryRaw`
@@ -112,7 +122,7 @@ export const modelRouter = createTRPCRouter({
       return model;
     }),
 
-  getAll: protectedProjectProcedure
+  getAll: modelDefinitionsProcedure
     .input(ModelAllOptions)
     .query(async ({ input, ctx }) => {
       const { projectId, page, limit, searchString } = input;
@@ -198,7 +208,7 @@ export const modelRouter = createTRPCRouter({
       };
     }),
 
-  lastUsedByModelIds: protectedProjectProcedure
+  lastUsedByModelIds: modelDefinitionsProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -240,7 +250,7 @@ export const modelRouter = createTRPCRouter({
       );
     }),
 
-  upsert: protectedProjectProcedure
+  upsert: modelDefinitionsProcedure
     .input(UpsertModelSchema)
     .mutation(async ({ input, ctx }) => {
       const {
@@ -382,7 +392,7 @@ export const modelRouter = createTRPCRouter({
 
       return result;
     }),
-  delete: protectedProjectProcedure
+  delete: modelDefinitionsProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -424,7 +434,7 @@ export const modelRouter = createTRPCRouter({
 
       return deletedModel;
     }),
-  testMatch: protectedProjectProcedure
+  testMatch: modelDefinitionsProcedure
     .input(
       z.object({
         projectId: z.string(),

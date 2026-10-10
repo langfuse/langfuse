@@ -31,6 +31,7 @@ import {
 } from "@/src/components/ui/select";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { CodeMirrorEditor } from "@/src/components/editor";
+import { useModelDefinitionsEnabled } from "@/src/features/models/hooks/useModelDefinitionsEnabled";
 
 const resolvePricingTier = <T extends { id: string }>(
   tiers: T[],
@@ -53,10 +54,11 @@ export default function ModelDetailPage() {
     projectId,
     scope: "models:CUD",
   });
+  const modelDefinitionsEnabled = useModelDefinitionsEnabled();
 
   const { data: model, isLoading } = api.models.getById.useQuery(
     { projectId, modelId },
-    { enabled: !!projectId && !!modelId },
+    { enabled: !!projectId && !!modelId && modelDefinitionsEnabled },
   );
 
   // Get default tier or first tier by priority
@@ -87,6 +89,21 @@ export default function ModelDetailPage() {
       ),
     [activeTier?.prices, priceUnitMultiplier],
   );
+
+  // Reachable by bookmark after the instance switched model definitions off,
+  // where the query is disabled and would otherwise read as "not found".
+  if (!modelDefinitionsEnabled) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-2">
+        <div className="text-xl font-bold">Model definitions are disabled</div>
+        <div className="text-muted-foreground max-w-md text-center text-sm">
+          This Langfuse instance does not resolve model definitions, so it
+          infers no costs or token counts. Usage and costs sent with your traces
+          are still recorded.
+        </div>
+      </div>
+    );
+  }
 
   // If not found, redirect to models page
   if (!isLoading && !model) {

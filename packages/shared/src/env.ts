@@ -120,6 +120,14 @@ const EnvSchema = z.object({
       "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32",
     )
     .optional(),
+  // Instance-wide switch for model definitions. When "false", Langfuse stops
+  // seeding the managed price list and stops matching models at ingestion, so
+  // it computes no costs and runs no tokenizer for usage inference; the Models
+  // UI and API are withdrawn. Usage and costs supplied by the client on the
+  // event are still stored and displayed — only Langfuse's own inference is
+  // disabled. Features that tokenize for their own purposes and carry their own
+  // switch, such as trace-batch transcript metrics, are unaffected.
+  LANGFUSE_MODEL_DEFINITIONS_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_MODEL_MATCH_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS: z.coerce.number().default(86400), // 24 hours
   LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED: z
