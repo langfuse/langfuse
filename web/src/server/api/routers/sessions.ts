@@ -823,16 +823,37 @@ export const sessionRouter = createTRPCRouter({
     }),
   observationsForTraceFromEvents: protectedGetSessionProcedure
     .input(SessionTraceObservationsInput)
-    .query(async ({ input }) => {
-      const positionFilter = (input.filter ?? []).find(
+    .query(async ({ input, ctx }) => {
+      // Public session viewers cannot resolve comment predicates (same
+      // contract as events.sessionAll). Project members keep them and we
+      // replace them with observation IDs before ClickHouse selection.
+      const incomingFilters = ctx.session.projectRole
+        ? (input.filter ?? [])
+        : (input.filter ?? []).filter(
+            ({ column }) =>
+              column !== "commentContent" && column !== "commentCount",
+          );
+      const positionFilter = incomingFilters.find(
         (filter) => filter.type === "positionInTrace",
       );
-      const baseFilters = (input.filter ?? []).filter(
+      const baseFilters = incomingFilters.filter(
         (filter) => filter.type !== "positionInTrace",
       );
 
+      const { filterState: commentResolvedFilters, hasNoMatches } =
+        await applyCommentFilters({
+          filterState: baseFilters,
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          objectType: "OBSERVATION",
+        });
+
+      if (hasNoMatches) {
+        return [];
+      }
+
       const filterState: FilterState = [
-        ...baseFilters,
+        ...commentResolvedFilters,
         {
           column: "traceId",
           type: "string",
