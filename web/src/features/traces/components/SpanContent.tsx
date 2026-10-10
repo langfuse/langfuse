@@ -19,6 +19,7 @@
  */
 
 import { type TreeNode } from "../types/treeNode";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
@@ -136,6 +137,14 @@ function LoadedSpanContent({
           </span>
 
           <div className="flex items-center gap-x-2">
+            {node.cyclicParentObservationId && (
+              <Badge
+                text="Cyclic parent"
+                color="yellow"
+                size="sm"
+                title={`Parent ${node.cyclicParentObservationId} forms a cycle. This observation is displayed at the root of the trace.`}
+              />
+            )}
             {/* Comment count */}
             {showComments &&
               commentCount !== undefined &&
