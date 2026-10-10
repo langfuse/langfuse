@@ -4,6 +4,7 @@ import type { Session } from "next-auth";
 import { describe, expect, it } from "vitest";
 
 import { prisma } from "@langfuse/shared/src/db";
+import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -92,6 +93,36 @@ describe("in-app agent router", () => {
       conversationId: conversation.id,
     });
   });
+
+  it("exposes the telemetry project to internal users only", async () => {
+    const fixture = await createProjectFixture();
+    const userCaller = createCallerForFixture(fixture, fixture.ownerUserId);
+    const adminCaller = createCallerForFixture(fixture, fixture.ownerUserId, {
+      admin: true,
+    });
+    const originalAiFeaturesProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
+
+    try {
+      (
+        env as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
+      ).LANGFUSE_AI_FEATURES_PROJECT_ID = "ai-features-project";
+
+      await expect(
+        userCaller.inAppAgent.telemetryProject({
+          projectId: fixture.projectId,
+        }),
+      ).rejects.toThrow("internal surface");
+      await expect(
+        adminCaller.inAppAgent.telemetryProject({
+          projectId: fixture.projectId,
+        }),
+      ).resolves.toEqual({ projectId: "ai-features-project" });
+    } finally {
+      (
+        env as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
+      ).LANGFUSE_AI_FEATURES_PROJECT_ID = originalAiFeaturesProjectId;
+    }
+  });
 });
 
 async function createCaller() {
@@ -154,6 +185,7 @@ async function createProjectFixture() {
 function createCallerForFixture(
   fixture: Awaited<ReturnType<typeof createProjectFixture>>,
   userId: string,
+  { admin = false }: { admin?: boolean } = {},
 ) {
   const session: Session = {
     expires: "1",
@@ -187,7 +219,7 @@ function createCallerForFixture(
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
+      admin,
     },
     environment: {
       enableExperimentalFeatures: false,
