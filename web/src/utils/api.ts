@@ -155,12 +155,19 @@ export const EXPECTED_TRPC_ERROR_CODES = [
  * only as an optimistic-concurrency / stale-UI race the product already
  * toasts — expected user-facing state, not a regression.
  *
- * `inAppAgent.decideToolApproval` is the only current member: every CONFLICT
- * it throws means the parent run is no longer AWAITING_APPROVAL (already
- * decided, expired, or cancelled). The UI already tells the user to reload.
+ * Current members:
+ * - `inAppAgent.decideToolApproval`: every CONFLICT means the parent run is
+ *   no longer AWAITING_APPROVAL (already decided, expired, or cancelled).
+ *   The UI already tells the user to reload.
+ * - `evalsV2.update` / `evalsV2.reactivate`: every CONFLICT is a lost race
+ *   on the next evaluator version (or a type-change rejection on update).
+ *   The setup page already opens the version-conflict dialog; reactivate
+ *   toasts. Retrying after a refetch is the product UX.
  */
 export const EXPECTED_TRPC_CONFLICT_PATHS = [
   "inAppAgent.decideToolApproval",
+  "evalsV2.update",
+  "evalsV2.reactivate",
 ] as const;
 
 const getTrpcErrorData = (
