@@ -26,6 +26,7 @@ import {
   type StringStream,
 } from "@codemirror/language";
 import {
+  INVALID_PROMPT_VARIABLE_NAME_MESSAGE,
   isValidVariableName,
   MULTILINE_VARIABLE_REGEX,
   MUSTACHE_REGEX,
@@ -110,8 +111,7 @@ export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
         from: match.index,
         to: match.index + match[0].length,
         severity: "error",
-        message:
-          "Variable must start with a letter and can only contain letters and underscores",
+        message: INVALID_PROMPT_VARIABLE_NAME_MESSAGE,
       });
     }
   }
