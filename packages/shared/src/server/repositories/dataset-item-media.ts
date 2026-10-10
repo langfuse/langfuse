@@ -135,8 +135,7 @@ export async function markDatasetMediaUploadComplete(props: {
     data: {
       uploadedAt: props.uploadedAt,
       uploadHttpStatus: props.uploadHttpStatus,
-      uploadHttpError:
-        props.uploadHttpStatus === 200 ? null : props.uploadHttpError,
+      uploadHttpError: isCompletingUpload ? null : props.uploadHttpError,
     },
   });
 
