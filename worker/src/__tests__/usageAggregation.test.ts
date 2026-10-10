@@ -26,14 +26,77 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
+vi.mock("../ee/usageThresholds/thresholdProcessing", () => ({
+  processThresholds: vi.fn(),
+}));
+
+vi.mock("../ee/usageThresholds/bulkUpdates", () => ({
+  bulkUpdateOrganizationsRawSQL: vi.fn(),
+}));
+
 import {
   buildProjectToOrgMap,
   aggregateByOrg,
+  processUsageAggregationForAllOrgs,
 } from "../ee/usageThresholds/usageAggregation";
 import { prisma } from "@langfuse/shared/src/db";
 import { type ParsedOrganization } from "@langfuse/shared";
+import {
+  getTraceCountsByProjectAndDay,
+  getObservationCountsByProjectAndDay,
+  getScoreCountsByProjectAndDay,
+} from "@langfuse/shared/src/server";
+import { processThresholds } from "../ee/usageThresholds/thresholdProcessing";
+import { bulkUpdateOrganizationsRawSQL } from "../ee/usageThresholds/bulkUpdates";
 
 const mockProjectFindMany = prisma.project.findMany as Mock;
+
+describe("processUsageAggregationForAllOrgs", () => {
+  it("processes a February cycle start on March 30", async () => {
+    vi.clearAllMocks();
+    mockProjectFindMany.mockResolvedValue([
+      { id: "project-1", orgId: "org-end-of-month" },
+    ]);
+    (prisma.organization.findMany as Mock).mockResolvedValue([
+      {
+        id: "org-end-of-month",
+        createdAt: new Date("2024-01-31T00:00:00.000Z"),
+        cloudBillingCycleAnchor: new Date("2024-01-31T00:00:00.000Z"),
+      },
+    ]);
+    (getTraceCountsByProjectAndDay as Mock).mockImplementation(
+      async ({ startDate }: { startDate: Date }) =>
+        startDate.toISOString() === "2024-02-29T00:00:00.000Z"
+          ? [{ count: 7, projectId: "project-1", date: "2024-02-29" }]
+          : [],
+    );
+    (getObservationCountsByProjectAndDay as Mock).mockResolvedValue([]);
+    (getScoreCountsByProjectAndDay as Mock).mockResolvedValue([]);
+    (processThresholds as Mock).mockResolvedValue({
+      actionTaken: "FREE_TIER",
+      updateData: {},
+    });
+    (bulkUpdateOrganizationsRawSQL as Mock).mockResolvedValue({
+      successCount: 1,
+      failedCount: 0,
+      failedOrgIds: [],
+    });
+
+    const stats = await processUsageAggregationForAllOrgs(
+      new Date("2024-03-30T12:00:00.000Z"),
+    );
+
+    expect(stats.totalOrgsProcessed).toBe(1);
+    expect(processThresholds).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "org-end-of-month" }),
+      7,
+    );
+    expect(getTraceCountsByProjectAndDay).toHaveBeenCalledWith({
+      startDate: new Date("2024-02-29T00:00:00.000Z"),
+      endDate: new Date("2024-02-29T23:59:59.999Z"),
+    });
+  });
+});
 
 describe("buildProjectToOrgMap", () => {
   beforeEach(() => {
