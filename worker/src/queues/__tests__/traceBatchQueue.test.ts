@@ -815,6 +815,9 @@ describe("trace batch queue", () => {
       { projectId: "a", environment: "production" },
       { projectId: "b", environment: "staging" },
     ]);
+    // Each trace is summarized from its rendered Topics text.
+    for (const [input] of vi.mocked(summarizeAssembledTrace).mock.calls)
+      expect(input.topicsText).toMatch(/^<run_facts>/);
     const estimates = vi.mocked(tokenCountAsync).mock.calls;
     expect(estimates).toHaveLength(5);
     const serializedTranscript = JSON.stringify(estimates[0][0].text);

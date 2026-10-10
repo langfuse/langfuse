@@ -113,6 +113,61 @@ describe("Topics transcript renderer", () => {
     expect(result.text).toContain("[assistant · final output] Done");
   });
 
+  it("renders the transcript of an audio reply instead of an omitted-media label", () => {
+    const generation = observation("audio", "GENERATION", 1);
+    const message = {
+      observationId: generation.id,
+      startTime: generation.startTime,
+      endTime: generation.endTime,
+      traceId: "trace",
+    };
+    const transcript: Transcript = {
+      threads: [
+        {
+          conversationHistory: [],
+          currentTurn: {
+            nestingLevel: 0,
+            messages: [
+              {
+                ...message,
+                role: "user",
+                source: "input",
+                parts: [{ type: "text", text: "Read the forecast" }],
+              },
+              {
+                ...message,
+                role: "assistant",
+                source: "output",
+                parts: [
+                  {
+                    type: "file",
+                    mediaType: "audio/*",
+                    content: { kind: "reference", id: "audio-1" },
+                    providerMetadata: { transcript: "Sunny with light wind." },
+                  },
+                  {
+                    type: "file",
+                    mediaType: "image/png",
+                    content: { kind: "reference", id: "image-1" },
+                  },
+                ],
+              },
+            ],
+            observations: [{ id: generation.id, traceId: "trace" }],
+          },
+        },
+      ],
+    };
+
+    const { text } = renderTranscript(
+      transcript,
+      [generation],
+      topicsTranscriptConfig,
+    );
+    expect(text).toContain("transcript] Sunny with light wind.");
+    expect(text).toContain("[image/png omitted]");
+  });
+
   it("keeps trace I/O outside chronological threads and labels replayed input", () => {
     const root = {
       ...observation("root", "SPAN", 0),

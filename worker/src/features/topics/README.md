@@ -129,8 +129,12 @@ After the trace-batch job assembles a transcript, it summarizes that same
 transcript for all current facets of an allowlisted project in one model call:
 the system prompt lists every facet under a key, asks for each to be answered
 independently with short evidence notes, and returns one entry per facet. The
-call's usage is recorded on the first facet's row. It does not load the trace
-from ClickHouse again. Projects outside
+call's usage is recorded on the first facet's row. The summary input is the
+rendered Topics text of that transcript (tagged plain text with error signals
+and length caps), with the JSON projection as a fallback when rendering fails;
+summaries record which input they used (`topics-text-v1` or the shared
+transcript version). Manual processing still uses the JSON projection. It does
+not load the trace from ClickHouse again. Projects outside
 `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` are skipped. A finished facet version is
 skipped on retry. A failing trace does not stop the batch: every trace is
 processed and outcomes are counted once per job (`langfuse.topics.trace_outcomes`
