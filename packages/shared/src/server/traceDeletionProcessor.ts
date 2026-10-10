@@ -39,15 +39,16 @@ export async function traceDeletionProcessor(
     return;
   }
 
+  const logActor = env.LANGFUSE_LOG_DELETION_ACTORS === "true" && actor;
   logger.info(
     `Processing trace deletion for ${traceIds.length} traces in project ${projectId}${
-      actor ? ` requested by ${formatActor(actor)}` : ""
+      logActor ? ` requested by ${formatActor(logActor)}` : ""
     }`,
     {
       projectId,
       traceIds,
       delayMs,
-      actor: getActorLogMetadata(actor),
+      actor: logActor ? getActorLogMetadata(logActor) : undefined,
     },
   );
 

@@ -8,6 +8,7 @@ import {
   formatSubmittedPublicKeyForLog,
   logger,
 } from "@langfuse/shared/src/server";
+import { env } from "@langfuse/shared/src/env";
 import { isAuditLogEnabled } from "@/src/features/audit-logs/isAuditLogEnabled";
 
 type AuditableResource =
@@ -95,7 +96,8 @@ type AuditLog = {
 
 // Mirrors each audit log record into the application logs so that actors can be
 // correlated with web/worker log lines (e.g. trace deletions) without querying
-// the audit_logs table. Only ids are logged, no emails or names.
+// the audit_logs table. Only ids are logged, no emails or names. Deletes are
+// mirrored only when LANGFUSE_LOG_DELETION_ACTORS is enabled.
 function logAuditEvent(
   log: AuditLog,
   actor: {
@@ -107,6 +109,10 @@ function logAuditEvent(
     publicKey?: string;
   },
 ) {
+  if (log.action === "delete" && env.LANGFUSE_LOG_DELETION_ACTORS !== "true") {
+    return;
+  }
+
   let actorLabel = actor.userId;
   if (actor.type === AuditLogRecordType.API_KEY) {
     actorLabel = actor.publicKey
@@ -136,11 +142,10 @@ export async function auditLog(
   prisma?: typeof _prisma | Prisma.TransactionClient,
 ) {
   // Audit log records are an enterprise feature, so they are only persisted
-  // when the instance is licensed for them. logAuditEvent below is deliberately
-  // NOT gated: it is operator telemetry rather than the audited record itself
+  // when the instance is licensed for them. logAuditEvent below is not gated on
+  // the license: it is operator telemetry rather than the audited record itself
   // (ids only, no before/after diff), it is the sole actor trail for mutations
-  // that have no parallel logger call of their own, and the actor logging added
-  // alongside it elsewhere — batch actions, trace deletion — is ungated too.
+  // that have no parallel logger call of their own.
   const persistRecord = isAuditLogEnabled();
 
   const db = prisma ?? _prisma;
