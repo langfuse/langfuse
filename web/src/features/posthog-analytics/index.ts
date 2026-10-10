@@ -21,3 +21,5 @@ export {
   isPostHogClientEnabled,
   isProductAnalyticsAvailable,
 } from "@/src/features/posthog-analytics/productAnalyticsAvailability";
+
+export { initPostHogBrowserClient } from "@/src/features/posthog-analytics/initPostHogBrowserClient";
