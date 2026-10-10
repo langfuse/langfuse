@@ -127,7 +127,9 @@ types:
       lastUpdatedAt: datetime
       lastConfig:
         type: unknown
-        docs: Config object of the most recent prompt version that matches the filters (if any are provided)
+        docs: >-
+          Config object of the most recent prompt version that matches the filters (if any are provided).
+          Arbitrary JSON object stored with the prompt version. Langfuse reads the reserved keys `provider`, `model`, `temperature`, `top_p`, `max_tokens`, `maxReasoningTokens`, `providerOptions` and `tools` to pre-fill the playground and experiment runs. All other keys are stored and returned untouched.
 
   CreatePromptRequest:
     discriminated: false
@@ -139,7 +141,10 @@ types:
     properties:
       name: string
       prompt: list<ChatMessageWithPlaceholders>
-      config: optional<unknown>
+      config:
+        type: optional<unknown>
+        docs: >-
+          Arbitrary JSON object stored with the prompt version. Langfuse reads the reserved keys `provider`, `model`, `temperature`, `top_p`, `max_tokens`, `maxReasoningTokens`, `providerOptions` and `tools` to pre-fill the playground and experiment runs. All other keys are stored and returned untouched.
       type: CreateChatPromptType
       labels:
         type: optional<list<string>>
@@ -155,7 +160,10 @@ types:
     properties:
       name: string
       prompt: string
-      config: optional<unknown>
+      config:
+        type: optional<unknown>
+        docs: >-
+          Arbitrary JSON object stored with the prompt version. Langfuse reads the reserved keys `provider`, `model`, `temperature`, `top_p`, `max_tokens`, `maxReasoningTokens`, `providerOptions` and `tools` to pre-fill the playground and experiment runs. All other keys are stored and returned untouched.
       type: optional<CreateTextPromptType>
       labels:
         type: optional<list<string>>
@@ -181,7 +189,10 @@ types:
     properties:
       name: string
       version: integer
-      config: unknown
+      config:
+        type: unknown
+        docs: >-
+          Arbitrary JSON object stored with the prompt version. Langfuse reads the reserved keys `provider`, `model`, `temperature`, `top_p`, `max_tokens`, `maxReasoningTokens`, `providerOptions` and `tools` to pre-fill the playground and experiment runs. All other keys are stored and returned untouched.
       labels:
         type: list<string>
         docs: List of deployment labels of this prompt version.
