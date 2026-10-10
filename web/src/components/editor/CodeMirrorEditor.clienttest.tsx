@@ -33,6 +33,18 @@ describe("getPromptVariableDiagnostics", () => {
     );
   });
 
+  it("accepts digits after the first letter and names the rule accurately", () => {
+    expect(getPromptVariableDiagnostics("Use {{team_1}} here")).toEqual([]);
+
+    expect(getPromptVariableDiagnostics("Use {{1team}} here")).toEqual([
+      expect.objectContaining({
+        from: 4,
+        message:
+          "Variable must start with a letter and can only contain letters, numbers and underscores",
+      }),
+    ]);
+  });
+
   it("reports unclosed inner variables inside extra literal braces", () => {
     expect(getPromptVariableDiagnostics("Use {{{placeholder} here")).toEqual([
       expect.objectContaining({
