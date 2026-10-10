@@ -577,9 +577,12 @@ export default function SignInPage({
   );
   const hasMultipleAuthMethods = availableProviders.length > 1;
 
-  // Read query params for targetPath and email pre-population
+  // Read query params for targetPath and email pre-population. A repeated
+  // `?email=a&email=b` arrives as an array, so it is dropped rather than cast:
+  // the field is seeded with it and read back out below as a string.
   const queryTargetPath = router.query.targetPath as string | undefined;
-  const emailParam = router.query.email as string | undefined;
+  const queryEmail = router.query.email;
+  const emailParam = typeof queryEmail === "string" ? queryEmail : undefined;
 
   // Validate targetPath to prevent open redirect attacks
   const targetPath = queryTargetPath

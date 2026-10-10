@@ -7,7 +7,7 @@ const { captureExceptionMock, addBreadcrumbMock, signInMock, routerState } =
     captureExceptionMock: vi.fn(),
     addBreadcrumbMock: vi.fn(),
     signInMock: vi.fn(),
-    routerState: { query: {} as Record<string, string> },
+    routerState: { query: {} as Record<string, string | string[]> },
   }));
 
 vi.mock("@sentry/nextjs", () => ({
@@ -567,5 +567,26 @@ describe("sign-in page forgot-password link", () => {
       "href",
       "/auth/reset-password?email=jane%40example.com",
     );
+  });
+});
+
+// `?email=a&email=b` makes router.query.email an array. Rendering it would put
+// "a,b" in the field; reading it as a string would throw on an array.
+describe("sign-in page repeated ?email= param", () => {
+  beforeEach(() => {
+    signInMock.mockReset();
+    routerState.query = {};
+    window.localStorage.clear();
+  });
+
+  it("ignores the param rather than crashing or joining the values", () => {
+    routerState.query = { email: ["a@example.com", "b@example.com"] };
+
+    renderSignIn();
+
+    expect(screen.getByLabelText("Email")).toHaveValue("");
+    expect(
+      screen.getByRole("link", { name: /forgot password/i }),
+    ).toHaveAttribute("href", "/auth/reset-password");
   });
 });
