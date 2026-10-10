@@ -289,6 +289,8 @@ USER ${UID}
 
 # Default port to 3000
 ENV PORT 3000
+# Next.js standalone server reads its keep-alive timeout from the environment.
+ENV KEEP_ALIVE_TIMEOUT 110000
 
 # Docker ENTRYPOINT (dumb-init) is covered by semantic versioning, not the entrypoint.sh itself
 # Reasoning: ENTRYPOINT is overridden by some self-hosted deployments, thus changing this is breaking
@@ -296,7 +298,7 @@ ENTRYPOINT ["dumb-init", "--", "./web/entrypoint.sh"]
 
 # startup command - use dd-trace if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
 CMD if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-    node --import dd-trace/initialize.mjs ./web/server.js --keepAliveTimeout 110000; \
+    node --import dd-trace/initialize.mjs ./web/server.js; \
     else \
-    node ./web/server.js --keepAliveTimeout 110000; \
+    node ./web/server.js; \
     fi
