@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/nextjs";
 import {
   isDenylistedNoiseEvent,
+  isJamExtensionInternalEvent,
   isKitesurfInternalEvent,
   isNoisyHttpClientGatewayEvent,
   isNoisyHttpClientPollEvent,
@@ -72,6 +73,13 @@ Sentry.init({
     // `dom-shim.js`. Same-origin injectors miss `denyUrls`. See
     // isKitesurfInternalEvent.
     if (isKitesurfInternalEvent(event)) {
+      return null;
+    }
+
+    // Drop Jam (jam.dev) injected page-world scripts. Their webpack virtual
+    // filenames (`webpack://jam-extension/…`) miss `denyUrls`. See
+    // isJamExtensionInternalEvent.
+    if (isJamExtensionInternalEvent(event)) {
       return null;
     }
 
