@@ -8534,5 +8534,68 @@
         }
       }
     ]
+  },
+  {
+    "id": "64c487ce-b725-4e2c-b57c-c033ee125a7f",
+    "modelName": "rerank-2.5",
+    "matchPattern": "(?i)^(voyage/)?rerank-2\\.5$",
+    "createdAt": "2026-09-27T07:52:41.000Z",
+    "updatedAt": "2026-09-27T07:52:41.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "64c487ce-b725-4e2c-b57c-c033ee125a7f_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "total": 5e-8
+        }
+      }
+    ]
+  },
+  {
+    "id": "334aedc4-413e-4814-bc69-a15d0ad579da",
+    "modelName": "rerank-2.5-lite",
+    "matchPattern": "(?i)^(voyage/)?rerank-2\\.5-lite$",
+    "createdAt": "2026-09-27T07:52:41.000Z",
+    "updatedAt": "2026-09-27T07:52:41.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "334aedc4-413e-4814-bc69-a15d0ad579da_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "total": 2e-8
+        }
+      }
+    ]
+  },
+  {
+    "id": "8410d763-f02f-4be1-83a0-c706e0f7f4dd",
+    "modelName": "semantic-ranker-default@latest",
+    "matchPattern": "(?i)^semantic-ranker-(?:512(?:@latest)?|default-00[2345](?:@latest)?|fast-00[45](?:@latest)?|(?:default|fast)@latest)$",
+    "createdAt": "2026-09-27T07:52:41.000Z",
+    "updatedAt": "2026-09-27T07:52:41.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "8410d763-f02f-4be1-83a0-c706e0f7f4dd_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "request": 0.001
+        }
+      }
+    ]
   }
 ]
