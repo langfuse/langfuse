@@ -19,6 +19,7 @@ const apiKeys = [
       displaySecretKey: "sk-lf-gw-...91bc",
       note: "Production application",
       createdAt: new Date("2026-09-04T12:00:00.000Z"),
+      expiresAt: new Date("2027-09-04T23:59:59.999Z"),
     },
   },
 ] satisfies Extract<
@@ -37,6 +38,7 @@ const manyApiKeys = Array.from({ length: 30 }, (_, index) => ({
     displaySecretKey: `sk-lf-gw-...${String(index + 1).padStart(4, "0")}`,
     note: `Application ${index + 1}`,
     createdAt: new Date(Date.UTC(2026, 8, 4 - (index % 28))),
+    expiresAt: null,
   },
 })) satisfies Extract<
   ComponentProps<typeof GatewayApiKeysTable>["data"],
@@ -67,7 +69,7 @@ export const PopulatedMetadata = meta.story({
   play: async ({ canvas }) => {
     const cells = canvas.getAllByRole("row")[1]!.querySelectorAll("td");
     await expect(cells[1]).toHaveClass("ph-no-capture");
-    await expect(cells[3]).toHaveClass("ph-no-capture");
+    await expect(cells[4]).toHaveClass("ph-no-capture");
   },
 });
 
@@ -98,7 +100,7 @@ export const OverflowingMetadata = meta.story({
   play: async ({ canvas }) => {
     const metadataCell = canvas
       .getAllByRole("row")[1]!
-      .querySelectorAll("td")[3]!;
+      .querySelectorAll("td")[4]!;
     await waitFor(() => {
       expect(metadataCell).toHaveTextContent(/\+\d+/);
     });

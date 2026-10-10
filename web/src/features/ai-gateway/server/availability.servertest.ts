@@ -30,4 +30,13 @@ describe("gateway organization allowlist", () => {
       }),
     ).toThrow(ForbiddenError);
   });
+
+  it("enables the gateway in preview deployments", () => {
+    expect(
+      isGatewayEnabledForOrganization("org-not-allowed", [], {
+        nodeEnv: "production",
+        previewPrUrl: "https://github.com/langfuse/langfuse/pull/18561",
+      }),
+    ).toBe(true);
+  });
 });

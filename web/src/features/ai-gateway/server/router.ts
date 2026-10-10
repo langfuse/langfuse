@@ -217,6 +217,12 @@ export const aiGatewayRouter = createTRPCRouter({
       organizationInput.extend({
         name: z.string().max(500).optional(),
         metadata: GatewayMetadataSchema.default({}),
+        expiresAt: z
+          .date()
+          .nullish()
+          .refine((date) => date == null || date.getTime() > Date.now(), {
+            message: "Expiration date must be in the future",
+          }),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -225,6 +231,7 @@ export const aiGatewayRouter = createTRPCRouter({
         organizationId: input.orgId,
         name: input.name,
         metadata: input.metadata,
+        expiresAt: input.expiresAt,
         session: ctx.session,
       });
       return key;
