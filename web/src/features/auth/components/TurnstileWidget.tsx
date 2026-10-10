@@ -3,8 +3,10 @@ import {
   useEffectEvent,
   useImperativeHandle,
   useRef,
+  useState,
   type Ref,
 } from "react";
+import { Button } from "@/src/components/ui/button";
 import type { TurnstileAction } from "@/src/features/auth/constants";
 
 const SCRIPT_SRC =
@@ -41,10 +43,15 @@ function loadTurnstile(): Promise<TurnstileApi> {
     script.src = SCRIPT_SRC;
     script.async = true;
     script.defer = true;
-    script.onload = () =>
-      window.turnstile
-        ? resolve(window.turnstile)
-        : reject(new Error("Turnstile script loaded without its API"));
+    script.onload = () => {
+      if (window.turnstile) {
+        resolve(window.turnstile);
+        return;
+      }
+      scriptPromise = null;
+      script.remove();
+      reject(new Error("Turnstile script loaded without its API"));
+    };
     script.onerror = () => {
       scriptPromise = null;
       script.remove();
@@ -82,20 +89,24 @@ export type TurnstileWidgetHandle = {
  * widget so the next token carries the new action. `onTokenChange` receives
  * `undefined` whenever the current token is no longer usable.
  */
+type TurnstileWidgetProps = {
+  siteKey: string;
+  action: TurnstileAction;
+  onTokenChange: (token: string | undefined) => void;
+  ref?: Ref<TurnstileWidgetHandle>;
+};
+
 export function TurnstileWidget({
   siteKey,
   action,
   onTokenChange,
   ref,
-}: {
-  siteKey: string;
-  action: TurnstileAction;
-  onTokenChange: (token: string | undefined) => void;
-  ref?: Ref<TurnstileWidgetHandle>;
-}) {
+}: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
   const pendingTokenRef = useRef<PendingToken>(null);
+  const [scriptFailed, setScriptFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   const handleToken = useEffectEvent((token: string | undefined) => {
     onTokenChange(token);
@@ -111,6 +122,7 @@ export function TurnstileWidget({
   // container on mount and remove it on unmount.
   useEffect(() => {
     let cancelled = false;
+    setScriptFailed(false);
     loadTurnstile()
       .then((turnstile) => {
         if (cancelled || !containerRef.current) return;
@@ -123,7 +135,11 @@ export function TurnstileWidget({
           "error-callback": () => handleError(),
         });
       })
-      .catch(() => handleError());
+      .catch(() => {
+        if (cancelled) return;
+        setScriptFailed(true);
+        handleError();
+      });
 
     return () => {
       cancelled = true;
@@ -132,7 +148,7 @@ export function TurnstileWidget({
         widgetIdRef.current = null;
       }
     };
-  }, [siteKey, action]);
+  }, [siteKey, action, loadAttempt]);
 
   useImperativeHandle(
     ref,
@@ -153,5 +169,21 @@ export function TurnstileWidget({
     [onTokenChange],
   );
 
-  return <div ref={containerRef} className="flex justify-center" />;
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div ref={containerRef} />
+      {scriptFailed ? (
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => {
+            scriptPromise = null;
+            setLoadAttempt((attempt) => attempt + 1);
+          }}
+        >
+          Captcha failed to load. Retry
+        </Button>
+      ) : null}
+    </div>
+  );
 }

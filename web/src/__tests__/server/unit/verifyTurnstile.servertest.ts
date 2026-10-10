@@ -2,6 +2,7 @@ const { env } = vi.hoisted(() => ({
   env: {
     TURNSTILE_SECRET: undefined as string | undefined,
     TURNSTILE_HOSTNAMES: undefined as string | undefined,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: undefined as string | undefined,
   },
 }));
 
@@ -42,6 +43,7 @@ describe("verifyTurnstileToken", () => {
   beforeEach(() => {
     env.TURNSTILE_SECRET = "test-secret";
     env.TURNSTILE_HOSTNAMES = "cloud.langfuse.com, us.cloud.langfuse.com";
+    env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = "site-key";
     fetchMock.mockReset();
     vi.stubGlobal("fetch", fetchMock);
   });
@@ -100,6 +102,13 @@ describe("verifyTurnstileToken", () => {
     await expect(verifyLogin(undefined)).resolves.toBe(false);
     await expect(verifyLogin("")).resolves.toBe(false);
     await expect(verifyLogin("x".repeat(2049))).resolves.toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects when the secret is set but the site key was not baked in", async () => {
+    env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = undefined;
+
+    await expect(verifyLogin("token-from-widget")).resolves.toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

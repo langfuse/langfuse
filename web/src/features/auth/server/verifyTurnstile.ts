@@ -53,6 +53,15 @@ export async function verifyTurnstileToken({
   const secret = env.TURNSTILE_SECRET;
   if (!secret) return true;
 
+  // The site key is baked into the client at build time. A secret without it
+  // rejects every password sign-in while the page shows no captcha.
+  if (!env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
+    logger.error(
+      "Turnstile: TURNSTILE_SECRET is set but NEXT_PUBLIC_TURNSTILE_SITE_KEY is missing from this build; rejecting",
+    );
+    return false;
+  }
+
   const expectedHostnames = getExpectedHostnames();
   if (expectedHostnames.size === 0) {
     logger.error(

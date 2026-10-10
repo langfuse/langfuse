@@ -693,7 +693,10 @@ export default function SignInPage({
     env.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN === "true" &&
     authProviders.credentials &&
     !autoSignInOptedOut &&
-    !nextAuthError;
+    !nextAuthError &&
+    // Auto sign-in has no captcha. When the site key is baked in, the form
+    // below collects a login token instead of failing this request.
+    !env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const [previewAutoSignInPending, setPreviewAutoSignInPending] = useState(
     previewAutoSignInEnabled,
   );

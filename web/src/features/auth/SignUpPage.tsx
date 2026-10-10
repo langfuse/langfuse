@@ -44,6 +44,29 @@ import { TURNSTILE_ACTIONS } from "@/src/features/auth/constants";
 
 type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
 
+const LOGIN_CAPTCHA_WAIT_MS = 20_000;
+const ACCOUNT_CREATED_MESSAGE =
+  "Your account was created. Complete the captcha, then sign in.";
+
+function waitForLoginToken(
+  pending: Promise<string | undefined> | undefined,
+): Promise<string | undefined> {
+  if (!pending) return Promise.resolve(undefined);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(undefined), LOGIN_CAPTCHA_WAIT_MS);
+    pending.then(
+      (token) => {
+        clearTimeout(timer);
+        resolve(token);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(undefined);
+      },
+    );
+  });
+}
+
 // Schema for the verified signup flow (email + name only, no password)
 const signupVerifyFormSchema = z.object({
   name: StringNoHTMLNonEmpty.refine((value) => noUrlCheck(value), {
@@ -110,6 +133,7 @@ function StandardSignupFlow({
   const [turnstileAction, setTurnstileAction] = useState<
     typeof TURNSTILE_ACTIONS.signup | typeof TURNSTILE_ACTIONS.login
   >(TURNSTILE_ACTIONS.signup);
+  const [accountCreated, setAccountCreated] = useState(false);
   const turnstileRef = useRef<TurnstileWidgetHandle>(null);
   const [lastUsedAuthMethod, setLastUsedAuthMethod] =
     useLocalStorage<NextAuthProvider | null>(
@@ -209,9 +233,40 @@ function StandardSignupFlow({
     }
   }
 
+  async function signInAfterSignup(
+    values: z.infer<typeof signupSchema>,
+    loginTurnstileToken: string | undefined,
+  ) {
+    let callbackUrl =
+      targetPath ??
+      (isLangfuseCloud
+        ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
+        : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`);
+    const demoTargetPath = getDemoTargetPath(targetPath);
+    if (isLangfuseCloud && demoTargetPath) {
+      callbackUrl = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding?targetPath=${encodeURIComponent(demoTargetPath)}`;
+    }
+
+    await signIn<"credentials">("credentials", {
+      email: values.email,
+      password: values.password,
+      callbackUrl,
+      turnstileToken: loginTurnstileToken,
+    });
+  }
+
   async function onSubmit(values: z.infer<typeof signupSchema>) {
+    // Once the account exists, later submits must not call signup again.
+    // The widget is on the login action, so a signup retry would send a
+    // token the signup endpoint rejects.
+    let created = accountCreated;
     try {
       setFormError(null);
+      if (created) {
+        await signInAfterSignup(values, turnstileToken);
+        return;
+      }
+
       const res = await fetch(
         `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/signup`,
         {
@@ -228,6 +283,9 @@ function StandardSignupFlow({
         return;
       }
 
+      created = true;
+      setAccountCreated(true);
+
       // The sign-up request redeemed its token; signing in needs a fresh
       // token issued for the `login` action.
       let loginTurnstileToken: string | undefined;
@@ -235,36 +293,25 @@ function StandardSignupFlow({
         const nextToken = turnstileRef.current?.nextToken();
         setTurnstileToken(undefined);
         setTurnstileAction(TURNSTILE_ACTIONS.login);
-        loginTurnstileToken = await nextToken;
+        loginTurnstileToken = await waitForLoginToken(nextToken);
       }
       if (turnstileSiteKey && !loginTurnstileToken) {
-        setFormError(
-          "Your account was created. Please complete the captcha on the sign-in page to continue.",
-        );
+        setFormError(ACCOUNT_CREATED_MESSAGE);
         return;
       }
 
-      let callbackUrl =
-        targetPath ??
-        (isLangfuseCloud
-          ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
-          : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`);
-      const demoTargetPath = getDemoTargetPath(targetPath);
-      if (isLangfuseCloud && demoTargetPath) {
-        callbackUrl = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding?targetPath=${encodeURIComponent(demoTargetPath)}`;
-      }
-
-      await signIn<"credentials">("credentials", {
-        email: values.email,
-        password: values.password,
-        callbackUrl,
-        turnstileToken: loginTurnstileToken,
-      });
+      await signInAfterSignup(values, loginTurnstileToken);
     } catch {
       turnstileRef.current?.reset();
-      setFormError("An error occurred. Please try again.");
+      setFormError(
+        created
+          ? ACCOUNT_CREATED_MESSAGE
+          : "An error occurred. Please try again.",
+      );
     }
   }
+
+  const passwordSubmitLabel = accountCreated ? "Sign in" : "Sign up";
 
   return (
     <SignupPageShell>
@@ -349,7 +396,7 @@ function StandardSignupFlow({
             }
             data-testid="submit-email-password-sign-up-form"
           >
-            {showPasswordStep ? "Sign up" : "Continue"}
+            {showPasswordStep ? passwordSubmitLabel : "Continue"}
           </Button>
           {formError ? (
             <div className="text-destructive text-center text-sm font-bold">
