@@ -235,6 +235,74 @@ describe("UI Prompts Table", () => {
     ]);
   });
 
+  // A page of 100 names this long exceeds ClickHouse's HTTP URI limit when
+  // the names are sent verbatim; all share one prefix to pin exact matching.
+  const longPromptNames = Array.from(
+    { length: 100 },
+    (_, i) => `${"long-prompt-".repeat(500)}${i}`,
+  );
+  const unrequestedLongPromptName = `${"long-prompt-".repeat(500)}other`;
+
+  it("should count observations for a page of very long prompt names", async () => {
+    const projectId = v4();
+    await createObservationsCh(
+      [longPromptNames[0], longPromptNames[99], unrequestedLongPromptName].map(
+        (promptName) =>
+          createObservation({
+            project_id: projectId,
+            type: "GENERATION",
+            prompt_name: promptName,
+          }),
+      ),
+    );
+
+    const result = await getObservationsWithPromptName(
+      projectId,
+      longPromptNames,
+    );
+
+    expect(result).toHaveLength(2);
+    expect(result).toEqual(
+      expect.arrayContaining([
+        { promptName: longPromptNames[0], count: 1 },
+        { promptName: longPromptNames[99], count: 1 },
+      ]),
+    );
+  });
+
+  itIfEventsTable(
+    "should count events for a page of very long prompt names",
+    async () => {
+      const projectId = v4();
+      await createEventsCh(
+        [
+          longPromptNames[0],
+          longPromptNames[99],
+          unrequestedLongPromptName,
+        ].map((promptName) =>
+          createEvent({
+            project_id: projectId,
+            prompt_id: v4(),
+            prompt_name: promptName,
+          }),
+        ),
+      );
+
+      const result = await getObservationsWithPromptNameFromEvents(
+        projectId,
+        longPromptNames,
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result).toEqual(
+        expect.arrayContaining([
+          { promptName: longPromptNames[0], count: 1 },
+          { promptName: longPromptNames[99], count: 1 },
+        ]),
+      );
+    },
+  );
+
   itIfEventsTable(
     "should count the observations which belong to a prompt from events",
     async () => {

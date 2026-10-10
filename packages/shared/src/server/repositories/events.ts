@@ -105,6 +105,7 @@ import type { AnalyticsObservationEvent } from "../analytics-integrations/types"
 import {
   getObservationByIdFromObservationsTable,
   ObservationTableQuery,
+  promptNamePrefixFilter,
 } from "./observations";
 import { convertEventsObservation } from "./observations_converters";
 import {
@@ -671,11 +672,12 @@ export const getObservationsWithPromptNameFromEvents = async (
     toTimestamp,
   }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
 ) => {
+  const nameFilter = promptNamePrefixFilter(promptNames);
   const query = `
   SELECT uniq(span_id) as count, prompt_name
   FROM events_core
   WHERE project_id = {projectId: String}
-  AND prompt_name IN ({promptNames: Array(String)})
+  AND leftUTF8(prompt_name, {promptNamePrefixLength: UInt32}) IN ({promptNamePrefixes: Array(String)})
   AND prompt_name != ''
   AND is_deleted = 0
   ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(6)}" : ""}
@@ -686,7 +688,8 @@ export const getObservationsWithPromptNameFromEvents = async (
     query,
     params: {
       projectId,
-      promptNames,
+      promptNamePrefixLength: nameFilter.length,
+      promptNamePrefixes: nameFilter.prefixes,
       fromTimestamp: fromTimestamp
         ? convertDateToClickhouseDateTime(fromTimestamp)
         : undefined,
@@ -698,10 +701,12 @@ export const getObservationsWithPromptNameFromEvents = async (
     preferredClickhouseService: "EventsReadOnly",
   });
 
-  return rows.map((row) => ({
-    count: Number(row.count),
-    promptName: row.prompt_name,
-  }));
+  return rows
+    .filter((row) => nameFilter.matches(row.prompt_name))
+    .map((row) => ({
+      count: Number(row.count),
+      promptName: row.prompt_name,
+    }));
 };
 
 export const getTraceDeleteCursorPageFromEvents = async (props: {
