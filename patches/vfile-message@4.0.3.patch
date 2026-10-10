@@ -1,0 +1,24 @@
+diff --git a/lib/index.js b/lib/index.js
+index b51817e5be3ba02a3c30a660b0f214981730667d..fa04d9b425da2ee5257ea281b067379bf3755a18 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -303,7 +303,18 @@ VFileMessage.prototype.file = ''
+ VFileMessage.prototype.name = ''
+ VFileMessage.prototype.reason = ''
+ VFileMessage.prototype.message = ''
+-VFileMessage.prototype.stack = ''
++// Own writable `stack`. Inherited `Error.prototype.stack` is getter-only in
++// Safari, so `prototype.stack = ''` throws during module evaluation.
++try {
++  VFileMessage.prototype.stack = ''
++} catch {
++  Object.defineProperty(VFileMessage.prototype, 'stack', {
++    configurable: true,
++    enumerable: true,
++    writable: true,
++    value: ''
++  })
++}
+ VFileMessage.prototype.column = undefined
+ VFileMessage.prototype.line = undefined
+ VFileMessage.prototype.ancestors = undefined
