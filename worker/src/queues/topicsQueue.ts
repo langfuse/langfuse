@@ -8,6 +8,8 @@ import {
   getTopicEmbeddingBatchState,
   isTopicsProjectEnabled,
   recordTopicProcessBatchProgress,
+  enqueueAutomaticTopicAssignments,
+  isAutomaticTopicExecution,
 } from "@langfuse/shared/topics/server";
 import type { TopicProcessBatchState } from "@langfuse/shared/topics";
 import { processTopicsExecution } from "../features/topics/processTopicsExecution";
@@ -42,6 +44,24 @@ export const topicsQueueProcessor: Processor<
       ...job.data.payload,
       batchState,
       saveBatchState: async (state: TopicProcessBatchState) => {
+        if (
+          ["completed", "completed_with_errors"].includes(
+            state.execution.status,
+          ) &&
+          !state.execution.facets.some((facet) => facet.outcome === "failed") &&
+          job.data.payload.traceIds &&
+          (await isAutomaticTopicExecution(
+            job.data.payload.projectId,
+            job.data.payload.executionId,
+          ))
+        )
+          await enqueueAutomaticTopicAssignments({
+            projectId: job.data.payload.projectId,
+            traceIds: job.data.payload.traceIds,
+            batchId: `${job.data.payload.executionId}-${job.data.payload.batchId}`,
+            facets: state.execution.input.facets,
+            embeddingConfig: state.execution.input.embeddingConfig,
+          });
         await job.updateData({ ...job.data, batchState: state });
         batchState = state;
         const progress = `${state.execution.status}:${state.execution.phase}`;

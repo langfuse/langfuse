@@ -23,6 +23,12 @@
   `topics-embedding` embeds staged results. `LANGFUSE_TOPICS_ENABLED` gates queue
   registration. Processors also enforce `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`;
   trace and project cleanup run independently of both gates.
+  `processAutomaticTopics.ts` handles reference-only assignment and initial
+  discovery on `topics-update`; recovery uses an automatic Process execution.
+  Keep automatic queue ownership aligned with execution IDs and persist its
+  assignment handoff before acknowledging terminal processing state.
+  Discovery resumes must reacquire facet ownership; finish catch-up inside the
+  execution's completion callback so failed assignments remain resumable.
   Paid results are staged before retryable
   persistence, and unchanged embedding waits must read only Redis queue state.
   Summary references use source fields; preserve `summaryProcessedAt` checks

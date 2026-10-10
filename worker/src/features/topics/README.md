@@ -58,8 +58,8 @@ pnpm --filter @langfuse/native run build
 The worker reads `LANGFUSE_AI_AWS_BEDROCK_REGION` for Topics model calls.
 Set `LANGFUSE_TOPICS_SUMMARY_MODEL` and `LANGFUSE_TOPICS_EMBEDDING_MODEL` on
 both web and worker to Bedrock model IDs. Neither has a default; Topics
-processing is unavailable until both are set. Changing either requires a new
-execution, and changing the embedding model requires rebuilding the map from
+processing is unavailable until both are set. Inference under changed model
+settings requires a new execution, and changing the embedding model requires rebuilding the map from
 the new vectors. These are internal Topics PoC settings, not part of the
 self-hosted configuration surface. Topic naming continues to use
 `us.openai.gpt-5.6-terra`.
@@ -100,8 +100,10 @@ naming uses `us.openai.gpt-5.6-terra` through Bedrock Converse with reasoning
 disabled. The AWS model cards for [GPT-5.6 Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
 and [GPT-5.6 Terra](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html)
 currently list `us.` geographic inference profiles in commercial Regions, but
-no `eu.` profiles; these profiles route within the US geography, including when
-invoked from `eu-west-1`.
+no `eu.` profiles. Invoke them from a supported source Region; do not assume a
+US profile is available from an EU endpoint. The configured Bedrock Region must
+support both the text profiles and the selected embedding profile. Local testing
+of `us.openai.gpt-5.6-luna` from `eu-west-1` returned an invalid-model error.
 Embeddings use a regional Cohere Embed v4 inference profile on Amazon Bedrock:
 set `LANGFUSE_TOPICS_EMBEDDING_MODEL` to `eu.cohere.embed-v4:0` for EU routing
 or `us.cohere.embed-v4:0` for US routing. Avoid the global profile when
@@ -134,26 +136,88 @@ from ClickHouse again. Projects outside
 `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` are skipped. A finished facet version is
 skipped on retry. A failing trace does not stop the batch: every trace is
 processed and outcomes are counted once per job (`langfuse.topics.trace_outcomes`
-by outcome and reason). Failed traces are not retried, because a retry would
-read the shared batch from ClickHouse again. Only a failed batch read fails the
-job. Summaries and embeddings use the same Bedrock models as manual
-processing.
+by outcome and reason). A failed trace gets a durable one-trace Process execution
+with stored-summary reuse. It receives one queued recovery attempt; further
+failures remain visible in History with Resume available. A failed recovery or
+assignment handoff fails the original batch so accepted work is not silently
+lost. The original batch checkpoints one pending recovery reference before
+admission and drains it before rereading or expiring. The reference freezes its
+one-trace execution input before execution creation; retries preserve the same
+facets, model settings and request identity even after configuration changes.
+Temporary disablement retains accepted admissions. Exhausted admission retries
+retain that reference in the failed batch for operator retry. Automatic recovery
+uses the same transcript projection as ingest, excluding reasoning, inline media,
+provider metadata and provenance. Summaries and embeddings use the same Bedrock
+models as manual processing.
+
+The original batch also checkpoints its eligible projects, accepted facet
+versions, processing/embedding settings and assignment window before reading
+sources or summarizing. Retries retain those snapshots, bounded trace references
+and original window;
+expiry drains that handoff before discarding the batch. Accepted scope remains
+on the parent job through queue completion and its normal retention lifetime,
+so a lost completion acknowledgement cannot recapture newer facets or models
+behind an already-admitted deterministic handoff.
+Temporary disablement fails assignment, discovery and recovery admission rather
+than silently discarding pending work. Retry scope excludes originally ineligible
+projects even if they are enabled later; transcript metrics still cover the batch.
+Summarization loads the accepted historical facet definitions. Assignment and
+failed-trace recovery inherit that same scope instead of selecting latest
+versions again. Assignment only uses a compatible serving map; new discovery
+requires the current facet version and embedding configuration. Queue snapshots
+contain references and settings, not prompts or transcript text.
+
+After the batch finishes, reference-only jobs on `topics-update` assign current
+complete summaries to compatible published maps. A facet without a map triggers
+automatic initial discovery once it has 100 compatible summaries from the last
+seven days. Discovery uses standard clustering and the configured embedding
+model at 1,024 dimensions. Concurrent requests coalesce per project and facet version, retaining
+one follow-up for arrivals during a fit. Queued discovery catches up only facets
+that needed a map; sparse facets do not repeatedly scan existing maps. A completed
+map with no topics remains valid, and subsequent summaries become outliers.
+Use **Update topics** to refit existing maps as more evidence arrives.
+An existing map for the current facet version also blocks automatic discovery
+when its embedding configuration is incompatible. Replace it with an explicit
+**Update topics** execution; a new facet version remains eligible for discovery.
+
+Automatic assignment reads persisted summaries and does not run inference.
+Recovery reuses compatible persisted facets, but a crash between a provider
+response and its durable checkpoint can repeat inference. An execution is marked
+complete only after its automatic assignment handoff is accepted. Discovery
+reads the current seven-day source window on each wakeup, including after retry
+backoff, and freezes the fit input before creating its execution. Retries retain
+that accepted input, including its facet versions and embedding configuration,
+then catch up arrivals in the current window while the compatible map serves. Assignment
+batches retain their enqueue-time window. Executions appear in the normal history.
+Retained discovery follow-ups bind their generated BullMQ job ID to the execution
+before processing, so History and Resume keep the original job and retry input.
+Resumed discovery reacquires the facet's deduplication key before processing;
+another owner delays it without spending inference or changing accepted input.
+Discovery stays resumable until catch-up assignments finish. A failed catch-up
+retries those assignments without refitting its already published map.
+Completed discovery replays also catch up arrivals after lost acknowledgements.
+Finished automatic processing can retry its assignment handoff after summary
+persistence and embedding acknowledgement, using accepted settings without new
+inference. Automatic updates with terminal facets can likewise finish catch-up;
+unfinished inference and manual executions still enforce current model settings.
+If its retained job expires or is pruned, automatic Resume reports expired retry
+state; start a new execution instead of falling back to manual update processing.
 
 Required for a local run, in addition to Postgres, ClickHouse, and Redis:
 
-| Variable                                      | Role                                                                                                                                                                                                                                                 |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION`           | Must be set or the batch job is discarded. Local dev uses `DEV`.                                                                                                                                                                                     |
-| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | Track accepted writes. Default off.                                                                                                                                                                                                                  |
-| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | Enqueue idle traces. Default off.                                                                                                                                                                                                                    |
-| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | Register the batch worker. Default off.                                                                                                                                                                                                              |
-| `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | Allow the ClickHouse read. Default off.                                                                                                                                                                                                              |
-| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | Idle time before a trace is ready. Unset is 2 minutes on `DEV` and 10 minutes otherwise.                                                                                                                                                             |
-| `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`         | Same allowlist on web and worker. Unset defaults to the demo project. These projects bypass trace-batch sampling at ingestion, so every trace is summarized automatically; set `LANGFUSE_TRACE_BATCH_SAMPLING_RATE=0` to run the flow for them only. |
-| `LANGFUSE_AI_AWS_BEDROCK_REGION`              | Bedrock region for summaries, naming, and embeddings.                                                                                                                                                                                                |
-| `LANGFUSE_TOPICS_SUMMARY_MODEL`               | Required internal PoC setting; Bedrock model ID used for trace summaries.                                                                                                                                                                            |
-| `LANGFUSE_TOPICS_EMBEDDING_MODEL`             | Required internal PoC setting; Bedrock embedding model ID.                                                                                                                                                                                           |
-| `LANGFUSE_AI_FEATURES_AWS_PROFILE`            | Optional shared local AI profile. `AWS_PROFILE` takes precedence; falls back to `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`.                                                                                                                                 |
+| Variable                                      | Role                                                                                                                                                                                                                                       |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION`           | Must be set or the batch job is discarded. Local dev uses `DEV`.                                                                                                                                                                           |
+| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | Track accepted writes. Default off.                                                                                                                                                                                                        |
+| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | Enqueue idle traces. Default off.                                                                                                                                                                                                          |
+| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | Register the batch worker. Default off.                                                                                                                                                                                                    |
+| `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | Allow the ClickHouse read. Default off.                                                                                                                                                                                                    |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | Idle time before a trace is ready. Unset is 2 minutes on `DEV` and 10 minutes otherwise.                                                                                                                                                   |
+| `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`         | Same allowlist on web and worker. Unset admits no projects. These projects bypass trace-batch sampling at ingestion, so every trace is summarized automatically; set `LANGFUSE_TRACE_BATCH_SAMPLING_RATE=0` to run the flow for them only. |
+| `LANGFUSE_AI_AWS_BEDROCK_REGION`              | Bedrock region for summaries, naming, and embeddings.                                                                                                                                                                                      |
+| `LANGFUSE_TOPICS_SUMMARY_MODEL`               | Required internal PoC setting; Bedrock model ID used for trace summaries.                                                                                                                                                                  |
+| `LANGFUSE_TOPICS_EMBEDDING_MODEL`             | Required internal PoC setting; Bedrock embedding model ID.                                                                                                                                                                                 |
+| `LANGFUSE_AI_FEATURES_AWS_PROFILE`            | Optional shared local AI profile. `AWS_PROFILE` takes precedence; falls back to `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`.                                                                                                                       |
 
 ## Run the experiment
 
@@ -371,8 +435,8 @@ requested from the model. A non-applicable result containing a summary is reject
 not silently repaired. Real model
 quality checks remain necessary; mocked tests cannot establish summary accuracy.
 
-Postgres stores one `batch_actions` row per manual request for either operation,
-and one clustering-run row per real attempt. Update admission creates the first
+Postgres stores one `batch_actions` row per manual request, automatic discovery,
+or failed-trace recovery, and one clustering-run row per real attempt. Update admission creates the first
 pending run for each selected facet/version and saves its reference atomically.
 BatchAction owns lifecycle, error and aggregate progress; run config contains
 embedding compatibility and numerical settings. Retry counts for completed maps
@@ -424,8 +488,9 @@ the completed attempt without fitting again. Skipped attempts also resume
 without recomputation, using the previously saved cohort count to distinguish
 no applicable summaries from insufficient data.
 
-There is no automatic discovery schedule or stream producer yet. The planned
-six-hour scheduler should invoke the same update path as the manual button.
+Ingest triggers initial discovery and assignment; it does not periodically refit
+an existing map. There is no automatic refit schedule. A future periodic scheduler
+should invoke the same update path as the manual button.
 Large per-project discovery, all-member naming, and distributed stream processing
 remain follow-up work; this is not a 100-million-traces/day throughput validation.
 

@@ -30,10 +30,12 @@ const mocks = vi.hoisted(() => ({
   hget: vi.fn(),
   exists: vi.fn(),
   get: vi.fn(),
+  automatic: vi.fn(),
 }));
 vi.mock("./execution-store", () => ({
   readTopicExecutionSummary: mocks.read,
   writeTopicExecution: mocks.write,
+  isAutomaticTopicExecution: mocks.automatic,
 }));
 vi.mock("../redis/redis", () => ({
   createBullMQQueueOptionsWithRedis: () => null,
@@ -149,6 +151,44 @@ describe("Topics execution queue state", () => {
       { jobId: "run" },
     );
   });
+
+  it.each([true, false])(
+    "handles a pruned failed update without switching an automatic processor: %s",
+    async (automatic) => {
+      const pending = execution("update");
+      pending.status = "failed";
+      pending.facets[0].outcome = "published";
+      pending.error = "Catch-up write failed";
+      mocks.read.mockResolvedValue(pending);
+      mocks.automatic.mockResolvedValue(automatic);
+      mocks.get.mockResolvedValue("pruned-follow-up");
+      const queue = {
+        getJob: vi.fn().mockResolvedValue(undefined),
+        add: vi.fn(),
+      };
+      vi.spyOn(TopicsUpdateQueue, "getInstance").mockReturnValue(
+        queue as unknown as NonNullable<
+          ReturnType<typeof TopicsUpdateQueue.getInstance>
+        >,
+      );
+      if (automatic) {
+        await expect(enqueueTopicExecution("project-a", "run")).rejects.toThrow(
+          "expired",
+        );
+        expect(queue.add).not.toHaveBeenCalled();
+      } else {
+        await enqueueTopicExecution("project-a", "run");
+        expect(queue.add).toHaveBeenCalledExactlyOnceWith(
+          "topics",
+          expect.objectContaining({
+            payload: { projectId: "project-a", executionId: "run" },
+          }),
+          { jobId: "run" },
+        );
+      }
+      expect(queue.getJob).toHaveBeenCalledWith("pruned-follow-up");
+    },
+  );
 
   it("retries terminal batches atomically without replacing their accepted input", async () => {
     let state = "failed";
@@ -394,6 +434,7 @@ describe("Topics execution queue state", () => {
     ): TopicProcessBatchState => {
       const local = structuredClone(parent);
       local.status = status;
+      local.error = status === "failed" ? "Topics provider unavailable" : null;
       local.facets[1].counts.requested = 100;
       local.facets[1].counts.complete = status === "completed" ? 50 : 0;
       local.facets[1].outcome = status === "completed" ? "assigned" : "pending";
@@ -424,7 +465,13 @@ describe("Topics execution queue state", () => {
       const totalsKey = [...keys].find((key) => key.endsWith(":totals"))!;
       expect(await client.hget(totalsKey, "next")).toBe("1");
       await recordTopicProcessBatchProgress("1", batch("failed"));
-      expect(mocks.write.mock.lastCall?.[0].status).toBe("failed");
+      expect(mocks.write.mock.lastCall?.[0]).toMatchObject({
+        status: "failed",
+        facets: [
+          { outcome: "failed" },
+          { outcome: "failed", error: "Topics provider unavailable" },
+        ],
+      });
       await recordTopicProcessBatchProgress("1", batch("running"));
       expect(mocks.write.mock.lastCall?.[0].status).toBe("running");
       expect(await client.hget(totalsKey, "next")).toBe("1");

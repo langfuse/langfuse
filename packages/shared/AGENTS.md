@@ -83,6 +83,10 @@
   - `execution-store.ts`: one BatchAction per request, compact counters and run references.
     Writes accept progress only; immutable settings stay in the stored request.
     Trace inputs and paid outputs belong outside the execution store.
+    Automatic executions use an explicit system actor; manual creation requires
+    the requesting user. `automatic-queue.ts` owns bounded assignment references
+    and coalesced discovery jobs on `topics-update`. `queue.ts` binds generated
+    follow-up job IDs to executions for ownership checks and Resume.
   - `trace-selection.ts`: shared bounded observation selection for web previews,
     ID-only processing requests and worker backfills; retain identical sampling.
   - `embedding-queue.ts`: Redis staging with a fixed expiry; retain accepted

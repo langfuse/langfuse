@@ -14,6 +14,7 @@ import {
 } from "../../topics";
 
 export const TOPICS_ACTION = "topics";
+const AUTOMATIC_TOPICS_ACTOR = "system:topics";
 type BatchMetadata = {
   inputSettings:
     | Extract<TopicExecutionSummary["input"], { operation: "process" }>
@@ -37,7 +38,10 @@ const statuses = {
 };
 const hash = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
-const executionIdForRequest = (projectId: string, requestId: string) =>
+export const topicExecutionIdForRequest = (
+  projectId: string,
+  requestId: string,
+) =>
   createHash("sha256")
     .update(`${projectId}:${requestId}`)
     .digest("hex")
@@ -120,9 +124,33 @@ export async function createTopicExecution(
   originalRequestHash?: string,
   userId?: string,
 ): Promise<TopicExecution> {
-  const input = topicExecutionInputSchema.parse(rawInput);
   if (!userId)
     throw new InvalidRequestError("A user is required to run Topics manually.");
+  return createExecution(rawInput, originalRequestHash, userId);
+}
+
+export async function createAutomaticTopicExecution(
+  input: TopicExecutionInput,
+): Promise<TopicExecution> {
+  return createExecution(input, undefined, AUTOMATIC_TOPICS_ACTOR);
+}
+
+export async function isAutomaticTopicExecution(
+  projectId: string,
+  executionId: string,
+): Promise<boolean> {
+  return (
+    (await storedExecution(projectId, executionId))?.userId ===
+    AUTOMATIC_TOPICS_ACTOR
+  );
+}
+
+async function createExecution(
+  rawInput: TopicExecutionInput,
+  originalRequestHash: string | undefined,
+  userId: string,
+): Promise<TopicExecution> {
+  const input = topicExecutionInputSchema.parse(rawInput);
   input.facets = [
     ...new Map(
       input.facets.map((facet) => [
@@ -133,7 +161,7 @@ export async function createTopicExecution(
   ];
   if (input.operation === "process")
     input.traceIds = [...new Set(input.traceIds)];
-  const id = executionIdForRequest(input.projectId, input.requestId);
+  const id = topicExecutionIdForRequest(input.projectId, input.requestId);
   const requestHash = originalRequestHash ?? hash(input);
   const existing = await storedExecution(input.projectId, id);
   if (existing) {
@@ -255,7 +283,7 @@ export async function readTopicExecutionForRequest(
   requestHash: string,
 ): Promise<TopicExecutionSummary | null> {
   topicIdSchema.parse(requestId);
-  const id = executionIdForRequest(projectId, requestId);
+  const id = topicExecutionIdForRequest(projectId, requestId);
   const stored = await storedExecution(projectId, id);
   if (!stored) return null;
   if (batchMetadata(stored).requestHash !== requestHash)

@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   progress: vi.fn(),
   enabled: vi.fn(),
   embed: vi.fn(),
+  automatic: vi.fn(),
+  enqueueAutomatic: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server", () => ({
   QueueJobs: { Topics: "topics", TopicsEmbedding: "topics-embedding" },
@@ -20,6 +22,8 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   getTopicEmbeddingBatchState: mocks.state,
   recordTopicProcessBatchProgress: mocks.progress,
   isTopicsProjectEnabled: mocks.enabled,
+  isAutomaticTopicExecution: mocks.automatic,
+  enqueueAutomaticTopicAssignments: mocks.enqueueAutomatic,
 }));
 vi.mock("../features/topics/processTopicsExecution", () => ({
   processTopicsExecution: mocks.process,
@@ -260,5 +264,40 @@ describe("Topics coordinator waiting", () => {
     ).rejects.toThrow("Resume to retry");
     expect(mocks.progress).toHaveBeenLastCalledWith("0", failed);
     expect(job.data.batchState).toBe(failed);
+  });
+
+  it("retries recovered-summary handoff before acknowledging completion", async () => {
+    const job = waitingJob();
+    delete job.data.batchState;
+    mocks.automatic.mockResolvedValue(true);
+    mocks.enqueueAutomatic.mockRejectedValueOnce(
+      new Error("Redis unavailable"),
+    );
+    const accepted = acceptedState();
+    accepted.execution.status = "completed";
+    accepted.execution.phase = "completed";
+    accepted.execution.facets[0].outcome = "awaiting_topics";
+    mocks.process.mockImplementation(async ({ saveBatchState }) =>
+      saveBatchState(accepted),
+    );
+    await expect(
+      topicsQueueProcessor(
+        job as unknown as Parameters<typeof topicsQueueProcessor>[0],
+      ),
+    ).rejects.toThrow("Redis unavailable");
+    expect(job.updateData).not.toHaveBeenCalled();
+    expect(mocks.progress).not.toHaveBeenCalled();
+    await topicsQueueProcessor(
+      job as unknown as Parameters<typeof topicsQueueProcessor>[0],
+    );
+    expect(mocks.enqueueAutomatic).toHaveBeenCalledTimes(2);
+    expect(mocks.enqueueAutomatic).toHaveBeenLastCalledWith({
+      projectId: "project",
+      traceIds: ["trace"],
+      batchId: "execution-0",
+      facets: accepted.execution.input.facets,
+      embeddingConfig: accepted.execution.input.embeddingConfig,
+    });
+    expect(mocks.progress).toHaveBeenCalledWith("0", accepted);
   });
 });

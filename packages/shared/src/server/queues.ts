@@ -1,5 +1,15 @@
 import { z } from "zod";
-import type { TopicProcessBatchState } from "../topics";
+import {
+  topicIdSchema,
+  topicExecutionInputSchema,
+  topicFacetRefSchema,
+  topicEmbeddingConfigSchema,
+  topicProcessingConfigSchema,
+  topicTimeRangeSchema,
+  topicTraceIdSchema,
+  type TopicExecutionInput,
+  type TopicProcessBatchState,
+} from "../topics";
 import { eventTypes } from "./ingestion/types";
 import {
   ActionId,
@@ -24,6 +34,23 @@ import {
 import { ProjectNotificationWebhookQueueEventSchema } from "./notifications/types";
 
 export type { MonitorQueueEvent, MonitorQueueEventInput };
+
+export const TopicAutomaticPayloadSchema = z.object({
+  projectId: topicIdSchema,
+  executionId: topicIdSchema.optional(),
+  timeRange: topicTimeRangeSchema,
+  traceIds: z.array(topicTraceIdSchema).min(1).max(100).optional(),
+  facets: z.array(topicFacetRefSchema).optional(),
+  embeddingConfig: topicEmbeddingConfigSchema.optional(),
+});
+
+export type TopicAutomaticJob = {
+  id: string;
+  timestamp: Date;
+  name: QueueJobs.TopicsAutomatic;
+  payload: z.infer<typeof TopicAutomaticPayloadSchema>;
+  updateInput?: Extract<TopicExecutionInput, { operation: "update" }>;
+};
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -439,6 +466,7 @@ export enum QueueName {
 export enum QueueJobs {
   Topics = "topics",
   TopicsEmbedding = "topics-embedding",
+  TopicsAutomatic = "topics-automatic",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
@@ -506,6 +534,31 @@ export const TraceBatchEventSchema = z.object({
   timestamp: z.coerce.date(),
   id: z.string(),
   name: z.literal(QueueJobs.TraceBatch),
+  topicAssignment: z
+    .object({
+      timeRange: topicTimeRangeSchema,
+      projects: z
+        .array(
+          z.object({
+            projectId: topicIdSchema,
+            facets: z.array(topicFacetRefSchema).min(1),
+            processingConfig: topicProcessingConfigSchema,
+            embeddingConfig: topicEmbeddingConfigSchema,
+          }),
+        )
+        .min(1),
+    })
+    .optional(),
+  topicRecovery: z
+    .object({
+      projectId: z.string().min(1),
+      traceId: z.string().min(1),
+      traceTimestamp: z.iso.datetime(),
+      input: topicExecutionInputSchema.options[0]
+        .extend({ traceIds: z.array(topicTraceIdSchema).length(1) })
+        .optional(),
+    })
+    .optional(),
   payload: z.union([
     z
       .object({
@@ -540,7 +593,9 @@ export type TQueueJobTypes = {
     };
     batchState?: TopicProcessBatchState;
   };
-  [QueueName.TopicsUpdate]: TQueueJobTypes[QueueName.Topics];
+  [QueueName.TopicsUpdate]:
+    | TQueueJobTypes[QueueName.Topics]
+    | TopicAutomaticJob;
   [QueueName.TopicsEmbedding]: {
     timestamp: Date;
     id: string;

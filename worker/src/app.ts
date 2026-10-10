@@ -112,6 +112,7 @@ import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-run
 import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
 import { isTopicsEnabled } from "@langfuse/shared/topics/server";
 import { topicsQueueProcessor } from "./queues/topicsQueue";
+import { topicsUpdateQueueProcessor } from "./queues/topicsUpdateQueue";
 import { topicsEmbeddingQueueProcessor } from "./queues/topicsEmbeddingQueue";
 
 const app = express();
@@ -471,7 +472,7 @@ if (isTopicsEnabled()) {
   WorkerManager.register(QueueName.Topics, topicsQueueProcessor, {
     concurrency: 1,
   });
-  WorkerManager.register(QueueName.TopicsUpdate, topicsQueueProcessor, {
+  WorkerManager.register(QueueName.TopicsUpdate, topicsUpdateQueueProcessor, {
     concurrency: 1,
   });
   WorkerManager.register(

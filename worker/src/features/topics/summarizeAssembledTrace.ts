@@ -1,5 +1,6 @@
 import {
   ensureDefaultTopicFacets,
+  listTopicFacets,
   isTopicsProjectEnabled,
   listTopicSummaries,
   TOPICS_TRANSCRIPT_VERSION,
@@ -10,6 +11,7 @@ import {
   topicProcessingConfigSchema,
   type TopicFacetVersion,
   type TopicSummary,
+  type TopicExecutionInput,
 } from "@langfuse/shared/topics";
 import {
   instrumentAsync,
@@ -38,6 +40,11 @@ const NO_USAGE: TopicModelUsage = {
   costDetails: {},
 };
 
+export type TopicProcessingScope = Pick<
+  Extract<TopicExecutionInput, { operation: "process" }>,
+  "projectId" | "facets" | "processingConfig" | "embeddingConfig"
+>;
+
 type AssembledTraceInput = {
   projectId: string;
   traceId: string;
@@ -45,6 +52,7 @@ type AssembledTraceInput = {
   environment: string;
   traceName: string;
   transcript: Transcript | null;
+  scope?: TopicProcessingScope;
 };
 
 /**
@@ -82,20 +90,48 @@ async function summarizeEnabledTrace(
   input: AssembledTraceInput,
   metrics: TopicMetrics,
 ): Promise<"unchanged" | "summarized"> {
-  const models = getTopicsModelConfig();
+  if (input.scope && input.scope.projectId !== input.projectId)
+    throw new Error("Topics processing scope does not match its project.");
+  const models = input.scope
+    ? {
+        summaryModel: input.scope.processingConfig.summaryModel,
+        embeddingModel: input.scope.embeddingConfig.embeddingModel,
+      }
+    : getTopicsModelConfig();
   if (!models.summaryModel || !models.embeddingModel)
     throw new TopicsProviderUnavailable(
       "Configure LANGFUSE_TOPICS_SUMMARY_MODEL and LANGFUSE_TOPICS_EMBEDDING_MODEL before processing Topics traces.",
       "authentication",
     );
   const { embeddingModel } = models;
-  const facets = await ensureDefaultTopicFacets(input.projectId);
-  const config = topicProcessingConfigSchema.parse({
-    summaryModel: models.summaryModel,
-  });
-  const embeddingConfig = topicEmbeddingConfigSchema.parse({
-    embeddingModel,
-  });
+  const listed = input.scope
+    ? await listTopicFacets(input.projectId)
+    : await ensureDefaultTopicFacets(input.projectId);
+  const facets = input.scope
+    ? input.scope.facets.map(({ facetId, version }) => {
+        const facet = listed.find(
+          (facet) =>
+            facet.projectId === input.projectId && facet.id === facetId,
+        );
+        const accepted = facet?.versions.find(
+          (candidate) =>
+            candidate.facetId === facetId && candidate.version === version,
+        );
+        if (!facet || !accepted)
+          throw new Error("The accepted Topics facet version is unavailable.");
+        return { ...facet, versions: [accepted] };
+      })
+    : listed;
+  const config =
+    input.scope?.processingConfig ??
+    topicProcessingConfigSchema.parse({
+      summaryModel: models.summaryModel,
+    });
+  const embeddingConfig =
+    input.scope?.embeddingConfig ??
+    topicEmbeddingConfigSchema.parse({
+      embeddingModel,
+    });
   const timestamp = Date.parse(input.traceTimestamp);
   const timeRange = {
     from: new Date(timestamp),

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createTopicExecution,
+  createAutomaticTopicExecution,
+  isAutomaticTopicExecution,
   readTopicExecutionForRequest,
   readTopicExecutionSummary,
   listTopicExecutions,
@@ -131,6 +133,23 @@ beforeEach(() => {
 });
 
 describe("Topics execution store application contract", () => {
+  it("records automatic executions without weakening manual user attribution", async () => {
+    await expect(createTopicExecution(input)).rejects.toThrow(
+      "A user is required",
+    );
+    const execution = await createAutomaticTopicExecution(input);
+    expect(await isAutomaticTopicExecution(input.projectId, execution.id)).toBe(
+      true,
+    );
+    const manual = await createTopicExecution(
+      { ...input, requestId: "manual" },
+      undefined,
+      "user",
+    );
+    expect(await isAutomaticTopicExecution(input.projectId, manual.id)).toBe(
+      false,
+    );
+  });
   it("returns uncapped trace input to the caller but persists only settings and aggregate progress", async () => {
     const traceIds = Array.from(
       { length: 2001 },
