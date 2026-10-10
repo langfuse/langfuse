@@ -33,6 +33,12 @@ service:
           limit:
             type: optional<integer>
             docs: limit of items per page
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include models created on or after this timestamp.
+          toTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include models created on or before this timestamp.
       response: PaginatedModels
     get:
       method: GET
