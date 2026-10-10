@@ -83,6 +83,40 @@ export const UserChart = ({
     },
   );
 
+  const userTotal = useScheduledDashboardExecuteQuery(
+    {
+      projectId,
+      query: {
+        ...userCostQuery,
+        dimensions: [],
+        metrics: [{ measure: "totalCost", aggregation: "sum" }],
+        filters: [
+          ...userCostQuery.filters,
+          // An empty tag requirement keeps the v1 trace join and time bounds
+          // without excluding untagged traces or users with missing IDs.
+          ...(metricsVersion === "v1"
+            ? [
+                {
+                  column: "tags",
+                  operator: "all of" as const,
+                  value: [],
+                  type: "arrayOptions" as const,
+                },
+              ]
+            : []),
+        ],
+        orderBy: null,
+        chartConfig: undefined,
+      },
+      version: metricsVersion,
+    },
+    {
+      trpc: { context: { skipBatch: true } },
+      queryId: `${schedulerId ?? "home:users"}:cost-total`,
+      enabled: !isLoading,
+    },
+  );
+
   const isV2 = metricsVersion === "v2";
   const countField = isV2 ? "uniq_traceId" : "count_count";
 
@@ -126,6 +160,24 @@ export const UserChart = ({
     },
   );
 
+  const tracesTotal = useScheduledDashboardExecuteQuery(
+    {
+      projectId,
+      query: {
+        ...traceCountQuery,
+        dimensions: [],
+        orderBy: null,
+        chartConfig: undefined,
+      },
+      version: metricsVersion,
+    },
+    {
+      trpc: { context: { skipBatch: true } },
+      queryId: `${schedulerId ?? "home:users"}:traces-total`,
+      enabled: !isLoading,
+    },
+  );
+
   const transformedNumberOfTraces: BarChartDataPoint[] = traces.data
     ? traces.data
         .filter((item) => item.userId !== undefined)
@@ -148,21 +200,20 @@ export const UserChart = ({
         })
     : [];
 
-  const totalCost = user.data?.reduce(
-    (acc, curr) => acc + (Number(curr.sum_totalCost) || 0),
-    0,
-  );
-
-  const totalTraces = traces.data?.reduce(
-    (acc, curr) => acc + (Number(curr[countField]) || 0),
-    0,
-  );
+  const totalCost = Number(userTotal.data?.[0]?.sum_totalCost ?? 0);
+  const totalTraces = Number(tracesTotal.data?.[0]?.[countField] ?? 0);
+  const isPending =
+    isLoading ||
+    user.isPending ||
+    userTotal.isPending ||
+    traces.isPending ||
+    tracesTotal.isPending;
 
   const data = [
     {
       tabTitle: "Token cost",
       data: transformedCost,
-      totalMetric: costFormatter(totalCost),
+      totalMetric: userTotal.isSuccess ? costFormatter(totalCost) : "—",
       metricDescription: "Total cost",
       chartMetricLabel: "USD",
       chartUnit: "USD",
@@ -170,9 +221,9 @@ export const UserChart = ({
     {
       tabTitle: "Count of Traces",
       data: transformedNumberOfTraces,
-      totalMetric: totalTraces
+      totalMetric: tracesTotal.isSuccess
         ? compactNumberFormatter(totalTraces)
-        : compactNumberFormatter(0),
+        : "—",
       metricDescription: "Total traces",
       chartMetricLabel: "Traces",
       chartUnit: "traces",
@@ -187,7 +238,7 @@ export const UserChart = ({
       className={cn(className, "h-full")}
       cardContentClassName="min-h-0"
       title="User consumption"
-      isLoading={isLoading || user.isPending}
+      isLoading={isPending}
     >
       <TabComponent
         tabs={data.map((item) => {
@@ -210,7 +261,7 @@ export const UserChart = ({
                   </div>
                 ) : (
                   <NoDataOrLoading
-                    isLoading={isLoading || user.isPending}
+                    isLoading={isPending}
                     description="Consumption per user is tracked by passing their ids on traces."
                     href="https://langfuse.com/docs/observability/features/users"
                     className="h-auto grow"
