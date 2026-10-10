@@ -7,8 +7,9 @@ import { isEnterpriseLicenseAvailable } from "../licenseCheck";
  *
  * Fails closed: when FIPS mode is requested, startup must stop unless an
  * enterprise license is available and Node's OpenSSL FIPS provider is active.
- * The provider is only active when the host kernel runs in FIPS mode, so a
- * container cannot switch it on by itself.
+ * FIPS mode is supported on the -fips image variant (RHEL's validated OpenSSL
+ * provider on UBI 9), where the provider is only active when the host kernel
+ * runs in FIPS mode, so a container cannot switch it on by itself.
  *
  * Imports nothing that opens connections, so callers can run it before any
  * other startup code.
@@ -28,7 +29,7 @@ export function assertFipsMode(envOverride?: SharedEnv): void {
 
   if (getFips() !== 1) {
     throw new Error(
-      "LANGFUSE_REQUIRE_FIPS=true but Node's OpenSSL FIPS provider is not active (crypto.getFips() != 1). Run Langfuse on a host with FIPS mode enabled.",
+      "LANGFUSE_REQUIRE_FIPS=true but Node's OpenSSL FIPS provider is not active (crypto.getFips() != 1). Run the -fips Langfuse image variant on a host with FIPS mode enabled.",
     );
   }
 

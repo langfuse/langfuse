@@ -22,7 +22,7 @@ CPU-bound fits can be killed without blocking the worker.
 | `src/topics.rs`       | Seeded UMAP reductions and HDBSCAN for Topics.                               |
 | `Cargo.toml`          | Crate manifest (`cdylib`). `Cargo.lock` is committed.                        |
 | `build.rs`            | napi-rs build hook.                                                          |
-| `rust-toolchain.toml` | Pinned compiler version, kept equal to the one `worker/Dockerfile` installs. |
+| `rust-toolchain.toml` | Pinned compiler version, kept equal to what both worker Dockerfiles install. |
 | `package.json`        | npm package; `napi.binaryName` names the compiled `.node` file.              |
 | `index.js`            | Generated loader that picks the `.node` file for the current platform.       |
 | `index.d.ts`          | Generated TypeScript declarations, derived from the `#[napi]` signatures.    |
@@ -79,12 +79,12 @@ is always present when the worker starts or its tests run. A direct
 
 ## How it ships
 
-`worker/Dockerfile` installs the toolchain pinned in `rust-toolchain.toml` from
-the checksum-verified standalone Rust installer into its UBI9 builder stage;
-`turbo run build --filter=worker...` compiles the addon for glibc, and
-`pnpm deploy` copies the `.node` file into the runtime image next to the
-loader. Each architecture builds on a native runner, so no cross
-compilation is involved. The runtime image gains only the compiled library.
+`worker/Dockerfile` (Alpine) and `worker/Dockerfile.fips` (UBI 9) install the
+toolchain pinned in `rust-toolchain.toml` from the checksum-verified standalone
+Rust installer into their builder stages; `turbo run build --filter=worker...`
+compiles the addon for musl and glibc respectively, and `pnpm deploy` copies
+the `.node` file into the runtime image next to the loader. Each architecture
+builds on a native runner, so no cross compilation is involved. The runtime image gains only the compiled library.
 CI jobs that build the worker need no extra setup: rustup on the runner
 installs the pinned toolchain the first time `cargo` runs in this directory.
 The Rust lint runs as its own step in the lint job, outside the ESLint turbo

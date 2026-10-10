@@ -1,7 +1,8 @@
 # Same Rust version as ai-gateway/rust-toolchain.toml so the repository starts
 # out on one compiler; the two files stay separate so either crate can move on
-# its own. worker/Dockerfile installs this exact version from the pinned
-# standalone Rust installer, so bump the two together.
+# its own. worker/Dockerfile (musl) and worker/Dockerfile.fips (glibc) install
+# this exact version from the pinned standalone Rust installer, so bump the
+# three together.
 [toolchain]
 channel = "1.98.0"
 components = ["clippy", "rustfmt"]
