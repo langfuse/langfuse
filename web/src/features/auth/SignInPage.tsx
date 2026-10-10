@@ -49,6 +49,11 @@ import { cn } from "@/src/utils/tailwind";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { Spinner } from "@/src/components/layouts/spinner";
+import {
+  TurnstileWidget,
+  type TurnstileWidgetHandle,
+} from "@/src/features/auth/components/TurnstileWidget";
+import { TURNSTILE_ACTIONS } from "@/src/features/auth/constants";
 
 // The shared, intentionally-public demo identity created by the seed script
 // (packages/shared/scripts/seeder/seed-postgres.ts) and posted in every
@@ -546,6 +551,9 @@ export default function SignInPage({
     !authProviders.sso,
   );
   const [continueLoading, setContinueLoading] = useState<boolean>(false);
+  const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const [turnstileToken, setTurnstileToken] = useState<string>();
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
   const [lastUsedAuthMethod, setLastUsedAuthMethod] =
     useLocalStorage<NextAuthProvider | null>(
       "langfuse_last_used_auth_method",
@@ -626,6 +634,7 @@ export default function SignInPage({
         password: values.password,
         callbackUrl: targetPath ?? "/",
         redirect: false,
+        turnstileToken,
       });
       if (result === undefined) {
         // next-auth's signIn() returns undefined when its providers fetch
@@ -664,6 +673,9 @@ export default function SignInPage({
         captureUnknownError("auth.signIn.credentials", error);
       }
       setCredentialsFormError("An unexpected error occurred.");
+    } finally {
+      // The token was redeemed (or rejected) by this attempt either way.
+      turnstileRef.current?.reset();
     }
   }
 
@@ -911,6 +923,15 @@ export default function SignInPage({
                       />
                     )}
 
+                    {showPasswordStep && turnstileSiteKey && (
+                      <TurnstileWidget
+                        ref={turnstileRef}
+                        siteKey={turnstileSiteKey}
+                        action={TURNSTILE_ACTIONS.login}
+                        onTokenChange={setTurnstileToken}
+                      />
+                    )}
+
                     {/* Primary action button */}
                     <Button
                       type="submit"
@@ -921,6 +942,9 @@ export default function SignInPage({
                           : continueLoading
                       }
                       disabled={
+                        (showPasswordStep &&
+                          Boolean(turnstileSiteKey) &&
+                          !turnstileToken) ||
                         credentialsForm.watch("email") === "" ||
                         (showPasswordStep &&
                           credentialsForm.watch("password") === "")

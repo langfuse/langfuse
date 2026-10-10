@@ -3,6 +3,14 @@ import { isEmailVerificationRequired } from "@/src/features/auth-credentials";
 import { validateSignupEligibility } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import {
+  TURNSTILE_ACTIONS,
+  TURNSTILE_FAILED_MESSAGE,
+} from "@/src/features/auth/constants";
+import {
+  getTurnstileRemoteIp,
+  verifyTurnstileToken,
+} from "@/src/features/auth/server/verifyTurnstile";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -45,6 +53,16 @@ export default async function handler(
 
   const { email, name } = parsed.data;
   const normalizedEmail = email.toLowerCase();
+
+  const turnstileValid = await verifyTurnstileToken({
+    token: req.body?.turnstileToken,
+    action: TURNSTILE_ACTIONS.signupVerify,
+    remoteIp: getTurnstileRemoteIp(req.headers),
+  });
+  if (!turnstileValid) {
+    res.status(403).json({ message: TURNSTILE_FAILED_MESSAGE });
+    return;
+  }
 
   // Run eligibility checks (signup disabled, SSO enforcement, etc.)
   const eligibilityError = await validateSignupEligibility({

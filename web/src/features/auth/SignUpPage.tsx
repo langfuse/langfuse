@@ -15,7 +15,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { env } from "@/src/env.mjs";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
@@ -36,6 +36,11 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials";
 import { getDemoTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
+import {
+  TurnstileWidget,
+  type TurnstileWidgetHandle,
+} from "@/src/features/auth/components/TurnstileWidget";
+import { TURNSTILE_ACTIONS } from "@/src/features/auth/constants";
 
 type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
 
@@ -97,6 +102,15 @@ function StandardSignupFlow({
     !authProviders.sso,
   );
   const [continueLoading, setContinueLoading] = useState<boolean>(false);
+  const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const [turnstileToken, setTurnstileToken] = useState<string>();
+  // Account creation and the follow-up sign-in are separate siteverify checks
+  // with different actions, so the widget switches to `login` once the
+  // account exists.
+  const [turnstileAction, setTurnstileAction] = useState<
+    typeof TURNSTILE_ACTIONS.signup | typeof TURNSTILE_ACTIONS.login
+  >(TURNSTILE_ACTIONS.signup);
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
   const [lastUsedAuthMethod, setLastUsedAuthMethod] =
     useLocalStorage<NextAuthProvider | null>(
       "langfuse_last_used_auth_method",
@@ -203,13 +217,30 @@ function StandardSignupFlow({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(values),
+          body: JSON.stringify({ ...values, turnstileToken }),
         },
       );
 
       if (!res.ok) {
+        turnstileRef.current?.reset();
         const payload = (await res.json()) as { message: string };
         setFormError(payload.message);
+        return;
+      }
+
+      // The sign-up request redeemed its token; signing in needs a fresh
+      // token issued for the `login` action.
+      let loginTurnstileToken: string | undefined;
+      if (turnstileSiteKey) {
+        const nextToken = turnstileRef.current?.nextToken();
+        setTurnstileToken(undefined);
+        setTurnstileAction(TURNSTILE_ACTIONS.login);
+        loginTurnstileToken = await nextToken;
+      }
+      if (turnstileSiteKey && !loginTurnstileToken) {
+        setFormError(
+          "Your account was created. Please complete the captcha on the sign-in page to continue.",
+        );
         return;
       }
 
@@ -227,8 +258,10 @@ function StandardSignupFlow({
         email: values.email,
         password: values.password,
         callbackUrl,
+        turnstileToken: loginTurnstileToken,
       });
     } catch {
+      turnstileRef.current?.reset();
       setFormError("An error occurred. Please try again.");
     }
   }
@@ -295,13 +328,25 @@ function StandardSignupFlow({
               )}
             />
           )}
+          {showPasswordStep && turnstileSiteKey && (
+            <TurnstileWidget
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              action={turnstileAction}
+              onTokenChange={setTurnstileToken}
+            />
+          )}
           <Button
             type="submit"
             className="w-full"
             loading={
               showPasswordStep ? form.formState.isSubmitting : continueLoading
             }
-            disabled={showPasswordStep ? false : form.watch("email") === ""}
+            disabled={
+              showPasswordStep
+                ? Boolean(turnstileSiteKey) && !turnstileToken
+                : form.watch("email") === ""
+            }
             data-testid="submit-email-password-sign-up-form"
           >
             {showPasswordStep ? "Sign up" : "Continue"}
@@ -341,6 +386,9 @@ function VerifiedSignupFlow({
     : "/auth/setup-password";
 
   const [formError, setFormError] = useState<string | null>(null);
+  const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const [turnstileToken, setTurnstileToken] = useState<string>();
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
   const [lastUsedAuthMethod, setLastUsedAuthMethod] =
     useLocalStorage<NextAuthProvider | null>(
       "langfuse_last_used_auth_method",
@@ -367,9 +415,14 @@ function VerifiedSignupFlow({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: values.email, name: values.name }),
+          body: JSON.stringify({
+            email: values.email,
+            name: values.name,
+            turnstileToken,
+          }),
         },
       );
+      turnstileRef.current?.reset();
 
       if (!res.ok) {
         const payload = (await res.json()) as { message: string };
@@ -400,6 +453,7 @@ function VerifiedSignupFlow({
       );
       await router.push(setupPasswordPath);
     } catch {
+      turnstileRef.current?.reset();
       setFormError("An error occurred. Please try again.");
     }
   }
@@ -442,10 +496,19 @@ function VerifiedSignupFlow({
               </FormItem>
             )}
           />
+          {turnstileSiteKey && (
+            <TurnstileWidget
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              action={TURNSTILE_ACTIONS.signupVerify}
+              onTokenChange={setTurnstileToken}
+            />
+          )}
           <Button
             type="submit"
             className="w-full"
             loading={form.formState.isSubmitting}
+            disabled={Boolean(turnstileSiteKey) && !turnstileToken}
             data-testid="submit-email-password-sign-up-form"
           >
             Continue
