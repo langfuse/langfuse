@@ -266,6 +266,7 @@ function ConnectedDashboardWidgetTableContent({
     <div className="flex min-h-0 flex-1 flex-col">
       <DashboardWidgetTable
         projectId={projectId}
+        topBorder={false}
         hasCUDAccess={hasCUDAccess}
         loadingRowCount={Math.min(paginationState.pageSize, 8)}
         onCopy={(widget) => handleCopyToClipboard(widget.id)}

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
+/* eslint-disable @repo/no-style-props */
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { cn } from "@/src/utils/tailwind";
 import { useRouter } from "next/router";
@@ -35,7 +35,7 @@ export const PageTabs = ({
 }: PageTabsProps) => {
   const router = useRouter();
   return (
-    <div className={cn(scrollable && "-mx-1 overflow-x-auto px-1", className)}>
+    <div className={cn(scrollable && "overflow-x-auto", className)}>
       <Tabs.List variant="underline">
         {tabs.map((tab) => (
           <Tabs.Trigger
