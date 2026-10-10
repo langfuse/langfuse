@@ -10,24 +10,36 @@ export const listScoreConfigs = async ({
   projectId,
   page,
   limit,
+  fromTimestamp,
+  toTimestamp,
 }: {
   projectId: string;
   page: number;
   limit: number;
+  fromTimestamp?: Date | null;
+  toTimestamp?: Date | null;
 }) => {
+  const where = {
+    projectId,
+    ...(fromTimestamp || toTimestamp
+      ? {
+          createdAt: {
+            ...(fromTimestamp ? { gte: fromTimestamp } : {}),
+            ...(toTimestamp ? { lt: toTimestamp } : {}),
+          },
+        }
+      : {}),
+  };
+
   const [rawConfigs, totalItems] = await Promise.all([
     prisma.scoreConfig.findMany({
-      where: {
-        projectId,
-      },
+      where,
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       take: limit,
       skip: (page - 1) * limit,
     }),
     prisma.scoreConfig.count({
-      where: {
-        projectId,
-      },
+      where,
     }),
   ]);
 
