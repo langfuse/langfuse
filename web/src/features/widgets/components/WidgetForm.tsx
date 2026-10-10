@@ -67,7 +67,10 @@ import { Button } from "@/src/components/ui/button";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications";
 import { type FilterState } from "@langfuse/shared";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import {
+  isTimeSeriesChart,
+  prepareTagCountDataPoint,
+} from "@/src/features/widgets/chart-library/utils";
 import { Plus, X, AlertCircle, Sparkles } from "lucide-react";
 import { dashboardWidgetChartTypeIcons } from "@/src/features/widgets/chart-library/chartTypeIcons";
 import {
@@ -610,6 +613,19 @@ export function WidgetForm({
         const dimensionField = selectedDimension;
         const dimensionValue = item[dimensionField];
         const isTimeSeries = isTimeSeriesChart(chartType);
+
+        if (
+          dimensionField === "tags" &&
+          metricField === "count_count" &&
+          Array.isArray(dimensionValue)
+        ) {
+          return prepareTagCountDataPoint({
+            tags: dimensionValue,
+            count: Number(metric || 0),
+            timeDimension: item["time_dimension"],
+            isTimeSeries,
+          });
+        }
 
         const isFillerMetricValue =
           metric == null ||

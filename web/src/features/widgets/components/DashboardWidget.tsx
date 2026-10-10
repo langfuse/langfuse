@@ -17,7 +17,10 @@ import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import {
+  isTimeSeriesChart,
+  prepareTagCountDataPoint,
+} from "@/src/features/widgets/chart-library/utils";
 import {
   PencilIcon,
   TrashIcon,
@@ -343,6 +346,19 @@ export function DashboardWidget({
       const dimensionField =
         widget.data.dimensions.slice().shift()?.field ?? "none";
       const dimensionValue = item[dimensionField];
+
+      if (
+        dimensionField === "tags" &&
+        metricField === "count_count" &&
+        Array.isArray(dimensionValue)
+      ) {
+        return prepareTagCountDataPoint({
+          tags: dimensionValue,
+          count: Number(metricValue || 0),
+          timeDimension: item["time_dimension"],
+          isTimeSeries,
+        });
+      }
 
       // A gap-filled empty bucket arrives as a row with no dimension and the
       // metric column's type default: NULL for nullable aggregations

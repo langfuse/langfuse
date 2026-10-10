@@ -2,10 +2,129 @@
 
 import {
   formatMetric,
+  getUniqueDimensions,
+  groupDataByTimeDimension,
   getDimensionSummaries,
   getEvenTickInterval,
+  prepareTagCountDataPoint,
 } from "@/src/features/widgets/chart-library/utils";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+
+describe("prepareTagCountDataPoint", () => {
+  it.each([true, false])(
+    "keeps untagged counts separate from a literal n/a tag (time series: %s)",
+    (isTimeSeries) => {
+      const data = [
+        prepareTagCountDataPoint({
+          tags: [],
+          count: 8,
+          timeDimension: "t1",
+          isTimeSeries,
+        }),
+        prepareTagCountDataPoint({
+          tags: ["n/a"],
+          count: 3,
+          timeDimension: "t1",
+          isTimeSeries,
+        }),
+      ];
+
+      expect(getUniqueDimensions(data)).toEqual(["[]", '["n/a"]']);
+      expect(groupDataByTimeDimension(data)).toEqual([
+        { time_dimension: "t1", "[]": 8, '["n/a"]': 3 },
+      ]);
+      expect(getDimensionSummaries(data)).toEqual(
+        new Map([
+          ["[]", 8],
+          ['["n/a"]', 3],
+        ]),
+      );
+    },
+  );
+
+  it.each([
+    { first: [], second: [""] },
+    { first: ["a, b"], second: ["a", "b"] },
+    { first: ["a", ""], second: ["a, "] },
+    { first: ["[]"], second: [] },
+    { first: ['["a"]'], second: ["a"] },
+  ])("keeps $first and $second in separate series", ({ first, second }) => {
+    const data = [first, second].map((tags, index) =>
+      prepareTagCountDataPoint({
+        tags,
+        count: index + 1,
+        timeDimension: "t1",
+        isTimeSeries: true,
+      }),
+    );
+
+    expect(getUniqueDimensions(data)).toHaveLength(2);
+    const { time_dimension: _time, ...counts } =
+      groupDataByTimeDimension(data)[0];
+    expect(Object.values(counts)).toEqual([1, 2]);
+  });
+
+  it("keeps filled time buckets without adding an untagged series", () => {
+    const data = [
+      prepareTagCountDataPoint({
+        tags: ["production"],
+        count: 3,
+        timeDimension: "t1",
+        isTimeSeries: true,
+      }),
+      prepareTagCountDataPoint({
+        tags: [],
+        count: 0,
+        timeDimension: "t2",
+        isTimeSeries: true,
+      }),
+    ];
+
+    expect(data[1]).toEqual({
+      time_dimension: "t2",
+      dimension: undefined,
+      metric: null,
+    });
+    expect(getUniqueDimensions(data)).toEqual(['["production"]']);
+    expect(groupDataByTimeDimension(data)).toEqual([
+      { time_dimension: "t1", '["production"]': 3 },
+      { time_dimension: "t2" },
+    ]);
+  });
+
+  it("keeps an all-empty time series free of fabricated groups", () => {
+    const data = ["t1", "t2"].map((timeDimension) =>
+      prepareTagCountDataPoint({
+        tags: [],
+        count: 0,
+        timeDimension,
+        isTimeSeries: true,
+      }),
+    );
+
+    expect(getUniqueDimensions(data)).toEqual([]);
+    expect(groupDataByTimeDimension(data)).toEqual([
+      { time_dimension: "t1" },
+      { time_dimension: "t2" },
+    ]);
+    expect(getDimensionSummaries(data)).toEqual(new Map());
+  });
+
+  it("keeps a categorical zero count", () => {
+    expect(
+      prepareTagCountDataPoint({
+        tags: [],
+        count: 0,
+        timeDimension: undefined,
+        isTimeSeries: false,
+      }),
+    ).toEqual({
+      time_dimension: undefined,
+      dimension: "[]",
+      metric: 0,
+    });
+  });
+});
 
 describe("formatMetric", () => {
   it("keeps sub-millisecond duration ticks distinct", () => {
