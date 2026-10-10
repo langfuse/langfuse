@@ -27,6 +27,8 @@ import { ScoreDeleteQueue } from "./scoreDelete";
 import { DeadLetterRetryQueue } from "./dlqRetryQueue";
 import { WebhookQueue } from "./webhookQueue";
 import { EntityChangeQueue } from "./entityChangeQueue";
+import { ScoreChangeQueue } from "./scoreChangeQueue";
+import { AutomationExecutionQueue } from "./automationExecutionQueue";
 import { DatasetDeleteQueue } from "./datasetDelete";
 import { EventPropagationQueue } from "./eventPropagationQueue";
 import { NotificationQueue } from "./notificationQueue";
@@ -109,6 +111,10 @@ export function getQueue(
       return WebhookQueue.getInstance();
     case QueueName.EntityChangeQueue:
       return EntityChangeQueue.getInstance();
+    case QueueName.ScoreChangeQueue:
+      return ScoreChangeQueue.getInstance();
+    case QueueName.AutomationExecutionQueue:
+      return AutomationExecutionQueue.getInstance();
     case QueueName.EventPropagationQueue:
       return EventPropagationQueue.getInstance();
     case QueueName.NotificationQueue:

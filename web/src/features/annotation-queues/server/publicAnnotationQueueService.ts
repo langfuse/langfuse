@@ -408,7 +408,7 @@ export const createAnnotationQueueItemForApi = async ({
   const completedAt =
     status === AnnotationQueueStatus.COMPLETED ? new Date() : null;
 
-  const item = await prisma.annotationQueueItem.create({
+  const { count } = await prisma.annotationQueueItem.createMany({
     data: {
       queueId,
       objectId: input.objectId,
@@ -417,9 +417,20 @@ export const createAnnotationQueueItemForApi = async ({
       completedAt,
       projectId,
     },
+    skipDuplicates: true,
+  });
+  const item = await prisma.annotationQueueItem.findUniqueOrThrow({
+    where: {
+      projectId_queueId_objectId_objectType: {
+        projectId,
+        queueId,
+        objectId: input.objectId,
+        objectType: input.objectType,
+      },
+    },
   });
 
-  if (auditScope) {
+  if (auditScope && count === 1) {
     await auditLog({
       action: "create",
       resourceType: "annotationQueueItem",

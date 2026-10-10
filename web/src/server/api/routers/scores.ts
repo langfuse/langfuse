@@ -64,6 +64,8 @@ import {
   deleteScores,
   getTracesIdentifierForSession,
   validateConfigAgainstBody,
+  scoreChangeEventSourcing,
+  traceException,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
@@ -97,6 +99,37 @@ type AllScoresFromEventsReturnType = Omit<ScoreDomain, "metadata"> & {
   authorUserImage: string | null;
   authorUserName: string | null;
   hasMetadata: boolean;
+};
+
+const sourceAnnotationScoreChange = async ({
+  score,
+  action,
+}: {
+  score: ScoreDomain;
+  action: "created" | "updated";
+}) => {
+  try {
+    await scoreChangeEventSourcing({
+      projectId: score.projectId,
+      eventId: v4(),
+      action,
+      score: {
+        id: score.id,
+        name: score.name,
+        dataType: score.dataType,
+        value: score.value,
+        stringValue: score.stringValue,
+        longStringValue: score.longStringValue,
+        observationId: score.observationId,
+      },
+    });
+  } catch (error) {
+    logger.error(
+      `Failed to source annotation score change for score ${score.id}`,
+      error,
+    );
+    traceException(error);
+  }
 };
 
 const BOOLEAN_SCORE_VALUE_OPTIONS = [{ value: "true" }, { value: "false" }];
@@ -702,7 +735,13 @@ export const scoresRouter = createTRPCRouter({
         after: score,
       });
 
-      return validateDbScore(score);
+      const validatedScore = validateDbScore(score);
+      await sourceAnnotationScoreChange({
+        score: validatedScore,
+        action: clickhouseScore ? "updated" : "created",
+      });
+
+      return validatedScore;
     }),
   updateAnnotationScore: protectedProjectProcedure
     .input(UpdateAnnotationScoreData)
@@ -964,7 +1003,13 @@ export const scoresRouter = createTRPCRouter({
         );
       }
 
-      return validateDbScore(updatedScore);
+      const validatedScore = validateDbScore(updatedScore);
+      await sourceAnnotationScoreChange({
+        score: validatedScore,
+        action: "updated",
+      });
+
+      return validatedScore;
     }),
   deleteAnnotationScore: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), id: z.string() }))

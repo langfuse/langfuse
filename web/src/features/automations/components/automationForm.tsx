@@ -70,6 +70,21 @@ const githubDispatchSchema = z.object({
   originalUrl: z.string().optional(),
 });
 
+const scoreTriggerSchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  dataType: z.enum(["NUMERIC", "BOOLEAN", "CATEGORICAL", "TEXT"]),
+  condition: z.enum(["any", "equals", "oneOf", "between"]),
+  value: z.string(),
+  values: z.array(z.string()),
+  minValue: z.string(),
+  maxValue: z.string(),
+});
+
+const annotationQueueSchema = z.object({
+  queueIds: z.array(z.string()).min(1, "Select at least one annotation queue"),
+});
+
 /** promptEventActionDefaults is the default eventAction set for a fresh prompt-source automation. */
 const promptEventActionDefaults: string[] = ["created", "updated", "deleted"];
 
@@ -173,10 +188,11 @@ export const automationCreateHref = (
 // Define schemas for form validation
 const baseFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
-  eventSource: z.string().min(1, "Event source is required"),
+  eventSource: TriggerEventSourceSchema,
   eventAction: z.array(z.string()),
   status: z.enum(["ACTIVE", "INACTIVE"]),
   filter: z.array(z.any()).optional(),
+  score: scoreTriggerSchema,
 });
 
 const formSchema = z
@@ -193,6 +209,10 @@ const formSchema = z
       actionType: z.literal("GITHUB_DISPATCH"),
       githubDispatch: githubDispatchSchema,
     }),
+    baseFormSchema.extend({
+      actionType: z.literal("ANNOTATION_QUEUE"),
+      annotationQueue: annotationQueueSchema,
+    }),
   ])
   .superRefine((data, ctx) => {
     // Prompt-source triggers require at least one event action; monitor and
@@ -207,6 +227,59 @@ const formSchema = z
         path: ["eventAction"],
         message: "At least one event action is required",
       });
+    }
+    if (
+      data.eventSource === TriggerEventSource.Score &&
+      (!data.score.name || !data.score.dataType)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["score"],
+        message: "Select a score.",
+      });
+    }
+    if (
+      data.eventSource === TriggerEventSource.Score &&
+      data.score.condition === "equals" &&
+      data.score.value === ""
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["score", "value"],
+        message: "Enter a score value.",
+      });
+    }
+    if (
+      data.eventSource === TriggerEventSource.Score &&
+      data.score.condition === "oneOf" &&
+      data.score.values.length === 0
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["score", "values"],
+        message: "Select at least one score value.",
+      });
+    }
+    if (
+      data.eventSource === TriggerEventSource.Score &&
+      data.score.condition === "between"
+    ) {
+      const min = Number(data.score.minValue);
+      const max = Number(data.score.maxValue);
+      if (
+        data.score.minValue === "" ||
+        data.score.maxValue === "" ||
+        !Number.isFinite(min) ||
+        !Number.isFinite(max) ||
+        min > max
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["score", "minValue"],
+          message:
+            "Enter a valid score range whose minimum is not greater than its maximum.",
+        });
+      }
     }
   });
 
@@ -244,6 +317,7 @@ const EventSourceField = ({
             </FormControl>
             <SelectContent>
               <SelectItem value={TriggerEventSource.Prompt}>Prompt</SelectItem>
+              <SelectItem value={TriggerEventSource.Score}>Score</SelectItem>
               {(isLangfuseCloud ||
                 field.value === TriggerEventSource.Monitor) && (
                 <SelectItem value={TriggerEventSource.Monitor}>
@@ -372,6 +446,322 @@ const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
   </Alert>
 );
 
+const scoreKey = (name: string, dataType: string) =>
+  JSON.stringify([name, dataType]);
+
+const getScoreTriggerDefaults = (
+  filter: FilterState,
+): z.infer<typeof scoreTriggerSchema> => {
+  const name = filter.find((item) => item.column === "name")?.value;
+  const dataType = filter.find((item) => item.column === "dataType")?.value;
+  const valueFilters = filter.filter((item) =>
+    ["value", "stringValue", "longStringValue"].includes(item.column),
+  );
+  const valueFilter = valueFilters[0];
+  const validName = typeof name === "string" ? name : "";
+  const validDataType =
+    dataType === "NUMERIC" ||
+    dataType === "BOOLEAN" ||
+    dataType === "CATEGORICAL" ||
+    dataType === "TEXT"
+      ? dataType
+      : "NUMERIC";
+  const isRange =
+    validDataType === "NUMERIC" &&
+    valueFilters.length === 2 &&
+    valueFilters.some((item) => item.operator === ">=") &&
+    valueFilters.some((item) => item.operator === "<=");
+  const isMultiValue =
+    valueFilter?.type === "stringOptions" &&
+    valueFilter.operator === "any of" &&
+    Array.isArray(valueFilter.value);
+  const legacyMultiValue =
+    Boolean(valueFilter) &&
+    (validDataType === "BOOLEAN" || validDataType === "CATEGORICAL");
+  const minValue = valueFilters.find((item) => item.operator === ">=")?.value;
+  const maxValue = valueFilters.find((item) => item.operator === "<=")?.value;
+
+  return {
+    key: validName ? scoreKey(validName, validDataType) : "",
+    name: validName,
+    dataType: validDataType as z.infer<typeof scoreTriggerSchema>["dataType"],
+    condition: isRange
+      ? "between"
+      : isMultiValue || legacyMultiValue
+        ? "oneOf"
+        : valueFilter
+          ? "equals"
+          : "any",
+    value:
+      typeof valueFilter?.value === "string" ||
+      typeof valueFilter?.value === "number"
+        ? String(valueFilter.value)
+        : "",
+    values: isMultiValue
+      ? valueFilter.value
+      : legacyMultiValue &&
+          (typeof valueFilter?.value === "string" ||
+            typeof valueFilter?.value === "number")
+        ? [String(valueFilter.value)]
+        : [],
+    minValue:
+      typeof minValue === "string" || typeof minValue === "number"
+        ? String(minValue)
+        : "",
+    maxValue:
+      typeof maxValue === "string" || typeof maxValue === "number"
+        ? String(maxValue)
+        : "",
+  };
+};
+
+const buildScoreTriggerFilter = (
+  score: z.infer<typeof scoreTriggerSchema>,
+): FilterState => {
+  const filter: FilterState = [
+    { column: "name", type: "string", operator: "=", value: score.name },
+    {
+      column: "dataType",
+      type: "string",
+      operator: "=",
+      value: score.dataType,
+    },
+  ];
+  if (score.condition === "any") return filter;
+
+  if (score.condition === "between") {
+    filter.push(
+      {
+        column: "value",
+        type: "number",
+        operator: ">=",
+        value: Number(score.minValue),
+      },
+      {
+        column: "value",
+        type: "number",
+        operator: "<=",
+        value: Number(score.maxValue),
+      },
+    );
+  } else if (score.condition === "oneOf") {
+    filter.push({
+      column: score.dataType === "CATEGORICAL" ? "stringValue" : "value",
+      type: "stringOptions",
+      operator: "any of",
+      value: score.values,
+    });
+  } else if (score.dataType === "NUMERIC" || score.dataType === "BOOLEAN") {
+    filter.push({
+      column: "value",
+      type: "number",
+      operator: "=",
+      value: Number(score.value),
+    });
+  } else {
+    filter.push({
+      column: "stringValue",
+      type: "string",
+      operator: "=",
+      value: score.value,
+    });
+  }
+  return filter;
+};
+
+const ScoreTriggerFields = ({
+  projectId,
+  control,
+  disabled,
+}: {
+  projectId: string;
+  control: Control<FormValues>;
+  disabled: boolean;
+}) => {
+  const { data, isLoading } = api.scoreConfigs.all.useQuery({ projectId });
+
+  return (
+    <>
+      <FormField
+        control={control}
+        name="score"
+        render={({ field }) => {
+          const config = data?.configs.find(
+            (item) =>
+              item.name === field.value.name &&
+              item.dataType === field.value.dataType,
+          );
+          const configs = (data?.configs ?? []).filter(
+            (item) => !item.isArchived || item.id === config?.id,
+          );
+
+          return (
+            <FormItem>
+              <FormLabel>Score condition</FormLabel>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span>When score</span>
+                <Select
+                  value={field.value.key}
+                  disabled={disabled || isLoading}
+                  onValueChange={(key) => {
+                    const selected = configs.find(
+                      (item) => scoreKey(item.name, item.dataType) === key,
+                    );
+                    if (!selected) return;
+                    field.onChange({
+                      key,
+                      name: selected.name,
+                      dataType: selected.dataType,
+                      condition: "any",
+                      value: "",
+                      values: [],
+                      minValue: "",
+                      maxValue: "",
+                    });
+                  }}
+                >
+                  <FormControl>
+                    <SelectTrigger
+                      aria-label="Score name"
+                      className="w-fit max-w-full"
+                      disableValueLineClamp
+                    >
+                      <SelectValue placeholder="Select a score" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {configs.map((item) => (
+                      <SelectItem
+                        key={item.id}
+                        value={scoreKey(item.name, item.dataType)}
+                      >
+                        {item.name} ({item.dataType.toLowerCase()})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {config ? (
+                  <>
+                    <Select
+                      value={field.value.condition}
+                      onValueChange={(condition) =>
+                        field.onChange({
+                          ...field.value,
+                          condition,
+                          value: "",
+                          values: [],
+                          minValue: "",
+                          maxValue: "",
+                        })
+                      }
+                      disabled={disabled}
+                    >
+                      <FormControl>
+                        <SelectTrigger
+                          aria-label="Score value condition"
+                          className="w-fit"
+                          disableValueLineClamp
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="any">has any value</SelectItem>
+                        {config.dataType === "BOOLEAN" ||
+                        config.dataType === "CATEGORICAL" ? (
+                          <SelectItem value="oneOf">is one of</SelectItem>
+                        ) : (
+                          <SelectItem value="equals">equals</SelectItem>
+                        )}
+                        {config.dataType === "NUMERIC" ? (
+                          <SelectItem value="between">in between</SelectItem>
+                        ) : null}
+                      </SelectContent>
+                    </Select>
+                    {field.value.condition === "oneOf" ? (
+                      <MultiSelect
+                        title="Select score values"
+                        label="Select score values"
+                        values={field.value.values}
+                        onValueChange={(values) =>
+                          field.onChange({ ...field.value, values })
+                        }
+                        options={(config.categories ?? []).map((category) => ({
+                          value:
+                            config.dataType === "BOOLEAN"
+                              ? String(category.value)
+                              : category.label,
+                          displayValue: category.label,
+                        }))}
+                        className="my-0 w-fit max-w-full"
+                        disabled={disabled}
+                        labelTruncateCutOff={2}
+                      />
+                    ) : field.value.condition === "between" ? (
+                      <>
+                        <Input
+                          type="number"
+                          value={field.value.minValue}
+                          onChange={(event) =>
+                            field.onChange({
+                              ...field.value,
+                              minValue: event.target.value,
+                            })
+                          }
+                          disabled={disabled}
+                          placeholder="Minimum"
+                          aria-label="Minimum score value"
+                          className="h-8 w-28"
+                        />
+                        <span>and</span>
+                        <Input
+                          type="number"
+                          value={field.value.maxValue}
+                          onChange={(event) =>
+                            field.onChange({
+                              ...field.value,
+                              maxValue: event.target.value,
+                            })
+                          }
+                          disabled={disabled}
+                          placeholder="Maximum"
+                          aria-label="Maximum score value"
+                          className="h-8 w-28"
+                        />
+                      </>
+                    ) : field.value.condition === "equals" ? (
+                      <Input
+                        type={config.dataType === "NUMERIC" ? "number" : "text"}
+                        value={field.value.value}
+                        onChange={(event) =>
+                          field.onChange({
+                            ...field.value,
+                            value: event.target.value,
+                          })
+                        }
+                        disabled={disabled}
+                        placeholder="Value"
+                        aria-label="Score value"
+                        className="h-8 w-40"
+                      />
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
+              <FormDescription>
+                Choose the score values that should trigger this automation.
+                Only scores attached to observations can add items to annotation
+                queues.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          );
+        }}
+      />
+    </>
+  );
+};
+
 interface AutomationFormProps {
   projectId: string;
   onSuccess?: (
@@ -452,11 +842,13 @@ export const AutomationForm = ({
       automation?.trigger.eventActions ??
       (resolvedEventSource === TriggerEventSource.Prompt
         ? promptEventActionDefaults
-        : resolvedEventSource === TriggerEventSource.ProjectNotification
-          ? // New channels start with every event enabled; the per-event
-            // toggles in the settings section manage them afterwards.
-            [...ProjectNotificationEventTypeSchema.options]
-          : []);
+        : resolvedEventSource === TriggerEventSource.Score
+          ? ["created", "updated"]
+          : resolvedEventSource === TriggerEventSource.ProjectNotification
+            ? // New channels start with every event enabled; the per-event
+              // toggles in the settings section manage them afterwards.
+              [...ProjectNotificationEventTypeSchema.options]
+            : []);
 
     const resolvedFilter: FilterState =
       automation?.trigger.filter ?? parsedPrefill.filter ?? [];
@@ -476,6 +868,7 @@ export const AutomationForm = ({
         ? automation.trigger.status
         : "ACTIVE") as "ACTIVE" | "INACTIVE",
       filter: resolvedFilter,
+      score: getScoreTriggerDefaults(resolvedFilter),
     };
 
     if (actionType === "WEBHOOK") {
@@ -517,6 +910,16 @@ export const AutomationForm = ({
           displayGitHubToken:
             githubDefaults.githubDispatch.displayGitHubToken || undefined,
           originalUrl: githubDefaults.githubDispatch.originalUrl,
+        },
+      };
+    } else if (actionType === "ANNOTATION_QUEUE") {
+      const handler = ActionHandlerRegistry.getHandler("ANNOTATION_QUEUE");
+      const defaults = handler.getDefaultValues(automation);
+      return {
+        ...baseValues,
+        actionType: "ANNOTATION_QUEUE" as const,
+        annotationQueue: {
+          queueIds: defaults.annotationQueue.queueIds ?? [],
         },
       };
     }
@@ -572,7 +975,12 @@ export const AutomationForm = ({
         name: resolvedName,
         eventSource: data.eventSource,
         eventAction: data.eventAction,
-        filter: data.filter && data.filter.length > 0 ? data.filter : null,
+        filter:
+          data.eventSource === TriggerEventSource.Score
+            ? buildScoreTriggerFilter(data.score)
+            : data.filter && data.filter.length > 0
+              ? data.filter
+              : null,
         status: data.status as JobConfigState,
         actionType: data.actionType,
         actionConfig: actionConfig,
@@ -592,7 +1000,12 @@ export const AutomationForm = ({
         name: resolvedName,
         eventSource: data.eventSource,
         eventAction: data.eventAction,
-        filter: data.filter && data.filter.length > 0 ? data.filter : null,
+        filter:
+          data.eventSource === TriggerEventSource.Score
+            ? buildScoreTriggerFilter(data.score)
+            : data.filter && data.filter.length > 0
+              ? data.filter
+              : null,
         status: data.status as JobConfigState,
         actionType: data.actionType,
         actionConfig: actionConfig,
@@ -632,6 +1045,10 @@ export const AutomationForm = ({
       const handler = ActionHandlerRegistry.getHandler("GITHUB_DISPATCH");
       const defaultValues = handler.getDefaultValues();
       form.setValue("githubDispatch", defaultValues.githubDispatch);
+    } else if (value === "ANNOTATION_QUEUE") {
+      const handler = ActionHandlerRegistry.getHandler("ANNOTATION_QUEUE");
+      const defaultValues = handler.getDefaultValues();
+      form.setValue("annotationQueue", defaultValues.annotationQueue);
     }
   };
 
@@ -675,13 +1092,25 @@ export const AutomationForm = ({
   /** handleEventSourceChange resets eventAction + filter to defaults appropriate for the picked source. */
   const handleEventSourceChange = (value: TriggerEventSource) => {
     form.setValue("eventSource", value);
-    if (value === TriggerEventSource.Monitor) {
+    if (value === TriggerEventSource.Score) {
+      form.setValue("eventAction", ["created", "updated"]);
+      handleActionTypeChange("ANNOTATION_QUEUE");
+    } else if (value === TriggerEventSource.Monitor) {
       form.setValue("eventAction", []);
+      if (form.getValues("actionType") === "ANNOTATION_QUEUE") {
+        handleActionTypeChange("WEBHOOK");
+      }
     } else {
       form.setValue("eventAction", promptEventActionDefaults);
+      if (form.getValues("actionType") === "ANNOTATION_QUEUE") {
+        handleActionTypeChange("WEBHOOK");
+      }
     }
     form.setValue("filter", []);
   };
+
+  const actionTypes =
+    allowedActionTypes ?? ActionHandlerRegistry.getAllActionTypes();
 
   return (
     <Form {...form}>
@@ -749,6 +1178,12 @@ export const AutomationForm = ({
               )}
               {watchedEventSource === TriggerEventSource.Monitor ? (
                 <MonitorTriggerFields projectId={projectId} />
+              ) : watchedEventSource === TriggerEventSource.Score ? (
+                <ScoreTriggerFields
+                  projectId={projectId}
+                  control={form.control}
+                  disabled={!hasAccess || !isEditing}
+                />
               ) : (
                 <PromptTriggerFields
                   projectId={projectId}
@@ -785,11 +1220,16 @@ export const AutomationForm = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {(
-                        allowedActionTypes ??
-                        ActionHandlerRegistry.getAllActionTypes()
-                      ).map((actionType) => (
-                        <SelectItem key={actionType} value={actionType}>
+                      {actionTypes.map((actionType) => (
+                        <SelectItem
+                          key={actionType}
+                          value={actionType}
+                          disabled={
+                            watchedEventSource === TriggerEventSource.Score
+                              ? actionType !== "ANNOTATION_QUEUE"
+                              : actionType === "ANNOTATION_QUEUE"
+                          }
+                        >
                           {actionType === "WEBHOOK"
                             ? "Webhook"
                             : actionType === "SLACK"

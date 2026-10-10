@@ -12,7 +12,9 @@ import {
   TriggerEventSource,
   TriggerEventSourceSchema,
   ProjectNotificationEventTypeSchema,
+  type FilterState,
 } from "@langfuse/shared";
+import { type PrismaClient } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { v4 } from "uuid";
 import {
@@ -44,6 +46,226 @@ const CreateAutomationInputSchema = z.object({
 const UpdateAutomationInputSchema = CreateAutomationInputSchema.extend({
   automationId: z.string(),
 });
+
+const validateScoreAnnotationAutomation = async ({
+  prisma,
+  projectId,
+  eventSource,
+  actionConfig,
+  actionType,
+  filter,
+  eventActions,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+  eventSource: TriggerEventSource;
+  actionConfig: z.infer<typeof ActionCreateSchema>;
+  actionType: z.infer<typeof CreateAutomationInputSchema>["actionType"];
+  filter: FilterState | null;
+  eventActions: string[];
+}) => {
+  if (actionType !== actionConfig.type) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Action type does not match the action configuration.",
+    });
+  }
+  const isScoreTrigger = eventSource === TriggerEventSource.Score;
+  const isAnnotationQueueAction = actionConfig.type === "ANNOTATION_QUEUE";
+
+  if (isScoreTrigger !== isAnnotationQueueAction) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "Score triggers must use an annotation queue action, and annotation queue actions must use a score trigger.",
+    });
+  }
+  if (!isScoreTrigger) return;
+  if (actionConfig.type !== "ANNOTATION_QUEUE") return;
+  if (
+    eventActions.length === 0 ||
+    eventActions.some((action) => action === "deleted")
+  ) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Score triggers support created and updated score events.",
+    });
+  }
+
+  const filters = filter ?? [];
+  const nameFilters = filters.filter((item) => item.column === "name");
+  const dataTypeFilters = filters.filter((item) => item.column === "dataType");
+  const nameFilter = nameFilters[0];
+  const dataTypeFilter = dataTypeFilters[0];
+  const allowedColumns = new Set([
+    "name",
+    "dataType",
+    "value",
+    "stringValue",
+    "longStringValue",
+  ]);
+
+  if (
+    filters.length < 2 ||
+    filters.length > 4 ||
+    nameFilters.length !== 1 ||
+    dataTypeFilters.length !== 1 ||
+    filters.some((item) => !allowedColumns.has(item.column)) ||
+    nameFilter?.type !== "string" ||
+    nameFilter.operator !== "=" ||
+    typeof nameFilter.value !== "string" ||
+    dataTypeFilter?.type !== "string" ||
+    dataTypeFilter.operator !== "=" ||
+    typeof dataTypeFilter.value !== "string"
+  ) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid score trigger configuration.",
+    });
+  }
+
+  const dataType = z
+    .enum(["NUMERIC", "BOOLEAN", "CATEGORICAL", "TEXT"])
+    .safeParse(dataTypeFilter.value);
+  if (!dataType.success) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid score trigger configuration.",
+    });
+  }
+
+  const scoreConfig = await prisma.scoreConfig.findFirst({
+    where: {
+      projectId,
+      name: nameFilter.value,
+      dataType: dataType.data,
+    },
+    select: { id: true, dataType: true, categories: true },
+  });
+  if (!scoreConfig) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "The selected score configuration was not found.",
+    });
+  }
+
+  const valueFilters = filters.filter((item) =>
+    ["value", "stringValue", "longStringValue"].includes(item.column),
+  );
+  const invalidValue = () => {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid score trigger value.",
+    });
+  };
+
+  if (scoreConfig.dataType === "NUMERIC") {
+    const exactFilter = valueFilters[0];
+    const isExact =
+      valueFilters.length === 1 &&
+      exactFilter?.column === "value" &&
+      exactFilter.type === "number" &&
+      exactFilter.operator === "=" &&
+      typeof exactFilter.value === "number" &&
+      Number.isFinite(exactFilter.value);
+    const lowerBound = valueFilters.find((item) => item.operator === ">=");
+    const upperBound = valueFilters.find((item) => item.operator === "<=");
+    const isRange =
+      valueFilters.length === 2 &&
+      lowerBound?.column === "value" &&
+      lowerBound.type === "number" &&
+      typeof lowerBound.value === "number" &&
+      Number.isFinite(lowerBound.value) &&
+      upperBound?.column === "value" &&
+      upperBound.type === "number" &&
+      typeof upperBound.value === "number" &&
+      Number.isFinite(upperBound.value) &&
+      lowerBound.value <= upperBound.value;
+    if (valueFilters.length > 0 && !isExact && !isRange) invalidValue();
+  } else if (
+    scoreConfig.dataType === "BOOLEAN" ||
+    scoreConfig.dataType === "CATEGORICAL"
+  ) {
+    const valueFilter = valueFilters[0];
+    const expectedColumn =
+      scoreConfig.dataType === "BOOLEAN" ? "value" : "stringValue";
+    const isLegacyExact =
+      valueFilters.length === 1 &&
+      valueFilter?.column === expectedColumn &&
+      valueFilter.operator === "=" &&
+      (scoreConfig.dataType === "BOOLEAN"
+        ? valueFilter.type === "number" &&
+          typeof valueFilter.value === "number" &&
+          (valueFilter.value === 0 || valueFilter.value === 1)
+        : valueFilter.type === "string" &&
+          typeof valueFilter.value === "string");
+    const isMultiValue =
+      valueFilters.length === 1 &&
+      valueFilter?.column === expectedColumn &&
+      valueFilter.type === "stringOptions" &&
+      valueFilter.operator === "any of" &&
+      Array.isArray(valueFilter.value) &&
+      valueFilter.value.length > 0 &&
+      valueFilter.value.every((value) => typeof value === "string");
+    if (valueFilters.length > 0 && !isLegacyExact && !isMultiValue) {
+      invalidValue();
+    }
+    if (
+      scoreConfig.dataType === "BOOLEAN" &&
+      isMultiValue &&
+      !valueFilter.value.every((value) => value === "0" || value === "1")
+    ) {
+      invalidValue();
+    }
+  } else {
+    const valueFilter = valueFilters[0];
+    const isExact =
+      valueFilters.length === 1 &&
+      valueFilter?.column === "stringValue" &&
+      valueFilter.type === "string" &&
+      valueFilter.operator === "=" &&
+      typeof valueFilter.value === "string";
+    if (valueFilters.length > 0 && !isExact) invalidValue();
+  }
+
+  if (scoreConfig.dataType === "CATEGORICAL" && valueFilters.length > 0) {
+    const validLabels = new Set(
+      z
+        .array(z.object({ label: z.string(), value: z.number() }))
+        .catch([])
+        .parse(scoreConfig.categories)
+        .map((category) => category.label),
+    );
+    const selectedValues =
+      valueFilters[0].type === "stringOptions" &&
+      Array.isArray(valueFilters[0].value)
+        ? valueFilters[0].value
+        : [valueFilters[0].value];
+    if (
+      selectedValues.some(
+        (value) => typeof value !== "string" || !validLabels.has(value),
+      )
+    ) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "The selected categorical score value does not exist.",
+      });
+    }
+  }
+
+  const queueCount = await prisma.annotationQueue.count({
+    where: {
+      projectId,
+      id: { in: actionConfig.queueIds },
+    },
+  });
+  if (queueCount !== new Set(actionConfig.queueIds).size) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "One or more selected annotation queues were not found.",
+    });
+  }
+};
 
 export const automationsRouter = createTRPCRouter({
   // Get automations that were recently auto-disabled due to failures
@@ -278,6 +500,16 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
+      await validateScoreAnnotationAutomation({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        eventSource: TriggerEventSourceSchema.parse(input.eventSource),
+        actionConfig: input.actionConfig,
+        actionType: input.actionType,
+        filter: input.filter,
+        eventActions: input.eventAction,
+      });
+
       const triggerId = v4();
       const actionId = v4();
 
@@ -395,6 +627,16 @@ export const automationsRouter = createTRPCRouter({
           message: `Automation with id ${input.automationId} not found.`,
         });
       }
+
+      await validateScoreAnnotationAutomation({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        eventSource: TriggerEventSourceSchema.parse(input.eventSource),
+        actionConfig: input.actionConfig,
+        actionType: input.actionType,
+        filter: input.filter,
+        eventActions: input.eventAction,
+      });
 
       let finalActionConfig = input.actionConfig;
 

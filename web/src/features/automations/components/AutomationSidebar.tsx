@@ -117,7 +117,9 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                           ? "Webhook"
                           : automation.action.type === "SLACK"
                             ? "Slack"
-                            : "Annotation Queue"}
+                            : automation.action.type === "GITHUB_DISPATCH"
+                              ? "GitHub Dispatch"
+                              : "Annotation Queue"}
                       </p>
                     </div>
                   </div>
