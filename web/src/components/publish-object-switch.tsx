@@ -344,7 +344,7 @@ const Base = (props: {
                     loading={props.isLoading}
                     onClick={handleOnClick}
                   >
-                    Share
+                    Make Public
                   </Button>
                 </div>
               </>
