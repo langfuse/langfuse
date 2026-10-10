@@ -24,19 +24,30 @@ vi.mock("@/src/env.mjs", () => ({
   },
 }));
 
-vi.mock("@/src/features/auth/components/TurnstileWidget", () => ({
-  TurnstileWidget: ({
-    action,
-    onTokenChange,
-  }: {
-    action: string;
-    onTokenChange: (token: string | undefined) => void;
-  }) => (
-    <button type="button" onClick={() => onTokenChange("captcha-token")}>
-      Complete captcha {action}
-    </button>
-  ),
-}));
+vi.mock("@/src/features/auth/components/TurnstileWidget", async () => {
+  const React = await import("react");
+  return {
+    TurnstileWidget: ({
+      action,
+      onTokenChange,
+      ref,
+    }: {
+      action: string;
+      onTokenChange: (token: string | undefined) => void;
+      ref?: React.Ref<{ reset: () => void }>;
+    }) => {
+      React.useImperativeHandle(ref, () => ({
+        reset: () => onTokenChange(undefined),
+        nextToken: () => Promise.resolve(undefined),
+      }));
+      return (
+        <button type="button" onClick={() => onTokenChange("captcha-token")}>
+          Complete captcha {action}
+        </button>
+      );
+    },
+  };
+});
 
 import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/ResetPasswordButton";
 import {
@@ -107,6 +118,19 @@ describe("RequestResetPasswordEmailButton captcha", () => {
       });
     });
     expect(onEmailSent).toHaveBeenCalledOnce();
+
+    await waitFor(() => {
+      expect(submit.disabled).toBe(true);
+    });
+    fireEvent.click(submit);
+    expect(signInMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: `Complete captcha ${TURNSTILE_ACTIONS.passwordReset}`,
+      }),
+    );
+    expect(submit.disabled).toBe(false);
   });
 
   it("shows the captcha message when NextAuth prefixes the thrown error", async () => {
@@ -132,5 +156,14 @@ describe("RequestResetPasswordEmailButton captcha", () => {
     );
 
     expect(await screen.findByText(TURNSTILE_FAILED_MESSAGE)).toBeTruthy();
+
+    const submit = screen.getByRole("button", {
+      name: "Request password reset",
+    }) as HTMLButtonElement;
+    await waitFor(() => {
+      expect(submit.disabled).toBe(true);
+    });
+    fireEvent.click(submit);
+    expect(signInMock).toHaveBeenCalledTimes(1);
   });
 });

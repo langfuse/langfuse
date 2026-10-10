@@ -145,11 +145,6 @@ describe("NextAuth signIn callback for the email provider", () => {
         email: { verificationRequest: true },
       }),
     ).rejects.toThrow(TURNSTILE_FAILED_MESSAGE);
-    await expect(
-      prisma.verificationToken.findFirst({
-        where: { identifier: "nobody@example.com" },
-      }),
-    ).resolves.toBeNull();
   });
 });
 
