@@ -1124,6 +1124,61 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops Chromium injected anonymous .length TypeError", () => {
+    // Real shape: Chrome 153 on /project/[projectId]. Unhandled rejection
+    // whose stack is only `<anonymous>:24:3` + `<anonymous>:11:22`.
+    // Injected page-world JS read `.length` on undefined. denyUrls
+    // cannot match anonymous frames. A first-party `.length` throw
+    // lives in a /_next/ chunk and is KEPT.
+    const chromiumUndefinedLengthEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onunhandledrejection",
+      frames?: { filename: string; function?: string }[],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              stacktrace: {
+                frames: (
+                  frames ?? [
+                    { filename: "<anonymous>", function: "?" },
+                    { filename: "<anonymous>", function: "?" },
+                  ]
+                ).map((frame) => ({
+                  filename: frame.filename,
+                  function: frame.function ?? "?",
+                })),
+              },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the observed anonymous .length TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          chromiumUndefinedLengthEvent(
+            "Cannot read properties of undefined (reading 'length')",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          chromiumUndefinedLengthEvent(
+            "Cannot read properties of undefined (reading 'length').",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1753,6 +1808,144 @@ describe("isDenylistedNoiseEvent", () => {
               mechanism: {
                 type: "auto.core.capture_console",
                 handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes reading 'length'", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Table render failed: Cannot read properties of undefined (reading 'length')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [{ filename: "<anonymous>", function: "?" }],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a Chromium null .length TypeError (different wording)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of null (reading 'length')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [{ filename: "<anonymous>", function: "?" }],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a different Chromium undefined-property TypeError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'map')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [{ filename: "<anonymous>", function: "?" }],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the .length TypeError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'length')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]-abc.js",
+                    function: "renderTable",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the .length TypeError without a stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'length')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured .length TypeError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Cannot read properties of undefined (reading 'length')",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'length')",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+              stacktrace: {
+                frames: [{ filename: "<anonymous>", function: "?" }],
               },
             },
           ],
