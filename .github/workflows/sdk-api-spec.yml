@@ -10,13 +10,30 @@ on:
       - "web/scripts/python-sdk/patch-generated-deprecations.ts"
       - "web/scripts/typescript-sdk/patch-generated-deprecations.ts"
   workflow_dispatch:
+    inputs:
+      python_sdk_base_branch:
+        description: "langfuse-python branch to generate against and open the PR into"
+        required: true
+        default: main
+        type: string
+      js_sdk_base_branch:
+        description: "langfuse-js branch to generate against and open the PR into"
+        required: true
+        default: main
+        type: string
 
 concurrency:
-  group: sdk-api-spec-${{ github.ref }}
+  # `:` cannot appear in a branch name, so distinct branch pairs never collide.
+  group: sdk-api-spec-${{ github.ref }}:${{ inputs.python_sdk_base_branch || 'main' }}:${{ inputs.js_sdk_base_branch || 'main' }}
   cancel-in-progress: true
 
 permissions:
   contents: read
+
+# Push runs have no inputs and target the SDK default branches.
+env:
+  PYTHON_SDK_BASE_BRANCH: ${{ inputs.python_sdk_base_branch || 'main' }}
+  JS_SDK_BASE_BRANCH: ${{ inputs.js_sdk_base_branch || 'main' }}
 
 jobs:
   generate-sdk-api-specs:
@@ -27,6 +44,15 @@ jobs:
       typescript_has_changes: ${{ steps.prepare-typescript-sdk.outputs.has_changes }}
       typescript_branch_name: ${{ steps.prepare-typescript-sdk.outputs.branch_name }}
     steps:
+      - name: Validate SDK base branches
+        run: |
+          for branch in "$PYTHON_SDK_BASE_BRANCH" "$JS_SDK_BASE_BRANCH"; do
+            if ! git check-ref-format --branch "$branch" > /dev/null; then
+              echo "Invalid SDK base branch: $branch"
+              exit 1
+            fi
+          done
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -77,7 +103,7 @@ jobs:
         id: prepare-python-sdk
         run: |
           # Clone langfuse-python repository
-          git clone https://github.com/langfuse/langfuse-python.git ../langfuse-python
+          git clone --branch "$PYTHON_SDK_BASE_BRANCH" https://github.com/langfuse/langfuse-python.git ../langfuse-python
           cd ../langfuse-python
 
           git config user.name "langfuse-bot"
@@ -133,7 +159,7 @@ jobs:
         id: prepare-typescript-sdk
         run: |
           # Clone langfuse-js repository
-          git clone https://github.com/langfuse/langfuse-js.git ../langfuse-js
+          git clone --branch "$JS_SDK_BASE_BRANCH" https://github.com/langfuse/langfuse-js.git ../langfuse-js
           cd ../langfuse-js
 
           # Configure git
@@ -158,9 +184,15 @@ jobs:
             fi
           fi
 
-          # Install dependencies and format
+          # Install dependencies, reserve a request slot in methods without
+          # query params or a body so later query params never shift
+          # requestOptions, and format. SDK branches without the script
+          # (the v5.x line) keep Fern's signatures unchanged.
           corepack enable
           pnpm install
+          if [ -f scripts/patch-generated-request-placeholders.mjs ]; then
+            node scripts/patch-generated-request-placeholders.mjs
+          fi
           pnpm format
 
           # Check for changes and show diff for debugging
@@ -233,14 +265,20 @@ jobs:
 
           NEW_PR_URL="$("$GH_BIN" pr create \
             --repo langfuse/langfuse-python \
+            --base "$PYTHON_SDK_BASE_BRANCH" \
             --head "$BRANCH_NAME" \
             --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" \
-            --body "" \
+            --body "Generated from langfuse/langfuse \`${GITHUB_REF_NAME}\` at ${GITHUB_SHA::7}." \
             "${REVIEWER_ARGS[@]}")"
           NEW_PR_NUMBER="${NEW_PR_URL##*/}"
 
-          # Only retire stale bot PRs after their replacement exists.
-          "$GH_BIN" pr list --repo langfuse/langfuse-python --author langfuse-bot --state open --json number --jq '.[].number' | while read -r pr_number; do
+          # Only retire stale bot PRs after their replacement exists, and only
+          # on push runs to main. Manual runs never close bot PRs, so an open
+          # release-branch or hand-dispatched PR survives until merged or closed.
+          if [ "$GITHUB_EVENT_NAME" != "push" ]; then
+            exit 0
+          fi
+          "$GH_BIN" pr list --repo langfuse/langfuse-python --author langfuse-bot --base main --state open --json number --jq '.[].number' | while read -r pr_number; do
             if [ -n "$pr_number" ] && [ "$pr_number" != "$NEW_PR_NUMBER" ]; then
               "$GH_BIN" pr close --repo langfuse/langfuse-python "$pr_number"
             fi
@@ -290,14 +328,20 @@ jobs:
 
           NEW_PR_URL="$("$GH_BIN" pr create \
             --repo langfuse/langfuse-js \
+            --base "$JS_SDK_BASE_BRANCH" \
             --head "$BRANCH_NAME" \
             --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" \
-            --body "" \
+            --body "Generated from langfuse/langfuse \`${GITHUB_REF_NAME}\` at ${GITHUB_SHA::7}." \
             "${REVIEWER_ARGS[@]}")"
           NEW_PR_NUMBER="${NEW_PR_URL##*/}"
 
-          # Only retire stale bot PRs after their replacement exists.
-          "$GH_BIN" pr list --repo langfuse/langfuse-js --author langfuse-bot --state open --json number --jq '.[].number' | while read -r pr_number; do
+          # Only retire stale bot PRs after their replacement exists, and only
+          # on push runs to main. Manual runs never close bot PRs, so an open
+          # release-branch or hand-dispatched PR survives until merged or closed.
+          if [ "$GITHUB_EVENT_NAME" != "push" ]; then
+            exit 0
+          fi
+          "$GH_BIN" pr list --repo langfuse/langfuse-js --author langfuse-bot --base main --state open --json number --jq '.[].number' | while read -r pr_number; do
             if [ -n "$pr_number" ] && [ "$pr_number" != "$NEW_PR_NUMBER" ]; then
               "$GH_BIN" pr close --repo langfuse/langfuse-js "$pr_number"
             fi
