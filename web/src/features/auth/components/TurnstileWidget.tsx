@@ -8,6 +8,7 @@ import {
 } from "react";
 import { Button } from "@/src/components/ui/button";
 import type { TurnstileAction } from "@/src/features/auth/constants";
+import { useTheme } from "next-themes";
 
 const SCRIPT_SRC =
   "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
@@ -16,10 +17,19 @@ type TurnstileRenderOptions = {
   sitekey: string;
   action: string;
   theme?: "auto" | "light" | "dark";
+  size?: "normal" | "compact" | "flexible";
   callback: (token: string) => void;
   "expired-callback": () => void;
   "error-callback": () => void;
 };
+
+function turnstileTheme(
+  resolvedTheme: string | undefined,
+): "light" | "dark" | undefined {
+  if (resolvedTheme === "dark") return "dark";
+  if (resolvedTheme === "light") return "light";
+  return undefined;
+}
 
 type TurnstileApi = {
   render: (container: HTMLElement, options: TurnstileRenderOptions) => string;
@@ -107,6 +117,8 @@ export function TurnstileWidget({
   const pendingTokenRef = useRef<PendingToken>(null);
   const [scriptFailed, setScriptFailed] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const { resolvedTheme } = useTheme();
+  const theme = turnstileTheme(resolvedTheme);
 
   const handleToken = useEffectEvent((token: string | undefined) => {
     onTokenChange(token);
@@ -121,15 +133,20 @@ export function TurnstileWidget({
   // Turnstile is an imperative third-party widget: render it into the
   // container on mount and remove it on unmount.
   useEffect(() => {
+    if (!theme) return;
     let cancelled = false;
     setScriptFailed(false);
+    // A new render issues a new token. Drop the previous one so the submit
+    // button stays disabled until this widget shows its checkmark.
+    handleToken(undefined);
     loadTurnstile()
       .then((turnstile) => {
         if (cancelled || !containerRef.current) return;
         widgetIdRef.current = turnstile.render(containerRef.current, {
           sitekey: siteKey,
           action,
-          theme: "auto",
+          theme,
+          size: "flexible",
           callback: (token) => handleToken(token),
           "expired-callback": () => handleToken(undefined),
           "error-callback": () => handleError(),
@@ -148,7 +165,7 @@ export function TurnstileWidget({
         widgetIdRef.current = null;
       }
     };
-  }, [siteKey, action, loadAttempt]);
+  }, [siteKey, action, loadAttempt, theme]);
 
   useImperativeHandle(
     ref,
@@ -170,18 +187,19 @@ export function TurnstileWidget({
   );
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div ref={containerRef} />
+    <div className="flex w-full flex-col gap-2">
+      <div ref={containerRef} className="min-h-[65px] w-full" />
       {scriptFailed ? (
         <Button
           type="button"
-          variant="ghost"
+          variant="link"
+          className="h-auto justify-start px-0"
           onClick={() => {
             scriptPromise = null;
             setLoadAttempt((attempt) => attempt + 1);
           }}
         >
-          Captcha failed to load. Retry
+          Captcha failed to load. Try again
         </Button>
       ) : null}
     </div>
