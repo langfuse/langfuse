@@ -258,22 +258,60 @@ describe("Annotation Queues API Endpoints", () => {
       expect(response.status).toBe(400);
     });
 
-    it("should return 400 if no score config IDs are provided", async () => {
-      const response = await makeAPICall(
+    it("should create a queue with an empty scoreConfigIds (corrected-output-only workflow)", async () => {
+      // Regression for langfuse/langfuse#15006: a corrected-output workflow
+      // has no score config to wire up. The endpoint must accept an empty
+      // array and round-trip it as-is, so a follow-up GET returns
+      // `scoreConfigIds: []` rather than 400-ing.
+      const response = await makeZodVerifiedAPICall(
+        CreateAnnotationQueueResponse,
         "POST",
         "/api/public/annotation-queues",
         {
-          name: "No configs queue",
-          description: "Test Queue Description",
+          name: `Correction-only queue ${uuidv4()}`,
+          description: "Reviewer-corrected outputs only",
           scoreConfigIds: [],
         },
         auth,
       );
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(200);
+      expect(response.body.scoreConfigIds).toEqual([]);
+
+      const getResponse = await makeZodVerifiedAPICall(
+        GetAnnotationQueueByIdResponse,
+        "GET",
+        `/api/public/annotation-queues/${response.body.id}`,
+        undefined,
+        auth,
+      );
+      expect(getResponse.status).toBe(200);
+      expect(getResponse.body.scoreConfigIds).toEqual([]);
+    });
+
+    it("should default a missing scoreConfigIds field to an empty array", async () => {
+      // Regression for langfuse/langfuse#15006: the field is optional, and
+      // omitting it entirely (instead of sending `[]`) must also produce a
+      // corrected-output-only queue with `scoreConfigIds: []`.
+      const response = await makeZodVerifiedAPICall(
+        CreateAnnotationQueueResponse,
+        "POST",
+        "/api/public/annotation-queues",
+        {
+          name: `Omitted-configs queue ${uuidv4()}`,
+          description: "Reviewer-corrected outputs only",
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.scoreConfigIds).toEqual([]);
     });
 
     it("should return 400 if the score config IDs are invalid", async () => {
+      // The non-empty-id contract is unchanged: every supplied id must exist
+      // in the project. Empty arrays are now allowed (see above); an
+      // unknown id must still 400.
       const response = await makeAPICall(
         "POST",
         "/api/public/annotation-queues",
