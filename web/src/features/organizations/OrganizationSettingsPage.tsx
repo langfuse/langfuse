@@ -5,6 +5,7 @@ import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/com
 import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { Card } from "@/src/components/ui/card";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
 import { DeleteOrganizationDialogController } from "@/src/features/organizations/components/DeleteOrganizationDialogController";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
@@ -135,21 +136,24 @@ export const getOrganizationSettingsPages = ({
         <RenameOrganization />
         <div>
           <Header title="Debug Information" />
-          <JSONView
-            title="Metadata"
-            json={{
-              name: organization.name,
-              id: organization.id,
-              ...organization.metadata,
-              ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && {
-                cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-              }),
-              ...(organization.cloudConfig?.clickhouse?.organizationId && {
-                clickhouseOrganizationId:
-                  organization.cloudConfig.clickhouse.organizationId,
-              }),
-            }}
-          />
+          <Card className="mb-4 p-3">
+            <JSONView
+              title="Metadata"
+              json={{
+                name: organization.name,
+                id: organization.id,
+                ...organization.metadata,
+                ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && {
+                  cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+                }),
+                ...(organization.cloudConfig?.clickhouse?.organizationId && {
+                  clickhouseOrganizationId:
+                    organization.cloudConfig.clickhouse.organizationId,
+                }),
+              }}
+              borderless
+            />
+          </Card>
         </div>
         <AIFeatureSwitch />
         <SettingsDangerZone
