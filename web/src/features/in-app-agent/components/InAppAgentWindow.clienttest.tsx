@@ -849,7 +849,7 @@ describe("InAppAgentWindow message actions", () => {
     });
   });
 
-  it("joins later answer texts into one visible reply after Working", async () => {
+  it("keeps the answer visible when reasoning follows a redirect", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -858,6 +858,8 @@ describe("InAppAgentWindow message actions", () => {
     vi.stubGlobal("ClipboardItem", undefined);
 
     const analysis = "The traces are synthetic seed data, not real traffic.";
+    const intermediate =
+      "I should check whether the link needs another filter.";
     const closer = "I've prepared a link to the error-level traces.";
 
     render(
@@ -901,6 +903,23 @@ describe("InAppAgentWindow message actions", () => {
             },
           },
           {
+            id: "assistant-intermediate",
+            role: "assistant" as const,
+            content: {
+              type: "text" as const,
+              text: intermediate,
+            },
+          },
+          {
+            id: "assistant-post-redirect-reasoning",
+            role: "assistant" as const,
+            content: {
+              type: "reasoning" as const,
+              text: "The redirect is ready; I should close the turn.",
+              isStreaming: false,
+            },
+          },
+          {
             id: "assistant-closer",
             runId: "run-1",
             timestamp: new Date("2026-08-06T15:27:48.000Z").getTime(),
@@ -920,6 +939,7 @@ describe("InAppAgentWindow message actions", () => {
     expect(activityTrigger).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText(analysis)).toBeVisible();
     expect(screen.getByText(closer)).toBeVisible();
+    expect(screen.queryByText(intermediate)).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Open error traces" }),
     ).toBeVisible();
@@ -928,7 +948,8 @@ describe("InAppAgentWindow message actions", () => {
     ).not.toBeInTheDocument();
 
     fireEvent.click(activityTrigger);
-    expect(screen.getByText("Thought")).toBeVisible();
+    expect(screen.getAllByText("Thought")).toHaveLength(2);
+    expect(screen.getByText(intermediate)).toBeVisible();
     expect(screen.getByText(analysis)).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Copy message" }));

@@ -409,13 +409,22 @@ function buildConversationDisplayItems(
 
     const turnMessages = visibleMessages.slice(turnStartIndex, index);
     const isInProgress = isRunUnsettled && index === visibleMessages.length;
+    const redirectIndex = turnMessages.findIndex(
+      (turnMessage) =>
+        turnMessage.content.type === "redirectAction" ||
+        (turnMessage.content.type === "text" &&
+          turnMessage.content.redirectAction !== undefined),
+    );
     const lastReasoningIndex = turnMessages.findLastIndex(
+      (turnMessage, turnIndex) =>
+        turnMessage.content.type === "reasoning" &&
+        (redirectIndex === -1 || turnIndex < redirectIndex),
+    );
+    const finalReasoningIndex = turnMessages.findLastIndex(
       (turnMessage) => turnMessage.content.type === "reasoning",
     );
-    // Trailing text is the answer; text before the turn's last thought is still
-    // work. A proposed redirect is always actionable, so it never stays behind
-    // in the drawer. Declared once, with the activity bucket as its exact
-    // complement, so no message can fall out of both.
+    // Reasoning after a redirect does not turn the preceding answer into work.
+    // A proposed redirect is always actionable, so it stays out of the drawer.
     const isAnswerPart = (
       turnMessage: InAppAgentWindowMessage,
       turnIndex: number,
@@ -423,7 +432,10 @@ function buildConversationDisplayItems(
       !isInProgress &&
       (turnMessage.content.type === "redirectAction" ||
         (turnMessage.content.type === "text" &&
-          turnIndex > lastReasoningIndex));
+          ((redirectIndex !== -1 &&
+            turnIndex <= redirectIndex &&
+            turnIndex > lastReasoningIndex) ||
+            turnIndex > finalReasoningIndex)));
     const answerMessages = turnMessages.filter(isAnswerPart);
     const activityMessages = turnMessages.filter(
       (turnMessage, turnIndex) => !isAnswerPart(turnMessage, turnIndex),
