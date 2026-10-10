@@ -173,4 +173,30 @@ describe("compileChatMessages", () => {
 
     expect(placeholderNames).toEqual([]);
   });
+
+  it("should substitute text variable values containing '$' literally", () => {
+    // String.prototype.replace treats $$, $&, $`, $' specially in a string
+    // replacement. Variable values are arbitrary user input (prices, code,
+    // regex, shell snippets) and must be inserted verbatim.
+    const promptTemplate = [
+      { role: "system", content: "Discount: {{discount}}" },
+      { role: "user", content: "Pattern: {{pattern}}" },
+    ];
+
+    const textVariables = {
+      discount: "$$100 (was $200)",
+      pattern: "match $& then keep $' and $` and $$",
+    };
+
+    const compiledMessages = compileChatMessages(
+      promptTemplate,
+      {},
+      textVariables,
+    );
+
+    expect(compiledMessages).toEqual([
+      { role: "system", content: "Discount: $$100 (was $200)" },
+      { role: "user", content: "Pattern: match $& then keep $' and $` and $$" },
+    ]);
+  });
 });
