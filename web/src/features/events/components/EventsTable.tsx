@@ -2329,6 +2329,7 @@ export default function ObservationsEventsTable({
                           // row still on screen, so page 2 continues where this
                           // page ends even if rows keep arriving.
                           pinOnLeavingFirstPage(
+                            paginationState.page - 1,
                             newState.pageIndex,
                             rows[0]?.startTime ?? undefined,
                           );
