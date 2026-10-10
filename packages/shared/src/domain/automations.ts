@@ -117,6 +117,9 @@ export const GitHubDispatchActionConfigSchema = z.object({
   githubToken: z.string(),
   displayGitHubToken: z.string(),
   lastFailingExecutionId: z.string().nullish(),
+  // Absent on existing automations; treated as true by the worker so current
+  // workflows keep receiving prompt text until a user turns it off.
+  includePromptContent: z.boolean().optional(),
 });
 
 export const SafeGitHubDispatchActionConfigSchema =
@@ -133,6 +136,7 @@ export const GitHubDispatchActionCreateSchema = z.object({
   url: z.url().optional(), // Optional for updates, validated in helper
   eventType: z.string().min(1).max(100).optional(), // Optional for updates, validated in helper
   githubToken: z.string().optional(), // Optional for updates, validated in helper
+  includePromptContent: z.boolean().optional(),
 });
 
 export type GitHubDispatchActionCreate = z.infer<
@@ -274,5 +278,6 @@ export function convertToSafeGitHubDispatchConfig(
     eventType: config.eventType,
     displayGitHubToken: config.displayGitHubToken,
     lastFailingExecutionId: config.lastFailingExecutionId,
+    includePromptContent: config.includePromptContent,
   };
 }
