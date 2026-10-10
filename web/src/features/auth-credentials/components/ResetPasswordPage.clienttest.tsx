@@ -20,7 +20,7 @@ const {
   routerPushMock: vi.fn(),
   routerState: {
     isReady: true,
-    query: {} as Record<string, string>,
+    query: {} as Record<string, string | string[]>,
   },
   useLangfuseCloudRegionMock: vi.fn(),
   useSessionMock: vi.fn(),
@@ -64,13 +64,15 @@ vi.mock(
   "@/src/features/auth-credentials/components/ResetPasswordButton",
   () => ({
     RequestResetPasswordEmailButton: ({
+      email,
       onEmailSent,
       label = "Send email",
     }: {
+      email?: string;
       onEmailSent?: () => void;
       label?: string;
     }) => (
-      <button type="button" onClick={() => onEmailSent?.()}>
+      <button type="button" data-email={email} onClick={() => onEmailSent?.()}>
         {label}
       </button>
     ),
@@ -78,6 +80,7 @@ vi.mock(
 );
 
 import { ResetPasswordPage } from "@/src/features/auth-credentials/components/ResetPasswordPage";
+import ResetPasswordAuthPage from "@/src/features/auth-credentials/ResetPasswordAuthPage";
 
 const submitPasswordForm = ({
   code,
@@ -248,5 +251,57 @@ describe("ResetPasswordPage re-authentication", () => {
     expect(routerPushMock).toHaveBeenCalledWith(
       "/onboarding?targetPath=%2Fdemo%2Fdatasets%2Fdataset-1%2Fitems%3Ffoo%3Dbar",
     );
+  });
+});
+
+describe("reset-password page ?email= prefill", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    routerState.isReady = true;
+    routerState.query = {};
+    useLangfuseCloudRegionMock.mockReturnValue({
+      isLangfuseCloud: false,
+      region: undefined,
+    });
+    useSessionMock.mockReturnValue({ status: "unauthenticated", data: null });
+  });
+
+  it("prefills the email input from the query and hands it to the request button", () => {
+    routerState.query = { email: "jane+test@example.com" };
+
+    render(<ResetPasswordAuthPage passwordResetAvailable />);
+
+    expect(screen.getByLabelText("Email")).toHaveValue("jane+test@example.com");
+    // The mocked request button above stands in for RequestResetPasswordEmailButton.
+    expect(screen.getByRole("button", { name: "Send email" })).toHaveAttribute(
+      "data-email",
+      "jane+test@example.com",
+    );
+  });
+
+  it("only prefills — the reset email still takes an explicit click", () => {
+    routerState.query = { email: "jane@example.com" };
+
+    render(<ResetPasswordAuthPage passwordResetAvailable />);
+
+    // Jumping straight to the code step would imply an email had been sent.
+    expect(
+      screen.queryByLabelText("Verification code"),
+    ).not.toBeInTheDocument();
+    expect(signInMock).not.toHaveBeenCalled();
+  });
+
+  it("leaves the field empty without the param", () => {
+    render(<ResetPasswordAuthPage passwordResetAvailable />);
+
+    expect(screen.getByLabelText("Email")).toHaveValue("");
+  });
+
+  it("ignores a repeated ?email= rather than joining the values", () => {
+    routerState.query = { email: ["a@example.com", "b@example.com"] };
+
+    render(<ResetPasswordAuthPage passwordResetAvailable />);
+
+    expect(screen.getByLabelText("Email")).toHaveValue("");
   });
 });

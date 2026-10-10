@@ -619,6 +619,15 @@ export default function SignInPage({
     setLastUsedSsoEmail,
   ]);
 
+  // Hand the address already typed here to the reset form, which reads it back
+  // out of `?email=`, so it does not have to be entered a second time. Whatever
+  // is in the field is carried over as-is: a half-typed address still saves
+  // typing, and the reset page only enables its request button for a valid one.
+  const typedEmail = credentialsForm.watch("email").trim();
+  const resetPasswordHref = typedEmail
+    ? `/auth/reset-password?email=${encodeURIComponent(typedEmail)}`
+    : "/auth/reset-password";
+
   async function onCredentialsSubmit(
     values: z.infer<typeof credentialAuthForm>,
   ) {
@@ -909,7 +918,7 @@ export default function SignInPage({
                             <FormLabel>
                               Password{" "}
                               <Link
-                                href="/auth/reset-password"
+                                href={resetPasswordHref}
                                 className="text-link hover:text-link-hover ml-1 text-xs"
                                 tabIndex={-1}
                                 title="What is this?"
