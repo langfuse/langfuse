@@ -24,27 +24,34 @@ export function toCompactVerbosityChatML(io: unknown): {
     if (Array.isArray(io)) {
       const parsed = SimpleChatMlArraySchema.safeParse(io);
       if (parsed.success && parsed.data.length > 0) {
-        const lastMessage = parsed.data[parsed.data.length - 1];
+        const lastMessage = parsed.data[parsed.data.length - 1] as Record<
+          string,
+          unknown
+        >;
+        const displayValue =
+          lastMessage.content !== undefined && lastMessage.content !== null
+            ? lastMessage.content
+            : lastMessage.parts;
         return {
           success: true,
-          data: JSON.stringify(lastMessage.content) ?? null,
+          data: displayValue !== undefined ? JSON.stringify(displayValue) : null,
         };
       }
       return { success: false, data: null };
     }
 
-    // Case 2: Single message object with role+content
+    // Case 2: Single message object with role+content or role+parts
     if (io && typeof io === "object" && !Array.isArray(io)) {
       const obj = io as Record<string, unknown>;
 
-      // Check for direct role+content structure
-      if (
-        "role" in obj &&
-        typeof obj.role === "string" &&
-        "content" in obj &&
-        obj.content !== undefined
-      ) {
-        return { success: true, data: JSON.stringify(obj.content) ?? null };
+      // Check for direct role+content/parts structure (e.g. GenAI semantic-convention shape)
+      if ("role" in obj && typeof obj.role === "string") {
+        if ("content" in obj && obj.content !== undefined) {
+          return { success: true, data: JSON.stringify(obj.content) ?? null };
+        }
+        if ("parts" in obj && obj.parts !== undefined) {
+          return { success: true, data: JSON.stringify(obj.parts) };
+        }
       }
 
       // Case 3: Object with 'messages' key
@@ -52,10 +59,18 @@ export function toCompactVerbosityChatML(io: unknown): {
         const messages = obj.messages;
         const parsed = SimpleChatMlArraySchema.safeParse(messages);
         if (parsed.success && parsed.data.length > 0) {
-          const lastMessage = parsed.data[parsed.data.length - 1];
+          const lastMessage = parsed.data[parsed.data.length - 1] as Record<
+            string,
+            unknown
+          >;
+          const displayValue =
+            lastMessage.content !== undefined && lastMessage.content !== null
+              ? lastMessage.content
+              : lastMessage.parts;
           return {
             success: true,
-            data: JSON.stringify(lastMessage.content) ?? null,
+            data:
+              displayValue !== undefined ? JSON.stringify(displayValue) : null,
           };
         }
       }
