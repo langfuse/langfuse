@@ -472,19 +472,7 @@ export class ClickhouseWriter<
         err,
       );
 
-      const failedRow = queueItems[failedRowNumber(err) - 1]?.data;
-      if (failedRow) {
-        this.logger.error(
-          `${this.logPrefix}ClickhouseWriter: ClickHouse rejected ${tableName} row`,
-          {
-            ...writeStrategy.droppedId(failedRow),
-            blobStorageFilePath:
-              "blob_storage_file_path" in failedRow
-                ? failedRow.blob_storage_file_path
-                : undefined,
-          },
-        );
-      }
+      this.logRejectedRow(tableName, err, queueItems, writeStrategy);
 
       // Re-add the records to the queue with incremented attempts
       const reason = classifyJobFailure(err);
@@ -526,6 +514,27 @@ export class ClickhouseWriter<
         );
       }
     }
+  }
+
+  /** Log the row a ClickHouse parse error names, so its S3 event file can be found. */
+  private logRejectedRow<T extends TableName>(
+    tableName: T,
+    err: unknown,
+    queueItems: ClickhouseWriterQueueItem<PayloadMap[T]>[],
+    strategy: ClickhouseWriteStrategy<PayloadMap[TableName]>,
+  ) {
+    const row = queueItems[failedRowNumber(err) - 1]?.data;
+    if (!row) return;
+    this.logger.error(
+      `${this.logPrefix}ClickhouseWriter: ClickHouse rejected ${tableName} row`,
+      {
+        ...strategy.droppedId(row),
+        blobStorageFilePath:
+          "blob_storage_file_path" in row
+            ? row.blob_storage_file_path
+            : undefined,
+      },
+    );
   }
 
   public addToQueue<T extends TableName>(tableName: T, data: PayloadMap[T]) {
