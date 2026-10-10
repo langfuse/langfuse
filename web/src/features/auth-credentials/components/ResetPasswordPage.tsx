@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -28,6 +28,12 @@ import { passwordSchema } from "@/src/features/auth";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { getDemoTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
+import { env } from "@/src/env.mjs";
+import { TURNSTILE_ACTIONS } from "@/src/features/auth/constants";
+import {
+  TurnstileWidget,
+  type TurnstileWidgetHandle,
+} from "@/src/features/auth/components/TurnstileWidget";
 
 const resetPasswordSchema = z
   .object({
@@ -75,6 +81,9 @@ export function ResetPasswordPage({
 
   const mutResetPassword = api.credentials.resetPassword.useMutation();
   const effectiveEmail = session.data?.user?.email ?? email;
+  const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const [turnstileToken, setTurnstileToken] = useState<string>();
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
 
   const form = useForm({
     resolver: zodResolver(resetPasswordSchema),
@@ -132,7 +141,9 @@ export function ResetPasswordPage({
         email: effectiveEmail,
         password: values.password,
         redirect: false,
+        ...(turnstileToken ? { turnstileToken } : {}),
       });
+      turnstileRef.current?.reset();
       if (!signInResult?.ok) {
         target = "/auth/sign-in";
       }
@@ -283,11 +294,22 @@ export function ResetPasswordPage({
                         </FormItem>
                       )}
                     />
+                    {turnstileSiteKey ? (
+                      <TurnstileWidget
+                        ref={turnstileRef}
+                        siteKey={turnstileSiteKey}
+                        action={TURNSTILE_ACTIONS.login}
+                        onTokenChange={setTurnstileToken}
+                      />
+                    ) : null}
                     <div className="pt-4">
                       <Button
                         type="submit"
                         className="w-full"
-                        disabled={mutResetPassword.isPending}
+                        disabled={
+                          mutResetPassword.isPending ||
+                          (Boolean(turnstileSiteKey) && !turnstileToken)
+                        }
                         loading={mutResetPassword.isPending}
                       >
                         {submitLabel}
