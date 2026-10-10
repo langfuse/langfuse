@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { encrypt } from "../../../encryption";
 import { env } from "../../../env";
-import { VERTEXAI_USE_DEFAULT_CREDENTIALS } from "../../../interfaces/customLLMProviderConfigSchemas";
+import {
+  AZURE_USE_DEFAULT_CREDENTIALS,
+  VERTEXAI_USE_DEFAULT_CREDENTIALS,
+} from "../../../interfaces/customLLMProviderConfigSchemas";
 import {
   type ChatMessage,
   ChatMessageRole,
@@ -42,6 +45,37 @@ vi.mock("google-auth-library", () => ({
     getProjectId = async () => "adc-project";
   },
 }));
+
+const azureIdentity = vi.hoisted(() => ({
+  clientSecretCredentialArgs: [] as unknown[][],
+  defaultCredentialCount: 0,
+  tokenScopes: [] as string[],
+}));
+
+// The Azure provider exchanges Entra ID credentials for a bearer token before
+// the model request; the error classes stay real so classification is covered.
+vi.mock("@azure/identity", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@azure/identity")>();
+  return {
+    ...actual,
+    ClientSecretCredential: class {
+      readonly kind = "service-principal";
+      constructor(...args: unknown[]) {
+        azureIdentity.clientSecretCredentialArgs.push(args);
+      }
+    },
+    DefaultAzureCredential: class {
+      readonly kind = "default";
+      constructor() {
+        azureIdentity.defaultCredentialCount += 1;
+      }
+    },
+    getBearerTokenProvider: (credential: { kind: string }, scope: string) => {
+      azureIdentity.tokenScopes.push(scope);
+      return async () => `fake-entra-token-${credential.kind}`;
+    },
+  };
+});
 
 const messages: ChatMessage[] = [
   {
@@ -205,6 +239,19 @@ async function runCompletion(params: {
 
   expect(calls).toHaveLength(1);
   return { result, request: calls[0] };
+}
+
+async function withCloudRegion<T>(
+  region: string | undefined,
+  run: () => Promise<T>,
+): Promise<T> {
+  const original = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: region });
+  try {
+    return await run();
+  } finally {
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: original });
+  }
 }
 
 afterEach(() => {
@@ -494,6 +541,140 @@ describe("AI SDK request shapes", () => {
       "https://my-instance.openai.azure.com/openai/deployments/gpt4o-deployment/chat/completions?api-version=2025-02-01-preview",
     );
     expect(request.headers.get("api-key")).toBe("azure-key");
+  });
+
+  it("Azure: Entra ID service principal sends a cached bearer token instead of api-key", async () => {
+    const servicePrincipal = {
+      tenantId: "contoso.onmicrosoft.com",
+      clientId: "11111111-2222-3333-4444-555555555555",
+      clientSecret: "request-shape-secret",
+    };
+    const credentialsBefore = azureIdentity.clientSecretCredentialArgs.length;
+
+    for (const attempt of [1, 2]) {
+      const { request } = await runCompletion({
+        modelParams: {
+          provider: "azure",
+          adapter: LLMAdapter.Azure,
+          model: "gpt4o-deployment",
+        },
+        apiKey: JSON.stringify(servicePrincipal),
+        baseURL: "https://my-foundry.services.ai.azure.com/openai",
+        extraHeaders: { "x-custom": String(attempt) },
+        response: OPENAI_CHAT_RESPONSE,
+      });
+
+      expect(request.url).toBe(
+        "https://my-foundry.services.ai.azure.com/openai/deployments/gpt4o-deployment/chat/completions?api-version=2025-02-01-preview",
+      );
+      expect(request.headers.get("authorization")).toBe(
+        "Bearer fake-entra-token-service-principal",
+      );
+      expect(request.headers.get("api-key")).toBeNull();
+      expect(request.headers.get("x-custom")).toBe(String(attempt));
+    }
+
+    expect(
+      azureIdentity.clientSecretCredentialArgs.slice(credentialsBefore),
+    ).toEqual([
+      [
+        servicePrincipal.tenantId,
+        servicePrincipal.clientId,
+        servicePrincipal.clientSecret,
+      ],
+    ]);
+    expect(azureIdentity.tokenScopes).toContain(
+      "https://cognitiveservices.azure.com/.default",
+    );
+  });
+
+  it("Azure: Entra ID service principal may target a gateway base URL", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "azure",
+        adapter: LLMAdapter.Azure,
+        model: "gpt4o-deployment",
+      },
+      apiKey: JSON.stringify({
+        tenantId: "00000000-0000-0000-0000-000000000001",
+        clientId: "gateway-client",
+        clientSecret: "gateway-secret",
+      }),
+      baseURL: "https://my-apim.azure-api.net/openai",
+      response: OPENAI_CHAT_RESPONSE,
+    });
+
+    expect(request.url).toMatch(/^https:\/\/my-apim\.azure-api\.net\/openai\//);
+    expect(request.headers.get("authorization")).toBe(
+      "Bearer fake-entra-token-service-principal",
+    );
+  });
+
+  function generateAzureDefaultCredentialText(baseURL: string) {
+    return generateLLMText({
+      ...mapLegacyLLMCompletionParams({
+        messages,
+        modelParams: {
+          provider: "azure",
+          adapter: LLMAdapter.Azure,
+          model: "gpt4o-deployment",
+        },
+        connection: {
+          secretKey: encrypt(AZURE_USE_DEFAULT_CREDENTIALS),
+          baseURL,
+        },
+      }),
+      timeout: 10_000,
+    });
+  }
+
+  it("Azure: default credentials send the deployment's managed identity token", async () => {
+    const { request } = await withCloudRegion(undefined, () =>
+      runCompletion({
+        modelParams: {
+          provider: "azure",
+          adapter: LLMAdapter.Azure,
+          model: "gpt4o-deployment",
+        },
+        apiKey: AZURE_USE_DEFAULT_CREDENTIALS,
+        baseURL: "https://my-instance.openai.azure.com/openai/deployments",
+        response: OPENAI_CHAT_RESPONSE,
+      }),
+    );
+
+    expect(request.headers.get("authorization")).toBe(
+      "Bearer fake-entra-token-default",
+    );
+    expect(request.headers.get("api-key")).toBeNull();
+    expect(azureIdentity.defaultCredentialCount).toBe(1);
+  });
+
+  it("Azure: default credentials are never sent to non-Azure hosts", async () => {
+    const { calls, fetch } = createCaptureFetch(OPENAI_CHAT_RESPONSE);
+    vi.stubGlobal("fetch", fetch);
+
+    await withCloudRegion(undefined, () =>
+      expect(
+        generateAzureDefaultCredentialText(
+          "https://my-instance.openai.azure.com.attacker.example/openai",
+        ),
+      ).rejects.toThrow(/Default Azure credentials can only be used/),
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it("Azure: default credentials are rejected on Langfuse Cloud", async () => {
+    const { calls, fetch } = createCaptureFetch(OPENAI_CHAT_RESPONSE);
+    vi.stubGlobal("fetch", fetch);
+
+    await withCloudRegion("EU", () =>
+      expect(
+        generateAzureDefaultCredentialText(
+          "https://my-instance.openai.azure.com/openai",
+        ),
+      ).rejects.toThrow(/only available in self-hosted deployments/),
+    );
+    expect(calls).toHaveLength(0);
   });
 
   it("OpenAI chat completions: gpt-5.4 mini uses portable non-reasoning settings", async () => {

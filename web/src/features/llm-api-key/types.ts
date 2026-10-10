@@ -42,7 +42,10 @@ export const AuthMethod = {
   ApiKey: "api-key",
   AccessKeys: "access-keys",
   DefaultCredentials: "default-credentials",
+  EntraServicePrincipal: "entra-service-principal",
 } as const;
+
+export type LlmAuthMethod = (typeof AuthMethod)[keyof typeof AuthMethod];
 
 export const BedrockAuthMethodSchema = z.enum([
   AuthMethod.ApiKey,
@@ -52,8 +55,16 @@ export const BedrockAuthMethodSchema = z.enum([
 
 export type BedrockAuthMethod = z.infer<typeof BedrockAuthMethodSchema>;
 
+export const AzureAuthMethodSchema = z.enum([
+  AuthMethod.ApiKey,
+  AuthMethod.EntraServicePrincipal,
+  AuthMethod.DefaultCredentials,
+]);
+
+export type AzureAuthMethod = z.infer<typeof AzureAuthMethodSchema>;
+
 export const SafeLlmApiKeySchema = LLMApiKeySchema.extend({
   secretKey: z.undefined(),
   extraHeaders: z.undefined(),
-  authMethod: BedrockAuthMethodSchema.optional(),
+  authMethod: z.enum(Object.values(AuthMethod)).optional(),
 });
