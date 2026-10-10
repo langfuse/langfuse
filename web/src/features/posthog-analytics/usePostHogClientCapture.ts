@@ -426,6 +426,7 @@ const events = {
     "feature_flag_default_toggled",
     "user_feature_flag_toggled",
   ],
+  session_introduction: ["shown", "dismissed", "button_clicked"],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
   support_chat: [
@@ -510,7 +511,13 @@ type EventName = {
 
 type TypedEventMap = AnnotationEventMap &
   EvalOnboardingEventMap &
-  ToastEventMap;
+  ToastEventMap & {
+    "session_introduction:shown": { source: "first_visit" | "reopen" };
+    "session_introduction:dismissed": { source: "first_visit" | "reopen" };
+    "session_introduction:button_clicked": {
+      button: "got_it" | "provide_feedback" | "reopen";
+    };
+  };
 
 type EventProperties = TypedEventMap & {
   [E in Exclude<EventName, keyof TypedEventMap>]: Record<string, any> | null;

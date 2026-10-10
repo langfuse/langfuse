@@ -1,4 +1,4 @@
-import { CopyIcon, MoreVertical } from "lucide-react";
+import { CopyIcon, MoreVertical, Sparkles } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
@@ -107,12 +107,17 @@ export function ModernSessionHeaderActionsController({
   sessionId,
   isPublic,
   layout = "toolbar",
+  introduction,
   ...displaySettings
 }: DisplaySettingProps & {
   projectId: string;
   sessionId: string;
   isPublic: boolean;
   layout?: "toolbar" | "menu";
+  introduction?: {
+    showBadge: boolean;
+    openDialog: () => void;
+  };
 }) {
   const session = useSession();
   const capture = usePostHogClientCapture();
@@ -159,6 +164,18 @@ export function ModernSessionHeaderActionsController({
               : item,
           ),
           ...adminItems,
+          ...(introduction
+            ? [
+                {
+                  type: "item" as const,
+                  id: "session-introduction",
+                  title: "What's new",
+                  icon: Sparkles,
+                  showNewIndicator: introduction.showBadge,
+                  onClick: introduction.openDialog,
+                },
+              ]
+            : []),
           ...(displayItems.length > 0
             ? [
                 { id: "display-separator", type: "separator" as const },
@@ -181,7 +198,17 @@ export function ModernSessionHeaderActionsController({
             {({ getTriggerProps }) => (
               <HeaderActionButton
                 label="Session actions"
-                icon={<MoreVertical className="icon-base" />}
+                icon={
+                  <span className="relative">
+                    <MoreVertical className="icon-base" />
+                    {introduction?.showBadge ? (
+                      <span
+                        className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-blue-500"
+                        aria-label="New session view introduction"
+                      />
+                    ) : null}
+                  </span>
+                }
                 {...getTriggerProps()}
               />
             )}

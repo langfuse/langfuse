@@ -140,6 +140,7 @@ type DropdownMenuItem = {
   title: string;
   tooltip?: string;
   badge?: React.ReactNode;
+  showNewIndicator?: boolean;
   icon?: LucideIcon;
   searchBehavior?: SearchBehavior;
   type: "item";
@@ -696,6 +697,12 @@ function DropdownMenuNode({
                           {item.badge ? (
                             <span className="ml-2 shrink-0">{item.badge}</span>
                           ) : null}
+                          {item.showNewIndicator ? (
+                            <span
+                              className="ml-2 h-2 w-2 shrink-0 rounded-full bg-blue-500"
+                              aria-label="New"
+                            />
+                          ) : null}
                         </Link>
                       ) : (
                         <button
@@ -724,6 +731,12 @@ function DropdownMenuNode({
                           </span>
                           {item.badge ? (
                             <span className="ml-2 shrink-0">{item.badge}</span>
+                          ) : null}
+                          {item.showNewIndicator ? (
+                            <span
+                              className="ml-2 h-2 w-2 shrink-0 rounded-full bg-blue-500"
+                              aria-label="New"
+                            />
                           ) : null}
                         </button>
                       )}

@@ -105,6 +105,10 @@ describe("ModernSession", () => {
     expect(screen.getByText("Legacy body")).toBeInTheDocument();
     expect(screen.getByTestId("legacy-filter-controls")).toBeInTheDocument();
     expect(screen.queryByText("Timeline body")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "What's new" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the timeline whenever enabled, including public access", () => {
