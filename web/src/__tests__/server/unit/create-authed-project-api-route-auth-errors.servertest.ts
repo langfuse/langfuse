@@ -43,6 +43,10 @@ const {
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined as string | undefined,
     LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED: "false" as "true" | "false",
     LANGFUSE_API_ORGANIZATION_CUTOFF_DATE: "2026-09-16T00:00:00.000Z",
+    LANGFUSE_MIGRATION_V4_WRITE_MODE: "legacy" as
+      | "legacy"
+      | "dual"
+      | "events_only",
   },
 }));
 
@@ -155,6 +159,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     });
     mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     mockEnv.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED = "false";
+    mockEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
   });
 
   async function callRoute(options?: {
@@ -550,5 +555,35 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(res.statusCode).toBe(204);
     expect(res._isEndCalled()).toBe(true);
     expect(res._getData()).toBe("");
+  });
+
+  it("returns classic ApiError { message, error } when rejecting in events_only mode", async () => {
+    mockEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+
+    const handler = createAuthedProjectAPIRoute({
+      name: "Legacy Route",
+      action: "project:read",
+      querySchema: z.object({}),
+      responseSchema: z.object({ ok: z.literal(true) }),
+      rejectInEventsOnlyMode: true,
+      fn: async () => ({ ok: true as const }),
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      headers: {
+        authorization: "Basic test",
+      },
+      query: {},
+    });
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(404);
+    expect(res._getJSONData()).toEqual({
+      message:
+        "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
+      error: "LangfuseNotFoundError",
+    });
+    expect(mockVerifyAuthHeaderAndReturnScope).not.toHaveBeenCalled();
   });
 });
