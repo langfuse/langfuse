@@ -199,7 +199,7 @@ jobs:
       - name: Lint Rust targets
         run: cargo clippy --locked --all-targets -- -D warnings
       - name: Run Rust tests
-        run: cargo test --locked
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" cargo test --locked
       - name: Build runtime image
         run: docker build --pull --target runtime -t langfuse-ai-gateway:test .
       - name: Smoke test runtime image
@@ -268,6 +268,8 @@ jobs:
         run: node --test scripts/agents/sync-agent-shims.test.mjs
       - name: cursor PR label tests
         run: node --test scripts/github/label-cursor-prs.test.mjs
+      - name: merge-queue retry helper tests
+        run: bash scripts/ci/retry-on-merge-queue.test.sh
       - name: Load default env
         run: |
           cp .env.dev.example .env
@@ -413,7 +415,7 @@ jobs:
         run: |
           pnpm install
       - name: run eslint-plugin tests
-        run: pnpm --filter @repo/eslint-plugin run test
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @repo/eslint-plugin run test
 
   tests-in-app-agent-sandbox-runtime:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -459,9 +461,9 @@ jobs:
       - name: typecheck sandbox runtime
         run: pnpm --filter @repo/in-app-agent-sandbox-runtime run typecheck
       - name: run sandbox runtime unit tests
-        run: pnpm --filter @repo/in-app-agent-sandbox-runtime run test
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @repo/in-app-agent-sandbox-runtime run test
       - name: run sandbox runtime docker e2e tests
-        run: pnpm --filter @repo/in-app-agent-sandbox-runtime run test:e2e
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @repo/in-app-agent-sandbox-runtime run test:e2e
 
   tests-storybook:
     runs-on: blacksmith-8vcpu-ubuntu-2404
@@ -575,7 +577,7 @@ jobs:
         # The clickhouse binary isn't installed yet, so the SQL-equivalence
         # tests skip here (they run for real in the dedicated step below); every
         # other shared test hard-fails as usual.
-        run: pnpm --filter @langfuse/shared run test
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @langfuse/shared run test
       - name: Install ClickHouse binary for SQL-equivalence tests
         # `clickhouse format` (from clickhouse-common-static) normalizes SQL for
         # the equivalence snapshots. Its output is version-specific, so pin the
@@ -1384,7 +1386,7 @@ jobs:
           cat /tmp/playwright-install.log
           exit "$(cat /tmp/playwright-install.exit)"
       - name: Run e2e tests
-        run: pnpm --filter=web run test:e2e
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter=web run test:e2e
       # Playwright writes a screenshot, an error context and a trace for every
       # failure, and the reporter prints the command to open them — but they
       # die with the runner, so a flake here is reported with no way to see
@@ -1657,6 +1659,120 @@ jobs:
           echo "Job results: ${STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS}"
         env:
           STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS: ${{ steps.set-success-output.outputs.success }}
+
+  # A merge-queue run that only went green because a step was retried still hides
+  # a real flake, and the retry means nobody is forced to look at it. Collect the
+  # markers scripts/ci/retry-on-merge-queue.sh leaves in the job logs and report
+  # them, so the flake gets fixed instead of silently re-rolled on every merge.
+  #
+  # Runs after the all-ci-passed gate and is not itself a required check, so it
+  # never delays a merge.
+  notify-flaky-merge-queue:
+    needs: all-ci-passed
+    if: ${{ github.event_name == 'merge_group' && needs.all-ci-passed.outputs.success == 'true' }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Collect flaky jobs
+        id: flaky
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          # grep returns 1 on "no match", which is the normal case here.
+          set +e
+          set +o pipefail
+
+          # Keep in sync with FLAKY_MARKER in scripts/ci/retry-on-merge-queue.sh.
+          # Split so this job's own log — the runner echoes `run:` bodies into
+          # it — can never match the marker and report this job as flaky.
+          MARKER="LANGFUSE_CI_FLAKY""_RETRY_SUCCEEDED"
+          FLAKY=""
+          # A failed lookup must not read as "nothing was retried" — that would
+          # silently drop the very report this job exists to produce. Track it
+          # and fail the job at the end, after reporting whatever was found.
+          INCOMPLETE=0
+
+          JOBS_JSON="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" --paginate)"
+          if [ "$?" -ne 0 ] || [ -z "$JOBS_JSON" ]; then
+            echo "::error title=Flaky-CI check failed::Could not list this run's jobs; a flaky retry may have gone unreported."
+            echo "flaky=false" >>"$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          # Only succeeded jobs can have been rescued by a retry; a job that
+          # failed anyway is already reported through the normal failure path.
+          JOBS_TSV="$(jq -r '.jobs[] | select(.conclusion == "success") | "\(.id)\t\(.name)"' <<<"$JOBS_JSON")"
+          if [ "$?" -ne 0 ]; then
+            echo "::error title=Flaky-CI check failed::Could not parse this run's job list; a flaky retry may have gone unreported."
+            echo "flaky=false" >>"$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          while IFS=$'\t' read -r JOB_ID JOB_NAME; do
+            [ -n "$JOB_ID" ] || continue
+            JOB_LOG="$(gh api "repos/$REPOSITORY/actions/jobs/$JOB_ID/logs" 2>/dev/null)"
+            if [ "$?" -ne 0 ]; then
+              echo "::error title=Flaky-CI check incomplete::Could not download the log for '$JOB_NAME'; if it was retried, that went unreported."
+              INCOMPLETE=1
+              continue
+            fi
+            if grep -qF "$MARKER" <<<"$JOB_LOG"; then
+              if [ -n "$FLAKY" ]; then
+                FLAKY="$(printf '%s\n• %s' "$FLAKY" "$JOB_NAME")"
+              else
+                FLAKY="• $JOB_NAME"
+              fi
+            fi
+          done <<<"$JOBS_TSV"
+
+          if [ -z "$FLAKY" ]; then
+            echo "No retried steps in this run."
+            echo "flaky=false" >>"$GITHUB_OUTPUT"
+            exit "$INCOMPLETE"
+          fi
+
+          echo "Flaky jobs in this run:"
+          printf '%s\n' "$FLAKY"
+          echo "flaky=true" >>"$GITHUB_OUTPUT"
+
+          DELIM="FLAKY_EOF_${RANDOM}${RANDOM}"
+          {
+            echo "jobs<<$DELIM"
+            printf '%s\n' "$FLAKY"
+            echo "$DELIM"
+          } >>"$GITHUB_OUTPUT"
+
+          {
+            echo "### ⚠️ Flaky CI in the merge queue"
+            echo
+            echo "These jobs failed once and passed on retry:"
+            echo
+            printf '%s\n' "$FLAKY"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+          exit "$INCOMPLETE"
+      # always(): an incomplete collection fails the step above on purpose, but
+      # the flakes it did find still need to reach Slack.
+      - name: Notify Slack
+        if: ${{ always() && steps.flaky.outputs.flaky == 'true' }}
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        with:
+          webhook: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
+          webhook-type: webhook-trigger
+          payload: |
+            title: "⚠️ Flaky CI in merge queue"
+            message: "⚠️ CI passed only after a retry on ${{ github.ref_name }}"
+            ref: "${{ github.ref_name }}"
+            actor: "${{ github.actor }}"
+            event: "${{ github.event_name }}"
+            commit: "${{ github.sha }}"
+            workflow_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            failure_reason: ${{ toJSON(steps.flaky.outputs.jobs) }}
 
   build-docker-image-release:
     needs: all-ci-passed
