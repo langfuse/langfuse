@@ -164,6 +164,7 @@ export function EventsOutlierStrip({
   fromTimestamp,
   toTimestamp,
   searchIgnored = false,
+  fixedMetric,
   onSelectRange,
 }: {
   projectId: string;
@@ -172,6 +173,8 @@ export function EventsOutlierStrip({
   toTimestamp: Date;
   /** The table has an active free-text search the strip cannot apply. */
   searchIgnored?: boolean;
+  /** A scoped activity strip can pin its metric instead of sharing the table preference. */
+  fixedMetric?: OutlierStripMetricKey;
   onSelectRange: (range: { from: Date; to: Date }) => void;
 }) {
   const capture = usePostHogClientCapture();
@@ -192,7 +195,7 @@ export function EventsOutlierStrip({
   // getBoundingClientRect includes the band's padding (border-box).
   const width = Math.max((size?.width ?? 0) - PLOT_HORIZONTAL_INSET_PX, 0);
 
-  const mode: StripMode = settings.mode;
+  const mode: StripMode = fixedMetric ?? settings.mode;
   const chartWidth = width;
   const def = OUTLIER_STRIP_METRICS[mode];
   const aggOptions = def.aggregations.map((agg) => agg.key);
@@ -381,20 +384,26 @@ export function EventsOutlierStrip({
   const header = (
     <div className="pt-0.5 pr-2 pl-1">
       <MetricStripHeaderRow>
-        <ModeDropdownController
-          options={MODE_OPTIONS}
-          onChange={handleModeChange}
-        >
-          {({ Trigger }) => (
-            <Trigger asChild>
-              <MetricStripTrigger
-                ariaLabel={`Chart mode: ${modeLabel(mode)}`}
-                label={modeLabel(mode)}
-                variant="metric"
-              />
-            </Trigger>
-          )}
-        </ModeDropdownController>
+        {fixedMetric ? (
+          <span className="text-muted-foreground text-xs">
+            {modeLabel(mode)}
+          </span>
+        ) : (
+          <ModeDropdownController
+            options={MODE_OPTIONS}
+            onChange={handleModeChange}
+          >
+            {({ Trigger }) => (
+              <Trigger asChild>
+                <MetricStripTrigger
+                  ariaLabel={`Chart mode: ${modeLabel(mode)}`}
+                  label={modeLabel(mode)}
+                  variant="metric"
+                />
+              </Trigger>
+            )}
+          </ModeDropdownController>
+        )}
         {/* The bar's aggregate must be legible where there is a choice (p95 vs
           avg); single-option metrics are unambiguous and render no
           aggregation label. A chart that cannot represent the filters is not

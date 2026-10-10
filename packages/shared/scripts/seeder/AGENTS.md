@@ -14,6 +14,8 @@ pnpm run seed -- trace-tree --observations 12 --v4 --tags "Zebra,apple,Ärger"  
 pnpm run seed -- trace-tree --observations 12000 --stride-ms 10 --v4  # more observations than the detail view loads; --stride-ms makes the startTime-ordered cap boundary exact (index < 10000 loads)
 pnpm run seed -- deep-chain --v4  # 1401 sequential generations in ONE parent chain (depth = count; LFE-10959 layout stress)
 pnpm run seed -- agent-timeline --turns 6 --v4  # realistic agent flow-with-loop over a timeline (graph view)
+pnpm run seed -- agents-view --environment production  # Agents table/profile: 20 pipelines + 2 name-only traces, eight agents with two skills each, nested citation runs, Unicode/URL names; v4 on, 08:00–12:00 UTC today
+pnpm run seed -- agents-view --environment production --date YYYY-MM-DD --id-prefix original-prefix  # enrich an existing fixture using its original UTC date, prefix and timing; printed links pin the window
 pnpm run seed -- agent-graph --v4  # graph-DENSE trace: ~1,350 distinct node-pair connections from 350 observations (trace-graph layout stress)
 pnpm run seed -- agent-timeline --turns 120 --turn-gap-ms 60000 --v4  # ~2.5h wall clock: idle between turns, so the work is a few percent of the trace
 pnpm run seed -- timeline-shapes --v4  # a dozen SMALL traces, one per timeline morphology (retry backoff, human wait, fan-out, slow tool, in-flight, instants, ...)
@@ -42,6 +44,13 @@ deep links). `--dry-run` predicts counts without writing; `--json` suppresses
 progress output. Full usage and the need→command table live in the
 `seed-test-data` skill (`.agents/skills/seed-test-data/SKILL.md`).
 
+For `agents-view`, omitted or empty `--date` uses today. To preserve existing
+traces across days, pass their original UTC date and keep the prefix, seed,
+trace count and timing flags unchanged. A different date or timing needs a fresh
+`--id-prefix` because events retain rows under different `start_time` keys.
+The [Agents fixture walkthrough](README.md#agents-view) describes skill coverage
+and the window-pinned list/profile links.
+
 ## Layout
 
 - `cli.ts` — entry point (`pnpm run seed`, i.e. shared `seed:scenario`)
@@ -61,8 +70,9 @@ progress output. Full usage and the need→command table live in the
   `--seed`), derive ids from `--id-prefix`, and never call `Math.random`.
 - Any value that lands in a ClickHouse ORDER BY key (timestamps; observation
   `type` on v3; `start_time` on events) must NOT come from the sequential
-  rng stream or wall clock: use `utcDayStartMs()` for time anchors and the
-  stateless `jitter(seed, index, max)` for per-row variation. Stream-position
+  rng stream or wall clock: use `utcDayStartMs()` or a validated explicit UTC
+  date for time anchors and the stateless `jitter(seed, index, max)` for per-row
+  variation. Stream-position
   randomness re-keys rows whenever an unrelated flag (e.g. payload size)
   changes how much rng earlier code consumed, silently duplicating rows on
   re-run; `uniqExact` readbacks cannot see it.

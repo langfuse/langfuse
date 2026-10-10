@@ -21,6 +21,8 @@
 - Public REST API routes: `src/pages/api/public/*`
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
+- Agents prototype: `src/features/agents/README.md` owns the internal list/profile,
+  shared window, exclusive cost contract, sampled map and native-aggregation path.
 - Topics PoC: `src/features/topics/TopicsPage.tsx` and
   `src/features/topics/server/topicsRouter.ts`. Process traces from filters/IDs;
   update maps from stored summaries. Current results stay visible while the

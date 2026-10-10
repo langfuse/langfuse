@@ -51,6 +51,32 @@ describe("useLiveTableDateRange", () => {
     expect(result.current?.from).toEqual(new Date("2026-08-10T15:00:00.000Z"));
   });
 
+  it("advances a closed relative window on explicit refresh without drifting on other renders", () => {
+    const { result, rerender } = renderHook(
+      ({ refreshKey }) =>
+        useLiveTableDateRange({ range: "last1Day" }, refreshKey),
+      { initialProps: { refreshKey: 0 } },
+    );
+    const initial = result.current;
+    const refreshedAt = new Date(START.getTime() + 60_000);
+
+    vi.setSystemTime(refreshedAt);
+    rerender({ refreshKey: 0 });
+    expect(result.current).toBe(initial);
+
+    rerender({ refreshKey: 1 });
+    expect(result.current.anchoredTo).toEqual(refreshedAt);
+    expect(result.current.range?.from).toEqual(
+      new Date(refreshedAt.getTime() - 24 * 60 * 60 * 1000),
+    );
+    expect(result.current.range?.to).toBeUndefined();
+
+    const refreshed = result.current;
+    vi.setSystemTime(new Date(START.getTime() + 2 * 60_000));
+    rerender({ refreshKey: 1 });
+    expect(result.current).toBe(refreshed);
+  });
+
   it("exposes the anchor as a closed upper bound for consumers that need one", () => {
     const { result, rerender } = renderHook(
       ({ range }: { range: string }) => useLiveTableDateRange({ range }),

@@ -9,6 +9,7 @@ import { projectsRouter } from "@/src/features/projects/server";
 import { projectApiKeysRouter } from "@/src/features/public-api/server/projectApiKeyRouter";
 import { membersRouter } from "@/src/features/rbac/server/membersRouter";
 import { userRouter } from "@/src/server/api/routers/users";
+import { agentsRouter } from "@/src/features/agents/server/agents-router";
 import { userAccountRouter } from "@/src/server/api/routers/userAccount";
 import { datasetRouter } from "@/src/features/datasets/server/dataset-router";
 import { cloudBillingRouter } from "@/src/ee/features/billing/server/cloudBillingRouter";
@@ -93,6 +94,7 @@ export const appRouter = createTRPCRouter({
   ssoConfig: ssoConfigRouter,
   projects: projectsRouter,
   users: userRouter,
+  agents: agentsRouter,
   userAccount: userAccountRouter,
   projectApiKeys: projectApiKeysRouter,
   members: membersRouter,

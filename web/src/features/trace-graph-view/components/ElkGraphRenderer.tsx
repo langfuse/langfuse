@@ -50,6 +50,9 @@ type ElkGraphRendererProps = {
    * no view switch is available (or the view is already expanded).
    */
   onShowExpanded?: (() => void) | null;
+  onEdgeSelect?: (edge: GraphCanvasData["edges"][number]) => void;
+  graphLabel?: string;
+  fallbackDescription?: string;
 };
 
 type Transform = { x: number; y: number; k: number };
@@ -99,6 +102,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   matchedNodeNames = null,
   layoutDirection = "DOWN",
   onShowExpanded = null,
+  onEdgeSelect,
+  graphLabel = "Trace agent graph",
+  fallbackDescription,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
@@ -141,6 +147,14 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     graph.nodes.forEach((node) => map.set(node.id, node));
     return map;
   }, [graph.nodes]);
+
+  const edgeMeta = useMemo(
+    () =>
+      new Map(
+        graph.edges.map((edge) => [JSON.stringify([edge.from, edge.to]), edge]),
+      ),
+    [graph.edges],
+  );
 
   // Highlighted node: hover takes precedence over the sticky selection.
   const focusNode = hoveredId ?? selectedNodeName;
@@ -373,7 +387,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     <div
       ref={containerRef}
       role="group"
-      aria-label="Trace agent graph"
+      aria-label={graphLabel}
       // `touch-none`: d3-zoom owns pan and pinch here. Without it WebKit zooms
       // the page instead, since `preventDefault` cannot cancel its pinch.
       className="bg-background/50 relative h-full w-full cursor-grab touch-none overflow-hidden active:cursor-grabbing"
@@ -387,8 +401,8 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           <span>Laying out graph…</span>
           {slowLayout && (
             <span>
-              This is a large graph — the tree and timeline stay usable while it
-              finishes.
+              {fallbackDescription ??
+                "This is a large graph — the tree and timeline stay usable while it finishes."}
             </span>
           )}
         </div>
@@ -396,8 +410,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       {layoutError && (
         <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-sm">
           <span>
-            Could not lay out the graph. Try the tree or timeline view to
-            explore this trace.
+            Could not lay out the graph.{" "}
+            {fallbackDescription ??
+              "Try the tree or timeline view to explore this trace."}
           </span>
           <Button
             variant="outline"
@@ -424,24 +439,30 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
             .
           </span>
           <span>
-            Try the{" "}
-            {/* The expanded graph is an alternative only from another view. */}
-            {onShowExpanded && (
+            {fallbackDescription ? (
+              fallbackDescription
+            ) : (
               <>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation(); // don't treat as a canvas deselect
-                    onShowExpanded();
-                  }}
-                  className="text-primary underline underline-offset-2 hover:opacity-80"
-                >
-                  expanded graph
-                </button>
-                ,{" "}
+                Try the{" "}
+                {/* The expanded graph is an alternative only from another view. */}
+                {onShowExpanded && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation(); // don't treat as a canvas deselect
+                        onShowExpanded();
+                      }}
+                      className="text-primary underline underline-offset-2 hover:opacity-80"
+                    >
+                      expanded graph
+                    </button>
+                    ,{" "}
+                  </>
+                )}
+                tree or timeline view to explore this trace.
               </>
             )}
-            tree or timeline view to explore this trace.
           </span>
         </div>
       )}
@@ -496,6 +517,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
               </marker>
             </defs>
             {layout.edges.map((edge) => {
+              const meta = edgeMeta.get(
+                JSON.stringify([edge.source, edge.target]),
+              );
               const active =
                 focusNode != null &&
                 (edge.source === focusNode || edge.target === focusNode);
@@ -507,26 +531,97 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
                 matchedNodeNames != null &&
                 !matchedNodeNames.has(edge.source) &&
                 !matchedNodeNames.has(edge.target);
+              const midpoint = edge.points[Math.floor(edge.points.length / 2)];
+              const unweightedStrokeWidth = active ? 2 : 1.5;
+              const strokeWidth =
+                meta?.weight == null
+                  ? unweightedStrokeWidth
+                  : meta.weight + (active ? 0.5 : 0);
+              const selectEdge = (event: React.MouseEvent<SVGGElement>) => {
+                event.stopPropagation();
+                const down = pointerDownPos.current;
+                if (
+                  down &&
+                  Math.hypot(event.clientX - down.x, event.clientY - down.y) >
+                    CLICK_MOVE_THRESHOLD
+                )
+                  return;
+                if (meta) onEdgeSelect?.(meta);
+              };
               return (
-                <path
+                <g
                   key={edge.id}
-                  d={toPath(edge.points)}
-                  className={cn(
-                    active
-                      ? "stroke-primary fill-none"
-                      : "stroke-muted-foreground/40 fill-none",
-                    dimmed && SEARCH_DIM_OPACITY,
-                  )}
-                  // Strokes scale with the world transform (vector-effect can't
-                  // reach across the HTML ancestor) — the CSS var, written by
-                  // the zoom handler, keeps them visible when zoomed out.
-                  style={{
-                    strokeWidth: `calc(${active ? 2 : 1.5}px * var(--graph-stroke-comp, 1))`,
-                  }}
-                  markerEnd={
-                    active ? "url(#graph-arrow-active)" : "url(#graph-arrow)"
+                  className={
+                    onEdgeSelect
+                      ? "group/edge pointer-events-auto cursor-pointer"
+                      : undefined
                   }
-                />
+                  role={onEdgeSelect ? "button" : undefined}
+                  tabIndex={onEdgeSelect ? 0 : undefined}
+                  aria-label={
+                    onEdgeSelect
+                      ? `${nodeMeta.get(edge.source)?.label ?? edge.source} to ${nodeMeta.get(edge.target)?.label ?? edge.target}${meta?.label ? `, ${meta.label} calls` : ""}`
+                      : undefined
+                  }
+                  onClick={onEdgeSelect ? selectEdge : undefined}
+                  onKeyDown={
+                    onEdgeSelect
+                      ? (event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            if (meta) onEdgeSelect(meta);
+                          }
+                        }
+                      : undefined
+                  }
+                >
+                  {meta?.label ? (
+                    <title>{`${nodeMeta.get(edge.source)?.label ?? edge.source} → ${nodeMeta.get(edge.target)?.label ?? edge.target}: ${meta.label} calls`}</title>
+                  ) : null}
+                  {onEdgeSelect ? (
+                    <path
+                      d={toPath(edge.points)}
+                      fill="none"
+                      stroke="transparent"
+                      style={{
+                        strokeWidth: "calc(12px * var(--graph-stroke-comp, 1))",
+                        pointerEvents: "stroke",
+                      }}
+                    />
+                  ) : null}
+                  <path
+                    d={toPath(edge.points)}
+                    className={cn(
+                      active
+                        ? "stroke-primary fill-none"
+                        : "stroke-muted-foreground/40 fill-none",
+                      dimmed && SEARCH_DIM_OPACITY,
+                      onEdgeSelect && "group-focus-visible/edge:stroke-primary",
+                    )}
+                    // Strokes scale with the world transform (vector-effect can't
+                    // reach across the HTML ancestor) — the CSS var, written by
+                    // the zoom handler, keeps them visible when zoomed out.
+                    style={{
+                      strokeWidth: `calc(${strokeWidth}px * var(--graph-stroke-comp, 1))`,
+                    }}
+                    markerEnd={
+                      active ? "url(#graph-arrow-active)" : "url(#graph-arrow)"
+                    }
+                  />
+                  {meta?.label && midpoint && !compact ? (
+                    <text
+                      x={midpoint.x + 5}
+                      y={midpoint.y - 7}
+                      className="fill-muted-foreground group-focus-visible/edge:fill-primary text-xs"
+                      paintOrder="stroke"
+                      stroke="var(--background)"
+                      strokeWidth={4}
+                    >
+                      {meta.label}
+                    </text>
+                  ) : null}
+                </g>
               );
             })}
           </svg>

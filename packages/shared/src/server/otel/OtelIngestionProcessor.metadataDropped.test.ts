@@ -147,6 +147,236 @@ const gatewayRequestIds = {
   upstream: "req_upstream",
 };
 
+describe("agent identity metadata", () => {
+  it.each([
+    ["v3", "langfuse-sdk"],
+    ["v4", "langfuse-sdk"],
+    ["v3", "third-party-instrumentation"],
+    ["v4", "third-party-instrumentation"],
+  ] as const)(
+    "normalizes explicit attributes over user metadata on %s %s",
+    async (path, scope) => {
+      const batch = buildBatch(
+        Object.entries({
+          "langfuse.agent.name": "research",
+          "langfuse.agent.id": "research-id",
+          "langfuse.agent.version": "v2",
+          "gen_ai.agent.name": "fallback-name",
+          "gen_ai.agent.id": "fallback-id",
+          "gen_ai.agent.version": "fallback-version",
+          "langfuse.observation.metadata": JSON.stringify({
+            langfuse_agent_name: "observation-override",
+            langfuse_agent_id: "observation-id",
+            langfuse_agent_version: "observation-version",
+            custom: "preserved",
+          }),
+          "langfuse.trace.metadata": JSON.stringify({
+            langfuse_agent_name: "trace-override",
+            langfuse_agent_id: "trace-id",
+            langfuse_agent_version: "trace-version",
+          }),
+        }).map(([key, value]) => ({ key, value: { stringValue: value } })),
+      );
+      batch[0].scopeSpans![0].scope!.name = scope;
+
+      const [observation] = await getObservations(path, batch);
+
+      expect(observation.metadata).toMatchObject({
+        langfuse_agent_name: "research",
+        langfuse_agent_id: "research-id",
+        langfuse_agent_version: "v2",
+        custom: "preserved",
+      });
+      if (scope === "langfuse-sdk") {
+        expect(observation.metadata).not.toHaveProperty("attributes");
+      } else {
+        expect(observation.metadata?.attributes).toMatchObject({
+          "gen_ai.agent.name": "fallback-name",
+        });
+      }
+    },
+  );
+
+  it.each(["v3", "v4"] as const)(
+    "uses the first nonempty string for each identity field on %s",
+    async (path) => {
+      const batch = buildBatch([
+        { key: "langfuse.agent.name", value: { stringValue: " \t " } },
+        { key: "gen_ai.agent.name", value: { stringValue: "research" } },
+        { key: "langfuse.agent.id", value: { intValue: "42" } },
+        { key: "gen_ai.agent.id", value: { stringValue: "research-id" } },
+        { key: "langfuse.agent.version", value: { stringValue: "" } },
+        { key: "gen_ai.agent.version", value: { stringValue: "v1" } },
+      ]);
+      const [observation] = await getObservations(path, batch);
+
+      expect(observation.metadata).toMatchObject({
+        langfuse_agent_name: "research",
+        langfuse_agent_id: "research-id",
+        langfuse_agent_version: "v1",
+      });
+    },
+  );
+
+  it.each(["v3", "v4"] as const)(
+    "requires an explicit name and keeps identity scoped to each span on %s",
+    async (path) => {
+      const batch = buildBatch([]);
+      const scope = batch[0].scopeSpans![0];
+      const spanTemplate = scope.spans![0];
+      const reservedMetadata = {
+        langfuse_agent_name: "user-metadata-name",
+        langfuse_agent_id: "user-metadata-id",
+        langfuse_agent_version: "user-metadata-version",
+      };
+      batch[0].resource!.attributes!.push({
+        key: "langfuse.trace.metadata",
+        value: { stringValue: JSON.stringify(reservedMetadata) },
+      });
+      scope.spans = (
+        [
+          ["outer", "0000000000000001", undefined, "agent", "orchestrator"],
+          [
+            "nested",
+            "0000000000000002",
+            "0000000000000001",
+            "agent",
+            "research",
+          ],
+          [
+            "generation",
+            "0000000000000003",
+            "0000000000000002",
+            "generation",
+            "research",
+          ],
+          [
+            "unnamed-child",
+            "0000000000000004",
+            "0000000000000002",
+            "generation",
+            undefined,
+          ],
+          [
+            "unnamed-agent",
+            "0000000000000005",
+            "0000000000000001",
+            "agent",
+            undefined,
+          ],
+        ] as const
+      ).map(([name, spanId, parentSpanId, type, agent]) => ({
+        ...spanTemplate,
+        name,
+        spanId: Buffer.from(spanId, "hex"),
+        ...(parentSpanId
+          ? { parentSpanId: Buffer.from(parentSpanId, "hex") }
+          : {}),
+        attributes: [
+          { key: "langfuse.observation.type", value: { stringValue: type } },
+          {
+            key: "langfuse.observation.metadata",
+            value: { stringValue: JSON.stringify(reservedMetadata) },
+          },
+          {
+            key: "langfuse.trace.metadata",
+            value: { stringValue: JSON.stringify(reservedMetadata) },
+          },
+          ...(agent
+            ? [{ key: "langfuse.agent.name", value: { stringValue: agent } }]
+            : [
+                {
+                  key: "langfuse.agent.id",
+                  value: { stringValue: "id-without-name" },
+                },
+                {
+                  key: "langfuse.agent.version",
+                  value: { stringValue: "version-without-name" },
+                },
+              ]),
+        ],
+      }));
+      const processor = createProcessor();
+      const legacyEvents =
+        path === "v3" ? await processor.processToIngestionEvents(batch) : [];
+      const observations =
+        path === "v4"
+          ? processor.processToEvent(batch)
+          : legacyEvents
+              .filter(
+                (event) =>
+                  event.type === "agent-create" ||
+                  event.type === "generation-create",
+              )
+              .map((event) => event.body);
+
+      expect(observations).toHaveLength(5);
+      expect(
+        observations.find((observation) => observation.name === "outer")
+          ?.metadata?.langfuse_agent_name,
+      ).toBe("orchestrator");
+      expect(
+        observations.find((observation) => observation.name === "nested")
+          ?.metadata?.langfuse_agent_name,
+      ).toBe("research");
+      expect(
+        observations.find((observation) => observation.name === "generation")
+          ?.metadata?.langfuse_agent_name,
+      ).toBe("research");
+      for (const observation of observations) {
+        expect(observation.metadata).not.toHaveProperty("langfuse_agent_id");
+        expect(observation.metadata).not.toHaveProperty(
+          "langfuse_agent_version",
+        );
+      }
+      for (const observation of observations.filter((observation) =>
+        observation.name?.startsWith("unnamed"),
+      )) {
+        expect(observation.metadata).not.toHaveProperty("langfuse_agent_name");
+        expect(observation.metadata).not.toHaveProperty("langfuse_agent_id");
+        expect(observation.metadata).not.toHaveProperty(
+          "langfuse_agent_version",
+        );
+      }
+      for (const trace of legacyEvents.filter(
+        (event) => event.type === "trace-create",
+      )) {
+        expect(trace.body.metadata).not.toHaveProperty("langfuse_agent_name");
+        expect(trace.body.metadata).not.toHaveProperty("langfuse_agent_id");
+        expect(trace.body.metadata).not.toHaveProperty(
+          "langfuse_agent_version",
+        );
+      }
+    },
+  );
+
+  it.each(["v3", "v4"] as const)(
+    "preserves 200 Unicode characters and omits longer names on %s",
+    async (path) => {
+      for (const length of [200, 201]) {
+        const name = "🧠".repeat(length);
+        const [observation] = await getObservations(
+          path,
+          buildBatch([
+            { key: "langfuse.agent.name", value: { stringValue: name } },
+            {
+              key: "gen_ai.agent.name",
+              value: { stringValue: "different-fallback" },
+            },
+          ]),
+        );
+        if (length === 200) {
+          expect(observation.metadata?.langfuse_agent_name).toBe(name);
+        } else {
+          expect(observation.metadata).not.toHaveProperty(
+            "langfuse_agent_name",
+          );
+        }
+      }
+    },
+  );
+});
+
 describe("gateway metadata", () => {
   it.each([
     ["v3", "langfuse-ai-gateway"],
