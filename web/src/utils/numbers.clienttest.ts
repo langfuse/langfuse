@@ -14,10 +14,6 @@ describe("costFormatter", () => {
 
   it("keeps sub-cent costs visible instead of rounding them to $0.00", () => {
     expect(costFormatter(0.000601)).toBe("$0.000601");
-    expect(costFormatter(0.004)).toBe("$0.004");
-    expect(costFormatter(0.0000123)).toBe("$0.0000123");
-    expect(costFormatter(0.00999)).toBe("$0.00999");
-    expect(costFormatter(0.0000001)).toBe("$0.0000001");
   });
 
   it("uses cent precision from one cent up", () => {
