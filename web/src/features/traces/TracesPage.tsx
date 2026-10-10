@@ -9,6 +9,7 @@ import { useReadPath } from "@/src/features/events";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects";
 import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { Confetti } from "@/src/components/ui/confetti";
 
 export default function TracesPage() {
   const router = useRouter();
@@ -50,6 +51,9 @@ export default function TracesPage() {
         scrollable
       >
         <TracesOnboarding projectId={projectId} />
+        {/* Must stay the last of exactly two children here and in the branch
+            below — see the note there. */}
+        {projectId && <Confetti key={projectId} />}
       </Page>
     );
   }
@@ -103,6 +107,13 @@ export default function TracesPage() {
       ) : (
         <TracesTable projectId={projectId} showControlsInPageHeader />
       )}
+      {/* Keyed on the project so the burst replays when the project switcher
+          moves to another project without leaving this route, and so React
+          reuses the same instance — rather than re-running it — when the
+          onboarding state resolves and swaps the sibling above. Rendered only
+          once the router has filled in the id: mounting on an undefined id
+          first would replay the burst as soon as the real one arrived. */}
+      {projectId && <Confetti key={projectId} />}
     </Page>
   );
 }
