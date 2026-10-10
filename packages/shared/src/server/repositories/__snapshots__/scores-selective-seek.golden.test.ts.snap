@@ -139,7 +139,9 @@ FROM
         s.name,
         s.id
 ) AS s
-ORDER BY s.timestamp DESC",
+ORDER BY
+    s.timestamp DESC,
+    s.id DESC",
   },
 ]
 `;
@@ -244,7 +246,9 @@ FROM
     FINAL
     WHERE (s.data_type IN ({param1:Array(String)})) AND (project_id = {param2:String}) AND (s.value > {param3:Decimal64(12)})
 ) AS s
-ORDER BY s.timestamp DESC
+ORDER BY
+    s.timestamp DESC,
+    s.id DESC
 SETTINGS do_not_merge_across_partitions_select_final = 1",
   },
 ]
