@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary */
+import { createHash } from "crypto";
 import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
@@ -1371,29 +1372,6 @@ export const deleteObservationsOlderThanDays = async (
   return true;
 };
 
-const PROMPT_NAME_FILTER_PREFIX_LENGTH = 200;
-
-/**
- * Prompt names have no length limit, so passing them verbatim as a query
- * parameter can exceed ClickHouse's HTTP URI and form-field limits. Callers
- * filter on `leftUTF8(prompt_name, length)` and keep only rows that `matches`.
- */
-export const promptNamePrefixFilter = (promptNames: string[]) => {
-  const requested = new Set(promptNames);
-  return {
-    length: PROMPT_NAME_FILTER_PREFIX_LENGTH,
-    // Array.from splits by code point, as leftUTF8 does.
-    prefixes: [
-      ...new Set(
-        promptNames.map((name) =>
-          Array.from(name).slice(0, PROMPT_NAME_FILTER_PREFIX_LENGTH).join(""),
-        ),
-      ),
-    ],
-    matches: (name: string) => requested.has(name),
-  };
-};
-
 export const getObservationsWithPromptName = async (
   projectId: string,
   promptNames: string[],
@@ -1402,13 +1380,12 @@ export const getObservationsWithPromptName = async (
     toTimestamp,
   }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
 ) => {
-  const nameFilter = promptNamePrefixFilter(promptNames);
   const query = `
   SELECT uniq(id) as count, prompt_name
   FROM observations
   WHERE project_id = {projectId: String}
-  AND leftUTF8(prompt_name, {promptNamePrefixLength: UInt32}) IN ({promptNamePrefixes: Array(String)})
   AND prompt_name IS NOT NULL
+  AND hex(SHA256(prompt_name)) IN ({promptNameHashes: Array(String)})
   ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(3)}" : ""}
   ${toTimestamp ? "AND start_time <= {toTimestamp: DateTime64(3)}" : ""}
   GROUP BY prompt_name
@@ -1417,8 +1394,7 @@ export const getObservationsWithPromptName = async (
     query: query,
     params: {
       projectId,
-      promptNamePrefixLength: nameFilter.length,
-      promptNamePrefixes: nameFilter.prefixes,
+      promptNameHashes: hashPromptNames(promptNames),
       fromTimestamp: fromTimestamp
         ? convertDateToClickhouseDateTime(fromTimestamp)
         : undefined,
@@ -1429,13 +1405,21 @@ export const getObservationsWithPromptName = async (
     tags: { projectId },
   });
 
-  return rows
-    .filter((r) => nameFilter.matches(r.prompt_name))
-    .map((r) => ({
-      count: Number(r.count),
-      promptName: r.prompt_name,
-    }));
+  return rows.map((r) => ({
+    count: Number(r.count),
+    promptName: r.prompt_name,
+  }));
 };
+
+/**
+ * Prompt names have no length limit, so passing them verbatim as a query
+ * parameter can exceed ClickHouse's HTTP URI and form-field limits. Callers
+ * match `hex(SHA256(prompt_name))` against these fixed-size digests instead.
+ */
+export const hashPromptNames = (promptNames: string[]) =>
+  promptNames.map((name) =>
+    createHash("sha256").update(name).digest("hex").toUpperCase(),
+  );
 
 export const getObservationMetricsForPrompts = async (
   projectId: string,

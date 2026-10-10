@@ -235,13 +235,13 @@ describe("UI Prompts Table", () => {
     ]);
   });
 
-  // A page of 100 names this long exceeds ClickHouse's HTTP URI limit when
-  // the names are sent verbatim; all share one prefix to pin exact matching.
+  // A page of 100 distinct multi-byte names this long exceeds ClickHouse's HTTP
+  // parameter limits when sent verbatim; the unrequested name shares a prefix.
   const longPromptNames = Array.from(
     { length: 100 },
-    (_, i) => `${"long-prompt-".repeat(500)}${i}`,
+    (_, i) => `${i}-${"提示词🧪".repeat(500)}`,
   );
-  const unrequestedLongPromptName = `${"long-prompt-".repeat(500)}other`;
+  const unrequestedLongPromptName = `${longPromptNames[0]}-other`;
 
   it("should count observations for a page of very long prompt names", async () => {
     const projectId = v4();
