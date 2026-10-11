@@ -3158,6 +3158,36 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should drop a completion start time after year 9999",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.observation.completion_start_time",
+          otelAttributeValue: { stringValue: "+010000-01-01T00:00:00.000Z" },
+          entityAttributeKey: "completionStartTime",
+          entityAttributeValue: null,
+        },
+      ],
+      [
+        "should drop a completion start time that is after year 9999 in UTC",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.observation.completion_start_time",
+          otelAttributeValue: { stringValue: "9999-12-31T23:00:00-02:00" },
+          entityAttributeKey: "completionStartTime",
+          entityAttributeValue: null,
+        },
+      ],
+      [
+        "should drop a completion start time from a time to first chunk past year 9999",
+        {
+          entity: "observation",
+          otelAttributeKey: "ai.response.msToFirstChunk",
+          otelAttributeValue: { doubleValue: 1e15 },
+          entityAttributeKey: "completionStartTime",
+          entityAttributeValue: null,
+        },
+      ],
+      [
         "should cast input_tokens from string to number",
         {
           entity: "observation",
@@ -6018,6 +6048,51 @@ describe("OTel Resource Span Mapping", () => {
           high: 1,
         } as any),
       ).toBeUndefined();
+    });
+
+    it("should return undefined for timestamps outside years 0001-9999", () => {
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO(
+          "253402300799999000000",
+        ),
+      ).toBe("9999-12-31T23:59:59.999Z");
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO(
+          "-62135596800000000000",
+        ),
+      ).toBe("0001-01-01T00:00:00.000Z");
+
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO(
+          "253402300800000000000",
+        ),
+      ).toBeUndefined();
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO(
+          "-62135596800001000000",
+        ),
+      ).toBeUndefined();
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO(1.7601408e18),
+      ).toBe("2025-10-11T00:00:00.000Z");
+      // The same timestamp sent with three extra digits.
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO(1.7601408e21),
+      ).toBeUndefined();
+
+      // Signed 64-bit nanoseconds span 1677-2262, so both extremes stay valid.
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO({
+          high: 2147483647,
+          low: -1,
+        }),
+      ).toBe("2262-04-11T23:47:16.854Z");
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO({
+          high: -2147483648,
+          low: 0,
+        }),
+      ).toBe("1677-09-21T00:12:43.146Z");
     });
   });
 
