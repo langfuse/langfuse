@@ -265,6 +265,18 @@ describe("truncateToolResultsForReplay", () => {
     expect(truncateToolResultsForReplay(messages, 200)).toBe(messages);
   });
 
+  it.each([200, 12_000])(
+    "preserves results just above the cap when the marker would grow them (cap %i)",
+    (maxChars) => {
+      const content = "x".repeat(maxChars + 1);
+      const message = toolMessage("boundary", content);
+      const messages = [message];
+
+      expect(truncateToolResultsForReplay(messages, maxChars)).toBe(messages);
+      expect(message.content).toBe(content);
+    },
+  );
+
   it("reduces oversized results to a head+tail excerpt pointing at readToolOutput", () => {
     const content = `${"h".repeat(700)}${"t".repeat(300)}`;
     const result = truncateToolResultsForReplay([toolMessage("big", content)], 200);

@@ -736,13 +736,18 @@ export function truncateToolResultsForReplay(
 
     const headChars = Math.ceil(maxChars * 0.7);
     const tailChars = Math.floor(maxChars * 0.3);
+    const content =
+      message.content.slice(0, headChars) +
+      `\n[...${message.content.length - headChars - tailChars} of ${message.content.length} chars truncated. Use the readToolOutput tool with toolCallId ${message.toolCallId} to page through the full persisted output.]\n` +
+      message.content.slice(message.content.length - tailChars);
+    if (content.length >= message.content.length) {
+      return message;
+    }
+
     changed = true;
     return {
       ...message,
-      content:
-        message.content.slice(0, headChars) +
-        `\n[...${message.content.length - headChars - tailChars} of ${message.content.length} chars truncated. Use the readToolOutput tool with toolCallId ${message.toolCallId} to page through the full persisted output.]\n` +
-        message.content.slice(message.content.length - tailChars),
+      content,
     };
   });
 
