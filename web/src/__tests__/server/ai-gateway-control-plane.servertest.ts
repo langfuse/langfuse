@@ -632,7 +632,7 @@ describe("AI gateway control plane", () => {
       defaultIngestionProjectId: project.id,
       ingestionMode: "USAGE",
     });
-    const primary = await caller.aiGateway.createConnection({
+    await caller.aiGateway.createConnection({
       orgId: org.id,
       name: "Primary",
       provider: "OPENAI",
@@ -671,12 +671,7 @@ describe("AI gateway control plane", () => {
         apiFormat: "openai.responses",
         model: "gpt-4.1",
       }),
-    ).resolves.toMatchObject({
-      connection: {
-        id: primary.id,
-        name: "Primary",
-      },
-    });
+    ).rejects.toThrow("Model identifier must include a connection name");
   });
 
   it("changes ERROR only for credential auth failures and explicit recovery", async () => {

@@ -1,7 +1,7 @@
 use std::{error::Error, sync::Arc, time::Duration};
 
 use axum::{
-    Json, Router,
+    Router,
     body::{Body, Bytes, to_bytes},
     extract::{Request, State},
     http::{HeaderMap, StatusCode, header},
@@ -121,12 +121,11 @@ async fn relay(
         .filter(|_| state.lifecycle.is_ready())
         .ok_or(InferenceHttpError::Unavailable)?;
     let gateway_key = gateway_key(request.headers(), route.api_format())?.to_owned();
-    if route.method() == axum::http::Method::GET {
-        let models = inference
-            .models(&gateway_key, route.api_format())
+    if route.method() != axum::http::Method::GET {
+        inference
+            .authenticate(&gateway_key, route.api_format(), correlation)
             .await
             .map_err(InferenceHttpError::Resolution)?;
-        return model_catalog_response(route, models);
     }
     let query = forwarded_query(route, request.uri().query());
     let (parts, body) = request.into_parts();
@@ -135,7 +134,11 @@ async fn relay(
     } else {
         read_request_body(body).await?
     };
-    let model = request_model(&bytes);
+    let model = if route.method() == axum::http::Method::GET {
+        None
+    } else {
+        Some(request_model(&bytes).ok_or(InferenceHttpError::InvalidBody)?)
+    };
     let (permit, context) = inference
         .resolve_and_admit(
             &gateway_key,
@@ -163,63 +166,6 @@ async fn relay(
         )
         .await
         .map_err(InferenceHttpError::Provider)
-}
-
-fn model_catalog_response(
-    route: Route,
-    models: Vec<crate::resolution::CatalogModel>,
-) -> Result<Response, InferenceHttpError> {
-    let data = models
-        .into_iter()
-        .map(|model| match route {
-            Route::OpenAiModels => {
-                let created = chrono::DateTime::parse_from_rfc3339(&model.created_at)
-                    .map_err(|_| InferenceHttpError::Resolution(ResolutionError::InvalidResponse))?
-                    .timestamp();
-                Ok(serde_json::json!({
-                    "id": model.id,
-                    "object": "model",
-                    "created": created,
-                    "owned_by": model.provider.to_ascii_lowercase(),
-                }))
-            }
-            Route::AnthropicModels => Ok(serde_json::json!({
-                "id": model.id,
-                "display_name": model.display_name,
-                "created_at": model.created_at,
-                "type": "model",
-            })),
-            _ => Err(InferenceHttpError::Resolution(
-                ResolutionError::InvalidResponse,
-            )),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let first_id = data
-        .first()
-        .and_then(|model| model["id"].as_str())
-        .map(str::to_owned);
-    let last_id = data
-        .last()
-        .and_then(|model| model["id"].as_str())
-        .map(str::to_owned);
-    let body = match route {
-        Route::OpenAiModels => serde_json::json!({
-            "object": "list",
-            "data": data,
-        }),
-        Route::AnthropicModels => serde_json::json!({
-            "data": data,
-            "has_more": false,
-            "first_id": first_id,
-            "last_id": last_id,
-        }),
-        _ => {
-            return Err(InferenceHttpError::Resolution(
-                ResolutionError::InvalidResponse,
-            ));
-        }
-    };
-    Ok(Json(body).into_response())
 }
 
 fn request_model(body: &[u8]) -> Option<String> {

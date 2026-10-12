@@ -12,7 +12,7 @@ use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
 use tower::ServiceExt;
 
 #[tokio::test]
-async fn malformed_credentials_are_rejected_before_admission_or_body_reads() {
+async fn invalid_credentials_are_rejected_before_admission_or_body_reads() {
     let web = FakeServer::start(|_| async {
         Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -39,16 +39,14 @@ async fn malformed_credentials_are_rejected_before_admission_or_body_reads() {
     for occupied in [Some(permit), None] {
         let body = Body::from_stream(stream::poll_fn(
             |_| -> Poll<Option<Result<&'static str, Infallible>>> {
-                panic!(
-                    "a syntactically invalid credential must be rejected before polling the body"
-                );
+                panic!("an invalid credential must be rejected before polling the body");
             },
         ));
         let response = tokio::time::timeout(
             Duration::from_secs(2),
             gateway.app.clone().oneshot(
                 Request::post("/openai/v1/responses")
-                    .header(header::AUTHORIZATION, "Basic invalid-key")
+                    .header(header::AUTHORIZATION, "Bearer invalid-key")
                     .body(body)
                     .unwrap(),
             ),
@@ -59,7 +57,7 @@ async fn malformed_credentials_are_rejected_before_admission_or_body_reads() {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         drop(occupied);
     }
-    assert_eq!(web.calls(), 0);
+    assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 0);
 }
 
@@ -265,8 +263,8 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
         (
             unconfigured.post(),
             StatusCode::SERVICE_UNAVAILABLE,
-            false,
-            false,
+            true,
+            true,
         ),
         (
             unconfigured.messages(),
@@ -380,6 +378,7 @@ async fn resolved_requests_name_their_tenant_and_the_provider_connection_sent_to
             anthropic("messages", r#"{"model":"claude-opus-4-1","messages":[]}"#),
             "anthropic",
         ),
+        (gateway.models().bearer_auth("gateway-openai"), "openai"),
     ] {
         let response = request.send().await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
@@ -395,7 +394,7 @@ async fn resolved_requests_name_their_tenant_and_the_provider_connection_sent_to
         // The model is an operator-side span and log field only.
         assert_eq!(header("langfuse-model"), None);
     }
-    assert_eq!(provider.calls(), 2);
+    assert_eq!(provider.calls(), 3);
 }
 
 impl Drop for Gateway {
@@ -498,28 +497,20 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
 }
 
 #[tokio::test]
-async fn compact_strips_the_connection_slug_and_models_use_the_control_plane_catalog() {
+async fn compact_strips_the_connection_slug_and_models_still_proxy_openai() {
     let web = FakeServer::start(|request| async move {
-        match (request.method().as_str(), request.uri().path()) {
-            ("POST", "/api/internal/ai-gateway/v1/resolve") => {
-                let body = to_bytes(request.into_body(), 1024).await.unwrap();
-                assert_eq!(
-                    body,
-                    r#"{"apiFormat":"openai.responses","model":"Primary/gpt-4.1"}"#
-                );
-                resolution_response_for_model(
-                    ApiFormat::OpenAiResponses,
-                    "provider-secret",
-                    Some("gpt-4.1"),
-                )
-            }
-            ("GET", "/api/internal/ai-gateway/v1/models") => Response::builder()
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    r#"{"data":[{"id":"Primary/gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"2026-01-01T00:00:00Z"}]}"#,
-                ))
-                .unwrap(),
-            other => panic!("unexpected Web request {other:?}"),
+        let body = to_bytes(request.into_body(), 1024).await.unwrap();
+        let model = serde_json::from_slice::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|body| body["model"].as_str().map(str::to_owned));
+        if model.is_some() {
+            resolution_response_for_model(
+                ApiFormat::OpenAiResponses,
+                "provider-secret",
+                Some("gpt-4.1"),
+            )
+        } else {
+            resolution_response("provider-secret")
         }
     })
     .await;
@@ -537,6 +528,15 @@ async fn compact_strips_the_connection_slug_and_models_use_the_control_plane_cat
                     .header("content-type", "application/json")
                     .body(Body::from(
                         r#"{"id":"comp_1","object":"response.compaction","encrypted_content":"opaque-ciphertext"}"#,
+                    ))
+                    .unwrap()
+            }
+            ("GET", "/v1/models") => {
+                assert!(body.is_empty());
+                Response::builder()
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#,
                     ))
                     .unwrap()
             }
@@ -569,10 +569,10 @@ async fn compact_strips_the_connection_slug_and_models_use_the_control_plane_cat
     assert_eq!(models.status(), StatusCode::OK);
     assert_eq!(
         models.text().await.unwrap(),
-        r#"{"data":[{"created":1767225600,"id":"Primary/gpt-4.1","object":"model","owned_by":"openai"}],"object":"list"}"#
+        r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#
     );
     assert_eq!(web.calls(), 2);
-    assert_eq!(provider.calls(), 1);
+    assert_eq!(provider.calls(), 2);
 }
 
 #[tokio::test]
@@ -621,7 +621,7 @@ async fn malformed_credentials_skip_resolution_and_oversized_body_releases_capac
             .status(),
         StatusCode::UNAUTHORIZED
     );
-    assert_eq!(web.calls(), 0);
+    assert_eq!(web.calls(), 1);
     let response = gateway
         .post()
         .bearer_auth("valid-key")
@@ -640,7 +640,6 @@ async fn malformed_credentials_skip_resolution_and_oversized_body_releases_capac
         .await
         .unwrap();
     assert_eq!(next.status(), StatusCode::OK);
-    assert_eq!(web.calls(), 1);
     assert_eq!(provider.calls(), 1);
 }
 

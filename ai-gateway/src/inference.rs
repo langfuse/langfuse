@@ -10,8 +10,7 @@ use crate::{
     correlation::RequestCorrelation,
     providers::{ProviderError, ProviderTransport, RequestPermit, Route},
     resolution::{
-        ApiFormat, CatalogModel, ControlPlaneClient, ControlPlaneConfig, ResolutionError,
-        ResolvedRequestContext,
+        ApiFormat, ControlPlaneClient, ControlPlaneConfig, ResolutionError, ResolvedRequestContext,
     },
 };
 
@@ -56,17 +55,24 @@ impl InferenceService {
         self.telemetry.clone()
     }
 
-    pub(crate) async fn models(
+    /// Authenticate before polling an inference request body.
+    pub(crate) async fn authenticate(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
-    ) -> Result<Vec<CatalogModel>, ResolutionError> {
+        correlation: &mut RequestCorrelation,
+    ) -> Result<(), ResolutionError> {
         let _permit = self.resolution_capacity.try_acquire().map_err(|_| {
             crate::observability::rejected("resolution");
             ResolutionError::Unavailable
         })?;
         let _active = crate::observability::Active::new("resolution");
-        self.control_plane.models(gateway_key, api_format).await
+        let context = self
+            .control_plane
+            .resolve(gateway_key, api_format, None, correlation.id())
+            .await?;
+        correlation.record_resolution(&context);
+        Ok(())
     }
 
     /// Authenticate with a separate bounded budget before reserving execution capacity.

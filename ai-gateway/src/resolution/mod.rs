@@ -11,7 +11,6 @@ use reqwest::{
     header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue},
 };
 use reqwest_middleware::ClientWithMiddleware;
-use serde::Deserialize;
 use std::{
     fmt,
     net::IpAddr,
@@ -19,7 +18,6 @@ use std::{
 };
 
 const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
-const MODELS_PATH: &str = "/api/internal/ai-gateway/v1/models";
 const REQUEST_ID_HEADER: &str = "langfuse-gateway-request-id";
 // Web sits behind load balancers that drop idle connections after 60s by default
 // (AWS ALB). Evicting pooled connections first keeps the resolver from sending on a
@@ -92,25 +90,6 @@ pub struct ControlPlaneClient {
     config: ControlPlaneConfig,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CatalogModel {
-    pub id: String,
-    pub provider: String,
-    #[serde(rename = "canonicalSlug")]
-    pub canonical_slug: String,
-    #[serde(rename = "displayName")]
-    pub display_name: String,
-    #[serde(rename = "createdAt")]
-    pub created_at: String,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CatalogResponse {
-    data: Vec<CatalogModel>,
-}
-
 impl ControlPlaneClient {
     /// Build a resolver with a reusable HTTP connection pool.
     ///
@@ -154,33 +133,6 @@ impl ControlPlaneClient {
             .map_err(|_| ResolutionError::Unavailable)?;
         self.resolve_at(gateway_key, api_format, model, timestamp, request_id)
             .await
-    }
-
-    /// Fetch the connection-qualified model catalog from Web.
-    ///
-    /// # Errors
-    /// Returns a sanitized [`ResolutionError`] for invalid credentials, authentication
-    /// failures, unavailable Web, timeouts, oversized responses, or invalid payloads.
-    pub async fn models(
-        &self,
-        gateway_key: &str,
-        api_format: ApiFormat,
-    ) -> Result<Vec<CatalogModel>, ResolutionError> {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| ResolutionError::Unavailable)?;
-        if gateway_key.len() > 8192 || !valid_token(gateway_key) {
-            return Err(ResolutionError::InvalidCredential);
-        }
-        let body = tokio::time::timeout(
-            self.config.limits.timeout,
-            self.fetch_models(gateway_key, api_format, timestamp.as_secs()),
-        )
-        .await
-        .map_err(|_| ResolutionError::Timeout)??;
-        let response: CatalogResponse =
-            serde_json::from_slice(&body).map_err(|_| ResolutionError::InvalidResponse)?;
-        Ok(response.data)
     }
 
     async fn resolve_at(
@@ -275,59 +227,6 @@ impl ControlPlaneClient {
             bytes.extend_from_slice(&chunk);
         }
         Ok(bytes)
-    }
-
-    async fn fetch_models(
-        &self,
-        gateway_key: &str,
-        api_format: ApiFormat,
-        timestamp: u64,
-    ) -> Result<Vec<u8>, ResolutionError> {
-        let mut credential = HeaderValue::from_str(&format!("Bearer {gateway_key}"))
-            .map_err(|_| ResolutionError::InvalidCredential)?;
-        credential.set_sensitive(true);
-        let mut signature = HeaderValue::from_str(&signing::authorization(
-            &self.config.service_key,
-            gateway_key,
-            timestamp,
-        ))
-        .map_err(|_| ResolutionError::Configuration)?;
-        signature.set_sensitive(true);
-        let mut endpoint = self.config.endpoint(MODELS_PATH);
-        endpoint
-            .query_pairs_mut()
-            .append_pair("api_format", api_format.as_str());
-        let response = self
-            .client
-            .get(endpoint)
-            .header(AUTHORIZATION, credential)
-            .header("langfuse-gateway-authorization", signature)
-            .send()
-            .await
-            .map_err(|_| ResolutionError::Transport)?;
-        match response.status().as_u16() {
-            200 => {}
-            401 => return Err(ResolutionError::Authentication),
-            403 => return Err(ResolutionError::Forbidden),
-            404 => return Err(ResolutionError::NoRoute),
-            429 | 500..=599 => return Err(ResolutionError::Unavailable),
-            _ => return Err(ResolutionError::InvalidResponse),
-        }
-        let limit = self.config.limits.max_response_bytes;
-        if response
-            .content_length()
-            .is_some_and(|size| size > limit as u64)
-        {
-            return Err(ResolutionError::ResponseTooLarge);
-        }
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|_| ResolutionError::Transport)?;
-        if bytes.len() > limit {
-            return Err(ResolutionError::ResponseTooLarge);
-        }
-        Ok(bytes.to_vec())
     }
 }
 

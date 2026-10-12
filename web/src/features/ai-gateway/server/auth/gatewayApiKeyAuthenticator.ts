@@ -43,6 +43,12 @@ export class GatewayApiKeyAuthenticator {
     const parsedModel = params.model
       ? parseGatewayModelId(params.model)
       : undefined;
+    if (params.model && !parsedModel) {
+      throw new GatewayControlPlaneError(
+        "Model identifier must include a connection name",
+        400,
+      );
+    }
     const cacheParams = {
       fastHashedSecretKey: params.fastHashedSecretKey,
       apiFormat: params.apiFormat,
