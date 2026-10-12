@@ -1,7 +1,7 @@
 use std::{error::Error, sync::Arc, time::Duration};
 
 use axum::{
-    Router,
+    Json, Router,
     body::{Body, Bytes, to_bytes},
     extract::{Request, State},
     http::{HeaderMap, StatusCode, header},
