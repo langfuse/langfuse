@@ -223,7 +223,7 @@ impl MediaDiscovery<'_, '_, '_> {
         for (index, (range, content_type)) in candidates.into_iter().enumerate() {
             let source_range = mapped[index * 2]..mapped[index * 2 + 1];
             // Beyond the document/depth limit we have not parsed all string layers.
-            // In `data:image/png;name=caf\u00e9;base64,...`, the \u00e9 might be
+            // In `data:image/png;name=\u00e9;base64,...`, the \u00e9 might be
             // an inner JSON escape or literal text. Restoring it at the wrong layer
             // changes the spelling or value. Keep escaped candidates inline here.
             if text_only
