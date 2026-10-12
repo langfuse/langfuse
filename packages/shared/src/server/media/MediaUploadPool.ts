@@ -55,9 +55,9 @@ export class MediaUploadPool {
 
   private startIfPossible(upload: PendingUpload): boolean {
     if (!this.canStart(upload)) return false;
-    // `waiting` contains older uploads still blocked in this scheduling pass.
-    if (this.waiting.length && this.bypasses >= this.concurrency) return false;
-    this.bypasses = this.waiting.length ? this.bypasses + 1 : 0;
+    const hasOlderWaiters = this.waiting.length > 0;
+    if (hasOlderWaiters && this.bypasses >= this.concurrency) return false;
+    this.bypasses = hasOlderWaiters ? this.bypasses + 1 : 0;
     this.start(upload);
     return true;
   }
