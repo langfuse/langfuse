@@ -22,6 +22,7 @@ export type GatewayApiKeyAuthContext = Omit<
   "connections"
 > & {
   connection: CachedResolveContext["connections"][number] | null;
+  providerModel: string | null;
 };
 
 type GatewayApiKeyAuthenticatorConfig = {
@@ -70,6 +71,7 @@ export class GatewayApiKeyAuthenticator {
     }
     return {
       ...context,
+      providerModel: modelSlug?.providerModel ?? null,
       connection:
         (modelSlug
           ? context.connections.find(

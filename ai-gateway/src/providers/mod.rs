@@ -226,6 +226,11 @@ impl ProviderTransport {
         } else {
             ExecutionCapture::unobserved()
         };
+        let body = if route.method() == Method::GET {
+            body
+        } else {
+            rewrite_model(body, context.connection().provider_model())
+        };
         // The capture keeps the caller's own request; only the upstream copy asks for usage.
         let body = match route {
             Route::OpenAiChatCompletions => {
@@ -233,8 +238,7 @@ impl ProviderTransport {
             }
             _ => body,
         };
-        // The relay forwards the caller's `model` unchanged; only a captured route has parsed it.
-        let model = capture.requested_model().map(str::to_owned);
+        let model = Some(context.connection().provider_model().to_owned());
         correlation.record_upstream(UpstreamTarget::for_connection(context.connection(), model));
         let mut upstream = self
             .client
@@ -308,6 +312,22 @@ impl ProviderTransport {
         provider.origin_override = Some(base_url);
         provider
     }
+}
+
+fn rewrite_model(body: Bytes, provider_model: &str) -> Bytes {
+    let Ok(mut request) = serde_json::from_slice::<serde_json::Value>(&body) else {
+        return body;
+    };
+    let Some(model) = request
+        .as_object_mut()
+        .and_then(|request| request.get_mut("model"))
+    else {
+        return body;
+    };
+    *model = serde_json::Value::String(provider_model.to_owned());
+    serde_json::to_vec(&request)
+        .map(Bytes::from)
+        .unwrap_or(body)
 }
 
 fn provider_credential(

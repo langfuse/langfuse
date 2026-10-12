@@ -121,20 +121,28 @@ async fn relay(
         .filter(|_| state.lifecycle.is_ready())
         .ok_or(InferenceHttpError::Unavailable)?;
     let gateway_key = gateway_key(request.headers(), route.api_format())?.to_owned();
+    if route.method() == axum::http::Method::GET {
+        let body = inference
+            .models(&gateway_key, route.api_format(), correlation)
+            .await
+            .map_err(InferenceHttpError::Resolution)?;
+        return Response::builder()
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .map_err(|_| InferenceHttpError::Unavailable);
+    }
+
+    let query = forwarded_query(route, request.uri().query());
+    let (parts, body) = request.into_parts();
+    let bytes = read_request_body(body).await?;
+    let model = request_model(&bytes)?;
     let (permit, context) = inference
-        .resolve_and_admit(&gateway_key, route.api_format(), correlation)
+        .resolve_and_admit(&gateway_key, route.api_format(), &model, correlation)
         .await
         .map_err(|error| match error {
             RequestPreparationError::Resolution(error) => InferenceHttpError::Resolution(error),
             RequestPreparationError::Provider(error) => InferenceHttpError::Provider(error),
         })?;
-    let query = forwarded_query(route, request.uri().query());
-    let (parts, body) = request.into_parts();
-    let bytes = if route.method() == axum::http::Method::GET {
-        Bytes::new()
-    } else {
-        read_request_body(body).await?
-    };
     inference
         .forward(
             permit,
@@ -147,6 +155,14 @@ async fn relay(
         )
         .await
         .map_err(InferenceHttpError::Provider)
+}
+
+fn request_model(body: &[u8]) -> Result<String, InferenceHttpError> {
+    serde_json::from_slice::<serde_json::Value>(body)
+        .ok()
+        .and_then(|body| body.get("model")?.as_str().map(str::to_owned))
+        .filter(|model| !model.is_empty())
+        .ok_or(InferenceHttpError::InvalidBody)
 }
 
 /// Buffer the client body. The wait is mostly the caller's upload, so it gets its
@@ -287,6 +303,7 @@ impl InferenceHttpError {
                 "resolution",
                 match error {
                     R::InvalidCredential | R::Authentication => "authentication",
+                    R::InvalidRequest => "invalid_request",
                     R::Forbidden => "forbidden",
                     R::NoRoute => "no_route",
                     R::Timeout => "timeout",
@@ -353,6 +370,12 @@ impl InferenceHttpError {
                 "Invalid request body",
                 "invalid_request_error",
                 "invalid_body",
+            ),
+            Self::Resolution(R::InvalidRequest) => (
+                StatusCode::BAD_REQUEST,
+                "Invalid gateway model",
+                "invalid_request_error",
+                "invalid_model",
             ),
             Self::Unavailable
             | Self::Resolution(R::Unavailable | R::Configuration)

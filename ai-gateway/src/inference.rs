@@ -55,6 +55,22 @@ impl InferenceService {
         self.telemetry.clone()
     }
 
+    pub(crate) async fn models(
+        &self,
+        gateway_key: &str,
+        api_format: ApiFormat,
+        correlation: &RequestCorrelation,
+    ) -> Result<Vec<u8>, ResolutionError> {
+        let _permit = self
+            .resolution_capacity
+            .try_acquire()
+            .map_err(|_| ResolutionError::Unavailable)?;
+        let _active = crate::observability::Active::new("resolution");
+        self.control_plane
+            .models(gateway_key, api_format, correlation.id())
+            .await
+    }
+
     /// Authenticate with a separate bounded budget before reserving execution capacity.
     /// The API format comes from the public route, so Web selects a compatible connection.
     /// A successful resolution is recorded even if execution admission then fails.
@@ -62,6 +78,7 @@ impl InferenceService {
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
+        model: &str,
         correlation: &mut RequestCorrelation,
     ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
         let span = tracing::info_span!(
@@ -70,7 +87,9 @@ impl InferenceService {
             gateway.outcome = tracing::field::Empty
         );
         async {
-            let prepared = self.prepare(gateway_key, api_format, correlation).await;
+            let prepared = self
+                .prepare(gateway_key, api_format, model, correlation)
+                .await;
             tracing::Span::current().record(
                 "gateway.outcome",
                 match &prepared {
@@ -89,6 +108,7 @@ impl InferenceService {
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
+        model: &str,
         correlation: &mut RequestCorrelation,
     ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
         let context = {
@@ -98,7 +118,7 @@ impl InferenceService {
             })?;
             let _active = crate::observability::Active::new("resolution");
             self.control_plane
-                .resolve(gateway_key, api_format, correlation.id())
+                .resolve(gateway_key, api_format, model, correlation.id())
                 .await
                 .map_err(RequestPreparationError::Resolution)?
         };
