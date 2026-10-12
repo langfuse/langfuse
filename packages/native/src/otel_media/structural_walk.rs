@@ -332,10 +332,7 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
     fn record_string(&mut self, range: Range<usize>, mask: u8, text_only: bool) {
         let raw = &self.input[range.start + 1..range.end - 1];
         self.stats.add_bytes(raw.len());
-        if mask != 0
-            && raw.len() >= MIN_EARLY_MEDIA_BYTES
-            && std::str::from_utf8(raw).is_ok_and(may_contain_media_candidate)
-        {
+        if mask != 0 && raw.len() >= MIN_EARLY_MEDIA_BYTES && may_contain_media_candidate(raw) {
             self.candidates.push(PendingCandidate {
                 mask,
                 candidate: if text_only {
