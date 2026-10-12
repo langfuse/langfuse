@@ -180,7 +180,10 @@ export const VersionLabel = ({ className }: { className?: string }) => {
         <Button
           variant="ghost"
           size="xs"
-          className={cn("mt-[0.2px] gap-0.5 pr-0 text-[0.625rem]", className)}
+          className={cn(
+            "mt-[0.2px] gap-1 px-0.5 text-[0.625rem] tracking-tight",
+            className,
+          )}
         >
           {VERSION}
           {selfHostedPlanLabel ? <> {selfHostedPlanLabel.short}</> : null}
@@ -188,7 +191,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
             <StatusBadge
               type={backgroundMigrationStatus.data?.status.toLowerCase()}
               showText={false}
-              className="bg-transparent p-0"
+              className="gap-0 bg-transparent p-0"
             />
           )}
           {hasUpdate && !showBackgroundMigrationStatus && (
