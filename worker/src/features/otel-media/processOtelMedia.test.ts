@@ -248,14 +248,11 @@ describe("processOtelEventMedia", () => {
     expect(mocks.instrumentAsync).not.toHaveBeenCalled();
   });
 
-  it("attributes residual detector metrics to the early media path", async () => {
+  it("attributes residual detector metrics to the early path after its empty batch is released", async () => {
     const processMedia = vi.fn().mockResolvedValue(processResult);
 
     await processOtelEventMedia({
-      earlyBatch: {
-        mediaCount: () => 0,
-        mediaPage: () => [],
-      } as never,
+      mediaPath: "early",
       targets: createDirectOtelMediaTargets([
         {
           traceId: "trace-id",

@@ -15,8 +15,13 @@ type NativeInput = {
 };
 
 type PreparedInput =
-  | { batch: EarlyOtelBatch; error?: never }
-  | { batch?: never; error: string | undefined };
+  | {
+      batch: EarlyOtelBatch;
+      /** Neither masking nor UTF-8 normalization replaced the caller's bytes. */
+      sourceUnchanged: boolean;
+      error?: never;
+    }
+  | { batch?: never; sourceUnchanged?: never; error: string | undefined };
 
 /**
  * Validate raw OTLP bytes and optionally extract media before the TypeScript
@@ -83,7 +88,10 @@ export async function prepareOtelBatch(params: {
     );
     const batch = await masking.data.validated.extract(extractMedia);
     outcome = "native";
-    return { batch };
+    return {
+      batch,
+      sourceUnchanged: masking.data.bytes === bytes,
+    };
   } catch (error) {
     outcome = "error";
     throw error;

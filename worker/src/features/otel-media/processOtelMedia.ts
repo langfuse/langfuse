@@ -27,6 +27,7 @@ const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
  */
 export async function processOtelEventMedia(params: {
   earlyBatch?: EarlyOtelBatch;
+  mediaPath?: "early" | "reference";
   targets: OtelMediaTarget[];
   writePath: OtelMediaWritePath;
   projectId: string;
@@ -44,7 +45,8 @@ export async function processOtelEventMedia(params: {
     mediaPrefix,
     processMedia = processOtelMedia,
   } = params;
-  const mediaPath = params.earlyBatch ? "early" : "reference";
+  const mediaPath =
+    params.mediaPath ?? (params.earlyBatch ? "early" : "reference");
 
   if (!mediaBucket) {
     logger.warn(

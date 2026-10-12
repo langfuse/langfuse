@@ -541,11 +541,25 @@ export const otelIngestionQueueProcessorBuilder = (
           return;
         }
         earlyBatch = prepared.batch;
-        parsedSpans = JSON.parse(
-          prepared.batch.takeJsonBuffer().toString("utf8"),
-        );
-        if (Array.isArray(parsedSpans)) {
-          await restoreOtelTagAttributes(prepared.batch, parsedSpans);
+        if (prepared.sourceUnchanged && earlyBatch.mediaCount() === 0) {
+          // Free Rust's duplicate before parsing the unchanged download. Transferring
+          // it to a Buffer would keep that allocation alive until Node collects it.
+          await earlyBatch.dispose();
+          earlyBatch = undefined;
+          parsedSpans = JSON.parse(
+            Buffer.from(
+              bytes.buffer,
+              bytes.byteOffset,
+              bytes.byteLength,
+            ).toString("utf8"),
+          );
+        } else {
+          parsedSpans = JSON.parse(
+            earlyBatch.takeJsonBuffer().toString("utf8"),
+          );
+          if (Array.isArray(parsedSpans)) {
+            await restoreOtelTagAttributes(earlyBatch, parsedSpans);
+          }
         }
       } else {
         // Download file from blob storage
@@ -796,6 +810,7 @@ export const otelIngestionQueueProcessorBuilder = (
             targets: createLegacyOtelMediaTargets(traces.concat(observations)),
             writePath: "legacy",
             earlyBatch,
+            mediaPath,
             projectId,
             fileKey,
             mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
@@ -846,6 +861,7 @@ export const otelIngestionQueueProcessorBuilder = (
         fileKey,
         shouldWriteToEventsTable,
         earlyBatch,
+        mediaPath,
       });
     } catch (e) {
       const fileKey = job.data.payload.data.fileKey;

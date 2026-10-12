@@ -10,6 +10,7 @@ import {
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
+import * as otelPreparation from "../../features/otel-ingestion/prepareOtelBatch";
 import { IngestionService } from "../../services/IngestionService";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
 import { fetchObservationEvalRules } from "../../features/evaluation/observationEval";
@@ -184,6 +185,61 @@ describe("early media extraction rollout", () => {
         },
       },
     }) as Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>;
+
+  it("releases an unchanged media-free native document before JSON.parse", async () => {
+    const original = {
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
+        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED,
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS:
+        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS,
+    };
+    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED = "true";
+    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS = ["*"];
+    const json = '[{"resource":{"attributes":[]},"scopeSpans":[]}]';
+    const bytes = Buffer.from(json);
+    vi.mocked(getS3EventStorageClient).mockReturnValue({
+      downloadBytes: vi.fn().mockResolvedValue(bytes),
+    } as unknown as ReturnType<typeof getS3EventStorageClient>);
+    const prepare = otelPreparation.prepareOtelBatch;
+    const parse = JSON.parse;
+    let checkedBeforeParse = false;
+    const stop = new Error("stop after parsing");
+    try {
+      vi.spyOn(otelPreparation, "prepareOtelBatch").mockImplementation(
+        async (params) => {
+          const prepared = await prepare(params);
+          const batch = prepared.batch!;
+          expect(batch.mediaCount()).toBe(0);
+          vi.spyOn(batch, "takeJsonBuffer").mockImplementation(() => {
+            throw new Error("must not transfer a second document to Node");
+          });
+          vi.spyOn(JSON, "parse").mockImplementation((text, reviver) => {
+            if (text === json) {
+              expect(() => batch.mediaCount()).toThrow(/disposed/);
+              checkedBeforeParse = true;
+            }
+            return parse(text, reviver);
+          });
+          return prepared;
+        },
+      );
+      vi.spyOn(
+        OtelIngestionProcessor.prototype,
+        "processToIngestionEvents",
+      ).mockRejectedValue(stop);
+      await expect(
+        otelIngestionQueueProcessorBuilder(false)(
+          createJob("project"),
+          undefined,
+        ),
+      ).rejects.toBe(stop);
+      expect(checkedBeforeParse).toBe(true);
+    } finally {
+      Object.assign(env, original);
+      vi.restoreAllMocks();
+      vi.clearAllMocks();
+    }
+  });
 
   it.each([
     ["reference", "disabled with wildcard", false, ["*"]],

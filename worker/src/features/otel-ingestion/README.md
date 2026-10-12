@@ -103,6 +103,25 @@ Masking and media discovery use that same sanitized source. Masked responses pas
 through the same boundary within the existing masking retry and fail-open/fail-closed
 policy. Invalid JSON still fails; preparation never falls back to TypeScript.
 
+When extraction finds no media and neither masking nor UTF-8 normalization changed
+the source, the queue disposes the native batch before parsing the downloaded
+bytes. Otherwise it consumes the batch's accepted JSON. This avoids retaining a
+second full document through `JSON.parse` without bypassing masking or validation.
+
+Local ARM64 measurements (Node 24.21.0, release addon, October 2026) isolated this
+handoff: allocate an ASCII JSON Buffer, validate/extract, then parse either the
+transferred native Buffer or the download after awaiting batch disposal. Median
+peak RSS across three fresh processes per case, with alternating run order:
+
+| Document | TS parse  | Native Buffer handoff | Dispose then reuse download |
+| -------- | --------- | --------------------- | --------------------------- |
+| 50 MiB   | 195.6 MiB | 246.2 MiB             | 196.2 MiB                   |
+| 188 MiB  | 609.7 MiB | 798.4 MiB             | 610.5 MiB                   |
+
+These measure preparation and parsing of an unchanged, media-free document, not
+whole-worker ingestion or masked responses. Fixture bytes are allocated directly
+without constructing a second large fixture string; peak RSS uses `resourceUsage().maxRSS`.
+
 Start with internal projects and a dedicated secondary OTEL worker pool:
 
 - Primary workers redirect the canary IDs using
@@ -148,8 +167,8 @@ secondary export.
   Media counters, byte distributions, detection checks and processing duration
   also carry `media_path=early|reference`. Filter or group by this tag to compare
   pipelines, or omit the grouping to aggregate them. The tag describes the whole
-  media-processing path: late TS detection within an early batch is still tagged
-  `early`. Existing media duration
+  media-processing path: late TS detection on the early path is still tagged
+  `early`, including after an empty native batch is released. Existing media duration
   covers late detection/resolution/uploads, not native preparation.
 
 Watch queue age/retries, worker RSS/CPU/event-loop delay and restarts alongside

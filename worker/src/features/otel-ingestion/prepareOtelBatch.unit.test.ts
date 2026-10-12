@@ -64,11 +64,60 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
         projectId: "project-id",
         extractMedia: true,
       }),
-    ).resolves.toEqual({ batch });
+    ).resolves.toEqual({ batch, sourceUnchanged: true });
 
     expect(bodies).toEqual([original]);
     expect(validated.extract).toHaveBeenCalledWith(true);
   });
+
+  it.each(["unchanged", "masked", "sanitized"] as const)(
+    "allows download reuse only for unchanged bytes (%s)",
+    async (inputKind) => {
+      const native =
+        await vi.importActual<typeof import("@langfuse/native")>(
+          "@langfuse/native",
+        );
+      nativeMocks.validateOtelJson.mockImplementation(native.validateOtelJson);
+      const bytes =
+        inputKind === "sanitized"
+          ? Buffer.concat([
+              Buffer.from('{"note":"'),
+              Buffer.from([0xff]),
+              Buffer.from('"}'),
+            ])
+          : Buffer.from('{"note":"original"}');
+      if (inputKind === "masked") {
+        maskingMocks.applyIngestionMasking.mockImplementation(
+          async (_params, _env, transport) => ({
+            success: true,
+            data: await transport.read(new Response('{"note":"masked"}')),
+            masked: true,
+          }),
+        );
+      }
+      const prepared = await prepareOtelBatch({
+        bytes,
+        projectId: "project-id",
+        extractMedia: true,
+      });
+      try {
+        expect(prepared.batch?.mediaCount()).toBe(0);
+        expect(prepared.sourceUnchanged).toBe(inputKind === "unchanged");
+        expect(
+          JSON.parse(prepared.batch!.takeJsonBuffer().toString("utf8")),
+        ).toEqual({
+          note:
+            inputKind === "sanitized"
+              ? "�"
+              : inputKind === "masked"
+                ? "masked"
+                : "original",
+        });
+      } finally {
+        await prepared.batch?.dispose();
+      }
+    },
+  );
 
   it("does not fall back to a second TypeScript processing path", async () => {
     const error = Object.assign(

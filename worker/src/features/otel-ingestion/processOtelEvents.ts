@@ -28,6 +28,7 @@ type ProcessOtelEventsParams = {
   fileKey: string;
   shouldWriteToEventsTable: boolean;
   earlyBatch?: EarlyOtelBatch;
+  mediaPath?: "early" | "reference";
 };
 
 /**
@@ -47,6 +48,7 @@ export async function processOtelEvents({
   fileKey,
   shouldWriteToEventsTable,
   earlyBatch,
+  mediaPath,
 }: ProcessOtelEventsParams): Promise<void> {
   // Process events for observation evals and direct event writes
   // This phase handles two independent concerns:
@@ -94,6 +96,7 @@ export async function processOtelEvents({
       targets: createDirectOtelMediaTargets(eventInputs),
       writePath: "direct",
       earlyBatch,
+      mediaPath,
       projectId,
       fileKey,
       mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
