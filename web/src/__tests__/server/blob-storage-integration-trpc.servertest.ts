@@ -9,6 +9,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   BlobStorageIntegrationProcessingQueue,
   createOrgProjectAndApiKey,
+  logger,
   QueueJobs,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
@@ -807,6 +808,39 @@ describe("Blob Storage Integration tRPC Router", () => {
         testFileName: result.testFileName,
       });
       expect(JSON.stringify(after)).not.toContain("signed.example");
+    });
+
+    it("succeeds when the test file cannot be deleted", async () => {
+      const deleteError = new Error("AccessDenied: s3:DeleteObject");
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        uploadWithSignedUrl: vi.fn().mockResolvedValue({
+          signedUrl: "https://signed.example/upload",
+        }),
+        deleteFiles: vi.fn().mockRejectedValue(deleteError),
+      });
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      const result = await caller.blobStorageIntegration.validate({
+        projectId: project.id,
+      });
+
+      expect(result.success).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(result.testFileName),
+        deleteError,
+      );
+
+      const auditLog = await findAuditLog({
+        projectId: project.id,
+        action: "validate",
+      });
+      expect(parseAuditLogAfter(auditLog?.after ?? null)).toMatchObject({
+        outcome: "success",
+        testFileName: result.testFileName,
+      });
     });
 
     it("creates a failure audit log when validation upload fails", async () => {
