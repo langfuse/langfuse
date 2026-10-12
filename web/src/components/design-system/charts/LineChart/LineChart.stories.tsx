@@ -7,10 +7,6 @@ import {
   type LineChartSeries,
   type LineChartThreshold,
 } from "./LineChart";
-import {
-  hoverChartTarget,
-  movePointerOffChart,
-} from "../storybookInteractions";
 
 type LineChartStoryProps = {
   legend?: LineChartLegend;
@@ -218,7 +214,7 @@ export const OnCardSurface = meta.story({
       'rect[fill="transparent"]',
     );
     if (!hoverArea) throw new Error("Hover area not found");
-    await hoverChartTarget(hoverArea);
+    await userEvent.hover(hoverArea);
     const activeLabel = canvasElement.querySelector<SVGTextElement>(
       "[data-active-x-axis-label]",
     );
@@ -307,7 +303,7 @@ export const Intermittent = meta.story({
       'rect[fill="transparent"]',
     )[1];
     if (!hoverArea) throw new Error("Missing hover area for data gap");
-    await hoverChartTarget(hoverArea);
+    await userEvent.hover(hoverArea);
     await expect(within(document.body).getByRole("tooltip")).toHaveTextContent(
       "No data available",
     );
@@ -407,7 +403,7 @@ export const CategoryLongLabels = meta.story({
     );
     if (!firstInteractionArea) throw new Error("Interaction area not found");
 
-    await hoverChartTarget(firstInteractionArea);
+    await userEvent.hover(firstInteractionArea);
 
     const activeLabel = canvasElement.querySelector(
       "[data-active-x-axis-label]",
@@ -464,7 +460,7 @@ export const KeyboardFocus = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const firstPoint = canvas.getByLabelText(/2026.*API.*18/);
-    await movePointerOffChart(canvasElement);
+
     firstPoint.focus();
 
     const activeLabel = await waitFor(() => {

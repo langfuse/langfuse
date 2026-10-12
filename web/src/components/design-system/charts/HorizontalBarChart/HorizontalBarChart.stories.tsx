@@ -1,7 +1,6 @@
 import preview from "../../../../../.storybook/preview";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 
-import { hoverChartTarget, hoverChartTargetAt } from "../storybookInteractions";
 import { HorizontalBarChart } from "./HorizontalBarChart";
 
 const meta = preview.meta({
@@ -58,7 +57,7 @@ export const HoverTransition = meta.story({
       'rect[fill="transparent"][aria-hidden="true"]',
     );
     if (!hoverArea) throw new Error("Hover area not found");
-    await hoverChartTarget(hoverArea, first);
+    await userEvent.hover(hoverArea);
     await expect(second).toHaveAttribute(
       "fill",
       expect.stringContaining("20%"),
@@ -81,20 +80,17 @@ export const HoverAcrossRowGap = meta.story({
       'rect[fill="transparent"][aria-hidden="true"]',
     );
     if (!hoverArea) throw new Error("Hover area not found");
-    await hoverChartTarget(hoverArea, first);
+    await userEvent.hover(hoverArea);
     const firstBounds = first.getBoundingClientRect();
     const secondBounds = second.getBoundingClientRect();
-    const gapX = firstBounds.left + 20;
-    const gapY = (firstBounds.bottom + secondBounds.top) / 2;
-    const gapTarget = canvasElement.ownerDocument.elementFromPoint(gapX, gapY);
+    const gapTarget = canvasElement.ownerDocument.elementFromPoint(
+      firstBounds.left + 20,
+      (firstBounds.bottom + secondBounds.top) / 2,
+    );
     if (!gapTarget || !svg.contains(gapTarget)) {
       throw new Error("Gap is not part of the chart hit area");
     }
-    const gapTargetBounds = gapTarget.getBoundingClientRect();
-    await hoverChartTargetAt(gapTarget, {
-      x: gapX - gapTargetBounds.left,
-      y: gapY - gapTargetBounds.top,
-    });
+    await userEvent.hover(gapTarget);
     await expect(second).toHaveAttribute(
       "fill",
       expect.stringContaining("20%"),
@@ -106,7 +102,7 @@ export const HoverAcrossRowGap = meta.story({
       'rect[fill="transparent"][aria-hidden="true"]',
     );
     if (!secondHoverArea) throw new Error("Second hover area not found");
-    await hoverChartTarget(secondHoverArea, second);
+    await userEvent.hover(secondHoverArea);
     await expect(first).toHaveAttribute("fill", expect.stringContaining("20%"));
     await userEvent.unhover(secondHoverArea);
     await expect(first).not.toHaveAttribute(
@@ -174,7 +170,7 @@ export const LayoutAndCopy = meta.story({
       "rect[fill='transparent'][aria-hidden='true']",
     );
     if (!hoverArea) throw new Error("Row hover area not found");
-    await hoverChartTarget(hoverArea, bar);
+    await userEvent.hover(hoverArea);
     const hoveredTooltip = await within(
       canvasElement.ownerDocument.body,
     ).findByRole("tooltip");
