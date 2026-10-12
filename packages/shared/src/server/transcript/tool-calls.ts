@@ -39,7 +39,11 @@ export function createToolCallRegistry() {
       : undefined;
     if (id && calls.has(id)) return;
 
-    const call: Call = { thread, message };
+    const call: Call = {
+      thread,
+      message,
+      fromTool: observation.type === "TOOL",
+    };
     if (id) calls.set(id, call);
     if (part.toolCallId) {
       if (!callsByThread.has(thread)) callsByThread.set(thread, new Map());
@@ -180,27 +184,33 @@ export function createToolCallRegistry() {
     output: KeyedMessage[],
   ) {
     const parts = output.flatMap(({ message }) => message.parts);
-    if (!parts.length) return;
 
     let hasId = false;
+    let attached = false;
     for (const part of parts) {
       if (part.type !== "tool-result" || !part.toolCallId) continue;
 
       hasId = true;
       const call = calls.get(key(observation.traceId, part.toolCallId));
-      if (call) setResponse(call, observation, [part]);
+      if (call) {
+        setResponse(call, observation, [part]);
+        attached = true;
+      }
     }
-    if (hasId || !observation.name) return;
+    if (hasId || !observation.name) return attached;
 
     const queue = pending.get(key(observation.traceId, observation.name));
-    if (!queue) return;
+    if (!queue) return false;
 
     while (queue.calls[queue.next]?.fromTool) queue.next++;
     const call = queue.calls[queue.next];
     if (call) {
       queue.next++;
-      setResponse(call, observation, parts);
+      if (parts.length) setResponse(call, observation, parts);
+      else call.fromTool = true;
+      return true;
     }
+    return false;
   }
 
   return { forGeneration, attachToolOutput };

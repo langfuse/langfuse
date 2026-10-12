@@ -6,8 +6,9 @@ Builds a conversation transcript from the observations of one trace.
 
 Status: generation-led builder with tool responses matched by ID or name and order.
 
-- Tool outputs contribute only when matched to a preceding generation output's tool call in the same trace.
-- Root span I/O and unmatched tool observations are excluded.
+- Tool outputs first match a preceding generation output's tool call in the same trace.
+- Unmatched named tools with I/O append flat call/result messages when exactly one thread exists at their arrival.
+- Root span I/O is excluded.
 
 ## Interface
 
@@ -66,7 +67,7 @@ connect them, but does not retain the fields a trace-level view needs:
 - A root `SPAN` or `AGENT` can carry the trace input and final application
   output, including output produced after the last model or tool call. Those
   fields are absent from the assembled conversation.
-- Non-generation operations, unmatched tool observations, and observation
+- Non-generation/tool operations, skipped tool observations, and observation
   type/name/level/status are not represented as conversation messages. A
   renderer needs them to show the operation sequence and inline failures.
 - Available tool definitions can occur in generation input or metadata. They
@@ -147,8 +148,12 @@ output:  Assistant: Within five business days.
   Match normalized tool-result IDs first. Without an ID, match the observation's
   exact name to the earliest preceding call not yet claimed by a tool observation
   with that tool name in the same trace. No parent constraint or fuzzy matching.
-  Unknown explicit IDs do not fall back to names; unmatched tools are skipped.
-  Preserve all normalized output parts; tool inputs are ignored. Provider-specific
+  Unknown explicit IDs do not fall back to names. Unmatched tools append their
+  observed name/input/output as canonical call/result messages only when exactly
+  one thread exists. These messages do not establish conversational continuity;
+  a later generation can omit them without creating another thread. No hierarchy
+  or additional ownership inference is applied.
+  Matched tools preserve all normalized output parts; their inputs are ignored. Provider-specific
   payload interpretation belongs to normalized IO, not the transcript builder.
 - The caller supplies one trace's observations, already in transcript order
   (see Ordering).
@@ -161,10 +166,12 @@ output:  Assistant: Within five business days.
   referencing the tool's `observationId` and
   `traceId`. Later generation replay cannot overwrite it or add another copy.
   If multiple tool observations respond to one call, the first response wins.
-  Tool inputs do not contribute. Other observation types are ignored.
+  Other observation types are ignored.
 
 The main loop has two paths: generations select a thread, append deduplicated
-input and append output; tool observations enrich an existing call. Call
+input and append output; tool observations enrich an existing call or append
+to the sole existing thread. Appended executions use existing replay identity
+and occurrence matching, so genuinely repeated executions remain visible. Call
 registration and replayed-result suppression happen inside message appending.
 
 ## How does deduplication work?
@@ -250,7 +257,6 @@ are included.
 
 ## Preliminary decisions
 
-- Tool observations contribute to thread messages rather than just enriching generation messages with tool responses. In some cases, the generations messages do not contain any reference of the tool call or the tool result, but tool-observations can provide this information. Recommendation: let tool observations only enrich generation messages with tool responses. Sampled production data does not show strong enough evidence to support this change. Should we find more evidence in production data, this decision should be revisited.
 - Root span I/O does not contribute to the transcript, unless it is of type `GENERATION`.
 - Do not include status messages and errors in the transcript for v1. Only revisit should we find strong evidence in production data that this is a valuable feature, or if consumers (e.g. Topics, Session UI) require this information.
 - Expose a helper method to get the first user message and final assistant message from a given thread. This is useful for consumers (e.g. Topics, Session UI) to display the user question and final assistant answer. Consumers must assess for which thread they want to display this information, and how to handle multiple threads.

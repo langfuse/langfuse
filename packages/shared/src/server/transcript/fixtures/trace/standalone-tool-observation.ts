@@ -4,7 +4,7 @@ import type { TranscriptFixture } from "../fixture-types";
 export const standaloneToolObservationFixture = {
   name: "Standalone tool execution without a generation tool call",
   description:
-    "The generation contains only text. A subsequent TOOL observation has input and output but no matching generation tool call, so its result is omitted from the transcript.",
+    "The generation contains only text. A subsequent TOOL observation has input and output but no matching generation tool call, so its call and result are appended to the single thread.",
   observations: [
     {
       project_id: "transcript-fixture-project",
@@ -62,9 +62,45 @@ export const standaloneToolObservationFixture = {
               endTime: new Date("2026-01-01T12:00:01.000Z"),
               traceId: "standalone-tool-trace",
             },
+            {
+              role: "assistant",
+              parts: [
+                {
+                  type: "tool-call",
+                  toolCallId: null,
+                  toolName: "findUserOrders",
+                  input: { customerId: "customer-1" },
+                },
+              ],
+              source: "output",
+              observationId: "standalone-tool",
+              startTime: new Date("2026-01-01T12:00:02.000Z"),
+              endTime: new Date("2026-01-01T12:00:03.000Z"),
+              traceId: "standalone-tool-trace",
+            },
+            {
+              role: "tool",
+              parts: [
+                {
+                  type: "tool-result",
+                  toolCallId: null,
+                  toolName: "findUserOrders",
+                  output: {
+                    content: [{ type: "text", text: "Order 123 is ready." }],
+                    isError: false,
+                  },
+                },
+              ],
+              source: "output",
+              observationId: "standalone-tool",
+              startTime: new Date("2026-01-01T12:00:02.000Z"),
+              endTime: new Date("2026-01-01T12:00:03.000Z"),
+              traceId: "standalone-tool-trace",
+            },
           ],
           observations: [
             { id: "standalone-generation", traceId: "standalone-tool-trace" },
+            { id: "standalone-tool", traceId: "standalone-tool-trace" },
           ],
         },
       },
