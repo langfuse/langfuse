@@ -13,7 +13,11 @@ import {
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useEffect, useMemo } from "react";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { ListTree } from "lucide-react";
 import { scoreFilters, useScoreColumns } from "@/src/features/scores";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -42,7 +46,15 @@ export function DatasetRunItemsByRunTable(props: {
     pageSize: withDefault(NumberParam, 20),
   });
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "m");
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "traces",
+    "m",
+  );
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
@@ -205,7 +217,7 @@ export function DatasetRunItemsByRunTable(props: {
             observationId={trace.observationId}
             io="input"
             fromTimestamp={runAt}
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         ) : null;
       },
@@ -229,7 +241,7 @@ export function DatasetRunItemsByRunTable(props: {
             observationId={trace.observationId}
             io="output"
             fromTimestamp={runAt}
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         ) : null;
       },
@@ -250,7 +262,7 @@ export function DatasetRunItemsByRunTable(props: {
             datasetItemId={datasetItemId}
             datasetItemVersion={row.original.datasetItemVersion}
             io="expectedOutput"
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         ) : null;
       },
@@ -291,6 +303,7 @@ export function DatasetRunItemsByRunTable(props: {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
       />
       <DataTable
         tableName="datasetRunItems"
@@ -320,6 +333,9 @@ export function DatasetRunItemsByRunTable(props: {
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
     </>
   );

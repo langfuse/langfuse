@@ -46,6 +46,17 @@ describe("tenancy injection", () => {
     );
   });
 
+  it("has no multi-project scope", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events_core")
+      .select("environment");
+
+    expect(() =>
+      // @ts-expect-error - a query is scoped to exactly one project
+      compileClickhouseQuery(qb, { projectIds: ["proj-a", "proj-b"] }),
+    ).toThrow(/no tenancy scope/);
+  });
+
   it("refuses kysely.compile() when the tenancy pass did not run", () => {
     const qb = getClickhouseKysely()
       .selectFrom("traces")

@@ -120,6 +120,7 @@ export const scoresRouter = createTRPCRouter({
         offset: input.page * input.limit,
         excludeMetadata: true,
         includeHasMetadataFlag: true,
+        preferredClickhouseService: "ReadOnly",
       });
 
       const [jobExecutions, users] = await Promise.all([
@@ -178,6 +179,7 @@ export const scoresRouter = createTRPCRouter({
       const score = await getScoreById({
         projectId: input.projectId,
         scoreId: input.scoreId,
+        preferredClickhouseService: "ReadOnly",
       });
       if (!score) {
         throw new TRPCError({
@@ -1180,7 +1182,7 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      return await hasAnyScore(input.projectId);
+      return await hasAnyScore(input.projectId, "ReadOnly");
     }),
   getScoreMetadataById: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), id: z.string() }))

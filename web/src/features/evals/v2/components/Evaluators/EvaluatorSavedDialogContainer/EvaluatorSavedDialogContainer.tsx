@@ -141,11 +141,11 @@ export function EvaluatorSavedDialogContainer({
     (rule) => rule.id === selectedRuleId,
   );
   const attach = api.evalsV2.rules.attach.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.attach"),
   });
   const createOrAttachFromEvaluatorFilters =
     api.evalsV2.rules.createOrAttachFromEvaluatorFilters.useMutation({
-      onError: trpcErrorToast,
+      onError: (error) => trpcErrorToast(error, "evaluator_rule.create"),
     });
 
   const finish = async () => {
@@ -635,14 +635,18 @@ export function EvaluatorSavedDialogContainer({
           });
           createRuleHandoffPending.current = false;
           setDialogPhase("closed");
-          onDismiss().catch(trpcErrorToast);
+          onDismiss().catch((error) =>
+            trpcErrorToast(error, "evaluator_saved_dialog.dismiss"),
+          );
         }}
         onSecondaryAction={() => {
           onboardingAnalytics?.track("eval:onboarding_execution_skipped", {
             method: "skip_button",
           });
           setDialogPhase("closed");
-          finish().catch(trpcErrorToast);
+          finish().catch((error) =>
+            trpcErrorToast(error, "evaluator_saved_dialog.finish"),
+          );
         }}
         onPrimaryAction={handlePrimaryAction}
         onCloseAnimationEnd={completeCreateRuleHandoff}

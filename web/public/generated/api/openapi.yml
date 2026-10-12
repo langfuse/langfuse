@@ -16938,9 +16938,9 @@ components:
     CreateScoresResponse:
       title: CreateScoresResponse
       oneOf:
+        - $ref: '#/components/schemas/CreateScoreBatchResults'
         - $ref: '#/components/schemas/CreateScoreResponse'
         - $ref: '#/components/schemas/CreateScoreBatchResponse'
-        - $ref: '#/components/schemas/CreateScoreBatchResults'
     CreateScoreBatchResponse:
       title: CreateScoreBatchResponse
       type: object

@@ -725,4 +725,13 @@ test("runs formatting cleanup before the extracted output contract", () => {
     "guardrail tests must rerun after permitted workflow self-edits",
   );
   assert.doesNotMatch(workflow, /node <<'NODE' \| tee/);
+  assert.match(
+    workflow,
+    /Bash\(node scripts\/model-price-audit\/list-required-audit-rows\.mjs\)/,
+    "the audit must be allowed to list the rows the validator expects",
+  );
+  assert.match(
+    workflow,
+    /run the allowed exact `node scripts\/model-price-audit\/list-required-audit-rows\.mjs` command/,
+  );
 });
