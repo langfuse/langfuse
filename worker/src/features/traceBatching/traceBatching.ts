@@ -609,18 +609,10 @@ const TRACK_SCRIPT = `
       for key = 3, #KEYS do
         local retained = redis.call('HGET', KEYS[key], identity)
         if retained then
-          local start, tail, expires
-          if string.byte(retained, 1) == 147 then
-            local bounds = cmsgpack.unpack(retained)
-            start, tail, expires = bounds[1], bounds[2], bounds[3]
-          else
-            -- Decimal history retains only the minimum; pending state can supply its tail.
-            start, expires = string.match(retained, '^([^:]+):(.+)$')
-            start, expires = tonumber(start), tonumber(expires)
-          end
-          if expires and expires > now then
-            minStart = math.min(minStart, start)
-            if tail then maxStart = math.max(maxStart, tail) end
+          local bounds = cmsgpack.unpack(retained)
+          if bounds[3] > now then
+            minStart = math.min(minStart, bounds[1])
+            maxStart = math.max(maxStart, bounds[2])
           end
           if key ~= current then redis.call('HDEL', KEYS[key], identity) end
         end

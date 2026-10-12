@@ -194,12 +194,13 @@ when the Topics sort key matches. That key includes the start minute: an event
 revealing a genuinely earlier start in a different minute can leave the previous
 summary under its original key. `processed_at` is assigned when summary
 processing starts, so it orders processing attempts rather than dispatch windows.
+An older, narrower dispatch processed later can replace a summary that includes
+newer events. This is an accepted limitation; dispatch-order versioning must be
+revisited before requiring the newest dispatch window to win.
 
 Retaining the historical maximum preserves the previous tail even when a late
 event's start precedes that tail by more than the query buffer. Once historical
 bounds expire or are lost, the prior window cannot be reconstructed from this map.
-Legacy decimal history remains readable but cannot recover a maximum that was
-never stored; legacy pending state contributes its known maximum.
 
 ### Pending-window size estimates
 
@@ -694,7 +695,7 @@ and available instance tags in Datadog before relying on these signals.
 
 ## Stop and drain
 
-Upgrading from the unsharded or minimum-only decimal layout requires a drain; mixed writers and
+Upgrading from the unsharded layout requires a drain; mixed writers and
 dispatchers must not run against different layouts. Disable producers, let the
 old dispatcher empty `{trace-batch}:due` and `{trace-batch}:state`, and drain the
 queue with the old consumers. Stop old dispatchers before deploying all new
