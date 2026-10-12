@@ -151,8 +151,7 @@ export async function uploadExtractedMediaOnce(params: {
   try {
     return await uploadPromise;
   } catch (error) {
-    // A failed upload must not poison another occurrence or a later path that
-    // can retry the same asset with a fresh decoded body.
+    /** Evict a failed attempt so later calls can retry. */
     if (cache.get(key) === uploadPromise) cache.delete(key);
     throw error;
   }

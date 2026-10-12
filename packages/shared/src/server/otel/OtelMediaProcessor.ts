@@ -10,7 +10,7 @@ import {
   type MediaPayloadKind,
 } from "../media/MediaPayloadProcessor";
 import type { UploadMediaForTraceResult } from "../media/mediaService";
-import { forEachMedia, otelMediaUploads } from "../media/otelMediaUploads";
+import { otelMediaUploads } from "../media/otelMediaUploads";
 
 export type OtelMediaKind = MediaPayloadKind;
 export type OtelMediaWritePath = "direct" | "legacy";
@@ -87,6 +87,7 @@ type ProcessContext = {
   mediaPrefix: string;
   uploadMedia: UploadOtelMedia;
   result: OtelMediaProcessResult;
+  inFlightUploads: Map<string, Map<MediaContentType, Promise<void>>>;
 };
 
 /**
@@ -137,51 +138,53 @@ export async function processOtelMedia(params: {
       structured_payload: 0,
     },
   };
-  await forEachMedia(targets, async (target) => {
-    await forEachMedia(
-      ["input", "output", "metadata"] as const,
-      async (field) => {
-        const originalValue = target.payload[field];
-        if (originalValue == null) return;
+  const inFlightUploads = new Map<
+    string,
+    Map<MediaContentType, Promise<void>>
+  >();
+  for (const target of targets) {
+    for (const field of ["input", "output", "metadata"] as const) {
+      const originalValue = target.payload[field];
+      if (originalValue == null) continue;
 
-        const context: ProcessContext = {
-          projectId,
-          traceId: target.traceId,
-          observationId: target.observationId,
-          field,
-          writePath,
-          mediaPath,
-          mediaBucket,
-          mediaPrefix,
-          uploadMedia,
-          result,
-        };
-        const transformed = await transformMediaPayload(originalValue, {
-          processCandidate: (candidate) => processCandidate(candidate, context),
-          onInvalidCandidate: (kind, reason) =>
-            recordInvalidCandidate(kind, reason, context),
-          onIgnoredCandidate: (kind, reason) =>
-            recordIgnoredCandidate(kind, reason, context),
-          onDetectionPath: (path, checkedBytes) =>
-            recordDetectionCheck(path, checkedBytes, context),
-        });
+      const context: ProcessContext = {
+        projectId,
+        traceId: target.traceId,
+        observationId: target.observationId,
+        field,
+        writePath,
+        mediaPath,
+        mediaBucket,
+        mediaPrefix,
+        uploadMedia,
+        result,
+        inFlightUploads,
+      };
+      const transformed = await transformMediaPayload(originalValue, {
+        processCandidate: (candidate) => processCandidate(candidate, context),
+        onInvalidCandidate: (kind, reason) =>
+          recordInvalidCandidate(kind, reason, context),
+        onIgnoredCandidate: (kind, reason) =>
+          recordIgnoredCandidate(kind, reason, context),
+        onDetectionPath: (path, checkedBytes) =>
+          recordDetectionCheck(path, checkedBytes, context),
+      });
 
-        // Structured objects are mutated by transformMediaPayload itself and keep
-        // their identity. Strings instead return a new value that must be assigned.
-        if (transformed.value !== originalValue) {
-          target.payload[field] = transformed.value;
-        }
-        if (transformed.bytesRemoved > 0) {
-          result.bytesRemoved += transformed.bytesRemoved;
-          recordDistribution(
-            "langfuse.ingestion.otel.media.bytes_removed",
-            transformed.bytesRemoved,
-            { write_path: context.writePath, media_path: context.mediaPath },
-          );
-        }
-      },
-    );
-  });
+      // Structured objects are mutated by transformMediaPayload itself and keep
+      // their identity. Strings instead return a new value that must be assigned.
+      if (transformed.value !== originalValue) {
+        target.payload[field] = transformed.value;
+      }
+      if (transformed.bytesRemoved > 0) {
+        result.bytesRemoved += transformed.bytesRemoved;
+        recordDistribution(
+          "langfuse.ingestion.otel.media.bytes_removed",
+          transformed.bytesRemoved,
+          { write_path: context.writePath, media_path: context.mediaPath },
+        );
+      }
+    }
+  }
 
   return result;
 }
@@ -190,13 +193,38 @@ async function processCandidate(
   candidate: MediaPayloadCandidate,
   context: ProcessContext,
 ): Promise<string | undefined> {
-  // Reserve before decoding. Base64 length is known without allocating its body;
-  // a Python literal's source length safely overestimates its decoded bytes.
-  const bytes =
-    candidate.encoding === "base64"
-      ? Buffer.byteLength(candidate.encodedData, "base64")
-      : candidate.encodedData.length;
-  return otelMediaUploads.run(bytes, () => decodeAndUpload(candidate, context));
+  /** Serialize identical bodies; each occurrence still creates its own link. */
+  const byContentType =
+    context.inFlightUploads.get(candidate.encodedData) ??
+    new Map<MediaContentType, Promise<void>>();
+  const previous = byContentType.get(candidate.contentType);
+  let release!: () => void;
+  const turn = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  byContentType.set(candidate.contentType, turn);
+  context.inFlightUploads.set(candidate.encodedData, byContentType);
+
+  try {
+    if (previous) await previous;
+    // Reserve before decoding. Base64 length is known without allocating its body;
+    // a Python literal's source length safely overestimates its decoded bytes.
+    const bytes =
+      candidate.encoding === "base64"
+        ? Buffer.byteLength(candidate.encodedData, "base64")
+        : candidate.encodedData.length;
+    return await otelMediaUploads.run(bytes, () =>
+      decodeAndUpload(candidate, context),
+    );
+  } finally {
+    release();
+    if (byContentType.get(candidate.contentType) === turn) {
+      byContentType.delete(candidate.contentType);
+      if (byContentType.size === 0) {
+        context.inFlightUploads.delete(candidate.encodedData);
+      }
+    }
+  }
 }
 
 async function decodeAndUpload(

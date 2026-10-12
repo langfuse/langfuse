@@ -126,6 +126,39 @@ describe("processOtelMedia", () => {
     ]);
   });
 
+  it("serializes duplicates before parsing another field", async () => {
+    const first = deferred<void>();
+    const { event } = createEvent({ value: `${DATA_URI} ${DATA_URI}` });
+    const nextField = JSON.stringify({
+      type: "base64",
+      media_type: "image/png",
+      data: Buffer.from("different").toString("base64"),
+    });
+    event.payload.output = nextField;
+    const parse = vi.spyOn(JSON, "parse");
+    const upload = vi.fn(async () => {
+      if (upload.mock.calls.length === 1) await first.promise;
+      return {
+        mediaId: MEDIA_ID,
+        outcome: upload.mock.calls.length === 2 ? "reused" : "uploaded",
+      } as const;
+    });
+    const processing = processEvents([event], upload);
+
+    try {
+      await vi.waitFor(() => expect(upload).toHaveBeenCalled());
+      expect(upload).toHaveBeenCalledTimes(1);
+      expect(parse).not.toHaveBeenCalledWith(nextField);
+    } finally {
+      first.resolve();
+      parse.mockRestore();
+    }
+
+    const result = await processing;
+    expect(upload).toHaveBeenCalledTimes(3);
+    expect(result).toMatchObject({ uploaded: 2, reused: 1 });
+  });
+
   it("uploads a normalized observation Data URI and replaces it after success", async () => {
     const dataUri = DATA_URI;
     const { event, body } = createEvent({ value: dataUri });
