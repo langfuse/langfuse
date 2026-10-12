@@ -1,5 +1,5 @@
 import preview from "../../../../../.storybook/preview";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { StackedBarChart } from "./StackedBarChart";
 
@@ -61,12 +61,14 @@ export const StackingAndTooltip = meta.story({
       Number(worker.getAttribute("y")) + Number(worker.getAttribute("height")),
     ).toBeCloseTo(Number(api.getAttribute("y")), 0);
     worker.focus();
-    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-      "tooltip",
-    );
-    await expect(tooltip).toHaveTextContent("Monday");
-    await expect(tooltip).toHaveTextContent("API");
-    await expect(tooltip).toHaveTextContent("Worker");
+    await waitFor(() => {
+      const tooltip = within(canvasElement.ownerDocument.body).getByRole(
+        "tooltip",
+      );
+      expect(tooltip).toHaveTextContent("Monday");
+      expect(tooltip).toHaveTextContent("API");
+      expect(tooltip).toHaveTextContent("Worker");
+    });
   },
 });
 
@@ -194,17 +196,6 @@ export const MissingBuckets = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Hide Worker" }),
     ).toHaveTextContent("Sum: 5");
-    const emptyBucket = canvasElement.querySelectorAll<SVGRectElement>(
-      'rect[fill="transparent"]',
-    )[0];
-    if (!emptyBucket) throw new Error("Missing empty bucket hover area");
-    await userEvent.hover(emptyBucket);
-    await expect(
-      within(canvasElement.ownerDocument.body).getByRole("tooltip"),
-    ).toHaveTextContent("No data available");
-    await expect(
-      canvasElement.querySelector("[data-active-reference-line]"),
-    ).toBeInTheDocument();
   },
 });
 

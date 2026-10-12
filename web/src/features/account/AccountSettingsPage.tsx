@@ -31,6 +31,7 @@ import { StringNoHTML } from "@langfuse/shared";
 import Link from "next/link";
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 const displayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -159,6 +160,7 @@ function DeleteAccountButton() {
       showErrorToast(
         "Failed to Delete Account",
         error instanceof Error ? error.message : "An unexpected error occurred",
+        classifyTrpcToastError(error, "account.delete"),
       );
     }
   };
@@ -254,6 +256,7 @@ function SignOutAllSessionsButton() {
       showErrorToast(
         "Failed to Sign Out of All Sessions",
         error instanceof Error ? error.message : "An unexpected error occurred",
+        classifyTrpcToastError(error, "account.revoke_sessions"),
       );
       throw error;
     }

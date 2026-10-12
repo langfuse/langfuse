@@ -147,7 +147,7 @@ describe("project API keys trpc", () => {
       expect(dbKey.createdByApiKeyId).toBeNull();
       expect(
         await prisma.roleAssignment.findFirstOrThrow({
-          where: { principalApiKeyId: apiKeyResult.id },
+          where: { apiKeyId: apiKeyResult.id },
         }),
       ).toMatchObject({ systemRole: "LEGACY_PROJECT_API_KEY" });
       expect(dbKey.scope).toBe("PROJECT");
@@ -217,10 +217,10 @@ describe("project API keys trpc", () => {
         const { caller, projectId } = await createProjectCaller();
         const key = await caller.projectApiKeys.create({ projectId, role });
         const assignment = await prisma.roleAssignment.findFirstOrThrow({
-          where: { principalApiKeyId: key.id },
+          where: { apiKeyId: key.id },
         });
         expect(assignment.systemRole).toBe(role);
-        expect(assignment.ownerProjectId).toBe(projectId);
+        expect(assignment.projectId).toBe(projectId);
       },
     );
 
@@ -252,11 +252,11 @@ describe("project API keys trpc", () => {
             });
             expect(
               await prisma.roleAssignment.findFirstOrThrow({
-                where: { principalApiKeyId: key.id },
+                where: { apiKeyId: key.id },
               }),
             ).toMatchObject({
               systemRole: "LEGACY_PROJECT_API_KEY",
-              ownerProjectId: projectId,
+              projectId: projectId,
             });
           },
         );
@@ -342,10 +342,10 @@ describe("project API keys trpc", () => {
       });
 
       const assignment = await prisma.roleAssignment.findFirstOrThrow({
-        where: { principalApiKeyId: key.id },
+        where: { apiKeyId: key.id },
       });
       expect(assignment.systemRole).toBe("LEGACY_PROJECT_API_KEY");
-      expect(assignment.ownerProjectId).toBe(projectId);
+      expect(assignment.projectId).toBe(projectId);
       expect(assignment.orgId).toBe(project.orgId);
 
       await expect(
@@ -354,7 +354,7 @@ describe("project API keys trpc", () => {
 
       await expect(
         prisma.roleAssignment.count({
-          where: { principalApiKeyId: key.id },
+          where: { apiKeyId: key.id },
         }),
       ).resolves.toBe(0);
     });

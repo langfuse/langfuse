@@ -649,6 +649,7 @@ export type GetScoresForObservationsProps<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
+  preferredClickhouseService?: PreferredClickhouseService;
 };
 
 // Currently only used from the observations table, hence the exclusion of metadata without excludeMetadata flag
@@ -667,6 +668,7 @@ export const getScoresForObservations = async <
     clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadata = false,
+    preferredClickhouseService,
   } = props;
 
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
@@ -706,6 +708,7 @@ export const getScoresForObservations = async <
     },
     tags: { projectId },
     clickhouseConfigs,
+    preferredClickhouseService,
   });
 
   const includeMetadataPayload = !excludeMetadata;
@@ -1398,6 +1401,11 @@ const getScoresUiGeneric = async <T>(props: {
   );
   const scoresFilterRes = scoresFilter.apply();
 
+  const orderByClause = orderByToClickhouseSql(
+    orderBy ?? null,
+    scoresTableUiColumnDefinitions,
+  );
+
   // Only join traces for rows or if there is a trace filter on counts
   const performTracesJoin =
     props.select === "rows" ||
@@ -1411,7 +1419,7 @@ const getScoresUiGeneric = async <T>(props: {
       WHERE s.project_id = {projectId: String}
       AND s.data_type IN ({dataTypes: Array(String)})
       ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
-      ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitions)}
+      ${props.select === "rows" ? withIdTiebreaker(orderByClause, orderBy) : orderByClause}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
@@ -1721,7 +1729,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   // The trace join, ORDER BY and pagination run outside the dedup subquery.
   const pageClause = `
       ${eventsJoin}
-      ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
+      ${withIdTiebreaker(orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents), orderBy)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}`;
   const query =
     props.select === "count"
@@ -1805,6 +1813,12 @@ const getScoresUiGenericFromEvents = async <T>(props: {
     preferredClickhouseService: needsTracesCTE ? "EventsReadOnly" : "ReadOnly",
   });
 };
+
+/** Appends s.id in the primary sort direction so LIMIT/OFFSET pages are deterministic on ties */
+const withIdTiebreaker = (orderByClause: string, orderBy: OrderByState) =>
+  orderByClause && orderBy
+    ? `${orderByClause}, s.id ${orderBy.order}`
+    : orderByClause;
 
 export const getScoresUiCountFromEvents = async (props: {
   projectId: string;
@@ -2147,6 +2161,7 @@ export const getNumericScoreHistogram = async (
     query,
     params: input.params,
     tags: input.tags,
+    preferredClickhouseService: "ReadOnly",
   });
 };
 

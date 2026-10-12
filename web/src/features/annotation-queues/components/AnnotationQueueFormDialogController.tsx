@@ -12,6 +12,7 @@ import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queu
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 type AnnotationQueueFormDialogControllerProps = {
   projectId: string;
@@ -120,10 +121,11 @@ export function AnnotationQueueFormDialogController(
         setCreatedQueueId(undefined);
         onSuccess(targetQueueId);
         setOpen(false);
-      } catch {
+      } catch (error) {
         showErrorToast(
           "Operation failed",
           "Failed to create or update queue or assign users. Please try again.",
+          classifyTrpcToastError(error, "annotation_queue.save"),
         );
       }
     },

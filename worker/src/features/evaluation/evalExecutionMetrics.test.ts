@@ -8,8 +8,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  __test,
   getCodeEvalTerminalErrorOutcome,
   getLlmEvalTerminalErrorOutcome,
+  recordEvalScorePersistenceOutcome,
   recordEvalTerminalOutcome,
   recordEvalTimeToFirstAttempt,
 } from "./evalExecutionMetrics";
@@ -28,6 +30,11 @@ describe("evaluation execution metrics", () => {
   it("records the bounded metric contract", () => {
     recordEvalTimeToFirstAttempt(EvalTemplateType.LLM_AS_JUDGE, 1_234);
     recordEvalTerminalOutcome(EvalTemplateType.CODE, "success");
+    recordEvalScorePersistenceOutcome(
+      EvalTemplateType.LLM_AS_JUDGE,
+      "failure",
+      7,
+    );
 
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.evaluation.execution.time_to_first_attempt_ms",
@@ -42,6 +49,28 @@ describe("evaluation execution metrics", () => {
       1,
       { evaluator_type: "code_as_judge", outcome: "success" },
     );
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.evaluation.score_persistence",
+      1,
+      {
+        evaluator_type: "llm_as_judge",
+        outcome: "failure",
+        score_count_bucket: "6-10",
+      },
+    );
+  });
+
+  it.each([
+    { scoreCount: 0, expected: "0" },
+    { scoreCount: 1, expected: "1" },
+    { scoreCount: 2, expected: "2" },
+    { scoreCount: 3, expected: "3-5" },
+    { scoreCount: 5, expected: "3-5" },
+    { scoreCount: 6, expected: "6-10" },
+    { scoreCount: 10, expected: "6-10" },
+    { scoreCount: 11, expected: "11+" },
+  ])("buckets $scoreCount scores as $expected", ({ scoreCount, expected }) => {
+    expect(__test.getEvalScoreCountBucket(scoreCount)).toBe(expected);
   });
 
   it.each([

@@ -1,6 +1,7 @@
 import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
 import { showErrorToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { hasInternalAccess } from "../utils";
 import { useInternalFeaturesEnabled } from "./useInternalFeaturesEnabled";
 
@@ -17,7 +18,11 @@ export function useInternalViewMode() {
       await session.update();
     },
     onError: (error) =>
-      showErrorToast("Failed to update view mode", error.message),
+      showErrorToast(
+        "Failed to update view mode",
+        error.message,
+        classifyTrpcToastError(error, "account_view_mode.update"),
+      ),
   });
   const mode = enabled ? "INTERNAL" : "EXTERNAL";
   return {

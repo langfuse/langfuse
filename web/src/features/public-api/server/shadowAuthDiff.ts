@@ -1,5 +1,6 @@
 import {
   getCurrentSpan,
+  logger,
   recordIncrement,
   type ApiAccessLevel,
 } from "@langfuse/shared/src/server";
@@ -13,25 +14,55 @@ const defaultTelemetry: Telemetry = {
   span: () => getCurrentSpan(),
 };
 
-/** shadowAuthDiff classifies the new pipeline's decision against legacy's, emits `langfuse.authz.parity`, and returns the result. */
+/** shadowAuthDiff records parity and logs every mismatch independently of trace sampling. */
 export function shadowAuthDiff(
   newDecision: NewDecision,
   legacyDecision: LegacyDecision,
   action: string,
+  metadata: AuthDiffMetadata,
   telemetry: Telemetry = defaultTelemetry,
 ): ParityResult {
   const n = newVerdict(newDecision);
   const l = legacyVerdict(legacyDecision);
   const result = classify(l.verdict, n.verdict);
-  telemetry.increment(parityStat, {
+  const tags = {
     action,
     access_level: l.accessLevel,
     result,
     legacy_code: l.code,
     new_code: n.code,
-  });
-  telemetry.span()?.setAttribute(`${parityStat}.result`, result);
+  };
+  logMismatch(result, tags, metadata);
+  telemetry.increment(parityStat, { ...tags, resource: metadata.resource });
+  annotateSpan(telemetry.span(), tags);
   return result;
+}
+
+/** logMismatch emits only safe identity and route fields for disagreements. */
+function logMismatch(
+  result: ParityResult,
+  tags: Record<string, string | number>,
+  metadata: AuthDiffMetadata,
+): void {
+  if (result !== "new_allows" && result !== "new_denies") return;
+  logger.info("Public API authorization mismatch", {
+    event: "authz_parity",
+    ...tags,
+    api_key_id: metadata.apiKeyId,
+    public_key: metadata.publicKey,
+    resource: metadata.resource,
+  });
+}
+
+/** annotateSpan adds decision tags under the parity namespace. */
+function annotateSpan(
+  span: ReturnType<Telemetry["span"]>,
+  tags: Record<string, string | number>,
+): void {
+  if (!span) return;
+  for (const [key, value] of Object.entries(tags)) {
+    span.setAttribute(`${parityStat}.${key}`, value);
+  }
 }
 
 /** newVerdict reads the new decision: success allows (200), else denies with its http code. */
@@ -67,6 +98,13 @@ function classify(legacyVerdict: Verdict, newVerdict: Verdict): ParityResult {
 
 /** Verdict is one path's decision at one enforcement point; legacy is `absent` only where it runs no gate. */
 type Verdict = "allow" | "deny" | "absent";
+
+/** AuthDiffMetadata carries safe key identity and the resolved HTTP route resource. */
+type AuthDiffMetadata = {
+  apiKeyId?: string;
+  publicKey?: string;
+  resource: string;
+};
 
 /** ParityResult is the signal: agreement, which path is stricter, or net-new enforcement legacy never gated. */
 export type ParityResult = "match" | "new_denies" | "new_allows" | "net_new";
