@@ -2,7 +2,6 @@ import { createHash, randomUUID } from "node:crypto";
 import { xxh32 } from "@node-rs/xxhash";
 import {
   getTracingReadinessSettings,
-  LocalCache,
   logger,
   QueueJobs,
   redis,
@@ -31,17 +30,6 @@ const QUERY_BUFFER_MS = 2 * 60_000;
 const MINUTE_MS = 60_000;
 const NARROW_BATCH_MAX_ENVELOPE_MS = 60 * MINUTE_MS;
 const WIDE_MAX_EXPANSION_RATIO = 0.25;
-
-// Each pod reads a project's idle time from Postgres at most once per TTL, so a
-// saved value applies within it. Missing rows and failed reads cache a null
-// (the deployment default) too.
-const TRACE_IDLE_MS_CACHE_TTL_MS = 5 * MINUTE_MS;
-const traceIdleMsCache = new LocalCache<{ traceIdleMs: number | null }>({
-  namespace: "trace_batch_idle_ms",
-  enabled: true,
-  ttlMs: TRACE_IDLE_MS_CACHE_TTL_MS,
-  max: 10_000,
-});
 
 export type TraceBatchStrategy = "project" | "locality";
 export type PendingTrace = {
@@ -809,18 +797,6 @@ export async function trackTraceBatchActivity(
 }
 
 async function resolveTraceIdleMs(projectId: string): Promise<number> {
-  const traceIdleMs = await getCachedTraceIdleMs(projectId);
-  if (traceIdleMs === null) return env.LANGFUSE_TRACE_BATCH_IDLE_MS;
-  // A due time past the pending TTL would expire the trace before dispatch.
-  const cap =
-    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS -
-    env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
-  return cap > 0 ? Math.min(traceIdleMs, cap) : traceIdleMs;
-}
-
-async function getCachedTraceIdleMs(projectId: string): Promise<number | null> {
-  const cached = traceIdleMsCache.get(projectId);
-  if (cached) return cached.traceIdleMs;
   let traceIdleMs: number | null = null;
   try {
     ({ traceIdleMs } = await getTracingReadinessSettings(projectId));
@@ -831,8 +807,12 @@ async function getCachedTraceIdleMs(projectId: string): Promise<number | null> {
       error,
     });
   }
-  traceIdleMsCache.set(projectId, { traceIdleMs });
-  return traceIdleMs;
+  if (traceIdleMs === null) return env.LANGFUSE_TRACE_BATCH_IDLE_MS;
+  // A due time past the pending TTL would expire the trace before dispatch.
+  const cap =
+    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS -
+    env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
+  return cap > 0 ? Math.min(traceIdleMs, cap) : traceIdleMs;
 }
 
 export class TraceBatchDispatcher extends PeriodicExclusiveRunner {

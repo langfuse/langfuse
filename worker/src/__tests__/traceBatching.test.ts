@@ -908,27 +908,58 @@ describe("trace micro-batch scheduling with Redis", () => {
     }
   });
 
-  it("uses the default when the idle time read fails and caches it", async () => {
+  it("caches the project's settings in Redis with an expiry and clears them on save", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    const cacheKey = `langfuse:tracing-readiness-settings:${projectId}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Idle time cache org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Idle time cache project" },
+    });
+    try {
+      await trackTraceBatchActivity(projectId, [event("uncached")]);
+      expect(JSON.parse((await connection.get(cacheKey))!)).toEqual({
+        traceIdleMs: null,
+      });
+      const ttl = await connection.ttl(cacheKey);
+      expect(ttl).toBeGreaterThan(0);
+      expect(ttl).toBeLessThanOrEqual(300);
+
+      await shared.saveTracingReadinessSettings(projectId, {
+        traceIdleMs: 300_000,
+      });
+      expect(await connection.exists(cacheKey)).toBe(0);
+      await trackTraceBatchActivity(projectId, [event("saved")]);
+      const offset =
+        Number(await client().zscore(dueKey, member(projectId, "saved"))) -
+        Date.now();
+      expect(offset).toBeGreaterThan(290_000);
+      expect(offset).toBeLessThan(310_000);
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+      await connection.del(cacheKey);
+    }
+  });
+
+  it("uses the default when the idle time read fails", async () => {
     const projectId = `project-${randomUUID()}`;
     vi.mocked(shared.getTracingReadinessSettings).mockRejectedValueOnce(
       new Error("Postgres unavailable"),
     );
 
     await trackTraceBatchActivity(projectId, [event("failed")]);
-    await trackTraceBatchActivity(projectId, [event("cached")]);
 
-    expect(shared.getTracingReadinessSettings).toHaveBeenCalledTimes(1);
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.trace_batch.idle_time_read_failures",
       1,
     );
-    const now = Date.now();
-    for (const traceId of ["failed", "cached"]) {
-      const offset =
-        Number(await client().zscore(dueKey, member(projectId, traceId))) - now;
-      expect(offset).toBeGreaterThan(590_000);
-      expect(offset).toBeLessThan(610_000);
-    }
+    const offset =
+      Number(await client().zscore(dueKey, member(projectId, "failed"))) -
+      Date.now();
+    expect(offset).toBeGreaterThan(590_000);
+    expect(offset).toBeLessThan(610_000);
   });
 
   it("does not track or dispatch on self-hosted deployments even with experiment flags enabled", async () => {
