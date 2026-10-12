@@ -76,9 +76,31 @@ export const usdFormatter = (
   }).format(numberToFormat ?? 0);
 };
 
+/** Below this, two fraction digits would render a real cost as "$0.00". */
+const SUB_CENT_THRESHOLD = 0.01;
+/** Upper bound on the widening, so a dust value cannot stretch a table cell. */
+const MAX_SUB_CENT_FRACTION_DIGITS = 10;
+
 export const costFormatter = (totalCost?: number) => {
-  return usdFormatter(totalCost, 2, 2);
+  const cost = totalCost ?? 0;
+
+  if (
+    typeof cost === "number" &&
+    cost !== 0 &&
+    Math.abs(cost) < SUB_CENT_THRESHOLD
+  ) {
+    return usdFormatter(cost, 2, subCentFractionDigits(cost));
+  }
+
+  return usdFormatter(cost, 2, 2);
 };
+
+/** Returns the fraction digits that render a sub-cent cost to ~3 significant digits. */
+const subCentFractionDigits = (cost: number) =>
+  Math.min(
+    2 + Math.ceil(-Math.log10(Math.abs(cost))),
+    MAX_SUB_CENT_FRACTION_DIGITS,
+  );
 
 export const formatTokenCounts = (
   inputUsage?: number | null,
