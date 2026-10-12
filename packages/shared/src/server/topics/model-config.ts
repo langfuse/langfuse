@@ -222,18 +222,6 @@ export async function checkTopicsModelSettings(
   );
 }
 
-export async function saveTopicsModelSettings(
-  projectId: string,
-  settings: TopicsModelSettings,
-  userId: string | null = null,
-): Promise<void> {
-  await writeTopicsModelSettings(
-    projectId,
-    await prepareTopicsModelSettings(projectId, settings),
-    { userId },
-  );
-}
-
 /**
  * Validates and tests the settings without writing them, so callers can save
  * related configuration first and commit the models last.

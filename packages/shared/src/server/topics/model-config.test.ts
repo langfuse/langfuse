@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LLMAdapter } from "../llm/types";
 import {
   getEnabledTopicsModels,
-  saveTopicsModelSettings,
+  prepareTopicsModelSettings,
+  writeTopicsModelSettings,
 } from "./model-config";
 
 const mocks = vi.hoisted(() => ({
@@ -46,6 +47,15 @@ const settings = {
   enabled: true,
 };
 
+const saveTopicsModelSettings = async (
+  projectId: string,
+  value: Parameters<typeof prepareTopicsModelSettings>[1],
+) =>
+  writeTopicsModelSettings(
+    projectId,
+    await prepareTopicsModelSettings(projectId, value),
+  );
+
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.keys.mockResolvedValue([
@@ -60,7 +70,7 @@ beforeEach(() => {
   }));
 });
 
-describe("saveTopicsModelSettings", () => {
+describe("prepareTopicsModelSettings", () => {
   it("saves an Anthropic connection when its test call succeeds", async () => {
     await saveTopicsModelSettings("project", {
       ...settings,

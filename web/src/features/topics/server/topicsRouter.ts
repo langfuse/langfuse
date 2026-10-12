@@ -41,7 +41,6 @@ import {
   getTopicsModels,
   readTopicsModelSettings,
   checkTopicsModelSettings,
-  saveTopicsModelSettings,
   saveTopicsSetup,
   enqueueTopicExecution,
   getTopicExecutionQueueState,
@@ -372,13 +371,6 @@ export const topicsRouter = createTRPCRouter({
     .input(topicsModelSettingsSchema.extend({ projectId: topicIdSchema }))
     .mutation(({ input: { projectId, ...settings } }) =>
       checkTopicsModelSettings(projectId, settings),
-    ),
-  saveModelSettings: topicsWriteProcedure
-    .input(topicsModelSettingsSchema.extend({ projectId: topicIdSchema }))
-    .mutation(({ input: { projectId, ...settings }, ctx }) =>
-      auditedTopicConfigSave(ctx, projectId, () =>
-        saveTopicsModelSettings(projectId, settings, ctx.session.user.id),
-      ),
     ),
   saveSetup: topicsWriteProcedure
     .input(topicsSetupSchema.extend({ projectId: topicIdSchema }))
