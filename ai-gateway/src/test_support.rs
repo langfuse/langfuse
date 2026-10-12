@@ -176,7 +176,7 @@ pub(crate) async fn resolved_request_context_for(
         .resolve(
             "gateway-secret",
             api_format,
-            "Production key:provider-model",
+            Some("Production key:provider-model"),
             "test-request-id",
         )
         .await
