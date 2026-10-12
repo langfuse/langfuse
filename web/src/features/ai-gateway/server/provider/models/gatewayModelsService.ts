@@ -14,6 +14,7 @@ import {
   GatewayModelCatalogService,
 } from "./gatewayModelCatalogService";
 import { GatewayModelsRepository } from "./gatewayModelsRepository";
+import { qualifyGatewayModelId } from "./modelIdentifier";
 
 export class GatewayModelsService {
   private readonly repository: GatewayModelsRepository;
@@ -57,15 +58,18 @@ export class GatewayModelsService {
       );
     }
 
-    const modelsById = new Map<string, GatewayModelCatalogEntry>();
-    for (const result of results) {
+    const models: GatewayModelCatalogEntry[] = [];
+    for (const [index, result] of results.entries()) {
       if (!result.success) continue;
       for (const model of result.models) {
-        if (!modelsById.has(model.id)) modelsById.set(model.id, model);
+        models.push({
+          ...model,
+          id: qualifyGatewayModelId(connections[index].name, model.id),
+        });
       }
     }
     return {
-      data: [...modelsById.values()].sort(compareModels),
+      data: models.sort(compareModels),
     };
   }
 }

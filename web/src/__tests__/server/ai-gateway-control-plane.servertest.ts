@@ -110,6 +110,7 @@ async function authenticateRequest(
   return new GatewayResolveService().resolve({
     context,
     apiFormat: params.apiFormat,
+    model: params.model,
   });
 }
 
@@ -276,6 +277,33 @@ describe("AI gateway control plane", () => {
     });
     expect(stored.encryptedCredential).not.toBe(credential);
     expect(decrypt(stored.encryptedCredential)).toBe(credential);
+  });
+
+  it("requires connection names to be unique slugs", async () => {
+    const { caller, org } = await prepare();
+    await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI primary",
+      provider: "OPENAI",
+      credential: "sk-first",
+    });
+
+    await expect(
+      caller.aiGateway.createConnection({
+        orgId: org.id,
+        name: "OpenAI primary",
+        provider: "OPENAI",
+        credential: "sk-second",
+      }),
+    ).rejects.toThrow("connection with this name already exists");
+    await expect(
+      caller.aiGateway.createConnection({
+        orgId: org.id,
+        name: "OpenAI/primary",
+        provider: "OPENAI",
+        credential: "sk-third",
+      }),
+    ).rejects.toThrow('Connection names cannot contain "/"');
   });
 
   it("tests provider credentials without saving a connection", async () => {
@@ -597,6 +625,48 @@ describe("AI gateway control plane", () => {
     expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
   });
 
+  it("routes an inference model to the connection named by its slug", async () => {
+    const { caller, org, project } = await prepare();
+    await caller.aiGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      ingestionMode: "USAGE",
+    });
+    await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "Primary",
+      provider: "OPENAI",
+      credential: "sk-primary",
+    });
+    const secondary = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "Secondary",
+      provider: "OPENAI",
+      credential: "sk-secondary",
+    });
+    const gatewayKey = await caller.aiGateway.createApiKey({
+      orgId: org.id,
+      metadata: {},
+    });
+
+    configureGatewayJwtSigning();
+
+    await expect(
+      authenticateRequest({
+        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+        apiFormat: "openai.responses",
+        model: "Secondary/gpt-4.1",
+      }),
+    ).resolves.toMatchObject({
+      connection: {
+        id: secondary.id,
+        name: "Secondary",
+        auth: { type: "Bearer", token: "sk-secondary" },
+      },
+      model: "gpt-4.1",
+    });
+  });
+
   it("changes ERROR only for credential auth failures and explicit recovery", async () => {
     const { caller, org, session } = await prepare();
     const connection = await caller.aiGateway.createConnection({
@@ -898,6 +968,12 @@ describe("AI gateway control plane", () => {
     });
     await caller.aiGateway.createConnection({
       orgId: org.id,
+      name: "OpenAI Backup",
+      provider: "OPENAI",
+      credential: "sk-openai-backup",
+    });
+    await caller.aiGateway.createConnection({
+      orgId: org.id,
       name: "Anthropic",
       provider: "ANTHROPIC",
       credential: "sk-anthropic",
@@ -965,14 +1041,28 @@ describe("AI gateway control plane", () => {
     expect(result).toEqual({
       data: [
         {
-          id: "a-model",
+          id: "OpenAI Backup/a-model",
           provider: "OPENAI",
           canonicalSlug: "a-model",
           displayName: "a-model",
           createdAt: "1970-01-01T00:00:10.000Z",
         },
         {
-          id: "shared-model",
+          id: "OpenAI Backup/shared-model",
+          provider: "OPENAI",
+          canonicalSlug: "shared-model",
+          displayName: "shared-model",
+          createdAt: "1970-01-01T00:00:15.000Z",
+        },
+        {
+          id: "OpenAI/a-model",
+          provider: "OPENAI",
+          canonicalSlug: "a-model",
+          displayName: "a-model",
+          createdAt: "1970-01-01T00:00:10.000Z",
+        },
+        {
+          id: "OpenAI/shared-model",
           provider: "OPENAI",
           canonicalSlug: "shared-model",
           displayName: "shared-model",
@@ -993,14 +1083,14 @@ describe("AI gateway control plane", () => {
     expect(anthropicResult).toEqual({
       data: [
         {
-          id: "claude-a",
+          id: "Anthropic/claude-a",
           provider: "ANTHROPIC",
           canonicalSlug: "claude-a",
           displayName: "Claude A",
           createdAt: "2026-01-01T00:00:00.000Z",
         },
         {
-          id: "claude-b",
+          id: "Anthropic/claude-b",
           provider: "ANTHROPIC",
           canonicalSlug: "claude-b",
           displayName: "Claude B",
@@ -1008,7 +1098,7 @@ describe("AI gateway control plane", () => {
         },
       ],
     });
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(3);
   });
 
   it("fails model discovery instead of returning a partial catalog", async () => {

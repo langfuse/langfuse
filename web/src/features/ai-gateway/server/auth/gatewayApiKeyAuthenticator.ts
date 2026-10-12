@@ -15,6 +15,7 @@ import {
   GatewayResolveCache,
 } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayResolveRepository } from "@/src/features/ai-gateway/server/resolve/gatewayResolveRepository";
+import { parseGatewayModelId } from "@/src/features/ai-gateway/server/provider/models/modelIdentifier";
 
 export type GatewayApiKeyAuthContext = CachedResolveContext;
 
@@ -37,6 +38,7 @@ export class GatewayApiKeyAuthenticator {
   async authenticateRequest(params: {
     fastHashedSecretKey: string;
     apiFormat: GatewayApiFormat;
+    model?: string;
   }): Promise<GatewayApiKeyAuthContext> {
     const cached = await this.cache.get(params);
     if (cached === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
@@ -59,10 +61,15 @@ export class GatewayApiKeyAuthenticator {
   private async loadAndCacheContext(params: {
     fastHashedSecretKey: string;
     apiFormat: GatewayApiFormat;
+    model?: string;
   }): Promise<GatewayApiKeyAuthContext> {
+    const parsedModel = params.model
+      ? parseGatewayModelId(params.model)
+      : undefined;
     const row = await this.repository.resolveContext({
       fastHashedSecretKey: params.fastHashedSecretKey,
       providers: supportedProviders(params.apiFormat),
+      connectionName: parsedModel?.connectionName ?? params.model,
     });
 
     const organizationId = row?.apiKey.orgId;

@@ -355,6 +355,7 @@ model GatewayAiConnection {
   updatedAt           DateTime                @default(now()) @updatedAt @map("updated_at")
 
   @@unique([organizationId, routingPriority])
+  @@unique([organizationId, name])
   @@index([organizationId, status, routingPriority])
   @@map("gateway_ai_connections")
 }

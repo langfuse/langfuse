@@ -6,6 +6,7 @@ export class GatewayResolveRepository {
   resolveContext(params: {
     fastHashedSecretKey: string;
     providers: GatewayProvider[];
+    connectionName?: string;
   }) {
     const now = new Date();
     return this.prisma.gatewayApiKeyAssociation.findFirst({
@@ -40,6 +41,7 @@ export class GatewayResolveRepository {
                   where: {
                     provider: { in: params.providers },
                     status: "ENABLED",
+                    name: params.connectionName,
                   },
                   orderBy: { routingPriority: "asc" },
                   take: 1,

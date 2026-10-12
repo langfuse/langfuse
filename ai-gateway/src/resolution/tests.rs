@@ -133,6 +133,7 @@ async fn signs_the_exact_key_and_sends_only_the_api_format() {
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
+            None,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -172,6 +173,34 @@ async fn signs_the_exact_key_and_sends_only_the_api_format() {
 }
 
 #[tokio::test]
+async fn sends_the_qualified_model_and_accepts_the_upstream_model() {
+    let web = FakeWeb::start(|request| async move {
+        assert_eq!(
+            to_bytes(request.into_body(), 1024).await.unwrap(),
+            r#"{"apiFormat":"openai.responses","model":"Secondary/gpt-4.1"}"#
+        );
+        let mut body = success("project-1", "provider-token");
+        body["model"] = json!("gpt-4.1");
+        response(body)
+    })
+    .await;
+
+    let context = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            Some("Secondary/gpt-4.1"),
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(context.model(), Some("gpt-4.1"));
+}
+
+#[tokio::test]
 async fn denied_and_failed_resolutions_are_classified_without_retries_or_body_leaks() {
     for status in [401, 403, 404, 500, 503] {
         let web = FakeWeb::start(move |_| async move {
@@ -186,6 +215,7 @@ async fn denied_and_failed_resolutions_are_classified_without_retries_or_body_le
             .resolve_at(
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
+                None,
                 NOW_TIME,
                 REQUEST_ID,
             )
@@ -223,6 +253,7 @@ async fn never_follows_redirects_with_credentials() {
             .resolve_at(
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
+                None,
                 NOW_TIME,
                 REQUEST_ID
             )
@@ -254,6 +285,7 @@ async fn rejects_oversized_declared_and_chunked_responses() {
             .resolve_at(
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
+                None,
                 NOW_TIME,
                 REQUEST_ID,
             )
@@ -286,6 +318,7 @@ async fn deadline_covers_response_headers_and_body() {
                 .resolve_at(
                     GATEWAY_KEY,
                     ApiFormat::OpenAiResponses,
+                    None,
                     NOW_TIME,
                     REQUEST_ID,
                 ),
@@ -303,7 +336,7 @@ async fn malformed_credentials_never_reach_web() {
     for key in ["", "has space", "has\r\nheader", "has\ttab"] {
         let result = web
             .control_plane()
-            .resolve_at(key, ApiFormat::OpenAiResponses, NOW_TIME, REQUEST_ID)
+            .resolve_at(key, ApiFormat::OpenAiResponses, None, NOW_TIME, REQUEST_ID)
             .await;
         assert!(matches!(result, Err(ResolutionError::InvalidCredential)));
     }
@@ -324,6 +357,7 @@ async fn rejects_a_grant_that_expires_while_resolving_across_a_second_boundary()
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
+            None,
             NOW_TIME + Duration::from_millis(900),
             REQUEST_ID,
         )
@@ -350,12 +384,14 @@ async fn concurrent_resolutions_keep_credentials_and_contexts_isolated() {
         control_plane.resolve_at(
             "gw_test_alice",
             ApiFormat::OpenAiResponses,
+            None,
             NOW_TIME,
             REQUEST_ID
         ),
         control_plane.resolve_at(
             "gw_test_bob",
             ApiFormat::OpenAiResponses,
+            None,
             NOW_TIME,
             REQUEST_ID
         ),
@@ -404,6 +440,7 @@ async fn resolves_anthropic_messages_with_the_native_credential_scheme() {
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::AnthropicMessages,
+            None,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -454,6 +491,7 @@ async fn chat_completions_resolve_only_an_openai_connection_for_that_format() {
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::OpenAiChatCompletions,
+            None,
             NOW_TIME,
             REQUEST_ID,
         )
@@ -640,6 +678,7 @@ async fn rejects_ingestion_tokens_that_authorize_a_different_tenant() {
             .resolve_at(
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
+                None,
                 NOW_TIME,
                 REQUEST_ID
             )
@@ -660,7 +699,7 @@ async fn assert_invalid_context_for(body: Value, api_format: ApiFormat) {
     .await;
     let result = web
         .control_plane()
-        .resolve_at(GATEWAY_KEY, api_format, NOW_TIME, REQUEST_ID)
+        .resolve_at(GATEWAY_KEY, api_format, None, NOW_TIME, REQUEST_ID)
         .await;
     assert!(matches!(result, Err(ResolutionError::InvalidResponse)));
     assert_eq!(web.calls(), 1);
@@ -677,6 +716,7 @@ async fn rejects_malformed_json_without_exposing_response_contents() {
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
+            None,
             NOW_TIME,
             REQUEST_ID,
         )

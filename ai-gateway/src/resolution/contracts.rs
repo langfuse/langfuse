@@ -16,6 +16,16 @@ pub enum ApiFormat {
     AnthropicMessages,
 }
 
+impl ApiFormat {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::OpenAiResponses => "openai.responses",
+            Self::OpenAiChatCompletions => "openai.chat-completions",
+            Self::AnthropicMessages => "anthropic.messages",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Provider {
@@ -221,6 +231,8 @@ impl IngestionGrant {
 #[serde(deny_unknown_fields)]
 struct ResolutionResponse {
     version: u8,
+    #[serde(default)]
+    model: Option<String>,
     connection: ProviderConnection,
     attribution: RequestAttribution,
     #[serde(deserialize_with = "string_enum")]
@@ -239,6 +251,9 @@ fn string_enum<'de, D: Deserializer<'de>, T: DeserializeOwned>(
 }
 
 impl ResolvedRequestContext {
+    pub fn model(&self) -> Option<&str> {
+        self.0.model.as_deref()
+    }
     pub fn connection(&self) -> &ProviderConnection {
         &self.0.connection
     }
@@ -297,6 +312,7 @@ pub(super) fn decode(
     let attribution = &response.attribution;
     let provider = connection.provider;
     if response.version != 1
+        || response.model.as_deref().is_some_and(str::is_empty)
         || connection.api_format != expected_format
         || !provider.supports(connection.api_format)
         || connection.base_url != provider.official_origin()

@@ -1,9 +1,14 @@
 import type {
   GatewayConnectionStatus,
   GatewayProvider,
+  Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
-import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  LangfuseConflictError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { LLMAdapter, testModelCall } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
@@ -72,15 +77,17 @@ export class GatewayProviderService {
       provider: params.provider,
       credential: params.credential,
     });
-    const connection = await this.repository.createConnection({
-      organizationId: params.organizationId,
-      name: params.name,
-      provider: params.provider,
-      encryptedCredential: encrypt(params.credential),
-      displaySecret: getDisplaySecretKey(params.credential),
-      createdById: params.session.user.id,
-      status: "ENABLED",
-    });
+    const connection = await this.repository
+      .createConnection({
+        organizationId: params.organizationId,
+        name: params.name,
+        provider: params.provider,
+        encryptedCredential: encrypt(params.credential),
+        displaySecret: getDisplaySecretKey(params.credential),
+        createdById: params.session.user.id,
+        status: "ENABLED",
+      })
+      .catch(throwConnectionNameConflict);
     await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     await auditLog(
       {
@@ -124,18 +131,20 @@ export class GatewayProviderService {
       });
     }
 
-    const updated = await this.repository.updateConnection({
-      organizationId: params.organizationId,
-      id: params.id,
-      name: params.name,
-      status: params.credential ? "ENABLED" : params.status,
-      encryptedCredential: params.credential
-        ? encrypt(params.credential)
-        : undefined,
-      displaySecret: params.credential
-        ? getDisplaySecretKey(params.credential)
-        : undefined,
-    });
+    const updated = await this.repository
+      .updateConnection({
+        organizationId: params.organizationId,
+        id: params.id,
+        name: params.name,
+        status: params.credential ? "ENABLED" : params.status,
+        encryptedCredential: params.credential
+          ? encrypt(params.credential)
+          : undefined,
+        displaySecret: params.credential
+          ? getDisplaySecretKey(params.credential)
+          : undefined,
+      })
+      .catch(throwConnectionNameConflict);
     await this.modelCatalogService.clearModelCache(
       params.organizationId,
       params.id,
@@ -220,6 +229,18 @@ export class GatewayProviderService {
     );
     return reordered;
   }
+}
+
+function throwConnectionNameConflict(error: unknown): never {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  ) {
+    throw new LangfuseConflictError(
+      "A gateway connection with this name already exists",
+    );
+  }
+  throw error;
 }
 
 async function validateGatewayCredential(params: {

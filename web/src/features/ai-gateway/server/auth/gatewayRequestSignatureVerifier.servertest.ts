@@ -128,6 +128,33 @@ describe("withGatewayResolveSignatureVerification", () => {
     },
   );
 
+  it("passes the requested model to resolution", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const req = request({
+      authorization: "Bearer sk-gateway",
+      gatewayAuthorization: gatewayAuthorization({
+        secret: "current-service-secret",
+      }),
+      body: JSON.stringify({
+        apiFormat: "openai.responses",
+        model: "Secondary/gpt-4.1",
+      }),
+    });
+    const res = response();
+    const handler = vi.fn().mockResolvedValue(undefined);
+
+    await withGatewayResolveSignatureVerification(handler)(req, res);
+
+    expect(handler).toHaveBeenCalledWith({
+      req,
+      res,
+      fastHashedSecretKey: createShaHash("sk-gateway", "test-salt"),
+      apiFormat: "openai.responses",
+      model: "Secondary/gpt-4.1",
+    });
+  });
+
   it("rejects a missing Bearer token on the models endpoint", async () => {
     const handler = vi.fn();
     const res = response();

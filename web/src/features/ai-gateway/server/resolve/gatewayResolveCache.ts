@@ -45,8 +45,12 @@ const CachedResolveEntry = z.union([
   z.literal(GATEWAY_RESOLVE_KEY_NON_EXISTENT),
 ]);
 
-const contextCacheKey = (fastHashedSecretKey: string, apiFormat: string) =>
-  `${CACHE_PREFIX}:context:${apiFormat}:${fastHashedSecretKey}`;
+const contextCacheKey = (
+  fastHashedSecretKey: string,
+  apiFormat: string,
+  model?: string,
+) =>
+  `${CACHE_PREFIX}:context:${apiFormat}:${model ?? ""}:${fastHashedSecretKey}`;
 
 /**
  * Index of the cache keys written for one organization. Entries are keyed by
@@ -55,6 +59,9 @@ const contextCacheKey = (fastHashedSecretKey: string, apiFormat: string) =>
  */
 const organizationIndexKey = (organizationId: string) =>
   `${CACHE_PREFIX}:org:${organizationId}`;
+
+const apiKeyIndexKey = (fastHashedSecretKey: string) =>
+  `${CACHE_PREFIX}:key:${fastHashedSecretKey}`;
 
 /**
  * Caches the /resolve lookup. Every failure is swallowed: a Redis outage must
@@ -70,12 +77,20 @@ export class GatewayResolveCache {
     );
   }
 
-  async get(params: { fastHashedSecretKey: string; apiFormat: string }) {
+  async get(params: {
+    fastHashedSecretKey: string;
+    apiFormat: string;
+    model?: string;
+  }) {
     if (!this.enabled) return null;
 
     try {
       const cached = await this.redis!.get(
-        contextCacheKey(params.fastHashedSecretKey, params.apiFormat),
+        contextCacheKey(
+          params.fastHashedSecretKey,
+          params.apiFormat,
+          params.model,
+        ),
       );
       if (!cached) {
         recordIncrement("langfuse.gateway.resolve.cache_miss", 1);
@@ -86,7 +101,11 @@ export class GatewayResolveCache {
       if (!parsed.success) {
         // A shape change between deployments must not serve stale garbage.
         await this.redis!.del(
-          contextCacheKey(params.fastHashedSecretKey, params.apiFormat),
+          contextCacheKey(
+            params.fastHashedSecretKey,
+            params.apiFormat,
+            params.model,
+          ),
         );
         recordIncrement("langfuse.gateway.resolve.cache_miss", 1);
         return null;
@@ -103,12 +122,17 @@ export class GatewayResolveCache {
   async set(params: {
     fastHashedSecretKey: string;
     apiFormat: string;
+    model?: string;
     context: CachedResolveContext | typeof GATEWAY_RESOLVE_KEY_NON_EXISTENT;
     expiresAt?: Date | null;
   }) {
     if (!this.enabled) return;
 
-    const key = contextCacheKey(params.fastHashedSecretKey, params.apiFormat);
+    const key = contextCacheKey(
+      params.fastHashedSecretKey,
+      params.apiFormat,
+      params.model,
+    );
     const configuredTtl = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS;
     const now = Date.now();
     const expirationTimestamp = Math.min(
@@ -117,13 +141,18 @@ export class GatewayResolveCache {
     );
     if (expirationTimestamp <= now) return;
     try {
+      const apiKeyIndex = apiKeyIndexKey(params.fastHashedSecretKey);
       if (params.context === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
-        await this.redis!.set(
-          key,
-          JSON.stringify(params.context),
-          "PXAT",
-          expirationTimestamp,
-        );
+        await Promise.all([
+          this.redis!.set(
+            key,
+            JSON.stringify(params.context),
+            "PXAT",
+            expirationTimestamp,
+          ),
+          this.redis!.sadd(apiKeyIndex, key),
+          this.redis!.expire(apiKeyIndex, configuredTtl * 2),
+        ]);
         return;
       }
 
@@ -138,9 +167,11 @@ export class GatewayResolveCache {
           expirationTimestamp,
         ),
         this.redis!.sadd(index, key),
+        this.redis!.sadd(apiKeyIndex, key),
         // The index must outlive its entries, otherwise invalidation can miss a
         // cached key that is still live.
         this.redis!.expire(index, configuredTtl * 2),
+        this.redis!.expire(apiKeyIndex, configuredTtl * 2),
       ]);
     } catch (error) {
       logger.error("Error writing gateway resolve cache", error);
@@ -172,11 +203,16 @@ export class GatewayResolveCache {
     if (!this.enabled) return;
 
     try {
-      await Promise.all(
-        gatewayApiFormats.map((apiFormat) =>
+      const index = apiKeyIndexKey(fastHashedSecretKey);
+      const keys = await this.redis!.smembers(index);
+      await Promise.all([
+        this.redis!.del(index),
+        ...keys.map((key) => this.redis!.del(key)),
+        // Remove pre-model cache entries written by an older deployment.
+        ...gatewayApiFormats.map((apiFormat) =>
           this.redis!.del(contextCacheKey(fastHashedSecretKey, apiFormat)),
         ),
-      );
+      ]);
     } catch (error) {
       logger.error("Error invalidating gateway resolve cache", error);
     }

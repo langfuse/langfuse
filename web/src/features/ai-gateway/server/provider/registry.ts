@@ -22,6 +22,7 @@ export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 export const GatewayResolveResponseSchema = z
   .object({
     version: z.literal(1),
+    model: z.string().optional(),
     connection: z
       .object({
         id: z.string(),

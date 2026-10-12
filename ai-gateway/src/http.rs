@@ -121,20 +121,36 @@ async fn relay(
         .filter(|_| state.lifecycle.is_ready())
         .ok_or(InferenceHttpError::Unavailable)?;
     let gateway_key = gateway_key(request.headers(), route.api_format())?.to_owned();
+    if route.method() == axum::http::Method::GET {
+        let models = inference
+            .models(&gateway_key, route.api_format())
+            .await
+            .map_err(InferenceHttpError::Resolution)?;
+        return model_catalog_response(route, models);
+    }
+    let query = forwarded_query(route, request.uri().query());
+    let (parts, body) = request.into_parts();
+    let mut bytes = if route.method() == axum::http::Method::GET {
+        Bytes::new()
+    } else {
+        read_request_body(body).await?
+    };
+    let model = request_model(&bytes);
     let (permit, context) = inference
-        .resolve_and_admit(&gateway_key, route.api_format(), correlation)
+        .resolve_and_admit(
+            &gateway_key,
+            route.api_format(),
+            model.as_deref(),
+            correlation,
+        )
         .await
         .map_err(|error| match error {
             RequestPreparationError::Resolution(error) => InferenceHttpError::Resolution(error),
             RequestPreparationError::Provider(error) => InferenceHttpError::Provider(error),
         })?;
-    let query = forwarded_query(route, request.uri().query());
-    let (parts, body) = request.into_parts();
-    let bytes = if route.method() == axum::http::Method::GET {
-        Bytes::new()
-    } else {
-        read_request_body(body).await?
-    };
+    if let Some(upstream_model) = context.model() {
+        bytes = replace_request_model(&bytes, upstream_model)?;
+    }
     inference
         .forward(
             permit,
@@ -147,6 +163,86 @@ async fn relay(
         )
         .await
         .map_err(InferenceHttpError::Provider)
+}
+
+fn model_catalog_response(
+    route: Route,
+    models: Vec<crate::resolution::CatalogModel>,
+) -> Result<Response, InferenceHttpError> {
+    let data = models
+        .into_iter()
+        .map(|model| match route {
+            Route::OpenAiModels => {
+                let created = chrono::DateTime::parse_from_rfc3339(&model.created_at)
+                    .map_err(|_| InferenceHttpError::Resolution(ResolutionError::InvalidResponse))?
+                    .timestamp();
+                Ok(serde_json::json!({
+                    "id": model.id,
+                    "object": "model",
+                    "created": created,
+                    "owned_by": model.provider.to_ascii_lowercase(),
+                }))
+            }
+            Route::AnthropicModels => Ok(serde_json::json!({
+                "id": model.id,
+                "display_name": model.display_name,
+                "created_at": model.created_at,
+                "type": "model",
+            })),
+            _ => Err(InferenceHttpError::Resolution(
+                ResolutionError::InvalidResponse,
+            )),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let first_id = data
+        .first()
+        .and_then(|model| model["id"].as_str())
+        .map(str::to_owned);
+    let last_id = data
+        .last()
+        .and_then(|model| model["id"].as_str())
+        .map(str::to_owned);
+    let body = match route {
+        Route::OpenAiModels => serde_json::json!({
+            "object": "list",
+            "data": data,
+        }),
+        Route::AnthropicModels => serde_json::json!({
+            "data": data,
+            "has_more": false,
+            "first_id": first_id,
+            "last_id": last_id,
+        }),
+        _ => {
+            return Err(InferenceHttpError::Resolution(
+                ResolutionError::InvalidResponse,
+            ));
+        }
+    };
+    Ok(Json(body).into_response())
+}
+
+fn request_model(body: &[u8]) -> Option<String> {
+    serde_json::from_slice::<serde_json::Value>(body)
+        .ok()?
+        .get("model")?
+        .as_str()
+        .map(str::to_owned)
+}
+
+fn replace_request_model(body: &[u8], model: &str) -> Result<Bytes, InferenceHttpError> {
+    let mut value: serde_json::Value =
+        serde_json::from_slice(body).map_err(|_| InferenceHttpError::InvalidBody)?;
+    let request = value
+        .as_object_mut()
+        .ok_or(InferenceHttpError::InvalidBody)?;
+    request.insert(
+        "model".to_owned(),
+        serde_json::Value::String(model.to_owned()),
+    );
+    serde_json::to_vec(&value)
+        .map(Bytes::from)
+        .map_err(|_| InferenceHttpError::InvalidBody)
 }
 
 /// Buffer the client body. The wait is mostly the caller's upload, so it gets its

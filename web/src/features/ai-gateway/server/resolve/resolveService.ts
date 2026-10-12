@@ -16,6 +16,7 @@ import {
   type GatewayProviderId,
   getGatewayProviderDefinition,
 } from "@/src/features/ai-gateway/server/provider";
+import { parseGatewayModelId } from "@/src/features/ai-gateway/server/provider/models/modelIdentifier";
 
 export { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 
@@ -66,6 +67,7 @@ export class GatewayResolveService {
   async resolve(params: {
     context: GatewayApiKeyAuthContext;
     apiFormat: GatewayApiFormat;
+    model?: string;
   }) {
     return instrumentAsync({ name: "gateway-resolve" }, async (span) => {
       span.setAttribute(
@@ -90,9 +92,13 @@ export class GatewayResolveService {
       const provider = getGatewayProviderDefinition(
         context.connection.provider,
       );
+      const model = params.model
+        ? parseGatewayModelId(params.model)?.upstreamModelId
+        : undefined;
       const credential = decrypt(context.connection.encryptedCredential);
       return {
         version: 1 as const,
+        ...(model ? { model } : {}),
         connection: {
           id: context.connection.id,
           name: context.connection.name,

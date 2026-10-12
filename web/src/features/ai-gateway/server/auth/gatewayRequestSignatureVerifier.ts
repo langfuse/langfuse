@@ -38,6 +38,7 @@ type GatewayControlPlaneHandlerParams = {
 type GatewayResolveHandler = (
   params: GatewayControlPlaneHandlerParams & {
     apiFormat: GatewayApiFormat;
+    model?: string;
   },
 ) => Promise<unknown>;
 
@@ -104,7 +105,12 @@ export function withGatewayResolveSignatureVerification(
   handler: GatewayResolveHandler,
 ) {
   return withGatewayControlPlaneAuth(
-    ({ body, ...params }) => handler({ ...params, apiFormat: body.apiFormat }),
+    ({ body, ...params }) =>
+      handler({
+        ...params,
+        apiFormat: body.apiFormat,
+        ...(body.model ? { model: body.model } : {}),
+      }),
     resolveBodySchema,
   );
 }

@@ -2,7 +2,9 @@ use super::*;
 use crate::{
     providers::{ProviderLimits, ProviderTransport},
     resolution::ApiFormat,
-    test_support::{FakeServer, resolution_response, resolution_response_for},
+    test_support::{
+        FakeServer, resolution_response, resolution_response_for, resolution_response_for_model,
+    },
 };
 use futures_util::{StreamExt, stream};
 use std::{convert::Infallible, task::Poll};
@@ -372,7 +374,6 @@ async fn resolved_requests_name_their_tenant_and_the_provider_connection_sent_to
             ),
             "anthropic",
         ),
-        (gateway.models().bearer_auth("gateway-openai"), "openai"),
         (
             anthropic("messages", r#"{"model":"claude-opus-4-1","messages":[]}"#),
             "anthropic",
@@ -392,7 +393,7 @@ async fn resolved_requests_name_their_tenant_and_the_provider_connection_sent_to
         // The model is an operator-side span and log field only.
         assert_eq!(header("langfuse-model"), None);
     }
-    assert_eq!(provider.calls(), 3);
+    assert_eq!(provider.calls(), 2);
 }
 
 impl Drop for Gateway {
@@ -422,10 +423,13 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
             .to_str()
             .unwrap()
             .to_owned();
-        assert_eq!(
-            to_bytes(request.into_body(), 1024).await.unwrap(),
-            r#"{"apiFormat":"openai.responses"}"#
-        );
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(request.into_body(), 1024).await.unwrap()).unwrap();
+        assert_eq!(body["apiFormat"], "openai.responses");
+        assert!(matches!(
+            body["model"].as_str(),
+            Some("unchanged" | "anything")
+        ));
         resolution_response(if key == "Bearer gateway-json" {
             "provider-json"
         } else {
@@ -492,8 +496,31 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
 }
 
 #[tokio::test]
-async fn compact_relays_opaque_json_and_models_proxies_openai_list_without_query() {
-    let web = FakeServer::start(|_| async { resolution_response("provider-secret") }).await;
+async fn compact_strips_the_connection_slug_and_models_use_the_control_plane_catalog() {
+    let web = FakeServer::start(|request| async move {
+        match (request.method().as_str(), request.uri().path()) {
+            ("POST", "/api/internal/ai-gateway/v1/resolve") => {
+                let body = to_bytes(request.into_body(), 1024).await.unwrap();
+                assert_eq!(
+                    body,
+                    r#"{"apiFormat":"openai.responses","model":"Primary/gpt-4.1"}"#
+                );
+                resolution_response_for_model(
+                    ApiFormat::OpenAiResponses,
+                    "provider-secret",
+                    Some("gpt-4.1"),
+                )
+            }
+            ("GET", "/api/internal/ai-gateway/v1/models") => Response::builder()
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"data":[{"id":"Primary/gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"2026-01-01T00:00:00Z"}]}"#,
+                ))
+                .unwrap(),
+            other => panic!("unexpected Web request {other:?}"),
+        }
+    })
+    .await;
     let provider = FakeServer::start(|request| async move {
         let method = request.method().clone();
         let uri = request.uri().to_string();
@@ -511,15 +538,6 @@ async fn compact_relays_opaque_json_and_models_proxies_openai_list_without_query
                     ))
                     .unwrap()
             }
-            ("GET", "/v1/models") => {
-                assert!(body.is_empty());
-                Response::builder()
-                    .header("content-type", "application/json")
-                    .body(Body::from(
-                        r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#,
-                    ))
-                    .unwrap()
-            }
             other => panic!("unexpected provider request {other:?}"),
         }
     })
@@ -528,7 +546,7 @@ async fn compact_relays_opaque_json_and_models_proxies_openai_list_without_query
     let compact = gateway
         .compact()
         .bearer_auth("gateway-key")
-        .body(r#"{"model":"gpt-4.1","encrypted_content":"opaque-ciphertext"}"#)
+        .body(r#"{"model":"Primary/gpt-4.1","encrypted_content":"opaque-ciphertext"}"#)
         .send()
         .await
         .unwrap();
@@ -549,10 +567,10 @@ async fn compact_relays_opaque_json_and_models_proxies_openai_list_without_query
     assert_eq!(models.status(), StatusCode::OK);
     assert_eq!(
         models.text().await.unwrap(),
-        r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#
+        r#"{"data":[{"created":1767225600,"id":"Primary/gpt-4.1","object":"model","owned_by":"openai"}],"object":"list"}"#
     );
     assert_eq!(web.calls(), 2);
-    assert_eq!(provider.calls(), 2);
+    assert_eq!(provider.calls(), 1);
 }
 
 #[tokio::test]
@@ -1076,7 +1094,7 @@ async fn anthropic_messages_accept_either_credential_header_and_relay_native_sse
         let key = anthropic_gateway_key(&request).unwrap();
         assert_eq!(
             to_bytes(request.into_body(), 1024).await.unwrap(),
-            r#"{"apiFormat":"anthropic.messages"}"#
+            r#"{"apiFormat":"anthropic.messages","model":"claude-sonnet-4-5"}"#
         );
         if key == "gateway-anthropic" {
             resolution_response_for(ApiFormat::AnthropicMessages, "provider-anthropic")
@@ -1285,7 +1303,7 @@ async fn chat_completions_resolve_their_own_format_and_relay_native_json_and_err
     let web = FakeServer::start(|request| async move {
         assert_eq!(
             to_bytes(request.into_body(), 1024).await.unwrap(),
-            r#"{"apiFormat":"openai.chat-completions"}"#
+            r#"{"apiFormat":"openai.chat-completions","model":"gpt-4.1-mini"}"#
         );
         resolution_response_for(ApiFormat::OpenAiChatCompletions, "provider-chat")
     })

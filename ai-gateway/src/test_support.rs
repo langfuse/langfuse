@@ -92,6 +92,14 @@ pub(crate) fn resolution_response_for(
     api_format: ApiFormat,
     provider_secret: &str,
 ) -> Response<Body> {
+    resolution_response_for_model(api_format, provider_secret, None)
+}
+
+pub(crate) fn resolution_response_for_model(
+    api_format: ApiFormat,
+    provider_secret: &str,
+    model: Option<&str>,
+) -> Response<Body> {
     let expires_at = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -114,7 +122,7 @@ pub(crate) fn resolution_response_for(
             "auth": {"type": "x-api-key", "header": "x-api-key", "value": provider_secret}
         }),
     };
-    let body = json!({
+    let mut body = json!({
         "version": 1,
         "connection": connection,
         "attribution": {
@@ -124,6 +132,9 @@ pub(crate) fn resolution_response_for(
         "ingestion_mode": "usage",
         "ingestion": {"access_token": ingestion_token("org-1", "project-1"), "token_type": "Bearer", "expires_at": expires_at}
     });
+    if let Some(model) = model {
+        body["model"] = json!(model);
+    }
     Response::builder()
         .header("content-type", "application/json")
         .body(Body::from(body.to_string()))
@@ -170,7 +181,7 @@ pub(crate) async fn resolved_request_context_for(
     })
     .await;
     web.control_plane()
-        .resolve("gateway-secret", api_format, "test-request-id")
+        .resolve("gateway-secret", api_format, None, "test-request-id")
         .await
         .unwrap()
 }
