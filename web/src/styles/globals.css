@@ -137,6 +137,18 @@
   --color-light-teal: hsl(var(--light-teal));
   --color-dark-teal: hsl(var(--dark-teal));
 
+  /* Match the canvas palette in features/topics/topic-map-colors.ts. */
+  --color-category-violet: #7c3aed;
+  --color-category-sky: #0284c7;
+  --color-category-emerald: #059669;
+  --color-category-amber: #d97706;
+  --color-category-pink: #db2777;
+  --color-category-indigo: #4f46e5;
+  --color-category-teal: #0d9488;
+  --color-category-orange: #c2410c;
+  --color-category-lime: #65a30d;
+  --color-category-fuchsia: #a21caf;
+
   /* Search-bar query syntax highlighting (key:value token parts). Operators
      (`:` `-` `(` `)`) reuse muted-foreground, so no token for them here. */
   --color-qlang-field: hsl(var(--qlang-field));
