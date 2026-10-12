@@ -30,14 +30,13 @@ export function getEvalS3StorageClient(): StorageService {
 
 /**
  * Gets the singleton S3 client used for evaluator score uploads.
- * It raises the SDK attempt budget to at least six without reducing a higher
- * deployment-level AWS retry configuration.
+ * It raises the SDK attempt budget to six.
  */
 export function getEvalScoreS3StorageClient(): StorageService {
   if (!s3ScoreStorageServiceClient) {
     s3ScoreStorageServiceClient = createEventUploadStorageService(
       env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-      { minimumMaxAttempts: EVAL_S3_MAX_ATTEMPTS },
+      { maxAttempts: EVAL_S3_MAX_ATTEMPTS },
     );
   }
 

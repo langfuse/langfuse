@@ -242,7 +242,6 @@
     "@react-email/render": "^1.2.1",
     "@slack/oauth": "3.0.5",
     "@slack/web-api": "^7.15.0",
-    "@smithy/core": "^3.35.1",
     "@smithy/node-http-handler": "4.5.1",
     "@smithy/signature-v4": "5.6.4",
     "@types/bcryptjs": "^2.4.6",

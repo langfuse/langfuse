@@ -11,8 +11,6 @@ import {
 } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { loadConfig } from "@smithy/core/config";
-import { NODE_MAX_ATTEMPT_CONFIG_OPTIONS } from "@smithy/core/retry";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
 import {
   BlobSASPermissions,
@@ -360,7 +358,7 @@ export class StorageServiceFactory {
    * @param params.awsSse - Server-side encryption method (e.g., "aws:kms")
    * @param params.awsSseKmsKeyId - SSE KMS Key ID when using KMS encryption
    * @param params.logSlowDownAsWarning - Log S3 SlowDown as a warning. Set only when the caller escalates to an error after its own retries are spent.
-   * @param params.minimumMaxAttempts - Minimum AWS SDK attempts for each S3 operation. Higher AWS_MAX_ATTEMPTS or shared-config values are preserved.
+   * @param params.maxAttempts - Maximum AWS SDK attempts for each S3 operation.
    * @param params.connectionValidation - Optional connection-time DNS/IP validation for user-controlled endpoints.
    */
   public static getInstance(params: {
@@ -378,7 +376,7 @@ export class StorageServiceFactory {
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
     logSlowDownAsWarning?: boolean;
-    minimumMaxAttempts?: number;
+    maxAttempts?: number;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
   }): StorageService {
     if (
@@ -785,7 +783,7 @@ class S3StorageService implements StorageService {
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
     logSlowDownAsWarning?: boolean;
-    minimumMaxAttempts?: number;
+    maxAttempts?: number;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
   }) {
     // Use accessKeyId and secretAccessKey if provided or fallback to default credentials
@@ -810,18 +808,6 @@ class S3StorageService implements StorageService {
       region?.toLowerCase() === "auto" && !params.endpoint;
     const clientRegion = isAutoRegionOnAws ? "us-east-1" : region;
 
-    const minimumMaxAttempts = params.minimumMaxAttempts;
-    const maxAttempts =
-      minimumMaxAttempts === undefined
-        ? undefined
-        : (() => {
-            const configuredMaxAttempts = loadConfig(
-              NODE_MAX_ATTEMPT_CONFIG_OPTIONS,
-            );
-            return async () =>
-              Math.max(minimumMaxAttempts, await configuredMaxAttempts());
-          })();
-
     // Create the main client for S3 operations using the internal endpoint
     this.client = new S3Client({
       credentials,
@@ -834,7 +820,7 @@ class S3StorageService implements StorageService {
       requestChecksumCalculation: "WHEN_REQUIRED",
       responseChecksumValidation: "WHEN_REQUIRED",
       requestHandler,
-      maxAttempts,
+      maxAttempts: params.maxAttempts,
     });
 
     addS3DiagnosticsMiddleware(this.client, {

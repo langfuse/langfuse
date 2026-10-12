@@ -366,9 +366,6 @@ importers:
       '@slack/web-api':
         specifier: ^7.15.0
         version: 7.15.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      '@smithy/core':
-        specifier: ^3.35.1
-        version: 3.35.1
       '@smithy/node-http-handler':
         specifier: 4.5.1
         version: 4.5.1

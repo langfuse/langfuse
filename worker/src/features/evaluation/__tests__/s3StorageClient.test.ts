@@ -4,7 +4,7 @@ const { createEventUploadStorageService } = vi.hoisted(() => ({
   createEventUploadStorageService: vi
     .fn()
     .mockImplementation(
-      (_bucketName: string, options?: { minimumMaxAttempts?: number }) => ({
+      (_bucketName: string, options?: { maxAttempts?: number }) => ({
         options,
       }),
     ),
@@ -37,6 +37,6 @@ it("raises retries only for evaluator score uploads", () => {
   expect(createEventUploadStorageService).toHaveBeenNthCalledWith(
     2,
     "event-bucket",
-    { minimumMaxAttempts: 6 },
+    { maxAttempts: 6 },
   );
 });
