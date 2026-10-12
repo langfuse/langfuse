@@ -33,7 +33,7 @@ const legacyDeny = {
 describe("shadowAuthDiff — the ship-gate signal", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("adds exactly the metric tags to the span", () => {
+  it("adds the route resource to metrics without duplicating it on the span", () => {
     vi.spyOn(logger, "info").mockImplementation(() => logger);
     const { calls, telemetry } = capture();
     const setAttribute = vi.fn();
@@ -51,14 +51,13 @@ describe("shadowAuthDiff — the ship-gate signal", () => {
       telemetry,
     );
 
-    expect(Object.fromEntries(setAttribute.mock.calls)).toEqual(
-      Object.fromEntries(
-        Object.entries(calls[0].tags).map(([key, value]) => [
-          `langfuse.authz.parity.${key}`,
-          value,
-        ]),
-      ),
-    );
+    expect(Object.fromEntries(setAttribute.mock.calls)).toEqual({
+      "langfuse.authz.parity.action": "prompts:read",
+      "langfuse.authz.parity.access_level": "project",
+      "langfuse.authz.parity.result": "new_denies",
+      "langfuse.authz.parity.legacy_code": 200,
+      "langfuse.authz.parity.new_code": 403,
+    });
     expect(calls[0].tags).toEqual({
       action: "prompts:read",
       resource: "GET /api/public/prompts/[promptName]",

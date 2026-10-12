@@ -27,14 +27,13 @@ export function shadowAuthDiff(
   const result = classify(l.verdict, n.verdict);
   const tags = {
     action,
-    resource: metadata.resource,
     access_level: l.accessLevel,
     result,
     legacy_code: l.code,
     new_code: n.code,
   };
   logMismatch(result, tags, metadata);
-  telemetry.increment(parityStat, tags);
+  telemetry.increment(parityStat, { ...tags, resource: metadata.resource });
   annotateSpan(telemetry.span(), tags);
   return result;
 }
@@ -55,7 +54,7 @@ function logMismatch(
   });
 }
 
-/** annotateSpan adds the metric tags under the parity namespace. */
+/** annotateSpan adds decision tags under the parity namespace. */
 function annotateSpan(
   span: ReturnType<Telemetry["span"]>,
   tags: Record<string, string | number>,
