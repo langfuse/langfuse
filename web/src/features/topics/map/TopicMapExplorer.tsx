@@ -597,7 +597,9 @@ function MapLabels({
               aria-pressed={node.point.traceId === selectedTraceId}
               aria-label={`Select trace: ${node.point.summary}`}
               onClick={handleTraceClick}
-              className="text-foreground focus-visible:outline-ring pointer-events-auto absolute cursor-pointer overflow-hidden rounded-lg px-2 py-1.5 text-left leading-relaxed focus-visible:outline-2"
+              // A button centres its content vertically, which parked the
+              // summary in the middle of the box; `items-start` tops it out.
+              className="text-foreground focus-visible:outline-ring pointer-events-auto absolute flex cursor-pointer items-start overflow-hidden rounded-lg px-2 py-1.5 text-left leading-relaxed focus-visible:outline-2"
               style={{
                 left: node.rect.x,
                 top: node.rect.y,
@@ -607,7 +609,12 @@ function MapLabels({
                 fontSize: node.fontSize,
               }}
             >
-              <span className="block">{node.excerpt}</span>
+              <span
+                className="line-clamp-6 w-full"
+                style={{ WebkitLineClamp: node.lineClamp }}
+              >
+                {node.excerpt}
+              </span>
             </button>
           ))}
       {state.hoverLabels.map((label) => {
@@ -660,7 +667,6 @@ function MapLabels({
               top: rect.anchorY,
               width: rect.width,
               maxHeight: rect.height,
-              // Percentages use the rendered height; clamp keeps the card inside its reserved bounds.
               translate: `0 clamp(${rect.y - rect.anchorY}px, ${-100 * rect.anchorFraction}%, calc(${rect.y + rect.height - rect.anchorY}px - 100%))`,
               borderLeftColor: trace?.point.color ?? zone!.color,
               borderLeftWidth: 2,
@@ -681,12 +687,12 @@ function MapLabels({
             ) : (
               <>
                 <span
-                  className="block text-xs font-bold"
+                  className="line-clamp-2 text-xs font-bold"
                   style={{ color: zone!.color }}
                 >
                   {zone!.name}
                 </span>
-                <span className="text-muted-foreground mb-1 block text-[10px]">
+                <span className="text-muted-foreground mb-1 line-clamp-1 text-[10px]">
                   {zone!.countLabel} · {zone!.shareLabel}
                 </span>
                 <span className="line-clamp-3 text-[11px]">{zone!.detail}</span>
