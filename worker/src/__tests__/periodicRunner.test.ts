@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { context as otelContext, type Context } from "@opentelemetry/api";
 
 const telemetry = vi.hoisted(() => ({
   contextWithLangfuseProps: vi.fn(),
@@ -33,6 +34,20 @@ vi.mock("@langfuse/shared/src/server", () => ({
 
 import { PeriodicRunner } from "../utils/PeriodicRunner";
 import { PeriodicExclusiveRunner } from "../utils/PeriodicExclusiveRunner";
+
+// Tracks the context `otelContext.with` activates, so a test can tell whether
+// `execute()` runs inside it.
+const activeContexts: Context[] = [];
+vi.spyOn(otelContext, "with").mockImplementation(
+  (ctx, fn, thisArg, ...args) => {
+    activeContexts.push(ctx);
+    try {
+      return fn.call(thisArg, ...args);
+    } finally {
+      activeContexts.pop();
+    }
+  },
+);
 
 /**
  * Helper to flush microtasks without advancing timers
@@ -71,6 +86,7 @@ class TestRunner extends PeriodicRunner {
   public shouldThrow = false;
   public returnInterval: number | undefined = undefined;
   public initialDelayMsForTest = 0;
+  public executeContext: Context | undefined;
 
   constructor() {
     super("test_runner");
@@ -90,6 +106,7 @@ class TestRunner extends PeriodicRunner {
 
   protected async execute(): Promise<number | void> {
     this.callCount++;
+    this.executeContext = activeContexts.at(-1);
     if (this.shouldThrow) {
       this.shouldThrow = false; // Only throw once
       throw new Error("Test error");
@@ -156,12 +173,15 @@ describe("PeriodicRunner", () => {
   });
 
   it("should call execute on start and record canonical metrics", async () => {
+    const clickHouseContext = {} as Context;
+    telemetry.contextWithLangfuseProps.mockReturnValue(clickHouseContext);
     const runner = new TestRunner();
 
     runner.start();
     await flushMicrotasks();
 
     expect(runner.callCount).toBe(1);
+    expect(runner.executeContext).toBe(clickHouseContext);
     expect(telemetry.contextWithLangfuseProps).toHaveBeenCalledWith({
       clickhouse: {
         surface: "worker",

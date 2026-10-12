@@ -1,7 +1,5 @@
 import { type NextApiRequest } from "next";
 
-const stripSearchAndHash = (url: string) => url.split(/[?#]/, 1)[0] ?? "";
-
 /**
  * Every dynamic API route that tags its ClickHouse queries, as its Next.js page
  * path. A request path matching one of these is reported as the template, so
@@ -50,11 +48,29 @@ export const DYNAMIC_API_ROUTE_TEMPLATES = [
   "/api/traces/[traceId]/observations/[observationId]/io/[field]",
 ] as const;
 
-const isDynamicSegment = (segment: string) => segment.startsWith("[");
-
 const TEMPLATE_SEGMENTS = DYNAMIC_API_ROUTE_TEMPLATES.map((template) =>
   template.split("/"),
 );
+
+export const clickHouseRouteForRequest = (req: NextApiRequest) => {
+  const { method, pathname } = requestPathForRequest(req);
+  return `${method} ${templatePath(pathname)}`;
+};
+
+/** The request method and path without search params or fragment. */
+export const requestPathForRequest = (req: NextApiRequest) => {
+  const method = req.method ?? "UNKNOWN";
+  const rawUrl = req.url ?? "";
+
+  try {
+    const pathname = rawUrl
+      ? new URL(rawUrl, "http://langfuse.local").pathname
+      : "";
+    return { method, pathname };
+  } catch {
+    return { method, pathname: stripSearchAndHash(rawUrl) };
+  }
+};
 
 /**
  * Only dynamic positions are replaced, so a value that equals a fixed segment
@@ -79,22 +95,6 @@ const templatePath = (pathname: string) => {
   return match ? match.join("/") : pathname;
 };
 
-/** The request method and path without search params or fragment. */
-export const requestPathForRequest = (req: NextApiRequest) => {
-  const method = req.method ?? "UNKNOWN";
-  const rawUrl = req.url ?? "";
+const isDynamicSegment = (segment: string) => segment.startsWith("[");
 
-  try {
-    const pathname = rawUrl
-      ? new URL(rawUrl, "http://langfuse.local").pathname
-      : "";
-    return { method, pathname };
-  } catch {
-    return { method, pathname: stripSearchAndHash(rawUrl) };
-  }
-};
-
-export const clickHouseRouteForRequest = (req: NextApiRequest) => {
-  const { method, pathname } = requestPathForRequest(req);
-  return `${method} ${templatePath(pathname)}`;
-};
+const stripSearchAndHash = (url: string) => url.split(/[?#]/, 1)[0] ?? "";

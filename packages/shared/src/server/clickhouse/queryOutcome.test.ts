@@ -52,13 +52,25 @@ describe("ClickHouse query outcome metric", () => {
     // is caller-controlled and would make the tag unbounded.
     it.each([
       "GET /api/public/traces/123e4567-e89b-12d3-a456-426614174000",
-      "GET /api/public/traces/0ae8c5f09183f6e2ea946756897c96ce",
       "GET /api/public/v2/prompts/dashboard.status_headline.low.de",
-      "GET /api/public/observations/cmraq2djd0018ad0c76smxq4q",
+      `GET /api${"/a".repeat(10)}`,
       "GET /health/[x]",
       "get /api/public/v2/observations",
     ])("counts %s under the catch-all label", (route) => {
       expect(clickHouseQueryOutcomeRouteLabel(route)).toBe("other");
+    });
+
+    it("labels a REST route at the segment limit", () => {
+      const route = `GET /api${"/a".repeat(9)}`;
+      expect(clickHouseQueryOutcomeRouteLabel(route)).toBe(
+        `get_/api${"/a".repeat(9)}`,
+      );
+    });
+
+    it("labels a bare route at the length limit and rejects a longer one", () => {
+      const atLimit = `a${"b".repeat(99)}`;
+      expect(clickHouseQueryOutcomeRouteLabel(atLimit)).toBe(atLimit);
+      expect(clickHouseQueryOutcomeRouteLabel(`${atLimit}c`)).toBe("other");
     });
 
     it.each([undefined, "", "   ", "no-method-separator!", "1.leading.digit"])(
