@@ -67,6 +67,8 @@ export async function processOtelEventMedia(params: {
           "langfuse.ingestion.otel.media_path": mediaPath,
         });
         try {
+          // Scan media still inline, including values below native's 1 KiB cutoff.
+          // References from native extraction are resolved separately below.
           const result = await processMedia({
             targets,
             projectId,

@@ -187,7 +187,10 @@ export async function uploadMediaForTrace(params: {
   field: MediaField;
   contentType: MediaContentType;
   contentBytes: Buffer;
-  /** Digest computed by the trusted decoder over these exact upload bytes. */
+  /**
+   * Base64 SHA-256 of contentBytes, precomputed during native extraction to avoid
+   * hashing twice. TypeScript uploads omit it; this function computes their hash.
+   */
   sha256Hash?: string;
   mediaBucket: string;
   mediaPrefix: string;

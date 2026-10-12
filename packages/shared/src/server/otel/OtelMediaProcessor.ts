@@ -101,7 +101,7 @@ export async function processOtelMedia(params: {
   targets: OtelMediaTarget[];
   projectId: string;
   writePath: OtelMediaWritePath;
-  /** Metric attribution only; the late detector also runs after early extraction. */
+  /** Pipeline label for metrics; does not enable or disable TypeScript media detection. */
   mediaPath?: "early" | "reference";
   mediaBucket: string;
   mediaPrefix: string;
