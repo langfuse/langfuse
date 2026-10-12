@@ -62,6 +62,7 @@ export function InAppAgentInternalSessionMenu({
         copyTextToClipboard(conversationId)
           .then(() => {
             showSuccessToast({
+              operation: "in_app_agent_session_id.copy",
               title: "Session ID copied",
               description: conversationId,
               duration: 2000,
@@ -99,7 +100,7 @@ export function InAppAgentInternalSessionMenu({
           aria-label="Internal session actions"
           {...getTriggerProps()}
         >
-          <MoreHorizontal className="size-3" />
+          <MoreHorizontal className="icon-base text-icon-foreground" />
         </Button>
       )}
     </DropdownMenu>
