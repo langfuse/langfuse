@@ -8,7 +8,7 @@ import { env } from "@/src/env.mjs";
 import { verifyHmacSha256 } from "@/src/server/utils/hmac";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import { parseGatewayModelSlug } from "@/src/features/ai-gateway/server/fns/parseGatewayModelSlug";
+import { parseGatewayModelSlug } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
 import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 

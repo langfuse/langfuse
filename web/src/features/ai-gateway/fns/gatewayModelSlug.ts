@@ -1,3 +1,10 @@
+export function formatGatewayModelSlug(
+  connectionName: string,
+  providerModel: string,
+) {
+  return `${connectionName}:${providerModel}`;
+}
+
 export function parseGatewayModelSlug(model: string) {
   const separatorIndex = model.indexOf(":");
   if (separatorIndex <= 0 || separatorIndex === model.length - 1) {
