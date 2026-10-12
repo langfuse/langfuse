@@ -74,7 +74,6 @@ const meta = preview.meta({
     providerGroups,
     onConfigureProviders: fn(),
     onSave: fn(),
-    defaultTestOpen: false,
   },
 });
 
@@ -138,15 +137,5 @@ export const Paused = meta.story({
     message:
       "No LLM connection found for the provider used by facet summaries. Add or restore the LLM connection, then reactivate Topics.",
     triggerVariant: "primary",
-  },
-});
-
-export const Testing = meta.story({
-  args: {
-    draft: filledDraft,
-    defaultOpen: true,
-    defaultTestOpen: true,
-    notice: "none",
-    triggerVariant: "secondary",
   },
 });

@@ -101,7 +101,6 @@ type ConfigureTopicsDialogProps = {
   embeddingProviderGroups?: Array<[string, string[]]>;
   draft: ConfigureTopicsDraft;
   defaultOpen: boolean;
-  defaultTestOpen: boolean;
   onConfigureProviders: () => void;
   onSave: (draft: ConfigureTopicsSaveDraft) => void | Promise<void>;
   onSlotCommit?: (
@@ -144,29 +143,9 @@ const SLOT_COPY = {
   },
 } as const;
 
-const SAMPLE_TRACES = [
-  {
-    id: "billing",
-    name: "Billing question",
-    answers: {
-      intent: "The user wants a charge explained.",
-      outcome: "Not yet. The assistant asked for the invoice id.",
-    } as Record<string, string>,
-  },
-  {
-    id: "weather",
-    name: "Weather question",
-    answers: {
-      intent: "The user wants tomorrow's forecast.",
-      outcome: "Yes. The assistant gave the forecast.",
-    } as Record<string, string>,
-  },
-];
-
 export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
   const {
     defaultOpen,
-    defaultTestOpen,
     draft,
     canWrite = true,
     onConfigureProviders,
@@ -190,8 +169,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
         }
       : null;
   const [open, setOpen] = useState(defaultOpen);
-  const [testOpen, setTestOpen] = useState(defaultTestOpen);
-  const [tested, setTested] = useState(defaultTestOpen);
   const [summary, setSummary] = useState(draft.summary);
   const [embedding, setEmbedding] = useState(draft.embedding);
   const [dimensions, setDimensions] = useState(draft.embeddingDimensions);
@@ -408,19 +385,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
             {saveError ? (
               <p className="text-destructive px-6 pb-2 text-sm">{saveError}</p>
             ) : null}
-            <div className="mt-auto flex items-center justify-between gap-2 border-t p-4">
-              {sampleScope ? (
-                <LegacyButton
-                  type="button"
-                  variant="outline"
-                  disabled={!canSave}
-                  onClick={() => setTestOpen(true)}
-                >
-                  Test
-                </LegacyButton>
-              ) : (
-                <span />
-              )}
+            <div className="mt-auto flex items-center justify-end gap-2 border-t p-4">
               <div className="flex gap-2">
                 <LegacyButton
                   type="button"
@@ -435,51 +400,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               </div>
             </div>
           </form>
-        </SheetContent>
-      </Sheet>
-      <Sheet open={testOpen} onOpenChange={setTestOpen}>
-        <SheetContent
-          overlayClassName="bg-transparent"
-          className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
-        >
-          <SheetHeader className="items-start space-y-1 p-6 pb-4 text-left">
-            <SheetTitle>Test Topics</SheetTitle>
-            <SheetDescription>
-              One sample pass on two recent traces. Nothing is saved.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 pb-4">
-            {SAMPLE_TRACES.map((trace) => (
-              <section key={trace.id} className="rounded-md border px-3 py-2">
-                <h3 className="text-sm font-bold">{trace.name}</h3>
-                <ul className="mt-2 flex flex-col gap-2">
-                  {enabledFacets.map((facet) => (
-                    <li key={facet.id}>
-                      <p className="text-sm">{facet.name}</p>
-                      <p className="text-muted-foreground text-sm">
-                        {tested
-                          ? (trace.answers[facet.id] ??
-                            "No sample for this facet yet.")
-                          : "Run the test to preview this answer."}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
-          <div className="mt-auto flex justify-end gap-2 border-t p-4">
-            <LegacyButton
-              type="button"
-              variant="outline"
-              onClick={() => setTestOpen(false)}
-            >
-              Close
-            </LegacyButton>
-            <LegacyButton type="button" onClick={() => setTested(true)}>
-              Run test
-            </LegacyButton>
-          </div>
         </SheetContent>
       </Sheet>
     </div>

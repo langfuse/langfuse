@@ -102,7 +102,6 @@ export function useTopicModelSettings({
         embeddingLocked: false,
       }}
       defaultOpen={false}
-      defaultTestOpen={false}
       onConfigureProviders={() => undefined}
       onSave={() => undefined}
       canWrite={false}
@@ -318,7 +317,6 @@ function ConfigureTopicsSettings({
       embeddingProviderGroups={embeddingGroups}
       draft={draft}
       defaultOpen={false}
-      defaultTestOpen={false}
       canWrite={canWrite}
       saving={save.isPending}
       saveError={saveError}
