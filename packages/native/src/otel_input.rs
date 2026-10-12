@@ -152,6 +152,24 @@ pub struct ExtractedOtelMedia {
     pub original_has_json_escapes: bool,
 }
 
+#[napi(object)]
+pub struct MediaRestoreRequest {
+    pub index: u32,
+    pub json_layers: u32,
+}
+
+fn restore_media(
+    data: &ExtractedBatch,
+    index: u32,
+    json_layers: Option<u32>,
+) -> std::result::Result<String, Error<&'static str>> {
+    data.media
+        .get(index as usize)
+        .ok_or_else(|| Error::new("ERR_OTEL_MEDIA_INDEX", "unknown media index"))?
+        .original_value_for_layers(json_layers)
+        .map_err(|error| Error::new("ERR_OTEL_MEDIA_DECODE", error.to_string()))
+}
+
 #[napi]
 impl EarlyOtelBatch {
     /// Release this handle; pending reads retain ownership until they complete.
@@ -273,12 +291,23 @@ impl EarlyOtelBatch {
         let inner = self.data();
         OtelMediaTask::run("restore", move || {
             let inner = inner.map_err(|error| Error::new("ERR_OTEL_CLOSED", error.reason))?;
-            inner
-                .media
-                .get(index as usize)
-                .ok_or_else(|| Error::new("ERR_OTEL_MEDIA_INDEX", "unknown media index"))?
-                .original_value_for_layers(json_layers)
-                .map_err(|error| Error::new("ERR_OTEL_MEDIA_DECODE", error.to_string()))
+            restore_media(&inner, index, json_layers)
+        })
+    }
+
+    /// Read media text for several entries in one libuv task, preserving request order.
+    #[napi(js_name = "originalMediaBatch", ts_return_type = "Promise<string[]>")]
+    pub fn original_media_batch(
+        &self,
+        requests: Vec<MediaRestoreRequest>,
+    ) -> AsyncTask<OtelMediaTask<Vec<String>>> {
+        let inner = self.data();
+        OtelMediaTask::run("restore", move || {
+            let inner = inner.map_err(|error| Error::new("ERR_OTEL_CLOSED", error.reason))?;
+            requests
+                .into_iter()
+                .map(|request| restore_media(&inner, request.index, Some(request.json_layers)))
+                .collect()
         })
     }
 }

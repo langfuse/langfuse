@@ -24,6 +24,8 @@ export declare class EarlyOtelBatch {
    * Omitting the count returns the exact spelling after parsing the outer document.
    */
   originalMedia(index: number, jsonLayers?: number | undefined | null): Promise<string>
+  /** Read media text for several entries in one libuv task, preserving request order. */
+  originalMediaBatch(requests: Array<MediaRestoreRequest>): Promise<string[]>
 }
 
 /** A snapshot of one finalized event row, retained until its JS handle and any encoder tasks drop it. */
@@ -92,6 +94,11 @@ export declare function hello(source: string): void
  * it once at process start; later calls return the first call's outcome.
  */
 export declare function initTelemetry(options?: TelemetryOptions | undefined | null): void
+
+export interface MediaRestoreRequest {
+  index: number
+  jsonLayers: number
+}
 
 /**
  * A complete ClickHouse Native request body and its row count.
