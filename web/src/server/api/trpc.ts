@@ -104,7 +104,6 @@ import {
   ClickHouseResourceError,
   getActiveTraceId,
   isStorableTraceSessionId,
-  traceException,
 } from "@langfuse/shared/src/server";
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
@@ -228,12 +227,10 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
           message: res.error.message,
         });
       } else {
-        const original = res.error.cause ?? res.error;
-        traceException(original);
         res.error = createScrubbedError({
           code,
           message: "Internal error. " + errorMessage,
-          original,
+          original: res.error.cause ?? res.error,
         });
       }
     }

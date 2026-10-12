@@ -167,7 +167,13 @@ describe("tRPC error formatting", () => {
           { code: "P2002", clientVersion: "test" },
         ),
       ],
-      ["generic", new Error("connection refused")],
+      [
+        "uncaused TRPCError",
+        new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "connection refused",
+        }),
+      ],
     ])(
       "traces the %s cause on the span but returns a generic 5xx",
       async (_, original) => {
@@ -177,11 +183,8 @@ describe("tRPC error formatting", () => {
         expect(res.status).toBe(500);
         expect(body).toContain("Internal error. ");
         expect(body).not.toContain(original.message);
-        // once by the error middleware, once by onError
-        expect(vi.mocked(traceException).mock.calls).toEqual([
-          [original],
-          [original],
-        ]);
+        expect(traceException).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(traceException).mock.calls[0]?.[0]).toBe(original);
       },
     );
 
