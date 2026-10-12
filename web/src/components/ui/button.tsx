@@ -39,6 +39,8 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-8 px-3 py-1",
+        // Default padding at the 36px large-input height.
+        "default-lg": "h-9 px-3 py-1",
         xs: "h-4 px-1 rounded-sm",
         sm: "h-6 rounded-md px-2.5",
         lg: "h-9 rounded-md px-8",

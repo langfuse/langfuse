@@ -756,6 +756,10 @@ export default function ObservationsEventsTable({
   const searchBarEnabled = useSearchBarEnabled();
   const searchBarMode =
     searchBarEnabled && !hideControls && !externalFilterState;
+  // Tracing-page toolbar: "My Views" shares the search row, the Table/Chart
+  // toggle leads the toolbar row and the preset chips go ghost. Embedded
+  // hosts (user detail, prompt metrics) keep the standard toolbar.
+  const tracingToolbarLayout = showControlsInPageHeader && searchBarMode;
   const searchRegistry = eventsSearchRegistry(
     [
       ...(eventsFilterConfig.omittedFilterColumns ?? []),
@@ -2009,36 +2013,43 @@ export default function ObservationsEventsTable({
               searchBarMode && "bg-background sticky top-0 z-30 pb-1.5",
             )}
           >
-            {/* Search bar row: "My Views" + the query composer filling the rest.
-                In bar mode it sticks together with the toolbar below, so the
-                toolbar controls cannot scroll underneath and render
-                half-clipped. When showControlsInPageHeader is set (the
+            {/* Search bar row: the query composer, led by "My Views" on the
+                Tracing page. In bar mode it sticks together with the toolbar
+                below, so the toolbar controls cannot scroll underneath and
+                render half-clipped. When showControlsInPageHeader is set (the
                 standalone traces/observations pages), time-range + refresh are
                 hoisted to the page header via TableHeaderControls; otherwise
-                they remain in the toolbar row below. The row owns the bar's
-                padding so both controls share one left edge with the toolbar. */}
+                they remain in the toolbar row below. With "My Views" on the
+                row, the row owns the bar's padding so both controls share one
+                left edge with the toolbar. */}
             {searchBarMode && (
-              <div className="flex min-w-0 items-center gap-2 px-2 pt-2 pb-1">
-                {!tableStatePolicy.disableSavedViews && (
-                  <TableViewPresetsDrawer
-                    size={showControlsInPageHeader ? "large" : "default"}
-                    viewConfig={{
-                      tableName: TableViewPresetTableName.ObservationsEvents,
-                      projectId,
-                      controllers: viewControllers,
-                    }}
-                    currentState={{
-                      orderBy: orderByState ?? null,
-                      filters: queryFilter.explicitFilterState ?? [],
-                      columnOrder,
-                      columnVisibility,
-                      searchQuery: searchQuery ?? "",
-                    }}
-                  />
+              <div
+                className={cn(
+                  "flex min-w-0 items-center gap-2",
+                  tracingToolbarLayout && "px-2 pt-2 pb-1",
                 )}
+              >
+                {tracingToolbarLayout &&
+                  !tableStatePolicy.disableSavedViews && (
+                    <TableViewPresetsDrawer
+                      size="large"
+                      viewConfig={{
+                        tableName: TableViewPresetTableName.ObservationsEvents,
+                        projectId,
+                        controllers: viewControllers,
+                      }}
+                      currentState={{
+                        orderBy: orderByState ?? null,
+                        filters: queryFilter.explicitFilterState ?? [],
+                        columnOrder,
+                        columnVisibility,
+                        searchQuery: searchQuery ?? "",
+                      }}
+                    />
+                  )}
                 <div className="min-w-0 flex-1">
                   <EventsSearchBarRow
-                    className="p-0"
+                    className={tracingToolbarLayout ? "p-0" : undefined}
                     size={showControlsInPageHeader ? "large" : "default"}
                     key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                     registry={searchRegistry}
@@ -2113,6 +2124,14 @@ export default function ObservationsEventsTable({
               customRowHeight={customRowHeightMenu(rowHeights)}
               timeRange={showControlsInPageHeader ? undefined : timeRange}
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+              viewModeToggle={
+                chartEnabled && !tracingToolbarLayout ? (
+                  <ViewModeToggle
+                    mode={chartViewMode}
+                    onModeChange={setChartViewMode}
+                  />
+                ) : undefined
+              }
               refreshConfig={
                 showControlsInPageHeader ? undefined : refreshConfig
               }
@@ -2200,49 +2219,53 @@ export default function ObservationsEventsTable({
               }
               // Scoped registries keep AI filtering in the sidebar.
               filterWithAI={sidebarAiFiltersEnabled}
-              // Table/Chart toggle, then the category-preset chips, left-
-              // aligned on the same line as the right-aligned Columns/Export
-              // controls. "My Views" lives on the search row; without the bar
-              // it falls back to this row.
+              // Left-aligned on the same line as the right-aligned Columns/
+              // Export controls. Tracing page: Table/Chart toggle, then ghost
+              // category-preset chips ("My Views" sits on the search row).
+              // Elsewhere: outline chips + "My Views".
               leadingControls={
-                <div className="flex flex-wrap items-center gap-2">
-                  {chartEnabled && (
-                    <ViewModeToggle
-                      offset="none"
-                      mode={chartViewMode}
-                      onModeChange={setChartViewMode}
-                    />
-                  )}
-                  {!tableStatePolicy.disableSavedViews && (
-                    <CategoryPresetChips
-                      variant="ghost"
-                      projectId={projectId}
-                      // URL viewId only — the sessionStorage appliedViewId
-                      // can go stale under explicit URL state and light the
-                      // wrong chip (see demoteViewOnUserFilterEdit).
-                      activeViewId={viewControllers.selectedViewId}
-                      onApplyView={viewControllers.handleSetViewId}
-                      applyViewState={viewControllers.applyViewState}
-                      onPreviewView={previewViewInSearchBar}
-                    />
-                  )}
-                  {!tableStatePolicy.disableSavedViews && !searchBarMode && (
-                    <TableViewPresetsDrawer
-                      viewConfig={{
-                        tableName: TableViewPresetTableName.ObservationsEvents,
-                        projectId,
-                        controllers: viewControllers,
-                      }}
-                      currentState={{
-                        orderBy: orderByState ?? null,
-                        filters: queryFilter.explicitFilterState ?? [],
-                        columnOrder,
-                        columnVisibility,
-                        searchQuery: searchQuery ?? "",
-                      }}
-                    />
-                  )}
-                </div>
+                tracingToolbarLayout || !tableStatePolicy.disableSavedViews ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {tracingToolbarLayout && chartEnabled && (
+                      <ViewModeToggle
+                        offset="none"
+                        mode={chartViewMode}
+                        onModeChange={setChartViewMode}
+                      />
+                    )}
+                    {!tableStatePolicy.disableSavedViews && (
+                      <CategoryPresetChips
+                        variant={tracingToolbarLayout ? "ghost" : "outline"}
+                        projectId={projectId}
+                        // URL viewId only — the sessionStorage appliedViewId
+                        // can go stale under explicit URL state and light the
+                        // wrong chip (see demoteViewOnUserFilterEdit).
+                        activeViewId={viewControllers.selectedViewId}
+                        onApplyView={viewControllers.handleSetViewId}
+                        applyViewState={viewControllers.applyViewState}
+                        onPreviewView={previewViewInSearchBar}
+                      />
+                    )}
+                    {!tableStatePolicy.disableSavedViews &&
+                      !tracingToolbarLayout && (
+                        <TableViewPresetsDrawer
+                          viewConfig={{
+                            tableName:
+                              TableViewPresetTableName.ObservationsEvents,
+                            projectId,
+                            controllers: viewControllers,
+                          }}
+                          currentState={{
+                            orderBy: orderByState ?? null,
+                            filters: queryFilter.explicitFilterState ?? [],
+                            columnOrder,
+                            columnVisibility,
+                            searchQuery: searchQuery ?? "",
+                          }}
+                        />
+                      )}
+                  </div>
+                ) : undefined
               }
             />
           </div>

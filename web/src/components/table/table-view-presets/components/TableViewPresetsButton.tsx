@@ -1,7 +1,6 @@
 import type { ComponentProps } from "react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/ui/button";
-import { cn } from "@/src/utils/tailwind";
 
 type TableViewPresetsButtonProps = Pick<
   ComponentProps<typeof Button>,
@@ -38,7 +37,8 @@ export function TableViewPresetsButton({
     <Button
       {...props}
       variant={selectedView ? "default" : "outline"}
-      className={cn("max-w-64 gap-1.5", size === "large" && "h-9")}
+      size={size === "large" ? "default-lg" : "default"}
+      className="max-w-64 gap-1.5"
       title={title}
     >
       <span className="truncate" title={title}>
