@@ -45,17 +45,17 @@ export function GatewayProvidersTable({
 }: GatewayProvidersTableProps) {
   const columns = useMemo<LangfuseColumnDef<GatewayConnection>[]>(
     () => [
+      createTextTableColumn<GatewayConnection>({
+        accessorKey: "name",
+        header: "Name",
+        size: 180,
+      }),
       {
         accessorKey: "provider",
         header: "Provider",
         size: 170,
         cell: ({ row }) => <ProviderName provider={row.original.provider} />,
       },
-      createTextTableColumn<GatewayConnection>({
-        accessorKey: "name",
-        header: "Name",
-        size: 180,
-      }),
       createTextTableColumn<GatewayConnection>({
         accessorKey: "displaySecret",
         header: "Credential",
