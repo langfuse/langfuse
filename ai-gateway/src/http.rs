@@ -8,7 +8,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tracing::Instrument;
 
 use crate::{
@@ -156,10 +156,15 @@ async fn relay(
         .map_err(InferenceHttpError::Provider)
 }
 
+#[derive(Deserialize)]
+struct InferenceRequest {
+    model: String,
+}
+
 fn request_model(body: &[u8]) -> Result<String, InferenceHttpError> {
-    serde_json::from_slice::<serde_json::Value>(body)
+    serde_json::from_slice::<InferenceRequest>(body)
         .ok()
-        .and_then(|body| body.get("model")?.as_str().map(str::to_owned))
+        .map(|request| request.model)
         .filter(|model| !model.is_empty())
         .ok_or(InferenceHttpError::InvalidBody)
 }

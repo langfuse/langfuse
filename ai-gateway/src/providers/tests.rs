@@ -38,8 +38,10 @@ const CALLER_CONTEXT_HEADERS: [(&str, &str); 9] = [
 
 #[tokio::test]
 async fn rewrites_the_model_and_isolates_request_and_response_headers() {
-    const REQUEST: &[u8] = b"{ \"model\": \"opaque\", \"future_field\": [true, 3] }\n";
-    const UPSTREAM_REQUEST: &[u8] = br#"{"future_field":[true,3],"model":"provider-model"}"#;
+    const REQUEST: &[u8] =
+        br#"{ "model": "opaque", "future_field": {"model":"opaque","values":[true,3]} }"#;
+    const UPSTREAM_REQUEST: &[u8] =
+        br#"{"future_field":{"model":"opaque","values":[true,3]},"model":"provider-model"}"#;
     const RESPONSE: &[u8] = b"\x1f\x8b\x08\x00opaque-encoded-response";
     let upstream = FakeServer::start(|request| async move {
         assert_eq!(request.uri(), "/v1/responses");
