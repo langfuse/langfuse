@@ -11,23 +11,46 @@ import { showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
-function getOpenSessionDisabled({
+function getOpenSessionItem({
+  conversationId,
+  isError,
   isPending,
   telemetryProjectId,
 }: {
+  conversationId: string;
+  isError: boolean;
   isPending: boolean;
   telemetryProjectId: string | null;
-}): { reason: string } | undefined {
+}): DropdownMenuItemDefinition {
+  const item = {
+    type: "item",
+    id: "open-session",
+    title: "Open session in Langfuse",
+    icon: ExternalLink,
+  } as const;
+  // A disabled button, not a placeholder link, so middle-click cannot open a tab.
+  const unavailable = (reason: string): DropdownMenuItemDefinition => ({
+    ...item,
+    disabled: { reason },
+    onClick: () => undefined,
+  });
+
   if (isPending) {
-    return { reason: "Loading the telemetry project." };
+    return unavailable("Loading the telemetry project.");
+  }
+  if (isError) {
+    return unavailable("Could not load the telemetry project.");
   }
   if (!telemetryProjectId) {
-    return {
-      reason:
-        "Assistant telemetry is not recorded for this organization or instance.",
-    };
+    return unavailable(
+      "Assistant telemetry is not recorded for this organization or instance.",
+    );
   }
-  return undefined;
+  return {
+    ...item,
+    href: `/project/${encodeURIComponent(telemetryProjectId)}/sessions/${encodeURIComponent(conversationId)}`,
+    linkTarget: "_blank",
+  };
 }
 
 /**
@@ -43,13 +66,8 @@ export function InAppAgentInternalSessionMenu({
 }) {
   const telemetryProject = api.inAppAgent.telemetryProject.useQuery(
     { projectId },
-    { staleTime: Infinity, retry: false },
+    { meta: { silentAllErrors: true } },
   );
-  const telemetryProjectId = telemetryProject.data?.projectId ?? null;
-  const openSessionDisabled = getOpenSessionDisabled({
-    isPending: telemetryProject.isPending,
-    telemetryProjectId,
-  });
 
   const items: DropdownMenuItemDefinition[] = [
     {
@@ -70,17 +88,12 @@ export function InAppAgentInternalSessionMenu({
           .catch(() => undefined);
       },
     },
-    {
-      type: "item",
-      id: "open-session",
-      title: "Open session in Langfuse",
-      icon: ExternalLink,
-      disabled: openSessionDisabled,
-      href: telemetryProjectId
-        ? `/project/${encodeURIComponent(telemetryProjectId)}/sessions/${encodeURIComponent(conversationId)}`
-        : "#",
-      linkTarget: "_blank",
-    },
+    getOpenSessionItem({
+      conversationId,
+      isError: telemetryProject.isError,
+      isPending: telemetryProject.isPending,
+      telemetryProjectId: telemetryProject.data?.projectId ?? null,
+    }),
   ];
 
   return (

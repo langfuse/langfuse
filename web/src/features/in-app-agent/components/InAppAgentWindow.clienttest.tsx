@@ -54,6 +54,15 @@ const controlledAgent = vi.hoisted(() => ({
   },
 }));
 const sessionUser = vi.hoisted(() => ({ admin: false }));
+const telemetryProjectQuery = vi.hoisted(() => ({
+  value: {
+    data: { projectId: "ai-features-project" } as
+      | { projectId: string | null }
+      | undefined,
+    isPending: false,
+    isError: false,
+  },
+}));
 
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
@@ -68,10 +77,7 @@ vi.mock("@/src/utils/api", () => ({
   api: {
     inAppAgent: {
       telemetryProject: {
-        useQuery: () => ({
-          data: { projectId: "ai-features-project" },
-          isPending: false,
-        }),
+        useQuery: () => telemetryProjectQuery.value,
       },
     },
   },
@@ -443,6 +449,11 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
   afterEach(() => {
     sessionUser.admin = false;
     controlledAgent.value.selectedConversationId = undefined;
+    telemetryProjectQuery.value = {
+      data: { projectId: "ai-features-project" },
+      isPending: false,
+      isError: false,
+    };
   });
 
   function renderControlledWindow() {
@@ -488,6 +499,28 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
       "/project/ai-features-project/sessions/aconv_1",
     );
     expect(openSession).toHaveAttribute("target", "_blank");
+  });
+
+  it("keeps the open-session action inert when the telemetry lookup fails", async () => {
+    sessionUser.admin = true;
+    controlledAgent.value.selectedConversationId = "aconv_1";
+    telemetryProjectQuery.value = {
+      data: undefined,
+      isPending: false,
+      isError: true,
+    };
+    renderControlledWindow();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Internal session actions" }),
+    );
+
+    const menu = await screen.findByRole("menu", {
+      name: "Internal session actions",
+    });
+    expect(within(menu).queryByRole("link")).not.toBeInTheDocument();
+    expect(
+      within(menu).getByRole("menuitem", { name: "Open session in Langfuse" }),
+    ).toHaveAttribute("title", "Could not load the telemetry project.");
   });
 });
 
