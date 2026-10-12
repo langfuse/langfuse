@@ -10,7 +10,6 @@ import { safeJsonParse } from "@langfuse/shared";
 
 import {
   getCompletedInAppAgentToolCalls,
-  getLatestInAppAgentToolResult,
   subscribeToInAppAgentToolResults,
   useInAppAiAgent,
   type InAppAgentToolResult,
@@ -121,10 +120,6 @@ export function useEvaluatorInAppAgentToolSync({
       projectId,
       handleResult,
     );
-    const latestResult = getLatestInAppAgentToolResult(projectId);
-    if (latestResult) {
-      handleResult(latestResult);
-    }
     return unsubscribe;
   }, [
     evaluatorId,

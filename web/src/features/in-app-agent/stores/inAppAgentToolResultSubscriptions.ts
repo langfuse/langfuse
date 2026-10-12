@@ -14,7 +14,6 @@ const listenersByProjectId = new Map<
   string,
   Set<InAppAgentToolResultListener>
 >();
-const latestResultByProjectId = new Map<string, InAppAgentToolResult>();
 
 export function subscribeToInAppAgentToolResults(
   projectId: string,
@@ -30,11 +29,6 @@ export function subscribeToInAppAgentToolResults(
     listeners.delete(listener);
     if (listeners.size === 0) {
       listenersByProjectId.delete(projectId);
-      queueMicrotask(() => {
-        if (!listenersByProjectId.has(projectId)) {
-          latestResultByProjectId.delete(projectId);
-        }
-      });
     }
   };
 }
@@ -44,7 +38,6 @@ export function publishInAppAgentToolResult(result: InAppAgentToolResult) {
   if (!listeners || listeners.size === 0) {
     return;
   }
-  latestResultByProjectId.set(result.projectId, result);
   listeners.forEach((listener) => {
     try {
       listener(result);
@@ -52,8 +45,4 @@ export function publishInAppAgentToolResult(result: InAppAgentToolResult) {
       console.error("In-app agent tool result listener failed", error);
     }
   });
-}
-
-export function getLatestInAppAgentToolResult(projectId: string) {
-  return latestResultByProjectId.get(projectId);
 }

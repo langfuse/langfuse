@@ -13,7 +13,6 @@ export {
   type InAppAgentEntryPoint,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 export {
-  getLatestInAppAgentToolResult,
   subscribeToInAppAgentToolResults,
   type InAppAgentToolResult,
 } from "@/src/features/in-app-agent/stores/inAppAgentToolResultSubscriptions";

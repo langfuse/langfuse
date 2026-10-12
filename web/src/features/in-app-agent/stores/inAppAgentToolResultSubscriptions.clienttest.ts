@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  getLatestInAppAgentToolResult,
   publishInAppAgentToolResult,
   subscribeToInAppAgentToolResults,
   type InAppAgentToolResult,
@@ -71,24 +70,5 @@ describe("in-app agent tool result subscriptions", () => {
     unsubscribeFailing();
     unsubscribe();
     consoleError.mockRestore();
-  });
-
-  it("retains only the latest result across an immediate remount", async () => {
-    const unsubscribe = subscribeToInAppAgentToolResults(
-      "project-a",
-      () => undefined,
-    );
-    publishInAppAgentToolResult(result);
-    unsubscribe();
-
-    const unsubscribeRemounted = subscribeToInAppAgentToolResults(
-      "project-a",
-      () => undefined,
-    );
-    expect(getLatestInAppAgentToolResult("project-a")).toBe(result);
-
-    unsubscribeRemounted();
-    await Promise.resolve();
-    expect(getLatestInAppAgentToolResult("project-a")).toBeUndefined();
   });
 });

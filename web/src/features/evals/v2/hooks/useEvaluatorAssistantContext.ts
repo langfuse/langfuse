@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 
 import {
-  getLatestInAppAgentToolResult,
   registerInAppAgentContextualLanding,
   useInAppAiAgent,
 } from "@/src/features/in-app-agent";
@@ -23,9 +22,8 @@ export function useEvaluatorAssistantContext({
     open,
     pendingToolApprovals,
     selectConversation,
-    selectedConversationId,
   } = useInAppAiAgent();
-  const wasOpenRef = useRef(false);
+  const wasOpenRef = useRef(open);
 
   useEffect(() => {
     const config = EVALUATOR_ASSISTANT_LANDING_CONFIG[mode];
@@ -37,20 +35,12 @@ export function useEvaluatorAssistantContext({
   }, [evaluatorId, mode, projectId]);
 
   useEffect(() => {
-    const latestResult = getLatestInAppAgentToolResult(projectId);
-    const continuesEvaluatorFlow = Boolean(
-      latestResult &&
-      selectedConversationId === latestResult.conversationId &&
-      (latestResult.toolName === "langfuse_createEvaluator" ||
-        latestResult.toolName === "langfuse_updateEvaluator"),
-    );
     if (
       open &&
       !wasOpenRef.current &&
       !isRunning &&
       !isSubmitting &&
-      pendingToolApprovals.length === 0 &&
-      !continuesEvaluatorFlow
+      pendingToolApprovals.length === 0
     ) {
       selectConversation(null);
     }
@@ -60,8 +50,6 @@ export function useEvaluatorAssistantContext({
     isSubmitting,
     open,
     pendingToolApprovals.length,
-    projectId,
     selectConversation,
-    selectedConversationId,
   ]);
 }
