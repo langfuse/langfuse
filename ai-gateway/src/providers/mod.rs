@@ -226,10 +226,11 @@ impl ProviderTransport {
         } else {
             ExecutionCapture::unobserved()
         };
+        let provider_model = context.connection().provider_model();
         let body = if route.method() == Method::GET {
             body
         } else {
-            rewrite_model(body, context.connection().provider_model())
+            rewrite_model(body, provider_model.ok_or(ProviderError::Configuration)?)
         };
         // The capture keeps the caller's own request; only the upstream copy asks for usage.
         let body = match route {
@@ -238,7 +239,9 @@ impl ProviderTransport {
             }
             _ => body,
         };
-        let model = Some(context.connection().provider_model().to_owned());
+        let model = capture
+            .requested_model()
+            .and_then(|_| provider_model.map(str::to_owned));
         correlation.record_upstream(UpstreamTarget::for_connection(context.connection(), model));
         let mut upstream = self
             .client

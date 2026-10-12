@@ -55,22 +55,6 @@ impl InferenceService {
         self.telemetry.clone()
     }
 
-    pub(crate) async fn models(
-        &self,
-        gateway_key: &str,
-        api_format: ApiFormat,
-        correlation: &RequestCorrelation,
-    ) -> Result<Vec<u8>, ResolutionError> {
-        let _permit = self
-            .resolution_capacity
-            .try_acquire()
-            .map_err(|_| ResolutionError::Unavailable)?;
-        let _active = crate::observability::Active::new("resolution");
-        self.control_plane
-            .models(gateway_key, api_format, correlation.id())
-            .await
-    }
-
     /// Authenticate with a separate bounded budget before reserving execution capacity.
     /// The API format comes from the public route, so Web selects a compatible connection.
     /// A successful resolution is recorded even if execution admission then fails.
@@ -78,7 +62,7 @@ impl InferenceService {
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
-        model: &str,
+        model: Option<&str>,
         correlation: &mut RequestCorrelation,
     ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
         let span = tracing::info_span!(
@@ -108,7 +92,7 @@ impl InferenceService {
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
-        model: &str,
+        model: Option<&str>,
         correlation: &mut RequestCorrelation,
     ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
         let context = {

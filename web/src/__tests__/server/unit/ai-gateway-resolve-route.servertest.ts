@@ -72,8 +72,13 @@ describe("POST /api/internal/ai-gateway/v1/resolve", () => {
     ).toBe(401);
   });
 
+  it("accepts a missing model for existing model-list resolution", async () => {
+    expect((await post({ apiFormat: "openai.responses" })).statusCode).toBe(
+      401,
+    );
+  });
+
   it.each([
-    { case: "missing model", body: { apiFormat: "openai.responses" } },
     {
       case: "unprefixed model",
       body: { apiFormat: "openai.responses", model: "gpt-4o-mini" },
