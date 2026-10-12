@@ -54,7 +54,7 @@ templates. The local dev template sets the idle time below.
 | `LANGFUSE_TRACE_BATCH_IDLE_MS`                    | `600000`    | Idle time before a trace is ready. Unset and `DEV` uses `120000` (2 minutes); every other region uses 10 minutes.                                                                 |
 | `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`             | `7200000`   | Recovery grace after a trace becomes due (2 hours). Pending keys expire no earlier than the latest required due-plus-grace deadline.                                              |
 | `LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS`          | `86400000`  | Historical event-start bounds and size estimates retained after activity or dispatch (24 hours; at most 48 hours). Internal and cloud-gated.                                      |
-| `LANGFUSE_TRACE_BATCH_SHARD_COUNT`                | `1`         | Readiness shards (1–256). One works on standalone Redis and Sentinel; Redis Cluster distributes hash tags across slots. Drain before changing.                                    |
+| `LANGFUSE_TRACE_BATCH_SHARD_COUNT`                | `auto`      | 64 on Redis Cluster; 1 on standalone/Sentinel. Override with 1–256. Fixed across Redis resizing; drain before changing.                                                           |
 | `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`       | `30000`     | Dispatcher cadence (30 seconds).                                                                                                                                                  |
 
 Producer, dispatcher and consumer can run independently. Sampling reuses the

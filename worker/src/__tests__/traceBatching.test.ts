@@ -757,7 +757,8 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("distributes skewed projects by trace and dispatches every shard with single-slot scripts", async () => {
-    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 8;
+    const shardCount = 64;
+    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = shardCount;
     const evaluate = client().eval.bind(client());
     const slots: string[][] = [];
     vi.spyOn(client(), "eval").mockImplementation(((
@@ -786,7 +787,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       );
     }
     const counts = [];
-    for (let shard = 0; shard < 8; shard++) {
+    for (let shard = 0; shard < shardCount; shard++) {
       const { due } = getTraceBatchReadinessKeys(shard);
       const members = await client().zrange(due, 0, -1);
       counts.push(members.length);
@@ -799,7 +800,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         );
     }
     expect(counts.reduce((sum, n) => sum + n, 0)).toBe(count);
-    expect(Math.max(...counts)).toBeLessThanOrEqual((1.5 * count) / 8);
+    expect(Math.max(...counts)).toBeLessThanOrEqual((1.5 * count) / shardCount);
     await runner().processBatch();
     const dispatched = (await queue.getJobs(["wait"])).flatMap(
       (job) => job.data.payload.traces,

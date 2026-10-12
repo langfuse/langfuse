@@ -51,7 +51,9 @@
   and Redis snapshots independently of dispatch/consumption when either role is
   enabled. Global snapshot gauges must not be summed across worker reporters.
   Readiness uses project/trace-hashed shards with one dispatcher lease; all Lua
-  keys share a shard hash tag. Hourly first-seen hashes retain packed minimum and
+  keys share a shard hash tag. Defaults are 64 shards on Redis Cluster and 1 on
+  standalone/Sentinel, with an explicit count override. Redis resizing does not
+  change the count. Hourly first-seen hashes retain packed minimum and
   maximum event starts and cumulative size estimates after acknowledgement for late arrivals;
   history retention defaults to 24 hours and is capped at 48 hours. Pending state
   carries the bucket pointer. Pending expiry is due plus recovery grace, including
