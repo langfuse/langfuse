@@ -89,13 +89,49 @@ The selection happens before downloading or passing the document to Rust.
 control whether media is extracted and uploaded; the selector does not enable
 uploads by itself or change the existing late TypeScript detector.
 
-Native discovery can extract more occurrences than the late TypeScript detector
-would accept, including deeply nested media. Its temporary references identify
-pending occurrences, not completed uploads. After normalization, the resolver
-uploads eligible occurrences and restores the others inline before tokenization,
-evaluation scheduling, and persistence. The late detector remains active. Direct
-extraction assertions check replacements and decoded bodies before late detection,
-so it cannot compensate for a native regression in the cases they cover.
+Native discovery can extract more occurrences than the late TypeScript detector.
+This is an intentional difference on the opt-in early path: once native has
+validated a candidate, the resolver uploads its reference wherever it survives
+normalization in `input`, `output`, or `metadata`. It does not reapply the TS
+detector's depth-10 limit, root-string-only provider discovery, or limitations
+from scanning escaped JSON as plain text. For example, a provider object inside
+a nested JSON string can upload early even when the TS path leaves it inline.
+Native's 1 KiB minimum, two embedded-document layers, MIME allowlist, and media
+syntax checks still bound discovery; this does not enable unlimited scanning.
+
+Temporary references identify occurrences, not completed uploads. Failed uploads,
+fields outside the three payload fields (including tags), and evaluation-only
+records are restored inline. Successful substitutions change only reference text;
+restoration inspects JSON string layers without reserializing surrounding content.
+This preserves unrelated formatting and numeric spelling. Existing public media
+references are left alone, and every destination still receives its association
+when an upload is reused across direct and legacy writes.
+
+The late TS detector remains active for small or unextracted media. Direct native
+and resolver tests check the intended expansion without calling that detector.
+Replay tests retain exact persisted-row and side-effect parity for the common
+contract; explicit expansion cases assert the expected additional uploads and
+stored references separately.
+
+Resolver-only measurements on ARM64/Node 24.21.0 (October 2026) compared the
+legacy-rule resolver with direct reference substitution. Each case used three
+fresh processes, eight warmup pairs and thirteen alternating sample pairs per
+process. Median milliseconds per resolution call:
+
+| Same-output workload                                    | Legacy-rule resolver | Direct substitution |
+| ------------------------------------------------------- | -------------------: | ------------------: |
+| 64 distinct provider references                         |                0.113 |               0.086 |
+| 64 provider-shaped objects without known references     |                0.058 |               0.028 |
+| 2,000 objects with two text fields, no known references |                1.609 |               0.453 |
+
+These isolate traversal with a fake native batch and stubbed upload/link services;
+they exclude native extraction, databases, and network latency. They show no
+resolver slowdown in these cases, not a whole-worker speedup. Cases whose upload
+behavior intentionally changed were excluded from the timing comparison.
+A separate restoration check (one process, five warmup pairs and eleven sample
+pairs, with provider detection and service stubs) measured 0.0090 → 0.0088 ms for
+one failed escaped-provider upload and 0.238 → 0.189 ms for 32. These small CPU
+measurements are supporting evidence, not a production latency estimate.
 
 The early path replaces malformed UTF-8 sequences with U+FFFD before JSON
 validation, following [OTLP receiver guidance](https://github.com/open-telemetry/opentelemetry-proto/blob/main/docs/specification.md#utf-8-string-handling).

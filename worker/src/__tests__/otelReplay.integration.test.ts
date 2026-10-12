@@ -359,8 +359,8 @@ function structuredMetadataReplayBytes(params: {
   // A string-valued SDK metadata field can itself contain serialized JSON. The
   // SDK then JSON-encodes that value again for the per-key OTLP attribute.
   const jsonString = JSON.stringify({ image: params.dataUri });
-  // A second spelling checks that escaped source text remains eligible for
-  // restoration even when the later detector does not accept it for upload.
+  // Native handles escaped MIME separators that the TS text scan leaves inline.
+  // Failed uploads must still restore this exact spelling.
   const escapedJsonString = JSON.stringify({ image: params.dataUri }).replace(
     "data:image/",
     "data:image\\/",
@@ -404,6 +404,32 @@ function eventMetadataByPath(
   const names = row.metadata_names as string[];
   const values = row.metadata_values as string[];
   return new Map(names.map((name, index) => [name, values[index]]));
+}
+
+// Compare every persisted column, changing only the explicitly expected media
+// values in this SDK metadata fixture. The general replay comparator stays exact.
+function expectSdkMetadataExpansion(
+  comparison: OtelRawReplayComparison,
+  expandedValues: Record<string, string>,
+) {
+  const expected = structuredClone(comparison.originalTs);
+  for (const row of expected.storedRows) {
+    const metadata = eventMetadataByPath(row);
+    const values = [...metadata].map(
+      ([key, value]) => expandedValues[key] ?? value,
+    );
+    row.event_bytes =
+      Number(row.event_bytes) +
+      Buffer.byteLength(JSON.stringify(values)) -
+      Buffer.byteLength(JSON.stringify(row.metadata_values));
+    row.metadata_values = values;
+  }
+  for (const row of Object.values(expected.legacyRows ?? {}).flat()) {
+    row.metadata = { ...(row.metadata as object), ...expandedValues };
+  }
+  const adjusted = { originalTs: expected, earlyTs: comparison.earlyTs };
+  expectRawOtelReplayParity(adjusted);
+  expectLegacyReplayParity(adjusted);
 }
 
 // Vitest retries can overlap unfinished ClickHouse I/O and shared replay mocks.
@@ -682,10 +708,27 @@ describe(
             writeMode,
             sdkName,
             sdkVersion,
+            captureSideEffects: createMediaAssociationCapture(),
           } as const;
           const comparison = await runOtelReplayComparison(replayParams);
-          expectRawOtelReplayParity(comparison);
-          expectLegacyReplayParity(comparison);
+          const expandedImage =
+            "@@@langfuseMedia:type=image/png|id=overflow-media-id|source=base64_data_uri@@@";
+          const expandedProvider = structuredMetadata.providerJson.replace(
+            imageBytes.toString("base64"),
+            "@@@langfuseMedia:type=image/png|id=overflow-media-id|source=bytes@@@",
+          );
+          expectSdkMetadataExpansion(
+            comparison,
+            uploadOutcome === "success"
+              ? {
+                  escaped_json_string: JSON.stringify({ image: expandedImage }),
+                  quoted_provider: expandedProvider,
+                }
+              : {},
+          );
+          expect(comparison.earlyTs.sideEffects).toEqual(
+            comparison.originalTs.sideEffects,
+          );
           const replayResults = [comparison.originalTs, comparison.earlyTs];
 
           expect(compactedBatches).toHaveLength(1);
@@ -711,18 +754,24 @@ describe(
             uploadOutcome === "success"
               ? JSON.stringify({ image: expectedImage })
               : structuredMetadata.jsonString;
-          const expectedEscapedJsonString =
-            structuredMetadata.escapedJsonString;
-          const expectedMetadata = {
-            quoted: "quoted value",
-            "asset.attachment.image": expectedImage,
-            json_string: expectedJsonString,
-            escaped_json_string: expectedEscapedJsonString,
-            quoted_provider: structuredMetadata.providerJson,
-            truncated: '{"value":"cut',
-            "collision.key": "blob wins",
-          };
           for (const result of replayResults) {
+            const expanded =
+              result.mode === "early-ts" && uploadOutcome === "success";
+            const expectedEscapedJsonString = expanded
+              ? JSON.stringify({ image: expandedImage })
+              : structuredMetadata.escapedJsonString;
+            const expectedProvider = expanded
+              ? expandedProvider
+              : structuredMetadata.providerJson;
+            const expectedMetadata = {
+              quoted: "quoted value",
+              "asset.attachment.image": expectedImage,
+              json_string: expectedJsonString,
+              escaped_json_string: expectedEscapedJsonString,
+              quoted_provider: expectedProvider,
+              truncated: '{"value":"cut',
+              "collision.key": "blob wins",
+            };
             expect(result.storedRows, result.mode).toHaveLength(1);
             expect(
               Object.fromEntries(eventMetadataByPath(result.storedRows[0])),
@@ -742,7 +791,7 @@ describe(
                 }),
                 json_string: expectedJsonString,
                 escaped_json_string: expectedEscapedJsonString,
-                quoted_provider: structuredMetadata.providerJson,
+                quoted_provider: expectedProvider,
                 truncated: '{"value":"cut',
                 collision: JSON.stringify({ key: "blob wins" }),
                 "collision.key": "dotted loses",
@@ -796,8 +845,20 @@ describe(
           sdkVersion,
         });
 
-        expectRawOtelReplayParity(comparison);
+        const expandedImage =
+          "@@@langfuseMedia:type=image/png|id=overflow-media-id|source=base64_data_uri@@@";
+        const expandedJson = JSON.stringify({ image: expandedImage });
+        const expandedProvider = structuredMetadata.providerJson.replace(
+          dataUri.slice(dataUri.indexOf(",") + 1),
+          "@@@langfuseMedia:type=image/png|id=overflow-media-id|source=bytes@@@",
+        );
+        expectSdkMetadataExpansion(comparison, {
+          json_string: JSON.stringify(expandedJson),
+          escaped_json_string: JSON.stringify(expandedJson),
+          quoted_provider: JSON.stringify(expandedProvider),
+        });
         for (const result of [comparison.originalTs, comparison.earlyTs]) {
+          const expanded = result.mode === "early-ts";
           expect(result.storedRows).toHaveLength(1);
           const metadata = eventMetadataByPath(result.storedRows[0]);
           expect(metadata.get("quoted")).toBe(JSON.stringify("quoted value"));
@@ -810,13 +871,19 @@ describe(
             }),
           );
           expect(metadata.get("json_string")).toBe(
-            JSON.stringify(structuredMetadata.jsonString),
+            JSON.stringify(
+              expanded ? expandedJson : structuredMetadata.jsonString,
+            ),
           );
           expect(metadata.get("escaped_json_string")).toBe(
-            JSON.stringify(structuredMetadata.escapedJsonString),
+            JSON.stringify(
+              expanded ? expandedJson : structuredMetadata.escapedJsonString,
+            ),
           );
           expect(metadata.get("quoted_provider")).toBe(
-            JSON.stringify(structuredMetadata.providerJson),
+            JSON.stringify(
+              expanded ? expandedProvider : structuredMetadata.providerJson,
+            ),
           );
           expect(metadata.get("truncated")).toBe('{"value":"cut');
           expect(metadata.get("collision.key")).toBe("blob wins");
@@ -1098,6 +1165,84 @@ describe(
       for (const result of [comparison.originalTs, comparison.earlyTs]) {
         expect(result.storedRows).toHaveLength(1);
         expect(result.storedRows[0].input).toContain("�tf8-probe");
+      }
+    });
+
+    it("uploads a native provider candidate beyond the TS discovery limits", async () => {
+      const contentBytes = Buffer.from("replay-deep-media".repeat(512));
+      const encoded = contentBytes.toString("base64");
+      // TS stops provider discovery after ten object levels. Keep the unsafe
+      // integer as source text to also catch parse-and-reserialize corruption.
+      const provider = `{"type":"file","mediaType":"image/png","data":"${encoded}","large":9007199254740993}`;
+      const input = `${'{"nested":'.repeat(12)}${provider}${"}".repeat(12)}`;
+      const compactedBatches: {
+        json: string;
+        media: Array<{ reference: string; bodyBase64: string }>;
+      }[] = [];
+      const prepareOtelBatch = otelPreparation.prepareOtelBatch;
+      const preparation = vi
+        .spyOn(otelPreparation, "prepareOtelBatch")
+        .mockImplementation(async (params) => {
+          const result = await prepareOtelBatch(params);
+          if (result?.batch) {
+            compactedBatches.push({
+              json: (await result.batch.copyJsonBuffer()).toString("utf8"),
+              media: await Promise.all(
+                result.batch.media.map(async ({ index, reference }) => ({
+                  reference,
+                  bodyBase64: (await result.batch!.mediaBody(index)).toString(
+                    "base64",
+                  ),
+                })),
+              ),
+            });
+          }
+          return result;
+        });
+
+      try {
+        const comparison = await runOtelReplayComparison({
+          bytes: focusedReplayBytes({
+            attributes: [stringAttribute("langfuse.observation.input", input)],
+          }),
+          projectId: `${PROJECT_ID}-deep-expansion`,
+          fileKey: `${FILE_KEY}.deep-expansion`,
+          mediaUploadEnabled: true,
+          captureSideEffects: createMediaAssociationCapture(),
+        });
+        // Assert extraction before normalization or the late TS detector runs.
+        expect(compactedBatches).toHaveLength(1);
+        const compacted = compactedBatches[0]!;
+        expect(compacted.media).toHaveLength(1);
+        expect(compacted.media[0]?.bodyBase64).toBe(encoded);
+        expect(compacted.json).not.toContain(encoded);
+        const pendingReference = compacted.media[0]!.reference;
+        expect(compacted.json).toContain(pendingReference);
+        const publicReference = pendingReference.replace(
+          /\|id=[^|@]+/,
+          "|id=image-media-id",
+        );
+        expect(comparison.originalTs.storedRows).toHaveLength(1);
+        expect(comparison.originalTs.storedRows[0]?.input).toBe(input);
+        expect(comparison.originalTs.sideEffects).toEqual([]);
+        expect(comparison.earlyTs.storedRows).toHaveLength(1);
+        expect(comparison.earlyTs.storedRows[0]?.input).toBe(
+          input.replace(encoded, publicReference),
+        );
+        expect(comparison.earlyTs.sideEffects).toEqual([
+          expect.objectContaining({
+            mediaId: "image-media-id",
+            traceId: TRACE_ID,
+            observationId: FIRST_SPAN_ID,
+            field: "input",
+            contentType: "image/png",
+            contentLength: contentBytes.length,
+            contentBase64: encoded,
+            origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+          }),
+        ]);
+      } finally {
+        preparation.mockRestore();
       }
     });
 
