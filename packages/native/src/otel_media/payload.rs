@@ -15,9 +15,16 @@
 //!
 //! `MediaPayloadKind` identifies the media shape; `MediaSource` distinguishes URI
 //! from provider values; `MediaEncoding` selects base64 or Python-bytes decoding.
-//! The stored spelling can differ from the raw span replaced during compaction.
-//! `MediaStorage` borrows a source range or owns its bytes; small retained ranges
-//! can be detached to release a large source allocation.
+//! Storage removes exactly the outer JSON string's escaping. For a URI in embedded
+//! JSON (quotes omitted), the same slash has these spellings:
+//! ```text
+//! outer source span   data:image\\/png;base64,...
+//! retained text       data:image\/png;base64,...    restore this into the outer value
+//! decoded media text  data:image/png;base64,...     remove one more layer for upload
+//! ```
+//! `MediaStorage` shares the source allocation by `Arc` when its bytes already
+//! match the retained text; otherwise it owns the unescaped bytes. Small source
+//! ranges can be copied out to release an otherwise mostly-unused allocation.
 
 use std::borrow::Cow;
 use std::collections::HashSet;

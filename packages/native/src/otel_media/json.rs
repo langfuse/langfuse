@@ -1,16 +1,8 @@
-//! Check JSON syntax and locate byte boundaries within JSON text.
+//! Shared JSON validation and string decoding.
 //!
-//! Validation checks the entire document without constructing its objects or arrays.
-//! The structural walk uses Jiter to traverse those bytes and skips trailing whitespace here.
-//!
-//! ```text
-//! payload::validate
-//!   `-- validate_json         jiter skip/finish; borrowed RawValue if that fails
-//!        -> success/error    source bytes stay unchanged here
-//!
-//! structural_walk
-//!   `-- skip_whitespace      advance to the next token after Jiter's walk
-//! ```
+//! `validate_json` checks a complete document with Jiter, or borrowed serde
+//! `RawValue` when Jiter cannot read it; neither constructs objects or arrays.
+//! `decode_json_string` reads keys and provider labels for the structural walk.
 
 use std::borrow::Cow;
 use std::ops::Range;

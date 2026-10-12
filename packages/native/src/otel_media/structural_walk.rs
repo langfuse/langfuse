@@ -17,6 +17,11 @@
 //! Candidates keep two eligibility bits: generic payload and OTLP envelope. The
 //! root selects one on close. Later fields can suppress earlier candidates, so
 //! masks are applied once after traversal. Returned ranges include JSON quotes.
+//!
+//! Selection here depends on surrounding fields; decoding/hashing belongs to
+//! `scanner`. The size/marker check avoids generic string candidates that cannot
+//! yield early media; provider bodies are selected from their surrounding fields.
+//! Neither selection establishes that a body is valid.
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -256,7 +261,11 @@ impl<'a, 'stats> StructuralWalk<'a, 'stats> {
         object.adopt(shape);
     }
 
-    /// Retain one byte per open container, without provider fields or duplicate-key maps.
+    /// Beyond the embedded structural-depth limit, keep only `ContainerState` per
+    /// open object/array (one byte), instead of full `WalkFrame`/`ObjectFrame` state.
+    /// Jiter still traverses every token; only string values are returned for URI
+    /// scanning. This limits stack growth for deeply nested embedded documents;
+    /// provider recognition and duplicate-key tracking stop at this boundary.
     fn scan_deep_container(
         &mut self,
         cursor: &mut JsonCursor<'a>,

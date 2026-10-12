@@ -20,7 +20,9 @@ use serde_json::value::RawValue;
 use super::payload::EarlyMediaError;
 use super::WalkStats;
 
-// The same one-byte grammar state drives both the semantic walk and deep text scan.
+// Selects Jiter's first-child or next-child call for an object/array. Jiter handles
+// the separators and closing delimiter. `repr(u8)` keeps the deep-container stack
+// to one byte per open container; ordinary traversal also retains field context.
 #[repr(u8)]
 #[derive(Clone, Copy)]
 pub(super) enum ContainerState {

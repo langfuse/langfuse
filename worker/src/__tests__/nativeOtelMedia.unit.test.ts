@@ -285,7 +285,13 @@ describe(
         fc.asyncProperty(
           encoded,
           fc.integer({ min: 0, max: 3 }),
-          fc.constantFrom("", "data:malformed@", "data:broken "),
+          fc.oneof(
+            fc.constantFrom("", "data:malformed@", "data:broken "),
+            // Keep both identifier boundaries and multibyte predecessors in
+            // the differential contract. Lone surrogates are covered by the
+            // separate intentionally-inline test below.
+            fc.constantFrom("a", "Z", "0", "-", "_", "é", "€", "😀"),
+          ),
           async (body, padding, prefix) => {
             const data = "A".repeat(4096) + body + "=".repeat(padding);
             // Keep repeated keys in the source. Building a JS object first would

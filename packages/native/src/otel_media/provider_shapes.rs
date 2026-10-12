@@ -1,8 +1,15 @@
-//! Recognize provider media objects from the last value of each relevant field.
+//! Recognize the provider media objects supported by TypeScript's `matchStructuredMedia`.
 //!
-//! The walk feeds completed fields to `ProviderFields::record`; on object close,
-//! `structured_shape` selects the body token, MIME type, and provider kind.
-//! Only field ranges and Gemini's inline-object summary are retained.
+//! A Data URI carries its own MIME type; raw base64 needs the surrounding fields:
+//! ```text
+//! "data:image/png;base64,..."                       scanner reads the URI alone
+//! {"type":"base64","media_type":"image/png",       Anthropic shape supplies MIME
+//!  "data":"..."}                                   and identifies the body field
+//! ```
+//! A random string of base64 is not enough to identify media. The walk collects
+//! field ranges in `ProviderFields`; `structured_shape` selects the body and MIME
+//! when the object closes, so field order and duplicate keys are resolved first.
+//! `scanner` then validates and hashes that body's contents.
 
 use std::borrow::Cow;
 use std::ops::Range;

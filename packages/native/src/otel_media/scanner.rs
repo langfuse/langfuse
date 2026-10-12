@@ -20,10 +20,12 @@
 //!   `-- sort entries + validate_edit_plan  return non-overlapping source ranges
 //! ```
 //!
-//! Before registration, decoded media boundaries are mapped back to source bytes.
-//! Embedded JSON strings follow the same process up to `MAX_EMBEDDED_JSON_DEPTH`;
-//! beyond that, strings are inspected for Data URI text only. This module records
-//! edits; `payload` applies them and keeps the data needed for later restoration.
+//! Media can appear inside JSON stored as a string. Decoding that string removes
+//! escapes, so offsets found in the inner document cannot be used to edit its
+//! parent. `translate_nested_entries` maps them back through each containing string;
+//! see `MediaDiscovery::map_string_boundaries` for the two-cursor algorithm and example.
+//! After `MAX_EMBEDDED_JSON_DEPTH`, only Data URI text is inspected. `payload`
+//! applies the resulting edits and retains the text needed for upload/restoration.
 
 use std::collections::HashMap;
 use std::ops::Range;
@@ -143,12 +145,12 @@ impl MediaDiscovery<'_, '_, '_> {
         let input = self.input;
         let mut decoder = Jiter::new(&input[token_range.clone()]);
         let Ok(value) = decoder.next_str() else {
-            // An undecodable string cannot be safely rewritten. The structural
-            // walk has already continued, so sibling values remain discoverable.
+            // RawValue accepts unpaired escapes such as "\ud800" as JSON syntax,
+            // but Jiter cannot decode them into Rust's Unicode-scalar `str`.
+            // Keep the entire string inline, including any media in it; other
+            // string candidates are still processed.
             return Ok(());
         };
-        // Do not clone the decoded token. Candidate storage copies only the
-        // representation it needs, while source-backed candidates keep ranges.
         self.discover_string(value, token_range, allow_embedded_json)
     }
 
@@ -220,10 +222,10 @@ impl MediaDiscovery<'_, '_, '_> {
         let mapped = self.map_string_boundaries(token_range, value, &boundaries)?;
         for (index, (range, content_type)) in candidates.into_iter().enumerate() {
             let source_range = mapped[index * 2]..mapped[index * 2 + 1];
-            // At a bounded text-only boundary, escaped spellings are ambiguous:
-            // the candidate range is decoded text, while restoration needs the
-            // exact source spelling. Leave those values untouched so a later
-            // pass can handle them with the surrounding representation.
+            // Beyond the document/depth limit we have not parsed all string layers.
+            // In `data:image/png;name=caf\u00e9;base64,...`, the \u00e9 might be
+            // an inner JSON escape or literal text. Restoring it at the wrong layer
+            // changes the spelling or value. Keep escaped candidates inline here.
             if text_only
                 && self
                     .input
@@ -373,10 +375,14 @@ impl MediaDiscovery<'_, '_, '_> {
         Ok(())
     }
 
-    /// Map selected offsets in Jiter's decoded string back to the source token.
-    /// Jiter has already validated the escapes: the decoded character tells us
-    /// whether a Unicode escape occupies six source bytes or a twelve-byte pair.
-    /// Plain runs are skipped together; only requested boundaries are stored.
+    /// Walk source and decoded text together until each requested byte offset.
+    /// Unescaped bytes advance both cursors equally. An escape advances the source
+    /// by 2 bytes (`\/`), 6 (`\u0061`), or 12 (a surrogate pair); the decoded cursor
+    /// advances by the corresponding character's UTF-8 length. Jiter has already
+    /// decoded/validated the character; this function only counts its source width.
+    ///
+    /// `memchr` skips a run without backslashes in one step. We save positions only
+    /// at the supplied starts/ends of media, rather than allocate a map per byte.
     ///
     /// With the opening quote at input byte 0:
     /// ```text
