@@ -21,15 +21,27 @@ const sharedExclude = [
 // The server suite spends more time importing the heavy @langfuse/shared
 // module graph per test file than running tests (measured in CI: 371s
 // cumulative import vs 264s tests). Files that do not touch process-global
-// state therefore run with `isolate: false` (project "server") so each
-// worker imports the graph once instead of per file. Files that mock
-// modules, spy, fake timers, mutate process.env, or close shared
-// connections (redis.disconnect() etc.) would leak that state into other
-// files in a shared context, so they keep the default per-file isolation
-// (project "server-isolated"). Classification is content-based at config
-// load so new test files sort themselves into the right project.
+// state therefore run with `isolate: false` so each worker imports the graph
+// once instead of per file. Files that mock modules, spy, fake timers, mutate
+// process.env, or close shared connections (redis.disconnect() etc.) would
+// leak that state into other files in a shared context, so they keep the
+// default per-file isolation and run in the matching "-isolated" project.
+// Classification is content-based at config load so new test files sort
+// themselves into the right project.
 const GLOBAL_STATE_PATTERN =
   /vi\.(mock|doMock|unmock|spyOn|useFakeTimers|setSystemTime|resetModules|stubEnv|stubGlobal|unstubAllEnvs|unstubAllGlobals)|process\.env\.[A-Z0-9_]+\s*=[^=]|process\.env\[[^\]]+\]\s*=[^=]|delete\s+process\.env|\(env as any\)\.\w+\s*=[^=]|\.(disconnect|quit|shutdown)\(|disconnectQueues/;
+
+function partitionByIsolation(files: string[]) {
+  const shared: string[] = [];
+  const isolated: string[] = [];
+
+  for (const file of files) {
+    const source = readFileSync(join(import.meta.dirname, file), "utf8");
+    (GLOBAL_STATE_PATTERN.test(source) ? isolated : shared).push(file);
+  }
+
+  return { shared, isolated };
+}
 
 const allServerTestFiles = globSync("src/**/server/**/*.servertest.{ts,tsx}", {
   cwd: import.meta.dirname,
@@ -49,18 +61,19 @@ const sharedSourceUnitTestFiles = sharedSourceTestFiles.filter((file) =>
 const sharedSourceIntegrationTestFiles = sharedSourceTestFiles.filter(
   (file) => !sharedSourceUnitTestFiles.includes(file),
 );
-const serverTestFiles = allServerTestFiles.filter(
-  (file) =>
-    !file.startsWith("src/__tests__/server/unit/") &&
-    !sharedSourceIntegrationTestFiles.includes(file),
-);
-const isolatedServerTestFiles = serverTestFiles.filter((file) =>
-  GLOBAL_STATE_PATTERN.test(
-    readFileSync(join(import.meta.dirname, file), "utf8"),
+const serverTestFiles = partitionByIsolation(
+  allServerTestFiles.filter(
+    (file) =>
+      !file.startsWith("src/__tests__/server/unit/") &&
+      !sharedSourceIntegrationTestFiles.includes(file),
   ),
 );
-const sharedContextServerTestFiles = serverTestFiles.filter(
-  (file) => !isolatedServerTestFiles.includes(file),
+const unitTestFiles = partitionByIsolation(
+  allServerTestFiles.filter(
+    (file) =>
+      file.startsWith("src/__tests__/server/unit/") &&
+      !sharedSourceUnitTestFiles.includes(file),
+  ),
 );
 
 function markdownRawPlugin() {
@@ -238,7 +251,7 @@ export default defineConfig({
           setupFiles: ["@testing-library/jest-dom/vitest"],
         },
       },
-      serverProject("server", sharedContextServerTestFiles, {
+      serverProject("server", serverTestFiles.shared, {
         database: true,
         isolate: false,
         // Workers are reused across files, so the per-file teardown must not
@@ -246,18 +259,18 @@ export default defineConfig({
         // in the same worker still use. See after-teardown.ts.
         env: { VITEST_SHARED_CONTEXT: "1" },
       }),
-      serverProject("server-isolated", isolatedServerTestFiles, {
+      serverProject("server-isolated", serverTestFiles.isolated, {
         database: true,
       }),
       serverProject("server-shared-source", sharedSourceIntegrationTestFiles, {
         database: true,
         resolve: sharedSourceResolve,
       }),
-      serverProject(
-        "server-unit",
-        ["src/__tests__/server/unit/**/*.servertest.{ts,tsx}"],
-        { exclude: sharedSourceUnitTestFiles },
-      ),
+      serverProject("server-unit", unitTestFiles.shared, {
+        isolate: false,
+        env: { VITEST_SHARED_CONTEXT: "1" },
+      }),
+      serverProject("server-unit-isolated", unitTestFiles.isolated),
       serverProject("server-shared-source-unit", sharedSourceUnitTestFiles, {
         resolve: sharedSourceResolve,
       }),
