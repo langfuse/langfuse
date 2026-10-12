@@ -206,7 +206,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .max(7 * 24 * 60 * 60 * 1_000)
+    .max(2 * 24 * 60 * 60 * 1_000)
     .default(24 * 60 * 60 * 1_000),
   // Recovery grace after readiness; whole-key expiry includes the idle interval.
   LANGFUSE_TRACE_BATCH_PENDING_TTL_MS: z.coerce

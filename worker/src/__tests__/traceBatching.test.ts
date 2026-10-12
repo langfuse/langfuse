@@ -748,7 +748,11 @@ describe("trace micro-batch scheduling with Redis", () => {
     const state = JSON.parse(
       (await client().hget(stateKey, member("project", "history")))!,
     );
-    expect(state.minStart).toBe(next);
+    expect(state).toMatchObject({
+      minStart: next,
+      eventUpdateCount: 1,
+      serializedEventBytes: 100,
+    });
     expect(await client().pttl(dueKey)).toBeGreaterThan(150);
   });
 
@@ -1009,6 +1013,63 @@ describe("trace micro-batch scheduling with Redis", () => {
         "Trace batch excluded oversized trace",
         expect.objectContaining({ projectId: "project", traceId, reason }),
       );
+    }
+    await trackTraceBatchActivity("project", [
+      event("many-updates", 1_000_004),
+      event("large-input", 1_000_001),
+    ]);
+    for (const [traceId, eventUpdateCount, serializedEventBytes] of [
+      ["many-updates", 5, 500],
+      ["large-input", 2, 5_100],
+    ] as const)
+      expect(
+        JSON.parse(
+          (await client().hget(stateKey, member("project", traceId)))!,
+        ),
+      ).toMatchObject({ eventUpdateCount, serializedEventBytes });
+    await makeDue("project", "many-updates", "large-input");
+    await runner().processBatch();
+    expect(await queue.getWaitingCount()).toBe(1);
+    expect(await client().zcard(dueKey)).toBe(0);
+    expect(await client().hlen(stateKey)).toBe(0);
+  });
+
+  it("uses retained full-trace estimates for batch budgets after successful dispatch", async () => {
+    const original = env.LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES;
+    env.LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES = 6;
+    try {
+      const ingest = async (start: number) => {
+        await trackTraceBatchActivity("project", [
+          event("a", start),
+          event("a", start),
+          event("b", start),
+          event("b", start),
+        ]);
+        await makeDue("project", "a", "b");
+        await runner().processBatch();
+      };
+      await ingest(1_000_000);
+      const [first] = await queue.getJobs(["wait"]);
+      expect(first.data.payload.traces).toHaveLength(2);
+      await ingest(1_000_001);
+      const lateJobs = (await queue.getJobs(["wait"])).filter(
+        (job) => job.id !== first.id,
+      );
+      expect(lateJobs).toHaveLength(2);
+      expect(lateJobs.flatMap((job) => job.data.payload.traces)).toHaveLength(
+        2,
+      );
+      for (const job of lateJobs) {
+        expect(job.data.payload.traces).toHaveLength(1);
+        expect(job.data.payload.traces[0].minStart).toBe(1_000_000);
+      }
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.estimated_event_update_count",
+        4,
+        { scope: "trace", strategy: "project" },
+      );
+    } finally {
+      env.LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES = original;
     }
   });
 
@@ -1497,10 +1558,28 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("counts only acknowledged update volume when tracking fails after a chunk", async () => {
-    const evaluate = client().evalsha.bind(client());
-    vi.spyOn(client(), "evalsha")
-      .mockImplementationOnce(evaluate)
-      .mockRejectedValueOnce(new Error("tracking connection failed"));
+    await trackTraceBatchActivity("warm-up", [event("trace")]);
+    await clearReadiness();
+    vi.mocked(recordIncrement).mockClear();
+    const fallback = vi.spyOn(client(), "eval");
+    const pipeline = client().pipeline.bind(client());
+    let commands = 0;
+    vi.spyOn(client(), "pipeline").mockImplementation(() => {
+      const batch = pipeline();
+      const evaluate = batch.evalsha.bind(batch);
+      vi.spyOn(batch, "evalsha").mockImplementation(((
+        scriptHash: string,
+        keyCount: number,
+        ...args: (string | number | Buffer)[]
+      ) => {
+        // Fail one command before mutation; the other pipelined chunks still execute.
+        if (++commands === 2) args[1] = args[0];
+        // Simulate a cache miss for one sibling without flushing shared Redis scripts.
+        if (commands === 3) scriptHash = "0".repeat(40);
+        return evaluate(scriptHash, keyCount, ...args);
+      }) as typeof evaluate);
+      return batch;
+    });
 
     await expect(
       trackTraceBatchActivity("project", [
@@ -1512,8 +1591,14 @@ describe("trace micro-batch scheduling with Redis", () => {
     ).resolves.toBeUndefined();
 
     const recorded = await client().hlen(stateKey);
-    expect(recorded).toBeGreaterThan(0);
-    expect(recorded).toBeLessThan(1_001);
+    expect(recorded).toBe(150);
+    expect(commands).toBe(4);
+    expect(fallback).toHaveBeenCalledOnce();
+    for (const state of await client().hvals(stateKey))
+      expect(JSON.parse(state)).toMatchObject({
+        eventUpdateCount: 1,
+        serializedEventBytes: 7,
+      });
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.trace_batch.event_updates",
       1_001,
@@ -1524,16 +1609,20 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect.anything(),
       { stage: "sampled" },
     );
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.trace_batch.event_updates",
-      recorded,
-      { stage: "recorded" },
-    );
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.trace_batch.serialized_event_bytes",
-      recorded * 7,
-      { stage: "recorded" },
-    );
+    for (const [metric, count] of [
+      ["event_updates", recorded],
+      ["serialized_event_bytes", recorded * 7],
+    ] as const)
+      expect(
+        vi
+          .mocked(recordIncrement)
+          .mock.calls.filter(
+            ([name, , tags]) =>
+              name === `langfuse.trace_batch.${metric}` &&
+              tags?.stage === "recorded",
+          )
+          .reduce((sum, [, value]) => sum + value, 0),
+      ).toBe(count);
     expect(recordIncrement).not.toHaveBeenCalledWith(
       "langfuse.trace_batch.event_updates",
       1,
@@ -1733,7 +1822,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     },
   );
 
-  it("keeps legacy estimates unknown through updates and restores them after dispatch", async () => {
+  it("keeps unknown estimates through updates and late-arrival dispatch", async () => {
     const legacyStates = [
       {},
       { eventUpdateCount: 4 },
@@ -1812,34 +1901,26 @@ describe("trace micro-batch scheduling with Redis", () => {
       legacyIds.map((traceId) => event(traceId, 1_000_002, 20)),
     );
     for (const traceId of legacyIds) {
-      expect(
-        JSON.parse(
-          (await client().hget(stateKey, member("project", traceId)))!,
-        ),
-      ).toMatchObject({
-        eventUpdateCount: 1,
-        serializedEventBytes: 20,
-      });
+      const state = JSON.parse(
+        (await client().hget(stateKey, member("project", traceId)))!,
+      );
+      expect(state.eventUpdateCount).toBeUndefined();
+      expect(state.serializedEventBytes).toBeUndefined();
     }
     await makeDue("project", ...legacyIds);
     await dispatcher.processBatch();
-    expect(recordDistribution).toHaveBeenCalledWith(
-      "langfuse.trace_batch.estimated_event_update_count",
-      3,
-      { scope: "batch", strategy: "project" },
-    );
-    expect(recordDistribution).toHaveBeenCalledWith(
-      "langfuse.trace_batch.estimated_serialized_event_bytes",
-      60,
-      { scope: "batch", strategy: "project" },
-    );
     expect(
       vi
-        .mocked(recordIncrement)
-        .mock.calls.some(
-          ([name]) => name === "langfuse.trace_batch.estimates_unavailable",
+        .mocked(recordDistribution)
+        .mock.calls.filter(([name]) =>
+          name.startsWith("langfuse.trace_batch.estimated_"),
         ),
-    ).toBe(false);
+    ).toHaveLength(0);
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.estimates_unavailable",
+      1,
+      { scope: "batch", strategy: "project" },
+    );
   });
 
   it.each(["project", "locality"] as const)(
@@ -2393,6 +2474,10 @@ describe("trace micro-batch scheduling with Redis", () => {
       const [job] = await queue.getJobs(["wait"]);
       expect(current.revision).not.toBe(job.data.payload.traces[0].revision);
       expect(current.maxStart).toBe(2_000_000);
+      expect(current).toMatchObject({
+        eventUpdateCount: 2,
+        serializedEventBytes: 200,
+      });
       await makeDue("project", "trace");
       await dispatcher.processBatch();
       expect(await queue.getWaitingCount()).toBe(2);

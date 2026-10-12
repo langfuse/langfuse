@@ -28,6 +28,7 @@ import {
 
 const CHUNK_SIZE = 1_000;
 const REDIS_CHUNK_SIZE = 50;
+const REDIS_PIPELINE_SIZE = 4;
 const CLEANUP_SIZE = 100;
 const QUERY_BUFFER_MS = 2 * 60_000;
 const MINUTE_MS = 60_000;
@@ -606,6 +607,9 @@ const TRACK_SCRIPT = `
         redis.call('HDEL', KEYS[old], identity)
       end
     else
+      local retainedUpdates = 0
+      local retainedBytes = 0
+      local estimatesKnown = true
       for key = 3, #KEYS do
         local retained = redis.call('HGET', KEYS[key], identity)
         if retained then
@@ -613,15 +617,28 @@ const TRACK_SCRIPT = `
           if bounds[3] > now then
             minStart = math.min(minStart, bounds[1])
             maxStart = math.max(maxStart, bounds[2])
+            if bounds[4] and bounds[5] then
+              retainedUpdates = math.max(retainedUpdates, bounds[4])
+              retainedBytes = math.max(retainedBytes, bounds[5])
+            else
+              estimatesKnown = false
+            end
           end
           if key ~= current then redis.call('HDEL', KEYS[key], identity) end
         end
+      end
+      if not estimatesKnown then
+        eventUpdateCount = nil
+        serializedEventBytes = nil
+      elseif not state then
+        eventUpdateCount = eventUpdateCount + retainedUpdates
+        serializedEventBytes = serializedEventBytes + retainedBytes
       end
     end
     if state then
       minStart = math.min(minStart, state.minStart)
       maxStart = math.max(maxStart, state.maxStart)
-      if state.eventUpdateCount and state.serializedEventBytes then
+      if eventUpdateCount and serializedEventBytes and state.eventUpdateCount and state.serializedEventBytes then
         eventUpdateCount = eventUpdateCount + state.eventUpdateCount
         serializedEventBytes = serializedEventBytes + state.serializedEventBytes
       else
@@ -636,7 +653,7 @@ const TRACK_SCRIPT = `
     }))
     redis.call('ZADD', KEYS[1], now + tonumber(ARGV[1]), member)
     redis.call('HSET', KEYS[current], identity,
-      cmsgpack.pack({minStart, maxStart, now + firstTtl}))
+      cmsgpack.pack({minStart, maxStart, now + firstTtl, eventUpdateCount, serializedEventBytes}))
   end
   local firstExpiry = math.max((bucket + 1) * width + firstTtl,
     redis.call('PEXPIRETIME', KEYS[current]))
@@ -718,7 +735,7 @@ const ACKNOWLEDGE_SCRIPT = `
         end
       end
       redis.call('HSET', KEYS[current], identity,
-        cmsgpack.pack({decoded.minStart, decoded.maxStart, now + tonumber(ARGV[1])}))
+        cmsgpack.pack({decoded.minStart, decoded.maxStart, now + tonumber(ARGV[1]), decoded.eventUpdateCount, decoded.serializedEventBytes}))
       retained = true
       redis.call('ZREM', KEYS[1], ARGV[i])
       redis.call('HDEL', KEYS[2], ARGV[i])
@@ -860,44 +877,94 @@ export async function trackTraceBatchActivity(
       group.push(entry);
       shards.set(shard, group);
     }
-    // Each bounded script touches only one cluster slot.
+    const clock = await redis.time();
+    const now = Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000);
+    // Each pipeline contains bounded scripts from one cluster slot.
     for (const [shard, group] of shards) {
       const { due, state: stateKey } = getTraceBatchReadinessKeys(shard);
-      for (let offset = 0; offset < group.length; offset += REDIS_CHUNK_SIZE) {
-        const chunk = group.slice(offset, offset + REDIS_CHUNK_SIZE);
-        const clock = await redis.time();
-        const now =
-          Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000);
-        const first = getTraceBatchFirstKeys(shard, now);
-        const expired = Number(
-          await evalReadiness(
-            TRACK_SCRIPT,
-            [due, stateKey, ...first.keys],
-            [
-              idleMs,
-              env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
-              env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
-              first.width,
-              first.firstBucket,
-              ...chunk.flatMap(([traceId, state]) => [
-                JSON.stringify([projectId, traceId]),
-                state.minStart,
-                state.maxStart,
-                // Unique even after dispatch deletes and a later arrival recreates state.
-                randomUUID(),
-                state.eventUpdateCount,
-                state.serializedEventBytes,
-                getTraceBatchFirstMember(JSON.stringify([projectId, traceId])),
-              ]),
-            ],
-          ),
-        );
-        // Count only acknowledged chunks; a timeout can leave Redis's outcome unknown.
-        recordTrackingVolume("recorded", chunk);
-        recordIncrement("langfuse.trace_batch.expired_traces", expired, {
-          source: "ingestion",
-        });
-        recordIncrement("langfuse.trace_batch.tracked_traces", chunk.length);
+      const first = getTraceBatchFirstKeys(shard, now);
+      const keys = [due, stateKey, ...first.keys];
+      for (
+        let offset = 0;
+        offset < group.length;
+        offset += REDIS_CHUNK_SIZE * REDIS_PIPELINE_SIZE
+      ) {
+        const pipeline =
+          group.length - offset > REDIS_CHUNK_SIZE
+            ? redis.pipeline()
+            : undefined;
+        const commands: {
+          chunk: typeof entries;
+          args: (string | number | Buffer)[];
+        }[] = [];
+        for (
+          let start = offset;
+          start <
+          Math.min(
+            group.length,
+            offset + REDIS_CHUNK_SIZE * REDIS_PIPELINE_SIZE,
+          );
+          start += REDIS_CHUNK_SIZE
+        ) {
+          const chunk = group.slice(start, start + REDIS_CHUNK_SIZE);
+          const args = [
+            idleMs,
+            env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+            env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
+            first.width,
+            first.firstBucket,
+            ...chunk.flatMap(([traceId, state]) => [
+              JSON.stringify([projectId, traceId]),
+              state.minStart,
+              state.maxStart,
+              // Unique even after dispatch deletes and a later arrival recreates state.
+              randomUUID(),
+              state.eventUpdateCount,
+              state.serializedEventBytes,
+              getTraceBatchFirstMember(JSON.stringify([projectId, traceId])),
+            ]),
+          ];
+          pipeline?.evalsha(
+            readinessScriptHashes.get(TRACK_SCRIPT)!,
+            keys.length,
+            ...keys,
+            ...args,
+          );
+          commands.push({ chunk, args });
+        }
+        const results: [Error | null, unknown][] | null = pipeline
+          ? await pipeline.exec()
+          : [[null, await evalReadiness(TRACK_SCRIPT, keys, commands[0].args)]];
+        if (!results)
+          throw new Error("Trace batch tracking pipeline returned no results");
+        let failure: unknown;
+        // A command error does not undo successful siblings. Record every known result.
+        for (const [index, { chunk, args }] of commands.entries()) {
+          try {
+            const [error, result] = results[index];
+            let expired: number;
+            if (error) {
+              if (!error.message.startsWith("NOSCRIPT")) throw error;
+              // Only this cache miss is safe to retry; successful siblings are not replayed.
+              expired = Number(
+                await redis.eval(TRACK_SCRIPT, keys.length, ...keys, ...args),
+              );
+            } else {
+              expired = Number(result);
+            }
+            recordTrackingVolume("recorded", chunk);
+            recordIncrement("langfuse.trace_batch.expired_traces", expired, {
+              source: "ingestion",
+            });
+            recordIncrement(
+              "langfuse.trace_batch.tracked_traces",
+              chunk.length,
+            );
+          } catch (error) {
+            if (failure === undefined) failure = error;
+          }
+        }
+        if (failure !== undefined) throw failure;
       }
     }
   } catch (error) {

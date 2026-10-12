@@ -43,8 +43,8 @@ templates. The local dev template sets the idle time below.
 | `LANGFUSE_TRACE_BATCH_MAX_SIZE`                   | `60`        | Maximum traces per job, up to 10,000.                                                                                                                                             |
 | `LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES`    | `1500`      | Estimated event updates per multi-trace job; `0` disables.                                                                                                                        |
 | `LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES` | `67108864`  | Estimated serialized event bytes per multi-trace job (64 MiB); `0` disables.                                                                                                      |
-| `LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES`    | `5000`      | Exclude a trace whose pending window exceeds this many event updates; `0` disables.                                                                                               |
-| `LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES` | `52428800`  | Exclude a trace whose pending window exceeds these serialized bytes (50 MiB); `0` disables.                                                                                       |
+| `LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES`    | `5000`      | Exclude a trace whose retained read-window estimate exceeds this many event updates; `0` disables.                                                                                |
+| `LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES` | `52428800`  | Exclude a trace whose retained read-window estimate exceeds these serialized bytes (50 MiB); `0` disables.                                                                        |
 | `LANGFUSE_TRACE_BATCH_MAX_THREADS`                | `2`         | ClickHouse threads per query (positive integer).                                                                                                                                  |
 | `LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS`         | `40000`     | ClickHouse client socket idle timeout in milliseconds, including pauses for summary backpressure. Independent of the 30-second server query execution limit.                      |
 | `LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES`  | `104857600` | Queued input/output/metadata payload threshold (100 MiB). Includes the active summary; excludes the current trace, tool fields, transport buffers and JavaScript object overhead. |
@@ -53,7 +53,7 @@ templates. The local dev template sets the idle time below.
 | `LANGFUSE_TRACE_BATCH_CONCURRENCY`                | `2`         | Concurrent batch jobs per worker process.                                                                                                                                         |
 | `LANGFUSE_TRACE_BATCH_IDLE_MS`                    | `600000`    | Idle time before a trace is ready. Unset and `DEV` uses `120000` (2 minutes); every other region uses 10 minutes.                                                                 |
 | `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`             | `7200000`   | Recovery grace after a trace becomes due (2 hours). Pending keys expire no earlier than the latest required due-plus-grace deadline.                                              |
-| `LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS`          | `86400000`  | Historical event-start bounds retained after activity or dispatch (24 hours; at most 7 days). Internal and cloud-gated.                                                           |
+| `LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS`          | `86400000`  | Historical event-start bounds and size estimates retained after activity or dispatch (24 hours; at most 48 hours). Internal and cloud-gated.                                      |
 | `LANGFUSE_TRACE_BATCH_SHARD_COUNT`                | `1`         | Readiness shards (1–256). One works on standalone Redis and Sentinel; Redis Cluster distributes hash tags across slots. Drain before changing.                                    |
 | `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`       | `30000`     | Dispatcher cadence (30 seconds).                                                                                                                                                  |
 
@@ -74,7 +74,8 @@ processing, and the shared queue accessor, including admin queue inspection.
 - `{trace-batch:<shard>}:first:<bucket>`: hourly hashes retaining the minimum and
   maximum event starts independently of pending state. Fields are the first 16 binary
   bytes of SHA-256 of the JSON project/trace pair; values are MessagePack
-  `[minStart, maxStart, expiresAt]`. This accepts the negligible collision probability of a
+  `[minStart, maxStart, expiresAt, eventUpdateCount, serializedEventBytes]`.
+  A bounds-only tuple has unknown estimates. This accepts the negligible collision probability of a
   128-bit identity. Key shape is independent of the processing unit.
 
 Sharding uses the shared SHA-256 shard helper on the complete project/trace pair,
@@ -85,7 +86,7 @@ packing operates within each shard. Queue slots are unchanged.
 When pending state is absent or has no bucket pointer, tracking looks up the
 bounded set of live time buckets (26 keys for the default TTL), never scans their
 fields, and atomically merges the historical bounds. Valid pending state contains
-both bounds and its current history bucket, allowing direct movement to the new
+both bounds, cumulative size estimates and its current history bucket, allowing direct movement to the new
 bucket on subsequent activity and guarded acknowledgement. The Redis server clock owns
 both retention and readiness. Values with an elapsed deadline are ignored;
 whole-key expiry at bucket end plus retention removes storage without scans.
@@ -149,7 +150,13 @@ score. `TIME` before tracking selects the bounded bucket keys; Lua reads Redis
 time again and rejects a stale bucket selection before mutating anything.
 Scripts serialize within a Redis primary; different primaries can execute
 different shards concurrently. Tracking, hydration and acknowledgement calls
-contain at most 50 traces; cleanup handles at most 100. Dispatch still pools
+contain at most 50 traces; cleanup handles at most 100. Ingestion sends at most
+four tracking scripts per pipeline, all in one shard, using one Redis clock lookup
+per ingestion call. A group requiring only one script uses a direct call.
+Successful pipeline commands remain committed when a sibling
+fails; only commands rejected with `NOSCRIPT` are retried using `EVAL`. A pipeline
+is not one atomic operation; each Lua call is atomic independently.
+Dispatch still pools
 up to 1,000 hydrated candidates for locality selection, so script call size does
 not constrain queue batch packing. Scripts use cached `EVALSHA`, falling back
 to `EVAL` after a missing script cache on the selected primary. Dispatch holds one renewable lease across
@@ -202,19 +209,27 @@ Retaining the historical maximum preserves the previous tail even when a late
 event's start precedes that tail by more than the query buffer. Once historical
 bounds expire or are lost, the prior window cannot be reconstructed from this map.
 
-### Pending-window size estimates
+### Trace-window size estimates
 
 Accepted direct-v4 writes contribute their final serialized UTF-8 event size after
 field overflow handling, reusing the writer's existing `event_bytes` calculation.
 The accounting field itself is excluded. Acceptance means admission to the writer,
 not confirmation of a ClickHouse flush. `eventUpdateCount` counts accepted updates,
-including retries and repeated observation versions; neither counter represents
-unique observations or a trace's lifetime total. Deletion after enqueue, readiness remain unchanged. Pending state expires two hours after its due time
-by default. Later arrivals start another pending window.
-Entries missing either counter remain unknown until dispatch or expiry removes them.
-For a late window, these counters cover newly accepted events while the read
-also covers retained history. They do not bound the full reread's lifetime
-volume; oversized-trace exclusion still applies to pending-window estimates.
+including retries and repeated observation versions, rather than unique observations.
+
+Pending state and history carry cumulative estimates for the retained read window.
+Tracking adds newly accepted updates to valid pending totals. When reopening a
+trace, it initializes totals from retained history before adding the new updates.
+Acknowledgement preserves estimates with the bounds, including for oversized
+exclusions. A late window therefore cannot make a known oversized trace appear
+small or understate its batch weight by counting only its new events.
+
+Missing estimates remain unknown through updates and redispatch until their
+retained window expires. They are not replaced with zero or a count of only the
+new events. These are admission estimates, not hard limits on actual ClickHouse
+rows or query memory; the two-minute query buffer can include additional rows.
+Tracking-volume metrics still count only updates accepted in the current ingestion
+batch; dispatcher size distributions use the cumulative estimates.
 
 The dispatcher emits `estimated_event_update_count` and
 `estimated_serialized_event_bytes` distributions under `langfuse.trace_batch`, tagged
@@ -242,7 +257,7 @@ traces around it into extra jobs. Unknown estimates weigh nothing.
 Budget-limited jobs report `fill:partial`; the `scope:batch` estimate
 distributions show how close jobs run to the budget.
 
-After hydration, a trace whose pending-window estimates exceed
+After hydration, a trace whose retained read-window estimates exceed
 `LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES` or
 `LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES` is never queued or read. The
 dispatcher acknowledges it like a dispatched trace, increments
@@ -251,7 +266,8 @@ dispatcher acknowledges it like a dispatched trace, increments
 `Trace batch excluded oversized trace` at warn level with `projectId`, `traceId`,
 `reason` and both estimates. Group that log by `@projectId` to find repeat
 offenders. Activity after the acknowledgement starts a new pending window that
-is evaluated again, so a trace that keeps growing may be logged more than once.
+is evaluated again using its retained cumulative estimates, so a trace that keeps
+growing may be logged more than once.
 Traces with unknown estimates are never excluded.
 
 The worker streams full `events_full` payloads and records batch observation,

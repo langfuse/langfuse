@@ -52,12 +52,18 @@
   enabled. Global snapshot gauges must not be summed across worker reporters.
   Readiness uses project/trace-hashed shards with one dispatcher lease; all Lua
   keys share a shard hash tag. Hourly first-seen hashes retain packed minimum and
-  maximum event starts after acknowledgement for late arrivals; pending state
+  maximum event starts and cumulative size estimates after acknowledgement for late arrivals;
+  history retention defaults to 24 hours and is capped at 48 hours. Pending state
   carries the bucket pointer. Pending expiry is due plus recovery grace, including
   the whole-key backstop. Tracking accepts a caller's idle duration with the
   existing environment fallback; project persistence is not introduced here.
   Cached Lua calls cap tracking/hydration/acknowledgement at 50 and cleanup at 100;
-  locality selection still pools 1,000 candidates. Drain the old layout before upgrade
+  ingestion pipelines at most four scripts within a shard, with one clock lookup
+  per ingestion call; single-script groups use a direct call. Record all
+  acknowledged siblings after a pipeline error; retry
+  only `NOSCRIPT` commands. Retained estimates guard the whole known read window,
+  including late arrivals; unknown estimates remain unknown. Locality selection
+  still pools 1,000 candidates. Drain the old layout before upgrade
   or shard-count/retention changes. The trace-batch consumer generates and appends
   summaries without reading existing summaries or adding Redis staging/completion
   state; retries may repeat model calls. Map gauges include shard and total series;
