@@ -44,6 +44,11 @@ export function useEvaluatorInAppAgentToolSync({
   const handledLiveToolCallIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
+    handledLiveToolCallIdsRef.current.clear();
+    handledTestToolCallIdRef.current = null;
+  }, [selectedConversationId]);
+
+  useEffect(() => {
     if (!open) {
       return;
     }
@@ -66,7 +71,7 @@ export function useEvaluatorInAppAgentToolSync({
 
     const handleResult = (result: InAppAgentToolResult) => {
       if (
-        selectedConversationId &&
+        !selectedConversationId ||
         result.conversationId !== selectedConversationId
       ) {
         return;
