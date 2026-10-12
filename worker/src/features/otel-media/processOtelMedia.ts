@@ -20,10 +20,26 @@ import { MediaAssociationOrigin } from "@langfuse/shared";
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
 /**
- * Process media in normalized OTEL payloads selected by the ingestion queue.
- * This adapter owns OTEL/storage context, instrumentation, and fail-open
- * behavior; the shared processor handles legacy detection and the native
- * resolver handles references discovered before normalization.
+ * Worker integration point for media in normalized OTEL payloads selected for
+ * persistence by the ingestion queue.
+ *
+ * Responsibilities:
+ * - This adapter filters event shapes and owns storage configuration,
+ *   instrumentation, and fail-open behavior.
+ * - `processOtelMedia` iterates input/output/metadata, supplies OTEL upload
+ *   context, and aggregates processing results for media still inline.
+ * - `transformMediaPayload`, called by `processOtelMedia`, contains the generic
+ *   Data URI/provider-shape detection and replacement algorithm. It has no
+ *   knowledge of OTEL, storage, projects, or tracing.
+ * - `resolveExtractedMedia` is the TypeScript resolver for references created
+ *   by Rust before normalization. It uploads media whose references survive in
+ *   input/output/metadata, replaces them on success, and restores failed uploads
+ *   inline. TypeScript detection still runs for media Rust left inline.
+ *
+ * Successful replacements mutate each target payload in place. Missing storage
+ * configuration is logged and skips processing. Unexpected processing errors
+ * are logged and swallowed after restoring any pending references. If restoration
+ * itself fails, that error propagates to avoid persisting unresolved references.
  */
 export async function processOtelEventMedia(params: {
   earlyBatch?: EarlyOtelBatch;
