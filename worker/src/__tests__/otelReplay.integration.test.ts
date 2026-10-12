@@ -2,7 +2,6 @@ import "./helpers/otelReplaySetup";
 
 import { createHash, randomUUID } from "node:crypto";
 import { Decimal } from "decimal.js";
-import { validateOtelJson } from "@langfuse/native";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "../env";
 import { env as sharedEnv, type SharedEnv } from "@langfuse/shared/src/env";
@@ -972,9 +971,6 @@ describe(
         expect(maskingRequests).toHaveLength(2);
         for (const request of maskingRequests) {
           expect(request).toEqual(rawBytes);
-          expect(JSON.parse(request.toString("utf8"))).toEqual(
-            JSON.parse(rawBytes.toString("utf8")),
-          );
         }
         expect(compactedBatches).toHaveLength(1);
         const earlyBatch = compactedBatches[0]!;
@@ -1102,14 +1098,6 @@ describe(
     ] as const)(
       "preserves persisted values for %s input",
       async (name, bytes) => {
-        if (name === "repeated nested objects") {
-          // Native success is a separate assertion from persistence parity:
-          // the original TS path cannot rescue a scanner resource failure.
-          const validated = await validateOtelJson(bytes);
-          const batch = await validated.extract(true);
-          await batch.dispose();
-          await validated.dispose();
-        }
         const comparison = await runOtelReplayComparison({
           bytes,
           projectId: `${PROJECT_ID}-edge-${name}`,

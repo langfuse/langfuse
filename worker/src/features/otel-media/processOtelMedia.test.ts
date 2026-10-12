@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => {
     ),
     logger: { warn: vi.fn() },
     recordDistribution: vi.fn(),
-    recordIncrement: vi.fn(),
     span,
     linkMediaToTraceOrObservation: vi.fn(),
     uploadMediaForTrace: vi.fn(),
@@ -30,7 +29,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   logger: mocks.logger,
   processOtelMedia: vi.fn(),
   recordDistribution: mocks.recordDistribution,
-  recordIncrement: mocks.recordIncrement,
+  recordIncrement: vi.fn(),
   linkMediaToTraceOrObservation: mocks.linkMediaToTraceOrObservation,
   uploadMediaForTrace: mocks.uploadMediaForTrace,
 }));
@@ -79,11 +78,9 @@ const MEDIA_DESTINATION = {
 } as const;
 
 function createFakeMediaBatch({
-  kind = "anthropic",
   originalValue = "aGk=",
   entries,
 }: {
-  kind?: string;
   originalValue?: string;
   entries?: ExtractedOtelMedia[];
 } = {}) {
@@ -94,7 +91,7 @@ function createFakeMediaBatch({
       reference: DEFAULT_MEDIA_REFERENCE,
       contentType: "image/png",
       sha256Hash: "hash",
-      kind,
+      kind: "anthropic",
       originalByteLength: 4,
       originalJsonDepth: 0,
     },
@@ -267,39 +264,6 @@ describe("processOtelEventMedia", () => {
     expect(mocks.instrumentAsync).not.toHaveBeenCalled();
   });
 
-  it("attributes residual detector metrics to the early path after its empty batch is released", async () => {
-    const processMedia = vi.fn().mockResolvedValue(processResult);
-
-    await processOtelEventMedia({
-      mediaPath: "early",
-      targets: createDirectOtelMediaTargets([
-        {
-          traceId: "trace-id",
-          spanId: "observation-id",
-          input: "residual value",
-        },
-      ]),
-      writePath: "direct",
-      ...MEDIA_DESTINATION,
-      fileKey: "file-key",
-      processMedia,
-    });
-
-    expect(processMedia).toHaveBeenCalledWith(
-      expect.objectContaining({ mediaPath: "early" }),
-    );
-    expect(mocks.span.setAttributes).toHaveBeenCalledWith(
-      expect.objectContaining({
-        "langfuse.ingestion.otel.media_path": "early",
-      }),
-    );
-    expect(mocks.recordDistribution).toHaveBeenCalledWith(
-      "langfuse.ingestion.otel.media.batch_byte_length",
-      8,
-      { write_path: "direct", media_path: "early" },
-    );
-  });
-
   it("fails open when media processing throws", async () => {
     const processMedia = vi.fn().mockRejectedValue(new Error("unexpected"));
 
@@ -460,26 +424,6 @@ describe("processOtelEventMedia", () => {
     expect(JSON.stringify(payload.input.deep)).not.toContain(reference);
     expect(payload.input[reference]).toBe("object key stays structural");
     expect(batch.originalMedia).not.toHaveBeenCalled();
-    expect(mocks.recordIncrement).toHaveBeenCalledWith(
-      "langfuse.ingestion.otel.media",
-      1,
-      {
-        outcome: "uploaded",
-        media_kind: "anthropic",
-        write_path: "direct",
-        media_path: "early",
-      },
-    );
-    expect(mocks.recordDistribution).toHaveBeenCalledWith(
-      "langfuse.ingestion.otel.media.byte_length",
-      5,
-      {
-        outcome: "uploaded",
-        media_kind: "anthropic",
-        write_path: "direct",
-        media_path: "early",
-      },
-    );
   });
 
   it("uploads native refs in deeply nested serialized input, output, and metadata", async () => {
@@ -647,16 +591,6 @@ describe("processOtelEventMedia", () => {
     expect(mediaPage).toHaveBeenCalledOnce();
     expect(mediaBody).toHaveBeenCalledOnce();
     expect(mocks.uploadMediaForTrace).toHaveBeenCalledOnce();
-    expect(mocks.recordIncrement).toHaveBeenCalledWith(
-      "langfuse.ingestion.otel.media",
-      1,
-      {
-        outcome: "reused",
-        media_kind: "anthropic",
-        write_path: "direct",
-        media_path: "early",
-      },
-    );
     expect(mocks.linkMediaToTraceOrObservation).toHaveBeenCalledWith({
       projectId: "project-id",
       traceId: "trace-id",
@@ -699,16 +633,6 @@ describe("processOtelEventMedia", () => {
     });
     expect(mediaBody).toHaveBeenCalledOnce();
     expect(mocks.uploadMediaForTrace).toHaveBeenCalledOnce();
-    expect(mocks.recordIncrement).toHaveBeenCalledWith(
-      "langfuse.ingestion.otel.media",
-      1,
-      {
-        outcome: "failed",
-        media_kind: "anthropic",
-        write_path: "direct",
-        media_path: "early",
-      },
-    );
   });
 
   it("evicts a failed upload so a later occurrence can retry", async () => {
@@ -856,10 +780,6 @@ describe("processOtelEventMedia", () => {
       });
       await withExtractedBatch(source, async (batch) => {
         expect(batch.media).toHaveLength(1);
-        const originalMedia = addNormalizedLayer
-          ? vi.spyOn(batch, "originalMedia")
-          : undefined;
-        const callsBeforeResolution = originalMedia?.mock.calls.length ?? 0;
         const target = JSON.parse(batch.takeJsonBuffer().toString("utf8")) as {
           input: string;
         };
@@ -881,11 +801,6 @@ describe("processOtelEventMedia", () => {
 
         await resolveTarget(batch, target);
 
-        if (addNormalizedLayer) {
-          expect(
-            originalMedia!.mock.calls.slice(callsBeforeResolution),
-          ).toContainEqual([0, 3]);
-        }
         const expectedInput =
           outcome === "failure" || fixture.mediaText === undefined
             ? addNormalizedLayer
@@ -1018,7 +933,7 @@ describe("processOtelEventMedia", () => {
       outcome: "uploaded",
       mediaId: "uploaded",
     });
-    const { batch } = createFakeMediaBatch({ kind: "data_uri" });
+    const { batch } = createFakeMediaBatch();
     const prefix = "prefix @@@langfuseMedia:unterminated ";
     const payload = {
       traceId: "trace-id",

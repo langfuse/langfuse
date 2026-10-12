@@ -18,21 +18,6 @@ import {
   isIngestionMaskingEnabled,
 } from "@langfuse/shared/src/server/ee/ingestionMasking";
 
-const telemetryMocks = vi.hoisted(() => ({
-  recordDistribution: vi.fn(),
-  recordIncrement: vi.fn(),
-}));
-
-vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@langfuse/shared/src/server")>();
-  return {
-    ...actual,
-    recordDistribution: telemetryMocks.recordDistribution,
-    recordIncrement: telemetryMocks.recordIncrement,
-  };
-});
-
 vi.mock(
   "@langfuse/shared/src/server/ee/ingestionMasking",
   async (importOriginal) => {
@@ -204,34 +189,6 @@ function createTestEnv(overrides: Partial<SharedEnv> = {}): SharedEnv {
   return { ...defaultTestEnv, ...overrides } as SharedEnv;
 }
 
-function expectPreparationMetrics(
-  outcome: "native" | "masking_drop" | "error",
-  extractMedia: boolean,
-) {
-  const tags = { outcome, extract_media: extractMedia.toString() };
-  const preparationIncrements =
-    telemetryMocks.recordIncrement.mock.calls.filter(
-      ([name]) => name === "langfuse.ingestion.otel.early_media.preparation",
-    );
-  expect(preparationIncrements).toHaveLength(1);
-  expect(preparationIncrements[0]).toEqual([
-    "langfuse.ingestion.otel.early_media.preparation",
-    1,
-    tags,
-  ]);
-  const preparationDurations =
-    telemetryMocks.recordDistribution.mock.calls.filter(
-      ([name]) =>
-        name === "langfuse.ingestion.otel.early_media.preparation_duration_ms",
-    );
-  expect(preparationDurations).toHaveLength(1);
-  expect(preparationDurations[0]).toEqual([
-    "langfuse.ingestion.otel.early_media.preparation_duration_ms",
-    expect.any(Number),
-    tags,
-  ]);
-}
-
 describe("Ingestion Masking", () => {
   beforeAll(() => {
     maskingServer.setup();
@@ -239,14 +196,10 @@ describe("Ingestion Masking", () => {
 
   beforeEach(() => {
     maskingServer.reset();
-    telemetryMocks.recordDistribution.mockReset();
-    telemetryMocks.recordIncrement.mockReset();
   });
 
   afterEach(() => {
     maskingServer.reset();
-    telemetryMocks.recordDistribution.mockReset();
-    telemetryMocks.recordIncrement.mockReset();
   });
 
   afterAll(() => {
@@ -363,7 +316,6 @@ describe("Ingestion Masking", () => {
           expect(Buffer.from(body as Uint8Array)).toEqual(originalBytes);
           if (outcome === "fail-closed") {
             expect(prepared).toEqual({ error: expect.any(String) });
-            expectPreparationMetrics("masking_drop", true);
             return;
           }
           const batch = prepared?.batch;
@@ -375,7 +327,6 @@ describe("Ingestion Masking", () => {
           expect(
             JSON.parse(batch!.takeJsonBuffer().toString("utf8")).input,
           ).toBe(batch!.media[0].reference);
-          expectPreparationMetrics("native", true);
         } finally {
           await prepared?.batch?.dispose();
           fetch.mockRestore();
@@ -428,40 +379,11 @@ describe("Ingestion Masking", () => {
           ).toBe("��");
           expect(batch.media).toHaveLength(1);
           expect(await batch.mediaBody(0)).toEqual(mediaBody);
-          expectPreparationMetrics("native", true);
         } finally {
           await prepared?.batch?.dispose();
           fetch.mockRestore();
           configuredMasking.mockImplementation(applyMasking);
         }
-      },
-    );
-
-    it.each([
-      ["native", Buffer.from('[{"input":"\\ud800"}]')],
-      ["error", Buffer.from("{")],
-    ] as const)(
-      "records the %s preparation outcome",
-      async (outcome, bytes) => {
-        const preparation = prepareOtelBatch({
-          bytes,
-          projectId: "test-project",
-          extractMedia: false,
-        });
-
-        if (outcome === "error") {
-          await expect(preparation).rejects.toThrow();
-        } else {
-          const prepared = await preparation;
-          try {
-            expect(
-              JSON.parse(prepared.batch!.takeJsonBuffer().toString("utf8")),
-            ).toEqual([{ input: "\ud800" }]);
-          } finally {
-            await prepared.batch?.dispose();
-          }
-        }
-        expectPreparationMetrics(outcome, false);
       },
     );
 

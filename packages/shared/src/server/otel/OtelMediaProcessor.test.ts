@@ -57,13 +57,11 @@ function createUploadMock(
 async function processEvents(
   targets: OtelMediaTarget[],
   uploadMedia: UploadOtelMedia = createUploadMock(),
-  mediaPath?: "early" | "reference",
 ) {
   return processOtelMedia({
     targets,
     projectId: "project-id",
     writePath: "direct",
-    mediaPath,
     mediaBucket: "media-bucket",
     mediaPrefix: "media/",
     uploadMedia,
@@ -125,10 +123,11 @@ describe("processOtelMedia", () => {
     });
   });
 
-  it("tags reused media with the early processing path", async () => {
-    const { event } = createEvent({ value: DATA_URI });
+  it("tags reused media byte length separately from uploaded media", async () => {
+    const dataUri = DATA_URI;
+    const { event } = createEvent({ value: dataUri });
 
-    await processEvents([event], createUploadMock("reused"), "early");
+    await processEvents([event], createUploadMock("reused"));
 
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.byte_length",
@@ -137,7 +136,7 @@ describe("processOtelMedia", () => {
         outcome: "reused",
         media_kind: "data_uri",
         write_path: "direct",
-        media_path: "early",
+        media_path: "reference",
       },
     );
   });

@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -145,7 +144,6 @@ describe("uploadMediaForTrace", () => {
       field: "output",
       contentType: MediaContentType.PNG,
       contentBytes: CONTENT_BYTES,
-      sha256Hash: createHash("sha256").update(CONTENT_BYTES).digest("base64"),
       mediaBucket: "media-bucket",
       mediaPrefix: "media/",
       origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,

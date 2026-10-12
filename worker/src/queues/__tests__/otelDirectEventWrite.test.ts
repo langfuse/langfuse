@@ -5,7 +5,6 @@ import {
   markProjectIngestFailure,
   OtelIngestionProcessor,
   QueueJobs,
-  recordIncrement,
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
@@ -32,7 +31,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getS3EventStorageClient: vi.fn(),
   markProjectIngestFailure: vi.fn(),
-  recordIncrement: vi.fn(),
 }));
 vi.mock(
   "../../features/evaluation/observationEval",
@@ -272,7 +270,6 @@ describe("early media extraction rollout", () => {
         ? "true"
         : "false";
       env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS = [...projectIds];
-      vi.mocked(recordIncrement).mockClear();
       vi.mocked(getS3EventStorageClient).mockReturnValue({
         download,
         downloadBytes,
@@ -283,12 +280,6 @@ describe("early media extraction rollout", () => {
         await expect(
           processor(createJob("project-match"), undefined),
         ).rejects.toThrow(`stop after ${expectedPath} download`);
-
-        expect(vi.mocked(recordIncrement)).toHaveBeenCalledExactlyOnceWith(
-          "langfuse.ingestion.otel.media_path",
-          1,
-          { path: expectedPath },
-        );
 
         if (expectedPath === "early") {
           expect(downloadBytes).toHaveBeenCalledExactlyOnceWith(
@@ -305,7 +296,6 @@ describe("early media extraction rollout", () => {
         Object.assign(env, original);
         vi.mocked(getS3EventStorageClient).mockReset();
         vi.mocked(markProjectIngestFailure).mockClear();
-        vi.mocked(recordIncrement).mockClear();
       }
     },
   );
