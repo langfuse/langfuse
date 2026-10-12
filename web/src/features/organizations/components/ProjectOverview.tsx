@@ -34,6 +34,7 @@ import ContainerPage from "@/src/components/layouts/container-page";
 import { type Session } from "next-auth";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { AgentToolsBanner } from "@/src/features/developer-tools/components/AgentToolsBanner";
+import { V4UpgradeBanner } from "@/src/features/v4-upgrade/V4UpgradeBanner";
 
 const OrganizationProjectTiles = ({
   org,
@@ -310,6 +311,7 @@ export const OrganizationProjectOverview = () => {
         ),
       }}
     >
+      <V4UpgradeBanner />
       <AgentToolsBanner />
       {showOnboarding && <Onboarding />}
       {organizations

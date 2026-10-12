@@ -25,9 +25,19 @@ import { usePlan } from "@/src/features/entitlements/hooks";
 import { isSelfHostedPlan, planLabels } from "@langfuse/shared";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import {
+  useShowV4UpgradeHint,
+  V4_UPGRADE_GUIDE_URL,
+  V4_UPGRADE_HINT_TITLE,
+} from "@/src/features/v4-upgrade/useV4UpgradeHint";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const VersionLabel = ({ className }: { className?: string }) => {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const capture = usePostHogClientCapture();
+  // Self-hosted v3 always points at v4, even when the release check is
+  // unavailable (e.g. air-gapped deployments).
+  const showV4UpgradeHint = useShowV4UpgradeHint();
 
   const backgroundMigrationStatus = api.backgroundMigrations.status.useQuery(
     undefined,
@@ -72,10 +82,11 @@ export const VersionLabel = ({ className }: { className?: string }) => {
     backgroundMigrationStatus.data.status !== "FINISHED";
 
   const hasUpdate =
-    !isLangfuseCloud && checkUpdate.data && checkUpdate.data.updateType;
+    !isLangfuseCloud &&
+    (showV4UpgradeHint || Boolean(checkUpdate.data?.updateType));
 
   const color =
-    checkUpdate.data?.updateType === "major"
+    showV4UpgradeHint || checkUpdate.data?.updateType === "major"
       ? "text-dark-red"
       : checkUpdate.data?.updateType === "minor"
         ? "text-dark-yellow"
@@ -104,7 +115,20 @@ export const VersionLabel = ({ className }: { className?: string }) => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
-        {hasUpdate ? (
+        {showV4UpgradeHint ? (
+          <>
+            <DropdownMenuLabel>
+              {V4_UPGRADE_HINT_TITLE}
+              {checkUpdate.data?.latestRelease
+                ? `: ${checkUpdate.data.latestRelease}`
+                : null}
+              <p className="text-muted-foreground font-normal">
+                v3 no longer receives feature updates.
+              </p>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+          </>
+        ) : hasUpdate ? (
           <>
             <DropdownMenuLabel>
               New {checkUpdate.data?.updateType} version:{" "}
@@ -175,13 +199,28 @@ export const VersionLabel = ({ className }: { className?: string }) => {
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link
-                href="https://langfuse.com/docs/deployment/self-host#update"
-                target="_blank"
-              >
-                <HardDriveDownload size={16} className="mr-2" />
-                Update
-              </Link>
+              {showV4UpgradeHint ? (
+                <Link
+                  href={V4_UPGRADE_GUIDE_URL}
+                  target="_blank"
+                  onClick={() =>
+                    capture("v4_upgrade_hint:click_upgrade_guide", {
+                      surface: "version_label",
+                    })
+                  }
+                >
+                  <HardDriveDownload size={16} className="mr-2" />
+                  Upgrade to v4
+                </Link>
+              ) : (
+                <Link
+                  href="https://langfuse.com/docs/deployment/self-host#update"
+                  target="_blank"
+                >
+                  <HardDriveDownload size={16} className="mr-2" />
+                  Update
+                </Link>
+              )}
             </DropdownMenuItem>
           </>
         )}

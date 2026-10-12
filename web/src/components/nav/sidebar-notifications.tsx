@@ -10,6 +10,12 @@ import { X } from "lucide-react";
 import useLocalStorage from "../useLocalStorage";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  useShowV4UpgradeHint,
+  V4_UPGRADE_GUIDE_URL,
+  V4_UPGRADE_HINT_DESCRIPTION,
+  V4_UPGRADE_HINT_TITLE,
+} from "@/src/features/v4-upgrade/useV4UpgradeHint";
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -87,10 +93,21 @@ export const notifications: SidebarNotification[] = [
   },
 ];
 
+// Shown in front of the regular notifications on self-hosted v3 deployments.
+// No createdAt, so it never expires on its own.
+const v4UpgradeNotification: SidebarNotification = {
+  id: "upgrade-to-v4",
+  title: V4_UPGRADE_HINT_TITLE,
+  description: V4_UPGRADE_HINT_DESCRIPTION,
+  link: V4_UPGRADE_GUIDE_URL,
+  linkTitle: "Upgrade guide",
+};
+
 const STORAGE_KEY = "dismissed-sidebar-notifications";
 
 export function SidebarNotifications() {
   const capture = usePostHogClientCapture();
+  const showV4UpgradeHint = useShowV4UpgradeHint();
 
   const [dismissedNotifications, setDismissedNotifications] = useLocalStorage<
     string[]
@@ -107,7 +124,10 @@ export function SidebarNotifications() {
     setDismissedNotifications([...dismissedNotifications, id]);
   };
 
-  const activeNotifications = notifications.filter(
+  const activeNotifications = [
+    ...(showV4UpgradeHint ? [v4UpgradeNotification] : []),
+    ...notifications,
+  ].filter(
     (notif) => !dismissedNotifications.includes(notif.id) && !isExpired(notif),
   );
 

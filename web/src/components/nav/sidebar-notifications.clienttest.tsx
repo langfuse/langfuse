@@ -15,9 +15,11 @@ describe("SidebarNotifications", () => {
     // Dismiss every notification except the GitHub star one so it surfaces
     // as the front card regardless of how many launch-week notifications
     // are added over time.
-    mockState.dismissed = notifications
-      .filter((n) => n.id !== GITHUB_STAR_ID)
-      .map((n) => n.id);
+    mockState.dismissed = [
+      // Self-hosted v3 upgrade card, prepended outside `notifications`.
+      "upgrade-to-v4",
+      ...notifications.filter((n) => n.id !== GITHUB_STAR_ID).map((n) => n.id),
+    ];
   });
 
   it("renders the GitHub stars badge with social style query params", () => {
