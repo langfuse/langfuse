@@ -32,25 +32,16 @@ const MINUTE_MS = 60_000;
 const NARROW_BATCH_MAX_ENVELOPE_MS = 60 * MINUTE_MS;
 const WIDE_MAX_EXPANSION_RATIO = 0.25;
 
-// A saved value reaches every pod within the TTL. Projects without a row cache
-// a null so they cost no Postgres read either.
+// Each pod reads a project's idle time from Postgres at most once per TTL, so a
+// saved value applies within it. Missing rows and failed reads cache a null
+// (the deployment default) too.
+const TRACE_IDLE_MS_CACHE_TTL_MS = 2 * MINUTE_MS;
 const traceIdleMsCache = new LocalCache<{ traceIdleMs: number | null }>({
   namespace: "trace_batch_idle_ms",
   enabled: true,
-  ttlMs: 5 * MINUTE_MS,
+  ttlMs: TRACE_IDLE_MS_CACHE_TTL_MS,
   max: 10_000,
 });
-// Ingestion waits at most this long for the read, then uses the default and
-// skips the read for the backoff, so a slow Postgres cannot stall ingestion.
-const TRACE_IDLE_MS_READ_TIMEOUT_MS = 500;
-const traceIdleMsReadFailures = new LocalCache<{ failed: true }>({
-  namespace: "trace_batch_idle_ms_failures",
-  enabled: true,
-  ttlMs: 30_000,
-  max: 10_000,
-});
-// Concurrent jobs of one project share a single in-flight read.
-const traceIdleMsReads = new Map<string, Promise<number | null>>();
 
 export type TraceBatchStrategy = "project" | "locality";
 export type PendingTrace = {
@@ -827,44 +818,21 @@ async function resolveTraceIdleMs(projectId: string): Promise<number> {
   return cap > 0 ? Math.min(traceIdleMs, cap) : traceIdleMs;
 }
 
-function getCachedTraceIdleMs(projectId: string): Promise<number | null> {
+async function getCachedTraceIdleMs(projectId: string): Promise<number | null> {
   const cached = traceIdleMsCache.get(projectId);
-  if (cached) return Promise.resolve(cached.traceIdleMs);
-  if (traceIdleMsReadFailures.get(projectId)) return Promise.resolve(null);
-  const inFlight = traceIdleMsReads.get(projectId);
-  if (inFlight) return inFlight;
-  const read = readTraceIdleMs(projectId).finally(() =>
-    traceIdleMsReads.delete(projectId),
-  );
-  traceIdleMsReads.set(projectId, read);
-  return read;
-}
-
-async function readTraceIdleMs(projectId: string): Promise<number | null> {
-  let timeout: NodeJS.Timeout | undefined;
+  if (cached) return cached.traceIdleMs;
+  let traceIdleMs: number | null = null;
   try {
-    const { traceIdleMs } = await Promise.race([
-      getTracingReadinessSettings(projectId),
-      new Promise<never>((_, reject) => {
-        timeout = setTimeout(
-          () => reject(new Error("Trace idle time read timed out")),
-          TRACE_IDLE_MS_READ_TIMEOUT_MS,
-        );
-      }),
-    ]);
-    traceIdleMsCache.set(projectId, { traceIdleMs });
-    return traceIdleMs;
+    ({ traceIdleMs } = await getTracingReadinessSettings(projectId));
   } catch (error) {
-    traceIdleMsReadFailures.set(projectId, { failed: true });
     recordIncrement("langfuse.trace_batch.idle_time_read_failures", 1);
     logger.warn("Failed to read trace idle time, using the default", {
       projectId,
       error,
     });
-    return null;
-  } finally {
-    clearTimeout(timeout);
   }
+  traceIdleMsCache.set(projectId, { traceIdleMs });
+  return traceIdleMs;
 }
 
 export class TraceBatchDispatcher extends PeriodicExclusiveRunner {

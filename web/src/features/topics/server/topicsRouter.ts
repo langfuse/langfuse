@@ -1,12 +1,7 @@
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
-import {
-  getTracingReadinessSettings,
-  saveTracingReadinessSettings,
-  tracingReadinessSettingsSchema,
-  type Transcript,
-} from "@langfuse/shared/src/server";
+import type { Transcript } from "@langfuse/shared/src/server";
 import {
   topicEmbeddingConfigSchema,
   topicExecutionInputSchema,
@@ -314,14 +309,6 @@ export const topicsRouter = createTRPCRouter({
       }),
     )
     .mutation(({ input }) => saveTopicRule(input)),
-  readinessSettings: topicsProcedure.query(({ input }) =>
-    getTracingReadinessSettings(input.projectId),
-  ),
-  saveReadinessSettings: topicsWriteProcedure
-    .input(projectInput.extend(tracingReadinessSettingsSchema.shape))
-    .mutation(({ input: { projectId, ...settings } }) =>
-      saveTracingReadinessSettings(projectId, settings),
-    ),
   summaryCounts: topicsProcedure
     .input(
       resultInput.extend({
