@@ -103,7 +103,7 @@ type TestLLMConnectionParams = {
   adapter: LLMAdapter;
   provider: string;
   secretKey: string;
-  // Set only when reusing a credential from the scoped database row.
+  /** Set only when reusing a credential from the scoped database row. */
   projectId?: string;
   baseURL?: string | null;
   customModels?: string[];
