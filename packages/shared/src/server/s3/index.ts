@@ -48,6 +48,7 @@ export const getS3MediaStorageClient = (bucketName: string): StorageService => {
  */
 export function createEventUploadStorageService(
   bucketName: string,
+  options?: { maxAttempts?: number },
 ): StorageService {
   return StorageServiceFactory.getInstance({
     bucketName,
@@ -59,6 +60,7 @@ export function createEventUploadStorageService(
     awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
     awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
     logSlowDownAsWarning: true,
+    maxAttempts: options?.maxAttempts,
   });
 }
 
