@@ -643,16 +643,8 @@ async fn compact_strips_the_connection_slug_and_models_use_the_control_plane_cat
         .unwrap();
     assert_eq!(models.status(), StatusCode::OK);
     assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&models.text().await.unwrap()).unwrap(),
-        serde_json::json!({
-            "object": "list",
-            "data": [{
-                "id": "Primary/gpt-4.1",
-                "object": "model",
-                "created": 1767225600,
-                "owned_by": "openai",
-            }],
-        }),
+        models.text().await.unwrap(),
+        r#"{"data":[{"created":1767225600,"id":"Primary/gpt-4.1","object":"model","owned_by":"openai"}],"object":"list"}"#
     );
     assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 1);
