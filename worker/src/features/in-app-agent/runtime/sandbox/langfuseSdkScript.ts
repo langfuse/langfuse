@@ -37,8 +37,8 @@ type SdkScriptContext = {
   conversationId: string;
   /** NEXTAUTH_URL: the one host the guest may reach. */
   langfuseBaseUrl: string | undefined;
-  /** False when the provider would give the guest open internet. No key is minted then. */
-  egressConfined: boolean;
+  /** False when no egress connector is configured, so the guest would get open internet. No key is minted then. */
+  hasEgressRestriction: boolean;
   /** Aborts when the run is cancelled, fenced, or the worker shuts down. */
   signal: AbortSignal;
 };
@@ -149,12 +149,12 @@ async function runApprovedLangfuseSdkScript(params: {
   scope: readonly ProjectAction[];
 }): Promise<SandboxBashResult> {
   const { sandbox, ctx } = params;
-  if (!ctx.egressConfined) {
+  if (!ctx.hasEgressRestriction) {
     logger.warn(
-      "In-app agent sandbox SDK script refused: sandbox egress is not confined",
+      "In-app agent sandbox SDK script refused: no sandbox egress connector is configured",
       { projectId: ctx.projectId, conversationId: ctx.conversationId },
     );
-    return notRun("the sandbox has no egress restriction configured.");
+    return notRun("no egress connector is configured for the sandbox.");
   }
   if (!ctx.langfuseBaseUrl) {
     throw new Error("NEXTAUTH_URL must be set to run Langfuse SDK scripts");

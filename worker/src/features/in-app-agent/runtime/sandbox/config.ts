@@ -22,11 +22,12 @@ export function getDefaultInAppAgentSandboxProviderType(): InAppAgentSandboxProv
 }
 
 /**
- * Whether the guest's outbound network is confined by deployment config.
+ * Whether deployment config gives the guest a restricted outbound network.
  * Lambda MicroVMs get open internet unless an egress connector is attached;
- * the local Docker provider runs without a network.
+ * the local Docker provider runs without a network. This only checks that the
+ * connector is configured: what its network can reach is infrastructure config.
  */
-export function isInAppAgentSandboxEgressConfined(
+export function hasInAppAgentSandboxEgressRestriction(
   providerType: InAppAgentSandboxProviderType,
 ): boolean {
   if (providerType === "dangerous-docker") return true;
