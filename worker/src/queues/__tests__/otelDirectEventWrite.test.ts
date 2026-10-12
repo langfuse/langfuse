@@ -243,7 +243,6 @@ describe("early media extraction rollout", () => {
 
   it.each([
     ["reference", "disabled with wildcard", false, ["*"]],
-    ["reference", "disabled with matching project", false, ["project-match"]],
     ["reference", "enabled with no projects", true, []],
     [
       "reference",

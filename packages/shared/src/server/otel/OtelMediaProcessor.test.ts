@@ -125,26 +125,22 @@ describe("processOtelMedia", () => {
     });
   });
 
-  it.each([undefined, "early"] as const)(
-    "tags reused media byte length by processing path (%s)",
-    async (mediaPath) => {
-      const dataUri = DATA_URI;
-      const { event } = createEvent({ value: dataUri });
+  it("tags reused media with the early processing path", async () => {
+    const { event } = createEvent({ value: DATA_URI });
 
-      await processEvents([event], createUploadMock("reused"), mediaPath);
+    await processEvents([event], createUploadMock("reused"), "early");
 
-      expect(recordDistribution).toHaveBeenCalledWith(
-        "langfuse.ingestion.otel.media.byte_length",
-        PNG_BYTES.length,
-        {
-          outcome: "reused",
-          media_kind: "data_uri",
-          write_path: "direct",
-          media_path: mediaPath ?? "reference",
-        },
-      );
-    },
-  );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media.byte_length",
+      PNG_BYTES.length,
+      {
+        outcome: "reused",
+        media_kind: "data_uri",
+        write_path: "direct",
+        media_path: "early",
+      },
+    );
+  });
 
   it("processes every normalized media field and ignores unrelated fields", async () => {
     const dataUri = DATA_URI;

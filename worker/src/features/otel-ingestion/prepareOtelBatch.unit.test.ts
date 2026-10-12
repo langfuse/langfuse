@@ -37,39 +37,6 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
     );
   });
 
-  it("sends the validated original bytes to masking", async () => {
-    const original = Buffer.from('{ "value": "🔥" }');
-    const batch = { dispose: vi.fn() };
-    const validated = {
-      normalizedBytes: vi.fn(() => undefined),
-      extract: vi.fn().mockResolvedValue(batch),
-      dispose: vi.fn().mockResolvedValue(undefined),
-    };
-    nativeMocks.validateOtelJson.mockResolvedValue(validated);
-    const bodies: Buffer[] = [];
-    maskingMocks.applyIngestionMasking.mockImplementation(
-      async (
-        params: { data: { bytes: Buffer } },
-        _env: unknown,
-        transport: { body: (data: { bytes: Buffer }) => Uint8Array },
-      ) => {
-        bodies.push(Buffer.from(transport.body(params.data)));
-        return { success: true, data: params.data, masked: false };
-      },
-    );
-
-    await expect(
-      prepareOtelBatch({
-        bytes: original,
-        projectId: "project-id",
-        extractMedia: true,
-      }),
-    ).resolves.toEqual({ batch, sourceUnchanged: true });
-
-    expect(bodies).toEqual([original]);
-    expect(validated.extract).toHaveBeenCalledWith(true);
-  });
-
   it.each(["unchanged", "masked", "sanitized"] as const)(
     "allows download reuse only for unchanged bytes (%s)",
     async (inputKind) => {

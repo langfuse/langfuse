@@ -950,24 +950,6 @@ describe("processOtelEventMedia", () => {
     );
   });
 
-  it("leaves an untouched provider string byte-for-byte unchanged", async () => {
-    const { batch, mediaBody } = createFakeMediaBatch({
-      kind: "data_uri",
-    });
-    const input =
-      '{\n  "type": "file",\n  "mediaType": "image/png",\n  "data": "https://example.com/image.png",\n  "large": 9007199254740993\n}';
-    const payload = {
-      traceId: "trace-id",
-      spanId: "observation-id",
-      input,
-    };
-
-    await resolveTarget(batch, payload);
-
-    expect(payload.input).toBe(input);
-    expect(mediaBody).not.toHaveBeenCalled();
-  });
-
   it.each([
     ["success", false],
     ["failure", true],
@@ -1061,6 +1043,9 @@ describe("processOtelEventMedia", () => {
         async (batch) => {
           const opaque =
             '{ "large": 9007199254740993, "escaped": "\\u0061", "ref": "@@@langfuseMedia:existing@@@" }';
+          const untouched =
+            '{\n  "type": "file",\n  "mediaType": "image/png",\n  "data": "https://example.com/image.png",\n  "large": 9007199254740993\n}';
+          const mediaBody = vi.spyOn(batch, "mediaBody");
           const record = {
             name: opaque,
             input: {
@@ -1068,6 +1053,7 @@ describe("processOtelEventMedia", () => {
               media_type: "image/png",
               data: "https://example.com/image.png",
               other: opaque,
+              untouched,
             },
           };
           expect(batch.media).toHaveLength(1);
@@ -1084,7 +1070,9 @@ describe("processOtelEventMedia", () => {
               writePath: "direct",
             });
             expect(record.input.other).toBe(opaque);
+            expect(record.input.untouched).toBe(untouched);
           }
+          expect(mediaBody).not.toHaveBeenCalled();
           expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
         },
       );

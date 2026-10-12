@@ -308,6 +308,9 @@ describe("Ingestion Masking", () => {
         const original = {
           input: `data:image/png;base64,${originalMediaBody.toString("base64")}`,
         };
+        const originalBytes = Buffer.from(
+          JSON.stringify({ ...original, note: "🔥" }, null, 2),
+        );
         const masked = {
           input: `data:image/png;base64,${maskedMediaBody.toString("base64")}`,
         };
@@ -350,16 +353,14 @@ describe("Ingestion Masking", () => {
         let prepared: Awaited<ReturnType<typeof prepareOtelBatch>> | undefined;
         try {
           prepared = await prepareOtelBatch({
-            bytes: Buffer.from(JSON.stringify(original)),
+            bytes: originalBytes,
             projectId: "test-project",
             extractMedia: true,
           });
           // Masking sees the original inline content, before reference substitution.
           const body = fetch.mock.calls[0]?.[1]?.body;
           expect(body).toBeInstanceOf(Uint8Array);
-          expect(
-            JSON.parse(Buffer.from(body as Uint8Array).toString()),
-          ).toEqual(original);
+          expect(Buffer.from(body as Uint8Array)).toEqual(originalBytes);
           if (outcome === "fail-closed") {
             expect(prepared).toEqual({ error: expect.any(String) });
             expectPreparationMetrics("masking_drop", true);
