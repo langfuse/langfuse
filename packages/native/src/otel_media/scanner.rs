@@ -418,16 +418,19 @@ impl MediaDiscovery<'_, '_, '_> {
                     return Err(invalid(raw_cursor, "invalid string boundary"));
                 }
                 if self.input[raw_cursor] == b'\\' {
-                    let character = decoded
-                        .get(decoded_cursor..)
-                        .and_then(|text| text.chars().next())
-                        .ok_or_else(|| invalid(raw_cursor, "invalid decoded string boundary"))?;
-                    raw_cursor += if self.input.get(raw_cursor + 1) == Some(&b'u') {
-                        6 * character.len_utf16()
+                    if self.input.get(raw_cursor + 1) == Some(&b'u') {
+                        let character = decoded
+                            .get(decoded_cursor..)
+                            .and_then(|text| text.chars().next())
+                            .ok_or_else(|| {
+                                invalid(raw_cursor, "invalid decoded string boundary")
+                            })?;
+                        raw_cursor += 6 * character.len_utf16();
+                        decoded_cursor += character.len_utf8();
                     } else {
-                        2
-                    };
-                    decoded_cursor += character.len_utf8();
+                        raw_cursor += 2;
+                        decoded_cursor += 1;
+                    }
                 } else {
                     let run_end = *plain_run_end.get_or_insert_with(|| {
                         memchr::memchr(b'\\', &self.input[raw_cursor..content_end])
