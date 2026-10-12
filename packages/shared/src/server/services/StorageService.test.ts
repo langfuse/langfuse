@@ -139,6 +139,26 @@ describe("S3StorageService region normalization", () => {
       "test-bucket.s3.eu-west-1.amazonaws.com",
     ]);
   });
+
+  it("configures a custom AWS SDK attempt budget", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: "us-west-2",
+      forcePathStyle: false,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+      maxAttempts: 6,
+    });
+    const client = (service as unknown as { client: S3Client }).client;
+
+    await expect(client.config.maxAttempts()).resolves.toBe(6);
+  });
 });
 
 describe("resolveMediaStorageEndpoints", () => {

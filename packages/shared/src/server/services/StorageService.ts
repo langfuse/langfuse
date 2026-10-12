@@ -358,6 +358,7 @@ export class StorageServiceFactory {
    * @param params.awsSse - Server-side encryption method (e.g., "aws:kms")
    * @param params.awsSseKmsKeyId - SSE KMS Key ID when using KMS encryption
    * @param params.logSlowDownAsWarning - Log S3 SlowDown as a warning. Set only when the caller escalates to an error after its own retries are spent.
+   * @param params.maxAttempts - Maximum AWS SDK attempts for each S3 operation.
    * @param params.connectionValidation - Optional connection-time DNS/IP validation for user-controlled endpoints.
    */
   public static getInstance(params: {
@@ -375,6 +376,7 @@ export class StorageServiceFactory {
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
     logSlowDownAsWarning?: boolean;
+    maxAttempts?: number;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
   }): StorageService {
     if (
@@ -781,6 +783,7 @@ class S3StorageService implements StorageService {
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
     logSlowDownAsWarning?: boolean;
+    maxAttempts?: number;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
   }) {
     // Use accessKeyId and secretAccessKey if provided or fallback to default credentials
@@ -817,6 +820,7 @@ class S3StorageService implements StorageService {
       requestChecksumCalculation: "WHEN_REQUIRED",
       responseChecksumValidation: "WHEN_REQUIRED",
       requestHandler,
+      maxAttempts: params.maxAttempts,
     });
 
     addS3DiagnosticsMiddleware(this.client, {
