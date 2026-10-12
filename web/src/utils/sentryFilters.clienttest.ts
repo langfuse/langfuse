@@ -5,6 +5,7 @@ import {
   isKitesurfInternalEvent,
   isNoisyHttpClientGatewayEvent,
   isNoisyHttpClientPollEvent,
+  isNoisyHttpClientPosthogIngestEvent,
   isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
   isStaleChunkLoadErrorEvent,
@@ -378,6 +379,162 @@ describe("isNoisyHttpClientGatewayEvent", () => {
         contexts: { response: { status_code: 503 } },
       } as ErrorEvent;
       expect(isNoisyHttpClientGatewayEvent(event)).toBe(false);
+    });
+
+    it("keeps a PostHog ingest 503 (that drop is host-scoped, not this filter)", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent("https://ph.langfuse.com/i/v0/e/", 503),
+        ),
+      ).toBe(false);
+    });
+  });
+});
+
+describe("isNoisyHttpClientPosthogIngestEvent", () => {
+  describe("drops httpClient 5xx to PostHog ingest hosts", () => {
+    it("drops the Cloud reverse-proxy ingest 503 (LANGFUSE-63R shape)", () => {
+      expect(
+        isNoisyHttpClientPosthogIngestEvent(
+          httpClientEvent("https://ph.langfuse.com/i/v0/e/", 503),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops official ingest hosts and other 5xx (xhr included)", () => {
+      expect(
+        isNoisyHttpClientPosthogIngestEvent(
+          httpClientEvent("https://eu.i.posthog.com/i/v0/e/?ip=0", 502),
+        ),
+      ).toBe(true);
+      expect(
+        isNoisyHttpClientPosthogIngestEvent(
+          httpClientEvent("https://us.i.posthog.com/batch/", 500, "xhr"),
+        ),
+      ).toBe(true);
+      expect(
+        isNoisyHttpClientPosthogIngestEvent(
+          httpClientEvent("https://eu.posthog.com/e/", 504),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops when status lives only on the exception message (no response context)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: "HTTP Client Error with status code: 503",
+              mechanism: { type: "auto.http.client.fetch", handled: false },
+            },
+          ],
+        },
+        request: { url: "https://ph.langfuse.com/i/v0/e/" },
+      } as ErrorEvent;
+      expect(isNoisyHttpClientPosthogIngestEvent(event)).toBe(true);
+    });
+  });
+
+  describe("KEEPS app 5xx, storage gateways, and non-httpClient events", () => {
+    it("keeps an application HTTP 500 on tRPC", () => {
+      expect(
+        isNoisyHttpClientPosthogIngestEvent(
+          httpClientEvent(
+            "https://cloud.langfuse.com/api/trpc/traces.all?batch=1",
+            500,
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a same-origin public API 502 (LB blip, not PostHog)", () => {
+      expect(
+        isNoisyHttpClientPosthogIngestEvent(
+          httpClientEvent(`${window.location.origin}/api/public/traces`, 502),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a third-party S3 presigned-upload 503", () => {
+      expect(
+        isNoisyHttpClientPosthogIngestEvent(
+          httpClientEvent(
+            "https://my-bucket.s3.us-east-1.amazonaws.com/media/item.bin?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc",
+            503,
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a PostHog ingest 4xx (httpClient 5xx only)", () => {
+      expect(
+        isNoisyHttpClientPosthogIngestEvent(
+          httpClientEvent("https://ph.langfuse.com/i/v0/e/", 401),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a host that only contains posthog.com as a suffix label", () => {
+      expect(
+        isNoisyHttpClientPosthogIngestEvent(
+          httpClientEvent("https://notposthog.com/i/v0/e/", 503),
+        ),
+      ).toBe(false);
+      expect(
+        isNoisyHttpClientPosthogIngestEvent(
+          httpClientEvent("https://ph.langfuse.com.evil.example/i/v0/e/", 503),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a genuine thrown exception even if the request URL is PostHog", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined",
+              mechanism: { type: "onunhandledrejection", handled: false },
+            },
+          ],
+        },
+        request: { url: "https://ph.langfuse.com/i/v0/e/" },
+        contexts: { response: { status_code: 503 } },
+      } as ErrorEvent;
+      expect(isNoisyHttpClientPosthogIngestEvent(event)).toBe(false);
+    });
+
+    it("keeps an httpClient event with no readable status", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: "HTTP Client Error with status code: unknown",
+              mechanism: { type: "auto.http.client.fetch", handled: false },
+            },
+          ],
+        },
+        request: { url: "https://ph.langfuse.com/i/v0/e/" },
+      } as ErrorEvent;
+      expect(isNoisyHttpClientPosthogIngestEvent(event)).toBe(false);
+    });
+
+    it("keeps an httpClient 503 with no request url", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: "HTTP Client Error with status code: 503",
+              mechanism: { type: "auto.http.client.fetch", handled: false },
+            },
+          ],
+        },
+        contexts: { response: { status_code: 503 } },
+      } as ErrorEvent;
+      expect(isNoisyHttpClientPosthogIngestEvent(event)).toBe(false);
     });
   });
 });
