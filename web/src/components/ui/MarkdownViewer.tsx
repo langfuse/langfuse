@@ -258,7 +258,9 @@ function MarkdownCode({
       theme={theme === "dark" ? "dark" : "light"}
     />
   ) : (
-    <code className="bg-secondary rounded border px-0.5 text-xs">{codeContent}</code>
+    <code className="bg-secondary rounded border px-0.5 [:is(p,li,td,th)>&]:text-xs">
+      {codeContent}
+    </code>
   );
 }
 
