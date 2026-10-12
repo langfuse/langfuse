@@ -22,4 +22,25 @@ describe("prepareEvaluatorResultPredicates", () => {
       ],
     });
   });
+
+  it("limits generated predicates to the rule schema maximum", () => {
+    const result = prepareEvaluatorResultPredicates({
+      name: "Decision model",
+      type: EvalTemplateTypeEnum.DECISION_MODEL,
+      questions: Array.from({ length: 21 }, (_, index) => ({
+        id: `question-${index}`,
+        scoreName: `score-${index}`,
+        type: "noul",
+        instructions: `Question ${index}`,
+      })),
+    });
+
+    expect(result.predicates).toHaveLength(20);
+    expect(result.scoreDefinitions).toMatchObject({
+      mode: "known",
+      scores: expect.arrayContaining([
+        expect.objectContaining({ name: "score-20" }),
+      ]),
+    });
+  });
 });

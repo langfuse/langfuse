@@ -175,4 +175,23 @@ describe("score result triggers", () => {
       ),
     ).toBe(true);
   });
+
+  it("matches normalized persisted score names", () => {
+    expect(
+      matchesScoreResultTrigger(
+        ScoreResultTriggerSchema.parse({
+          evaluatorId: "evaluator-1",
+          predicates: [
+            {
+              scoreName: "quality",
+              dataType: "NUMERIC",
+              operator: ">=",
+              value: 0.8,
+            },
+          ],
+        }),
+        [{ name: " quality ", dataType: "NUMERIC", value: 0.9 }],
+      ),
+    ).toBe(true);
+  });
 });

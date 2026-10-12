@@ -3,6 +3,7 @@ import {
   EvalTemplateType,
   InvalidRequestError,
   isExperimentEvaluationRule,
+  isScoreResultTriggerCompatibleWithEvaluator,
   LangfuseConflictError,
   LangfuseNotFoundError,
   normalizeEvaluationRuleTarget,
@@ -988,11 +989,29 @@ export class RuleService {
       projectId: params.projectId,
       evaluatorIds: [params.scoreResultTrigger.evaluatorId],
     });
+    const sourceEvaluator = sourceEvaluators[0];
     if (
       sourceEvaluators.length !== 1 ||
-      sourceEvaluators[0]?.type === EvalTemplateType.FACET
+      !sourceEvaluator ||
+      sourceEvaluator.type === EvalTemplateType.FACET
     ) {
       throw new LangfuseNotFoundError("Trigger evaluator not found");
+    }
+    const latestVersion = sourceEvaluator.versions[0];
+    if (!latestVersion) {
+      throw new LangfuseNotFoundError("Trigger evaluator version not found");
+    }
+    if (
+      !isScoreResultTriggerCompatibleWithEvaluator(params.scoreResultTrigger, {
+        name: sourceEvaluator.name,
+        type: sourceEvaluator.type,
+        outputDefinition: latestVersion.outputDefinition,
+        questions: latestVersion.questions,
+      })
+    ) {
+      throw new InvalidRequestError(
+        "The score conditions no longer match the trigger evaluator. Review and update them.",
+      );
     }
   }
 }

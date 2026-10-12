@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const MAX_SCORE_RESULT_PREDICATES = 20;
+
 const scoreName = z.string().trim().min(1).max(200);
 
 const NumericScoreResultPredicateSchema = z.object({
@@ -31,7 +33,10 @@ export const ScoreResultPredicateSchema = z.discriminatedUnion("dataType", [
 
 export const ScoreResultTriggerSchema = z.object({
   evaluatorId: z.string().min(1),
-  predicates: z.array(ScoreResultPredicateSchema).min(1).max(20),
+  predicates: z
+    .array(ScoreResultPredicateSchema)
+    .min(1)
+    .max(MAX_SCORE_RESULT_PREDICATES),
 });
 
 export type ScoreResultTrigger = z.infer<typeof ScoreResultTriggerSchema>;
@@ -57,7 +62,7 @@ export function matchesScoreResultTrigger(
   );
 
   return [...predicatesByScoreName].every(([name, predicates]) => {
-    const namedScores = scores.filter((score) => score.name === name);
+    const namedScores = scores.filter((score) => score.name.trim() === name);
     const categoricalPredicates = predicates.filter(
       (predicate): predicate is CategoricalScoreResultPredicate =>
         predicate.dataType === "CATEGORICAL",

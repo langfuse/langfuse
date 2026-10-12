@@ -76,9 +76,15 @@ function createEvaluator(
           prompt: "Judge {{output}}",
           vars: ["output"],
           variableMapping: variableMapping as Prisma.InputJsonValue,
+          outputDefinition: {
+            dataType: "NUMERIC",
+            score: { description: "Quality" },
+            reasoning: { description: "Reasoning" },
+          },
         },
       },
     },
+    include: { versions: true },
   });
 }
 
@@ -514,7 +520,7 @@ describe("RuleService", () => {
 
     it("creates evaluator result rules", async () => {
       const [sourceEvaluator, targetEvaluator] = await Promise.all([
-        createEvaluator(),
+        createEvaluator(projectId, "quality"),
         createEvaluator(),
       ]);
       const service = createService();
@@ -1382,7 +1388,7 @@ describe("RuleService", () => {
 
     it("requires invalid evaluator result rules to be reviewed before enabling", async () => {
       const [sourceEvaluator, targetEvaluator] = await Promise.all([
-        createEvaluator(),
+        createEvaluator(projectId, "quality"),
         createEvaluator(),
       ]);
       const service = createService();
@@ -1421,6 +1427,20 @@ describe("RuleService", () => {
       await expect(
         service.update({ projectId, ruleId: rule.id, enabled: true }),
       ).rejects.toThrow("must be reviewed");
+      await prisma.evaluatorVersion.update({
+        where: { id: sourceEvaluator.versions[0]!.id },
+        data: {
+          outputDefinition: {
+            dataType: "CATEGORICAL",
+            score: {
+              description: "Quality",
+              categories: ["good", "bad"],
+              shouldAllowMultipleMatches: false,
+            },
+            reasoning: { description: "Reasoning" },
+          },
+        },
+      });
 
       await expect(
         service.update({
@@ -1428,6 +1448,25 @@ describe("RuleService", () => {
           ruleId: rule.id,
           enabled: true,
           scoreResultTrigger,
+        }),
+      ).rejects.toThrow("no longer match");
+
+      await expect(
+        service.update({
+          projectId,
+          ruleId: rule.id,
+          enabled: true,
+          scoreResultTrigger: {
+            evaluatorId: sourceEvaluator.id,
+            predicates: [
+              {
+                scoreName: "quality",
+                dataType: "CATEGORICAL",
+                operator: "=",
+                value: "good",
+              },
+            ],
+          },
         }),
       ).resolves.toMatchObject({
         enabled: true,
@@ -1437,7 +1476,7 @@ describe("RuleService", () => {
 
     it("allows partial updates after the trigger evaluator is deleted", async () => {
       const [sourceEvaluator, targetEvaluator] = await Promise.all([
-        createEvaluator(),
+        createEvaluator(projectId, "quality"),
         createEvaluator(),
       ]);
       const service = createService();

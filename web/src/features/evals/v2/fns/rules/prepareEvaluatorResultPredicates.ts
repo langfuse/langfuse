@@ -1,6 +1,7 @@
 import {
   createDefaultScoreResultPredicate,
   deriveEvaluatorScoreDefinitions,
+  MAX_SCORE_RESULT_PREDICATES,
   type EvaluatorScoreDefinitions,
   type SavedEvaluatorDefinitionForScoreDerivation,
   type ScoreResultPredicate,
@@ -19,9 +20,9 @@ export function prepareEvaluatorResultPredicates(
   if (scoreDefinitions.mode === "known") {
     return {
       scoreDefinitions,
-      predicates: scoreDefinitions.scores.map(
-        createDefaultScoreResultPredicate,
-      ),
+      predicates: scoreDefinitions.scores
+        .slice(0, MAX_SCORE_RESULT_PREDICATES)
+        .map(createDefaultScoreResultPredicate),
     };
   }
 

@@ -934,6 +934,76 @@ describe("EvaluatorService", () => {
     ).rejects.toThrow("Evaluator not found");
   });
 
+  it("keeps decision-model result rules active when only the evaluator name changes", async () => {
+    const service = createService();
+    const definition = {
+      type: "DECISION_MODEL" as const,
+      questions: [
+        {
+          id: "quality",
+          scoreName: "quality",
+          type: "noul" as const,
+          instructions: "Is the response high quality?",
+        },
+      ],
+      provider: "typesafe",
+      model: "jev-1.13.0",
+      vars: ["output"],
+      variableMapping: [
+        { templateVariable: "output", selectedColumnId: "output" },
+      ],
+    };
+    const created = await service.create(
+      {
+        projectId,
+        name: "Decision model",
+        description: null,
+        definition,
+      },
+      null,
+    );
+    const dependentRule = await prisma.evaluationRule.create({
+      data: {
+        projectId,
+        name: "Dependent rule",
+        status: "ACTIVE",
+        targetObject: EvalTargetObject.SCORE_RESULT,
+        filter: [
+          {
+            scoreName: "quality",
+            dataType: "NUMERIC",
+            operator: ">=",
+            value: 0.8,
+          },
+        ],
+        sampling: 1,
+        delay: 0,
+        triggerEvaluatorId: created.id,
+      },
+    });
+
+    await service.update(
+      {
+        projectId,
+        evaluatorId: created.id,
+        name: "Renamed decision model",
+        description: null,
+        definition,
+      },
+      null,
+    );
+
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: dependentRule.id },
+        select: { status: true, ruleInvalidReason: true },
+      }),
+    ).resolves.toEqual({
+      status: "ACTIVE",
+      ruleInvalidReason: null,
+    });
+  });
+
   it("changes the prompt without validating or rewriting rule mappings", async () => {
     const service = createService();
     const input = llmInput("Assigned evaluator update");

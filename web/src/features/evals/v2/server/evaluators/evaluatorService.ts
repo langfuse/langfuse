@@ -791,7 +791,7 @@ async function patchEvaluator(params: {
   const scoreNameChanged =
     input.name !== undefined &&
     input.name !== current.name &&
-    current.type !== EvalTemplateType.CODE;
+    current.type === EvalTemplateType.LLM_AS_JUDGE;
   if (definitionChanged || scoreNameChanged) {
     await lockEvaluatorResultRuleGraph({
       prisma: tx,
@@ -875,7 +875,8 @@ async function updateEvaluator(params: {
     input.definition,
   );
   const scoreNameChanged =
-    input.name !== current.name && current.type !== EvalTemplateType.CODE;
+    input.name !== current.name &&
+    current.type === EvalTemplateType.LLM_AS_JUDGE;
 
   // All evaluator graph transactions acquire the project lock before writing
   // evaluator rows so concurrent updates and deletes serialize consistently.

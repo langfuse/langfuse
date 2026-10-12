@@ -3,6 +3,7 @@ import { useStore } from "zustand";
 import {
   createDefaultScoreResultPredicate,
   deriveEvaluatorScoreDefinitions,
+  MAX_SCORE_RESULT_PREDICATES,
   type ScoreResultTrigger,
 } from "@langfuse/shared";
 
@@ -39,6 +40,10 @@ export function RuleEvaluatorResultTriggerSection({
   const setPreviewFilter = store.getState().actions.setPreviewFilter;
   const utils = api.useUtils();
   const evaluatorRequestId = useRef(0);
+  const predicateIdCounter = useRef(trigger?.predicates.length ?? 0);
+  const [predicateIds, setPredicateIds] = useState(() =>
+    (trigger?.predicates ?? []).map((_, index) => `predicate-${index}`),
+  );
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebounce(setSearchQuery, 300, false);
@@ -74,6 +79,10 @@ export function RuleEvaluatorResultTriggerSection({
       evaluatorId,
       predicates: prepared.predicates,
     });
+    predicateIdCounter.current = prepared.predicates.length;
+    setPredicateIds(
+      prepared.predicates.map((_, index) => `predicate-${index}`),
+    );
     setPreviewSourceRuleId(null);
     setPreviewFilter([]);
     debouncedSearch("");
@@ -96,6 +105,9 @@ export function RuleEvaluatorResultTriggerSection({
   };
   const handlePredicateRemove = (index: number) => {
     if (!trigger) return;
+    setPredicateIds((current) =>
+      current.filter((_, predicateIndex) => predicateIndex !== index),
+    );
     setTrigger({
       ...trigger,
       predicates: trigger.predicates.filter(
@@ -112,6 +124,8 @@ export function RuleEvaluatorResultTriggerSection({
     const predicate = scoreDefinition
       ? createDefaultScoreResultPredicate(scoreDefinition)
       : createDefaultFreeformScoreResultPredicate();
+    const predicateId = `predicate-${predicateIdCounter.current++}`;
+    setPredicateIds((current) => [...current, predicateId]);
     setTrigger({
       ...trigger,
       predicates: [...trigger.predicates, predicate],
@@ -133,7 +147,7 @@ export function RuleEvaluatorResultTriggerSection({
     !trigger ||
     scoreDefinitions === null ||
     scoreDefinitions.mode === "unsupported" ||
-    trigger.predicates.length >= 20 ||
+    trigger.predicates.length >= MAX_SCORE_RESULT_PREDICATES ||
     (scoreDefinitions?.mode === "known" &&
       scoreDefinitions.scores.length === 0);
 
@@ -199,7 +213,7 @@ export function RuleEvaluatorResultTriggerSection({
       {scoreDefinitions !== null &&
         trigger?.predicates.map((predicate, index) => (
           <RuleEvaluatorResultPredicateRow
-            key={`${trigger.evaluatorId}:${index}:${predicate.scoreName}:${predicate.dataType}`}
+            key={predicateIds[index]}
             index={index}
             predicate={predicate}
             canRemove={trigger.predicates.length > 1}

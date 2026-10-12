@@ -89,8 +89,9 @@ export async function completeEvalExecution({
     !result.evaluationContext.evaluatorExecutionIsTest &&
     onEvaluatorCompleted
   ) {
-    // Scores are already persisted. Log a downstream scheduling failure and
-    // still mark this execution successful.
+    // Evaluator-result triggers are experimental and currently best-effort.
+    // Once scores are persisted, scheduling failures are logged without
+    // retrying or failing the completed upstream evaluation.
     try {
       await onEvaluatorCompleted(result);
     } catch (error) {
