@@ -5,6 +5,8 @@ import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { SessionReviewLeading } from "@/src/features/sessions/sessionReviewLeading";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { IOPreview } from "@/src/features/traces";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
@@ -1072,28 +1074,13 @@ export const SessionEventsPage: React.FC<{
     );
   }
 
+  if (!session.data && isModernSessionEnabled && isSessionTimelineEnabled) {
+    return (
+      <SessionEventsLoadingPage projectId={projectId} sessionId={sessionId} />
+    );
+  }
+
   if (!session.data) {
-    if (isModernSessionEnabled && isSessionTimelineEnabled) {
-      return (
-        <Page
-          headerProps={{
-            title: sessionId,
-            itemType: "SESSION",
-            divider: false,
-            breadcrumb: [
-              { name: "Sessions", href: `/project/${projectId}/sessions` },
-            ],
-          }}
-        >
-          <ConnectedModernSessionBodyTimeline
-            tracesState={{ type: "loading" }}
-            projectId={projectId}
-            sessionId={sessionId}
-            openPeek={() => {}}
-          />
-        </Page>
-      );
-    }
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner size="xl" variant="muted" />
@@ -1111,6 +1098,55 @@ export const SessionEventsPage: React.FC<{
     />
   );
 };
+
+const noopOpenPeek = () => {};
+
+function SessionEventsLoadingPage({
+  projectId,
+  sessionId,
+}: {
+  projectId: string;
+  sessionId: string;
+}) {
+  return (
+    <Page
+      headerProps={{
+        title: sessionId,
+        itemType: "SESSION",
+        divider: false,
+        breadcrumb: [
+          { name: "Sessions", href: `/project/${projectId}/sessions` },
+        ],
+      }}
+    >
+      <TraceReviewPanelProvider
+        key={`${projectId}:${sessionId}`}
+        projectId={projectId}
+      >
+        <SessionReviewWorkspace projectId={projectId}>
+          <div className="flex h-full min-h-0 flex-col overflow-hidden">
+            <SessionReviewLeading>
+              <div
+                className="flex gap-2 border-b px-4 pt-1 pb-1.5"
+                aria-label="Loading session details"
+              >
+                <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-6 w-24" />
+              </div>
+            </SessionReviewLeading>
+            <ConnectedModernSessionBodyTimeline
+              tracesState={{ type: "loading" }}
+              projectId={projectId}
+              sessionId={sessionId}
+              openPeek={noopOpenPeek}
+            />
+          </div>
+        </SessionReviewWorkspace>
+      </TraceReviewPanelProvider>
+    </Page>
+  );
+}
 
 const LoadedSessionEventsPage: React.FC<{
   sessionId: string;
