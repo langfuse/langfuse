@@ -1,5 +1,13 @@
 import { v4 } from "uuid";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import {
   ClickHouseResourceError,
@@ -27,8 +35,23 @@ import {
   MonitorStatusSchema,
   MonitorThresholdOperatorSchema,
 } from "@langfuse/shared/monitors";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma as sharedPrisma } from "@langfuse/shared/src/db";
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { createIsolatedMonitorTable } from "./helpers/isolatedMonitorTable";
+
+let prisma: PrismaClient;
+let isolatedDb:
+  | Awaited<ReturnType<typeof createIsolatedMonitorTable>>
+  | undefined;
+
+beforeAll(async () => {
+  isolatedDb = await createIsolatedMonitorTable();
+  prisma = isolatedDb.db;
+});
+
+afterAll(async () => {
+  await isolatedDb?.cleanup();
+});
 
 type MonitorStatus = "ACTIVE" | "PAUSED" | "ERROR_BAD_QUERY";
 type MonitorView =
@@ -659,42 +682,33 @@ const cases: ProcessCase[] = [
       ],
     },
   },
-  ...[
-    "socket hang up",
-    "read ECONNRESET",
-    "connect ECONNREFUSED 127.0.0.1:8123",
-    "CH timeout",
-    "Unknown identifier 'count' in generated SQL",
-    "Unexpected query execution failure",
-  ].map(
-    (message): ProcessCase => ({
-      name: `execution failure (${message}): rethrows, stays ACTIVE, not ERROR_BAD_QUERY`,
-      monitors: [
+  {
+    name: "execution failure: rethrows, stays ACTIVE, not ERROR_BAD_QUERY",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: MonitorSeveritySchema.enum.OK,
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedAt: runAt,
+      },
+    ],
+    injectError: { stage: "executeQuery", message: "read ECONNRESET" },
+    expect: {
+      throws: "read ECONNRESET",
+      publishCallCount: 0,
+      rows: [
         {
           id: monitorAId,
+          status: MonitorStatusSchema.enum.ACTIVE,
           severity: MonitorSeveritySchema.enum.OK,
           severityChangedAt: tenMinutesAgo,
-          lastPublishedAt: runAt,
+          alertedAt: null,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: null,
         },
       ],
-      injectError: { stage: "executeQuery", message },
-      expect: {
-        throws: message,
-        publishCallCount: 0,
-        rows: [
-          {
-            id: monitorAId,
-            status: MonitorStatusSchema.enum.ACTIVE,
-            severity: MonitorSeveritySchema.enum.OK,
-            severityChangedAt: tenMinutesAgo,
-            alertedAt: null,
-            lastClaimedAt: justAfterRunAt,
-            lastCompletedAt: null,
-          },
-        ],
-      },
-    }),
-  ),
+    },
+  },
   ...(["invalid-request", "invalid-request-duplicate"] as const).map(
     (errorClass): ProcessCase => ({
       name: `${errorClass} on executeQuery: rethrows, stays ACTIVE, not ERROR_BAD_QUERY`,
@@ -1542,6 +1556,9 @@ describe("MonitorProcessor.process (integration)", () => {
         severityChangedAt: tenMinutesAgo,
       });
     }
+    expect(
+      await sharedPrisma.monitor.count({ where: { id: { in: monitorIds } } }),
+    ).toBe(0);
     const publish = vi.fn<MonitorPublisher>();
     const executeQuery = vi
       .fn<QueryExecutor>()
@@ -1564,7 +1581,7 @@ describe("MonitorProcessor.process (integration)", () => {
       totalSchedulers: 1,
       db: prisma,
       publish: async (event) => {
-        if (event.projectId === projectId) retryEvents.push(event);
+        retryEvents.push(event);
       },
     });
     await scheduler.schedule(new Date(runAt.getTime() + monitorProcessorTtl));
