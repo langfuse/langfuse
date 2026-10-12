@@ -1,7 +1,8 @@
-import type {
-  GatewayConnectionStatus,
-  GatewayProvider,
-  PrismaClient,
+import {
+  Prisma,
+  type GatewayConnectionStatus,
+  type GatewayProvider,
+  type PrismaClient,
 } from "@langfuse/shared/src/db";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -72,15 +73,28 @@ export class GatewayProviderService {
       provider: params.provider,
       credential: params.credential,
     });
-    const connection = await this.repository.createConnection({
-      organizationId: params.organizationId,
-      name: params.name,
-      provider: params.provider,
-      encryptedCredential: encrypt(params.credential),
-      displaySecret: getDisplaySecretKey(params.credential),
-      createdById: params.session.user.id,
-      status: "ENABLED",
-    });
+    let connection;
+    try {
+      connection = await this.repository.createConnection({
+        organizationId: params.organizationId,
+        name: params.name,
+        provider: params.provider,
+        encryptedCredential: encrypt(params.credential),
+        displaySecret: getDisplaySecretKey(params.credential),
+        createdById: params.session.user.id,
+        status: "ENABLED",
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new InvalidRequestError(
+          "A provider credential with this name already exists.",
+        );
+      }
+      throw error;
+    }
     await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     await auditLog(
       {
@@ -124,18 +138,31 @@ export class GatewayProviderService {
       });
     }
 
-    const updated = await this.repository.updateConnection({
-      organizationId: params.organizationId,
-      id: params.id,
-      name: params.name,
-      status: params.credential ? "ENABLED" : params.status,
-      encryptedCredential: params.credential
-        ? encrypt(params.credential)
-        : undefined,
-      displaySecret: params.credential
-        ? getDisplaySecretKey(params.credential)
-        : undefined,
-    });
+    let updated;
+    try {
+      updated = await this.repository.updateConnection({
+        organizationId: params.organizationId,
+        id: params.id,
+        name: params.name,
+        status: params.credential ? "ENABLED" : params.status,
+        encryptedCredential: params.credential
+          ? encrypt(params.credential)
+          : undefined,
+        displaySecret: params.credential
+          ? getDisplaySecretKey(params.credential)
+          : undefined,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new InvalidRequestError(
+          "A provider credential with this name already exists.",
+        );
+      }
+      throw error;
+    }
     await this.modelCatalogService.clearModelCache(
       params.organizationId,
       params.id,

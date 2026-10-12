@@ -315,6 +315,15 @@ describe("gateway mutation local error handling", () => {
       screen.getByRole("heading", { name: "Edit provider credential" }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue(testConnection.name);
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Renamed production" },
+    });
+    expect(
+      screen.getByText(
+        "Requests using model slugs with the old connection name will stop resolving.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("edit provider dialog routes tRPC failures locally without a global toast", async () => {

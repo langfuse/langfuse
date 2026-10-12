@@ -3,6 +3,7 @@ import { redis as defaultRedis } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
+import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
@@ -43,29 +44,32 @@ export class GatewayModelsService {
       ) as GatewayProvider[],
     });
     const results = await Promise.all(
-      connections.map((connection) =>
-        this.modelCatalogService.getModelCatalog({
+      connections.map(async (connection) => ({
+        connection,
+        catalog: await this.modelCatalogService.getModelCatalog({
           organizationId: params.context.organizationId,
           connectionId: connection.id,
         }),
-      ),
+      })),
     );
-    if (results.some((result) => !result.success)) {
+    if (results.some((result) => !result.catalog.success)) {
       throw new GatewayControlPlaneError(
         "Gateway model discovery is temporarily unavailable",
         503,
       );
     }
 
-    const modelsById = new Map<string, GatewayModelCatalogEntry>();
-    for (const result of results) {
-      if (!result.success) continue;
-      for (const model of result.models) {
-        if (!modelsById.has(model.id)) modelsById.set(model.id, model);
-      }
-    }
     return {
-      data: [...modelsById.values()].sort(compareModels),
+      data: results
+        .flatMap(({ connection, catalog }) =>
+          catalog.success
+            ? catalog.models.map((model) => ({
+                ...model,
+                id: formatGatewayModelSlug(connection.name, model.id),
+              }))
+            : [],
+        )
+        .sort(compareModels),
     };
   }
 }

@@ -29,14 +29,14 @@ export const CachedResolveContext = z.object({
   keyMetadata: GatewayMetadataSchema,
   ingestionProjectId: z.string().nullable(),
   ingestionMode: z.enum(["USAGE", "FULL"]).nullable(),
-  connection: z
-    .object({
+  connections: z.array(
+    z.object({
       id: z.string(),
       name: z.string(),
       provider: z.enum(["OPENAI", "ANTHROPIC"]),
       encryptedCredential: z.string(),
-    })
-    .nullable(),
+    }),
+  ),
 });
 export type CachedResolveContext = z.infer<typeof CachedResolveContext>;
 
@@ -172,11 +172,11 @@ export class GatewayResolveCache {
     if (!this.enabled) return;
 
     try {
-      await Promise.all(
-        gatewayApiFormats.map((apiFormat) =>
+      await Promise.all([
+        ...gatewayApiFormats.map((apiFormat) =>
           this.redis!.del(contextCacheKey(fastHashedSecretKey, apiFormat)),
         ),
-      );
+      ]);
     } catch (error) {
       logger.error("Error invalidating gateway resolve cache", error);
     }
