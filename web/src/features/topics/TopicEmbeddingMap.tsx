@@ -19,18 +19,9 @@ export function TopicEmbeddingMap({
   onSelectTopic,
   onSelectTrace,
   selectedTraceId,
+  matchingTraceIds,
   fillContainer = false,
-}: {
-  projectId: string;
-  runId: string;
-  timeRange: TopicTimeRange;
-  topics: Topic[];
-  selectedTopic: string | null;
-  onSelectTopic: (id: string | null) => void;
-  onSelectTrace: (traceId: string | null) => void;
-  selectedTraceId: string | null;
-  fillContainer?: boolean;
-}) {
+}: TopicEmbeddingMapProps) {
   const { openPeek } = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
@@ -69,7 +60,21 @@ export function TopicEmbeddingMap({
       onSelectTopic={onSelectTopic}
       onSelectTrace={onSelectTrace}
       selectedTraceId={selectedTraceId}
+      matchingTraceIds={matchingTraceIds}
       fillContainer={fillContainer}
     />
   );
 }
+
+type TopicEmbeddingMapProps = {
+  projectId: string;
+  runId: string;
+  timeRange: TopicTimeRange;
+  topics: Topic[];
+  selectedTopic: string | null;
+  onSelectTopic: (id: string | null) => void;
+  onSelectTrace: (traceId: string | null) => void;
+  selectedTraceId: string | null;
+  matchingTraceIds?: ReadonlySet<string>;
+  fillContainer?: boolean;
+};

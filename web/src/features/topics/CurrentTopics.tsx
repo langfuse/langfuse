@@ -1,3 +1,4 @@
+import { computeSelectedValues } from "@langfuse/shared";
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { useState, type MouseEvent } from "react";
@@ -22,6 +23,12 @@ import { topicBadgeColor, topicColor } from "./topic-map-colors";
 import { TopicBadge } from "./TopicBadge";
 import { SummaryInspector } from "./SummaryInspector";
 import { isValidTopicTimeRange } from "./time-range";
+import {
+  filterTopicTraces,
+  selectTopicTraceFilters,
+} from "./topic-trace-filters";
+import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
+import type { useTopicTraceFilters } from "./useTopicTraceFilters";
 
 type Facet = RouterOutputs["topics"]["currentResults"][number];
 
@@ -31,13 +38,8 @@ export function CurrentTopics({
   result,
   selectedFacetId,
   tracePanelRef,
-}: {
-  projectId: string;
-  timeRange: TopicTimeRange;
-  result: ReturnType<typeof useCurrentTopics>;
-  selectedFacetId: string | undefined;
-  tracePanelRef?: (element: HTMLElement | null) => void;
-}) {
+  traceFilters,
+}: CurrentTopicsProps) {
   const selectedFacet = result.data?.find(
     (facet) => facet.facetId === selectedFacetId,
   );
@@ -64,71 +66,48 @@ export function CurrentTopics({
           facet={selectedFacet}
           timeRange={timeRange}
           tracePanelRef={tracePanelRef}
+          traceFilters={traceFilters}
         />
       )}
     </section>
   );
 }
 
+type CurrentTopicsProps = {
+  projectId: string;
+  timeRange: TopicTimeRange;
+  result: Pick<
+    ReturnType<typeof useCurrentTopics>,
+    "data" | "isLoading" | "error"
+  >;
+  selectedFacetId: string | undefined;
+  tracePanelRef?: (element: HTMLElement | null) => void;
+  traceFilters: ReturnType<typeof useTopicTraceFilters>;
+};
+
 function CurrentFacet({
   projectId,
   facet,
   timeRange,
   tracePanelRef,
-}: {
-  projectId: string;
-  facet: Facet;
-  timeRange: TopicTimeRange;
-  tracePanelRef?: (element: HTMLElement | null) => void;
-}) {
-  const [selection, setSelection] = useState<string | null>(null);
+  traceFilters,
+}: CurrentFacetProps) {
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const isNarrow = useMediaQuery({ query: "(max-width: 1023px)" });
   const [mobilePanel, setMobilePanel] = useState("traces");
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 20,
-  });
+  const { filters, setFilters, searchQuery, setSearchQuery } = traceFilters;
+  const filterKey = JSON.stringify([filters, searchQuery]);
+  const [pageSize, setPageSize] = useState(20);
   function selectTopic(topicId: string | null) {
-    setSelection(topicId);
     setSelectedTraceId(null);
-    setPagination((current) => ({ ...current, pageIndex: 0 }));
+    setFilters(selectTopicTraceFilters(filters, topicId));
   }
-  function selectAllTraces() {
-    selectTopic(null);
-  }
-  function selectOutliers() {
-    selectTopic("outliers");
-  }
-  function selectNoTopic() {
-    selectTopic("no_topic");
-  }
-  function selectAwaitingMap() {
-    selectTopic("awaiting_map");
-  }
-  const selected =
-    selection === "outliers" ||
-    selection === "no_topic" ||
-    selection === "awaiting_map" ||
-    facet.topics.some((topic) => topic.id === selection) ||
-    facet.map?.topics.some((topic) => topic.id === selection)
-      ? selection
-      : null;
-  const visible = facet.rows.filter((row) => {
-    if (selected === null) return true;
-    if (selected === "outliers") return row.outcome === "outlier";
-    if (selected === "no_topic")
-      return (
-        row.outcome === "not_applicable" || row.outcome === "insufficient_input"
-      );
-    if (selected === "awaiting_map") return row.outcome === "awaiting_map";
-    return row.topicId === selected;
-  });
-  const outliers = facet.rows.filter((row) => row.outcome === "outlier").length;
-  const noTopic = facet.rows.filter(
-    (row) =>
-      row.outcome === "not_applicable" || row.outcome === "insufficient_input",
-  ).length;
+  const visible = filterTopicTraces(facet.rows, filters, searchQuery);
+  const isFiltered = filters.length > 0 || Boolean(searchQuery?.trim());
+  const matchingTraceIds = isFiltered
+    ? new Set(visible.map((row) => row.traceId))
+    : undefined;
+  const topicFilters = filters.filter((filter) => filter.column === "topicId");
   const topics = facet.map
     ? [
         ...facet.map.topics,
@@ -138,6 +117,18 @@ function CurrentFacet({
         ),
       ]
     : facet.topics;
+  const selectedTopicIds = new Set(
+    topicFilters.length === 0 ||
+      topicFilters.some((filter) => filter.type !== "stringOptions")
+      ? []
+      : topicFilters.reduce(
+          (values, filter) => {
+            const kept = new Set(computeSelectedValues(values, filter));
+            return values.filter((value) => kept.has(value));
+          },
+          topics.map((topic) => topic.id),
+        ),
+  );
   const counts = (
     <p className="text-muted-foreground text-xs">
       {facet.rows.length.toLocaleString()} traces · {facet.topics.length} topics
@@ -156,10 +147,16 @@ function CurrentFacet({
           projectId={projectId}
           runId={facet.map.runId}
           topics={facet.map.topics}
-          selectedTopic={selected}
+          selectedTopic={null}
+          matchingTraceIds={matchingTraceIds}
           onSelectTopic={selectTopic}
           onSelectTrace={setSelectedTraceId}
-          selectedTraceId={selectedTraceId}
+          selectedTraceId={
+            selectedTraceId &&
+            (!matchingTraceIds || matchingTraceIds.has(selectedTraceId))
+              ? selectedTraceId
+              : null
+          }
           fillContainer
         />
       ) : (
@@ -185,7 +182,7 @@ function CurrentFacet({
             <TopicGroupCard
               key={topic.id}
               topic={topic}
-              isSelected={selected === topic.id}
+              isSelected={selectedTopicIds.has(topic.id)}
               color={topicColor(
                 topics.findIndex((item) => item.id === topic.id),
               )}
@@ -208,45 +205,23 @@ function CurrentFacet({
       ref={isNarrow ? undefined : tracePanelRef}
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border lg:col-start-2 lg:row-span-2 lg:row-start-1"
     >
-      <div className="flex shrink-0 flex-wrap items-center gap-1 px-2 py-1.5">
-        <Button
-          text={`All traces (${facet.rows.length.toLocaleString()})`}
-          size="sm"
-          variant={selected === null ? "secondary" : "ghost"}
-          onClick={selectAllTraces}
-        />
-        {outliers > 0 && (
-          <Button
-            text={`Outliers (${outliers.toLocaleString()})`}
-            size="sm"
-            variant={selected === "outliers" ? "secondary" : "ghost"}
-            onClick={selectOutliers}
-          />
-        )}
-        {noTopic > 0 && (
-          <Button
-            text={`No topic (${noTopic.toLocaleString()})`}
-            size="sm"
-            variant={selected === "no_topic" ? "secondary" : "ghost"}
-            onClick={selectNoTopic}
-          />
-        )}
-        {facet.awaitingCount > 0 && (
-          <Button
-            text={`Awaiting update (${facet.awaitingCount.toLocaleString()})`}
-            size="sm"
-            variant={selected === "awaiting_map" ? "secondary" : "ghost"}
-            onClick={selectAwaitingMap}
-          />
-        )}
-      </div>
+      <TopicsTraceToolbar
+        projectId={projectId}
+        topics={topics}
+        filters={filters}
+        onFiltersChange={setFilters}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+      />
       <CurrentTraceTable
+        key={filterKey}
         projectId={projectId}
         facetId={facet.facetId}
         rows={visible}
+        totalCount={facet.rows.length}
         topics={topics}
-        pagination={pagination}
-        onPaginationChange={setPagination}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
       />
     </section>
   );
@@ -295,21 +270,24 @@ function CurrentFacet({
   );
 }
 
+type CurrentFacetProps = {
+  projectId: string;
+  facet: Facet;
+  timeRange: TopicTimeRange;
+  tracePanelRef?: (element: HTMLElement | null) => void;
+  traceFilters: ReturnType<typeof useTopicTraceFilters>;
+};
+
 function CurrentTraceTable({
   projectId,
   facetId,
   rows,
+  totalCount,
   topics,
-  pagination,
-  onPaginationChange,
-}: {
-  projectId: string;
-  facetId: string;
-  rows: Facet["rows"];
-  topics: { id: string }[];
-  pagination: PaginationState;
-  onPaginationChange: OnChangeFn<PaginationState>;
-}) {
+  pageSize,
+  onPageSizeChange,
+}: CurrentTraceTableProps) {
+  const [requestedPageIndex, setPageIndex] = useState(0);
   const isMobile = useIsMobile();
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
@@ -321,9 +299,15 @@ function CurrentTraceTable({
     topics.map((topic, index) => [topic.id, topicBadgeColor(index)]),
   );
   const pageIndex = Math.min(
-    pagination.pageIndex,
-    Math.max(0, Math.ceil(rows.length / pagination.pageSize) - 1),
+    requestedPageIndex,
+    Math.max(0, Math.ceil(rows.length / pageSize) - 1),
   );
+  const pagination = { pageIndex, pageSize };
+  const onPaginationChange: OnChangeFn<PaginationState> = (update) => {
+    const next = typeof update === "function" ? update(pagination) : update;
+    setPageIndex(next.pageIndex);
+    onPageSizeChange(next.pageSize);
+  };
   const columns = (
     openInspector: (
       source: Pick<
@@ -452,6 +436,7 @@ function CurrentTraceTable({
             }}
             pagination={{
               totalCount: rows.length,
+              resultCountLabel: `${rows.length.toLocaleString()} of ${totalCount.toLocaleString()} traces`,
               state: { ...pagination, pageIndex },
               onChange: onPaginationChange,
               options: [20, 50, 100],
@@ -459,7 +444,7 @@ function CurrentTraceTable({
             topAlignCells
             className="min-h-0 overscroll-contain"
             cellPadding="compact"
-            noResultsMessage="No traces in this selection."
+            noResultsMessage="No matches. Adjust or clear your filters."
             peekView={peekConfig}
           />
         </div>
@@ -467,6 +452,16 @@ function CurrentTraceTable({
     </DialogController>
   );
 }
+
+type CurrentTraceTableProps = {
+  projectId: string;
+  facetId: string;
+  rows: Facet["rows"];
+  totalCount: number;
+  topics: { id: string }[];
+  pageSize: number;
+  onPageSizeChange: (pageSize: number) => void;
+};
 
 export function useCurrentTopics({
   projectId,

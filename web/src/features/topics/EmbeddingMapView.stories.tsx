@@ -336,6 +336,15 @@ export const DenseIssueCloud = meta.story({
   render: (args) => <ControlledExplorer {...args} />,
 });
 
+export const OutliersSelected = meta.story({
+  args: {
+    topics: denseTopics,
+    data: denseData,
+    selectedTopic: "outliers",
+  },
+  render: (args) => <ControlledExplorer {...args} />,
+});
+
 export const MissingSummaries = meta.story({
   name: "(Test) Missing summaries coverage",
   args: { data: { ...data, missingSummaryCount: 2, unpositionedCount: 3 } },
@@ -916,5 +925,89 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
       context.scale = scale;
       context.roundRect = roundRect;
     }
+  },
+});
+
+export const FilteringPreservesCamera = meta.story({
+  name: "(Test) Filtering Preserves Camera",
+  args: { data: nearbyCloudData, topics: denseTopics, selectedTopic: null },
+  render: function Render(args) {
+    const [matchingTraceIds, setMatchingTraceIds] =
+      useState<ReadonlySet<string>>();
+    const handleFilter = () =>
+      setMatchingTraceIds(new Set([nearbyCloudData.points[0].traceId]));
+    const handleNoMatches = () => setMatchingTraceIds(new Set());
+    const handleClear = () => setMatchingTraceIds(undefined);
+    return (
+      <>
+        <Button
+          text="Filter matches"
+          variant="secondary"
+          onClick={handleFilter}
+        />
+        <Button
+          text="No matches"
+          variant="secondary"
+          onClick={handleNoMatches}
+        />
+        <Button text="Clear filter" variant="secondary" onClick={handleClear} />
+        <EmbeddingMapView {...args} matchingTraceIds={matchingTraceIds} />
+      </>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+    await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));
+    await waitForMapSettled(canvasElement);
+    const zoom = canvas.getByLabelText("Zoom level").textContent;
+    const positions = () =>
+      Array.from(
+        canvasElement.querySelectorAll<HTMLElement>(
+          "[data-topic-background-label]",
+        ),
+      ).map((label) => [
+        label.dataset.topicBackgroundLabel,
+        label.style.left,
+        label.style.top,
+        label.style.width,
+        label.style.height,
+      ]);
+    const before = positions();
+    expect(before.length).toBeGreaterThan(0);
+    const total = nearbyCloudData.points.length.toLocaleString();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Filter matches" }),
+    );
+    await expect(
+      canvas.getByRole("button", {
+        name: `Map coverage: 1 of ${total} mapped traces match`,
+      }),
+    ).toBeVisible();
+    await waitForMapSettled(canvasElement);
+    expect(positions()).toEqual(before);
+    expect(canvas.getByLabelText("Zoom level").textContent).toBe(zoom);
+    await userEvent.click(canvas.getByRole("button", { name: "No matches" }));
+    await expect(
+      canvas.getByRole("button", {
+        name: `Map coverage: 0 of ${total} mapped traces match`,
+      }),
+    ).toBeVisible();
+    await waitForMapSettled(canvasElement);
+    expect(positions()).toEqual(before);
+    expect(canvas.getByLabelText("Zoom level").textContent).toBe(zoom);
+    expect(canvasElement.querySelectorAll("[data-topic-node]")).toHaveLength(0);
+    await expect(stage).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Clear filter" }));
+    await expect(
+      canvas.getByRole("button", {
+        name: `Map coverage: ${total} mapped traces`,
+      }),
+    ).toBeVisible();
+    await waitForMapSettled(canvasElement);
+    expect(positions()).toEqual(before);
+    expect(canvas.getByLabelText("Zoom level").textContent).toBe(zoom);
   },
 });

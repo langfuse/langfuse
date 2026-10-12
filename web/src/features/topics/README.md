@@ -13,6 +13,22 @@ project permissions. Processing additionally requires the project allowlist.
   the right. Narrow views keep the map above Topics/Traces tabs, with readable
   summary rows on phones and all processing controls in the mobile overflow
   menu. Selecting a group filters traces without changing the active tab.
+  `useTopicTraceFilters.ts` owns URL-backed facet, filter and search state;
+  each project/facet remembers its filters and search in localStorage. Switching
+  facets restores that facet's state, defaulting to unfiltered on first visit.
+  Explicit URL filters/search take precedence over local defaults; cleared URLs
+  retain an empty filter parameter so sharing them preserves the cleared state.
+  `TopicsTraceToolbar.tsx` uses the shared search bar for topic, assignment, and
+  text filtering. `topic-trace-filters.ts` owns its registry and local evaluation:
+  literal phrase search across summaries, topic names and trace IDs, OR within
+  a selection and AND between fields. Filtering applies before pagination.
+  Table results determine matching map IDs without changing saved positions or
+  the camera; nonmatching dots remain faint and inspectable. The map reports
+  its own matching count because its saved cohort can differ from current rows.
+  Fit/Home/Escape retain table filters; editing or removing search tokens updates
+  the same saved facet state. Search actions reuse metadata-only filter analytics with
+  `tableName: topics` and `isV4: false`. Query text and topic names remain
+  blocked from replay by the shared search bar.
   Peek defaults to the trace panel width and has its own resize preference.
   The results workspace stays mounted, including
   while a run's status is open. Execution URL parameters open progress, errors
