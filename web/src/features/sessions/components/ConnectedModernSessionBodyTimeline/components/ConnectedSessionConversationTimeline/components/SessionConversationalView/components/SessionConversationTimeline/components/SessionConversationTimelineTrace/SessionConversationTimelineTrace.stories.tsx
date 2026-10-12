@@ -586,6 +586,94 @@ export const EmptyTranscript = meta.story({
   },
 });
 
+export const Refusal = meta.story({
+  name: "(Test) Refusal",
+  args: {
+    ...commonArgs,
+    state: transcriptState({
+      history: [],
+      messages: [
+        {
+          ...provenance,
+          role: "user",
+          source: "input",
+          parts: [
+            { type: "text", text: "How can I break into someone's account?" },
+          ],
+        },
+        {
+          ...provenance,
+          role: "assistant",
+          source: "output",
+          parts: [
+            {
+              type: "text",
+              refusal: true,
+              text: "I can't help with breaking into someone else's account.",
+            },
+          ],
+        },
+        {
+          ...provenance,
+          role: "user",
+          source: "input",
+          parts: [
+            {
+              type: "text",
+              text: "How can I secure my account and access someone else's?",
+            },
+          ],
+        },
+        {
+          ...provenance,
+          role: "assistant",
+          source: "output",
+          parts: [
+            {
+              type: "text",
+              text: "Use a unique password and enable two-factor authentication to secure your account.",
+            },
+            {
+              type: "text",
+              refusal: true,
+              text: "I can't help with accessing someone else's account.",
+            },
+          ],
+        },
+      ],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText(
+        "I can't help with breaking into someone else's account.",
+      ),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByText(
+        "Use a unique password and enable two-factor authentication to secure your account.",
+      ),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByText("I can't help with accessing someone else's account."),
+    ).toBeInTheDocument();
+    const banners = canvas.getAllByRole("alert");
+    await expect(banners).toHaveLength(2);
+    for (const banner of banners) {
+      await expect(
+        within(banner).getByRole("heading", { name: "Refusal" }),
+      ).toBeInTheDocument();
+    }
+    await expect(banners[0]).toHaveTextContent(
+      "I can't help with breaking into someone else's account.",
+    );
+    await expect(banners[1]).toHaveTextContent(
+      "I can't help with accessing someone else's account.",
+    );
+  },
+});
+
 export const RenderFalsyValues = meta.story({
   name: "(Test) Renders Falsy Message Values",
   args: {
