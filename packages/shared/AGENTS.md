@@ -63,7 +63,6 @@
   policy independent of in-memory representation. The callback always exchanges JSON;
   the optional transport supplies reusable JSON text or UTF-8 bytes and validates
   responses inside retries. Default callers retain JSON serialization.
-- Early OTEL media uploads share the pool in `src/server/media/otelMediaUploads.ts`.
 - Seeder and support scripts: `scripts/seeder/*`, `clickhouse/scripts/*`
 
 ## Export Entry Points
