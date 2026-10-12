@@ -103,7 +103,12 @@ export class GatewayApiKeyAuthenticator {
       throw new GatewayControlPlaneError("Invalid gateway key", 401);
     }
 
-    const context = cached ?? (await this.loadAndCacheContext(cacheParams));
+    const context =
+      cached ??
+      (await this.loadAndCacheContext(
+        cacheParams,
+        await this.cache.getMutationGeneration(),
+      ));
 
     // Re-check on cache hits so removing an organization from the allowlist
     // takes effect without waiting for the cache TTL.
@@ -116,10 +121,13 @@ export class GatewayApiKeyAuthenticator {
     return context;
   }
 
-  private async loadAndCacheContext(params: {
-    fastHashedSecretKey: string;
-    apiFormat: GatewayApiFormat;
-  }): Promise<CachedResolveContext> {
+  private async loadAndCacheContext(
+    params: {
+      fastHashedSecretKey: string;
+      apiFormat: GatewayApiFormat;
+    },
+    mutationGeneration: number | null,
+  ): Promise<CachedResolveContext> {
     const row = await this.repository.resolveContext({
       fastHashedSecretKey: params.fastHashedSecretKey,
       providers: supportedProviders(params.apiFormat),
@@ -165,6 +173,7 @@ export class GatewayApiKeyAuthenticator {
       apiFormat: params.apiFormat,
       context,
       expiresAt: row.apiKey.expiresAt,
+      mutationGeneration,
     });
     return context;
   }

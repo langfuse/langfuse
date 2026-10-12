@@ -34,9 +34,6 @@ export function GatewayProvidersPage({
     { orgId: organizationId },
     { enabled: connectionsQuery.isSuccess },
   );
-  const [retriedModelCounts, setRetriedModelCounts] = useState<
-    Record<string, { enabled: number; total: number }>
-  >({});
   const [pageIndex, setPageIndex] = useState(0);
   const utils = api.useUtils();
   const retry = api.aiGateway.retryConnection.useMutation();
@@ -44,24 +41,18 @@ export function GatewayProvidersPage({
 
   const retryConnection = async (connection: GatewayConnection) => {
     try {
-      const result = await retry.mutateAsync({
+      await retry.mutateAsync({
         orgId: organizationId,
         id: connection.id,
       });
-      if (result.success) {
-        setRetriedModelCounts((current) => ({
-          ...current,
-          [connection.id]: {
-            enabled: result.models.filter((model) =>
-              isGatewayModelAllowed(connection.allowedModels, model),
-            ).length,
-            total: result.models.length,
-          },
-        }));
-      }
-      await utils.aiGateway.listConnections.invalidate({
-        orgId: organizationId,
-      });
+      await Promise.all([
+        utils.aiGateway.listConnections.invalidate({
+          orgId: organizationId,
+        }),
+        utils.aiGateway.refreshModels.invalidate({
+          orgId: organizationId,
+        }),
+      ]);
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-providers");
     }
@@ -151,8 +142,6 @@ export function GatewayProvidersPage({
             ];
           }),
       );
-  Object.assign(modelCounts, retriedModelCounts);
-
   return (
     <div className="flex flex-col gap-4">
       <Header

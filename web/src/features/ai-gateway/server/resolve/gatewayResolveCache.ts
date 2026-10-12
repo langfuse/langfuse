@@ -16,6 +16,7 @@ import {
 } from "@/src/features/ai-gateway/server/provider/registry";
 
 const CACHE_PREFIX = "ai-gateway:resolve";
+const mutationGenerationKey = `${CACHE_PREFIX}:mutation-generation`;
 
 /**
  * Marker for a secret key that no gateway API key matches. Cached like a hit so
@@ -42,7 +43,10 @@ export const CachedResolveContext = z.object({
 export type CachedResolveContext = z.infer<typeof CachedResolveContext>;
 
 const CachedResolveEntry = z.union([
-  CachedResolveContext,
+  z.object({
+    context: CachedResolveContext,
+    organizationGeneration: z.number().int().nonnegative(),
+  }),
   z.literal(GATEWAY_RESOLVE_KEY_NON_EXISTENT),
 ]);
 
@@ -56,6 +60,8 @@ const contextCacheKey = (fastHashedSecretKey: string, apiFormat: string) =>
  */
 const organizationIndexKey = (organizationId: string) =>
   `${CACHE_PREFIX}:org:${organizationId}`;
+const organizationGenerationKey = (organizationId: string) =>
+  `${CACHE_PREFIX}:org:${organizationId}:generation`;
 
 /**
  * Caches the /resolve lookup. Every failure is swallowed: a Redis outage must
@@ -93,8 +99,24 @@ export class GatewayResolveCache {
         return null;
       }
 
+      if (parsed.data === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
+        recordIncrement("langfuse.gateway.resolve.cache_hit", 1);
+        return parsed.data;
+      }
+
+      const organizationGeneration = await this.readGeneration(
+        organizationGenerationKey(parsed.data.context.organizationId),
+      );
+      if (organizationGeneration !== parsed.data.organizationGeneration) {
+        await this.redis!.del(
+          contextCacheKey(params.fastHashedSecretKey, params.apiFormat),
+        );
+        recordIncrement("langfuse.gateway.resolve.cache_miss", 1);
+        return null;
+      }
+
       recordIncrement("langfuse.gateway.resolve.cache_hit", 1);
-      return parsed.data;
+      return parsed.data.context;
     } catch (error) {
       logger.error("Error reading gateway resolve cache", error);
       return null;
@@ -106,6 +128,7 @@ export class GatewayResolveCache {
     apiFormat: string;
     context: CachedResolveContext | typeof GATEWAY_RESOLVE_KEY_NON_EXISTENT;
     expiresAt?: Date | null;
+    mutationGeneration?: number | null;
   }) {
     if (!this.enabled) return;
 
@@ -128,13 +151,30 @@ export class GatewayResolveCache {
         return;
       }
 
+      if (params.mutationGeneration === null) return;
+      const organizationGeneration = await this.readGeneration(
+        organizationGenerationKey(params.context.organizationId),
+      );
+      const currentMutationGeneration = await this.readGeneration(
+        mutationGenerationKey,
+      );
+      if (
+        params.mutationGeneration === undefined ||
+        params.mutationGeneration !== currentMutationGeneration
+      ) {
+        return;
+      }
+
       // These keys can live in different Redis Cluster slots, so issue the
       // commands separately instead of wrapping them in one transaction.
       const index = organizationIndexKey(params.context.organizationId);
       await Promise.all([
         this.redis!.set(
           key,
-          JSON.stringify(params.context),
+          JSON.stringify({
+            context: params.context,
+            organizationGeneration,
+          }),
           "PXAT",
           expirationTimestamp,
         ),
@@ -158,6 +198,10 @@ export class GatewayResolveCache {
 
     try {
       const index = organizationIndexKey(organizationId);
+      // The global generation fences a context load that started before this
+      // mutation but reaches Redis after the indexed keys are deleted.
+      await this.redis!.incr(mutationGenerationKey);
+      await this.redis!.incr(organizationGenerationKey(organizationId));
       const keys = await this.redis!.smembers(index);
       await Promise.all([
         this.redis!.del(index),
@@ -165,6 +209,21 @@ export class GatewayResolveCache {
       ]);
     } catch (error) {
       logger.error("Error invalidating gateway resolve cache", error);
+    }
+  }
+
+  /**
+   * Captures a fence before loading resolve state from Postgres. If any
+   * organization mutates before the context is cached, set() skips the write.
+   */
+  async getMutationGeneration() {
+    if (!this.enabled) return null;
+
+    try {
+      return await this.readGeneration(mutationGenerationKey);
+    } catch (error) {
+      logger.error("Error reading gateway resolve cache generation", error);
+      return null;
     }
   }
 
@@ -181,6 +240,12 @@ export class GatewayResolveCache {
     } catch (error) {
       logger.error("Error invalidating gateway resolve cache", error);
     }
+  }
+
+  private async readGeneration(key: string) {
+    const value = await this.redis!.get(key);
+    const generation = Number(value ?? "0");
+    return Number.isSafeInteger(generation) && generation >= 0 ? generation : 0;
   }
 }
 
