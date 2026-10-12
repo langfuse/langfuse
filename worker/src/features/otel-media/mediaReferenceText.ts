@@ -81,11 +81,26 @@ export function createMediaReferenceRewriter(
     value: string,
     resolve?: (entry: ExtractedOtelMedia) => Promise<string | undefined>,
   ): Promise<string> => {
+    const matches = knownMediaReferenceMatches(value, media);
+    let next = matches.next();
+    if (next.done) return value;
+    // Uploads share the decoded-byte pool; restoration read sizes must not
+    // serialize successful uploads of large originals.
+    const uploadResults: Array<string | undefined> = [];
+    if (resolve) {
+      let index = 0;
+      await forEachMedia(
+        knownMediaReferenceMatches(value, media),
+        async ({ entry }) => {
+          const position = index++;
+          uploadResults[position] = await resolve(entry);
+        },
+      );
+    }
+    let resultIndex = 0;
     let layers: Map<number, number> | undefined;
     let output = "";
     let end = 0;
-    const matches = knownMediaReferenceMatches(value, media);
-    let next = matches.next();
     while (!next.done) {
       const group: KnownMediaReferenceMatch[] = [];
       let sourceBytes = 0;
@@ -104,7 +119,7 @@ export function createMediaReferenceRewriter(
       const requests = new Map<string, MediaRestoreRequest>();
       const replacements: Array<string | { key: string }> = [];
       for (const match of group) {
-        const replacement = await resolve?.(match.entry);
+        const replacement = uploadResults[resultIndex++];
         if (replacement !== undefined) {
           replacements.push(replacement);
           continue;

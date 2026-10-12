@@ -1,4 +1,5 @@
 import type { EarlyOtelBatch, ExtractedOtelMedia } from "@langfuse/native";
+import pLimit from "p-limit";
 import {
   defineOwnValue,
   isMediaContentType,
@@ -8,6 +9,7 @@ import {
 } from "@langfuse/shared";
 import {
   logger,
+  mediaDispatchConcurrency,
   otelMediaUploads,
   recordDistribution,
   recordIncrement,
@@ -206,6 +208,8 @@ export async function resolveExtractedMedia(params: {
   const media = await batchMedia(batch);
   if (media.size === 0) return stats;
   const rewrite = createMediaReferenceRewriter(batch, media);
+  // Share dispatch slots across strings so nested traversals cannot multiply links.
+  const dispatch = pLimit(mediaDispatchConcurrency());
 
   async function resolveReference(
     entry: ExtractedOtelMedia,
@@ -272,7 +276,9 @@ export async function resolveExtractedMedia(params: {
       target.payload[field] = await rewriteMediaValues(
         target.payload[field],
         (text) =>
-          rewrite(text, (entry) => resolveReference(entry, target, field)),
+          rewrite(text, (entry) =>
+            dispatch(() => resolveReference(entry, target, field)),
+          ),
         true,
       );
     }

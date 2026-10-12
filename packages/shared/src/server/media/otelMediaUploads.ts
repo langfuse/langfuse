@@ -10,7 +10,9 @@ export const otelMediaUploads = new MediaUploadPool(
 
 // Structured-value and URI traversals can nest; keep each dispatch level small
 // even when many batches share a larger upload pool.
-const MEDIA_DISPATCH_CONCURRENCY = 5;
+export function mediaDispatchConcurrency(): number {
+  return Math.min(5, Number(env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY ?? 100));
+}
 
 /** Iterate lazily; drain active work before propagating an error. */
 export async function forEachMedia<T>(
@@ -19,10 +21,7 @@ export async function forEachMedia<T>(
 ): Promise<void> {
   const iterator = values[Symbol.iterator]();
   let failure: { error: unknown } | undefined;
-  const concurrency = Math.min(
-    MEDIA_DISPATCH_CONCURRENCY,
-    Number(env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY ?? 100),
-  );
+  const concurrency = mediaDispatchConcurrency();
   const workers = Array.isArray(values)
     ? Math.min(values.length, concurrency)
     : concurrency;

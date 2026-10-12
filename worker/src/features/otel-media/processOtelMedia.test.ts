@@ -539,110 +539,136 @@ describe("processOtelEventMedia", () => {
     });
   });
 
-  it("bounds decoded bytes, shares duplicate work, and refills a slot after failure", async () => {
-    const reservedBytes = 64 * 1024 * 1024;
-    const descriptors = createTestDescriptors(4, "weighted", reservedBytes);
-    // Entries 0 and 3 are distinct occurrences of the same content.
-    descriptors[3]!.sha256Hash = descriptors[0]!.sha256Hash;
-    const { batch, mediaBody } = createFakeMediaBatch({ entries: descriptors });
-    mediaBody.mockImplementation((index: number) =>
-      Promise.resolve(Buffer.from(`body-${index}`)),
-    );
-    const gates = Array.from({ length: 3 }, () =>
-      deferred<{ outcome: "uploaded"; mediaId: string }>(),
-    );
-    const uploadIndexes: number[] = [];
-    mocks.uploadMediaForTrace.mockImplementation(
-      async ({ contentBytes }: { contentBytes: Buffer }) => {
-        const index = Number(contentBytes.toString().slice("body-".length));
-        uploadIndexes.push(index);
-        return gates[index]!.promise;
-      },
-    );
-    batch.originalMedia = vi.fn((index: number) =>
-      Promise.resolve(`original-${index}`),
-    );
-
-    const [first, secondReference, thirdReference, duplicate] = descriptors.map(
-      (entry) => entry.reference,
-    );
-    const payload = {
-      traceId: "trace-id",
-      spanId: "observation-id",
-      input: [first, secondReference, { nested: [duplicate, thirdReference] }],
-    };
-    const resolving = resolveExtractedMedia({
-      batch,
-      targets: createDirectOtelMediaTargets([payload]),
-      ...MEDIA_DESTINATION,
-      writePath: "direct",
-    });
-    try {
-      await vi.waitFor(() => expect(uploadIndexes).toHaveLength(2));
-      expect(uploadIndexes).toEqual([0, 1]);
-      expect(mediaBody).toHaveBeenCalledTimes(2);
-
-      // The third 64 MiB reservation waits while the first two total 128 MiB.
-      gates[0]!.reject(new Error("upload failed"));
-      await vi.waitFor(() => expect(mediaBody).toHaveBeenCalledTimes(3));
-
-      gates[2]!.resolve({ outcome: "uploaded", mediaId: "uploaded-2" });
-      gates[1]!.resolve({ outcome: "uploaded", mediaId: "uploaded-1" });
-      await expect(resolving).resolves.toMatchObject({
-        uploaded: 2,
-        reused: 0,
-        failed: 2,
+  it.each([
+    { name: "nested values", oneString: false },
+    { name: "all references in one string", oneString: true },
+  ])(
+    "bounds decoded bytes, shares duplicate work, and refills a slot after failure: $name",
+    async ({ oneString }) => {
+      const reservedBytes = 64 * 1024 * 1024;
+      const descriptors = createTestDescriptors(4, "weighted", reservedBytes);
+      // Entries 0 and 3 are distinct occurrences of the same content.
+      descriptors[3]!.sha256Hash = descriptors[0]!.sha256Hash;
+      const { batch, mediaBody } = createFakeMediaBatch({
+        entries: descriptors,
       });
-      expect(payload.input).toEqual([
-        "original-0",
-        replaceReference(descriptors[1]!.reference, "uploaded-1"),
-        {
-          nested: [
+      mediaBody.mockImplementation((index: number) =>
+        Promise.resolve(Buffer.from(`body-${index}`)),
+      );
+      const gates = Array.from({ length: 3 }, () =>
+        deferred<{ outcome: "uploaded"; mediaId: string }>(),
+      );
+      const uploadIndexes: number[] = [];
+      mocks.uploadMediaForTrace.mockImplementation(
+        async ({ contentBytes }: { contentBytes: Buffer }) => {
+          const index = Number(contentBytes.toString().slice("body-".length));
+          uploadIndexes.push(index);
+          return gates[index]!.promise;
+        },
+      );
+      batch.originalMedia = vi.fn((index: number) =>
+        Promise.resolve(`original-${index}`),
+      );
+
+      const [first, secondReference, thirdReference, duplicate] =
+        descriptors.map((entry) => entry.reference);
+      const references = [
+        first,
+        secondReference,
+        duplicate,
+        thirdReference,
+      ] as const;
+      const createPayload = (values: typeof references) => ({
+        traceId: "trace-id",
+        spanId: "observation-id",
+        input: oneString
+          ? values.join(" ")
+          : [values[0], values[1], { nested: [values[2], values[3]] }],
+      });
+      const payload = createPayload(references);
+      const resolving = resolveExtractedMedia({
+        batch,
+        targets: createDirectOtelMediaTargets([payload]),
+        ...MEDIA_DESTINATION,
+        writePath: "direct",
+      });
+      try {
+        await vi.waitFor(() => expect(uploadIndexes).toHaveLength(2));
+        expect(uploadIndexes).toEqual([0, 1]);
+        expect(mediaBody).toHaveBeenCalledTimes(2);
+
+        // The third 64 MiB reservation waits while the first two total 128 MiB.
+        gates[0]!.reject(new Error("upload failed"));
+        await vi.waitFor(() => expect(mediaBody).toHaveBeenCalledTimes(3));
+
+        gates[2]!.resolve({ outcome: "uploaded", mediaId: "uploaded-2" });
+        gates[1]!.resolve({ outcome: "uploaded", mediaId: "uploaded-1" });
+        await expect(resolving).resolves.toMatchObject({
+          uploaded: 2,
+          reused: 0,
+          failed: 2,
+        });
+        expect(payload).toEqual(
+          createPayload([
+            "original-0",
+            replaceReference(descriptors[1]!.reference, "uploaded-1"),
             "original-3",
             replaceReference(descriptors[2]!.reference, "uploaded-2"),
-          ],
-        },
-      ]);
-      // Occurrences 0 and 3 share one in-flight decode/upload promise.
-      expect(mediaBody).toHaveBeenCalledWith(0);
-      expect(mediaBody).not.toHaveBeenCalledWith(3);
-    } finally {
-      for (const gate of gates)
-        gate.resolve({ outcome: "uploaded", mediaId: "cleanup" });
-      await resolving.catch(() => undefined);
-    }
-  });
-
-  it("bounds concurrent links for repeated early references", async () => {
-    const { batch } = createFakeMediaBatch();
-    const releaseLinks = deferred<void>();
-    let activeLinks = 0;
-    let peakLinks = 0;
-    mocks.linkMediaToTraceOrObservation.mockImplementation(async () => {
-      activeLinks++;
-      peakLinks = Math.max(peakLinks, activeLinks);
-      try {
-        await releaseLinks.promise;
+          ]),
+        );
+        // Occurrences 0 and 3 share one in-flight decode/upload promise.
+        expect(mediaBody).toHaveBeenCalledWith(0);
+        expect(mediaBody).not.toHaveBeenCalledWith(3);
       } finally {
-        activeLinks--;
+        for (const gate of gates)
+          gate.resolve({ outcome: "uploaded", mediaId: "cleanup" });
+        await resolving.catch(() => undefined);
       }
-    });
-    const payload = {
-      traceId: "trace-id",
-      spanId: "observation-id",
+    },
+  );
+
+  it.each([
+    {
+      name: "five strings",
       input: Array.from({ length: 5 }, () =>
         Array(5).fill(DEFAULT_MEDIA_REFERENCE).join(" "),
       ),
-    };
-    const resolving = resolveTarget(batch, payload);
-    try {
-      await vi.waitFor(() => expect(peakLinks).toBeGreaterThanOrEqual(5));
-      expect(peakLinks).toBe(5);
-    } finally {
-      releaseLinks.resolve();
-      await resolving;
-    }
-  });
+    },
+    {
+      name: "one string",
+      input: Array(25).fill(DEFAULT_MEDIA_REFERENCE).join(" "),
+    },
+  ])(
+    "bounds concurrent links for repeated early references: $name",
+    async ({ input }) => {
+      const { batch } = createFakeMediaBatch();
+      const releaseLinks = deferred<void>();
+      let activeLinks = 0;
+      let peakLinks = 0;
+      mocks.linkMediaToTraceOrObservation.mockImplementation(async () => {
+        activeLinks++;
+        peakLinks = Math.max(peakLinks, activeLinks);
+        try {
+          await releaseLinks.promise;
+        } finally {
+          activeLinks--;
+        }
+      });
+      const payload = {
+        traceId: "trace-id",
+        spanId: "observation-id",
+        input,
+      };
+      const resolving = resolveTarget(batch, payload);
+      try {
+        await vi.waitFor(() => expect(peakLinks).toBeGreaterThanOrEqual(5));
+        expect(peakLinks).toBe(5);
+      } finally {
+        releaseLinks.resolve();
+        await resolving;
+      }
+    },
+  );
 
   it("uploads a descriptor without reading the batch media registry", async () => {
     const { batch, mediaBody: loadBody, readMedia } = createFakeMediaBatch();
