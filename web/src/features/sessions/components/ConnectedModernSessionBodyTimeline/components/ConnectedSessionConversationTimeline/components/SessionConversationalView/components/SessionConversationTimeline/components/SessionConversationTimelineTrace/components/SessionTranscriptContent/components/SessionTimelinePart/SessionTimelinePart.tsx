@@ -28,17 +28,31 @@ export function SessionTimelinePart({
   trailingContent?: ReactNode;
 }) {
   if (part.type === "text") {
-    return (
-      <div className="flex flex-col gap-1">
-        {part.refusal ? (
-          <span className="text-dark-red text-[11px] font-bold">Refusal</span>
-        ) : null}
-        <div data-session-search-content>
-          <MarkdownView
-            markdown={decodeUnicodeEscapesOnly(part.text, true)}
-            className="px-0 py-0"
-          />
+    if (part.refusal) {
+      return (
+        <div
+          role="alert"
+          className="bg-foreground/10 dark:bg-muted flex flex-col gap-0.5 rounded-md px-3 py-2"
+        >
+          <h5 className="text-sm font-bold">Refusal</h5>
+          <div className="text-xs">
+            <div data-session-search-content>
+              <MarkdownView
+                markdown={decodeUnicodeEscapesOnly(part.text, true)}
+                className="px-0 py-0"
+              />
+            </div>
+          </div>
         </div>
+      );
+    }
+
+    return (
+      <div data-session-search-content>
+        <MarkdownView
+          markdown={decodeUnicodeEscapesOnly(part.text, true)}
+          className="px-0 py-0"
+        />
       </div>
     );
   }
