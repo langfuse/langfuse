@@ -5,12 +5,12 @@ use crate::{
     test_support::{FakeServer, resolution_response, resolution_response_for},
 };
 use futures_util::{StreamExt, stream};
-use std::{convert::Infallible, task::Poll};
+use std::convert::Infallible;
 use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
 use tower::ServiceExt;
 
 #[tokio::test]
-async fn invalid_credentials_are_rejected_before_admission_or_body_reads() {
+async fn control_plane_rejections_do_not_consume_provider_capacity() {
     let web = FakeServer::start(|_| async {
         Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -35,17 +35,12 @@ async fn invalid_credentials_are_rejected_before_admission_or_body_reads() {
     .await;
     // Exercise both an exhausted and an available execution pool.
     for occupied in [Some(permit), None] {
-        let body = Body::from_stream(stream::poll_fn(
-            |_| -> Poll<Option<Result<&'static str, Infallible>>> {
-                panic!("an invalid credential must be rejected before polling the body");
-            },
-        ));
         let response = tokio::time::timeout(
             Duration::from_secs(2),
             gateway.app.clone().oneshot(
                 Request::post("/openai/v1/responses")
                     .header(header::AUTHORIZATION, "Bearer invalid-key")
-                    .body(body)
+                    .body(Body::from(r#"{"model":"Production key:test"}"#))
                     .unwrap(),
             ),
         )
@@ -97,7 +92,7 @@ async fn resolution_capacity_is_bounded_and_released_on_cancellation_and_failure
     let request = |key| {
         Request::post("/openai/v1/responses")
             .header(header::AUTHORIZATION, key)
-            .body(Body::from("{}"))
+            .body(Body::from(r#"{"model":"Production key:test"}"#))
             .unwrap()
     };
     let mut stalled = Box::pin(gateway.app.clone().oneshot(request("Bearer stalled")));
@@ -278,7 +273,10 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
             false,
         ),
         (
-            configured.chat_completions().bearer_auth("rejected"),
+            configured
+                .chat_completions()
+                .bearer_auth("rejected")
+                .body(r#"{"model":"Production key:test"}"#),
             StatusCode::UNAUTHORIZED,
             false,
             false,
@@ -290,16 +288,22 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
                 .body(vec![b'x'; MAX_REQUEST_BYTES + 1]),
             StatusCode::PAYLOAD_TOO_LARGE,
             false,
-            true,
+            false,
         ),
         (
-            configured.post().bearer_auth("rejected"),
+            configured
+                .post()
+                .bearer_auth("rejected")
+                .body(r#"{"model":"Production key:test"}"#),
             StatusCode::UNAUTHORIZED,
             false,
             false,
         ),
         (
-            configured.messages().header("x-api-key", "rejected"),
+            configured
+                .messages()
+                .header("x-api-key", "rejected")
+                .body(r#"{"model":"Production key:test"}"#),
             StatusCode::UNAUTHORIZED,
             true,
             false,
@@ -311,7 +315,7 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
                 .body(vec![b'x'; MAX_REQUEST_BYTES + 1]),
             StatusCode::PAYLOAD_TOO_LARGE,
             false,
-            true,
+            false,
         ),
     ] {
         let response = request
@@ -337,8 +341,14 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
 }
 
 #[tokio::test]
-async fn resolved_requests_name_their_tenant_and_the_provider_connection_sent_to() {
+async fn resolved_requests_name_their_tenant_and_model_lists_skip_the_provider() {
     let web = FakeServer::start(|request| async move {
+        if request.uri().path() == "/api/internal/ai-gateway/v1/models" {
+            return Response::builder()
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"data":[]}"#))
+                .unwrap();
+        }
         let body = to_bytes(request.into_body(), 1024).await.unwrap();
         let api_format =
             serde_json::from_slice::<serde_json::Value>(&body).unwrap()["apiFormat"].clone();
@@ -368,13 +378,15 @@ async fn resolved_requests_name_their_tenant_and_the_provider_connection_sent_to
         (
             anthropic(
                 "messages/count_tokens",
-                r#"{"messages":[],"model":"claude-opus-4-1"}"#,
+                r#"{"messages":[],"model":"Production key:claude-opus-4-1"}"#,
             ),
             "anthropic",
         ),
-        (gateway.models().bearer_auth("gateway-openai"), "openai"),
         (
-            anthropic("messages", r#"{"model":"claude-opus-4-1","messages":[]}"#),
+            anthropic(
+                "messages",
+                r#"{"model":"Production key:claude-opus-4-1","messages":[]}"#,
+            ),
             "anthropic",
         ),
     ] {
@@ -392,7 +404,15 @@ async fn resolved_requests_name_their_tenant_and_the_provider_connection_sent_to
         // The model is an operator-side span and log field only.
         assert_eq!(header("langfuse-model"), None);
     }
-    assert_eq!(provider.calls(), 3);
+    let models = gateway
+        .models()
+        .bearer_auth("gateway-openai")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(models.status(), StatusCode::OK);
+    assert_pre_upstream_headers(models.headers(), false);
+    assert_eq!(provider.calls(), 2);
 }
 
 impl Drop for Gateway {
@@ -422,10 +442,13 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
             .to_str()
             .unwrap()
             .to_owned();
-        assert_eq!(
-            to_bytes(request.into_body(), 1024).await.unwrap(),
-            r#"{"apiFormat":"openai.responses"}"#
-        );
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(request.into_body(), 1024).await.unwrap()).unwrap();
+        assert_eq!(body["apiFormat"], "openai.responses");
+        assert!(matches!(
+            body["model"].as_str(),
+            Some("Production key:unchanged" | "Production key:anything")
+        ));
         resolution_response(if key == "Bearer gateway-json" {
             "provider-json"
         } else {
@@ -447,14 +470,14 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
             .to_owned();
         let body = to_bytes(request.into_body(), 4096).await.unwrap();
         if key == "Bearer provider-json" {
-            assert_eq!(body, "{ \"model\":\"unchanged\", \"unknown\":true }");
+            assert_eq!(body, r#"{"model":"provider-model","unknown":true}"#);
             Response::builder()
                 .header("content-type", "application/json")
                 .body(Body::from("{\"output\":[]}"))
                 .unwrap()
         } else {
             assert_eq!(key, "Bearer provider-sse");
-            assert_eq!(body, r#"{"model":"anything","stream":true}"#);
+            assert_eq!(body, r#"{"model":"provider-model","stream":true}"#);
             Response::builder()
                 .header("content-type", "text/event-stream")
                 .body(Body::from_stream(stream::iter([
@@ -470,12 +493,12 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
         .post()
         .bearer_auth("gateway-json")
         .header("x-langfuse-project-id", "attacker-project")
-        .body("{ \"model\":\"unchanged\", \"unknown\":true }")
+        .body("{ \"model\":\"Production key:unchanged\", \"unknown\":true }")
         .send();
     let sse = gateway
         .post()
         .bearer_auth("gateway-sse")
-        .body(r#"{"model":"anything","stream":true}"#)
+        .body(r#"{"model":"Production key:anything","stream":true}"#)
         .send();
     let (json, sse) = tokio::join!(json, sse);
     let json = json.unwrap();
@@ -492,8 +515,23 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
 }
 
 #[tokio::test]
-async fn compact_relays_opaque_json_and_models_proxies_openai_list_without_query() {
-    let web = FakeServer::start(|_| async { resolution_response("provider-secret") }).await;
+async fn compact_rewrites_model_and_models_come_from_the_control_plane() {
+    let web = FakeServer::start(|request| async move {
+        if request.uri().path() == "/api/internal/ai-gateway/v1/models" {
+            assert_eq!(
+                request.uri().query(),
+                Some("api_format=openai.responses")
+            );
+            return Response::builder()
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"data":[{"id":"Production key:gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"2026-01-01T00:00:00.000Z"}]}"#,
+                ))
+                .unwrap();
+        }
+        resolution_response("provider-secret")
+    })
+    .await;
     let provider = FakeServer::start(|request| async move {
         let method = request.method().clone();
         let uri = request.uri().to_string();
@@ -502,21 +540,12 @@ async fn compact_relays_opaque_json_and_models_proxies_openai_list_without_query
             ("POST", "/v1/responses/compact") => {
                 assert_eq!(
                     body,
-                    r#"{"model":"gpt-4.1","encrypted_content":"opaque-ciphertext"}"#
+                    r#"{"encrypted_content":"opaque-ciphertext","model":"provider-model"}"#
                 );
                 Response::builder()
                     .header("content-type", "application/json")
                     .body(Body::from(
                         r#"{"id":"comp_1","object":"response.compaction","encrypted_content":"opaque-ciphertext"}"#,
-                    ))
-                    .unwrap()
-            }
-            ("GET", "/v1/models") => {
-                assert!(body.is_empty());
-                Response::builder()
-                    .header("content-type", "application/json")
-                    .body(Body::from(
-                        r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#,
                     ))
                     .unwrap()
             }
@@ -528,7 +557,7 @@ async fn compact_relays_opaque_json_and_models_proxies_openai_list_without_query
     let compact = gateway
         .compact()
         .bearer_auth("gateway-key")
-        .body(r#"{"model":"gpt-4.1","encrypted_content":"opaque-ciphertext"}"#)
+        .body(r#"{"model":"Production key:gpt-4.1","encrypted_content":"opaque-ciphertext"}"#)
         .send()
         .await
         .unwrap();
@@ -549,10 +578,10 @@ async fn compact_relays_opaque_json_and_models_proxies_openai_list_without_query
     assert_eq!(models.status(), StatusCode::OK);
     assert_eq!(
         models.text().await.unwrap(),
-        r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#
+        r#"{"data":[{"id":"Production key:gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"2026-01-01T00:00:00.000Z"}]}"#
     );
     assert_eq!(web.calls(), 2);
-    assert_eq!(provider.calls(), 2);
+    assert_eq!(provider.calls(), 1);
 }
 
 #[tokio::test]
@@ -610,16 +639,17 @@ async fn malformed_credentials_skip_resolution_and_oversized_body_releases_capac
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
-    assert_eq!(web.calls(), 1);
+    assert_eq!(web.calls(), 0);
     assert_eq!(provider.calls(), 0);
     let next = gateway
         .post()
         .bearer_auth("valid-key")
-        .body("{}")
+        .body(r#"{"model":"Production key:test"}"#)
         .send()
         .await
         .unwrap();
     assert_eq!(next.status(), StatusCode::OK);
+    assert_eq!(web.calls(), 1);
     assert_eq!(provider.calls(), 1);
 }
 
@@ -650,6 +680,7 @@ async fn resolution_failures_are_sanitized_and_never_call_provider() {
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let gateway = Gateway::start(Some(inference(&web, &provider))).await;
     for (key, status) in [
+        ("400", 400),
         ("401", 401),
         ("403", 403),
         ("404", 404),
@@ -660,7 +691,7 @@ async fn resolution_failures_are_sanitized_and_never_call_provider() {
         let response = gateway
             .post()
             .bearer_auth(key)
-            .body("{}")
+            .body(r#"{"model":"Production key:test"}"#)
             .send()
             .await
             .unwrap();
@@ -687,7 +718,7 @@ async fn slow_resolution_has_a_bounded_wait() {
         gateway
             .post()
             .bearer_auth("slow-resolution")
-            .body("{}")
+            .body(r#"{"model":"Production key:test"}"#)
             .send(),
     )
     .await
@@ -975,7 +1006,7 @@ async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
     let mut response = gateway
         .post()
         .bearer_auth("key")
-        .body("{}")
+        .body(r#"{"model":"Production key:test"}"#)
         .send()
         .await
         .unwrap();
@@ -986,7 +1017,7 @@ async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
         gateway
             .post()
             .bearer_auth("key")
-            .body("{}")
+            .body(r#"{"model":"Production key:test"}"#)
             .send()
             .await
             .unwrap()
@@ -1033,7 +1064,7 @@ async fn client_disconnect_releases_capacity_for_the_next_request() {
     let mut first = gateway
         .post()
         .bearer_auth("key")
-        .body("{}")
+        .body(r#"{"model":"Production key:test"}"#)
         .send()
         .await
         .unwrap();
@@ -1044,7 +1075,7 @@ async fn client_disconnect_releases_capacity_for_the_next_request() {
             let response = gateway
                 .post()
                 .bearer_auth("key")
-                .body("{}")
+                .body(r#"{"model":"Production key:test"}"#)
                 .send()
                 .await
                 .unwrap();
@@ -1076,7 +1107,7 @@ async fn anthropic_messages_accept_either_credential_header_and_relay_native_sse
         let key = anthropic_gateway_key(&request).unwrap();
         assert_eq!(
             to_bytes(request.into_body(), 1024).await.unwrap(),
-            r#"{"apiFormat":"anthropic.messages"}"#
+            r#"{"apiFormat":"anthropic.messages","model":"Production key:claude-sonnet-4-5"}"#
         );
         if key == "gateway-anthropic" {
             resolution_response_for(ApiFormat::AnthropicMessages, "provider-anthropic")
@@ -1093,6 +1124,10 @@ async fn anthropic_messages_accept_either_credential_header_and_relay_native_sse
         assert_eq!(request.headers()["x-api-key"], "provider-anthropic");
         assert_eq!(request.headers()["anthropic-version"], "2023-06-01");
         assert!(!request.headers().contains_key(header::AUTHORIZATION));
+        assert_eq!(
+            to_bytes(request.into_body(), 4096).await.unwrap(),
+            r#"{"messages":[],"model":"provider-model","stream":true}"#
+        );
         Response::builder()
             .header("content-type", "text/event-stream")
             .header("request-id", "req_upstream")
@@ -1120,7 +1155,7 @@ async fn anthropic_messages_accept_either_credential_header_and_relay_native_sse
             .post(format!("{}/anthropic/v1/messages?beta=true", gateway.url))
             .header("anthropic-version", "2023-06-01")
             .header("content-type", "application/json")
-            .body(r#"{"model":"claude-sonnet-4-5","stream":true,"messages":[]}"#);
+            .body(r#"{"model":"Production key:claude-sonnet-4-5","stream":true,"messages":[]}"#);
         for (name, value) in credential_headers {
             request = request.header(name, value);
         }
@@ -1198,7 +1233,7 @@ async fn anthropic_credential_conflicts_and_failures_use_the_native_error_envelo
     for (credential_headers, status, kind, message) in cases {
         let mut request = client
             .post(format!("{}/anthropic/v1/messages", gateway.url))
-            .body("{}");
+            .body(r#"{"model":"Production key:test"}"#);
         for (name, value) in credential_headers {
             request = request.header(*name, *value);
         }
@@ -1243,7 +1278,7 @@ async fn anthropic_capacity_rejections_use_the_native_envelope() {
     let response = reqwest::Client::new()
         .post(format!("{}/anthropic/v1/messages", gateway.url))
         .header("x-api-key", "gateway-anthropic")
-        .body("{}")
+        .body(r#"{"model":"Production key:test"}"#)
         .send()
         .await
         .unwrap();
@@ -1283,11 +1318,26 @@ async fn openai_routes_ignore_x_api_key_and_keep_their_envelope() {
 #[tokio::test]
 async fn chat_completions_resolve_their_own_format_and_relay_native_json_and_errors() {
     let web = FakeServer::start(|request| async move {
-        assert_eq!(
-            to_bytes(request.into_body(), 1024).await.unwrap(),
-            r#"{"apiFormat":"openai.chat-completions"}"#
-        );
-        resolution_response_for(ApiFormat::OpenAiChatCompletions, "provider-chat")
+        let request: serde_json::Value =
+            serde_json::from_slice(&to_bytes(request.into_body(), 1024).await.unwrap()).unwrap();
+        assert_eq!(request["apiFormat"], "openai.chat-completions");
+        let provider_model = request["model"]
+            .as_str()
+            .and_then(|model| model.split_once(':'))
+            .map(|(_, provider_model)| provider_model)
+            .unwrap();
+        let bytes = to_bytes(
+            resolution_response_for(ApiFormat::OpenAiChatCompletions, "provider-chat").into_body(),
+            4096,
+        )
+        .await
+        .unwrap();
+        let mut response: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        response["connection"]["provider_model"] = provider_model.into();
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from(response.to_string()))
+            .unwrap()
     })
     .await;
     let provider = FakeServer::start(|request| async move {
@@ -1297,14 +1347,14 @@ async fn chat_completions_resolve_their_own_format_and_relay_native_json_and_err
             "Bearer provider-chat"
         );
         let body = to_bytes(request.into_body(), 4096).await.unwrap();
-        if body == r#"{"model":"unknown-model","messages":[]}"# {
+        if body == r#"{"messages":[],"model":"unknown-model"}"# {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{"error":{"code":"model_not_found"}}"#))
                 .unwrap();
         }
-        assert_eq!(body, r#"{ "model":"gpt-4.1-mini", "messages":[] }"#);
+        assert_eq!(body, r#"{"messages":[],"model":"gpt-4.1-mini"}"#);
         Response::builder()
             .header("content-type", "application/json")
             .body(Body::from(r#"{"id":"chatcmpl-1","choices":[]}"#))
@@ -1314,12 +1364,12 @@ async fn chat_completions_resolve_their_own_format_and_relay_native_json_and_err
     let gateway = Gateway::start(Some(inference(&web, &provider))).await;
     for (body, status, expected) in [
         (
-            r#"{ "model":"gpt-4.1-mini", "messages":[] }"#,
+            r#"{ "model":"Production key:gpt-4.1-mini", "messages":[] }"#,
             StatusCode::OK,
             r#"{"id":"chatcmpl-1","choices":[]}"#,
         ),
         (
-            r#"{"model":"unknown-model","messages":[]}"#,
+            r#"{"model":"Production key:unknown-model","messages":[]}"#,
             StatusCode::NOT_FOUND,
             r#"{"error":{"code":"model_not_found"}}"#,
         ),
@@ -1348,22 +1398,18 @@ async fn anthropic_routes_share_the_request_body_limit() {
         resolution_response_for(ApiFormat::AnthropicMessages, "provider-anthropic")
     })
     .await;
-    let provider = FakeServer::start(|request| async move {
-        let body = to_bytes(request.into_body(), MAX_REQUEST_BYTES)
-            .await
-            .unwrap();
-        assert_eq!(body.len(), MAX_REQUEST_BYTES);
-        Response::new(Body::empty())
-    })
-    .await;
+    let provider = FakeServer::start(|_| async move { Response::new(Body::empty()) }).await;
     let gateway = Gateway::start(Some(inference(&web, &provider))).await;
     let client = reqwest::Client::new();
     for path in ["messages", "messages/count_tokens"] {
         let send = |size| {
+            let prefix = r#"{"model":"Production key:test","padding":""#;
+            let suffix = r#""}"#;
+            let padding = "x".repeat(size - prefix.len() - suffix.len());
             client
                 .post(format!("{}/anthropic/v1/{path}", gateway.url))
                 .header("x-api-key", "gateway-anthropic")
-                .body(vec![b'x'; size])
+                .body(format!("{prefix}{padding}{suffix}"))
                 .send()
         };
         assert_eq!(

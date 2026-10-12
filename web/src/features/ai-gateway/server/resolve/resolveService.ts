@@ -86,6 +86,12 @@ export class GatewayResolveService {
           404,
         );
       }
+      if (!context.providerModel) {
+        throw new GatewayResolveError(
+          "Gateway provider model is unavailable",
+          503,
+        );
+      }
 
       const provider = getGatewayProviderDefinition(
         context.connection.provider,
@@ -98,6 +104,7 @@ export class GatewayResolveService {
           name: context.connection.name,
           provider:
             context.connection.provider.toLowerCase() as GatewayProviderId,
+          provider_model: context.providerModel,
           api_format: params.apiFormat,
           base_url: provider.baseUrl,
           auth:

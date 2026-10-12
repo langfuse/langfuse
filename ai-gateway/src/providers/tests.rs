@@ -37,8 +37,9 @@ const CALLER_CONTEXT_HEADERS: [(&str, &str); 9] = [
 ];
 
 #[tokio::test]
-async fn preserves_opaque_bytes_and_isolates_request_and_response_headers() {
+async fn rewrites_the_model_and_isolates_request_and_response_headers() {
     const REQUEST: &[u8] = b"{ \"model\": \"opaque\", \"future_field\": [true, 3] }\n";
+    const UPSTREAM_REQUEST: &[u8] = br#"{"future_field":[true,3],"model":"provider-model"}"#;
     const RESPONSE: &[u8] = b"\x1f\x8b\x08\x00opaque-encoded-response";
     let upstream = FakeServer::start(|request| async move {
         assert_eq!(request.uri(), "/v1/responses");
@@ -62,7 +63,10 @@ async fn preserves_opaque_bytes_and_isolates_request_and_response_headers() {
         {
             assert!(!request.headers().contains_key(name), "forwarded {name}");
         }
-        assert_eq!(to_bytes(request.into_body(), 1024).await.unwrap(), REQUEST);
+        assert_eq!(
+            to_bytes(request.into_body(), 1024).await.unwrap(),
+            UPSTREAM_REQUEST
+        );
         Response::builder()
             .status(201)
             .header("content-type", "application/json")
@@ -559,6 +563,8 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
 
     const COMPACT: &[u8] =
         br#"{"model":"gpt-4.1","input":[{"encrypted_content":"opaque-ciphertext"}]}"#;
+    const UPSTREAM_COMPACT: &[u8] =
+        br#"{"input":[{"encrypted_content":"opaque-ciphertext"}],"model":"provider-model"}"#;
     const COMPACT_RESPONSE: &str =
         r#"{"id":"comp_1","output":[{"encrypted_content":"opaque-ciphertext"}]}"#;
     const MODELS: &str = r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#;
@@ -583,7 +589,7 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
         let body = to_bytes(request.into_body(), 4096).await.unwrap();
         match (method.as_str(), uri.as_str()) {
             ("POST", "/v1/responses/compact") => {
-                assert_eq!(body, COMPACT);
+                assert_eq!(body, UPSTREAM_COMPACT);
                 Response::builder()
                     .header("content-type", "application/json")
                     .body(Body::from(COMPACT_RESPONSE))
@@ -764,6 +770,7 @@ fn headers(pairs: &[(&'static str, &'static str)]) -> HeaderMap {
 #[tokio::test]
 async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_family() {
     const REQUEST: &[u8] = br#"{"model":"claude-sonnet-4-5","system":[{"type":"text","text":"attribution","cache_control":{"type":"ephemeral"}}],"future_field":true}"#;
+    const UPSTREAM_REQUEST: &[u8] = br#"{"future_field":true,"model":"provider-model","system":[{"cache_control":{"type":"ephemeral"},"text":"attribution","type":"text"}]}"#;
     let upstream = FakeServer::start(|request| async move {
         assert_eq!(request.uri(), "/v1/messages");
         assert_eq!(request.method(), "POST");
@@ -779,7 +786,10 @@ async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_f
         for (name, _) in CONSUMED_HEADERS {
             assert!(!request.headers().contains_key(*name), "forwarded {name}");
         }
-        assert_eq!(to_bytes(request.into_body(), 1024).await.unwrap(), REQUEST);
+        assert_eq!(
+            to_bytes(request.into_body(), 1024).await.unwrap(),
+            UPSTREAM_REQUEST
+        );
         Response::builder()
             .status(StatusCode::OK)
             .header("content-type", "application/json")
@@ -862,7 +872,7 @@ async fn count_tokens_relays_the_body_and_models_forwards_only_pagination() {
                 assert_eq!(query, None);
                 assert_eq!(
                     to_bytes(request.into_body(), 1024).await.unwrap(),
-                    r#"{"model":"claude-sonnet-4-5","messages":[]}"#
+                    r#"{"messages":[],"model":"provider-model"}"#
                 );
                 Response::builder()
                     .header("content-type", "application/json")
@@ -989,13 +999,7 @@ async fn chat_completions_streams_request_usage_and_relay_the_usage_chunk() {
     const REQUESTED: &str = r#"{"model":"gpt-4.1-mini","messages":[{"role":"user","content":"Say hello"}],"stream":true,"stream_options":{"include_usage":true}}"#;
     // Callers receive the usage chunk whether or not they asked for it.
     let relayed = [CHAT_CONTENT_CHUNK, CHAT_USAGE_CHUNK, CHAT_DONE].concat();
-    for (request, forwarded) in [
-        (
-            UNREQUESTED,
-            r#"{"model":"gpt-4.1-mini","messages":[{"role":"user","content":"Say hello"}],"stream":true,"stream_options":{"include_usage":true}}"#,
-        ),
-        (REQUESTED, REQUESTED),
-    ] {
+    for request in [UNREQUESTED, REQUESTED] {
         let (sent, mut received) = tokio::sync::mpsc::channel(2);
         let sink = FakeServer::start(move |request| {
             let sent = sent.clone();
@@ -1021,7 +1025,7 @@ async fn chat_completions_streams_request_usage_and_relay_the_usage_chunk() {
             }
             assert_eq!(
                 to_bytes(request.into_body(), 4096).await.unwrap(),
-                forwarded
+                r#"{"messages":[{"content":"Say hello","role":"user"}],"model":"provider-model","stream":true,"stream_options":{"include_usage":true}}"#
             );
             // Arrive split mid-event, as a provider stream may.
             let native = [CHAT_CONTENT_CHUNK, CHAT_USAGE_CHUNK, CHAT_DONE].concat();
@@ -1077,12 +1081,12 @@ async fn chat_completions_streams_request_usage_and_relay_the_usage_chunk() {
 }
 
 #[tokio::test]
-async fn chat_completions_forward_non_streamed_bodies_unchanged() {
+async fn chat_completions_rewrite_non_streamed_models() {
     const JSON_REQUEST: &str = r#"{"model":"gpt-4.1-mini", "messages":[]}"#;
     let upstream = FakeServer::start(|request| async move {
         assert_eq!(
             to_bytes(request.into_body(), 4096).await.unwrap(),
-            JSON_REQUEST
+            r#"{"messages":[],"model":"provider-model"}"#
         );
         Response::builder()
             .header("content-type", "application/json")

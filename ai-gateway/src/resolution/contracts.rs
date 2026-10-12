@@ -16,6 +16,16 @@ pub enum ApiFormat {
     AnthropicMessages,
 }
 
+impl ApiFormat {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::OpenAiResponses => "openai.responses",
+            Self::OpenAiChatCompletions => "openai.chat-completions",
+            Self::AnthropicMessages => "anthropic.messages",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Provider {
@@ -143,6 +153,7 @@ pub struct ProviderConnection {
     name: Option<String>,
     #[serde(deserialize_with = "string_enum")]
     provider: Provider,
+    provider_model: String,
     #[serde(deserialize_with = "string_enum")]
     api_format: ApiFormat,
     base_url: String,
@@ -159,6 +170,9 @@ impl ProviderConnection {
     }
     pub fn provider(&self) -> Provider {
         self.provider
+    }
+    pub fn provider_model(&self) -> &str {
+        &self.provider_model
     }
     pub fn api_format(&self) -> ApiFormat {
         self.api_format
@@ -307,6 +321,7 @@ pub(super) fn decode(
         || response.ingestion.expires_at <= now
         || [
             &connection.id,
+            &connection.provider_model,
             &attribution.organization_id,
             &attribution.project_id,
             &attribution.key_id,

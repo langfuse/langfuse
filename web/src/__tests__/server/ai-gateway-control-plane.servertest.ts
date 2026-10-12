@@ -570,6 +570,7 @@ describe("AI gateway control plane", () => {
       id: openAiSecondary.id,
       name: "OpenAI second",
       provider: "openai",
+      provider_model: "gpt-4o",
       api_format: apiFormat,
       base_url: "https://api.openai.com/v1",
       auth: { type: "Bearer", token: "sk-test-openai-secondary" },

@@ -18,6 +18,7 @@ use std::{
 };
 
 const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
+const MODELS_PATH: &str = "/api/internal/ai-gateway/v1/models";
 const REQUEST_ID_HEADER: &str = "langfuse-gateway-request-id";
 // Web sits behind load balancers that drop idle connections after 60s by default
 // (AWS ALB). Evicting pooled connections first keeps the resolver from sending on a
@@ -125,12 +126,13 @@ impl ControlPlaneClient {
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
+        model: &str,
         request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| ResolutionError::Unavailable)?;
-        self.resolve_at(gateway_key, api_format, timestamp, request_id)
+        self.resolve_at(gateway_key, api_format, model, timestamp, request_id)
             .await
     }
 
@@ -138,6 +140,7 @@ impl ControlPlaneClient {
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
+        model: &str,
         timestamp: Duration,
         request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
@@ -147,7 +150,13 @@ impl ControlPlaneClient {
         let started = Instant::now();
         let body = tokio::time::timeout(
             self.config.limits.timeout,
-            self.fetch(gateway_key, api_format, timestamp.as_secs(), request_id),
+            self.fetch(
+                gateway_key,
+                api_format,
+                model,
+                timestamp.as_secs(),
+                request_id,
+            ),
         )
         .await
         .map_err(|_| ResolutionError::Timeout)??;
@@ -158,7 +167,66 @@ impl ControlPlaneClient {
         )
     }
 
+    /// Fetch the caller-visible model catalog from trusted Web.
+    ///
+    /// # Errors
+    /// Returns the same sanitized errors as [`Self::resolve`].
+    pub async fn models(
+        &self,
+        gateway_key: &str,
+        api_format: ApiFormat,
+        request_id: &str,
+    ) -> Result<Vec<u8>, ResolutionError> {
+        if gateway_key.len() > 8192 || !valid_token(gateway_key) {
+            return Err(ResolutionError::InvalidCredential);
+        }
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| ResolutionError::Unavailable)?;
+        tokio::time::timeout(
+            self.config.limits.timeout,
+            self.fetch_models(gateway_key, api_format, timestamp.as_secs(), request_id),
+        )
+        .await
+        .map_err(|_| ResolutionError::Timeout)?
+    }
+
     async fn fetch(
+        &self,
+        gateway_key: &str,
+        api_format: ApiFormat,
+        model: &str,
+        timestamp: u64,
+        request_id: &str,
+    ) -> Result<Vec<u8>, ResolutionError> {
+        let mut credential = HeaderValue::from_str(&format!("Bearer {gateway_key}"))
+            .map_err(|_| ResolutionError::InvalidCredential)?;
+        credential.set_sensitive(true);
+        let mut signature = HeaderValue::from_str(&signing::authorization(
+            &self.config.service_key,
+            gateway_key,
+            timestamp,
+        ))
+        .map_err(|_| ResolutionError::Configuration)?;
+        signature.set_sensitive(true);
+        let body =
+            serde_json::to_vec(&serde_json::json!({ "apiFormat": api_format, "model": model }))
+                .map_err(|_| ResolutionError::Configuration)?;
+        let response = self
+            .client
+            .post(self.config.endpoint(RESOLVE_PATH))
+            .header(AUTHORIZATION, credential)
+            .header("langfuse-gateway-authorization", signature)
+            .header(REQUEST_ID_HEADER, request_id)
+            .header(CONTENT_TYPE, "application/json")
+            .body(body)
+            .send()
+            .await
+            .map_err(|_| ResolutionError::Transport)?;
+        read_response(response, self.config.limits.max_response_bytes).await
+    }
+
+    async fn fetch_models(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
@@ -175,47 +243,54 @@ impl ControlPlaneClient {
         ))
         .map_err(|_| ResolutionError::Configuration)?;
         signature.set_sensitive(true);
-        let body = serde_json::to_vec(&serde_json::json!({ "apiFormat": api_format }))
-            .map_err(|_| ResolutionError::Configuration)?;
-        let mut response = self
+        let response = self
             .client
-            .post(self.config.endpoint(RESOLVE_PATH))
+            .get(format!(
+                "{}?api_format={}",
+                self.config.endpoint(MODELS_PATH),
+                api_format.as_str()
+            ))
             .header(AUTHORIZATION, credential)
             .header("langfuse-gateway-authorization", signature)
             .header(REQUEST_ID_HEADER, request_id)
-            .header(CONTENT_TYPE, "application/json")
-            .body(body)
             .send()
             .await
             .map_err(|_| ResolutionError::Transport)?;
-        match response.status().as_u16() {
-            200 => {}
-            401 => return Err(ResolutionError::Authentication),
-            403 => return Err(ResolutionError::Forbidden),
-            404 => return Err(ResolutionError::NoRoute),
-            429 | 500..=599 => return Err(ResolutionError::Unavailable),
-            _ => return Err(ResolutionError::InvalidResponse),
-        }
-        let limit = self.config.limits.max_response_bytes;
-        if response
-            .content_length()
-            .is_some_and(|size| size > limit as u64)
-        {
+        read_response(response, self.config.limits.max_response_bytes).await
+    }
+}
+
+async fn read_response(
+    mut response: reqwest::Response,
+    limit: usize,
+) -> Result<Vec<u8>, ResolutionError> {
+    match response.status().as_u16() {
+        200 => {}
+        400 => return Err(ResolutionError::InvalidRequest),
+        401 => return Err(ResolutionError::Authentication),
+        403 => return Err(ResolutionError::Forbidden),
+        404 => return Err(ResolutionError::NoRoute),
+        429 | 500..=599 => return Err(ResolutionError::Unavailable),
+        _ => return Err(ResolutionError::InvalidResponse),
+    }
+    if response
+        .content_length()
+        .is_some_and(|size| size > limit as u64)
+    {
+        return Err(ResolutionError::ResponseTooLarge);
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|_| ResolutionError::Transport)?
+    {
+        if chunk.len() > limit - bytes.len() {
             return Err(ResolutionError::ResponseTooLarge);
         }
-        let mut bytes = Vec::new();
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .map_err(|_| ResolutionError::Transport)?
-        {
-            if chunk.len() > limit - bytes.len() {
-                return Err(ResolutionError::ResponseTooLarge);
-            }
-            bytes.extend_from_slice(&chunk);
-        }
-        Ok(bytes)
+        bytes.extend_from_slice(&chunk);
     }
+    Ok(bytes)
 }
 
 fn valid_token(value: &str) -> bool {
@@ -227,6 +302,7 @@ fn valid_token(value: &str) -> bool {
 pub enum ResolutionError {
     Configuration,
     InvalidCredential,
+    InvalidRequest,
     Authentication,
     Forbidden,
     NoRoute,
@@ -242,6 +318,7 @@ impl fmt::Display for ResolutionError {
         f.write_str(match self {
             Self::Configuration => "invalid resolver configuration",
             Self::InvalidCredential => "invalid gateway credential",
+            Self::InvalidRequest => "invalid gateway request",
             Self::Authentication => "gateway authentication failed",
             Self::Forbidden => "gateway access forbidden",
             Self::NoRoute => "no eligible connection",
