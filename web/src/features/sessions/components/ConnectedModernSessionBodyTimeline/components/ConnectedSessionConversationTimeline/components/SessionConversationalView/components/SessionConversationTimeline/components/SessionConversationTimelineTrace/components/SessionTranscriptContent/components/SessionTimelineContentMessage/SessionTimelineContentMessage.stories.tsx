@@ -427,3 +427,44 @@ export const RejectUnsafeFileUrl = meta.story({
     await expect(canvasElement).toHaveTextContent("javascript:alert(1)");
   },
 });
+
+const s3ImageUri = "s3://customer-bucket/media/photo.jpeg";
+
+export const S3ImageFile = meta.story({
+  name: "S3 image file",
+  parameters: { a11y: { test: "off" } },
+  args: {
+    role: "user",
+    parts: [
+      { type: "text", text: "Show this S3 image." },
+      {
+        type: "file",
+        mediaType: "image/jpeg",
+        content: { kind: "url", url: s3ImageUri },
+      },
+    ],
+  },
+});
+
+export const NarrowUnresolvedImageLayout = meta.story({
+  name: "Narrow unresolved image layout",
+  parameters: { a11y: { test: "off" } },
+  args: {
+    role: "user",
+    parts: [
+      { type: "text", text: "Show this unresolved image." },
+      {
+        type: "file",
+        mediaType: "image/*",
+        content: { kind: "base64", data: "A".repeat(800) },
+      },
+    ],
+    timestamp: new Date("2026-10-09T11:45:47.000Z"),
+    onOpenObservation: fn(),
+  },
+  render: (args) => (
+    <div className="w-[241px]">
+      <SessionTimelineContentMessage {...args} />
+    </div>
+  ),
+});

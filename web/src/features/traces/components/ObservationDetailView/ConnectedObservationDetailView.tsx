@@ -394,6 +394,26 @@ export function ConnectedObservationDetailView({
                     ) && "invisible",
                   )}
                 >
+                  {/* Stays mounted so the row keeps its width; attributes and the virtualized log have no Beta view. */}
+                  {selectedViewTab === "json" && (
+                    <div
+                      className={cn(
+                        "flex items-center gap-1.5",
+                        (selectedTab === "attributes" ||
+                          (selectedTab === "log" && isLogViewVirtualized)) &&
+                          "invisible",
+                      )}
+                    >
+                      <Switch
+                        size="sm"
+                        checked={jsonBetaEnabled}
+                        onCheckedChange={handleBetaToggle}
+                      />
+                      <span className="text-muted-foreground text-xs">
+                        Beta
+                      </span>
+                    </div>
+                  )}
                   <div className="h-fit shrink-0 py-0.5 pr-4 pl-2">
                     <Tabs
                       value={
@@ -451,26 +471,6 @@ export function ConnectedObservationDetailView({
                       </Tabs.List>
                     </Tabs>
                   </div>
-                  {/* Stays mounted so the row keeps its width; attributes and the virtualized log have no Beta view. */}
-                  {selectedViewTab === "json" && (
-                    <div
-                      className={cn(
-                        "mr-1 flex items-center gap-1.5",
-                        (selectedTab === "attributes" ||
-                          (selectedTab === "log" && isLogViewVirtualized)) &&
-                          "invisible",
-                      )}
-                    >
-                      <Switch
-                        size="sm"
-                        checked={jsonBetaEnabled}
-                        onCheckedChange={handleBetaToggle}
-                      />
-                      <span className="text-muted-foreground text-xs">
-                        Beta
-                      </span>
-                    </div>
-                  )}
                 </div>
               }
             />

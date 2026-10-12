@@ -60,7 +60,13 @@ import {
   ENTERPRISE_SSO_REQUIRED_MESSAGE,
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
   PASSWORD_RESET_REQUIRED_MESSAGE,
+  TURNSTILE_ACTIONS,
+  TURNSTILE_FAILED_MESSAGE,
 } from "@/src/features/auth/constants";
+import {
+  getTurnstileRemoteIp,
+  verifyTurnstileToken,
+} from "@/src/features/auth/server/verifyTurnstile";
 import { z } from "zod";
 import { CloudConfigSchema, projectRoleAccessRights } from "@langfuse/shared";
 import {
@@ -96,13 +102,21 @@ const staticProviders: Provider[] = [
         placeholder: "jsmith@example.com",
       },
       password: { label: "Password", type: "password" },
+      turnstileToken: { label: "Turnstile token", type: "text" },
     },
-    async authorize(credentials, _req) {
+    async authorize(credentials, req) {
       if (!credentials) throw new Error("No credentials");
       if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true")
         throw new Error(
           "Sign in with email and password is disabled for this instance. Please use SSO.",
         );
+
+      const turnstileValid = await verifyTurnstileToken({
+        token: credentials.turnstileToken,
+        action: TURNSTILE_ACTIONS.login,
+        remoteIp: getTurnstileRemoteIp(req.headers),
+      });
+      if (!turnstileValid) throw new Error(TURNSTILE_FAILED_MESSAGE);
 
       const blockedDomains = getSSOBlockedDomains();
       const domain = credentials.email.split("@")[1]?.toLowerCase();
