@@ -649,6 +649,7 @@ export type GetScoresForObservationsProps<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
+  preferredClickhouseService?: PreferredClickhouseService;
 };
 
 // Currently only used from the observations table, hence the exclusion of metadata without excludeMetadata flag
@@ -667,6 +668,7 @@ export const getScoresForObservations = async <
     clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadata = false,
+    preferredClickhouseService,
   } = props;
 
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
@@ -706,6 +708,7 @@ export const getScoresForObservations = async <
     },
     tags: { projectId },
     clickhouseConfigs,
+    preferredClickhouseService,
   });
 
   const includeMetadataPayload = !excludeMetadata;
@@ -2147,6 +2150,7 @@ export const getNumericScoreHistogram = async (
     query,
     params: input.params,
     tags: input.tags,
+    preferredClickhouseService: "ReadOnly",
   });
 };
 

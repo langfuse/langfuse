@@ -47,7 +47,7 @@ export function TopicsActionsMenu({
 }
 
 type TopicsActionsMenuProps = {
-  children: ReactNode;
+  children?: ReactNode;
   triggerAction: {
     label: string;
     disabled: boolean;

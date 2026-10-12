@@ -656,6 +656,12 @@ export const HoverPreservesMapGeometry = meta.story({
   args: {
     fillContainer: true,
     data,
+    topics: [
+      {
+        id: "billing",
+        name: "Billing, invoices, subscriptions, and account administration",
+      },
+    ],
     selectedTopic: null,
     selectedTraceId: null,
     onSelectTrace: fn(),
@@ -703,6 +709,15 @@ export const HoverPreservesMapGeometry = meta.story({
     const tooltip = canvas.getByRole("tooltip", { name: /^Trace summary:/ });
     await waitFor(() =>
       expect(Number(getComputedStyle(tooltip).opacity)).toBeCloseTo(0.96, 2),
+    );
+    const topicName = args.topics[0].name;
+    await expect(tooltip).toHaveAccessibleName(
+      `Trace summary: ${topicName}. ${trace.summary}`,
+    );
+    const topicLabel = within(tooltip).getByText(topicName);
+    await expect(topicLabel).toBeVisible();
+    await expect(topicLabel.scrollHeight).toBeLessThanOrEqual(
+      topicLabel.clientHeight,
     );
     await expect(getComputedStyle(tooltip).pointerEvents).toBe("none");
     await expect(tooltip).not.toHaveAttribute("tabindex");

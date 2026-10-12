@@ -4,6 +4,9 @@ import { DEFAULT_TOPIC_FACETS } from "./default-facets";
 
 export { DEFAULT_TOPIC_FACETS };
 
+export const TOPICS_BEDROCK_ACCESS_ERROR =
+  "Unable to invoke LLM model (HTTP 403), please contact Langfuse Support";
+
 export const topicIdSchema = z
   .string()
   .min(1)

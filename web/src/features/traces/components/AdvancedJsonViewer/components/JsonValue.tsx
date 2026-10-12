@@ -116,7 +116,7 @@ export function JsonValue({
     // text highlighter found no search/comment overlays to preserve.
     const mediaDescriptor = classifyMediaValue(str);
     if (mediaDescriptor && segments.every((segment) => segment.type === null)) {
-      return <MediaReferenceTag descriptor={mediaDescriptor} />;
+      return <MediaReferenceTag descriptor={mediaDescriptor} size="sm" />;
     }
 
     return (

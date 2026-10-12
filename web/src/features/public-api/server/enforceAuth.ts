@@ -163,19 +163,16 @@ function getOrgId(
   return { success: true, orgId };
 }
 
-/** getProjectId resolves the target project the key's bound project, the URL param, and the header agree on. */
+/** getProjectId prioritizes the bound project, then the query parameter, then the header. */
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
 ): ResolvedProject | ErrorResult<ForbiddenError> {
-  const requested = [
-    getBoundProjectId(context),
-    getUrlProjectId(req),
-    getHeaderProjectId(req),
-  ];
-
-  const projectId = first(requested);
-  if (!equal(requested) || !projectId) {
+  const projectId =
+    getBoundProjectId(context) ??
+    getUrlProjectId(req) ??
+    getHeaderProjectId(req);
+  if (!projectId) {
     return forbiddenError();
   }
 
