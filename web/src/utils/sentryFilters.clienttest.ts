@@ -599,6 +599,23 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
+    it("drops the Tauri / Cursor browser-preview session console error (LANGFUSE-63Q)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Failed to submit browser preview JavaScript failure Browser action session is not active.",
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          logentryEvent(
+            "Failed to submit browser preview JavaScript failure Browser action session is not active.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
     it("does not treat [kitesurf] wraps as denylist prefixes (dedicated predicate)", () => {
       expect(
         isDenylistedNoiseEvent(
@@ -664,6 +681,23 @@ describe("isDenylistedNoiseEvent", () => {
         isDenylistedNoiseEvent(
           nonErrorRejectionEvent(
             "Object Not Found Matching Id:2, MethodName:update, ParamCount:4",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops a Tauri plugin ACL rejection (LANGFUSE-63P, variable plugin/command)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          nonErrorRejectionEvent(
+            "Command plugin:notification|is_permission_granted not allowed by ACL",
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          nonErrorRejectionEvent(
+            "Command plugin:fs|read_file not allowed by ACL",
           ),
         ),
       ).toBe(true);
@@ -1187,6 +1221,52 @@ describe("isDenylistedNoiseEvent", () => {
       expect(
         isDenylistedNoiseEvent(
           messageEvent("Failed to load kitesurf: connection timed out"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps support-form submit failures and mid-message browser-preview quotes", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent("Failed to submit support request."),
+        ),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Could not render browser preview JavaScript failure in playground",
+          ),
+        ),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent("Browser action session is not active."),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a Command plugin phrase that is not a Tauri ACL rejection", () => {
+      const unknownRejection = {
+        exception: {
+          values: [
+            {
+              type: "UnhandledRejection",
+              value:
+                "Non-Error promise rejection captured with value: Command plugin failed to initialize",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(unknownRejection)).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Command plugin:notification|is_permission_granted not allowed by ACL",
+          ),
         ),
       ).toBe(false);
     });

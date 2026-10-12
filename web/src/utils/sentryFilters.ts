@@ -255,6 +255,12 @@ const NOISE_MESSAGE_PREFIXES: readonly string[] = [
   // with this unbracketed prefix (LANGFUSE-610). Distinct from bracketed
   // `[kitesurf]` listener wraps — those go through {@link isKitesurfInternalEvent}.
   "kitesurf:",
+  // Tauri / Cursor desktop browser-preview host. `captureConsoleIntegration`
+  // concatenates `console.error("Failed to submit browser preview JavaScript
+  // failure", "Browser action session is not active.")` into one message
+  // event (LANGFUSE-63Q). Langfuse never logs this prefix. Same class as
+  // `kitesurf:` — host-injected, no app stack.
+  "Failed to submit browser preview JavaScript failure",
   // `Response.json()` on a non-JSON body (a 5xx / HTML proxy page returned where
   // JSON was expected). This is the response not being ours-as-JSON, i.e. a
   // transport/infra artifact, not app logic.
@@ -302,6 +308,10 @@ const BENIGN_NON_ERROR_REJECTION_VALUE_PREFIXES: readonly string[] = [
   // scripts that reject with `Object Not Found Matching Id:<n>, MethodName:…`.
   // Industry-known scanner noise, never a browser session (LANGFUSE-11Z).
   "Object Not Found Matching Id:",
+  // Tauri desktop host: a plugin command blocked by the app's capability ACL
+  // (LANGFUSE-63P). Format is `Command plugin:<plugin>|<command> not allowed
+  // by ACL`. Same session as LANGFUSE-63Q. Langfuse has no Tauri plugins.
+  "Command plugin:",
 ];
 
 /**
