@@ -8,11 +8,18 @@
 /// Rust-only encoder for prepared v4 `events_full` rows.
 pub mod native_codec;
 mod native_js;
+mod native_memory;
 pub(crate) mod native_schema;
+mod native_task;
+mod otel_input;
+mod otel_media;
+mod otel_media_task;
 mod telemetry;
 mod topics;
 
 pub use topics::{cluster_topic_embeddings, TopicClusteringResult, TopicClusteringSettings};
+
+pub use otel_input::{validate_otel_json, EarlyOtelBatch, ValidatedOtelJson};
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -98,8 +105,11 @@ impl Task for EncodeClickhouseEventsTask {
     type JsValue = Vec<NativeEventBlock>;
 
     fn compute(&mut self) -> Result<Self::Output> {
-        native_codec::encode_v4_native_blocks(&self.rows, self.max_rows_per_block)
-            .map_err(Error::from_reason)
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            native_codec::encode_v4_native_blocks(&self.rows, self.max_rows_per_block)
+        }))
+        .map_err(|_| Error::from_reason("native encoding task panicked"))?
+        .map_err(Error::from_reason)
     }
 
     fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {

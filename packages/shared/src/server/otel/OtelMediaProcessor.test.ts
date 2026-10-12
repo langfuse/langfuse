@@ -11,6 +11,16 @@ vi.mock("../logger", () => ({
 import type { MediaField } from "../../domain/media";
 import { recordDistribution, recordIncrement } from "../instrumentation";
 import {
+  DATA_URI,
+  MEDIA_ID,
+  PNG_BYTES,
+  PNG_BASE64,
+  PYTHON_BYTES,
+  PYTHON_STRINGIFIED_VALUE,
+  MALFORMED_PYTHON_VALUE,
+  providerMediaCases,
+} from "../media/MediaPayloadProcessor.fixtures";
+import {
   processOtelMedia,
   type OtelMediaPayload,
   type OtelMediaTarget,
@@ -19,19 +29,6 @@ import {
 
 const TRACE_ID = "0123456789abcdef0123456789abcdef";
 const SPAN_ID = "0123456789abcdef";
-const MEDIA_ID = "test-media-id";
-const PNG_BYTES = Buffer.from("test-image");
-const PNG_BASE64 = PNG_BYTES.toString("base64");
-const PYTHON_BYTES = Buffer.from([
-  0xff,
-  0xd8,
-  0xff,
-  0xe0,
-  ...Buffer.from("test\nquote'slash\\"),
-  0x00,
-]);
-const PYTHON_BYTES_LITERAL =
-  "b'\\xff\\xd8\\xff\\xe0test\\nquote\\'slash\\\\\\x00'";
 const MEDIA_REFERENCE = `@@@langfuseMedia:type=image/png|id=${MEDIA_ID}|source=base64_data_uri@@@`;
 
 function createEvent(params: { value: unknown; field?: MediaField }): {
@@ -73,7 +70,7 @@ async function processEvents(
 
 describe("processOtelMedia", () => {
   it("uploads a normalized observation Data URI and replaces it after success", async () => {
-    const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+    const dataUri = DATA_URI;
     const { event, body } = createEvent({ value: dataUri });
     const uploadMedia = createUploadMock();
 
@@ -126,7 +123,7 @@ describe("processOtelMedia", () => {
   });
 
   it("tags reused media byte length separately from uploaded media", async () => {
-    const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+    const dataUri = DATA_URI;
     const { event } = createEvent({ value: dataUri });
 
     await processEvents([event], createUploadMock("reused"));
@@ -143,7 +140,7 @@ describe("processOtelMedia", () => {
   });
 
   it("processes every normalized media field and ignores unrelated fields", async () => {
-    const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+    const dataUri = DATA_URI;
     const body = {
       input: dataUri,
       output: dataUri,
@@ -185,7 +182,7 @@ describe("processOtelMedia", () => {
   });
 
   it("replaces an embedded Data URI in a normalized string", async () => {
-    const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+    const dataUri = DATA_URI;
     const { event, body } = createEvent({ value: `image: ${dataUri}` });
 
     await processEvents([event]);
@@ -193,35 +190,9 @@ describe("processOtelMedia", () => {
     expect(body.input).toBe(`image: ${MEDIA_REFERENCE}`);
   });
 
-  it.each([
-    [
-      "anthropic",
-      { type: "base64", media_type: "image/png", data: PNG_BASE64 },
-      "data",
-    ],
-    [
-      "vertex",
-      { type: "media", mime_type: "image/png", data: PNG_BASE64 },
-      "data",
-    ],
-    [
-      "gemini",
-      { inline_data: { mime_type: "image/png", data: PNG_BASE64 } },
-      "inline_data.data",
-    ],
-    [
-      "ai_sdk_v6",
-      { type: "file", mediaType: "image/png", data: PNG_BASE64 },
-      "data",
-    ],
-    [
-      "ai_sdk_v7",
-      { type: "blob", mime_type: "image/png", content: PNG_BASE64 },
-      "content",
-    ],
-  ])(
-    "processes %s media in normalized structured values",
-    async (_, mediaValue, referencePath) => {
+  it.each(providerMediaCases)(
+    "processes $name media in normalized structured values",
+    async ({ value: mediaValue, referencePath }) => {
       const value = [structuredClone(mediaValue)];
       const { event } = createEvent({ value });
       const uploadMedia = createUploadMock();
@@ -256,12 +227,7 @@ describe("processOtelMedia", () => {
 
   it("processes Gemini media serialized as a Python bytes literal", async () => {
     const { event, body } = createEvent({
-      value: JSON.stringify({
-        inline_data: {
-          mime_type: "image/jpeg",
-          data: PYTHON_BYTES_LITERAL,
-        },
-      }),
+      value: PYTHON_STRINGIFIED_VALUE,
     });
     const uploadMedia = createUploadMock();
 
@@ -286,12 +252,7 @@ describe("processOtelMedia", () => {
   });
 
   it("leaves malformed Python bytes literals unchanged", async () => {
-    const value = {
-      inline_data: {
-        mime_type: "image/jpeg",
-        data: "b'\\xff\\x0g'",
-      },
-    };
+    const value = structuredClone(MALFORMED_PYTHON_VALUE);
     const { event, body } = createEvent({ value });
     const uploadMedia = createUploadMock();
 
@@ -304,7 +265,7 @@ describe("processOtelMedia", () => {
   });
 
   it("leaves normalized values unchanged when upload fails", async () => {
-    const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+    const dataUri = DATA_URI;
     const { event, body } = createEvent({ value: dataUri });
     const uploadMedia = vi.fn().mockRejectedValue(new Error("upload failed"));
 
@@ -372,7 +333,7 @@ describe("processOtelMedia", () => {
   });
 
   it("links trace-level media without an observation id", async () => {
-    const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+    const dataUri = DATA_URI;
     const body = { input: dataUri };
     const uploadMedia = createUploadMock();
 
