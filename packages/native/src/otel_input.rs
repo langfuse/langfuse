@@ -71,15 +71,7 @@ impl ValidatedOtelJson {
                     media: Vec::new(),
                 }
             };
-            let batch = ExtractedBatch {
-                json: Mutex::new(Some(result.compact_json)),
-                media: result.media,
-                _memory: memory,
-            };
-            batch._memory.resize(batch.retained_bytes());
-            Ok(EarlyOtelBatch {
-                inner: Some(Arc::new(batch)),
-            })
+            Ok(EarlyOtelBatch::new(result, memory))
         })
     }
 }
@@ -119,6 +111,18 @@ pub struct EarlyOtelBatch {
 }
 
 impl EarlyOtelBatch {
+    fn new(result: EarlyMediaResult, memory: NativeMemory) -> Self {
+        let batch = ExtractedBatch {
+            json: Mutex::new(Some(result.compact_json)),
+            media: result.media,
+            _memory: memory,
+        };
+        batch._memory.resize(batch.retained_bytes());
+        Self {
+            inner: Some(Arc::new(batch)),
+        }
+    }
+
     pub(crate) fn data(&self) -> std::result::Result<Arc<ExtractedBatch>, Error<&'static str>> {
         self.inner
             .as_ref()
@@ -328,5 +332,33 @@ pub fn validate_otel_json(
         Ok(ValidatedOtelJson {
             payload: Some((payload, memory)),
         })
+    }))
+}
+
+/// Extract media from unmasked input. Null means the caller should parse its original bytes;
+/// marker-free input has NOT been validated. Masking callers must use validateOtelJson first.
+#[napi(ts_return_type = "Promise<EarlyOtelBatch | null>")]
+pub fn extract_otel_media(
+    env: Env,
+    bytes: Buffer,
+) -> Result<AsyncTask<OtelMediaTask<Option<EarlyOtelBatch>>>> {
+    let bytes = bytes.to_vec();
+    let memory = NativeMemory::new(&env, bytes.capacity())?;
+    Ok(OtelMediaTask::run("extract", move || {
+        // Match raw ASCII markers before UTF-8/JSON validation. Unicode escapes
+        // are themselves markers; UTF-8 replacement cannot introduce an ASCII marker.
+        if !otel_media::may_contain_media_candidate(&bytes) {
+            return Ok(None);
+        }
+        let validated = otel_media::validate(bytes)
+            .map_err(|error| Error::new(error.code(), error.to_string()))?;
+        let normalized = validated.normalized_bytes().is_some();
+        let result = validated
+            .compact()
+            .map_err(|error| Error::new(error.code(), error.to_string()))?;
+        if result.media.is_empty() && !normalized {
+            return Ok(None);
+        }
+        Ok(Some(EarlyOtelBatch::new(result, memory)))
     }))
 }

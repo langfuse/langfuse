@@ -1,4 +1,5 @@
 import {
+  extractOtelMedia,
   validateOtelJson,
   type EarlyOtelBatch,
   type ValidatedOtelJson,
@@ -8,11 +9,15 @@ import {
   recordIncrement,
   type ResourceSpan,
 } from "@langfuse/shared/src/server";
-import { applyIngestionMasking } from "@langfuse/shared/src/server/ee/ingestionMasking";
+import {
+  applyIngestionMasking,
+  isIngestionMaskingEnabled,
+} from "@langfuse/shared/src/server/ee/ingestionMasking";
 
 type PreparedInput =
   | {
-      batch: EarlyOtelBatch;
+      /** Absent when preprocessing is unnecessary; the caller must still parse JSON. */
+      batch?: EarlyOtelBatch;
       /** Neither masking nor UTF-8 normalization replaced the caller's bytes. */
       sourceUnchanged: boolean;
       error?: never;
@@ -20,9 +25,9 @@ type PreparedInput =
   | { batch?: never; sourceUnchanged?: never; error: string | undefined };
 
 /**
- * Validate raw OTLP bytes and optionally extract media before the TypeScript
- * ingestion graph is built. Masking receives the normalized byte view and may
- * return a replacement body.
+ * Extract media before the ingestion graph is built. Without masking, marker-free
+ * input skips native validation; the consumer's JSON parser still validates it.
+ * Masking always receives validated, normalized bytes.
  */
 export async function prepareOtelBatch(params: {
   bytes: Buffer;
@@ -33,10 +38,15 @@ export async function prepareOtelBatch(params: {
 }): Promise<PreparedInput> {
   const { bytes, extractMedia, ...context } = params;
   const startedAt = performance.now();
-  let outcome: "native" | "masking_drop" | "error" = "error";
+  let outcome: "native" | "unchanged" | "masking_drop" | "error" = "error";
   let originalInput: ValidatedOtelJson | undefined;
   let maskedInput: ValidatedOtelJson | undefined;
   try {
+    if (!isIngestionMaskingEnabled()) {
+      const batch = extractMedia ? await extractOtelMedia(bytes) : null;
+      outcome = batch ? "native" : "unchanged";
+      return { batch: batch ?? undefined, sourceUnchanged: !batch };
+    }
     originalInput = await validateOtelJson(bytes);
     const masking = await applyIngestionMasking(
       {
@@ -125,16 +135,16 @@ export async function prepareOtelBatch(params: {
 
 /** Parse for TypeScript consumers. The caller owns the returned batch; failures release it. */
 export async function parsePreparedOtelBatch(
-  prepared: { batch: EarlyOtelBatch; sourceUnchanged: boolean },
+  prepared: { batch?: EarlyOtelBatch; sourceUnchanged: boolean },
   downloadedBytes: Uint8Array,
 ): Promise<{ resourceSpans: ResourceSpan[]; batch?: EarlyOtelBatch }> {
   let batch: EarlyOtelBatch | undefined = prepared.batch;
   try {
     let json: Buffer;
-    if (prepared.sourceUnchanged && batch.mediaCount() === 0) {
+    if (!batch || (prepared.sourceUnchanged && batch.mediaCount() === 0)) {
       // Free Rust's duplicate before parsing the unchanged download. An external
       // Buffer would retain that allocation until Node collects it.
-      await batch.dispose();
+      await batch?.dispose();
       batch = undefined;
       json = Buffer.from(
         downloadedBytes.buffer,

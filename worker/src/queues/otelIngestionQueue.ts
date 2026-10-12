@@ -531,7 +531,7 @@ export const otelIngestionQueueProcessorBuilder = (
             env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true" &&
             Boolean(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
         });
-        if (!prepared.batch) {
+        if ("error" in prepared) {
           logger.warn("Dropping OTEL event due to masking failure", {
             projectId,
             orgId: job.data.payload.authCheck.scope.orgId,

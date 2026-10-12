@@ -25,6 +25,7 @@ vi.mock(
     return {
       ...actual,
       applyIngestionMasking: vi.fn(actual.applyIngestionMasking),
+      isIngestionMaskingEnabled: vi.fn(actual.isIngestionMaskingEnabled),
     };
   },
 );
@@ -305,6 +306,9 @@ describe("Ingestion Masking", () => {
         }
         let prepared: Awaited<ReturnType<typeof prepareOtelBatch>> | undefined;
         try {
+          vi.mocked(masking.isIngestionMaskingEnabled).mockReturnValueOnce(
+            true,
+          );
           prepared = await prepareOtelBatch({
             bytes: originalBytes,
             projectId: "test-project",
@@ -364,6 +368,9 @@ describe("Ingestion Masking", () => {
           .mockResolvedValueOnce(new Response(new Uint8Array(responseBytes)));
         let prepared: Awaited<ReturnType<typeof prepareOtelBatch>> | undefined;
         try {
+          vi.mocked(masking.isIngestionMaskingEnabled).mockReturnValueOnce(
+            true,
+          );
           prepared = await prepareOtelBatch({
             bytes: originalBytes,
             projectId: "test-project",
