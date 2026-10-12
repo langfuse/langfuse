@@ -577,9 +577,11 @@ export default function SignInPage({
   );
   const hasMultipleAuthMethods = availableProviders.length > 1;
 
-  // Read query params for targetPath and email pre-population
+  // Read query params for targetPath and email pre-population. A repeated
+  // `?email=` arrives as an array; dropping it keeps the form default a string.
   const queryTargetPath = router.query.targetPath as string | undefined;
-  const emailParam = router.query.email as string | undefined;
+  const queryEmail = router.query.email;
+  const emailParam = typeof queryEmail === "string" ? queryEmail : undefined;
 
   // Validate targetPath to prevent open redirect attacks
   const targetPath = queryTargetPath
@@ -618,6 +620,12 @@ export default function SignInPage({
     lastUsedSsoEmail,
     setLastUsedSsoEmail,
   ]);
+
+  /** Reset-password link carrying the typed address for that page to prefill. */
+  const typedEmail = credentialsForm.watch("email").trim();
+  const resetPasswordHref = typedEmail
+    ? `/auth/reset-password?email=${encodeURIComponent(typedEmail)}`
+    : "/auth/reset-password";
 
   async function onCredentialsSubmit(
     values: z.infer<typeof credentialAuthForm>,
@@ -909,7 +917,7 @@ export default function SignInPage({
                             <FormLabel>
                               Password{" "}
                               <Link
-                                href="/auth/reset-password"
+                                href={resetPasswordHref}
                                 className="text-link hover:text-link-hover ml-1 text-xs"
                                 tabIndex={-1}
                                 title="What is this?"
