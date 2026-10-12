@@ -27,6 +27,7 @@ export function shadowAuthDiff(
   const result = classify(l.verdict, n.verdict);
   const tags = {
     action,
+    resource: metadata.resource,
     access_level: l.accessLevel,
     result,
     legacy_code: l.code,

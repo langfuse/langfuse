@@ -61,6 +61,7 @@ describe("shadowAuthDiff — the ship-gate signal", () => {
     );
     expect(calls[0].tags).toEqual({
       action: "prompts:read",
+      resource: "GET /api/public/prompts/[promptName]",
       access_level: "project",
       result: "new_denies",
       legacy_code: 200,
