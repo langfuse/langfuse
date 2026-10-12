@@ -1,6 +1,10 @@
-/** Runs admitted uploads in FIFO order while bounding active work and bytes. */
-export class MediaUploadQueue {
-  private readonly queue: PendingUpload[] = [];
+/**
+ * Bounds active uploads and decoded bytes, admitting any waiting work that fits.
+ * The upload must reject on timeout itself. This pool keeps its reservation
+ * until work actually settles; timing out only the waiter would free it too soon.
+ */
+export class MediaUploadPool {
+  private waiting: PendingUpload[] = [];
   private active = 0;
   private reservedBytes = 0;
 
@@ -26,11 +30,9 @@ export class MediaUploadQueue {
     }
 
     await new Promise<void>((ready) => {
-      this.queue.push({
-        bytes,
-        ready,
-      });
-      this.pump();
+      const upload = { bytes, ready };
+      if (this.canStart(upload)) this.start(upload);
+      else this.waiting.push(upload);
     });
 
     try {
@@ -38,18 +40,23 @@ export class MediaUploadQueue {
     } finally {
       this.active -= 1;
       this.reservedBytes -= bytes;
-      this.pump();
+      this.startWaiting();
     }
   }
 
-  private pump(): void {
-    while (this.queue.length > 0 && this.canStart(this.queue[0]!)) {
-      const next = this.queue.shift()!;
-
-      this.active += 1;
-      this.reservedBytes += next.bytes;
-      next.ready();
+  private startWaiting(): void {
+    const waiting = this.waiting;
+    this.waiting = [];
+    for (const upload of waiting) {
+      if (this.canStart(upload)) this.start(upload);
+      else this.waiting.push(upload);
     }
+  }
+
+  private start(upload: PendingUpload): void {
+    this.active += 1;
+    this.reservedBytes += upload.bytes;
+    upload.ready();
   }
 
   private canStart(next: PendingUpload): boolean {
