@@ -512,7 +512,7 @@ describe("RuleService", () => {
       ).resolves.toMatchObject({ enabled: false });
     });
 
-    it("creates evaluator result rules and rejects evaluator cycles", async () => {
+    it("creates evaluator result rules", async () => {
       const [sourceEvaluator, targetEvaluator] = await Promise.all([
         createEvaluator(),
         createEvaluator(),
@@ -552,62 +552,6 @@ describe("RuleService", () => {
           select: { filter: true },
         }),
       ).resolves.toEqual({ filter: scoreResultTrigger.predicates });
-
-      await expect(
-        service.create(
-          {
-            ...createInput(sourceEvaluator.id),
-            filter: [],
-            sampling: 1,
-            targetObject: EvalTargetObject.SCORE_RESULT,
-            scoreResultTrigger: {
-              ...scoreResultTrigger,
-              evaluatorId: targetEvaluator.id,
-            },
-          },
-          null,
-        ),
-      ).rejects.toThrow("cycle");
-    });
-
-    it("serializes concurrent evaluator result rule cycle checks", async () => {
-      const [firstEvaluator, secondEvaluator] = await Promise.all([
-        createEvaluator(),
-        createEvaluator(),
-      ]);
-      const service = createService();
-      const resultRule = (
-        sourceEvaluatorId: string,
-        targetEvaluatorId: string,
-      ) => ({
-        ...createInput(targetEvaluatorId),
-        filter: [],
-        sampling: 1,
-        targetObject: EvalTargetObject.SCORE_RESULT,
-        scoreResultTrigger: {
-          evaluatorId: sourceEvaluatorId,
-          predicates: [
-            {
-              scoreName: "quality",
-              dataType: "NUMERIC" as const,
-              operator: ">=" as const,
-              value: 0.8,
-            },
-          ],
-        },
-      });
-
-      const results = await Promise.allSettled([
-        service.create(resultRule(firstEvaluator.id, secondEvaluator.id), null),
-        service.create(resultRule(secondEvaluator.id, firstEvaluator.id), null),
-      ]);
-
-      expect(
-        results.filter(({ status }) => status === "fulfilled"),
-      ).toHaveLength(1);
-      expect(
-        results.filter(({ status }) => status === "rejected"),
-      ).toHaveLength(1);
     });
 
     it("creates an experiment rule with experiment filters and mappings", async () => {

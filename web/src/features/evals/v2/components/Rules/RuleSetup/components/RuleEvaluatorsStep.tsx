@@ -102,7 +102,7 @@ export function RuleEvaluatorsStep({
     ) : null;
   const description =
     targetObject === EvalTargetObject.SCORE_RESULT
-      ? "Run on the observation each matching score belongs to."
+      ? "Run on the observation each matching score belongs to. Results from these evaluators do not trigger other evaluator result rules."
       : "Choose which evaluators should run on matching observations.";
 
   return (

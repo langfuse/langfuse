@@ -51,7 +51,6 @@ import {
   extractEvaluatorPromptVariables,
 } from "../evaluators/evaluatorValidation";
 import { fallbackRuleName, filterStateKey } from "./ruleFilterMatching";
-import { assertNoEvaluatorResultRuleCycle } from "./assertNoEvaluatorResultRuleCycle";
 
 const MAX_REUSABLE_FILTERS = 10;
 
@@ -278,9 +277,6 @@ export class RuleService {
         projectId: input.projectId,
         targetObject: normalized.targetObject,
         scoreResultTrigger: input.scoreResultTrigger,
-        targetEvaluatorIds: evaluatorAssignments.map(
-          (assignment) => assignment.evaluatorId,
-        ),
       });
       return repository.createRule({
         prisma,
@@ -487,9 +483,6 @@ export class RuleService {
           assignments: input.evaluatorMappings,
         });
       }
-      const targetEvaluatorIds = (
-        input.evaluatorMappings ?? current.assignments
-      ).map((assignment) => assignment.evaluatorId);
       const preservesInvalidMissingTrigger =
         targetObject === EvalTargetObject.SCORE_RESULT &&
         scoreResultTrigger === null &&
@@ -500,13 +493,11 @@ export class RuleService {
         await this.validateEvaluatorResultTrigger({
           prisma,
           projectId: input.projectId,
-          ruleId: input.ruleId,
           targetObject,
           scoreResultTrigger:
             targetObject === EvalTargetObject.SCORE_RESULT
               ? scoreResultTrigger
               : null,
-          targetEvaluatorIds,
         });
       }
       let scoreResultTriggerUpdate: ScoreResultTrigger | null | undefined;
@@ -770,13 +761,8 @@ export class RuleService {
         await this.validateEvaluatorResultTrigger({
           prisma,
           projectId: params.projectId,
-          ruleId: params.ruleId,
           targetObject: EvalTargetObject.SCORE_RESULT,
           scoreResultTrigger,
-          targetEvaluatorIds: [
-            ...rule.assignments.map((item) => item.evaluatorId),
-            assignment!.evaluatorId,
-          ],
         });
       }
       await repository.attachEvaluator({
@@ -976,10 +962,8 @@ export class RuleService {
   private async validateEvaluatorResultTrigger(params: {
     prisma: Prisma.TransactionClient;
     projectId: string;
-    ruleId?: string;
     targetObject: EvalTargetObject;
     scoreResultTrigger: ScoreResultTrigger | null;
-    targetEvaluatorIds: string[];
   }) {
     if (params.targetObject !== EvalTargetObject.SCORE_RESULT) {
       if (params.scoreResultTrigger !== null) {
@@ -1010,19 +994,6 @@ export class RuleService {
     ) {
       throw new LangfuseNotFoundError("Trigger evaluator not found");
     }
-
-    const edges = await repository.listEvaluatorResultRuleEdges({
-      prisma: params.prisma,
-      projectId: params.projectId,
-      excludeRuleId: params.ruleId,
-    });
-    assertNoEvaluatorResultRuleCycle([
-      ...edges,
-      {
-        sourceEvaluatorId: params.scoreResultTrigger.evaluatorId,
-        targetEvaluatorIds: params.targetEvaluatorIds,
-      },
-    ]);
   }
 }
 

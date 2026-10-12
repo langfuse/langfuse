@@ -408,45 +408,12 @@ export function updateRule(params: {
   });
 }
 
-export async function listEvaluatorResultRuleEdges(params: {
-  prisma: RulePrisma;
-  projectId: string;
-  excludeRuleId?: string;
-}) {
-  const rules = await params.prisma.evaluationRule.findMany({
-    where: {
-      projectId: params.projectId,
-      targetObject: EvalTargetObject.SCORE_RESULT,
-      triggerEvaluatorId: { not: null },
-      ...(params.excludeRuleId ? { id: { not: params.excludeRuleId } } : {}),
-    },
-    select: {
-      triggerEvaluatorId: true,
-      assignments: { select: { evaluatorId: true } },
-    },
-  });
-
-  return rules.flatMap((rule) =>
-    rule.triggerEvaluatorId
-      ? [
-          {
-            sourceEvaluatorId: rule.triggerEvaluatorId,
-            targetEvaluatorIds: rule.assignments.map(
-              (assignment) => assignment.evaluatorId,
-            ),
-          },
-        ]
-      : [],
-  );
-}
-
 export async function lockEvaluatorResultRuleGraph(params: {
   prisma: RulePrisma;
   projectId: string;
 }) {
-  // Graph validation and the corresponding rule write share a transaction.
-  // A project-scoped advisory lock prevents concurrent valid edges from
-  // committing as a cycle.
+  // Rule writes and evaluator changes share a project lock so trigger
+  // validation and rule invalidation cannot race each other.
   await params.prisma.$queryRaw`
     SELECT pg_advisory_xact_lock(hashtext(${params.projectId})) IS NULL AS "acquired"
   `;

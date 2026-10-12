@@ -13,6 +13,7 @@ import {
   observationVariableMappingList,
   type EvalTemplateWithType,
   canRunEvalRule,
+  EvalTargetObject,
 } from "@langfuse/shared";
 import {
   EvalTemplateType,
@@ -308,7 +309,9 @@ export async function processObservationEval(
     environment: executionParams.environment,
     deps: executionParams.deps,
     result: executionResult,
-    ...(resolved.type === "v2" && deps.processEvaluatorResultRules
+    ...(resolved.type === "v2" &&
+    resolved.config.targetObject !== EvalTargetObject.SCORE_RESULT &&
+    deps.processEvaluatorResultRules
       ? {
           onEvaluatorCompleted: async (result: EvalExecutionResult) => {
             await deps.processEvaluatorResultRules?.({
