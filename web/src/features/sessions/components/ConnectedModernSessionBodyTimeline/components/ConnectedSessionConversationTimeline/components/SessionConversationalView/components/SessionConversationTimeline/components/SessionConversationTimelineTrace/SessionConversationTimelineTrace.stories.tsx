@@ -1,3 +1,4 @@
+import type { JsonValue } from "@langfuse/shared/src/utils/normalized-io";
 import preview from "@/.storybook/preview";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
@@ -75,7 +76,10 @@ const result: Extract<Props["state"], { type: "transcript" }>["result"] = {
                   type: "tool-result",
                   toolCallId: "weather-1",
                   toolName: "weather",
-                  output: { temperature: 12, conditions: "Sunny" },
+                  output: {
+                    type: "json",
+                    value: { temperature: 12, conditions: "Sunny" },
+                  },
                 },
               ],
             },
@@ -158,10 +162,7 @@ function toolPreviewState(
       Thread["currentTurn"]["messages"][number]["parts"][number],
       { type: "tool-call" }
     >["input"];
-    output: Extract<
-      Thread["currentTurn"]["messages"][number]["parts"][number],
-      { type: "tool-result" }
-    >["output"];
+    output: JsonValue;
   }[],
 ): TranscriptState {
   return transcriptState({
@@ -192,7 +193,10 @@ function toolPreviewState(
               type: "tool-result",
               toolCallId: name,
               toolName: name,
-              output,
+              output:
+                typeof output === "string"
+                  ? { type: "text", value: output }
+                  : { type: "json", value: output },
               isError,
             },
           ],
@@ -674,7 +678,7 @@ export const ToolResultOnly = meta.story({
               type: "tool-result",
               toolCallId: "result-only",
               toolName: "get_subscription_details",
-              output: { plan: "annual_pro" },
+              output: { type: "json", value: { plan: "annual_pro" } },
             },
           ],
         },
@@ -738,13 +742,13 @@ export const KeepDifferentToolData = meta.story({
               type: "tool-result",
               toolCallId: "docs",
               toolName: "search_documentation",
-              output: { found: true },
+              output: { type: "json", value: { found: true } },
             },
             {
               type: "tool-result",
               toolCallId: "profile",
               toolName: "get_customer_profile",
-              output: { plan: "annual_pro" },
+              output: { type: "json", value: { plan: "annual_pro" } },
             },
           ],
         },
@@ -864,7 +868,7 @@ export const ToolFailure = meta.story({
               type: "tool-result",
               toolCallId: "timeout",
               toolName: "get_order",
-              output: { code: "TOOL_TIMEOUT" },
+              output: { type: "json", value: { code: "TOOL_TIMEOUT" } },
               isError: true,
             },
           ],

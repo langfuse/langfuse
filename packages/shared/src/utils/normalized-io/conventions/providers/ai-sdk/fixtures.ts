@@ -283,14 +283,10 @@ export const vercelAiSdkMixedToolMessagesFixture = {
             type: "tool-result",
             toolCallId: inputToolCallId,
             toolName: "getLangfuseOverview",
-            // AI SDK {type, value} output wrappers are unwrapped; the
-            // structured value is the result.
-            output: [
-              {
-                type: "text",
-                text: "[Langfuse documentation overview response]",
-              },
-            ],
+            output: {
+              type: "text",
+              value: "[Langfuse documentation overview response]",
+            },
           },
         ],
         source: "input",
@@ -542,12 +538,10 @@ export const vercelAiSdkOutputToolCallFixture = {
           {
             type: "tool-result",
             toolCallId: previousToolCallId,
-            output: [
-              {
-                type: "text",
-                text: "[Reduced documentation search response]",
-              },
-            ],
+            output: {
+              type: "text",
+              value: "[Reduced documentation search response]",
+            },
           },
         ],
         source: "input",
