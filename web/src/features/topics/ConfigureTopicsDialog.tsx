@@ -33,6 +33,7 @@ import {
 } from "@/src/features/search-bar";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { RuleSamplingSection } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleSamplingSection";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
@@ -1012,41 +1013,45 @@ function TraceScopeFrame({
       <section className="flex flex-col gap-2">
         <SectionHeader
           title="Filter traces"
-          meta={null}
-          description="This filter applies to every facet that is on."
-          tooltip="Only traces matching this filter are summarized. Topics always runs on whole traces."
+          meta={<Badge text="Coming soon" color="blue" size="sm" />}
+          description="Topics processes every trace for now; custom trace filters are coming soon."
+          tooltip="Only traces matching this filter will be summarized. Topics always runs on whole traces."
           trailing={
-            <FilterModeToggle
-              mode={mode}
-              onChange={(next) => {
-                if (next === "builder" && searchQuery !== null)
-                  search.applyFilters(filters);
-                setMode(next);
-              }}
-            />
+            <div inert className="opacity-50">
+              <FilterModeToggle
+                mode={mode}
+                onChange={(next) => {
+                  if (next === "builder" && searchQuery !== null)
+                    search.applyFilters(filters);
+                  setMode(next);
+                }}
+              />
+            </div>
           }
         />
-        {mode === "query" ? (
-          <EventsSearchBarRow
-            projectId={projectId}
-            tableName="topics-setup"
-            store={search.store}
-            commit={search.commit}
-            observed={observed}
-            erroredColumns={erroredColumns}
-            registry={topicsFilterRegistry}
-            onApplyFilters={search.applyFilters}
-            onRequestColumns={onRequestColumns}
-            className="p-0"
-          />
-        ) : (
-          <ObservationFilterBuilder
-            columns={builderColumns ?? [...topicsFilterRegistry.columns]}
-            filterState={filters}
-            onChange={setFilters}
-            queryOnlyColumnIds={queryOnlyColumnIds}
-          />
-        )}
+        <div inert aria-disabled className="opacity-50">
+          {mode === "query" ? (
+            <EventsSearchBarRow
+              projectId={projectId}
+              tableName="topics-setup"
+              store={search.store}
+              commit={search.commit}
+              observed={observed}
+              erroredColumns={erroredColumns}
+              registry={topicsFilterRegistry}
+              onApplyFilters={search.applyFilters}
+              onRequestColumns={onRequestColumns}
+              className="p-0"
+            />
+          ) : (
+            <ObservationFilterBuilder
+              columns={builderColumns ?? [...topicsFilterRegistry.columns]}
+              filterState={filters}
+              onChange={setFilters}
+              queryOnlyColumnIds={queryOnlyColumnIds}
+            />
+          )}
+        </div>
       </section>
       <section className="flex flex-col gap-2">
         <SectionHeader
