@@ -22,12 +22,21 @@ import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import superjson from "superjson";
 import { env } from "@/src/env.mjs";
+import type {
+  ToastOperation,
+  TrpcToastOperation,
+} from "@/src/features/notifications/toastAnalytics";
 import { versionUpdateStore } from "@/src/features/version-update/versionUpdateStore";
 import { type AppRouter } from "@/src/server/api/root";
 import { reportError } from "@/src/utils/reportError";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { EXPECTED_TRPC_BAD_REQUEST_PATHS } from "@/src/utils/trpcErrorClassification";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import {
+  createToastOperationMutationCache,
+  rememberTrpcToastOperation,
+  resolveToastOperation,
+} from "@/src/utils/trpcToastOperation";
 import { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
 
 export { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
@@ -415,7 +424,11 @@ const shouldShowToast = (error: unknown): boolean => {
   return true;
 };
 
-const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
+const handleTrpcError = (
+  error: unknown,
+  operation: ToastOperation,
+  shouldSilenceError = false,
+) => {
   if (error instanceof TRPCClientError) {
     const httpStatus: number =
       typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
@@ -487,7 +500,7 @@ const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
   }
 
   if (!shouldSilenceError && shouldShowToast(error)) {
-    trpcErrorToast(error);
+    trpcErrorToast(error, operation);
   }
 };
 
@@ -525,7 +538,11 @@ export const reportTrpcErrorWithoutToast = (
   area: string,
 ): void => {
   if (error instanceof TRPCClientError) {
-    handleTrpcError(error, true);
+    handleTrpcError(
+      error,
+      resolveToastOperation(error, undefined, "mutation.execute"),
+      true,
+    );
     return;
   }
   reportError(error, { area });
@@ -545,7 +562,7 @@ export const captureBuildId = (response: unknown) => {
 };
 
 // Track the build id serving tRPC responses to compare against the running one.
-const buildIdLink = (): TRPCLink<AppRouter> => () => {
+export const buildIdLink = (): TRPCLink<AppRouter> => () => {
   return ({ next, op }) => {
     return observable((observer) => {
       const unsubscribe = next(op).subscribe({
@@ -557,6 +574,10 @@ const buildIdLink = (): TRPCLink<AppRouter> => () => {
           captureBuildId(
             err.meta && err.meta.response ? err.meta.response : undefined,
           );
+          // `op.path` comes from the typed AppRouter operation, not from the
+          // response body. Record it before React Query and local handlers see
+          // the error so transport and pathless failures retain their origin.
+          rememberTrpcToastOperation(err, op.path as TrpcToastOperation);
           observer.error(err);
         },
         complete() {
@@ -717,16 +738,25 @@ export const api = createTRPCNext<AppRouter>({
             },
           },
           mutations: {
-            onError: (error) => handleTrpcError(error),
+            onError: (error) =>
+              handleTrpcError(
+                error,
+                resolveToastOperation(error, undefined, "mutation.execute"),
+              ),
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
           },
         },
         queryCache: new QueryCache({
           onError: (error, query) => {
-            handleTrpcError(error, shouldSilenceError(query.meta ?? {}, error));
+            handleTrpcError(
+              error,
+              resolveToastOperation(error, query.meta, "query.execute"),
+              shouldSilenceError(query.meta ?? {}, error),
+            );
           },
         }),
+        mutationCache: createToastOperationMutationCache(),
       },
     };
   },

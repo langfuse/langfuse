@@ -220,7 +220,7 @@ export function RulesTable({
     { enabled: ruleIds.length > 0, meta: { silentHttpCodes: [503] } },
   );
   const deleteMany = api.evalsV2.rules.deleteMany.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.delete"),
     onSuccess: async (result) => {
       capture("evaluation_rules:delete", {
         ruleCount: result.ruleIds.length,

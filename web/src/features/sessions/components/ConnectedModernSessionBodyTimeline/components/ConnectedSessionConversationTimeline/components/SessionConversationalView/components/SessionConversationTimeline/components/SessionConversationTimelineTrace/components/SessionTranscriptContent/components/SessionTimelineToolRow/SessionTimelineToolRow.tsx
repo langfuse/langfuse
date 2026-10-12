@@ -14,6 +14,7 @@ export function SessionTimelineToolRow({
   name,
   input,
   output,
+  outputContent,
   isExpanded,
   onExpandedChange,
   level,
@@ -23,6 +24,7 @@ export function SessionTimelineToolRow({
   name: string;
   input: unknown;
   output: unknown;
+  outputContent?: ReactNode;
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
   level?: Observation["level"];
@@ -99,17 +101,21 @@ export function SessionTimelineToolRow({
             </div>
           </div>
         ) : null}
-        {hasPreviewValue(output) ? (
+        {outputContent || hasPreviewValue(output) ? (
           <div className="flex min-w-0 flex-col gap-1">
             <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
               Output
             </span>
-            <div className="grid max-h-96 min-w-0">
-              <Codeblock label="Tool output" value={output} allowFormatting />
-            </div>
+            {outputContent ?? (
+              <div className="grid max-h-96 min-w-0">
+                <Codeblock label="Tool output" value={output} allowFormatting />
+              </div>
+            )}
           </div>
         ) : null}
-        {!hasPreviewValue(input) && !hasPreviewValue(output) ? (
+        {!hasPreviewValue(input) &&
+        !hasPreviewValue(output) &&
+        !outputContent ? (
           <div className="relative">
             <span className="text-muted-foreground text-xs">
               No input or output

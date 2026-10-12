@@ -142,6 +142,11 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
       showErrorToast(
         "Failed to prettify JSON",
         "Please verify your input is valid JSON",
+        {
+          operation: "playground_schema.prettify",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
         "WARNING",
       );
     }

@@ -64,6 +64,8 @@ export function ResetPasswordPage({
   const [isSuccess, setIsSuccess] = useState(false);
   const [email, setEmail] = useState(initialEmail);
   const [codeRequested, setCodeRequested] = useState(
+    // The intent check keeps a URL-supplied initialEmail from opening the code
+    // step for an address no email was ever sent to.
     intent === "setup" && Boolean(initialEmail),
   );
 

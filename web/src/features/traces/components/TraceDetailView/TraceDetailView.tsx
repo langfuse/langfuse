@@ -21,6 +21,7 @@ import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 // Preview tab components
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
+import { IOPreviewJSON } from "@/src/features/traces/components/IOPreview/IOPreviewJSON";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
@@ -52,6 +53,9 @@ import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { useReadPath } from "@/src/features/events";
 import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 import { TraceDetailTabsBarList } from "../TraceDetailTabsBarList";
+import { DetailAttributesTab } from "../DetailAttributesTab";
+import { getDetailTabs } from "../../fns/getDetailTabs";
+import { resolveDetailTab } from "../../fns/resolveDetailTab";
 
 export interface TraceDetailViewProps {
   isLoading?: false;
@@ -113,13 +117,6 @@ function LoadedTraceDetailView({
   const { selectedTab: globalSelectedTab, setSelectedTab } = useSelection();
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const { isV4 } = useReadPath();
-  const showMessagesTab = internalFeaturesEnabled && isV4;
-  // Unsupported tabs fall back to Preview instead of rendering an empty panel.
-  const selectedTab =
-    globalSelectedTab === "attributes" ||
-    (globalSelectedTab === "messages" && !showMessagesTab)
-      ? "preview"
-      : globalSelectedTab;
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
@@ -135,6 +132,20 @@ function LoadedTraceDetailView({
     isPeekMode,
     isAnnotationMode,
   } = useViewPreferences();
+
+  const isAuthenticatedAndProjectMember =
+    useIsAuthenticatedAndProjectMember(projectId);
+  const tabs = getDetailTabs({
+    target: "trace",
+    isV4,
+    internalFeaturesEnabled,
+    isAnnotationMode,
+    hasObservations: observations.length > 0,
+    canViewScores: isAuthenticatedAndProjectMember,
+  });
+  const selectedTab = resolveDetailTab(globalSelectedTab, tabs);
+  const showScoresTab = tabs.includes("scores");
+  const showLogViewTab = tabs.includes("log");
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
@@ -235,20 +246,9 @@ function LoadedTraceDetailView({
 
   const outputCorrection = getMostRecentCorrection(traceCorrections);
 
-  // Tab visibility: hide Log View and Scores tabs in annotation mode
-  const showLogViewTab = observations.length > 0 && !isAnnotationMode;
-
   // Check if log view will be virtualized (affects JSON tab availability)
   const isLogViewVirtualized =
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
-
-  // Scores tab visibility: hide for public trace viewers and in annotation mode
-  const isAuthenticatedAndProjectMember =
-    useIsAuthenticatedAndProjectMember(projectId);
-  const showScoresTab = isAuthenticatedAndProjectMember && !isAnnotationMode;
-
-  // Hide entire tabs bar when only Preview tab remains (cleaner annotation mode UI)
-  const showTabsBar = showLogViewTab || showScoresTab || showMessagesTab;
 
   const refreshTraceScores = useCallback(() => {
     utils.traces.byIdWithObservationsAndScores.invalidate({
@@ -308,38 +308,33 @@ function LoadedTraceDetailView({
             layout="fill"
             onValueChange={handleTabChange}
           >
-            {/* Hide the tabs bar when only Preview remains. */}
-            {showTabsBar && (
+            {tabs.length > 1 && (
               <TraceDetailTabsBarList
-                tabs={[
-                  "preview",
-                  ...(showMessagesTab ? ["messages" as const] : []),
-                  ...(showLogViewTab ? ["log" as const] : []),
-                  ...(showScoresTab ? ["scores" as const] : []),
-                ]}
+                tabs={tabs}
                 logViewDescription={
                   isLogViewVirtualized
                     ? `Shows all ${observations.length} observations with virtualization enabled.`
                     : "Shows all observations concatenated. Great for quickly scanning through them."
                 }
                 trailingControls={
-                  /* View toggle for preview and log; invisible on other tabs so the row keeps its width. */
+                  /* View toggle where it applies; invisible on other tabs so the row keeps its width. */
                   <div
                     className={cn(
                       "flex shrink-0 items-center",
                       !(
                         selectedTab === "log" ||
+                        selectedTab === "attributes" ||
                         (selectedTab === "preview" && isPrettyViewAvailable)
                       ) && "invisible",
                     )}
                   >
-                    {/* Stays mounted so the row keeps its width; the virtualized log has no Raw view. */}
+                    {/* Stays mounted so the row keeps its width; attributes and the virtualized log have no Beta view. */}
                     {selectedViewTab === "json" && (
                       <div
                         className={cn(
                           "flex items-center gap-1.5",
-                          selectedTab === "log" &&
-                            isLogViewVirtualized &&
+                          (selectedTab === "attributes" ||
+                            (selectedTab === "log" && isLogViewVirtualized)) &&
                             "invisible",
                         )}
                       >
@@ -436,7 +431,7 @@ function LoadedTraceDetailView({
                   currentView !== "json-beta" && "px-4",
                 )}
               >
-                {/* I/O Preview (includes metadata in both views) */}
+                {/* I/O Preview */}
                 <IOPreview
                   key={trace.id + "-io"}
                   input={trace.input ?? undefined}
@@ -472,7 +467,17 @@ function LoadedTraceDetailView({
                     )
                   }
                   advancedJsonExpansionState={advancedJsonExpansion}
-                  onAdvancedJsonExpansionChange={setAdvancedJsonExpansion}
+                  onAdvancedJsonExpansionChange={(expansion) =>
+                    setAdvancedJsonExpansion({
+                      ...Object.fromEntries(
+                        Object.entries(advancedJsonExpansion).filter(
+                          ([path]) =>
+                            path === "metadata" || path.startsWith("metadata."),
+                        ),
+                      ),
+                      ...expansion,
+                    })
+                  }
                   jsonInputExpanded={jsonExpansion.input}
                   jsonOutputExpanded={jsonExpansion.output}
                   jsonMetadataExpanded={jsonExpansion.metadata}
@@ -495,7 +500,6 @@ function LoadedTraceDetailView({
                     })
                   }
                   commentedPathsByField={commentedPathsByField}
-                  showMetadata
                   onVirtualizationChange={setIsJSONBetaVirtualized}
                   projectId={projectId}
                   traceId={trace.id}
@@ -504,15 +508,74 @@ function LoadedTraceDetailView({
               </div>
             </Tabs.Content>
 
-            {/* Log View tab content */}
-            <Tabs.Content value="log" layout="fill">
-              <TraceLogView
-                traceId={trace.id}
-                projectId={projectId}
-                currentView={isLogViewVirtualized ? "pretty" : currentView}
-                target="trace"
-              />
+            <Tabs.Content value="attributes" layout="fill">
+              {currentView === "json-beta" ? (
+                <IOPreviewJSON
+                  key={trace.id + "-metadata"}
+                  metadata={trace.metadata ?? undefined}
+                  parsedMetadata={parsedMetadata}
+                  isParsing={isParsing}
+                  media={traceMedia.data}
+                  hideInput
+                  hideOutput
+                  showCorrections={false}
+                  projectId={projectId}
+                  traceId={trace.id}
+                  expansionState={advancedJsonExpansion}
+                  onExpansionChange={(expansion) =>
+                    setAdvancedJsonExpansion({
+                      ...Object.fromEntries(
+                        Object.entries(advancedJsonExpansion).filter(
+                          ([path]) =>
+                            path !== "metadata" &&
+                            !path.startsWith("metadata."),
+                        ),
+                      ),
+                      ...expansion,
+                    })
+                  }
+                  enableInlineComments
+                  onAddInlineComment={(selection) =>
+                    openDrawer({
+                      type: "inline-comment",
+                      selection,
+                      objectId: trace.id,
+                      objectType: "TRACE",
+                    })
+                  }
+                  commentedPathsByField={commentedPathsByField}
+                />
+              ) : (
+                <DetailAttributesTab
+                  metadata={trace.metadata}
+                  parsedMetadata={parsedMetadata}
+                  objectId={trace.id}
+                  projectId={projectId}
+                  currentView={selectedViewTab}
+                  media={traceMedia.data}
+                  metadataExpansionState={formattedExpansion.metadata}
+                  onMetadataExpansionChange={(expansion) =>
+                    setFormattedFieldExpansion("metadata", expansion)
+                  }
+                  jsonMetadataExpanded={jsonExpansion.metadata}
+                  onJsonMetadataExpandedChange={(expanded) =>
+                    setJsonFieldExpansion("metadata", expanded)
+                  }
+                />
+              )}
             </Tabs.Content>
+
+            {/* Log View tab content */}
+            {showLogViewTab && (
+              <Tabs.Content value="log" layout="fill">
+                <TraceLogView
+                  traceId={trace.id}
+                  projectId={projectId}
+                  currentView={isLogViewVirtualized ? "pretty" : currentView}
+                  target="trace"
+                />
+              </Tabs.Content>
+            )}
 
             {/* Scores tab content */}
             {showScoresTab && (

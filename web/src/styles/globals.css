@@ -200,6 +200,9 @@
   /* Text styles: each size token carries its size (whole pixels at a 16px
      root), line-height and canonical weight, so `text-*` alone yields a
      complete style. Heavier text opts in via `font-bold`, never a raw number. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: calc(16 / 11);
+  --text-2xs--font-weight: var(--font-weight-regular);
   --text-xs: 0.75rem;
   --text-xs--line-height: calc(18 / 12);
   --text-xs--font-weight: var(--font-weight-regular);
@@ -497,7 +500,7 @@
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%; /* zinc-100 */
+    --sidebar-accent: 240 5.2% 93.5%; /* between zinc-100 and zinc-200 */
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 240 5.9% 90%; /* zinc-200 */
     --sidebar-ring: 217.2 91.2% 59.8%;
