@@ -28,7 +28,6 @@ import {
 } from "./helpers/otelReplayHarness";
 import {
   configureDefaultOtelReplayMocks,
-  configureOtelReplayEnvironment,
   otelReplayMocks,
 } from "./helpers/otelReplaySetup";
 
@@ -180,6 +179,43 @@ function createMediaAssociationCapture(): () => MediaAssociation[] {
     }
     return sortedMediaAssociations([...associations.values()]);
   };
+}
+
+type PreparedBatchSnapshot = {
+  json: string;
+  references: string[];
+  media?: Array<{ reference: string; bodyBase64: string }>;
+};
+
+function capturePreparedBatches(options: { includeBodies?: boolean } = {}) {
+  const compactedBatches: PreparedBatchSnapshot[] = [];
+  const prepareOtelBatch = otelPreparation.prepareOtelBatch;
+  const preparation = vi
+    .spyOn(otelPreparation, "prepareOtelBatch")
+    .mockImplementation(async (params) => {
+      const result = await prepareOtelBatch(params);
+      const batch = result?.batch;
+      if (batch) {
+        // Snapshot native output before queue parsing and the late TS detector.
+        const media = batch.media;
+        const snapshot: PreparedBatchSnapshot = {
+          json: (await batch.copyJsonBuffer()).toString("utf8"),
+          references: media.map(({ reference }) => reference),
+        };
+        if (options.includeBodies) {
+          snapshot.media = await Promise.all(
+            media.map(async ({ index, reference }) => ({
+              reference,
+              bodyBase64: (await batch.mediaBody(index)).toString("base64"),
+            })),
+          );
+        }
+        compactedBatches.push(snapshot);
+      }
+      return result;
+    });
+
+  return { compactedBatches, preparation };
 }
 
 function expectLegacyReplayParity(comparison: OtelRawReplayComparison) {
@@ -437,15 +473,8 @@ describe(
   "OTEL replay persists enriched observations after media and overflow handling",
   { retry: 0, timeout: 120_000 },
   () => {
-    let restoreEnvironment: (() => void) | undefined;
-
     beforeEach(() => {
       configureDefaultOtelReplayMocks();
-      restoreEnvironment = configureOtelReplayEnvironment({
-        mediaUploadEnabled: true,
-        overflowEnabled: true,
-        overflowSizeLimitBytes: 256,
-      });
 
       const model = {
         id: "otel-replay-model",
@@ -483,8 +512,6 @@ describe(
     });
 
     afterEach(() => {
-      restoreEnvironment?.();
-      restoreEnvironment = undefined;
       // The test owns this mutable mock setup; restore its deterministic
       // defaults so another worker suite in the same process is unaffected.
       configureDefaultOtelReplayMocks();
@@ -503,85 +530,84 @@ describe(
       expectRawOtelReplayParity(comparison);
       expect(otelReplayMocks.scheduleObservationEvals).toHaveBeenCalledTimes(4);
 
-      for (const result of [comparison.originalTs, comparison.earlyTs]) {
-        expect(result.storedRows, result.mode).toHaveLength(2);
-        const rowsBySpanId = new Map(
-          result.storedRows.map((row) => [String(row.span_id), row]),
-        );
-        const firstRow = rowsBySpanId.get(FIRST_SPAN_ID);
-        const secondRow = rowsBySpanId.get(SECOND_SPAN_ID);
-        expect(firstRow).toBeDefined();
-        expect(secondRow).toBeDefined();
+      const result = comparison.originalTs;
+      expect(result.storedRows).toHaveLength(2);
+      const rowsBySpanId = new Map(
+        result.storedRows.map((row) => [String(row.span_id), row]),
+      );
+      const firstRow = rowsBySpanId.get(FIRST_SPAN_ID);
+      const secondRow = rowsBySpanId.get(SECOND_SPAN_ID);
+      expect(firstRow).toBeDefined();
+      expect(secondRow).toBeDefined();
 
-        expect(firstRow).toMatchObject({
-          project_id: PROJECT_ID,
-          trace_id: TRACE_ID,
-          span_id: FIRST_SPAN_ID,
-          parent_span_id: "",
-          name: "replay-generation-with-media",
-          type: "GENERATION",
-          environment: "integration",
-          release: "replay-release",
-          trace_name: "replay-trace",
-          user_id: "replay-user",
-          session_id: "replay-session",
-          prompt_id: "replay-prompt-id",
-          prompt_name: "replay-prompt",
-          prompt_version: 3,
-          model_id: "otel-replay-model",
-          provided_model_name: "gpt-4o-mini",
-          usage_pricing_tier_id: "otel-replay-tier",
-          usage_pricing_tier_name: "Replay default",
-          ingestion_sdk_name: "otel-replay",
-          ingestion_sdk_version: "test",
-          blob_storage_file_path: FILE_KEY,
-        });
-        expect(String(firstRow?.input)).toContain(
-          "@@@langfuseMedia:type=image/png|id=image-media-id|source=",
-        );
-        expect(firstRow?.output).toBe("short replay answer");
-        expect(firstRow?.metadata_names).toContain("source");
-        expect(firstRow?.metadata_values).toContain("integration");
-        expect(
-          Number((firstRow?.usage_details as Record<string, unknown>).input),
-        ).toBeGreaterThan(0);
-        expect(
-          Number((firstRow?.usage_details as Record<string, unknown>).output),
-        ).toBeGreaterThan(0);
-        expect(
-          Number((firstRow?.cost_details as Record<string, unknown>).total),
-        ).toBeGreaterThan(0);
+      expect(firstRow).toMatchObject({
+        project_id: PROJECT_ID,
+        trace_id: TRACE_ID,
+        span_id: FIRST_SPAN_ID,
+        parent_span_id: "",
+        name: "replay-generation-with-media",
+        type: "GENERATION",
+        environment: "integration",
+        release: "replay-release",
+        trace_name: "replay-trace",
+        user_id: "replay-user",
+        session_id: "replay-session",
+        prompt_id: "replay-prompt-id",
+        prompt_name: "replay-prompt",
+        prompt_version: 3,
+        model_id: "otel-replay-model",
+        provided_model_name: "gpt-4o-mini",
+        usage_pricing_tier_id: "otel-replay-tier",
+        usage_pricing_tier_name: "Replay default",
+        ingestion_sdk_name: "otel-replay",
+        ingestion_sdk_version: "test",
+        blob_storage_file_path: FILE_KEY,
+      });
+      expect(String(firstRow?.input)).toContain(
+        "@@@langfuseMedia:type=image/png|id=image-media-id|source=",
+      );
+      expect(firstRow?.output).toBe("short replay answer");
+      expect(firstRow?.metadata_names).toContain("source");
+      expect(firstRow?.metadata_values).toContain("integration");
+      expect(
+        Number((firstRow?.usage_details as Record<string, unknown>).input),
+      ).toBeGreaterThan(0);
+      expect(
+        Number((firstRow?.usage_details as Record<string, unknown>).output),
+      ).toBeGreaterThan(0);
+      expect(
+        Number((firstRow?.cost_details as Record<string, unknown>).total),
+      ).toBeGreaterThan(0);
 
-        expect(secondRow).toMatchObject({
-          project_id: PROJECT_ID,
-          trace_id: TRACE_ID,
-          span_id: SECOND_SPAN_ID,
-          parent_span_id: FIRST_SPAN_ID,
-          name: "replay-generation-with-overflow",
-          type: "GENERATION",
-          prompt_id: "replay-prompt-id",
-          model_id: "otel-replay-model",
-          provided_model_name: "gpt-4o-mini",
-          usage_details: {},
-          provided_cost_details: {
-            input: 999_999.999999,
-            output: -999_999.999999,
-            total: 999_999.999999,
-          },
-          cost_details: {
-            input: 999_999.999999,
-            output: -999_999.999999,
-            total: 999_999.999999,
-          },
-        });
-        expect(secondRow?.input).toBe("plain input");
-        expect(secondRow?.output).toBe(
-          "@@@langfuseMedia:type=text/plain|id=overflow-media-id|source=field_size_limit@@@",
-        );
+      expect(secondRow).toMatchObject({
+        project_id: PROJECT_ID,
+        trace_id: TRACE_ID,
+        span_id: SECOND_SPAN_ID,
+        parent_span_id: FIRST_SPAN_ID,
+        name: "replay-generation-with-overflow",
+        type: "GENERATION",
+        prompt_id: "replay-prompt-id",
+        model_id: "otel-replay-model",
+        provided_model_name: "gpt-4o-mini",
+        usage_details: {},
+        provided_cost_details: {
+          input: 999_999.999999,
+          output: -999_999.999999,
+          total: 999_999.999999,
+        },
+        cost_details: {
+          input: 999_999.999999,
+          output: -999_999.999999,
+          total: 999_999.999999,
+        },
+      });
+      expect(secondRow?.input).toBe("plain input");
+      expect(secondRow?.output).toBe(
+        "@@@langfuseMedia:type=text/plain|id=overflow-media-id|source=field_size_limit@@@",
+      );
 
-        for (const row of result.storedRows) {
-          expect(Number(row.event_bytes)).toBeGreaterThan(0);
-        }
+      for (const row of result.storedRows) {
+        expect(Number(row.event_bytes)).toBeGreaterThan(0);
       }
     });
 
@@ -599,16 +625,15 @@ describe(
       });
 
       expectRawOtelReplayParity(comparison);
-      for (const result of [comparison.originalTs, comparison.earlyTs]) {
-        expect(result.storedRows, result.mode).toHaveLength(1);
-        const metadataIndex = (
-          result.storedRows[0].metadata_names as string[]
-        ).indexOf("attributes.gen_ai.request.temperature");
-        expect(metadataIndex).toBeGreaterThanOrEqual(0);
-        expect(result.storedRows[0].metadata_values?.[metadataIndex]).toBe(
-          "9007199254740992",
-        );
-      }
+      const result = comparison.originalTs;
+      expect(result.storedRows).toHaveLength(1);
+      const metadataIndex = (
+        result.storedRows[0].metadata_names as string[]
+      ).indexOf("attributes.gen_ai.request.temperature");
+      expect(metadataIndex).toBeGreaterThanOrEqual(0);
+      expect(result.storedRows[0].metadata_values?.[metadataIndex]).toBe(
+        "9007199254740992",
+      );
     });
 
     it.each([
@@ -675,23 +700,7 @@ describe(
           createdProject?.projectId ??
           `${PROJECT_ID}-${sdkName}-${uploadOutcome}`;
         const fileKey = `${FILE_KEY}.structured-${sdkName}-${writeMode}-${uploadOutcome}`;
-        const compactedBatches: { json: string; references: string[] }[] = [];
-        const prepareOtelBatch = otelPreparation.prepareOtelBatch;
-        const preparation = vi
-          .spyOn(otelPreparation, "prepareOtelBatch")
-          .mockImplementation(async (params) => {
-            const prepared = await prepareOtelBatch(params);
-            if (prepared?.batch) {
-              // Snapshot native output before queue parsing and the TS media detector.
-              compactedBatches.push({
-                json: (await prepared.batch.copyJsonBuffer()).toString("utf8"),
-                references: prepared.batch.media.map(
-                  (media) => media.reference,
-                ),
-              });
-            }
-            return prepared;
-          });
+        const { compactedBatches, preparation } = capturePreparedBatches();
         if (uploadOutcome === "failure") {
           otelReplayMocks.uploadMediaForTrace.mockRejectedValue(
             new Error("simulated structured media upload failure"),
@@ -729,7 +738,6 @@ describe(
           expect(comparison.earlyTs.sideEffects).toEqual(
             comparison.originalTs.sideEffects,
           );
-          const replayResults = [comparison.originalTs, comparison.earlyTs];
 
           expect(compactedBatches).toHaveLength(1);
           expect(compactedBatches[0].references).toHaveLength(4);
@@ -754,49 +762,46 @@ describe(
             uploadOutcome === "success"
               ? JSON.stringify({ image: expectedImage })
               : structuredMetadata.jsonString;
-          for (const result of replayResults) {
-            const expanded =
-              result.mode === "early-ts" && uploadOutcome === "success";
-            const expectedEscapedJsonString = expanded
-              ? JSON.stringify({ image: expandedImage })
-              : structuredMetadata.escapedJsonString;
-            const expectedProvider = expanded
-              ? expandedProvider
-              : structuredMetadata.providerJson;
-            const expectedMetadata = {
-              quoted: "quoted value",
-              "asset.attachment.image": expectedImage,
-              json_string: expectedJsonString,
-              escaped_json_string: expectedEscapedJsonString,
-              quoted_provider: expectedProvider,
-              truncated: '{"value":"cut',
-              "collision.key": "blob wins",
-            };
-            expect(result.storedRows, result.mode).toHaveLength(1);
+          expect(comparison.originalTs.storedRows).toHaveLength(1);
+          const originalMetadata = Object.fromEntries(
+            eventMetadataByPath(comparison.originalTs.storedRows[0]),
+          );
+          expect(originalMetadata).toMatchObject({
+            quoted: "quoted value",
+            "asset.attachment.image": expectedImage,
+            json_string: expectedJsonString,
+            escaped_json_string: structuredMetadata.escapedJsonString,
+            quoted_provider: structuredMetadata.providerJson,
+            truncated: '{"value":"cut',
+            "collision.key": "blob wins",
+          });
+          if (writeMode === "dual") {
+            expect(comparison.originalTs.legacyRows?.observations).toHaveLength(
+              1,
+            );
             expect(
-              Object.fromEntries(eventMetadataByPath(result.storedRows[0])),
-              result.mode,
-            ).toMatchObject(expectedMetadata);
-            if (writeMode === "dual") {
-              expect(result.legacyRows?.observations, result.mode).toHaveLength(
-                1,
-              );
-              expect(
-                result.legacyRows!.observations![0].metadata,
-                result.mode,
-              ).toMatchObject({
-                quoted: "quoted value",
-                asset: JSON.stringify({
-                  attachment: { image: expectedImage },
-                }),
-                json_string: expectedJsonString,
-                escaped_json_string: expectedEscapedJsonString,
-                quoted_provider: expectedProvider,
-                truncated: '{"value":"cut',
-                collision: JSON.stringify({ key: "blob wins" }),
-                "collision.key": "dotted loses",
-              });
-            }
+              comparison.originalTs.legacyRows!.observations![0].metadata,
+            ).toMatchObject({
+              quoted: "quoted value",
+              asset: JSON.stringify({
+                attachment: { image: expectedImage },
+              }),
+              json_string: expectedJsonString,
+              escaped_json_string: structuredMetadata.escapedJsonString,
+              quoted_provider: structuredMetadata.providerJson,
+              truncated: '{"value":"cut',
+              collision: JSON.stringify({ key: "blob wins" }),
+              "collision.key": "dotted loses",
+            });
+          }
+          if (uploadOutcome === "success") {
+            const earlyMetadata = Object.fromEntries(
+              eventMetadataByPath(comparison.earlyTs.storedRows[0]),
+            );
+            expect(earlyMetadata).toMatchObject({
+              escaped_json_string: JSON.stringify({ image: expandedImage }),
+              quoted_provider: expandedProvider,
+            });
           }
         } finally {
           preparation.mockRestore();
@@ -857,37 +862,34 @@ describe(
           escaped_json_string: JSON.stringify(expandedJson),
           quoted_provider: JSON.stringify(expandedProvider),
         });
-        for (const result of [comparison.originalTs, comparison.earlyTs]) {
-          const expanded = result.mode === "early-ts";
-          expect(result.storedRows).toHaveLength(1);
-          const metadata = eventMetadataByPath(result.storedRows[0]);
-          expect(metadata.get("quoted")).toBe(JSON.stringify("quoted value"));
-          expect(metadata.get("asset")).toBe(
-            JSON.stringify({
-              attachment: {
-                image:
-                  "@@@langfuseMedia:type=image/png|id=overflow-media-id|source=base64_data_uri@@@",
-              },
-            }),
-          );
-          expect(metadata.get("json_string")).toBe(
-            JSON.stringify(
-              expanded ? expandedJson : structuredMetadata.jsonString,
-            ),
-          );
-          expect(metadata.get("escaped_json_string")).toBe(
-            JSON.stringify(
-              expanded ? expandedJson : structuredMetadata.escapedJsonString,
-            ),
-          );
-          expect(metadata.get("quoted_provider")).toBe(
-            JSON.stringify(
-              expanded ? expandedProvider : structuredMetadata.providerJson,
-            ),
-          );
-          expect(metadata.get("truncated")).toBe('{"value":"cut');
-          expect(metadata.get("collision.key")).toBe("blob wins");
-        }
+        expect(comparison.originalTs.storedRows).toHaveLength(1);
+        const originalMetadata = Object.fromEntries(
+          eventMetadataByPath(comparison.originalTs.storedRows[0]),
+        );
+        expect(originalMetadata).toMatchObject({
+          quoted: JSON.stringify("quoted value"),
+          asset: JSON.stringify({
+            attachment: {
+              image:
+                "@@@langfuseMedia:type=image/png|id=overflow-media-id|source=base64_data_uri@@@",
+            },
+          }),
+          json_string: JSON.stringify(structuredMetadata.jsonString),
+          escaped_json_string: JSON.stringify(
+            structuredMetadata.escapedJsonString,
+          ),
+          quoted_provider: JSON.stringify(structuredMetadata.providerJson),
+          truncated: '{"value":"cut',
+          "collision.key": "blob wins",
+        });
+        const earlyMetadata = Object.fromEntries(
+          eventMetadataByPath(comparison.earlyTs.storedRows[0]),
+        );
+        expect(earlyMetadata).toMatchObject({
+          json_string: JSON.stringify(expandedJson),
+          escaped_json_string: JSON.stringify(expandedJson),
+          quoted_provider: JSON.stringify(expandedProvider),
+        });
       },
     );
 
@@ -953,31 +955,9 @@ describe(
           });
         });
 
-      const compactedBatches: {
-        json: string;
-        media: Array<{ reference: string; bodyBase64: string }>;
-      }[] = [];
-      const prepareOtelBatch = otelPreparation.prepareOtelBatch;
-      const preparation = vi
-        .spyOn(otelPreparation, "prepareOtelBatch")
-        .mockImplementation(async (params) => {
-          const result = await prepareOtelBatch(params);
-          if (result?.batch) {
-            const media = result.batch.media;
-            compactedBatches.push({
-              json: (await result.batch.copyJsonBuffer()).toString("utf8"),
-              media: await Promise.all(
-                media.map(async ({ index, reference }) => ({
-                  reference,
-                  bodyBase64: (await result.batch!.mediaBody(index)).toString(
-                    "base64",
-                  ),
-                })),
-              ),
-            });
-          }
-          return result;
-        });
+      const { compactedBatches, preparation } = capturePreparedBatches({
+        includeBodies: true,
+      });
 
       try {
         const comparison = await runOtelReplayComparison({
@@ -998,31 +978,31 @@ describe(
         }
         expect(compactedBatches).toHaveLength(1);
         const earlyBatch = compactedBatches[0]!;
-        expect(earlyBatch.media).toEqual([
+        const earlyMedia = earlyBatch.media!;
+        expect(earlyMedia).toEqual([
           {
             reference: expect.any(String),
             bodyBase64: maskedMedia.toString("base64"),
           },
         ]);
-        expect(earlyBatch.json).toContain(earlyBatch.media[0]!.reference);
+        expect(earlyBatch.json).toContain(earlyMedia[0]!.reference);
         expect(earlyBatch.json).not.toContain(
           `data:image/png;base64,${maskedMedia.toString("base64")}`,
         );
-        for (const result of [comparison.originalTs, comparison.earlyTs]) {
-          const associations = result.sideEffects as MediaAssociation[];
-          expect(associations, result.mode).toHaveLength(1);
-          expect(associations[0]?.contentBase64, result.mode).toBe(
-            maskedMedia.toString("base64"),
-          );
-          expect(result.storedRows, result.mode).toHaveLength(1);
-          expect(String(result.storedRows[0]?.input), result.mode).toContain(
-            "id=image-media-id",
-          );
-          expect(
-            String(result.storedRows[0]?.input),
-            result.mode,
-          ).not.toContain(originalMedia.toString("base64"));
-        }
+        const associations = comparison.originalTs
+          .sideEffects as MediaAssociation[];
+        expect(associations).toHaveLength(1);
+        expect(associations[0]?.contentBase64).toBe(
+          maskedMedia.toString("base64"),
+        );
+        expect(comparison.earlyTs.sideEffects).toEqual(associations);
+        expect(comparison.originalTs.storedRows).toHaveLength(1);
+        expect(String(comparison.originalTs.storedRows[0]?.input)).toContain(
+          "id=image-media-id",
+        );
+        expect(
+          String(comparison.originalTs.storedRows[0]?.input),
+        ).not.toContain(originalMedia.toString("base64"));
         expectRawOtelReplayParity(comparison);
       } finally {
         preparation.mockRestore();
@@ -1044,13 +1024,11 @@ describe(
       });
 
       expectRawOtelReplayParity(comparison);
-      for (const result of [comparison.originalTs, comparison.earlyTs]) {
-        expect(result.storedRows, result.mode).toHaveLength(1);
-        expect(result.storedRows[0]?.tags, result.mode).toEqual([
-          "data:image/png;base64",
-          Buffer.from("tag-media").toString("base64"),
-        ]);
-      }
+      expect(comparison.originalTs.storedRows).toHaveLength(1);
+      expect(comparison.originalTs.storedRows[0]?.tags).toEqual([
+        "data:image/png;base64",
+        Buffer.from("tag-media").toString("base64"),
+      ]);
     });
 
     it.each([
@@ -1074,9 +1052,7 @@ describe(
         });
 
         expectRawOtelReplayParity(comparison);
-        for (const result of [comparison.originalTs, comparison.earlyTs]) {
-          expect(result.storedRows, result.mode).toHaveLength(1);
-        }
+        expect(comparison.originalTs.storedRows).toHaveLength(1);
       },
     );
 
@@ -1143,7 +1119,6 @@ describe(
 
         expectRawOtelReplayParity(comparison);
         expect(comparison.originalTs.storedRows).toHaveLength(1);
-        expect(comparison.earlyTs.storedRows).toHaveLength(1);
       },
     );
 
@@ -1162,10 +1137,8 @@ describe(
         mediaUploadEnabled: true,
       });
       expectRawOtelReplayParity(comparison);
-      for (const result of [comparison.originalTs, comparison.earlyTs]) {
-        expect(result.storedRows).toHaveLength(1);
-        expect(result.storedRows[0].input).toContain("�tf8-probe");
-      }
+      expect(comparison.originalTs.storedRows).toHaveLength(1);
+      expect(comparison.originalTs.storedRows[0].input).toContain("�tf8-probe");
     });
 
     it("uploads a native provider candidate beyond the TS discovery limits", async () => {
@@ -1175,30 +1148,9 @@ describe(
       // integer as source text to also catch parse-and-reserialize corruption.
       const provider = `{"type":"file","mediaType":"image/png","data":"${encoded}","large":9007199254740993}`;
       const input = `${'{"nested":'.repeat(12)}${provider}${"}".repeat(12)}`;
-      const compactedBatches: {
-        json: string;
-        media: Array<{ reference: string; bodyBase64: string }>;
-      }[] = [];
-      const prepareOtelBatch = otelPreparation.prepareOtelBatch;
-      const preparation = vi
-        .spyOn(otelPreparation, "prepareOtelBatch")
-        .mockImplementation(async (params) => {
-          const result = await prepareOtelBatch(params);
-          if (result?.batch) {
-            compactedBatches.push({
-              json: (await result.batch.copyJsonBuffer()).toString("utf8"),
-              media: await Promise.all(
-                result.batch.media.map(async ({ index, reference }) => ({
-                  reference,
-                  bodyBase64: (await result.batch!.mediaBody(index)).toString(
-                    "base64",
-                  ),
-                })),
-              ),
-            });
-          }
-          return result;
-        });
+      const { compactedBatches, preparation } = capturePreparedBatches({
+        includeBodies: true,
+      });
 
       try {
         const comparison = await runOtelReplayComparison({
@@ -1213,10 +1165,11 @@ describe(
         // Assert extraction before normalization or the late TS detector runs.
         expect(compactedBatches).toHaveLength(1);
         const compacted = compactedBatches[0]!;
-        expect(compacted.media).toHaveLength(1);
-        expect(compacted.media[0]?.bodyBase64).toBe(encoded);
+        const compactedMedia = compacted.media!;
+        expect(compactedMedia).toHaveLength(1);
+        expect(compactedMedia[0]?.bodyBase64).toBe(encoded);
         expect(compacted.json).not.toContain(encoded);
-        const pendingReference = compacted.media[0]!.reference;
+        const pendingReference = compactedMedia[0]!.reference;
         expect(compacted.json).toContain(pendingReference);
         const publicReference = pendingReference.replace(
           /\|id=[^|@]+/,
@@ -1305,12 +1258,14 @@ describe(
           ]),
         );
 
-        for (const result of [comparison.originalTs, comparison.earlyTs]) {
-          expect(result.storedRows, result.mode).toHaveLength(2);
-          expect(result.legacyRows?.traces?.length).toBeGreaterThan(0);
-          expect(result.legacyRows?.observations).toHaveLength(2);
-          expect(result.legacyRows?.observations_batch_staging).toHaveLength(0);
-        }
+        expect(comparison.originalTs.storedRows).toHaveLength(2);
+        expect(
+          comparison.originalTs.legacyRows?.traces?.length,
+        ).toBeGreaterThan(0);
+        expect(comparison.originalTs.legacyRows?.observations).toHaveLength(2);
+        expect(
+          comparison.originalTs.legacyRows?.observations_batch_staging,
+        ).toHaveLength(0);
 
         expectLegacyReplayParity(comparison);
       } finally {
@@ -1340,20 +1295,7 @@ describe(
         }
         // Final rows can match even if the late detector does all the work. Capture the
         // real compact document and registry before the queue parses and disposes them.
-        const compactedBatches: { json: string; references: string[] }[] = [];
-        const prepareOtelBatch = otelPreparation.prepareOtelBatch;
-        const preparation = vi
-          .spyOn(otelPreparation, "prepareOtelBatch")
-          .mockImplementation(async (params) => {
-            const result = await prepareOtelBatch(params);
-            if (result?.batch) {
-              compactedBatches.push({
-                json: (await result.batch.copyJsonBuffer()).toString("utf8"),
-                references: result.batch.media.map((media) => media.reference),
-              });
-            }
-            return result;
-          });
+        const { compactedBatches, preparation } = capturePreparedBatches();
         const captureMediaAssociations = createMediaAssociationCapture();
         let uploadCursor = 0;
         try {
@@ -1386,14 +1328,13 @@ describe(
             },
           });
           expect(compactedBatches).toHaveLength(1);
-          for (const batch of compactedBatches) {
-            expect(batch.json).toContain(existingReference);
-            expect(batch.json).not.toContain(dataUri);
-            expect(batch.references.length).toBeGreaterThan(0);
-            for (const reference of batch.references) {
-              expect(reference).not.toBe(existingReference);
-              expect(batch.json).toContain(reference);
-            }
+          const compacted = compactedBatches[0]!;
+          expect(compacted.json).toContain(existingReference);
+          expect(compacted.json).not.toContain(dataUri);
+          expect(compacted.references.length).toBeGreaterThan(0);
+          for (const reference of compacted.references) {
+            expect(reference).not.toBe(existingReference);
+            expect(compacted.json).toContain(reference);
           }
           expectRawOtelReplayParity(comparison);
           expectLegacyReplayParity(comparison);
@@ -1403,19 +1344,17 @@ describe(
               ? dataUri
               : "@@@langfuseMedia:type=image/png|id=image-media-id|source=base64_data_uri@@@",
           ]);
-          for (const result of [comparison.originalTs, comparison.earlyTs]) {
-            expect(result.storedRows, result.mode).toHaveLength(1);
-            expect(result.legacyRows?.traces, result.mode).toHaveLength(1);
-            expect(result.legacyRows?.observations, result.mode).toHaveLength(
-              1,
-            );
-            for (const row of [
-              result.storedRows[0],
-              result.legacyRows?.traces?.[0],
-              result.legacyRows?.observations?.[0],
-            ]) {
-              expect(row?.input, result.mode).toBe(expectedInput);
-            }
+          expect(comparison.originalTs.storedRows).toHaveLength(1);
+          expect(comparison.originalTs.legacyRows?.traces).toHaveLength(1);
+          expect(comparison.originalTs.legacyRows?.observations).toHaveLength(
+            1,
+          );
+          for (const row of [
+            comparison.originalTs.storedRows[0],
+            comparison.originalTs.legacyRows?.traces?.[0],
+            comparison.originalTs.legacyRows?.observations?.[0],
+          ]) {
+            expect(row?.input).toBe(expectedInput);
           }
           if (uploadFails) {
             expect(

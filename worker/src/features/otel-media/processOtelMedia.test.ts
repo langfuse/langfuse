@@ -132,6 +132,39 @@ function createProviderPayload(reference: string, spanId = "observation-id") {
   };
 }
 
+function resolveTarget(
+  batch: EarlyOtelBatch,
+  payload: unknown,
+  writePath: "direct" | "legacy" = "direct",
+) {
+  return resolveExtractedMedia({
+    batch,
+    targets: createDirectOtelMediaTargets([payload]),
+    ...MEDIA_DESTINATION,
+    writePath,
+  });
+}
+
+async function withExtractedBatch(
+  source: string | object,
+  callback: (batch: EarlyOtelBatch) => Promise<void>,
+): Promise<void> {
+  const validated = await validateOtelJson(
+    Buffer.from(typeof source === "string" ? source : JSON.stringify(source)),
+  );
+  let batch: EarlyOtelBatch | undefined;
+  try {
+    batch = await validated.extract(true);
+    await callback(batch);
+  } finally {
+    try {
+      await batch?.dispose();
+    } finally {
+      await validated.dispose();
+    }
+  }
+}
+
 describe("processOtelEventMedia", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -152,10 +185,8 @@ describe("processOtelEventMedia", () => {
         null,
       ]),
       writePath: "direct",
-      projectId: "project-id",
+      ...MEDIA_DESTINATION,
       fileKey: "file-key",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
       processMedia,
     });
 
@@ -227,10 +258,8 @@ describe("processOtelEventMedia", () => {
         { traceId: "trace-id", spanId: "observation-id" },
       ]),
       writePath: "direct",
-      projectId: "project-id",
+      ...MEDIA_DESTINATION,
       fileKey: "file-key",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
       processMedia,
     });
 
@@ -251,10 +280,8 @@ describe("processOtelEventMedia", () => {
         },
       ]),
       writePath: "direct",
-      projectId: "project-id",
+      ...MEDIA_DESTINATION,
       fileKey: "file-key",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
       processMedia,
     });
 
@@ -286,10 +313,8 @@ describe("processOtelEventMedia", () => {
           },
         ]),
         writePath: "direct",
-        projectId: "project-id",
+        ...MEDIA_DESTINATION,
         fileKey: "file-key",
-        mediaBucket: "media-bucket",
-        mediaPrefix: "media/",
         processMedia,
       }),
     ).resolves.toBeUndefined();
@@ -318,31 +343,22 @@ describe("processOtelEventMedia", () => {
       spanId: "observation-id",
       input: `data:image/png;base64,${"aGVsbG8h".repeat(1024)}`,
     };
-    const validated = await validateOtelJson(
-      Buffer.from(JSON.stringify(original)),
-    );
-    const batch = await validated.extract(true);
-    try {
+    await withExtractedBatch(original, async (batch) => {
       const payload = JSON.parse(batch.takeJsonBuffer().toString("utf8"));
       expect(payload.input).not.toBe(original.input);
       await processOtelEventMedia({
         earlyBatch: batch,
         targets: createDirectOtelMediaTargets([payload]),
         writePath: "direct",
-        projectId: "project-id",
+        ...MEDIA_DESTINATION,
         fileKey: "file-key",
-        mediaBucket: "media-bucket",
-        mediaPrefix: "media/",
         processMedia: vi
           .fn()
           .mockRejectedValue(new Error("residual detector failed")),
       });
       expect(payload).toEqual(original);
       expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
-    } finally {
-      await batch.dispose();
-      await validated.dispose();
-    }
+    });
   });
 
   it("creates legacy targets that retain trace and observation body references", () => {
@@ -418,12 +434,7 @@ describe("processOtelEventMedia", () => {
       },
     };
 
-    const result = await resolveExtractedMedia({
-      batch,
-      targets: createDirectOtelMediaTargets([payload]),
-      ...MEDIA_DESTINATION,
-      writePath: "direct",
-    });
+    const result = await resolveTarget(batch, payload);
 
     expect(result).toMatchObject({
       uploaded: 1,
@@ -492,11 +503,7 @@ describe("processOtelEventMedia", () => {
       output: createDeepPayload(),
       metadata: createDeepPayload(),
     };
-    const validated = await validateOtelJson(
-      Buffer.from(JSON.stringify(original)),
-    );
-    const batch = await validated.extract(true);
-    try {
+    await withExtractedBatch(original, async (batch) => {
       const descriptors = batch.media;
       expect(descriptors).toHaveLength(3);
       const payload = JSON.parse(batch.takeJsonBuffer().toString("utf8")) as {
@@ -517,12 +524,7 @@ describe("processOtelEventMedia", () => {
         },
       );
 
-      const result = await resolveExtractedMedia({
-        batch,
-        targets: createDirectOtelMediaTargets([payload]),
-        ...MEDIA_DESTINATION,
-        writePath: "direct",
-      });
+      const result = await resolveTarget(batch, payload);
 
       expect(result).toMatchObject({
         uploaded: 1,
@@ -562,10 +564,7 @@ describe("processOtelEventMedia", () => {
           JSON.stringify(original[field]).replace(encoded, uploadedReference),
         );
       }
-    } finally {
-      await batch.dispose();
-      await validated.dispose();
-    }
+    });
   });
 
   it("uploads a descriptor without reading the batch media registry", async () => {
@@ -640,18 +639,8 @@ describe("processOtelEventMedia", () => {
     const secondTarget = createProviderPayload(reference, "direct-observation");
 
     await restoreInlineMedia(batch, [firstTarget, secondTarget]);
-    const first = await resolveExtractedMedia({
-      batch,
-      targets: createDirectOtelMediaTargets([firstTarget]),
-      ...MEDIA_DESTINATION,
-      writePath: "legacy",
-    });
-    const second = await resolveExtractedMedia({
-      batch,
-      targets: createDirectOtelMediaTargets([secondTarget]),
-      ...MEDIA_DESTINATION,
-      writePath: "direct",
-    });
+    const first = await resolveTarget(batch, firstTarget, "legacy");
+    const second = await resolveTarget(batch, secondTarget);
 
     expect(first).toMatchObject({ uploaded: 1, reused: 0, bytesProcessed: 5 });
     expect(second).toMatchObject({ uploaded: 0, reused: 1, bytesProcessed: 5 });
@@ -693,29 +682,14 @@ describe("processOtelEventMedia", () => {
     });
     const target = (spanId: string) => createProviderPayload(reference, spanId);
 
-    await resolveExtractedMedia({
-      batch,
-      targets: createDirectOtelMediaTargets([target("first")]),
-      ...MEDIA_DESTINATION,
-      writePath: "legacy",
-    });
+    await resolveTarget(batch, target("first"), "legacy");
     mocks.linkMediaToTraceOrObservation.mockRejectedValueOnce(
       new Error("link failed"),
     );
     const failedTarget = target("failed");
-    const failed = await resolveExtractedMedia({
-      batch,
-      targets: createDirectOtelMediaTargets([failedTarget]),
-      ...MEDIA_DESTINATION,
-      writePath: "direct",
-    });
+    const failed = await resolveTarget(batch, failedTarget);
     const recoveredTarget = target("recovered");
-    const recovered = await resolveExtractedMedia({
-      batch,
-      targets: createDirectOtelMediaTargets([recoveredTarget]),
-      ...MEDIA_DESTINATION,
-      writePath: "direct",
-    });
+    const recovered = await resolveTarget(batch, recoveredTarget);
 
     expect(failed).toMatchObject({ failed: 1, uploaded: 0, reused: 0 });
     expect(failedTarget.input).toMatchObject({ data: "original-value" });
@@ -747,19 +721,9 @@ describe("processOtelEventMedia", () => {
     });
     const target = () => createProviderPayload(reference);
 
-    const failed = await resolveExtractedMedia({
-      batch,
-      targets: createDirectOtelMediaTargets([target()]),
-      ...MEDIA_DESTINATION,
-      writePath: "direct",
-    });
+    const failed = await resolveTarget(batch, target());
     const retriedTarget = target();
-    const retried = await resolveExtractedMedia({
-      batch,
-      targets: createDirectOtelMediaTargets([retriedTarget]),
-      ...MEDIA_DESTINATION,
-      writePath: "direct",
-    });
+    const retried = await resolveTarget(batch, retriedTarget);
 
     expect(failed).toMatchObject({ failed: 1, uploaded: 0 });
     expect(retried).toMatchObject({ failed: 0, uploaded: 1 });
@@ -780,12 +744,8 @@ describe("processOtelEventMedia", () => {
       },
       { type: "file", mediaType: "image/png", data: `b'${content}'` },
     ];
-    const validated = await validateOtelJson(
-      Buffer.from(JSON.stringify(input)),
-    );
-    const batch = await validated.extract(true);
     mocks.uploadMediaForTrace.mockRejectedValue(new Error("upload failed"));
-    try {
+    await withExtractedBatch(input, async (batch) => {
       const media = batch.media;
       expect(media).toHaveLength(2);
       expect(media[0].reference).not.toBe(media[1].reference);
@@ -795,20 +755,12 @@ describe("processOtelEventMedia", () => {
         spanId: "observation-id",
         input: JSON.parse(batch.takeJsonBuffer().toString("utf8")),
       };
-      const result = await resolveExtractedMedia({
-        batch,
-        targets: createDirectOtelMediaTargets([target]),
-        ...MEDIA_DESTINATION,
-        writePath: "direct",
-      });
+      const result = await resolveTarget(batch, target);
       expect(result).toMatchObject({ failed: 2, uploaded: 0, reused: 0 });
       expect(target.input).toEqual(input);
       // Failures are not cached: the second occurrence can try its own upload.
       expect(mocks.uploadMediaForTrace).toHaveBeenCalledTimes(2);
-    } finally {
-      await batch.dispose();
-      await validated.dispose();
-    }
+    });
   });
 
   it.each([
@@ -839,9 +791,7 @@ describe("processOtelEventMedia", () => {
         spanId: "observation-id",
         input: expectedInput,
       });
-      const validated = await validateOtelJson(Buffer.from(source));
-      const batch = await validated.extract(true);
-      try {
+      await withExtractedBatch(source, async (batch) => {
         expect(batch.media).toHaveLength(1);
         const target = JSON.parse(batch.takeJsonBuffer().toString("utf8")) as {
           input: string | { nested: string };
@@ -850,18 +800,10 @@ describe("processOtelEventMedia", () => {
         const serialized = typeof input === "string" ? input : input.nested;
         expect(serialized).toContain(batch.media[0]!.reference);
 
-        await resolveExtractedMedia({
-          batch,
-          targets: createDirectOtelMediaTargets([target]),
-          ...MEDIA_DESTINATION,
-          writePath: "direct",
-        });
+        await resolveTarget(batch, target);
 
         expect(target.input).toEqual(expectedInput);
-      } finally {
-        await batch.dispose();
-        await validated.dispose();
-      }
+      });
     },
   );
 
@@ -912,9 +854,7 @@ describe("processOtelEventMedia", () => {
         spanId: "observation-id",
         input: nestedProvider,
       });
-      const validated = await validateOtelJson(Buffer.from(source));
-      const batch = await validated.extract(true);
-      try {
+      await withExtractedBatch(source, async (batch) => {
         expect(batch.media).toHaveLength(1);
         const originalMedia = addNormalizedLayer
           ? vi.spyOn(batch, "originalMedia")
@@ -939,12 +879,7 @@ describe("processOtelEventMedia", () => {
           });
         }
 
-        await resolveExtractedMedia({
-          batch,
-          targets: createDirectOtelMediaTargets([target]),
-          ...MEDIA_DESTINATION,
-          writePath: "direct",
-        });
+        await resolveTarget(batch, target);
 
         if (addNormalizedLayer) {
           expect(
@@ -972,10 +907,7 @@ describe("processOtelEventMedia", () => {
         if (fixture.unrelatedText !== undefined) {
           expect(target.input).toContain(fixture.unrelatedText);
         }
-      } finally {
-        await batch.dispose();
-        await validated.dispose();
-      }
+      });
     },
   );
 
@@ -991,42 +923,31 @@ describe("processOtelEventMedia", () => {
     // JSON.parse enumerates integer-like keys in ascending order even though
     // the source document visits key "2" before key "1".
     const nested = `{"2":${first},"1":${second}}`;
-    const validated = await validateOtelJson(
-      Buffer.from(
-        JSON.stringify({
-          traceId: "trace-id",
-          spanId: "observation-id",
-          input: nested,
-        }),
-      ),
-    );
-    const batch = await validated.extract(true);
-    try {
-      const target = JSON.parse(batch.takeJsonBuffer().toString("utf8")) as {
-        input: string;
-      };
-      const references = batch.media.map((entry) => entry.reference);
-      expect(references).toHaveLength(2);
+    await withExtractedBatch(
+      JSON.stringify({
+        traceId: "trace-id",
+        spanId: "observation-id",
+        input: nested,
+      }),
+      async (batch) => {
+        const target = JSON.parse(batch.takeJsonBuffer().toString("utf8")) as {
+          input: string;
+        };
+        const references = batch.media.map((entry) => entry.reference);
+        expect(references).toHaveLength(2);
 
-      const result = await resolveExtractedMedia({
-        batch,
-        targets: createDirectOtelMediaTargets([target]),
-        ...MEDIA_DESTINATION,
-        writePath: "direct",
-      });
-      expect(result).toMatchObject({ uploaded: 2, failed: 0 });
-      expect(target.input).toContain(
-        references[0]!.replace(/\|id=[^|@]+/, "|id=abc"),
-      );
-      expect(target.input).toContain(
-        references[1]!.replace(/\|id=[^|@]+/, "|id=def"),
-      );
-      expect(target.input).not.toContain("b'abc'");
-      expect(target.input).not.toContain("b'def'");
-    } finally {
-      await batch.dispose();
-      await validated.dispose();
-    }
+        const result = await resolveTarget(batch, target);
+        expect(result).toMatchObject({ uploaded: 2, failed: 0 });
+        expect(target.input).toContain(
+          references[0]!.replace(/\|id=[^|@]+/, "|id=abc"),
+        );
+        expect(target.input).toContain(
+          references[1]!.replace(/\|id=[^|@]+/, "|id=def"),
+        );
+        expect(target.input).not.toContain("b'abc'");
+        expect(target.input).not.toContain("b'def'");
+      },
+    );
   });
 
   it("leaves an untouched provider string byte-for-byte unchanged", async () => {
@@ -1041,12 +962,7 @@ describe("processOtelEventMedia", () => {
       input,
     };
 
-    await resolveExtractedMedia({
-      batch,
-      targets: createDirectOtelMediaTargets([payload]),
-      ...MEDIA_DESTINATION,
-      writePath: "direct",
-    });
+    await resolveTarget(batch, payload);
 
     expect(payload.input).toBe(input);
     expect(mediaBody).not.toHaveBeenCalled();
@@ -1070,9 +986,7 @@ describe("processOtelEventMedia", () => {
         spanId: "span-id",
         input,
       });
-      const validated = await validateOtelJson(Buffer.from(source));
-      const batch = await validated.extract(true);
-      try {
+      await withExtractedBatch(source, async (batch) => {
         const target = JSON.parse(batch.takeJsonBuffer().toString("utf8")) as {
           traceId: string;
           spanId: string;
@@ -1088,12 +1002,7 @@ describe("processOtelEventMedia", () => {
               mediaId: "uploaded",
             });
 
-        await resolveExtractedMedia({
-          batch,
-          targets: createDirectOtelMediaTargets([target]),
-          ...MEDIA_DESTINATION,
-          writePath: "direct",
-        });
+        await resolveTarget(batch, target);
 
         expect(target.input).toContain("9007199254740993");
         expect(target.input).toBe(
@@ -1104,10 +1013,7 @@ describe("processOtelEventMedia", () => {
               : reference.replace(/\|id=[^|@]+/, "|id=uploaded"),
           ),
         );
-      } finally {
-        await batch.dispose();
-        await validated.dispose();
-      }
+      });
     },
   );
 
@@ -1138,12 +1044,7 @@ describe("processOtelEventMedia", () => {
       input: `${prefix}${DEFAULT_MEDIA_REFERENCE}`,
     };
 
-    await resolveExtractedMedia({
-      batch,
-      targets: createDirectOtelMediaTargets([payload]),
-      ...MEDIA_DESTINATION,
-      writePath: "direct",
-    });
+    await resolveTarget(batch, payload);
 
     expect(payload.input).toBe(
       `${prefix}${DEFAULT_MEDIA_REFERENCE.replace("provider", "uploaded")}`,
@@ -1153,45 +1054,40 @@ describe("processOtelEventMedia", () => {
   it.each(["non-payload field", "provider sibling"])(
     "preserves unknown references in a %s during restoration",
     async (location) => {
-      const validated = await validateOtelJson(
-        Buffer.from(
-          JSON.stringify({
-            input: `data:image/png;base64,${"aGkh".repeat(1024)}`,
-          }),
-        ),
-      );
-      const batch = await validated.extract(true);
-      const opaque =
-        '{ "large": 9007199254740993, "escaped": "\\u0061", "ref": "@@@langfuseMedia:existing@@@" }';
-      const record = {
-        name: opaque,
-        input: {
-          type: "base64",
-          media_type: "image/png",
-          data: "https://example.com/image.png",
-          other: opaque,
+      await withExtractedBatch(
+        {
+          input: `data:image/png;base64,${"aGkh".repeat(1024)}`,
         },
-      };
-      try {
-        expect(batch.media).toHaveLength(1);
-        if (location === "non-payload field") {
-          await restoreInlineMedia(batch, [record]);
-          expect(record.name).toBe(opaque);
-        } else {
-          await resolveExtractedMedia({
-            batch,
-            targets: [{ traceId: "trace", payload: record }],
-            projectId: "project",
-            mediaBucket: "media-bucket",
-            mediaPrefix: "media/",
-            writePath: "direct",
-          });
-          expect(record.input.other).toBe(opaque);
-        }
-        expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
-      } finally {
-        await batch.dispose();
-      }
+        async (batch) => {
+          const opaque =
+            '{ "large": 9007199254740993, "escaped": "\\u0061", "ref": "@@@langfuseMedia:existing@@@" }';
+          const record = {
+            name: opaque,
+            input: {
+              type: "base64",
+              media_type: "image/png",
+              data: "https://example.com/image.png",
+              other: opaque,
+            },
+          };
+          expect(batch.media).toHaveLength(1);
+          if (location === "non-payload field") {
+            await restoreInlineMedia(batch, [record]);
+            expect(record.name).toBe(opaque);
+          } else {
+            await resolveExtractedMedia({
+              batch,
+              targets: [{ traceId: "trace", payload: record }],
+              projectId: "project",
+              mediaBucket: "media-bucket",
+              mediaPrefix: "media/",
+              writePath: "direct",
+            });
+            expect(record.input.other).toBe(opaque);
+          }
+          expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
+        },
+      );
     },
   );
 });
