@@ -35,7 +35,7 @@ const WIDE_MAX_EXPANSION_RATIO = 0.25;
 // Each pod reads a project's idle time from Postgres at most once per TTL, so a
 // saved value applies within it. Missing rows and failed reads cache a null
 // (the deployment default) too.
-const TRACE_IDLE_MS_CACHE_TTL_MS = 2 * MINUTE_MS;
+const TRACE_IDLE_MS_CACHE_TTL_MS = 5 * MINUTE_MS;
 const traceIdleMsCache = new LocalCache<{ traceIdleMs: number | null }>({
   namespace: "trace_batch_idle_ms",
   enabled: true,
