@@ -87,8 +87,6 @@ const nextConfig = {
   // symbolication is handled separately by uploading maps with debug IDs (see
   // `sourcemaps` in withSentryConfig below).
   productionBrowserSourceMaps: true,
-  // Overridable so a second build can run without clobbering a running dev server's .next
-  distDir: process.env.NEXT_DIST_DIR || ".next",
   typescript: {
     // CI test jobs run `pnpm run typecheck` separately and skip duplicate
     // Next.js type checks to keep test builds fast. Production/Docker builds
