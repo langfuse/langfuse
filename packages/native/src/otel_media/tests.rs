@@ -171,7 +171,7 @@ fn tag_attribute_values_stay_inline_only_on_spans() {
             );
             let result = extract_media(input.as_bytes()).unwrap();
             assert_eq!(result.media.len(), if is_tag { 4 } else { 5 }, "{key}");
-            let compact: Value = serde_json::from_slice(&result.compact_json).unwrap();
+            let compact: Value = serde_json::from_str(&result.compact_json).unwrap();
             let value =
                 &compact[0]["scopeSpans"][0]["spans"][0]["attributes"][0]["value"]["stringValue"];
             assert_eq!(value == &uri, is_tag);
