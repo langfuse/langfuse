@@ -149,7 +149,8 @@
   and interrupt parsing. Never re-export server code here.
 - In-app-agent server contracts use explicit subpaths only:
   `persistence`, `runLifecycle`, `tunables`, `eventCompaction`, `mcpPolicy`,
-  `toolResults`, `toolErrors`, `systemPrompt`, and `modelProvider`. These are
+  `toolResults`, `toolErrors`, `systemPrompt`, `modelProvider`, and
+  `sandboxKey` (per-script sandbox API keys: denylist, mint, revoke). These are
   storage/lifecycle, durable cross-process policy, or instance-model contracts;
   the Mastra runtime and sandbox belong to the worker.
 - Narrower exported subpaths also exist for targeted imports:

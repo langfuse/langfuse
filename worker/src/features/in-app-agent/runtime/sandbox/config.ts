@@ -21,6 +21,24 @@ export function getDefaultInAppAgentSandboxProviderType(): InAppAgentSandboxProv
   return providerType;
 }
 
+/**
+ * Whether deployment config gives the guest a restricted outbound network.
+ * Lambda MicroVMs get open internet unless an egress connector is attached;
+ * the local Docker provider runs without a network. This only checks that the
+ * connector is configured: what its network can reach is infrastructure config.
+ */
+export function hasInAppAgentSandboxEgressRestriction(
+  providerType: InAppAgentSandboxProviderType,
+): boolean {
+  if (providerType === "dangerous-docker") return true;
+  if (providerType === "lambda-microvm") {
+    return Boolean(
+      env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN,
+    );
+  }
+  assertUnreachable(providerType);
+}
+
 export async function createInAppAgentSandboxProvider(
   providerType: InAppAgentSandboxProviderType,
 ): Promise<SandboxProvider> {

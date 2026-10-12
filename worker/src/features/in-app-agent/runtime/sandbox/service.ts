@@ -3,6 +3,7 @@ import type {
   InAppAgentSandboxSessionReplacementReason,
   SandboxFile,
   SandboxProvider,
+  SandboxSession,
 } from "./types";
 import {
   InAppAgentSandboxBashResultSchema,
@@ -27,6 +28,7 @@ export async function createInAppAgentSandbox(params: {
 }> {
   let sessionId = params.providerSessionId ?? null;
   let sessionIsKnownActive = sessionId !== null;
+  let activeSession: SandboxSession | null = null;
 
   const recordSessionReplaced = (
     reason: InAppAgentSandboxSessionReplacementReason,
@@ -86,6 +88,7 @@ export async function createInAppAgentSandbox(params: {
       files: await params.getToolCallFiles(),
     });
 
+    activeSession = session.sandbox;
     return session.sandbox;
   };
 
@@ -113,15 +116,22 @@ export async function createInAppAgentSandbox(params: {
           newText,
         }),
       ),
-    bash: async ({ command, timeoutMs }) =>
+    bash: async ({ command, timeoutMs, env, commandId }) =>
       InAppAgentSandboxBashResultSchema.parse(
         await (
           await ensureSession()
         ).bash({
           command,
           timeoutMs,
+          ...(env ? { env } : {}),
+          ...(commandId ? { commandId } : {}),
         }),
       ),
+    // Targets the session the running command was sent to, without
+    // re-ensuring it: a cancel must not create or resume a session.
+    cancelBash: async ({ commandId }) => {
+      await activeSession?.cancelBash?.({ commandId });
+    },
   });
 
   return {

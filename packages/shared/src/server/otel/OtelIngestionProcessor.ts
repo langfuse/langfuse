@@ -42,6 +42,7 @@ import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
+import { isSandboxPublicKey } from "../../in-app-agent/constants";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
@@ -1202,6 +1203,9 @@ export class OtelIngestionProcessor {
   private extractPublic(
     attributes?: Record<string, unknown>,
   ): boolean | undefined {
+    // Sandbox script keys cannot publish traces; see processEventBatch.
+    if (isSandboxPublicKey(this.publicKey)) return;
+
     const value =
       attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] ??
       attributes?.["langfuse.public"];
