@@ -72,7 +72,30 @@ export function renderGenericTranscript(
                 "  ",
                 " ",
               ),
-              json(part.output),
+              part.output.type === "content"
+                ? part.output.value
+                    .map((content) => {
+                      switch (content.type) {
+                        case "text":
+                          return content.text;
+                        case "data":
+                          return json(content.value);
+                        case "custom":
+                          return json({ [content.kind]: content.value });
+                        case "file":
+                          return content.reasoning
+                            ? ""
+                            : `[${content.mediaType ?? "file"} omitted]`;
+                        case "reasoning":
+                          return config.reasoning.include &&
+                            content.content.kind === "text"
+                            ? content.content.text
+                            : "";
+                      }
+                    })
+                    .filter(Boolean)
+                    .join("\n")
+                : json(part.output.value),
               config.toolResults.maxChars,
             )
           : null;

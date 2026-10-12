@@ -450,7 +450,10 @@ export const supportCopilotRefundLoopFixture = {
                   type: "tool-result",
                   toolCallId: findChargesToolCallId,
                   toolName: "stripe_find_charges",
-                  output: charges,
+                  output: {
+                    type: "content",
+                    value: [{ type: "data", value: charges }],
+                  },
                 },
               ],
             },
@@ -483,7 +486,10 @@ export const supportCopilotRefundLoopFixture = {
                   type: "tool-result",
                   toolCallId: createRefundToolCallId,
                   toolName: "stripe_create_refund",
-                  output: refund,
+                  output: {
+                    type: "content",
+                    value: [{ type: "data", value: refund }],
+                  },
                 },
               ],
             },

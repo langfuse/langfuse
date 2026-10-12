@@ -1,7 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import type {
   FilePart,
-  JsonValue,
   NormalizedIO,
   NormalizedMessage,
   NormalizedMessagePart,
@@ -76,7 +75,7 @@ function toToolDefinition(definition: NormalizedToolDefinition): {
   };
 }
 
-type ToolCallResponse = { output: JsonValue; isError?: boolean } | null;
+type ToolCallResponse = { output: unknown; isError?: boolean } | null;
 
 function toToolCallPart(
   part: Extract<NormalizedMessagePart, { type: "tool-call" }>,
@@ -97,10 +96,18 @@ function toToolResultMessage(
   // Deliberately no `name`: the renderer titles messages name-over-role, and
   // a tool result must render as a tool turn, not as a participant named
   // after the tool. The tool name stays on the paired tool-call part.
+  const content =
+    part.output.type === "content"
+      ? toChatMessages({
+          role: "tool",
+          source: "output",
+          parts: part.output.value,
+        }).main
+      : { content: part.output.value };
   return {
+    ...content,
     role: "tool",
     ...(part.toolCallId ? { tool_call_id: part.toolCallId } : {}),
-    content: part.output,
   } as ChatMlMessage;
 }
 
@@ -260,7 +267,7 @@ export function toIOPreview(io: NormalizedIO): ChatMLParserResult {
           : undefined;
         if (!entry || entry.response !== null) return true;
         entry.response = {
-          output: part.output,
+          output: part.output.value,
           ...(part.isError !== undefined ? { isError: part.isError } : {}),
         };
         return false;

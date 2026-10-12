@@ -2,6 +2,7 @@ import type {
   NormalizedMessage,
   ToolCallPart,
   ToolResultPart,
+  ToolResultContentPart,
 } from "../../utils/normalized-io";
 import type { ThreadMessage } from "./types";
 import {
@@ -184,78 +185,74 @@ export function createToolCallRegistry() {
     const parts = output.flatMap(({ message }) => message.parts);
     if (!parts.length) return;
 
-    // Tool rows render JSON, not normalized media/custom parts. Consume those
-    // parts with the response so they cannot leak into independent messages;
-    // typed omission metadata points users back to the untouched observation.
-    const omittedContent: NonNullable<ToolResultPart["omittedContent"]> = [];
-    const mediaCount = parts.filter((part) => part.type === "file").length;
-    const unsupportedCount = parts.filter(
-      (part) =>
-        part.type !== "text" &&
-        part.type !== "data" &&
-        part.type !== "tool-result" &&
-        part.type !== "file",
-    ).length;
-    if (mediaCount) omittedContent.push({ kind: "media", count: mediaCount });
-    if (unsupportedCount)
-      omittedContent.push({ kind: "unsupported", count: unsupportedCount });
-
-    let hasId = false;
-    for (const part of parts) {
-      if (part.type !== "tool-result" || !part.toolCallId) continue;
-
-      hasId = true;
-      const call = calls.get(key(observation.traceId, part.toolCallId));
-      if (call)
-        setResponse(call, observation, [
-          {
-            ...part,
-            ...(omittedContent.length ? { omittedContent } : {}),
-          },
-        ]);
+    const results = parts.filter(
+      (part): part is ToolResultPart => part.type === "tool-result",
+    );
+    const content = parts.flatMap((part): ToolResultContentPart[] => {
+      if (part.type === "tool-call") return [];
+      if (part.type !== "tool-result") return [part];
+      switch (part.output.type) {
+        case "text":
+          return [{ type: "text", text: part.output.value }];
+        case "json":
+          return [{ type: "data", value: part.output.value }];
+        case "content":
+          return part.output.value;
+      }
+    });
+    const callsInOutput = parts.filter((part) => part.type === "tool-call");
+    const explicitResults = results.filter((part) => part.toolCallId);
+    if (explicitResults.length) {
+      let retainedSiblings = false;
+      for (const part of explicitResults) {
+        const call = calls.get(key(observation.traceId, part.toolCallId!));
+        if (!call || call.fromTool) continue;
+        // A single explicit result owns the observation's accompanying content.
+        // With multiple results, keep unassigned siblings outside those results.
+        const response: Part[] = [
+          results.length === 1 && parts.length > 1
+            ? { ...part, output: { type: "content", value: content } }
+            : part,
+        ];
+        if (!retainedSiblings) {
+          response.push(
+            ...(results.length === 1
+              ? callsInOutput
+              : parts.filter(
+                  (sibling) =>
+                    sibling.type !== "tool-result" ||
+                    !sibling.toolCallId ||
+                    !calls.has(key(observation.traceId, sibling.toolCallId)),
+                )),
+          );
+          retainedSiblings = true;
+        }
+        setResponse(call, observation, response);
+      }
+      return;
     }
-    if (hasId || !observation.name) return;
+    if (!observation.name) return;
 
     const queue = pending.get(key(observation.traceId, observation.name));
     if (!queue) return;
-
     while (queue.calls[queue.next]?.fromTool) queue.next++;
     const call = queue.calls[queue.next];
-    if (call) {
-      queue.next++;
-      const content = parts.filter(
-        (part) =>
-          part.type === "text" ||
-          part.type === "data" ||
-          part.type === "tool-result",
-      );
-      const responseOutput = (() => {
-        if (!content.length) return null;
-        if (content.every((part) => part.type === "text")) {
-          return content.map((part) => part.text).join("\n");
-        }
-        const values = content.map((part) => {
-          if (part.type === "text") return part.text;
-          if (part.type === "data") return part.value;
-          return part.output;
-        });
-        return values.length === 1 ? values[0]! : values;
-      })();
-      setResponse(call, observation, [
-        {
-          type: "tool-result",
-          toolCallId: call.part.toolCallId,
-          toolName: call.part.toolName,
-          output: responseOutput,
-          ...(content.some(
-            (part) => part.type === "tool-result" && part.isError,
-          )
-            ? { isError: true }
-            : {}),
-          ...(omittedContent.length ? { omittedContent } : {}),
-        },
-      ]);
-    }
+    if (!call) return;
+    queue.next++;
+    setResponse(call, observation, [
+      {
+        ...(results.length === 1 && parts.length === 1 ? results[0]! : {}),
+        type: "tool-result",
+        toolCallId: call.part.toolCallId,
+        toolName: call.part.toolName,
+        output:
+          results.length === 1 && parts.length === 1
+            ? results[0]!.output
+            : { type: "content", value: content },
+        ...(results.some((part) => part.isError) ? { isError: true } : {}),
+      },
+      ...callsInOutput,
+    ]);
   }
 
   return { forGeneration, attachToolOutput };

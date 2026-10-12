@@ -178,7 +178,9 @@ const normalizeAnthropicToolResult: PartHandler = (value) =>
   claimed(
     toolResultPart({
       toolCallId: value.tool_use_id ?? value.id,
-      output: value.content,
+      output: Array.isArray(value.content)
+        ? { type: "content", value: value.content }
+        : value.content,
       isError: typeof value.is_error === "boolean" ? value.is_error : undefined,
     }),
   );

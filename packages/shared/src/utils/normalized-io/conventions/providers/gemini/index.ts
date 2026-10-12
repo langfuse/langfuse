@@ -147,7 +147,7 @@ function normalizeGeminiPart(
         type: "tool-result",
         toolCallId: null,
         toolName: "code_execution",
-        output: toJsonValue(codeExecutionResult),
+        output: { type: "json", value: toJsonValue(codeExecutionResult) },
         isError: outcome && outcome !== "OUTCOME_OK" ? true : undefined,
       }),
     );

@@ -65,10 +65,18 @@ export function SessionTimelinePart({
         variant="plain"
         alignment="row"
       >
-        <PrettyJsonView
-          json={part.type === "tool-call" ? part.input : part.output}
-          currentView="pretty"
-        />
+        {part.type === "tool-result" && part.output.type === "content" ? (
+          <div className="flex flex-col gap-2">
+            {part.output.value.map((contentPart, index) => (
+              <SessionTimelinePart key={index} part={contentPart} />
+            ))}
+          </div>
+        ) : (
+          <PrettyJsonView
+            json={part.type === "tool-call" ? part.input : part.output.value}
+            currentView="pretty"
+          />
+        )}
       </SessionTimelineCollapsiblePart>
     );
   }

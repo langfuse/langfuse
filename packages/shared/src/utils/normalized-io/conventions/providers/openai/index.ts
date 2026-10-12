@@ -7,7 +7,6 @@ import {
   omitKeys,
   optionalString,
   parseArray,
-  parseIfString,
   recordKeyAsParsed,
   toJsonValue,
   toProviderMetadata,
@@ -22,7 +21,10 @@ import {
   providerExecutedToolCall,
   toolCallPart,
 } from "../../../core/normalize/message-parts/tool-calls";
-import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
+import {
+  toolResultPart,
+  normalizeToolResultOutput,
+} from "../../../core/normalize/message-parts/tool-results";
 import {
   toolDefinition,
   toolDefinitionProviderMetadata,
@@ -597,7 +599,11 @@ const tryUnwrapLegacyFunctionMessage = (
           // A `name` on a tool message is the tool's name, never a
           // participant name.
           toolName: optionalString(value.name),
-          output: toJsonValue(parseIfString(value.content ?? null)),
+          output: normalizeToolResultOutput(
+            Array.isArray(value.content)
+              ? { type: "content", value: value.content }
+              : value.content,
+          ),
           isError: value.status === "error" ? true : undefined,
           providerMetadata:
             value.artifact !== undefined && value.artifact !== null

@@ -378,7 +378,7 @@ describe("trace batch queue", () => {
     const toolCharacters = JSON.stringify({
       type: "tool-result",
       toolCallId: "unmatched",
-      output: "tool payload",
+      output: { type: "text", value: "tool payload" },
     }).length;
     const totalCharacters =
       toolCharacters +

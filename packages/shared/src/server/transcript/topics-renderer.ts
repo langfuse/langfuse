@@ -119,7 +119,17 @@ export function renderTranscript(
       case "tool-call":
         return `${part.toolName} ${json(part.input)}`;
       case "tool-result":
-        return json(part.output);
+        return part.output.type === "content"
+          ? part.output.value
+              .filter(
+                (content) =>
+                  (content.type !== "reasoning" || config.reasoning.include) &&
+                  !(content.type === "file" && content.reasoning),
+              )
+              .map(partContent)
+              .filter(Boolean)
+              .join("\n")
+          : json(part.output.value);
       case "file":
         return `[${part.mediaType ?? "file"} omitted]`;
       case "data":
@@ -379,7 +389,7 @@ export function renderTranscript(
         return config.toolResults.include
           ? labeled(
               `${resultLabel}${part.isError ? " ERROR" : ""}`,
-              json(part.output),
+              partContent(part),
               config.toolResults.maxChars,
               "tool_results",
             )

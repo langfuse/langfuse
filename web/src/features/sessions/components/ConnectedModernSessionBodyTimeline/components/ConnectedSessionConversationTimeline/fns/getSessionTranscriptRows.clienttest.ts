@@ -40,7 +40,11 @@ const transcript = {
             role: "tool",
             source: "output",
             parts: [
-              { type: "tool-result", toolCallId: "call", output: "Found" },
+              {
+                type: "tool-result",
+                toolCallId: "call",
+                output: { type: "text", value: "Found" },
+              },
             ],
           },
         ],

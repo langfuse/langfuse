@@ -768,7 +768,10 @@ export const vercelAiSdkDocsToolLoopFixture: TranscriptFixture = {
                 type: "tool-result" as const,
                 toolCallId: "call_OQNWWW4PjixkLIhkuHJRwiFV",
                 toolName: "searchLangfuseDocs",
-                output: text,
+                output: {
+                  type: "content" as const,
+                  value: [{ type: "text" as const, text }],
+                },
               })),
               observationId: "3dbf50cbf2036387",
               startTime: new Date("2026-09-09T08:27:02.700Z"),

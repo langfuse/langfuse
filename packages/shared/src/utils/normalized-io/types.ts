@@ -74,15 +74,24 @@ export type ToolCallPart = NormalizedPartBase & {
   invalid?: true;
 };
 
+/** Content belonging to one execution; nested calls/results are not content. */
+export type ToolResultContentPart =
+  | TextPart
+  | DataPart
+  | FilePart
+  | ReasoningPart
+  | CustomPart;
+
+export type ToolResultOutput =
+  | { type: "text"; value: string }
+  | { type: "json"; value: JsonValue }
+  | { type: "content"; value: ToolResultContentPart[] };
+
 export type ToolResultPart = NormalizedPartBase & {
   type: "tool-result";
   toolCallId: string | null;
   toolName?: string;
-  output: JsonValue;
-  /** Transcript-only metadata, separate from user output to avoid key collisions.
-   * Media and unsupported parts cannot be previewed by the JSON tool-result
-   * renderer; the original content remains available on the TOOL observation. */
-  omittedContent?: { kind: "media" | "unsupported"; count: number }[];
+  output: ToolResultOutput;
   isError?: boolean;
 };
 

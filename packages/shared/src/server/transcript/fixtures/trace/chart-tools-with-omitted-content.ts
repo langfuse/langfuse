@@ -35,10 +35,10 @@ const calls = {
   ],
 };
 
-export const chartToolsWithOmittedContentFixture = {
-  name: "Chart tool outputs consume mixed/media content and survive generation replay",
+export const chartToolsWithOmittedContentFixture: TranscriptFixture = {
+  name: "Chart tool outputs preserve mixed/media content across generation replay",
   description:
-    "Five tool executions return mixed text/JSON/media/custom content, media alone, custom content alone, a user-defined omittedContent key, and an explicit result with sibling media. Each becomes one tool result, preserving typed omission metadata when the next generation replays all results.",
+    "Five tool executions return mixed text/JSON/media/custom content, media alone, custom content alone, a user-defined omittedContent key, and an explicit result with sibling media. Each becomes one tool result, preserving normalized content when the next generation replays all results.",
   observations: [
     {
       project_id: projectId,
@@ -294,11 +294,29 @@ export const chartToolsWithOmittedContentFixture = {
                   type: "tool-result",
                   toolCallId: "call-chart",
                   toolName: "generate_chart",
-                  output: ["Revenue chart generated.", { points: 12 }],
-                  omittedContent: [
-                    { kind: "media", count: 1 },
-                    { kind: "unsupported", count: 1 },
-                  ],
+                  output: {
+                    type: "content",
+                    value: [
+                      { type: "text", text: "Revenue chart generated." },
+                      { type: "data", value: { points: 12 } },
+                      {
+                        type: "file",
+                        mediaType: "image/*",
+                        content: {
+                          kind: "url",
+                          url: "https://example.com/revenue.png",
+                        },
+                      },
+                      {
+                        type: "custom",
+                        kind: "vendor-chart",
+                        value: {
+                          type: "vendor-chart",
+                          value: { chartId: "revenue" },
+                        },
+                      },
+                    ],
+                  },
                 },
               ],
             },
@@ -314,8 +332,19 @@ export const chartToolsWithOmittedContentFixture = {
                   type: "tool-result",
                   toolCallId: "call-image",
                   toolName: "download_chart",
-                  output: null,
-                  omittedContent: [{ kind: "media", count: 1 }],
+                  output: {
+                    type: "content",
+                    value: [
+                      {
+                        type: "file",
+                        mediaType: "image/*",
+                        content: {
+                          kind: "url",
+                          url: "https://example.com/revenue.png",
+                        },
+                      },
+                    ],
+                  },
                 },
               ],
             },
@@ -331,8 +360,19 @@ export const chartToolsWithOmittedContentFixture = {
                   type: "tool-result",
                   toolCallId: "call-annotations",
                   toolName: "inspect_annotations",
-                  output: null,
-                  omittedContent: [{ kind: "unsupported", count: 1 }],
+                  output: {
+                    type: "content",
+                    value: [
+                      {
+                        type: "custom",
+                        kind: "vendor-annotations",
+                        value: {
+                          type: "vendor-annotations",
+                          value: { chartId: "revenue" },
+                        },
+                      },
+                    ],
+                  },
                 },
               ],
             },
@@ -348,8 +388,23 @@ export const chartToolsWithOmittedContentFixture = {
                   type: "tool-result",
                   toolCallId: "call-metadata",
                   toolName: "get_chart_metadata",
-                  output: { omittedContent: "User-provided value" },
-                  omittedContent: [{ kind: "media", count: 1 }],
+                  output: {
+                    type: "content",
+                    value: [
+                      {
+                        type: "data",
+                        value: { omittedContent: "User-provided value" },
+                      },
+                      {
+                        type: "file",
+                        mediaType: "image/*",
+                        content: {
+                          kind: "url",
+                          url: "https://example.com/revenue.png",
+                        },
+                      },
+                    ],
+                  },
                 },
               ],
             },
@@ -365,8 +420,20 @@ export const chartToolsWithOmittedContentFixture = {
                   type: "tool-result",
                   toolCallId: "call-export",
                   toolName: "export_chart",
-                  output: { exported: true },
-                  omittedContent: [{ kind: "media", count: 1 }],
+                  output: {
+                    type: "content",
+                    value: [
+                      { type: "data", value: { exported: true } },
+                      {
+                        type: "file",
+                        mediaType: "image/*",
+                        content: {
+                          kind: "url",
+                          url: "https://example.com/export.png",
+                        },
+                      },
+                    ],
+                  },
                 },
               ],
             },
@@ -384,4 +451,4 @@ export const chartToolsWithOmittedContentFixture = {
       },
     ],
   },
-} satisfies TranscriptFixture;
+};

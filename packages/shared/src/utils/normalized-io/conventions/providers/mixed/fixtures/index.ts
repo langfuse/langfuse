@@ -189,7 +189,10 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
             {
               type: "tool-result",
               toolCallId: null,
-              output: "Hello my darling Bob!",
+              output: {
+                type: "content",
+                value: [{ type: "text", text: "Hello my darling Bob!" }],
+              },
             },
           ],
           source: "input",
@@ -215,7 +218,10 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
             {
               type: "tool-result",
               toolCallId: null,
-              output: "Bye my dear Bob!",
+              output: {
+                type: "content",
+                value: [{ type: "text", text: "Bye my dear Bob!" }],
+              },
             },
           ],
           source: "input",

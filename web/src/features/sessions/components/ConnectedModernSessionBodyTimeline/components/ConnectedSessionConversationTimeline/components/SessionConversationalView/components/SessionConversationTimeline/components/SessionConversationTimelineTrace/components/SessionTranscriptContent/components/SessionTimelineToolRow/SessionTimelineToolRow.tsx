@@ -7,6 +7,9 @@ import { cn } from "@/src/utils/tailwind";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
 import { type Observation } from "@langfuse/shared";
 
+import type { ToolResultPart } from "@langfuse/shared/src/utils/normalized-io";
+import { getSessionToolOutputPreview } from "./getSessionToolOutputPreview";
+
 const hasPreviewValue = (value: unknown) =>
   value !== null && value !== undefined && value !== "";
 
@@ -22,13 +25,16 @@ export function SessionTimelineToolRow({
 }: {
   name: string;
   input: unknown;
-  output: unknown;
+  output: ToolResultPart["output"] | undefined;
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
   level?: Observation["level"];
   statusMessage?: Observation["statusMessage"];
   trailingContent?: ReactNode;
 }) {
+  const preview = output ? getSessionToolOutputPreview(output) : undefined;
+  const hasOutput = hasPreviewValue(preview?.value);
+  const omittedContent = preview?.omittedContent ?? [];
   const StatusIcon = level
     ? (
         {
@@ -99,17 +105,32 @@ export function SessionTimelineToolRow({
             </div>
           </div>
         ) : null}
-        {hasPreviewValue(output) ? (
+        {hasOutput || omittedContent.length > 0 ? (
           <div className="flex min-w-0 flex-col gap-1">
             <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
               Output
             </span>
-            <div className="grid max-h-96 min-w-0">
-              <Codeblock label="Tool output" value={output} allowFormatting />
-            </div>
+            {hasOutput ? (
+              <div className="grid max-h-96 min-w-0">
+                <Codeblock
+                  label="Tool output"
+                  value={preview?.value}
+                  allowFormatting
+                />
+              </div>
+            ) : null}
+            {omittedContent.map(({ kind, count }) => (
+              <p key={kind} className="text-muted-foreground text-xs">
+                {count} {kind} {count === 1 ? "item" : "items"} omitted from
+                this preview. View the tool observation for the original
+                content.
+              </p>
+            ))}
           </div>
         ) : null}
-        {!hasPreviewValue(input) && !hasPreviewValue(output) ? (
+        {!hasPreviewValue(input) &&
+        !hasOutput &&
+        omittedContent.length === 0 ? (
           <div className="relative">
             <span className="text-muted-foreground text-xs">
               No input or output

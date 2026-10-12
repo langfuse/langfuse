@@ -165,7 +165,26 @@ const normalizeAiSdkToolResult: PartHandler = (value) =>
     }),
   );
 
+// Model-facing tool outputs use explicit URL/data variants rather than the
+// legacy image/file payloads used in ordinary messages.
+const normalizeAiSdkToolMedia: PartHandler = (value) => {
+  const type = String(value.type);
+  const payload = type.endsWith("-url")
+    ? { type: "url", url: value.url }
+    : { type: "data", data: value.data };
+  const part = aiSdkFilePart(payload, {
+    mediaType: optionalString(value.mediaType),
+    filename: optionalString(value.filename),
+    fallbackMediaType: type.startsWith("image-") ? "image/*" : undefined,
+  });
+  return part ? claimed(part) : unmatched;
+};
+
 const AI_SDK_PART_HANDLERS = {
+  "image-data": normalizeAiSdkToolMedia,
+  "image-url": normalizeAiSdkToolMedia,
+  "file-data": normalizeAiSdkToolMedia,
+  "file-url": normalizeAiSdkToolMedia,
   "tool-call": normalizeAiSdkToolCall,
   "tool-error": normalizeAiSdkToolError,
   "tool-result": normalizeAiSdkToolResult,

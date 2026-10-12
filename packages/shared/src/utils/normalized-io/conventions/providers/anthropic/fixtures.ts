@@ -1,12 +1,27 @@
 import type { NormalizedIOFixture } from "../fixture-types";
-import { toJsonValue } from "../../../core/utils/json";
+import type { ToolResultOutput } from "../../../types";
 
 // Docs-derived tool-result variants; the image data is a sample placeholder.
 // https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls
 export const documentedToolResultFixtures: NormalizedIOFixture[] = [
-  { label: "empty", content: undefined },
+  {
+    label: "empty",
+    content: undefined,
+    expectedOutput: { type: "json", value: null },
+  },
   {
     label: "text and image",
+    expectedOutput: {
+      type: "content",
+      value: [
+        { type: "text", text: "15 degrees" },
+        {
+          type: "file",
+          mediaType: "image/jpeg",
+          content: { kind: "base64", data: "aGVsbG8=" },
+        },
+      ],
+    },
     content: [
       { type: "text", text: "15 degrees" },
       {
@@ -17,6 +32,24 @@ export const documentedToolResultFixtures: NormalizedIOFixture[] = [
   },
   {
     label: "text and document",
+    expectedOutput: {
+      type: "content",
+      value: [
+        { type: "text", text: "The weather is" },
+        {
+          type: "custom",
+          kind: "document",
+          value: {
+            type: "document",
+            source: {
+              type: "text",
+              media_type: "text/plain",
+              data: "15 degrees",
+            },
+          },
+        },
+      ],
+    },
     content: [
       { type: "text", text: "The weather is" },
       {
@@ -26,7 +59,7 @@ export const documentedToolResultFixtures: NormalizedIOFixture[] = [
     ],
   },
 ].map(
-  ({ label, content }): NormalizedIOFixture => ({
+  ({ label, content, expectedOutput }): NormalizedIOFixture => ({
     name: `Anthropic ${label} tool result with string system instruction`,
     spanIO: {
       input: {
@@ -85,7 +118,7 @@ export const documentedToolResultFixtures: NormalizedIOFixture[] = [
             {
               type: "tool-result",
               toolCallId: "call_weather",
-              output: toJsonValue(content ?? null),
+              output: expectedOutput as ToolResultOutput,
             },
           ],
         },
@@ -334,18 +367,21 @@ export const anthropicMessagesRawServerToolsAndMediaFixture = {
           {
             type: "tool-result",
             toolCallId: "server-call-1",
-            output: [{ type: "text", text: "Search result" }],
+            output: {
+              type: "content",
+              value: [{ type: "text", text: "Search result" }],
+            },
           },
           {
             type: "tool-result",
             toolCallId: "server-call-1",
-            output: "The report service timed out.",
+            output: { type: "text", value: "The report service timed out." },
             isError: true,
           },
           {
             type: "tool-result",
             toolCallId: "mcp-call-1",
-            output: "Report metadata",
+            output: { type: "text", value: "Report metadata" },
             isError: false,
           },
         ],

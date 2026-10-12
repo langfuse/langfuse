@@ -69,7 +69,7 @@ parts, while untyped structured values remain lossless `data` parts.
 | `text`        | `text`                                                                                                                                  | citations/annotations land in `providerMetadata.citations`                                                                                                                                                                                                        |
 | `reasoning`   | `content` union: `{kind:"text", text, signature?}` \| `{kind:"redacted", data}` \| `{kind:"encrypted", data}` \| `{kind:"data", value}` | visible CoT/summaries; provider-withheld blobs; replayable encrypted blobs; structured payloads                                                                                                                                                                   |
 | `tool-call`   | `toolCallId` (nullable), `toolName`, `input`, `toolType?`, `providerExecuted?`                                                          | `toolType` preserves the source kind (`function`, `custom`, provider-specific built-ins); `providerExecuted` marks server-side tools; parallel-call slot indexes are derived positionally by projections, raw streaming `index` fields stay in `providerMetadata` |
-| `tool-result` | `toolCallId` (nullable), `toolName?`, `output`, `isError?`                                                                              | AI-SDK `{type, value}` output wrappers are unwrapped                                                                                                                                                                                                              |
+| `tool-result` | `toolCallId` (nullable), `toolName?`, `output`, `isError?`                                                                              | Output is tagged `text`, `json`, or `content`; content preserves typed parts without nested tool calls/results                                                                                                                                                    |
 | `file`        | `content` union: `{kind:"url"}` \| `{kind:"base64"}` \| `{kind:"reference", id}`, `mediaType?`, `filename?`                             | all media, incl. `@@@langfuseMedia:…@@@` tokens → references; `mediaType` is exact when declared, a modality wildcard (`image/*`) when only the part kind reveals it, absent for opaque ids                                                                       |
 | `data`        | `value`                                                                                                                                 | structured non-message payloads (function-span args/results, loose records) — JSON-passthrough parity with the trace view                                                                                                                                         |
 | `custom`      | `kind`, `value`                                                                                                                         | recognized-but-unmapped typed blocks, verbatim (e.g. `source`, `document`)                                                                                                                                                                                        |
@@ -89,6 +89,17 @@ cross-provider semantic we compute and consumers filter on.
 variants) canonicalize to
 `stop | length | tool-calls | content-filter | error | other | unknown`,
 with the provider's verbatim value kept in `raw`.
+
+
+### Tool result output
+
+`ToolResultPart.output` is a tagged value: `{ type: "text", value: string }`,
+`{ type: "json", value: JsonValue }`, or `{ type: "content", value: ToolResultContentPart[] }`.
+Explicit JSON stays JSON, including arrays and null. Declared content and shallow
+recognized content shapes use existing part normalization; arbitrary JSON is not
+searched recursively. Content can contain text, data, files, reasoning, and custom
+parts, but not nested calls/results. Transcript assembly preserves normalized part
+boundaries. Display projections such as the session tool preview belong to consumers.
 
 ## How parsing works
 

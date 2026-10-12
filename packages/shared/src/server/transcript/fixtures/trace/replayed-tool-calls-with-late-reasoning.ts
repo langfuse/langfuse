@@ -172,7 +172,10 @@ export const replayedToolCallsWithLateReasoningFixture = {
                   type: "tool-result" as const,
                   toolCallId: calls[index]!.id,
                   toolName: calls[index]!.name,
-                  output: value,
+                  output: {
+                    type: "content" as const,
+                    value: [{ type: "data" as const, value }],
+                  },
                 },
               ],
               source: "output" as const,

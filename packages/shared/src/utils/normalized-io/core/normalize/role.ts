@@ -54,9 +54,10 @@ export function coerceRole(
       return "assistant";
     }
     if (parts.every((part): boolean => part.type === "text")) {
-      const output = parts
-        .map((part) => (part.type === "text" ? part.text : ""))
-        .join("\n");
+      const output = {
+        type: "content" as const,
+        value: parts.filter((part) => part.type === "text"),
+      };
       parts.splice(0, parts.length, {
         type: "tool-result",
         toolCallId: null,
