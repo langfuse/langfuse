@@ -61,6 +61,7 @@ import {
 import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
+  isInAppAgentSandboxEgressConfined,
 } from "./runtime/sandbox/config";
 import {
   createInAppAgentSandbox,
@@ -635,6 +636,9 @@ export async function executeInAppAgentRun(params: {
               userId: triggeredByUserId,
               conversationId: conversation.id,
               langfuseBaseUrl: env.NEXTAUTH_URL,
+              egressConfined:
+                sandboxProviderType !== null &&
+                isInAppAgentSandboxEgressConfined(sandboxProviderType),
               signal: abortController.signal,
             })
           : undefined,

@@ -35,6 +35,8 @@ type SdkScriptContext = {
   conversationId: string;
   /** NEXTAUTH_URL: the one host the guest may reach. */
   langfuseBaseUrl: string | undefined;
+  /** False when the provider would give the guest open internet. No key is minted then. */
+  egressConfined: boolean;
   /** Aborts when the run is cancelled, fenced, or the worker shuts down. */
   signal: AbortSignal;
 };
@@ -85,11 +87,7 @@ export function withLangfuseSdkScriptGate(
         requestedScope: DEFAULT_SANDBOX_SDK_SCOPE,
       });
       if (!approval.approved) {
-        return {
-          stdout: "",
-          stderr: `Langfuse SDK script not run: ${approval.reason}`,
-          exitCode: 1,
-        } satisfies SandboxBashResult;
+        return notRun(approval.reason);
       }
 
       return runApprovedLangfuseSdkScript({
@@ -149,6 +147,13 @@ async function runApprovedLangfuseSdkScript(params: {
   scope: readonly ProjectAction[];
 }): Promise<SandboxBashResult> {
   const { sandbox, ctx } = params;
+  if (!ctx.egressConfined) {
+    logger.warn(
+      "In-app agent sandbox SDK script refused: sandbox egress is not confined",
+      { projectId: ctx.projectId, conversationId: ctx.conversationId },
+    );
+    return notRun("the sandbox has no egress restriction configured.");
+  }
   if (!ctx.langfuseBaseUrl) {
     throw new Error("NEXTAUTH_URL must be set to run Langfuse SDK scripts");
   }
@@ -207,6 +212,14 @@ async function runApprovedLangfuseSdkScript(params: {
       throw error;
     });
   }
+}
+
+function notRun(reason: string): SandboxBashResult {
+  return {
+    stdout: "",
+    stderr: `Langfuse SDK script not run: ${reason}`,
+    exitCode: 1,
+  };
 }
 
 /** Returns the scanned script files when the command uses the Langfuse SDK, else null. */
