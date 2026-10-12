@@ -1,3 +1,4 @@
+import { SessionTimelinePart } from "./components/SessionTimelinePart/SessionTimelinePart";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { type TranscriptMessageGroup } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/groupTranscriptMessages";
 import { getSessionTranscriptRows } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptRows";
@@ -352,6 +353,14 @@ function SessionTranscriptTool({
       name={row.call?.toolName ?? row.result?.toolName ?? "Tool"}
       input={row.call?.input}
       output={preview?.value}
+      outputContent={
+        row.result?.output.type === "content" &&
+        row.result.output.value.length > 0
+          ? row.result.output.value.map((part, index) => (
+              <SessionTimelinePart key={index} part={part} />
+            ))
+          : undefined
+      }
       {...status}
       isExpanded={isExpanded}
       onExpandedChange={setIsExpanded}

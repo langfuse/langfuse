@@ -198,6 +198,7 @@ export function createToolCallRegistry() {
     const queue = pending.get(key(observation.traceId, observation.name));
     if (!queue) return;
     while (queue.calls[queue.next]?.fromTool) queue.next++;
+    // Without result IDs, assume execution order matches same-name call order.
     const call = queue.calls[queue.next];
     if (!call) return;
     queue.next++;
