@@ -12,7 +12,7 @@ use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
 use tower::ServiceExt;
 
 #[tokio::test]
-async fn invalid_credentials_are_rejected_before_admission_or_body_reads() {
+async fn malformed_credentials_are_rejected_before_admission_or_body_reads() {
     let web = FakeServer::start(|_| async {
         Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -39,14 +39,16 @@ async fn invalid_credentials_are_rejected_before_admission_or_body_reads() {
     for occupied in [Some(permit), None] {
         let body = Body::from_stream(stream::poll_fn(
             |_| -> Poll<Option<Result<&'static str, Infallible>>> {
-                panic!("an invalid credential must be rejected before polling the body");
+                panic!(
+                    "a syntactically invalid credential must be rejected before polling the body"
+                );
             },
         ));
         let response = tokio::time::timeout(
             Duration::from_secs(2),
             gateway.app.clone().oneshot(
                 Request::post("/openai/v1/responses")
-                    .header(header::AUTHORIZATION, "Bearer invalid-key")
+                    .header(header::AUTHORIZATION, "Basic invalid-key")
                     .body(body)
                     .unwrap(),
             ),
@@ -57,7 +59,7 @@ async fn invalid_credentials_are_rejected_before_admission_or_body_reads() {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         drop(occupied);
     }
-    assert_eq!(web.calls(), 2);
+    assert_eq!(web.calls(), 0);
     assert_eq!(provider.calls(), 0);
 }
 
@@ -292,7 +294,7 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
                 .body(vec![b'x'; MAX_REQUEST_BYTES + 1]),
             StatusCode::PAYLOAD_TOO_LARGE,
             false,
-            true,
+            false,
         ),
         (
             configured.post().bearer_auth("rejected"),
@@ -313,7 +315,7 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
                 .body(vec![b'x'; MAX_REQUEST_BYTES + 1]),
             StatusCode::PAYLOAD_TOO_LARGE,
             false,
-            true,
+            false,
         ),
     ] {
         let response = request
@@ -529,7 +531,7 @@ async fn compact_strips_the_connection_slug_and_models_use_the_control_plane_cat
             ("POST", "/v1/responses/compact") => {
                 assert_eq!(
                     body,
-                    r#"{"model":"gpt-4.1","encrypted_content":"opaque-ciphertext"}"#
+                    r#"{"encrypted_content":"opaque-ciphertext","model":"gpt-4.1"}"#
                 );
                 Response::builder()
                     .header("content-type", "application/json")
@@ -628,7 +630,7 @@ async fn malformed_credentials_skip_resolution_and_oversized_body_releases_capac
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
-    assert_eq!(web.calls(), 1);
+    assert_eq!(web.calls(), 0);
     assert_eq!(provider.calls(), 0);
     let next = gateway
         .post()
@@ -638,6 +640,7 @@ async fn malformed_credentials_skip_resolution_and_oversized_body_releases_capac
         .await
         .unwrap();
     assert_eq!(next.status(), StatusCode::OK);
+    assert_eq!(web.calls(), 1);
     assert_eq!(provider.calls(), 1);
 }
 
@@ -1300,12 +1303,21 @@ async fn openai_routes_ignore_x_api_key_and_keep_their_envelope() {
 
 #[tokio::test]
 async fn chat_completions_resolve_their_own_format_and_relay_native_json_and_errors() {
-    let web = FakeServer::start(|request| async move {
-        assert_eq!(
-            to_bytes(request.into_body(), 1024).await.unwrap(),
-            r#"{"apiFormat":"openai.chat-completions","model":"gpt-4.1-mini"}"#
-        );
-        resolution_response_for(ApiFormat::OpenAiChatCompletions, "provider-chat")
+    let resolved_models = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seen_models = Arc::clone(&resolved_models);
+    let web = FakeServer::start(move |request| {
+        let seen_models = Arc::clone(&seen_models);
+        async move {
+            let body: serde_json::Value =
+                serde_json::from_slice(&to_bytes(request.into_body(), 1024).await.unwrap())
+                    .unwrap();
+            assert_eq!(body["apiFormat"], "openai.chat-completions");
+            seen_models
+                .lock()
+                .unwrap()
+                .push(body["model"].as_str().unwrap().to_owned());
+            resolution_response_for(ApiFormat::OpenAiChatCompletions, "provider-chat")
+        }
     })
     .await;
     let provider = FakeServer::start(|request| async move {
@@ -1358,6 +1370,10 @@ async fn chat_completions_resolve_their_own_format_and_relay_native_json_and_err
     assert_eq!(body["error"]["type"], "authentication_error");
     assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 2);
+    assert_eq!(
+        *resolved_models.lock().unwrap(),
+        ["gpt-4.1-mini", "unknown-model"]
+    );
 }
 
 #[tokio::test]
