@@ -79,7 +79,7 @@ export function SelectDropdown<V extends string>({
   ...triggerProps
 }: {
   value: V;
-  options: SelectNode<V>[];
+  options: readonly SelectNode<V>[];
   onValueChange: (value: V) => void;
   emptyMessage?: string;
   children: (
