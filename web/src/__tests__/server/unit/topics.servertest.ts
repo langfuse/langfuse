@@ -38,6 +38,7 @@ const mocks = vi.hoisted(() => ({
   enqueueTopicExecution: vi.fn(),
   getTopicExecutionQueueState: vi.fn(),
   queryClickhouse: vi.fn(),
+  saveTracingProcessingSettings: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   const { selectTopicTraceRows } = await importOriginal<typeof topicsServer>();
@@ -48,6 +49,13 @@ vi.mock(
   async (importOriginal) => ({
     ...(await importOriginal<Record<string, unknown>>()),
     queryClickhouse: mocks.queryClickhouse,
+  }),
+);
+vi.mock(
+  "@langfuse/shared/src/server/tracingProcessingSettings",
+  async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
+    saveTracingProcessingSettings: mocks.saveTracingProcessingSettings,
   }),
 );
 vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
@@ -266,6 +274,33 @@ describe("Topics project allowlist", () => {
     await expect(caller().initialize({ projectId })).resolves.toEqual([]);
     expect(mocks.listTopicFacets).toHaveBeenCalledWith(projectId);
     expect(mocks.ensureDefaultTopicFacets).toHaveBeenCalledWith(projectId);
+  });
+
+  it("saves the trace idle time only for writers and within bounds", async () => {
+    mocks.saveTracingProcessingSettings.mockResolvedValue({
+      traceIdleMs: 300_000,
+    });
+
+    await expect(
+      caller("VIEWER").saveProcessingSettings({
+        projectId,
+        traceIdleMs: 300_000,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    for (const traceIdleMs of [0, 59_999, 3_600_001])
+      await expect(
+        caller().saveProcessingSettings({ projectId, traceIdleMs }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.saveTracingProcessingSettings).not.toHaveBeenCalled();
+
+    await expect(
+      caller().saveProcessingSettings({ projectId, traceIdleMs: 300_000 }),
+    ).resolves.toEqual({ traceIdleMs: 300_000 });
+    await caller().saveProcessingSettings({ projectId, traceIdleMs: null });
+    expect(mocks.saveTracingProcessingSettings.mock.calls).toEqual([
+      [projectId, { traceIdleMs: 300_000 }],
+      [projectId, { traceIdleMs: null }],
+    ]);
   });
 });
 
