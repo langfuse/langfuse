@@ -143,12 +143,13 @@ export function SessionConversationSidebar(
   const autoFollowPausedUntilRef = useRef(0);
   const autoFollowTimerRef = useRef<number | undefined>(undefined);
   const resumeAutoFollowRef = useRef<(() => void) | null>(null);
+  const [isListScrolled, setIsListScrolled] = useState(false);
   const virtualizer = useVirtualizer({
     count: traces.length,
     getScrollElement: () => listRef.current,
     estimateSize: () => 160,
     overscan: 5,
-    paddingStart: SIDEBAR_SCROLL_PADDING,
+    paddingStart: 0,
     paddingEnd: SIDEBAR_SCROLL_PADDING,
     scrollPaddingStart: SIDEBAR_SCROLL_PADDING,
     scrollPaddingEnd: SIDEBAR_SCROLL_PADDING,
@@ -229,7 +230,7 @@ export function SessionConversationSidebar(
       >
         <div
           className={cn(
-            "shrink-0 border-b px-2 py-2.5",
+            "shrink-0 p-4",
             props.searchVisibility === "hidden" && "hidden",
           )}
         >
@@ -244,7 +245,7 @@ export function SessionConversationSidebar(
             />
           </div>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-2 px-1 pt-0.5 pb-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-0.5 pb-4">
           {[0, 1, 2].map((index) => (
             <div
               key={index}
@@ -275,7 +276,8 @@ export function SessionConversationSidebar(
     >
       <div
         className={cn(
-          "shrink-0 border-b px-2 py-2.5",
+          "relative z-10 shrink-0 p-4",
+          isListScrolled && "shadow-sm",
           props.searchVisibility === "hidden" && "hidden",
         )}
       >
@@ -298,6 +300,9 @@ export function SessionConversationSidebar(
         role="region"
         aria-label="Session turns"
         className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]"
+        onScroll={(event) =>
+          setIsListScrolled(event.currentTarget.scrollTop > 0)
+        }
         onWheel={pauseAutoFollow}
         onTouchMove={pauseAutoFollow}
         onKeyDown={(event) => {
@@ -378,16 +383,19 @@ export function SessionConversationSidebar(
                   {props.search.trim() === "" &&
                     idleGapSeconds !== null &&
                     idleGapSeconds >= IDLE_GAP_THRESHOLD_SECONDS && (
-                      <div className="my-0.5 mb-2 flex items-center bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-3 py-[5px]">
+                      <div className="mb-2 flex items-center bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-4 py-[5px]">
                         <span className="text-muted-foreground font-mono text-[11px] whitespace-nowrap">
                           +{formatIdleGap(idleGapSeconds)} idle
                         </span>
                       </div>
                     )}
-                  <div className="px-2 pb-2">
+                  <div className="px-4 pb-2">
                     <div
                       className={cn(
-                        "group border-border/50 hover:bg-muted/60 rounded-sm border p-2 transition-colors duration-150",
+                        "group border-border hover:bg-muted/60 rounded-md border p-2 transition-colors duration-150",
+                        !isCollapsed &&
+                          !!transcriptRows?.length &&
+                          "overflow-hidden pb-0",
                         isActive &&
                           "border-primary-accent/50 bg-background dark:bg-muted",
                       )}
@@ -445,7 +453,7 @@ export function SessionConversationSidebar(
                               {emptyTranscriptLabel}
                             </p>
                           )}
-                          <div className="flex flex-col">
+                          <div className="flex flex-col [&>section:last-child>button:last-child]:pb-2">
                             {Array.from(threads, ([threadIndex, rows]) => (
                               <section
                                 key={threadIndex}
@@ -519,7 +527,7 @@ export function SessionConversationSidebar(
                                                 firstTool.id,
                                               )
                                             }
-                                            className="ph-no-capture text-muted-foreground hover:bg-foreground/10 -mr-2 -ml-1 flex min-w-0 items-center gap-2 rounded-sm py-1 pr-2 pl-1 text-left text-[13px] transition-colors duration-150"
+                                            className="ph-no-capture text-muted-foreground hover:bg-foreground/10 -mx-2 flex min-w-0 items-center gap-2 px-2 py-1 text-left text-[13px] transition-colors duration-150"
                                           >
                                             <span
                                               className="min-w-0 flex-1 truncate"
@@ -657,7 +665,7 @@ export function SessionConversationSidebar(
                                           row.id,
                                         )
                                       }
-                                      className="ph-no-capture hover:bg-foreground/10 -mr-2 -ml-1 flex min-w-0 items-center gap-2 rounded-sm py-1 pr-2 pl-1 text-left transition-colors duration-150"
+                                      className="ph-no-capture hover:bg-foreground/10 -mx-2 flex min-w-0 items-center gap-2 px-2 py-1 text-left transition-colors duration-150"
                                       aria-label={
                                         row.role === "tool"
                                           ? `tool: ${row.label}`
