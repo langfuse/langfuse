@@ -772,8 +772,10 @@ describe("Blob Storage Integration tRPC Router", () => {
       const uploadWithSignedUrl = vi.fn().mockResolvedValue({
         signedUrl: "https://signed.example/upload",
       });
+      const deleteFiles = vi.fn().mockResolvedValue(undefined);
       (StorageServiceFactory.getInstance as Mock).mockReturnValue({
         uploadWithSignedUrl,
+        deleteFiles,
       });
 
       const { caller, project } = await prepare();
@@ -791,6 +793,8 @@ describe("Blob Storage Integration tRPC Router", () => {
           expiresInSeconds: 3600,
         }),
       );
+      expect(result.testFileName).toMatch(/^test\/langfuse-validation-test-/);
+      expect(deleteFiles).toHaveBeenCalledWith([result.testFileName]);
 
       const auditLog = await findAuditLog({
         projectId: project.id,
