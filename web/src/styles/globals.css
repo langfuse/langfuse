@@ -200,6 +200,9 @@
   /* Text styles: each size token carries its size (whole pixels at a 16px
      root), line-height and canonical weight, so `text-*` alone yields a
      complete style. Heavier text opts in via `font-bold`, never a raw number. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: calc(16 / 11);
+  --text-2xs--font-weight: var(--font-weight-regular);
   --text-xs: 0.75rem;
   --text-xs--line-height: calc(18 / 12);
   --text-xs--font-weight: var(--font-weight-regular);
