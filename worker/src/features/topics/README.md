@@ -23,7 +23,7 @@ Topics reuses the evaluator and evaluation-rule tables:
 
 Postgres uses normal Prisma migrations; `topic_clustering_runs` is the only new
 Topics table. Idle time is per project, not per rule: see
-`tracing_processing_settings` in `worker/src/features/traceBatching/README.md`.
+`tracing_readiness_settings` in `worker/src/features/traceBatching/README.md`.
 
 ## Setup
 

@@ -8,7 +8,7 @@ import { prisma } from "../db";
 export const TRACE_IDLE_MS_MIN = 60_000;
 export const TRACE_IDLE_MS_MAX = 3_600_000;
 
-export const tracingProcessingSettingsSchema = z.object({
+export const tracingReadinessSettingsSchema = z.object({
   traceIdleMs: z
     .number()
     .int()
@@ -17,27 +17,27 @@ export const tracingProcessingSettingsSchema = z.object({
     .nullable(),
 });
 
-export type TracingProcessingSettings = z.infer<
-  typeof tracingProcessingSettingsSchema
+export type TracingReadinessSettings = z.infer<
+  typeof tracingReadinessSettingsSchema
 >;
 
 /** Null fields mean the deployment default; a project without a row has all nulls. */
-export async function getTracingProcessingSettings(
+export async function getTracingReadinessSettings(
   projectId: string,
-): Promise<TracingProcessingSettings> {
-  const row = await prisma.tracingProcessingSettings.findUnique({
+): Promise<TracingReadinessSettings> {
+  const row = await prisma.tracingReadinessSettings.findUnique({
     where: { projectId },
     select: { traceIdleMs: true },
   });
   return { traceIdleMs: row?.traceIdleMs ?? null };
 }
 
-export async function saveTracingProcessingSettings(
+export async function saveTracingReadinessSettings(
   projectId: string,
-  settings: TracingProcessingSettings,
-): Promise<TracingProcessingSettings> {
-  const data = tracingProcessingSettingsSchema.parse(settings);
-  const row = await prisma.tracingProcessingSettings.upsert({
+  settings: TracingReadinessSettings,
+): Promise<TracingReadinessSettings> {
+  const data = tracingReadinessSettingsSchema.parse(settings);
+  const row = await prisma.tracingReadinessSettings.upsert({
     where: { projectId },
     create: { projectId, ...data },
     update: data,

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { xxh32 } from "@node-rs/xxhash";
 import {
-  getTracingProcessingSettings,
+  getTracingReadinessSettings,
   LocalCache,
   logger,
   QueueJobs,
@@ -844,7 +844,7 @@ async function readTraceIdleMs(projectId: string): Promise<number | null> {
   let timeout: NodeJS.Timeout | undefined;
   try {
     const { traceIdleMs } = await Promise.race([
-      getTracingProcessingSettings(projectId),
+      getTracingReadinessSettings(projectId),
       new Promise<never>((_, reject) => {
         timeout = setTimeout(
           () => reject(new Error("Trace idle time read timed out")),

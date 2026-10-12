@@ -52,7 +52,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     recordGauge: vi.fn(),
     recordIncrement: vi.fn(),
     getS3EventStorageClient: vi.fn(),
-    getTracingProcessingSettings: vi.fn(original.getTracingProcessingSettings),
+    getTracingReadinessSettings: vi.fn(original.getTracingReadinessSettings),
   };
 });
 
@@ -882,7 +882,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       data: { id: projectId, orgId, name: "Idle time project" },
     });
     try {
-      await shared.saveTracingProcessingSettings(projectId, {
+      await shared.saveTracingReadinessSettings(projectId, {
         traceIdleMs: 3_600_000,
       });
       const now = Date.now();
@@ -911,7 +911,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   it("shares one in-flight idle time read across concurrent jobs of a project", async () => {
     const projectId = `project-${randomUUID()}`;
     let resolveRead!: (value: { traceIdleMs: number | null }) => void;
-    vi.mocked(shared.getTracingProcessingSettings).mockImplementationOnce(
+    vi.mocked(shared.getTracingReadinessSettings).mockImplementationOnce(
       () => new Promise((resolve) => (resolveRead = resolve)),
     );
 
@@ -924,7 +924,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     await tracking;
     await trackTraceBatchActivity(projectId, [event("cached")]);
 
-    expect(shared.getTracingProcessingSettings).toHaveBeenCalledTimes(1);
+    expect(shared.getTracingReadinessSettings).toHaveBeenCalledTimes(1);
     const now = Date.now();
     for (const traceId of ["first", "second", "cached"]) {
       const offset =
@@ -936,7 +936,7 @@ describe("trace micro-batch scheduling with Redis", () => {
 
   it("uses the default when the idle time read times out, then backs off", async () => {
     const projectId = `project-${randomUUID()}`;
-    vi.mocked(shared.getTracingProcessingSettings).mockImplementationOnce(
+    vi.mocked(shared.getTracingReadinessSettings).mockImplementationOnce(
       () => new Promise(() => {}),
     );
     const started = Date.now();
@@ -947,7 +947,7 @@ describe("trace micro-batch scheduling with Redis", () => {
 
     expect(waited).toBeGreaterThanOrEqual(450);
     expect(waited).toBeLessThan(2_000);
-    expect(shared.getTracingProcessingSettings).toHaveBeenCalledTimes(1);
+    expect(shared.getTracingReadinessSettings).toHaveBeenCalledTimes(1);
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.trace_batch.idle_time_read_failures",
       1,
