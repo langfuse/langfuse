@@ -4,8 +4,9 @@ import path from "node:path";
 import { build } from "esbuild";
 import Piscina from "piscina";
 
+const distDir = process.env.NEXT_DIST_DIR || ".next";
 const outfile = path.resolve(
-  ".next",
+  distDir,
   "standalone",
   "web",
   "otelIngestionWorker.js",
