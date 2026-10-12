@@ -1,0 +1,47 @@
+import { z } from "zod";
+import { prisma } from "../db";
+
+// The minimum stays at least 2x the 30 s dispatch interval so event batches of
+// one trace are not dispatched separately. The maximum stays below the 2 h
+// pending TTL, after which idle traces are dropped before dispatch. Mirrored by
+// the DB CHECK on trace_idle_ms.
+export const TRACE_IDLE_MS_MIN = 60_000;
+export const TRACE_IDLE_MS_MAX = 3_600_000;
+
+export const tracingProcessingSettingsSchema = z.object({
+  traceIdleMs: z
+    .number()
+    .int()
+    .min(TRACE_IDLE_MS_MIN)
+    .max(TRACE_IDLE_MS_MAX)
+    .nullable(),
+});
+
+export type TracingProcessingSettings = z.infer<
+  typeof tracingProcessingSettingsSchema
+>;
+
+/** Null fields mean the deployment default; a project without a row has all nulls. */
+export async function getTracingProcessingSettings(
+  projectId: string,
+): Promise<TracingProcessingSettings> {
+  const row = await prisma.tracingProcessingSettings.findUnique({
+    where: { projectId },
+    select: { traceIdleMs: true },
+  });
+  return { traceIdleMs: row?.traceIdleMs ?? null };
+}
+
+export async function saveTracingProcessingSettings(
+  projectId: string,
+  settings: TracingProcessingSettings,
+): Promise<TracingProcessingSettings> {
+  const data = tracingProcessingSettingsSchema.parse(settings);
+  const row = await prisma.tracingProcessingSettings.upsert({
+    where: { projectId },
+    create: { projectId, ...data },
+    update: data,
+    select: { traceIdleMs: true },
+  });
+  return { traceIdleMs: row.traceIdleMs };
+}

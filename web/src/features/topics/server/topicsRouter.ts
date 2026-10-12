@@ -1,7 +1,12 @@
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
-import type { Transcript } from "@langfuse/shared/src/server";
+import {
+  getTracingProcessingSettings,
+  saveTracingProcessingSettings,
+  tracingProcessingSettingsSchema,
+  type Transcript,
+} from "@langfuse/shared/src/server";
 import {
   topicEmbeddingConfigSchema,
   topicExecutionInputSchema,
@@ -309,6 +314,14 @@ export const topicsRouter = createTRPCRouter({
       }),
     )
     .mutation(({ input }) => saveTopicRule(input)),
+  processingSettings: topicsProcedure.query(({ input }) =>
+    getTracingProcessingSettings(input.projectId),
+  ),
+  saveProcessingSettings: topicsWriteProcedure
+    .input(projectInput.merge(tracingProcessingSettingsSchema))
+    .mutation(({ input: { projectId, ...settings } }) =>
+      saveTracingProcessingSettings(projectId, settings),
+    ),
   summaryCounts: topicsProcedure
     .input(
       resultInput.extend({

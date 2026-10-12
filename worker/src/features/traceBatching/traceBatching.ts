@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { xxh32 } from "@node-rs/xxhash";
 import {
+  getTracingProcessingSettings,
+  LocalCache,
   logger,
   QueueJobs,
   redis,
@@ -692,6 +694,38 @@ function recordTrackingVolume(
   });
 }
 
+// A saved value reaches every pod within the TTL. Projects without a row cache
+// a null so they cost no Postgres read either.
+const traceIdleMsCache = new LocalCache<{ traceIdleMs: number | null }>({
+  namespace: "trace_batch_idle_ms",
+  enabled: true,
+  ttlMs: 5 * MINUTE_MS,
+  max: 10_000,
+});
+
+async function resolveTraceIdleMs(projectId: string): Promise<number> {
+  let traceIdleMs: number | null = null;
+  try {
+    const { value } = await traceIdleMsCache.getOrLoad(projectId, async () => ({
+      value: await getTracingProcessingSettings(projectId),
+    }));
+    traceIdleMs = value?.traceIdleMs ?? null;
+  } catch (error) {
+    // Not cached, so the next call retries the read.
+    logger.warn("Failed to read trace idle time, using the default", {
+      projectId,
+      error,
+    });
+  }
+  if (traceIdleMs === null) return env.LANGFUSE_TRACE_BATCH_IDLE_MS;
+  // A due time past the pending TTL would expire the trace before dispatch.
+  return Math.min(
+    traceIdleMs,
+    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS -
+      env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS,
+  );
+}
+
 export async function trackTraceBatchActivity(
   projectId: string,
   events: {
@@ -758,6 +792,7 @@ export async function trackTraceBatchActivity(
     );
     if (entries.length === 0) return;
     if (!redis) throw new Error("Trace batching requires Redis");
+    const idleMs = await resolveTraceIdleMs(projectId);
     // Bounded scripts keep ingestion from monopolizing the global Redis slot.
     for (let offset = 0; offset < entries.length; offset += CHUNK_SIZE) {
       const chunk = entries.slice(offset, offset + CHUNK_SIZE);
@@ -767,7 +802,7 @@ export async function trackTraceBatchActivity(
           2,
           DUE_KEY,
           STATE_KEY,
-          env.LANGFUSE_TRACE_BATCH_IDLE_MS,
+          idleMs,
           env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
           ...chunk.flatMap(([traceId, state]) => [
             JSON.stringify([projectId, traceId]),
