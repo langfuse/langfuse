@@ -125,6 +125,8 @@ export function SingleLineOverflowList<TItem>({
     overflowItemCount,
   ]);
 
+  const lastVisibleItem = visibleItems.at(-1);
+
   return (
     <div
       className={`relative flex min-w-0 flex-1 items-center overflow-hidden ${gapClass}`}
@@ -174,7 +176,15 @@ export function SingleLineOverflowList<TItem>({
         </div>
       ) : null}
       {overflowItemCount > 0 ? (
-        <div ref={overflowRef} className="flex shrink-0 items-center">
+        <div
+          ref={overflowRef}
+          className={cn(
+            "flex shrink-0 items-center",
+            lastVisibleItem !== undefined &&
+              isTightItem?.(lastVisibleItem) &&
+              "-ml-3",
+          )}
+        >
           {renderOverflow({ hiddenItems, overflowItemCount })}
         </div>
       ) : null}
