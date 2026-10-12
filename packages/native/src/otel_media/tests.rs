@@ -138,6 +138,48 @@ fn nested_otlp_map_keys_stay_structural() {
 }
 
 #[test]
+fn tag_attribute_values_stay_inline_only_on_spans() {
+    let (uri, _) = large_data_uri(b"tag");
+    let value = format!(r#""value":{{"stringValue":"{uri}"}}"#);
+    for key in [
+        "langfuse.trace.tags",
+        "langfuse.tags",
+        "langfuse.observation.metadata.langfuse_tags",
+        "langfuse.trace.metadata.langfuse_tags",
+        "ai.telemetry.metadata.tags",
+        "tag.tags",
+    ] {
+        let tag_key = format!(r#""key":"{key}""#);
+        for (fields, is_tag) in [
+            (format!("{tag_key},{value}"), true),
+            (format!("{value},{tag_key}"), true),
+            (format!(r#""key":"input",{value},{tag_key}"#), true),
+            (format!(r#"{tag_key},{value},"key":"input""#), false),
+            (format!(r#"{tag_key},{value},"key":null"#), false),
+        ] {
+            let attribute = format!("{{{fields}}}");
+            let input = format!(
+                r#"[{{
+                "resource":{{"attributes":[{attribute}]}},
+                "scopeSpans":[{{
+                    "scope":{{"attributes":[{attribute}]}},
+                    "spans":[{{"attributes":[{attribute},
+                        {{"key":"input","value":{{"kvlistValue":{{"values":[{attribute}]}}}}}}
+                    ]}}]
+                }}]
+            }},{attribute}]"#
+            );
+            let result = extract_media(input.as_bytes()).unwrap();
+            assert_eq!(result.media.len(), if is_tag { 4 } else { 5 }, "{key}");
+            let compact: Value = serde_json::from_str(&result.compact_json).unwrap();
+            let value =
+                &compact[0]["scopeSpans"][0]["spans"][0]["attributes"][0]["value"]["stringValue"];
+            assert_eq!(value == &uri, is_tag);
+        }
+    }
+}
+
+#[test]
 fn accepts_deep_otlp_structure_before_embedded_json_limit() {
     let mut value = r#""leaf""#.to_owned();
     for _ in 0..16 {
