@@ -50,6 +50,7 @@ import {
   type SessionOptions,
   type ScoreDomain,
   LISTABLE_SCORE_TYPES,
+  sessionTraceFilterSchema,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
@@ -787,12 +788,14 @@ export const sessionRouter = createTRPCRouter({
       z.object({
         sessionId: z.string(), // used for security check
         projectId: z.string(), // used for security check
+        filter: sessionTraceFilterSchema.optional(),
       }),
     )
     .query(async ({ input }) => {
       const traces = await getSessionTracesFromEvents({
         projectId: input.projectId,
         sessionId: input.sessionId,
+        filter: input.filter ?? [],
       });
 
       const chunks = chunk(traces, 500);

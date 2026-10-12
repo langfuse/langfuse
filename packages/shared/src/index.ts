@@ -66,6 +66,7 @@ export * from "./features/rbac/projectAccessRights";
 export * from "./features/filters/internalEnvironments";
 export * from "./features/filters/filterQueryEncoding";
 export * from "./features/filters/sessionPositionInTrace";
+export * from "./features/filters/sessionTraceFilters";
 
 // date ranges
 export * from "./utils/dateRanges";
