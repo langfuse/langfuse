@@ -137,6 +137,18 @@
   --color-light-teal: hsl(var(--light-teal));
   --color-dark-teal: hsl(var(--dark-teal));
 
+  /* Match the canvas palette in features/topics/topic-map-colors.ts. */
+  --color-category-violet: #7c3aed;
+  --color-category-sky: #0284c7;
+  --color-category-emerald: #059669;
+  --color-category-amber: #d97706;
+  --color-category-pink: #db2777;
+  --color-category-indigo: #4f46e5;
+  --color-category-teal: #0d9488;
+  --color-category-orange: #c2410c;
+  --color-category-lime: #65a30d;
+  --color-category-fuchsia: #a21caf;
+
   /* Search-bar query syntax highlighting (key:value token parts). Operators
      (`:` `-` `(` `)`) reuse muted-foreground, so no token for them here. */
   --color-qlang-field: hsl(var(--qlang-field));
@@ -200,6 +212,9 @@
   /* Text styles: each size token carries its size (whole pixels at a 16px
      root), line-height and canonical weight, so `text-*` alone yields a
      complete style. Heavier text opts in via `font-bold`, never a raw number. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: calc(16 / 11);
+  --text-2xs--font-weight: var(--font-weight-regular);
   --text-xs: 0.75rem;
   --text-xs--line-height: calc(18 / 12);
   --text-xs--font-weight: var(--font-weight-regular);
@@ -497,7 +512,7 @@
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%; /* zinc-100 */
+    --sidebar-accent: 240 5.2% 93.5%; /* between zinc-100 and zinc-200 */
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 240 5.9% 90%; /* zinc-200 */
     --sidebar-ring: 217.2 91.2% 59.8%;

@@ -3,6 +3,7 @@ import { pipeline } from "stream/promises";
 import {
   DeleteObjectsCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   PutObjectCommandInput,
@@ -132,7 +133,10 @@ function createS3RequestHandler(
   const maxSockets = env.LANGFUSE_S3_CONCURRENT_WRITES;
 
   if (!connectionValidation) {
+    // Both agents need the limit: plain-HTTP endpoints (e.g. MinIO) go through
+    // httpAgent, which otherwise stays at the SDK default of 50 sockets.
     return new NodeHttpHandler({
+      httpAgent: { maxSockets },
       httpsAgent: { maxSockets },
     });
   }
@@ -319,6 +323,8 @@ export interface StorageService {
     asAttachment?: boolean,
   ): Promise<string>;
 
+  getObjectContentLength(path: string): Promise<number | undefined>;
+
   getSignedUploadUrl(params: {
     path: string;
     ttlSeconds: number;
@@ -352,6 +358,7 @@ export class StorageServiceFactory {
    * @param params.awsSse - Server-side encryption method (e.g., "aws:kms")
    * @param params.awsSseKmsKeyId - SSE KMS Key ID when using KMS encryption
    * @param params.logSlowDownAsWarning - Log S3 SlowDown as a warning. Set only when the caller escalates to an error after its own retries are spent.
+   * @param params.maxAttempts - Maximum AWS SDK attempts for each S3 operation.
    * @param params.connectionValidation - Optional connection-time DNS/IP validation for user-controlled endpoints.
    */
   public static getInstance(params: {
@@ -369,6 +376,7 @@ export class StorageServiceFactory {
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
     logSlowDownAsWarning?: boolean;
+    maxAttempts?: number;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
   }): StorageService {
     if (
@@ -706,6 +714,19 @@ class AzureBlobStorageService implements StorageService {
     }
   }
 
+  public async getObjectContentLength(
+    path: string,
+  ): Promise<number | undefined> {
+    try {
+      await this.createContainerIfNotExists();
+      const properties = await this.client.getBlobClient(path).getProperties();
+      return properties.contentLength;
+    } catch (err) {
+      logger.error(`Failed to read Azure Blob Storage metadata ${path}`, err);
+      handleStorageError(err, "read Azure Blob Storage metadata");
+    }
+  }
+
   public async getSignedUploadUrl(params: {
     path: string;
     ttlSeconds: number;
@@ -762,6 +783,7 @@ class S3StorageService implements StorageService {
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
     logSlowDownAsWarning?: boolean;
+    maxAttempts?: number;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
   }) {
     // Use accessKeyId and secretAccessKey if provided or fallback to default credentials
@@ -798,6 +820,7 @@ class S3StorageService implements StorageService {
       requestChecksumCalculation: "WHEN_REQUIRED",
       responseChecksumValidation: "WHEN_REQUIRED",
       requestHandler,
+      maxAttempts: params.maxAttempts,
     });
 
     addS3DiagnosticsMiddleware(this.client, {
@@ -1061,6 +1084,23 @@ class S3StorageService implements StorageService {
         err,
       );
       handleStorageError(err, "generate signed URL");
+    }
+  }
+
+  public async getObjectContentLength(
+    path: string,
+  ): Promise<number | undefined> {
+    try {
+      const response = await this.client.send(
+        new HeadObjectCommand({
+          Bucket: this.bucketName,
+          Key: path,
+        }),
+      );
+      return response.ContentLength;
+    } catch (err) {
+      this.logClientFailure(`Failed to read S3 object metadata ${path}`, err);
+      handleStorageError(err, "read S3 object metadata");
     }
   }
 
@@ -1343,6 +1383,19 @@ class GoogleCloudStorageService implements StorageService {
         err,
       );
       handleStorageError(err, "generate signed URL for Google Cloud Storage");
+    }
+  }
+
+  public async getObjectContentLength(
+    path: string,
+  ): Promise<number | undefined> {
+    try {
+      const [metadata] = await this.bucket.file(path).getMetadata();
+      const contentLength = Number(metadata.size);
+      return Number.isFinite(contentLength) ? contentLength : undefined;
+    } catch (err) {
+      logger.error(`Failed to read Google Cloud Storage metadata ${path}`, err);
+      handleStorageError(err, "read Google Cloud Storage metadata");
     }
   }
 
@@ -1860,6 +1913,23 @@ class OCIObjectStorageService implements StorageService {
         err,
       );
       handleStorageError(err, "generate signed URL for OCI Object Storage ");
+    }
+  }
+
+  public async getObjectContentLength(
+    path: string,
+  ): Promise<number | undefined> {
+    try {
+      const { client, namespaceName } = await this.getClientAndNamespace();
+      const response = await client.headObject({
+        namespaceName,
+        bucketName: this.bucketName,
+        objectName: path,
+      });
+      return response.contentLength;
+    } catch (err) {
+      logger.error(`Failed to read OCI Object Storage metadata ${path}`, err);
+      handleStorageError(err, "read OCI Object Storage metadata");
     }
   }
 

@@ -207,6 +207,35 @@ describe("scores trpc", () => {
       }
     });
 
+    it("pages through scores with identical timestamps without duplicates or gaps on both read paths", async () => {
+      const timestamp = new Date();
+      const scores = Array.from({ length: 8 }, () =>
+        createTraceScore({ project_id: projectId, name: "batch", timestamp }),
+      );
+      await createScoresCh(scores);
+
+      for (const procedure of [
+        caller.scores.all,
+        caller.scores.allFromEvents,
+      ]) {
+        const pages = await Promise.all(
+          scores.map((_, page) =>
+            procedure({
+              projectId,
+              filter: [],
+              orderBy: { column: "timestamp", order: "DESC" },
+              page,
+              limit: 1,
+            }),
+          ),
+        );
+        const pagedIds = pages.flatMap((p) => p.scores.map(({ id }) => id));
+
+        expect(pagedIds).toHaveLength(scores.length);
+        expect(new Set(pagedIds)).toEqual(new Set(scores.map(({ id }) => id)));
+      }
+    });
+
     it("applies search-bar name matching and repeated numeric bounds to v4 rows and counts", async () => {
       await createScoresCh(
         [

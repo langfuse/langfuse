@@ -2,6 +2,7 @@ import { beforeEach, describe, it, expect, assert, vi } from "vitest";
 import { eventTypes } from "../../../packages/shared/src/server/ingestion/types";
 import { processEventBatch } from "../../../packages/shared/src/server/ingestion/processEventBatch";
 import { ServiceUnavailableError } from "../../../packages/shared/src/errors";
+import { logger } from "../../../packages/shared/src/server/logger";
 import {
   createUnknownSdkIngestionAttribution,
   UNKNOWN_INGESTION_SDK_VALUE,
@@ -62,6 +63,8 @@ const createTraceCreateEvent = () => {
 };
 
 describe("processEventBatch", () => {
+  const loggerErrorSpy = vi.spyOn(logger, "error");
+
   beforeEach(() => {
     vi.clearAllMocks();
     getQueueInstanceMock.mockReturnValue({ add: queueAddMock });
@@ -177,6 +180,10 @@ describe("processEventBatch", () => {
     expect(error).toBeInstanceOf(ServiceUnavailableError);
     expect(error).toMatchObject({ httpCode: 503, retryAfterSeconds: 2 });
     expect(queueAddMock).not.toHaveBeenCalled();
+    expect(loggerErrorSpy).not.toHaveBeenCalledWith(
+      "Failed to upload event to S3",
+      expect.anything(),
+    );
   });
 
   it("does not report a retryable 503 when another upload failed for a different reason", async () => {
@@ -208,5 +215,14 @@ describe("processEventBatch", () => {
 
     expect(error).toBeInstanceOf(Error);
     expect(error).not.toBeInstanceOf(ServiceUnavailableError);
+    const uploadErrorLogs = loggerErrorSpy.mock.calls.filter(
+      ([message]) => message === "Failed to upload event to S3",
+    );
+    expect(uploadErrorLogs).toEqual([
+      [
+        "Failed to upload event to S3",
+        { error: expect.objectContaining({ message: "Access Denied" }) },
+      ],
+    ]);
   });
 });

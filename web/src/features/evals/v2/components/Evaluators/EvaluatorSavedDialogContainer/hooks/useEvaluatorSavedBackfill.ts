@@ -78,7 +78,7 @@ export function useEvaluatorSavedBackfill({
 }) {
   const utils = api.useUtils();
   const runEvaluation = api.batchAction.runEvaluation.create.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_backfill.run"),
   });
   const [enabled, setEnabledState] = useState(false);
   const [window, setWindow] = useState<EvaluatorBackfillWindow>("7-days");
@@ -124,7 +124,7 @@ export function useEvaluatorSavedBackfill({
         if (estimateRequestId.current === requestId) {
           setMatchingObservations(0);
           setTestRunCostUsd(null);
-          trpcErrorToast(error);
+          trpcErrorToast(error, "evaluator_backfill.estimate");
         }
       } finally {
         if (estimateRequestId.current === requestId) {

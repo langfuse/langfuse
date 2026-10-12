@@ -281,9 +281,12 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     const assignment = await prisma.roleAssignment.create({
       data: {
         orgId,
-        principalUserId: user.id,
-        ownerProjectId: projectId,
+        userId: user.id,
+        principalId: `user/${user.id}`,
+        projectId,
+        ownerId: `project/${projectId}`,
         systemRole: "VIEWER",
+        roleId: "system/VIEWER",
       },
     });
 

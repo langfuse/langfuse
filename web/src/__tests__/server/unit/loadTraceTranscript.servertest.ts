@@ -119,6 +119,132 @@ beforeEach(() => {
   mocks.splitTurn.mockReset().mockImplementation(mocks.splitTurnActual);
 });
 
+it("retains the source tool observation status on transcript messages", async () => {
+  const transcript = fixture(["search"], ["search"]);
+  mocks.observations.mockResolvedValue({
+    observations: [
+      {
+        id: "generation",
+        type: "GENERATION",
+        level: "DEFAULT",
+        statusMessage: null,
+        traceId: "trace",
+      },
+      {
+        id: "tool-0",
+        type: "TOOL",
+        level: "ERROR",
+        statusMessage: "Search timed out",
+        traceId: "trace",
+      },
+    ],
+    totalCount: 2,
+  });
+
+  const result = await loadTraceTranscript(trace);
+
+  expect(result.transcript?.threads[0]?.currentTurn.messages[1]).toMatchObject({
+    observationId: "tool-0",
+    level: "ERROR",
+    statusMessage: "Search timed out",
+  });
+  expect(transcript.threads[0]?.currentTurn.messages[1]).not.toHaveProperty(
+    "level",
+  );
+});
+
+it("does not copy generation errors onto unmatched tool calls", async () => {
+  const transcript = fixture(["search"], []);
+  mocks.observations.mockResolvedValue({
+    observations: [
+      {
+        id: "generation",
+        traceId: "trace",
+        type: "GENERATION",
+        level: "ERROR",
+        statusMessage: "Generation failed",
+      },
+    ],
+    totalCount: 1,
+  });
+  const result = await loadTraceTranscript(trace);
+  expect(result.transcript).toBe(transcript);
+  expect(
+    result.transcript?.threads[0]?.currentTurn.messages[0],
+  ).not.toHaveProperty("level");
+});
+
+it.each(["ERROR", "WARNING"] as const)(
+  "recovers %s tool status with null output",
+  async (level) => {
+    const generation = {
+      id: "generation",
+      traceId: "trace",
+      type: "GENERATION" as const,
+      name: "generation",
+      parentObservationId: null,
+      startTime: new Date(0),
+      endTime: new Date(1),
+      input: [{ role: "user", content: "Run a tool" }],
+      output: [
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolName: "search",
+              toolCallId: "call-1",
+              input: {},
+            },
+          ],
+        },
+      ],
+      metadata: {},
+    };
+    const tool = {
+      ...generation,
+      id: "tool",
+      type: "TOOL" as const,
+      name: "search",
+      parentObservationId: generation.id,
+      startTime: new Date(2),
+      input: {},
+      output: null,
+      level,
+      statusMessage: "Search unavailable",
+      metadata: { callID: "call-1" },
+    };
+    const observations = [generation, tool];
+    const snapshot = structuredClone(observations);
+    mocks.observations.mockResolvedValue({
+      observations,
+      totalCount: observations.length,
+    });
+    const result = await loadTraceTranscript({
+      ...trace,
+      recoverToolResponses: true,
+    });
+    expect(
+      result.transcript?.threads
+        .flatMap((thread) => thread.currentTurn.messages)
+        .find((message) => message.observationId === "tool"),
+    ).toMatchObject({
+      level,
+      statusMessage: tool.statusMessage,
+      role: "tool",
+      parts: [
+        {
+          type: "tool-result",
+          toolCallId: "call-1",
+          output: { type: "json", value: null },
+          isError: level === "ERROR",
+        },
+      ],
+    });
+    expect(observations).toEqual(snapshot);
+  },
+);
+
 it.each(["image", "media-token"])(
   "attaches reversed nested %s results by recovered call ID",
   async (scenario) => {
@@ -266,7 +392,7 @@ it.each(["missing", "idless"])(
       { toolCallId: "call-1" },
     ]);
     expect(parts.filter((part) => part.type === "tool-result")).toMatchObject([
-      { toolCallId: "call-1", output: { answer: 42 } },
+      { toolCallId: "call-1", output: { type: "json", value: { answer: 42 } } },
     ]);
     expect(observations).toEqual(snapshot);
   },
@@ -779,7 +905,7 @@ it("preserves explicit results that conflict with TOOL metadata", async () => {
     (message) => message.parts,
   );
   expect(parts.filter((part) => part.type === "tool-result")).toMatchObject([
-    { toolCallId: "explicit", output: "result" },
+    { toolCallId: "explicit", output: { type: "text", value: "result" } },
   ]);
   expect(
     parts.some(
@@ -881,7 +1007,7 @@ it.each([
           type: "tool-result",
           toolCallId: "call-1",
           toolName: "execute",
-          output,
+          output: { type: "json", value: output },
         },
       ],
     });
@@ -956,7 +1082,7 @@ it("opts into provenance-based reverse multi-call responses without mutating ass
         type: "tool-result",
         toolCallId: "call-1",
         toolName: "weather",
-        output: "weather",
+        output: { type: "content", value: [{ type: "text", text: "weather" }] },
       },
     ],
     [
@@ -964,7 +1090,7 @@ it("opts into provenance-based reverse multi-call responses without mutating ass
         type: "tool-result",
         toolCallId: "call-0",
         toolName: "search",
-        output: "search",
+        output: { type: "content", value: [{ type: "text", text: "search" }] },
       },
     ],
   ]);
@@ -1001,14 +1127,19 @@ it.each([
     expect(
       result.transcript?.threads[0]?.currentTurn.messages[1]?.parts,
     ).toEqual([
-      { type: "tool-result", toolCallId: "call-0", toolName: "search", output },
+      {
+        type: "tool-result",
+        toolCallId: "call-0",
+        toolName: "search",
+        output: { type: "content", value: [{ type: "data", value: output }] },
+      },
     ]);
     expect(original).toEqual(snapshot);
     expect((await loadTraceTranscript(trace)).transcript).toBe(original);
   },
 );
 
-it("preserves multiple JSON parts as an output array", async () => {
+it("preserves multiple JSON parts as typed content", async () => {
   const original = fixture(["search"], ["search"]);
   original.threads[0]!.currentTurn.messages[1]!.parts = [
     { type: "data", value: { answer: 42 } },
@@ -1024,7 +1155,13 @@ it("preserves multiple JSON parts as an output array", async () => {
         type: "tool-result",
         toolCallId: "call-0",
         toolName: "search",
-        output: [{ answer: 42 }, { confidence: 0.9 }],
+        output: {
+          type: "content",
+          value: [
+            { type: "data", value: { answer: 42 } },
+            { type: "data", value: { confidence: 0.9 } },
+          ],
+        },
       },
     ],
   );
@@ -1066,7 +1203,11 @@ it.each([
     messages.push({
       ...messages[1]!,
       parts: [
-        { type: "tool-result", toolCallId: "call-0", output: "explicit" },
+        {
+          type: "tool-result",
+          toolCallId: "call-0",
+          output: { type: "text", value: "explicit" },
+        },
       ],
     });
   }
@@ -1095,7 +1236,13 @@ it("preserves explicit result precedence", async () => {
   const original = fixture(["search"], ["search"]);
   original.threads[0]!.currentTurn.messages.push({
     ...original.threads[0]!.currentTurn.messages[1]!,
-    parts: [{ type: "tool-result", toolCallId: "call-0", output: "explicit" }],
+    parts: [
+      {
+        type: "tool-result",
+        toolCallId: "call-0",
+        output: { type: "text", value: "explicit" },
+      },
+    ],
   });
   expect(
     (await loadTraceTranscript({ ...trace, recoverToolResponses: true }))
