@@ -77,6 +77,29 @@ const MEDIA_DESTINATION = {
   mediaPrefix: "media/",
 } as const;
 
+function createTestDescriptors(
+  count: number,
+  prefix: string,
+  originalByteLength: number,
+): ExtractedOtelMedia[] {
+  return Array.from({ length: count }, (_, index) => ({
+    index,
+    reference: DEFAULT_MEDIA_REFERENCE.replace(
+      "provider",
+      `${prefix}-${index}`,
+    ),
+    contentType: "image/png",
+    sha256Hash: `${prefix}-hash-${index}`,
+    kind: "anthropic",
+    originalByteLength,
+    originalJsonDepth: 0,
+  }));
+}
+
+function replaceReference(reference: string, mediaId: string) {
+  return reference.replace(/\|id=[^|@]+/, `|id=${mediaId}`);
+}
+
 function createFakeMediaBatch({
   originalValue = "aGk=",
   entries,
@@ -108,11 +131,7 @@ function createFakeMediaBatch({
     mediaCount,
     mediaPage,
     mediaBody,
-    originalMedia: vi
-      .fn()
-      .mockImplementation((_index: number, _jsonLayers?: number) =>
-        Promise.resolve(originalValue),
-      ),
+    originalMedia: vi.fn().mockResolvedValue(originalValue),
   } as EarlyOtelBatch;
   return { batch, mediaBody, mediaCount, mediaPage, readMedia };
 }
@@ -142,17 +161,15 @@ function resolveTarget(
   });
 }
 
-async function withExtractedBatch(
-  source: string | object,
-  callback: (batch: EarlyOtelBatch) => Promise<void>,
+async function withExtractedBatch<T>(
+  source: T,
+  callback: (batch: EarlyOtelBatch, compacted: T) => Promise<void>,
 ): Promise<void> {
-  const validated = await validateOtelJson(
-    Buffer.from(typeof source === "string" ? source : JSON.stringify(source)),
-  );
+  const validated = await validateOtelJson(Buffer.from(JSON.stringify(source)));
   let batch: EarlyOtelBatch | undefined;
   try {
     batch = await validated.extract(true);
-    await callback(batch);
+    await callback(batch, JSON.parse(batch.takeJsonBuffer().toString("utf8")));
   } finally {
     try {
       await batch?.dispose();
@@ -163,7 +180,16 @@ async function withExtractedBatch(
 }
 
 describe("processOtelEventMedia", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.uploadMediaForTrace.mockReset().mockResolvedValue({
+      outcome: "uploaded",
+      mediaId: "uploaded",
+    });
+    mocks.linkMediaToTraceOrObservation
+      .mockReset()
+      .mockResolvedValue(undefined);
+  });
 
   it("processes only normalized direct events with media fields", async () => {
     const eventInput = {
@@ -307,8 +333,7 @@ describe("processOtelEventMedia", () => {
       spanId: "observation-id",
       input: `data:image/png;base64,${"aGVsbG8h".repeat(1024)}`,
     };
-    await withExtractedBatch(original, async (batch) => {
-      const payload = JSON.parse(batch.takeJsonBuffer().toString("utf8"));
+    await withExtractedBatch(original, async (batch, payload) => {
       expect(payload.input).not.toBe(original.input);
       await processOtelEventMedia({
         earlyBatch: batch,
@@ -364,10 +389,6 @@ describe("processOtelEventMedia", () => {
 
   it("uploads every known early reference in payload values", async () => {
     const reference = DEFAULT_MEDIA_REFERENCE;
-    mocks.uploadMediaForTrace.mockResolvedValue({
-      outcome: "uploaded",
-      mediaId: "uploaded",
-    });
     const { batch } = createFakeMediaBatch();
     const deep = { value: reference } as Record<string, unknown>;
     let cursor = deep;
@@ -447,27 +468,9 @@ describe("processOtelEventMedia", () => {
       output: createDeepPayload(),
       metadata: createDeepPayload(),
     };
-    await withExtractedBatch(original, async (batch) => {
+    await withExtractedBatch(original, async (batch, payload) => {
       const descriptors = batch.media;
       expect(descriptors).toHaveLength(3);
-      const payload = JSON.parse(batch.takeJsonBuffer().toString("utf8")) as {
-        input: unknown;
-        output: unknown;
-        metadata: unknown;
-      };
-      mocks.uploadMediaForTrace.mockImplementation(
-        async ({
-          contentBytes: uploadedBytes,
-          field,
-        }: {
-          contentBytes: Buffer;
-          field: string;
-        }) => {
-          expect(uploadedBytes).toEqual(contentBytes);
-          return { outcome: "uploaded", mediaId: `${field}-uploaded` };
-        },
-      );
-
       const result = await resolveTarget(batch, payload);
 
       expect(result).toMatchObject({
@@ -483,27 +486,32 @@ describe("processOtelEventMedia", () => {
           field: "input",
           traceId: "trace-id",
           observationId: "observation-id",
+          contentBytes,
+          sha256Hash: descriptors[0]!.sha256Hash,
         }),
       );
-      expect(mocks.linkMediaToTraceOrObservation).toHaveBeenCalledTimes(2);
+      expect(contentBytes.length).toBeLessThanOrEqual(
+        descriptors[0]!.originalByteLength,
+      );
       expect(
         mocks.linkMediaToTraceOrObservation.mock.calls.map(
-          ([params]) => params.field,
+          ([params]) => params,
         ),
-      ).toEqual(["output", "metadata"]);
-      expect(
-        mocks.linkMediaToTraceOrObservation.mock.calls.every(
-          ([params]) =>
-            params.mediaId === "input-uploaded" &&
-            params.traceId === "trace-id" &&
-            params.observationId === "observation-id",
-        ),
-      ).toBe(true);
+      ).toEqual(
+        ["output", "metadata"].map((field) => ({
+          projectId: "project-id",
+          traceId: "trace-id",
+          observationId: "observation-id",
+          mediaId: "uploaded",
+          field,
+          origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+        })),
+      );
+      const uploadedReference = replaceReference(
+        descriptors[0]!.reference,
+        "uploaded",
+      );
       for (const field of ["input", "output", "metadata"] as const) {
-        const uploadedReference = descriptors[0]!.reference.replace(
-          /\|id=[^|@]+/,
-          "|id=input-uploaded",
-        );
         expect(JSON.stringify(payload[field])).toBe(
           JSON.stringify(original[field]).replace(encoded, uploadedReference),
         );
@@ -515,10 +523,6 @@ describe("processOtelEventMedia", () => {
     const { batch, mediaBody: loadBody, readMedia } = createFakeMediaBatch();
     readMedia.mockImplementation(() => {
       throw new Error("media registry should not be read");
-    });
-    mocks.uploadMediaForTrace.mockResolvedValue({
-      outcome: "uploaded",
-      mediaId: "uploaded",
     });
     const result = await uploadExtractedMediaOnce({
       batch,
@@ -543,18 +547,7 @@ describe("processOtelEventMedia", () => {
   });
 
   it("loads large media registries in cached pages", async () => {
-    const entries = Array.from(
-      { length: 4_097 },
-      (_, index): ExtractedOtelMedia => ({
-        index,
-        reference: `@@@langfuseMedia:type=image/png|id=page-${index}|source=bytes@@@`,
-        contentType: "image/png",
-        sha256Hash: `hash-${index}`,
-        kind: "anthropic",
-        originalByteLength: 4,
-        originalJsonDepth: 0,
-      }),
-    );
+    const entries = createTestDescriptors(4_097, "page", 4);
     const { batch, mediaCount, mediaPage } = createFakeMediaBatch({ entries });
     const reference = entries.at(-1)!.reference;
     const first = { name: reference };
@@ -571,68 +564,54 @@ describe("processOtelEventMedia", () => {
     expect(mediaPage).toHaveBeenNthCalledWith(2, 4_096, 4_096);
   });
 
-  it("reuses a decoded upload across targets while linking each destination", async () => {
-    const reference = DEFAULT_MEDIA_REFERENCE;
-    mocks.uploadMediaForTrace.mockResolvedValue({
-      outcome: "uploaded",
-      mediaId: "uploaded",
+  it("reuses uploads across destinations even after a failed link", async () => {
+    const { batch, mediaPage, mediaBody } = createFakeMediaBatch({
+      originalValue: "original-value",
     });
-    mocks.linkMediaToTraceOrObservation.mockResolvedValue(undefined);
-    const { batch, mediaPage, mediaBody } = createFakeMediaBatch();
-    const firstTarget = createProviderPayload(reference, "legacy-observation");
-    const secondTarget = createProviderPayload(reference, "direct-observation");
+    const firstTarget = createProviderPayload(
+      DEFAULT_MEDIA_REFERENCE,
+      "legacy",
+    );
+    const failedTarget = createProviderPayload(
+      DEFAULT_MEDIA_REFERENCE,
+      "failed",
+    );
+    const directTarget = createProviderPayload(
+      DEFAULT_MEDIA_REFERENCE,
+      "direct",
+    );
 
-    await restoreInlineMedia(batch, [firstTarget, secondTarget]);
+    await restoreInlineMedia(batch, [firstTarget, directTarget]);
     const first = await resolveTarget(batch, firstTarget, "legacy");
-    const second = await resolveTarget(batch, secondTarget);
+    mocks.linkMediaToTraceOrObservation.mockRejectedValueOnce(
+      new Error("link failed"),
+    );
+    const failed = await resolveTarget(batch, failedTarget);
+    const direct = await resolveTarget(batch, directTarget);
 
     expect(first).toMatchObject({ uploaded: 1, reused: 0, bytesProcessed: 5 });
-    expect(second).toMatchObject({ uploaded: 0, reused: 1, bytesProcessed: 5 });
+    expect(failed).toMatchObject({ failed: 1, uploaded: 0, reused: 0 });
+    expect(failedTarget.input.data).toBe("original-value");
+    expect(direct).toMatchObject({
+      failed: 0,
+      uploaded: 0,
+      reused: 1,
+      bytesProcessed: 5,
+    });
+    expect(directTarget.input.data).toBe(
+      replaceReference(DEFAULT_MEDIA_REFERENCE, "uploaded"),
+    );
     expect(mediaPage).toHaveBeenCalledOnce();
     expect(mediaBody).toHaveBeenCalledOnce();
     expect(mocks.uploadMediaForTrace).toHaveBeenCalledOnce();
-    expect(mocks.linkMediaToTraceOrObservation).toHaveBeenCalledWith({
+    expect(mocks.linkMediaToTraceOrObservation).toHaveBeenLastCalledWith({
       projectId: "project-id",
       traceId: "trace-id",
-      observationId: "direct-observation",
+      observationId: "direct",
       mediaId: "uploaded",
       field: "input",
       origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
     });
-    expect(secondTarget.input).toMatchObject({
-      data: "@@@langfuseMedia:type=image/png|id=uploaded|source=bytes@@@",
-    });
-  });
-
-  it("restores a failed cache-hit link without poisoning a later destination", async () => {
-    const reference = DEFAULT_MEDIA_REFERENCE;
-    mocks.uploadMediaForTrace.mockResolvedValue({
-      outcome: "uploaded",
-      mediaId: "uploaded",
-    });
-    mocks.linkMediaToTraceOrObservation.mockResolvedValue(undefined);
-    const { batch, mediaBody } = createFakeMediaBatch({
-      originalValue: "original-value",
-    });
-    const target = (spanId: string) => createProviderPayload(reference, spanId);
-
-    await resolveTarget(batch, target("first"), "legacy");
-    mocks.linkMediaToTraceOrObservation.mockRejectedValueOnce(
-      new Error("link failed"),
-    );
-    const failedTarget = target("failed");
-    const failed = await resolveTarget(batch, failedTarget);
-    const recoveredTarget = target("recovered");
-    const recovered = await resolveTarget(batch, recoveredTarget);
-
-    expect(failed).toMatchObject({ failed: 1, uploaded: 0, reused: 0 });
-    expect(failedTarget.input).toMatchObject({ data: "original-value" });
-    expect(recovered).toMatchObject({ failed: 0, uploaded: 0, reused: 1 });
-    expect(recoveredTarget.input).toMatchObject({
-      data: "@@@langfuseMedia:type=image/png|id=uploaded|source=bytes@@@",
-    });
-    expect(mediaBody).toHaveBeenCalledOnce();
-    expect(mocks.uploadMediaForTrace).toHaveBeenCalledOnce();
   });
 
   it("evicts a failed upload so a later occurrence can retry", async () => {
@@ -669,7 +648,7 @@ describe("processOtelEventMedia", () => {
       { type: "file", mediaType: "image/png", data: `b'${content}'` },
     ];
     mocks.uploadMediaForTrace.mockRejectedValue(new Error("upload failed"));
-    await withExtractedBatch(input, async (batch) => {
+    await withExtractedBatch(input, async (batch, compacted) => {
       const media = batch.media;
       expect(media).toHaveLength(2);
       expect(media[0].reference).not.toBe(media[1].reference);
@@ -677,152 +656,124 @@ describe("processOtelEventMedia", () => {
       const target = {
         traceId: "trace-id",
         spanId: "observation-id",
-        input: JSON.parse(batch.takeJsonBuffer().toString("utf8")),
+        input: compacted,
       };
       const result = await resolveTarget(batch, target);
       expect(result).toMatchObject({ failed: 2, uploaded: 0, reused: 0 });
       expect(target.input).toEqual(input);
-      // Failures are not cached: the second occurrence can try its own upload.
+      // A failed upload is evicted, so the next occurrence can retry independently.
       expect(mocks.uploadMediaForTrace).toHaveBeenCalledTimes(2);
     });
   });
 
+  const pythonLiteral = String.raw`b'${"a".repeat(4096)}\xff\xd8\xff\xe0test\nquote\'slash\\\x00'`;
+  // The escaped marker keeps discovery active through the second JSON layer.
+  const pythonProvider = String.raw`{
+  "type": "file", "mediaType": "image/jpeg", "data": ${JSON.stringify(pythonLiteral)},
+  "marker": "\u0061", "large": 9007199254740993
+}`;
+  const quoteProvider = String.raw`{"type":"file","mediaType":"text/plain","data":"b'${"a".repeat(4096)}\u0022'"}`;
+
   it.each([
-    ["generic", 1],
-    ["generic", 2],
-    ["root", 1],
-    ["root", 2],
-  ] as const)(
-    "preserves escaped nested provider text (placement=%s, layers=%s)",
-    async (placement, layers) => {
-      mocks.uploadMediaForTrace.mockRejectedValue(new Error("upload failed"));
-      const pythonLiteral = `b'${"a".repeat(4096)}\\xff\\xd8\\xff\\xe0test\\nquote\\'slash\\\\\\x00'`;
-      // Keep the native serialized-media prefilter active through the second
-      // stringification layer without adding another media occurrence.
-      const nestedProvider = [
-        '{\n  "type": "file",\n  "mediaType": "image/jpeg",\n  "data": ',
-        JSON.stringify(pythonLiteral),
-        ',\n  "marker": "\\u0061",\n  "large": 9007199254740993\n}',
-      ].join("");
-      const nestedContainer =
-        layers === 1
-          ? nestedProvider
-          : JSON.stringify({ child: nestedProvider });
-      const expectedInput =
-        placement === "root" ? nestedContainer : { nested: nestedContainer };
-      const source = JSON.stringify({
-        traceId: "trace-id",
-        spanId: "observation-id",
-        input: expectedInput,
-      });
-      await withExtractedBatch(source, async (batch) => {
-        expect(batch.media).toHaveLength(1);
-        const target = JSON.parse(batch.takeJsonBuffer().toString("utf8")) as {
-          input: string | { nested: string };
+    ...[1, 2].flatMap((layers) =>
+      ["root", "object"].map((placement) => {
+        const text =
+          layers === 1
+            ? pythonProvider
+            : JSON.stringify({ child: pythonProvider });
+        return {
+          name: `Python bytes: ${placement}, ${layers} JSON layers`,
+          input: placement === "root" ? text : { nested: text },
+          addNormalizedLayer: false,
         };
-        const input = target.input;
-        const serialized = typeof input === "string" ? input : input.nested;
-        expect(serialized).toContain(batch.media[0]!.reference);
+      }),
+    ),
+    {
+      name: "Unicode-escaped quotes with an extra normalization layer",
+      input: `{"child":${JSON.stringify(quoteProvider).replace(/\\"/g, "\\u0022")}}`,
+      addNormalizedLayer: true,
+    },
+  ])(
+    "restores exact native text after upload failure: $name",
+    async ({ input, addNormalizedLayer }) => {
+      mocks.uploadMediaForTrace.mockRejectedValue(new Error("upload failed"));
+      const original = { traceId: "trace-id", spanId: "observation-id", input };
+      await withExtractedBatch(original, async (batch, target) => {
+        expect(batch.media).toHaveLength(1);
+        if (addNormalizedLayer)
+          target.input = JSON.stringify({ content: target.input });
+        expect(JSON.stringify(target.input)).toContain(
+          batch.media[0]!.reference,
+        );
 
-        await resolveTarget(batch, target);
+        const result = await resolveTarget(batch, target);
+        expect(result).toMatchObject({ failed: 1, uploaded: 0 });
+        expect(mocks.uploadMediaForTrace).toHaveBeenCalledOnce();
 
-        expect(target.input).toEqual(expectedInput);
+        expect(target.input).toEqual(
+          addNormalizedLayer ? JSON.stringify({ content: input }) : input,
+        );
       });
     },
   );
 
+  const escapedUri = String.raw`data:image\/png;base64,${String.raw`\/\/\/\/`.repeat(1024)}`;
+  const dataUri = `data:image/png;base64,${"aGkh".repeat(1024)}`;
   it.each([
-    [
-      "escaped Data URI source text in a native nested document",
-      () => {
-        const mediaText = String.raw`data:image\/png;base64,${String.raw`\/\/\/\/`.repeat(1024)}`;
-        const unrelatedText = String.raw`keep this \/ spelling`;
-        return {
-          source: String.raw`{
-  "type": "file",
-  "mediaType": "image\/png",
-  "data": "${mediaText}",
-  "unrelated": "${unrelatedText}"
+    {
+      name: "escaped Data URI and unrelated slash spelling",
+      input: String.raw`{
+  "type": "file", "mediaType": "image\/png", "data": "${escapedUri}",
+  "unrelated": "keep this \/ spelling"
 }`,
-          mediaText,
-          unrelatedText,
-          decodedBytes: Buffer.from("/".repeat(4096), "base64"),
-        };
-      },
-      "success",
-      false,
-    ],
-    [
-      "Unicode-escaped quotes across two native string layers",
-      () => {
-        const provider = String.raw`{"type":"file","mediaType":"text/plain","data":"b'${"a".repeat(4096)}\u0022'"}`;
-        const encodedProvider = JSON.stringify(provider).replace(
-          /\\"/g,
-          "\\u0022",
-        );
-        return {
-          source: `{"child":${encodedProvider}}`,
-          decodedBytes: undefined,
-        };
-      },
-      "failure",
-      true,
-    ],
-  ] as const)(
-    "preserves %s after native extraction",
-    async (_name, createInput, outcome, addNormalizedLayer) => {
-      const fixture = createInput();
-      const nestedProvider = fixture.source;
-      const source = JSON.stringify({
-        traceId: "trace-id",
-        spanId: "observation-id",
-        input: nestedProvider,
-      });
-      await withExtractedBatch(source, async (batch) => {
-        expect(batch.media).toHaveLength(1);
-        const target = JSON.parse(batch.takeJsonBuffer().toString("utf8")) as {
-          input: string;
-        };
-        const reference = batch.media[0]!.reference;
-        const normalizedInput = addNormalizedLayer
-          ? JSON.stringify({ content: target.input })
-          : target.input;
-        target.input = normalizedInput;
-        if (outcome === "failure") {
-          mocks.uploadMediaForTrace.mockRejectedValue(
-            new Error("upload failed"),
-          );
-        } else {
-          mocks.uploadMediaForTrace.mockResolvedValue({
-            outcome: "uploaded",
-            mediaId: "uploaded",
+      mediaText: escapedUri,
+      failUpload: false,
+      decodedBytes: Buffer.from("/".repeat(4096), "base64"),
+    },
+    ...[false, true].map((failUpload) => ({
+      name: `unsafe integer spelling, upload ${failUpload ? "failure" : "success"}`,
+      input: `{
+  "type": "base64", "media_type": "image/png", "data": "${dataUri}",
+  "large": 9007199254740993
+}`,
+      mediaText: dataUri,
+      failUpload,
+      decodedBytes: undefined,
+    })),
+  ])(
+    "preserves native stringified text: $name",
+    async ({ input, mediaText, failUpload, decodedBytes }) => {
+      if (failUpload)
+        mocks.uploadMediaForTrace.mockRejectedValue(new Error("upload failed"));
+      await withExtractedBatch(
+        { traceId: "trace-id", spanId: "observation-id", input },
+        async (batch, target) => {
+          expect(batch.media).toHaveLength(1);
+          const reference = batch.media[0]!.reference;
+          expect(target.input).toContain(reference);
+
+          const result = await resolveTarget(batch, target);
+          expect(result).toMatchObject({
+            failed: Number(failUpload),
+            uploaded: Number(!failUpload),
           });
-        }
+          expect(mocks.uploadMediaForTrace).toHaveBeenCalledOnce();
 
-        await resolveTarget(batch, target);
-
-        const expectedInput =
-          outcome === "failure" || fixture.mediaText === undefined
-            ? addNormalizedLayer
-              ? JSON.stringify({ content: nestedProvider })
-              : nestedProvider
-            : nestedProvider.replace(
-                fixture.mediaText,
-                reference.replace(/\|id=[^|@]+/, "|id=uploaded"),
-              );
-        expect(target.input).toBe(expectedInput);
-        if (fixture.decodedBytes !== undefined) {
-          expect(mocks.uploadMediaForTrace).toHaveBeenCalledWith(
-            expect.objectContaining({
-              contentType: "image/png",
-              contentBytes: fixture.decodedBytes,
-            }),
+          expect(target.input).toBe(
+            input.replace(
+              mediaText,
+              failUpload ? mediaText : replaceReference(reference, "uploaded"),
+            ),
           );
-        }
-        if (fixture.unrelatedText !== undefined) {
-          expect(target.input).toContain(fixture.unrelatedText);
-        }
-      });
+          if (decodedBytes)
+            expect(mocks.uploadMediaForTrace).toHaveBeenCalledWith(
+              expect.objectContaining({
+                contentType: "image/png",
+                contentBytes: decodedBytes,
+              }),
+            );
+        },
+      );
     },
   );
 
@@ -839,100 +790,29 @@ describe("processOtelEventMedia", () => {
     // the source document visits key "2" before key "1".
     const nested = `{"2":${first},"1":${second}}`;
     await withExtractedBatch(
-      JSON.stringify({
-        traceId: "trace-id",
-        spanId: "observation-id",
-        input: nested,
-      }),
-      async (batch) => {
-        const target = JSON.parse(batch.takeJsonBuffer().toString("utf8")) as {
-          input: string;
-        };
+      { traceId: "trace-id", spanId: "observation-id", input: nested },
+      async (batch, target) => {
         const references = batch.media.map((entry) => entry.reference);
         expect(references).toHaveLength(2);
 
         const result = await resolveTarget(batch, target);
         expect(result).toMatchObject({ uploaded: 2, failed: 0 });
-        expect(target.input).toContain(
-          references[0]!.replace(/\|id=[^|@]+/, "|id=abc"),
+        expect(target.input).toBe(
+          nested
+            .replace(
+              `b'${"abc".repeat(2048)}'`,
+              replaceReference(references[0]!, "abc"),
+            )
+            .replace(
+              `b'${"def".repeat(2048)}'`,
+              replaceReference(references[1]!, "def"),
+            ),
         );
-        expect(target.input).toContain(
-          references[1]!.replace(/\|id=[^|@]+/, "|id=def"),
-        );
-        expect(target.input).not.toContain("b'abc'");
-        expect(target.input).not.toContain("b'def'");
       },
     );
   });
 
-  it.each([
-    ["success", false],
-    ["failure", true],
-  ] as const)(
-    "preserves native stringified payload text after a %s",
-    async (_outcome, failUpload) => {
-      const dataUri = `data:image/png;base64,${"aGkh".repeat(1024)}`;
-      const input = `{
-  "type": "base64",
-  "media_type": "image/png",
-  "data": "${dataUri}",
-  "large": 9007199254740993
-}`;
-      const source = JSON.stringify({
-        traceId: "trace-id",
-        spanId: "span-id",
-        input,
-      });
-      await withExtractedBatch(source, async (batch) => {
-        const target = JSON.parse(batch.takeJsonBuffer().toString("utf8")) as {
-          traceId: string;
-          spanId: string;
-          input: string;
-        };
-        const reference = batch.media[0]!.reference;
-        failUpload
-          ? mocks.uploadMediaForTrace.mockRejectedValue(
-              new Error("upload failed"),
-            )
-          : mocks.uploadMediaForTrace.mockResolvedValue({
-              outcome: "uploaded",
-              mediaId: "uploaded",
-            });
-
-        await resolveTarget(batch, target);
-
-        expect(target.input).toContain("9007199254740993");
-        expect(target.input).toBe(
-          input.replace(
-            dataUri,
-            failUpload
-              ? dataUri
-              : reference.replace(/\|id=[^|@]+/, "|id=uploaded"),
-          ),
-        );
-      });
-    },
-  );
-
-  it("restores stringified payloads without normalizing unrelated text", async () => {
-    const { batch } = createFakeMediaBatch({ originalValue: "aGk=" });
-    const value = `{
-  "large": 9007199254740993,
-  "escaped": "\\u0061",
-  "data": "${DEFAULT_MEDIA_REFERENCE}"
-}`;
-    const record = { name: value };
-
-    await restoreInlineMedia(batch, [record]);
-
-    expect(record.name).toBe(value.replace(DEFAULT_MEDIA_REFERENCE, "aGk="));
-  });
-
   it("does not let an unterminated marker consume a later known reference", async () => {
-    mocks.uploadMediaForTrace.mockResolvedValue({
-      outcome: "uploaded",
-      mediaId: "uploaded",
-    });
     const { batch } = createFakeMediaBatch();
     const prefix = "prefix @@@langfuseMedia:unterminated ";
     const payload = {
@@ -948,49 +828,51 @@ describe("processOtelEventMedia", () => {
     );
   });
 
-  it.each(["non-payload field", "provider sibling"])(
-    "preserves unknown references in a %s during restoration",
-    async (location) => {
-      await withExtractedBatch(
-        {
-          input: `data:image/png;base64,${"aGkh".repeat(1024)}`,
-        },
-        async (batch) => {
-          const opaque =
-            '{ "large": 9007199254740993, "escaped": "\\u0061", "ref": "@@@langfuseMedia:existing@@@" }';
-          const untouched =
-            '{\n  "type": "file",\n  "mediaType": "image/png",\n  "data": "https://example.com/image.png",\n  "large": 9007199254740993\n}';
-          const mediaBody = vi.spyOn(batch, "mediaBody");
-          const record = {
-            name: opaque,
-            input: {
-              type: "base64",
-              media_type: "image/png",
-              data: "https://example.com/image.png",
-              other: opaque,
-              untouched,
-            },
-          };
-          expect(batch.media).toHaveLength(1);
-          if (location === "non-payload field") {
-            await restoreInlineMedia(batch, [record]);
-            expect(record.name).toBe(opaque);
-          } else {
-            await resolveExtractedMedia({
-              batch,
-              targets: [{ traceId: "trace", payload: record }],
-              projectId: "project",
-              mediaBucket: "media-bucket",
-              mediaPrefix: "media/",
-              writePath: "direct",
-            });
-            expect(record.input.other).toBe(opaque);
-            expect(record.input.untouched).toBe(untouched);
-          }
-          expect(mediaBody).not.toHaveBeenCalled();
-          expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
-        },
-      );
-    },
-  );
+  it("rewrites known references without altering unrelated text in either walker", async () => {
+    const { batch, mediaBody } = createFakeMediaBatch();
+    const known = String.raw`{
+  "large": 9007199254740993, "escaped": "\u0061",
+  "data": "${DEFAULT_MEDIA_REFERENCE}"
+}`;
+    const unknown = String.raw`{ "large": 9007199254740993, "escaped": "\u0061", "ref": "@@@langfuseMedia:existing@@@" }`;
+    const untouched = `{
+  "type": "file", "mediaType": "image/png", "data": "https://example.com/image.png",
+  "large": 9007199254740993
+}`;
+    const fields = { known, unknown, untouched };
+    const record = {
+      traceId: "trace-id",
+      spanId: "observation-id",
+      name: { ...fields },
+      input: {
+        type: "base64",
+        media_type: "image/png",
+        data: "https://example.com/image.png",
+        ...fields,
+      },
+    };
+    const original = structuredClone(record);
+
+    await restoreInlineMedia(batch, [record]);
+    expect(record).toEqual({
+      ...original,
+      name: {
+        ...fields,
+        known: known.replace(DEFAULT_MEDIA_REFERENCE, "aGk="),
+      },
+    });
+    expect(mediaBody).not.toHaveBeenCalled();
+    expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
+
+    await resolveTarget(batch, record);
+    expect(record.input).toEqual({
+      ...original.input,
+      known: known.replace(
+        DEFAULT_MEDIA_REFERENCE,
+        replaceReference(DEFAULT_MEDIA_REFERENCE, "uploaded"),
+      ),
+    });
+    expect(mediaBody).toHaveBeenCalledOnce();
+    expect(mocks.uploadMediaForTrace).toHaveBeenCalledOnce();
+  });
 });
