@@ -300,6 +300,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     });
 
     showSuccessToast({
+      operation: "evaluation.queue",
       title: "Evaluation queued",
       description: isExperimentsSource
         ? `Scheduled evaluation for items from ${displayCount} selected experiment${displayCount === 1 ? "" : "s"} with ${evaluatorIds.length} ${evaluatorIds.length === 1 ? "evaluator" : "evaluators"}.`

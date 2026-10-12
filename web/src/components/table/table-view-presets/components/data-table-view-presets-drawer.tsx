@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { Button } from "@/src/components/ui/button";
 import { X, Plus, Link, MoreVertical, Pen, Lock } from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import {
   DrawerTrigger,
@@ -95,6 +95,7 @@ const copyPermalinkAndToast = (href: string) => {
   copyTextToClipboard(href)
     .then(() =>
       showSuccessToast({
+        operation: "saved_view.permalink_copy",
         title: "Permalink copied to clipboard",
         description: "You can now share the permalink with others",
       }),
@@ -696,16 +697,8 @@ function TableViewPresetsDrawerContentBody({
                             {isSystemView && <LangfuseIcon size={14} />}
                             {view.name}
                           </span>
-                          {isUserDefault && (
-                            <Badge variant="secondary" className="text-xs">
-                              Your default
-                            </Badge>
-                          )}
-                          {isProjectDefault && (
-                            <Badge variant="outline" className="text-xs">
-                              Project default
-                            </Badge>
-                          )}
+                          {isUserDefault && <Badge text="Your default" />}
+                          {isProjectDefault && <Badge text="Project default" />}
                         </div>
                         {isSystemView ? (
                           view.description ? (

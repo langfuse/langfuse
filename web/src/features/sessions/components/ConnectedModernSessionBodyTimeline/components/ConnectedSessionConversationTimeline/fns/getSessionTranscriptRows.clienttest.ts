@@ -52,6 +52,157 @@ const transcript = {
 >;
 
 describe("getSessionTranscriptRows", () => {
+  it("hides protected Microsoft reasoning while preserving unprotected content", () => {
+    const thread = transcript.threads[0]!;
+    const protectedTranscript: NonNullable<
+      RouterOutputs["events"]["transcriptByTraceId"]["transcript"]
+    > = {
+      threads: [
+        {
+          ...thread,
+          currentTurn: {
+            ...thread.currentTurn,
+            messages: [
+              {
+                ...thread.currentTurn.messages[0]!,
+                parts: [
+                  { type: "text", text: "Visible answer" },
+                  {
+                    type: "custom",
+                    kind: "Microsoft.Extensions.AI.TextReasoningContent",
+                    value: {
+                      content: {
+                        text: "",
+                        protectedData: "opaque-microsoft-payload",
+                      },
+                    },
+                  },
+                  {
+                    type: "custom",
+                    kind: "Microsoft.Extensions.AI.TextReasoningContent",
+                    value: { content: { text: "Readable reasoning" } },
+                  },
+                  {
+                    type: "custom",
+                    kind: "metadata",
+                    value: { content: { protectedData: "unrelated-field" } },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const rows = getSessionTranscriptRows(protectedTranscript);
+    expect(rows[0]?.row.message.parts).toEqual([
+      { type: "text", text: "Visible answer" },
+      {
+        type: "custom",
+        kind: "Microsoft.Extensions.AI.TextReasoningContent",
+        value: { content: { text: "Readable reasoning" } },
+      },
+      {
+        type: "custom",
+        kind: "metadata",
+        value: { content: { protectedData: "unrelated-field" } },
+      },
+    ]);
+    expect(JSON.stringify(rows)).not.toContain("opaque-microsoft-payload");
+    protectedTranscript.threads[0]!.currentTurn.messages[0]!.parts = [
+      {
+        type: "custom",
+        kind: "Microsoft.Extensions.AI.TextReasoningContent",
+        value: { content: { protectedData: "opaque-microsoft-payload" } },
+      },
+    ];
+    expect(getSessionTranscriptRows(protectedTranscript)).toEqual([]);
+  });
+
+  it("hides encrypted custom parts without changing remaining row IDs", () => {
+    const thread = transcript.threads[0]!;
+    const message = thread.currentTurn.messages[0]!;
+    const encryptedTranscript = {
+      threads: [
+        {
+          ...thread,
+          currentTurn: {
+            ...thread.currentTurn,
+            messages: [
+              {
+                ...message,
+                parts: [
+                  {
+                    type: "custom",
+                    kind: "encrypted_content",
+                    value: {
+                      type: "encrypted_content",
+                      encrypted_content: "opaque-payload",
+                    },
+                  },
+                ],
+              },
+              ...thread.currentTurn.messages,
+            ],
+          },
+        },
+      ],
+    } satisfies NonNullable<
+      RouterOutputs["events"]["transcriptByTraceId"]["transcript"]
+    >;
+    const rows = getSessionTranscriptRows(encryptedTranscript);
+    expect(rows.map(({ id }) => id)).toEqual(["0:1", "0:2", "0:3"]);
+    expect(JSON.stringify(rows)).not.toContain("opaque-payload");
+  });
+
+  it("preserves readable parts and other custom content in mixed messages", () => {
+    const thread = transcript.threads[0]!;
+    const mixedTranscript: NonNullable<
+      RouterOutputs["events"]["transcriptByTraceId"]["transcript"]
+    > = {
+      threads: [
+        {
+          ...thread,
+          currentTurn: {
+            ...thread.currentTurn,
+            messages: [
+              {
+                ...thread.currentTurn.messages[0]!,
+                parts: [
+                  { type: "text", text: "Visible answer" },
+                  {
+                    type: "custom",
+                    kind: "encrypted_content",
+                    value: { encrypted_content: "opaque-payload" },
+                  },
+                  {
+                    type: "custom",
+                    kind: "metadata",
+                    value: { confidence: 1 },
+                  },
+                  {
+                    type: "reasoning",
+                    content: { kind: "encrypted", data: "reasoning-payload" },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    };
+    expect(
+      getSessionTranscriptRows(mixedTranscript)[0]?.row.message.parts,
+    ).toEqual([
+      { type: "text", text: "Visible answer" },
+      { type: "custom", kind: "metadata", value: { confidence: 1 } },
+      {
+        type: "reasoning",
+        content: { kind: "encrypted", data: "reasoning-payload" },
+      },
+    ]);
+  });
+
   it("flattens visible threads with contiguous labels but original identities", () => {
     const base = transcript.threads[0]!;
     const entries = getSessionConversationEntries([

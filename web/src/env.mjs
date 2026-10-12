@@ -307,6 +307,11 @@ export const env = createEnv({
     // EMAIL
     EMAIL_FROM_ADDRESS: z.string().optional(),
     SMTP_CONNECTION_URL: z.string().optional(),
+    // Cloudflare Turnstile. When the secret is set, credentials sign-in and
+    // email sign-up require a valid token whose hostname is in
+    // TURNSTILE_HOSTNAMES (comma-separated frontend hostnames).
+    TURNSTILE_SECRET: z.string().optional(),
+    TURNSTILE_HOSTNAMES: z.string().optional(),
 
     // Otel
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
@@ -401,10 +406,11 @@ export const env = createEnv({
       .number()
       .default(60),
 
-    // auth migration; self-host and default stay legacy
     API_AUTH_MIGRATION: z
       .enum(["legacy", "shadow", "enforce"])
       .default("legacy"),
+    API_KEY_PROJECT_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
+    API_KEY_ORG_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
 
     // Multimodal media upload to S3
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce
@@ -728,6 +734,7 @@ export const env = createEnv({
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
     // PR preview deployments only (.github/workflows/preview-build.yml):
     // identify the environment with a top-of-page strip linking back to the PR.
     NEXT_PUBLIC_PREVIEW_PR_URL: z.url().optional(),
@@ -787,6 +794,7 @@ export const env = createEnv({
     NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF:
       process.env.NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_PREVIEW_PR_URL: process.env.NEXT_PUBLIC_PREVIEW_PR_URL,
     NEXT_PUBLIC_PREVIEW_PR_AUTHOR: process.env.NEXT_PUBLIC_PREVIEW_PR_AUTHOR,
     NEXT_PUBLIC_PREVIEW_LAST_UPDATED:
@@ -1005,6 +1013,8 @@ export const env = createEnv({
     // Email
     EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,
     SMTP_CONNECTION_URL: process.env.SMTP_CONNECTION_URL,
+    TURNSTILE_SECRET: process.env.TURNSTILE_SECRET,
+    TURNSTILE_HOSTNAMES: process.env.TURNSTILE_HOSTNAMES,
     // Otel
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
@@ -1123,6 +1133,8 @@ export const env = createEnv({
     LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS:
       process.env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS,
     API_AUTH_MIGRATION: process.env.API_AUTH_MIGRATION,
+    API_KEY_PROJECT_ROLES_ENABLE: process.env.API_KEY_PROJECT_ROLES_ENABLE,
+    API_KEY_ORG_ROLES_ENABLE: process.env.API_KEY_ORG_ROLES_ENABLE,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,

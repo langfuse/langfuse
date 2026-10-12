@@ -111,6 +111,7 @@ export function EditRuleDialogContent({
       });
     }
     showSuccessToast({
+      operation: "evaluation_rule.update",
       title: "Rule saved",
       description: "Your changes have been saved.",
     });

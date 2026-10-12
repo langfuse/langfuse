@@ -11,6 +11,10 @@ import { SessionTimelineSystemMessage } from "@/src/features/sessions/components
 import { SessionTimelineCollapsibleRow } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { groupConsecutiveTools } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/fns/groupConsecutiveTools";
+import { cn } from "@/src/utils/tailwind";
+import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
+import { getSessionToolStatus } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/fns/getSessionToolStatus";
+import { SessionToolStatusCountBadge } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolStatusCountBadge/SessionToolStatusCountBadge";
 
 export function SessionTranscriptContent({
   result,
@@ -35,7 +39,7 @@ export function SessionTranscriptContent({
   return (
     <div className="ph-no-capture space-y-4">
       {rows.length === 0 && (
-        <p className="text-muted-foreground text-sm">No transcript messages.</p>
+        <p className="text-muted-foreground text-sm">No messages.</p>
       )}
       {visibleThreads
         .filter(
@@ -44,12 +48,9 @@ export function SessionTranscriptContent({
             threadIndex === selectedThreadIndex,
         )
         .map(({ threadIndex }) => (
-          <div
-            key={threadIndex}
-            className="space-y-4 [&>[data-session-system-row]:has(+[data-session-system-row])]:mb-1 [&>[data-session-tool-row]:has(+[data-session-tool-row])]:mb-1"
-          >
+          <div key={threadIndex}>
             {selectedThreadIndex === undefined && visibleThreads.length > 1 && (
-              <h3 className="text-muted-foreground text-xs font-bold">
+              <h3 className="text-muted-foreground mb-4 text-xs font-bold">
                 Thread {threadIndex + 1}
               </h3>
             )}
@@ -67,6 +68,10 @@ export function SessionTranscriptContent({
 type DisplayMessage = NormalizedMessage & {
   timing: { startTime: Date; endTime: Date | null } | null;
   observationId: string | null;
+  level?: NonNullable<
+    Extract<SessionTraceTranscriptState, { state: "loaded" }>["transcript"]
+  >["threads"][number]["currentTurn"]["messages"][number]["level"];
+  statusMessage?: string | null;
 };
 
 function SessionTranscriptThread({
@@ -83,6 +88,7 @@ function SessionTranscriptThread({
   } | null;
 }) {
   const groups = groupConsecutiveTools(rows, {
+    minGroupSize: 2,
     isTool: ({ row }) => row.type === "tool",
     getBoundary: ({ threadIndex }) => threadIndex,
     getToolName: ({ row }) =>
@@ -91,28 +97,51 @@ function SessionTranscriptThread({
         : undefined,
     summaryBudget: 72,
   });
-  return groups.map((group) => {
-    if (group.type === "tools") {
-      return (
+  const displayGroups = groups.map((group) => {
+    if (group.type === "tools") return { group, isCompact: true };
+    const { row } = group.row;
+    if (row.type === "tool" || row.message.role === "system") {
+      return { group, isCompact: true };
+    }
+    return {
+      group,
+      isCompact: row.message.parts.every((part) => part.type === "reasoning"),
+    };
+  });
+  return displayGroups.map(({ group, isCompact }, index) => (
+    <div
+      key={group.type === "tools" ? group.rows[0]!.id : group.row.id}
+      data-session-compact-row={isCompact ? "" : undefined}
+      data-session-tool-group-id={
+        group.type === "tools" ? group.rows[0]!.id : undefined
+      }
+      className={cn(
+        index > 0 &&
+          (() => {
+            const previousIsCompact = displayGroups[index - 1]!.isCompact;
+            if (isCompact && previousIsCompact) return "mt-1";
+            if (!isCompact && !previousIsCompact) return "mt-4";
+            return "mt-6";
+          })(),
+      )}
+    >
+      {group.type === "tools" ? (
         <SessionTranscriptToolGroup
-          key={group.rows[0]!.id}
           summary={group.summary}
           title={group.title}
           rows={group.rows}
           onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}
         />
-      );
-    }
-    return (
-      <SessionTranscriptRow
-        key={group.row.id}
-        item={group.row}
-        onOpenObservation={onOpenObservation}
-        scrollTarget={scrollTarget}
-      />
-    );
-  });
+      ) : (
+        <SessionTranscriptRow
+          item={group.row}
+          onOpenObservation={onOpenObservation}
+          scrollTarget={scrollTarget}
+        />
+      )}
+    </div>
+  ));
 }
 
 function SessionTranscriptRow({
@@ -123,6 +152,13 @@ function SessionTranscriptRow({
   item: ReturnType<typeof getSessionTranscriptRows>[number];
 } & Omit<ComponentProps<typeof SessionTranscriptThread>, "rows">) {
   const { row, id } = item;
+  const scrollRequestId = (
+    scrollTarget?.rowId
+      ? scrollTarget.rowId === id
+      : scrollTarget?.observationId === row.message.observationId
+  )
+    ? scrollTarget?.requestId
+    : undefined;
   const timing = row.message.timing;
   const isTool = row.type === "tool";
   const isSystem = row.message.role === "system";
@@ -158,22 +194,16 @@ function SessionTranscriptRow({
       className="group space-y-1"
       data-session-tool-row={isTool ? "" : undefined}
       data-session-system-row={isSystem ? "" : undefined}
+      data-session-message-row={!isTool && !isSystem ? "" : undefined}
       data-session-observation-id={row.message.observationId ?? undefined}
       data-session-transcript-row-id={id}
-      data-scroll-request-id={
-        (
-          scrollTarget?.rowId
-            ? scrollTarget.rowId === id
-            : scrollTarget?.observationId === row.message.observationId
-        )
-          ? scrollTarget?.requestId
-          : undefined
-      }
+      data-scroll-request-id={scrollRequestId}
     >
       {row.type === "tool" ? (
         <SessionTranscriptTool row={row} trailingContent={metadata} />
       ) : (
         <SessionTranscriptMessage
+          expandRequestId={scrollRequestId}
           message={row.message}
           trailingContent={isSystem ? metadata : null}
           onOpenObservation={onOpenObservation}
@@ -204,6 +234,42 @@ function SessionTranscriptToolGroup({
   const isOpen =
     expansion.isExpanded ||
     (containsTarget && props.scrollTarget?.requestId !== expansion.requestId);
+  if (rows.length < 4) {
+    return (
+      <div className="space-y-1">
+        {rows.map((item) => (
+          <SessionTranscriptRow key={item.id} {...props} item={item} />
+        ))}
+      </div>
+    );
+  }
+  const errors: Array<
+    Extract<
+      ComponentProps<typeof SessionToolTooltip>["content"],
+      { type: "group" }
+    >["errors"][number]
+  > = [];
+  const warnings: typeof errors = [];
+  for (const { row } of rows) {
+    if (row.type !== "tool") continue;
+    const name = row.call?.toolName ?? row.result?.toolName ?? "Tool";
+    const status = getSessionToolStatus({
+      level: row.message.level,
+      statusMessage: row.message.statusMessage,
+      isError: row.result?.isError,
+    });
+    if (status.level === "ERROR") {
+      errors.push({
+        name,
+        message: status.statusMessage || "Tool failed",
+      });
+    } else if (status.level === "WARNING") {
+      warnings.push({
+        name,
+        message: status.statusMessage || "Tool reported a warning",
+      });
+    }
+  }
   return (
     <SessionTimelineCollapsibleRow
       label={summary}
@@ -218,6 +284,42 @@ function SessionTranscriptToolGroup({
           requestId: props.scrollTarget?.requestId,
         })
       }
+      trailingContent={[
+        {
+          tools: errors,
+          label: "error" as const,
+        },
+        {
+          tools: warnings,
+          label: "warning" as const,
+        },
+      ].map(({ tools, label }) => {
+        if (tools.length === 0) return null;
+        const summary = `${tools.length} ${label}${tools.length === 1 ? "" : "s"}`;
+        return (
+          <SessionToolTooltip
+            key={label}
+            variant="timeline"
+            content={{
+              type: "group",
+              title,
+              errors: label === "error" ? tools : [],
+              warnings: label === "warning" ? tools : [],
+            }}
+          >
+            {({ getTriggerProps }) => (
+              <SessionToolStatusCountBadge
+                {...getTriggerProps()}
+                tabIndex={0}
+                aria-label={`Tool group: ${summary}`}
+                count={tools.length}
+                severity={label}
+                variant="timeline"
+              />
+            )}
+          </SessionToolTooltip>
+        );
+      })}
     >
       <div className="space-y-1">
         {rows.map((item) => (
@@ -236,12 +338,17 @@ function SessionTranscriptTool({
   trailingContent: ReactNode;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const status = getSessionToolStatus({
+    level: row.message.level,
+    statusMessage: row.message.statusMessage,
+    isError: row.result?.isError,
+  });
   return (
     <SessionTimelineToolRow
       name={row.call?.toolName ?? row.result?.toolName ?? "Tool"}
       input={row.call?.input}
       output={row.result?.output}
-      isError={row.result?.isError}
+      {...status}
       isExpanded={isExpanded}
       onExpandedChange={setIsExpanded}
       trailingContent={trailingContent}
@@ -253,10 +360,12 @@ function SessionTranscriptMessage({
   message,
   trailingContent,
   onOpenObservation,
+  expandRequestId,
 }: {
   message: DisplayMessage;
   trailingContent: ReactNode;
   onOpenObservation: (observationId: string) => void;
+  expandRequestId?: number;
 }) {
   if (message.role === "system") {
     return (
@@ -269,6 +378,7 @@ function SessionTranscriptMessage({
   }
   return (
     <SessionTimelineContentMessage
+      expandRequestId={expandRequestId}
       role={message.role}
       parts={message.parts}
       senderName={message.senderName}

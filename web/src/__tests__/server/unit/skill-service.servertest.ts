@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 import type { PrismaClient } from "@langfuse/shared/src/db";
+import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { SkillService } from "@/src/features/skills/server/skill-service";
 import { auditLog } from "@/src/features/audit-logs/server";
 
@@ -131,6 +133,29 @@ describe("SkillService versions", () => {
         orgId: "org",
         apiKeyId: "api-key",
         accessLevel: "project" as const,
+        ctx: {
+          principal: {
+            kind: "apiKey",
+            apiKeyId: "api-key",
+            userId: "user",
+            isInAppAgentKey: false,
+            publicKey: "pk-lf-test",
+            scope: "PROJECT",
+            presentation: "privateKey",
+            organizations: [],
+            boundResource: { orgId: "org", projectId: "project" },
+          },
+          policies: [
+            {
+              id: "system/LEGACY_PROJECT_API_KEY:project",
+              roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+              tenantId: OrganizationId("org"),
+              effect: "ALLOW",
+              actions: ["promptProtectedLabels:CUD"],
+              resources: [ProjectId("project")],
+            },
+          ],
+        } satisfies AuthorizationContext,
       },
     };
     return {

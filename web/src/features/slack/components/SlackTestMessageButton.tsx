@@ -57,6 +57,7 @@ export const SlackTestMessageButton: React.FC<SlackTestMessageButtonProps> = ({
   const testMessageMutation = api.slack.sendTestMessage.useMutation({
     onSuccess: (data) => {
       showSuccessToast({
+        operation: "slack.test_message_send",
         title: "Test Message Sent",
         description: "Test message sent successfully to the selected channel.",
       });

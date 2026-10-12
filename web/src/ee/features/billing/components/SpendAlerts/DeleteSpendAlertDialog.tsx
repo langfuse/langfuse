@@ -10,6 +10,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { showSuccessToast } from "@/src/features/notifications";
 import { toast } from "sonner";
 
 interface DeleteSpendAlertDialogProps {
@@ -43,7 +44,11 @@ export function DeleteSpendAlertDialog({
         orgId,
         alertId,
       });
-      toast.success("Spend alert deleted successfully");
+      showSuccessToast({
+        operation: "spend_alert.delete",
+        title: "Spend alert deleted successfully",
+        description: "",
+      });
       onSuccess();
     } catch (error) {
       reportNonTrpcError(error, "billing");

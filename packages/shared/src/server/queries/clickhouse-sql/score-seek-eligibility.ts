@@ -66,3 +66,14 @@ export const isSeekEligibleFilter = (filter: Filter): boolean => {
  */
 export const scoreOnlyFiltersAreSeekEligible = (filters: FilterList): boolean =>
   filters.some(isSeekEligibleFilter);
+
+/**
+ * Does a score-only conjunct look up scores through a bloom-filter skip index
+ * (any seek-eligible field except `name`, which is in the sorting key)? Such
+ * matches are scattered across the sorting key, which makes FINAL read far
+ * more than the matches themselves.
+ */
+export const scoreOnlyFiltersHaveIndexedLookup = (
+  filters: FilterList,
+): boolean =>
+  filters.some((f) => isSeekEligibleFilter(f) && f.field !== "name");

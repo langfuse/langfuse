@@ -364,6 +364,7 @@ const InnerEvalTemplateForm = (props: {
       utils.models.invalidate();
       if (data.updatedConfigCount > 0) {
         showSuccessToast({
+          operation: "evaluator.update",
           title: "Updated evaluators",
           description:
             "Updated referenced evaluators to use new template version.",

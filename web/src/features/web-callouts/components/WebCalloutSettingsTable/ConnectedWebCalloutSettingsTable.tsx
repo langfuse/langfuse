@@ -24,6 +24,7 @@ export function ConnectedWebCalloutSettingsTable({
     onSuccess: async () => {
       await utils.webCallouts.invalidate();
       showSuccessToast({
+        operation: "web_callout_endpoint.delete",
         title: "Callout endpoint deleted",
         description: "The endpoint was removed from this project.",
       });

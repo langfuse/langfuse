@@ -201,6 +201,19 @@ describe("prepareEvaluatorDraft", () => {
       ],
     });
 
+    expect(
+      prepareEvaluatorDraft({
+        ...base,
+        selectedModel: { provider: "openai", model: "gpt-6-luna" },
+      }).definition?.variableMapping,
+    ).toEqual([
+      {
+        templateVariable: "input",
+        selectedColumnId: "input",
+        jsonSelector: null,
+      },
+    ]);
+
     // An unmapped state key blocks saving; the model would never see it.
     expect(
       prepareEvaluatorDraft({

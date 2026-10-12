@@ -1436,7 +1436,7 @@ describe("V4MigrationHeaderContent", () => {
     fireEvent.click(createButton);
     expect(mocks.createProjectApiKey).toHaveBeenCalledWith({
       projectId: "project-1",
-      note: "v4-migration-key",
+      name: "v4-migration-key",
     });
 
     await waitFor(() =>
@@ -1502,7 +1502,7 @@ describe("V4MigrationHeaderContent", () => {
     );
     expect(mocks.createProjectApiKey).toHaveBeenLastCalledWith({
       projectId: "project-2",
-      note: "v4-migration-key",
+      name: "v4-migration-key",
     });
   });
 });

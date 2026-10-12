@@ -1,3 +1,5 @@
+import { TOPICS_BEDROCK_ACCESS_ERROR } from "@langfuse/shared/topics";
+
 type TopicsProviderErrorReason =
   | "authentication"
   | "rate_limit"
@@ -51,7 +53,9 @@ export function topicProviderError(error: unknown): TopicsProviderUnavailable {
     current = record.cause;
   }
   return new TopicsProviderUnavailable(
-    `Topics provider call failed${status ? ` (HTTP ${status})` : ""}. Processing stopped. Check worker credentials or provider availability, then resume the execution.`,
+    status === 403
+      ? TOPICS_BEDROCK_ACCESS_ERROR
+      : `Topics provider call failed${status ? ` (HTTP ${status})` : ""}. Processing stopped. Check worker credentials or provider availability, then resume the execution.`,
     reason,
   );
 }

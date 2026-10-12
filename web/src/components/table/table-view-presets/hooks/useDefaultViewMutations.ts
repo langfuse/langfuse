@@ -25,6 +25,7 @@ export function useDefaultViewMutations({
       });
       const scopeLabel = variables.scope === "user" ? "your" : "project";
       showSuccessToast({
+        operation: "saved_view.default_set",
         title: "Default view set",
         description: `Set as ${scopeLabel} default`,
       });
@@ -46,6 +47,7 @@ export function useDefaultViewMutations({
       });
       const scopeLabel = variables.scope === "user" ? "Your" : "Project";
       showSuccessToast({
+        operation: "saved_view.default_clear",
         title: "Default cleared",
         description: `${scopeLabel} default view cleared`,
       });

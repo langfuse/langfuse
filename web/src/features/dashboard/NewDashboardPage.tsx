@@ -27,6 +27,7 @@ export default function NewDashboardPage() {
   const createDashboard = api.dashboard.createDashboard.useMutation({
     onSuccess: (data) => {
       showSuccessToast({
+        operation: "dashboard.create",
         title: "Dashboard created",
         description: "Your new dashboard has been created successfully",
       });

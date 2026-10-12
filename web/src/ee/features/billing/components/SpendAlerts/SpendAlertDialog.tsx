@@ -21,6 +21,7 @@ import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { showSuccessToast } from "@/src/features/notifications";
 import { toast } from "sonner";
 import { Info } from "lucide-react";
 
@@ -87,7 +88,11 @@ export function SpendAlertDialog({
           alertId: alert.id,
           limit: data.limit,
         });
-        toast.success("Spend alert updated successfully");
+        showSuccessToast({
+          operation: "spend_alert.update",
+          title: "Spend alert updated successfully",
+          description: "",
+        });
       } else {
         // Create new alert
         await createMutation.mutateAsync({
@@ -99,7 +104,11 @@ export function SpendAlertDialog({
           orgId,
           limit: data.limit,
         });
-        toast.success("Spend alert created successfully");
+        showSuccessToast({
+          operation: "spend_alert.create",
+          title: "Spend alert created successfully",
+          description: "",
+        });
       }
       onSuccess();
     } catch (error) {

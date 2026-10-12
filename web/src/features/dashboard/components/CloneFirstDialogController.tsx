@@ -132,6 +132,7 @@ function CloneFirstDialogContent({
         owner: "LANGFUSE",
       });
       showSuccessToast({
+        operation: "dashboard.clone",
         title: "Editable copy created",
         description: setAsHome
           ? "The copy is now this project's Home dashboard"

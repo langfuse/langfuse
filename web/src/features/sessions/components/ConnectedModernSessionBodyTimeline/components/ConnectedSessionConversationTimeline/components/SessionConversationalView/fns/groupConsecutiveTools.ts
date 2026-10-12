@@ -5,6 +5,7 @@ export function groupConsecutiveTools<T>(
     getBoundary: (row: T) => string | number | undefined;
     getToolName: (row: T) => string | null | undefined;
     summaryBudget: number;
+    minGroupSize: number;
     measureSummary?: (summary: string) => number;
   },
 ) {
@@ -28,8 +29,10 @@ export function groupConsecutiveTools<T>(
     ) {
       tools.push(rows[++index]!);
     }
-    if (tools.length === 1) {
-      groups.push({ type: "row", row });
+    if (tools.length < options.minGroupSize) {
+      for (const tool of tools) {
+        groups.push({ type: "row", row: tool });
+      }
       continue;
     }
     const counts = new Map<string, number>();

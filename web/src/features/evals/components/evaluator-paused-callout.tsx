@@ -59,6 +59,7 @@ export function EvaluatorPausedCallout({
     onSuccess: async () => {
       await utils.evals.invalidate();
       showSuccessToast({
+        operation: "evaluator.reactivate",
         title: "Evaluator reactivated",
         description: "The evaluator is active again.",
       });

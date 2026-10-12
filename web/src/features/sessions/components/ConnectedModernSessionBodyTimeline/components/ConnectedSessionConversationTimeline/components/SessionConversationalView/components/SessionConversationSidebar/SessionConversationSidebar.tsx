@@ -1,4 +1,5 @@
 import {
+  cloneElement,
   useCallback,
   useLayoutEffect,
   useRef,
@@ -7,9 +8,10 @@ import {
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, Search } from "lucide-react";
+import { type Observation } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
-import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
-import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
+import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
+import { SessionToolStatusCountBadge } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolStatusCountBadge/SessionToolStatusCountBadge";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import {
   formatIdleGap,
@@ -28,6 +30,7 @@ export type SessionConversationSidebarTrace = {
   idleGapSeconds: number | null;
   threadCount?: number;
   hiddenThreadCount?: number;
+  emptyTranscriptReason?: "reasoning-only";
   transcriptRows:
     | Array<{
         id: string;
@@ -36,6 +39,8 @@ export type SessionConversationSidebarTrace = {
         label: string;
         role: "system" | "user" | "assistant" | "tool";
         toolGroupId?: string;
+        level?: Observation["level"];
+        statusMessage?: Observation["statusMessage"];
       }>
     | null
     | undefined;
@@ -43,9 +48,10 @@ export type SessionConversationSidebarTrace = {
 
 const EMPTY_TRACES: SessionConversationSidebarTrace[] = [];
 const SIDEBAR_AUTO_FOLLOW_IDLE_MS = 750;
+const SIDEBAR_SCROLL_PADDING = 16;
 
 export function SessionConversationSidebar(
-  props:
+  props: (
     | { state: "loading" }
     | {
         state: "loaded";
@@ -59,11 +65,13 @@ export function SessionConversationSidebar(
           index: number,
           observationId?: string,
           rowId?: string,
+          toolGroupId?: string,
         ) => void;
         onVisibleTraceIdsChange: (traceIds: string[]) => void;
         isLoadingTranscripts: boolean;
         transcriptLoadError: boolean;
-      },
+      }
+  ) & { searchVisibility?: "hidden" },
 ) {
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activeTraceId =
@@ -140,6 +148,10 @@ export function SessionConversationSidebar(
     getScrollElement: () => listRef.current,
     estimateSize: () => 160,
     overscan: 5,
+    paddingStart: SIDEBAR_SCROLL_PADDING,
+    paddingEnd: SIDEBAR_SCROLL_PADDING,
+    scrollPaddingStart: SIDEBAR_SCROLL_PADDING,
+    scrollPaddingEnd: SIDEBAR_SCROLL_PADDING,
     getItemKey: (index) =>
       traces[index]?.itemId ?? traces[index]?.trace.id ?? index,
     onChange: (instance) => {
@@ -159,6 +171,10 @@ export function SessionConversationSidebar(
         ({ trace, itemId }) => (itemId ?? trace.id) === activeTraceId,
       )
     : -1;
+  const activeTraceSize = virtualizer
+    .getVirtualItems()
+    .find((item) => item.index === activeTraceIndex)?.size;
+  const sidebarHeight = virtualizer.scrollRect?.height;
   const setListElement = useCallback(
     (element: HTMLDivElement | null) => {
       listRef.current = element;
@@ -169,10 +185,16 @@ export function SessionConversationSidebar(
         Date.now() < autoFollowPausedUntilRef.current
       )
         return;
-      // `auto` preserves the viewport when the active turn is already visible.
-      virtualizer.scrollToIndex(activeTraceIndex, { align: "auto" });
+      const availableHeight =
+        (sidebarHeight ?? element.clientHeight) - SIDEBAR_SCROLL_PADDING * 2;
+      virtualizer.scrollToIndex(activeTraceIndex, {
+        align:
+          activeTraceSize !== undefined && activeTraceSize > availableHeight
+            ? "start"
+            : "auto",
+      });
     },
-    [activeTraceIndex, virtualizer],
+    [activeTraceIndex, activeTraceSize, sidebarHeight, virtualizer],
   );
   useLayoutEffect(() => {
     resumeAutoFollowRef.current = () => {
@@ -205,14 +227,19 @@ export function SessionConversationSidebar(
         aria-busy="true"
         className="bg-background session-review-stack:border-r-0 session-review-stack:border-b relative flex h-full min-h-0 flex-col border-r"
       >
-        <div className="shrink-0 border-b px-2 py-2.5">
+        <div
+          className={cn(
+            "shrink-0 border-b px-2 py-2.5",
+            props.searchVisibility === "hidden" && "hidden",
+          )}
+        >
           <div className="relative min-w-0">
             <Search className="icon-base text-foreground-tertiary absolute top-1/2 left-2 -translate-y-1/2" />
             <Input
               disabled
               value=""
-              aria-label="Search messages and tools"
-              placeholder="Search messages and tools"
+              aria-label="Search session"
+              placeholder="Search session"
               className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
             />
           </div>
@@ -234,8 +261,8 @@ export function SessionConversationSidebar(
 
   const searchQuery = props.search.trim();
   const emptyLabel = (() => {
-    if (props.isLoadingTranscripts) return "Loading transcripts...";
-    if (props.transcriptLoadError) return "Failed to load transcripts";
+    if (props.isLoadingTranscripts) return "Loading messages...";
+    if (props.transcriptLoadError) return "Failed to load messages";
     if (props.search) return "No matching turns";
     return "No turns";
   })();
@@ -246,7 +273,12 @@ export function SessionConversationSidebar(
       aria-label="Session messages and tools"
       className="bg-background session-review-stack:border-r-0 session-review-stack:border-b relative flex h-full min-h-0 flex-col border-r"
     >
-      <div className="shrink-0 border-b px-2 py-2.5">
+      <div
+        className={cn(
+          "shrink-0 border-b px-2 py-2.5",
+          props.searchVisibility === "hidden" && "hidden",
+        )}
+      >
         <div className="relative min-w-0">
           <Search className="icon-base text-foreground-tertiary absolute top-1/2 left-2 -translate-y-1/2" />
           <Input
@@ -255,8 +287,8 @@ export function SessionConversationSidebar(
               virtualizer.scrollToOffset(0);
               props.onSearchChange(event.target.value);
             }}
-            aria-label="Search messages and tools"
-            placeholder="Search messages and tools"
+            aria-label="Search session"
+            placeholder="Search session"
             className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
           />
         </div>
@@ -265,7 +297,7 @@ export function SessionConversationSidebar(
         ref={setListElement}
         role="region"
         aria-label="Session turns"
-        className="min-h-0 flex-1 overflow-y-auto pt-2.5 pb-4"
+        className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]"
         onWheel={pauseAutoFollow}
         onTouchMove={pauseAutoFollow}
         onKeyDown={(event) => {
@@ -324,14 +356,24 @@ export function SessionConversationSidebar(
               const showThreadHeaders =
                 !sidebarTrace.itemId &&
                 (sidebarTrace.threadCount ?? threads.size) > 1;
+              const emptyTranscriptLabel = (() => {
+                if (props.search.trim()) return "No matching messages or tools";
+                if (sidebarTrace.emptyTranscriptReason === "reasoning-only")
+                  return "Reasoning only";
+                return "No messages or tools";
+              })();
               return (
-                <SessionVirtualizedRow
+                <div
                   key={item.key}
-                  itemKey={String(item.key)}
-                  measurementKey={`${String(item.key)}:${isCollapsed}:${props.search}`}
-                  source="modern"
-                  virtualItem={item}
-                  virtualizer={virtualizer}
+                  ref={virtualizer.measureElement}
+                  data-index={item.index}
+                  data-session-virtualizer-row="modern"
+                  style={{
+                    position: "absolute",
+                    top: item.start,
+                    left: 0,
+                    width: "100%",
+                  }}
                 >
                   {props.search.trim() === "" &&
                     idleGapSeconds !== null &&
@@ -395,14 +437,12 @@ export function SessionConversationSidebar(
                           )}
                           {transcriptRows === null && (
                             <p className="text-muted-foreground px-1 py-2 text-xs">
-                              Failed to load transcript
+                              Failed to load messages
                             </p>
                           )}
                           {transcriptRows?.length === 0 && (
                             <p className="text-muted-foreground px-1 py-2 text-xs">
-                              {props.search.trim()
-                                ? "No matching messages or tools"
-                                : "No messages or tools"}
+                              {emptyTranscriptLabel}
                             </p>
                           )}
                           <div className="flex flex-col">
@@ -426,6 +466,7 @@ export function SessionConversationSidebar(
                                   </h4>
                                 )}
                                 {groupConsecutiveTools(rows, {
+                                  minGroupSize: 2,
                                   isTool: (row) =>
                                     props.search.trim() === "" &&
                                     row.role === "tool",
@@ -438,21 +479,32 @@ export function SessionConversationSidebar(
                                 }).map((group, groupIndex, groups) => {
                                   if (group.type === "tools") {
                                     const firstTool = group.rows[0]!;
+                                    const errors = group.rows.filter(
+                                      (row) => row.level === "ERROR",
+                                    );
+                                    const warnings = group.rows.filter(
+                                      (row) => row.level === "WARNING",
+                                    );
                                     return (
-                                      <CustomTooltip
+                                      <SessionToolTooltip
                                         key={firstTool.id}
-                                        placement="right"
-                                        delay={200}
-                                        content={
-                                          <div className="flex flex-col gap-2">
-                                            <h4 className="text-sm font-bold">
-                                              Tool calls
-                                            </h4>
-                                            <div className="text-muted-foreground whitespace-pre-line">
-                                              {group.title}
-                                            </div>
-                                          </div>
-                                        }
+                                        variant="sidebar"
+                                        content={{
+                                          type: "group",
+                                          title: group.title,
+                                          errors: errors.map((row) => ({
+                                            name: row.label,
+                                            message:
+                                              row.statusMessage ||
+                                              "Tool failed",
+                                          })),
+                                          warnings: warnings.map((row) => ({
+                                            name: row.label,
+                                            message:
+                                              row.statusMessage ||
+                                              "Tool reported a warning",
+                                          })),
+                                        }}
                                       >
                                         {({ getTriggerProps }) => (
                                           <button
@@ -464,9 +516,10 @@ export function SessionConversationSidebar(
                                                 targetIndex,
                                                 firstTool.observationId,
                                                 firstTool.id,
+                                                firstTool.id,
                                               )
                                             }
-                                            className="ph-no-capture text-muted-foreground hover:bg-foreground/10 -mr-2 -ml-1 flex min-w-0 items-center gap-2 rounded-sm px-1 py-1 text-left text-[13px] transition-colors duration-150"
+                                            className="ph-no-capture text-muted-foreground hover:bg-foreground/10 -mr-2 -ml-1 flex min-w-0 items-center gap-2 rounded-sm py-1 pr-2 pl-1 text-left text-[13px] transition-colors duration-150"
                                           >
                                             <span
                                               className="min-w-0 flex-1 truncate"
@@ -477,9 +530,25 @@ export function SessionConversationSidebar(
                                                 ? group.summary
                                                 : `Tool: ${group.summary}`}
                                             </span>
+                                            {errors.length > 0 && (
+                                              <SessionToolStatusCountBadge
+                                                aria-label={`${errors.length} tool ${errors.length === 1 ? "error" : "errors"}`}
+                                                count={errors.length}
+                                                severity="error"
+                                                variant="sidebar"
+                                              />
+                                            )}
+                                            {warnings.length > 0 && (
+                                              <SessionToolStatusCountBadge
+                                                aria-label={`${warnings.length} tool ${warnings.length === 1 ? "warning" : "warnings"}`}
+                                                count={warnings.length}
+                                                severity="warning"
+                                                variant="sidebar"
+                                              />
+                                            )}
                                           </button>
                                         )}
-                                      </CustomTooltip>
+                                      </SessionToolTooltip>
                                     );
                                   }
                                   const row = group.row;
@@ -571,7 +640,13 @@ export function SessionConversationSidebar(
                                     if (end < row.label.length)
                                       excerpt.push("…");
                                   }
-                                  return (
+                                  const hasError =
+                                    row.role === "tool" &&
+                                    row.level === "ERROR";
+                                  const hasWarning =
+                                    row.role === "tool" &&
+                                    row.level === "WARNING";
+                                  const button = (
                                     <button
                                       key={row.id}
                                       type="button"
@@ -582,7 +657,7 @@ export function SessionConversationSidebar(
                                           row.id,
                                         )
                                       }
-                                      className="ph-no-capture hover:bg-foreground/10 -mr-2 -ml-1 flex min-w-0 items-center gap-2 rounded-sm px-1 py-1 text-left transition-colors duration-150"
+                                      className="ph-no-capture hover:bg-foreground/10 -mr-2 -ml-1 flex min-w-0 items-center gap-2 rounded-sm py-1 pr-2 pl-1 text-left transition-colors duration-150"
                                       aria-label={
                                         row.role === "tool"
                                           ? `tool: ${row.label}`
@@ -612,8 +687,48 @@ export function SessionConversationSidebar(
                                           </span>
                                         )}
                                       </span>
+                                      {hasError && (
+                                        <SessionToolStatusCountBadge
+                                          severity="error"
+                                          variant="sidebar"
+                                          aria-label="Tool status: ERROR"
+                                        />
+                                      )}
+                                      {hasWarning && (
+                                        <SessionToolStatusCountBadge
+                                          severity="warning"
+                                          variant="sidebar"
+                                          aria-label="Tool status: WARNING"
+                                        />
+                                      )}
                                     </button>
                                   );
+                                  if (hasError || hasWarning) {
+                                    return (
+                                      <SessionToolTooltip
+                                        key={row.id}
+                                        variant="sidebar"
+                                        content={{
+                                          type: "status",
+                                          name: row.label,
+                                          level: hasError ? "ERROR" : "WARNING",
+                                          message:
+                                            row.statusMessage ||
+                                            (hasError
+                                              ? "Tool failed"
+                                              : "Tool reported a warning"),
+                                        }}
+                                      >
+                                        {({ getTriggerProps }) =>
+                                          cloneElement(
+                                            button,
+                                            getTriggerProps(),
+                                          )
+                                        }
+                                      </SessionToolTooltip>
+                                    );
+                                  }
+                                  return button;
                                 })}
                               </section>
                             ))}
@@ -622,7 +737,7 @@ export function SessionConversationSidebar(
                       )}
                     </div>
                   </div>
-                </SessionVirtualizedRow>
+                </div>
               );
             })}
           </div>

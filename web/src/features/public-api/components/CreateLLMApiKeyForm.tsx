@@ -12,7 +12,6 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
-  isDecisionModelAdapter,
   resolveTypeSafeUpstream,
   type TypeSafeUpstream,
 } from "@langfuse/shared";
@@ -760,9 +759,7 @@ export function CreateLLMApiKeyForm({
                   <SelectContent>
                     {adapterOptions.map((provider) => (
                       <SelectItem value={provider} key={provider}>
-                        {isDecisionModelAdapter(provider)
-                          ? `${provider} (experimental)`
-                          : provider}
+                        {provider}
                       </SelectItem>
                     ))}
                     {mode === "create" && (
@@ -912,15 +909,18 @@ export function CreateLLMApiKeyForm({
                                 field.onChange(value as BedrockAuthMethod)
                               }
                             >
-                              <Tabs.List layout="full" gap="sm" size="auto">
+                              <Tabs.List
+                                variant="inset"
+                                layout="full"
+                                gap="sm"
+                                size="md"
+                              >
                                 <Tabs.Trigger
                                   value={AuthMethod.AccessKeys}
-                                  size="sm"
                                   label="AWS access keys"
                                 />
                                 <Tabs.Trigger
                                   value={AuthMethod.ApiKey}
-                                  size="sm"
                                   label="API key"
                                 />
                               </Tabs.List>

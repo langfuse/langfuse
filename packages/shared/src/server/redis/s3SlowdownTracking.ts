@@ -3,7 +3,10 @@ import { logger } from "../logger";
 import { traceException, recordIncrement } from "../instrumentation";
 import { env } from "../../env";
 
-export { isS3SlowDownError } from "../services/s3ThrottleError";
+export {
+  createS3ThrottledIngestionError,
+  isS3SlowDownError,
+} from "../services/s3ThrottleError";
 
 const S3_SLOWDOWN_PREFIX = "langfuse:s3-slowdown";
 

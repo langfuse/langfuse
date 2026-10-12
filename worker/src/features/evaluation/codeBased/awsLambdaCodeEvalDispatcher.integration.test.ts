@@ -147,6 +147,47 @@ describeWithFloci("AwsLambdaCodeEvalDispatcher Floci integration", () => {
     FLOCI_TEST_TIMEOUT_MS,
   );
 
+  it.each([
+    {
+      label: "self-referential list",
+      source: `
+def evaluate(ctx):
+    items = []
+    items.append(items)
+    return {"scores": [{"name": "x", "value": 1, "metadata": {"items": items}}]}
+`,
+      message: /RecursionError/,
+    },
+    {
+      label: "tuple holding a cyclic list",
+      source: `
+def evaluate(ctx):
+    items = []
+    items.append(items)
+    return {"scores": [{"name": "x", "value": 1, "metadata": {"items": (items,)}}]}
+`,
+      message: /Circular reference detected/,
+    },
+  ])(
+    "returns a non-retryable INVALID_RESULT for a Python $label",
+    async ({ source, message }) => {
+      // Cycles must not escape the runner. An unhandled Lambda error is
+      // classified as a retryable invocation failure.
+      await expect(
+        dispatcher.dispatch({
+          ...baseInput,
+          runtime: { language: "PYTHON" },
+          code: { source },
+        }),
+      ).rejects.toMatchObject({
+        code: "INVALID_RESULT",
+        message: expect.stringMatching(message),
+        retryable: false,
+      } satisfies Partial<CodeEvalDispatcherError>);
+    },
+    FLOCI_TEST_TIMEOUT_MS,
+  );
+
   it(
     "formats Python exceptions with type and evaluator line number",
     async () => {

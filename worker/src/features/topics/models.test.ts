@@ -26,6 +26,7 @@ import {
   embedTopicSummary,
   nameTopicGroup,
   summarizeTopicTrace,
+  summarizeTopicTraceFacets,
 } from "./models";
 import { topicProcessingConfigSchema } from "@langfuse/shared/topics";
 
@@ -96,8 +97,12 @@ describe("Topics naming boundary", () => {
         region: "eu-west-1",
         profile: "ai-test",
       });
-      expect(request.messages[0].content).toContain(facet.prompt);
-      expect(request.messages[1].content).toBe("RAW_TRANSCRIPT_SENTINEL");
+      expect(request.system).toEqual([
+        { text: expect.stringContaining(facet.prompt), cache: true },
+      ]);
+      expect(request.input).toBe(
+        "<transcript>\nRAW_TRANSCRIPT_SENTINEL\n</transcript>\n\nWrite the summary now, in the facet's format.",
+      );
     },
   );
 
@@ -159,6 +164,105 @@ describe("Topics naming boundary", () => {
     expect(state.call).not.toHaveBeenCalled();
   });
 
+  it("prices cache reads and writes at their cache rates", async () => {
+    state.summaryModel.mockReturnValue("us.openai.gpt-6-luna");
+    state.call.mockResolvedValue({
+      output: { summary: "A billing request.", status: "applicable" },
+      usage: {
+        inputTokens: 4000,
+        outputTokens: 300,
+        totalTokens: 4300,
+        cacheReadTokens: 2840,
+        cacheWriteTokens: 100,
+      },
+    });
+    const result = await summarizeTopicTrace(
+      facet,
+      "RAW_TRANSCRIPT_SENTINEL",
+      topicProcessingConfigSchema.parse({
+        summaryModel: "us.openai.gpt-6-luna",
+      }),
+    );
+    expect(result.usageDetails).toMatchObject({
+      summary_input: 4000,
+      summary_input_cache_read: 2840,
+    });
+    expect(result.usageDetails.summary_input_cache_write).toBe(100);
+    // 1,060 uncached at $0.11, 2,840 cache reads at $0.011 and 100 cache writes at $0.1375 per million.
+    expect(result.costDetails.summary_input).toBeCloseTo(
+      (1060 * 0.11 + 2840 * 0.011 + 100 * 0.1375) / 1_000_000,
+      12,
+    );
+  });
+
+  it("summarizes all facets of a trace in one request and checks its size first", async () => {
+    state.call.mockResolvedValue({
+      output: {
+        intent_1: {
+          notes: "n",
+          summary: "Export sales.",
+          status: "applicable",
+        },
+        issues_2: { notes: "n", summary: "", status: "not_applicable" },
+      },
+      usage: { inputTokens: 100, outputTokens: 30 },
+    });
+    const config = topicProcessingConfigSchema.parse({
+      summaryModel: "us.openai.gpt-5.6-luna",
+    });
+    const issues = {
+      ...facet,
+      facetId: "issues",
+      prompt: "Describe the main problem.",
+    };
+    const facets = [
+      { key: "intent_1", facet, builtIn: true },
+      { key: "issues_2", facet: issues, builtIn: false },
+    ];
+    await summarizeTopicTraceFacets(facets, "RAW_TRANSCRIPT_SENTINEL", config);
+    expect(state.call).toHaveBeenCalledOnce();
+    const request = state.call.mock.calls[0][0];
+    // Built-in facets end the first cached prefix, custom facets the second; the transcript is uncached.
+    expect(request.system).toEqual([
+      {
+        text: expect.stringContaining(
+          `<facet key="intent_1">\n${facet.prompt}\n</facet>`,
+        ),
+        cache: true,
+      },
+      {
+        text: `<facet key="issues_2">\n${issues.prompt}\n</facet>`,
+        cache: true,
+      },
+    ]);
+    expect(request.system[0].text).not.toContain("issues_2");
+    expect(request.input).toContain("RAW_TRANSCRIPT_SENTINEL");
+    expect(request.maxOutputTokens).toBe(config.maxOutputTokens * 2);
+    // Every facet key is required in the structured output.
+    expect(
+      request.schema.safeParse({
+        intent_1: {
+          notes: "n",
+          summary: "Export sales.",
+          status: "applicable",
+        },
+      }).success,
+    ).toBe(false);
+
+    state.call.mockClear();
+    await expect(
+      summarizeTopicTraceFacets(
+        facets,
+        "Trace evidence. ".repeat(1000),
+        topicProcessingConfigSchema.parse({
+          maxInputTokens: 256,
+          summaryModel: "us.openai.gpt-5.6-luna",
+        }),
+      ),
+    ).rejects.toThrow(/above this run's 256-token input limit/);
+    expect(state.call).not.toHaveBeenCalled();
+  });
+
   it("names the complete cohort without shortening member summaries", async () => {
     const members = Array.from({ length: 400 }, (_, index) => ({
       id: String(index).padStart(48, "0"),
@@ -180,9 +284,7 @@ describe("Topics naming boundary", () => {
     expect(state.call).toHaveBeenCalledOnce();
     expect(state.call.mock.calls[0][0].model).toBe("us.openai.gpt-5.6-terra");
     expect(result.costDetails.total).toBeCloseTo(0.03236, 10);
-    const submitted = JSON.parse(
-      state.call.mock.calls[0][0].messages[1].content,
-    );
+    const submitted = JSON.parse(state.call.mock.calls[0][0].input);
     expect(submitted.members).toEqual(members);
   });
 

@@ -6,6 +6,7 @@ import { TopicsProviderUnavailable } from "./provider-error";
 
 type TopicStage =
   | "execution"
+  | "trace"
   | "transcript"
   | "summary"
   | "embedding"

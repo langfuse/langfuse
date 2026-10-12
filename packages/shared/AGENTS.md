@@ -137,6 +137,10 @@
 - `@langfuse/shared/encryption` via `src/encryption/index.ts`: encryption and
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
+- `@langfuse/shared/rbac` via `src/features/rbac/index.ts`: client-safe tagged IDs,
+  role assignments, role catalog, and permission vocabulary.
+- `@langfuse/shared/rbac/server` via `src/features/rbac/server.ts`: server-only
+  role-assignment reads and writes, mapping database foreign keys to tagged IDs.
 - `@langfuse/shared/instrumentation/bootstrap` via
   `src/server/instrumentation/bootstrap/index.ts`: instrumentation initializers loaded before sdk.start(); must not import the server barrel or any instrumented library.
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
@@ -152,6 +156,9 @@
   `@langfuse/shared/src/server/auth/apiKeys`,
   `@langfuse/shared/src/server/clickhouse/clickhouseIdentifiers`,
   `@langfuse/shared/src/server/ee/ingestionMasking`,
+  `@langfuse/shared/src/server/ee/fips` (startup FIPS-mode enforcement; it
+  loads only env and the license check, so it can run before anything
+  connects),
   `@langfuse/shared/src/server/llm/llmText`, and
   `@langfuse/shared/src/utils/chatml`. The
   `@langfuse/shared/src/utils/normalized-io` parser is client-safe and is the

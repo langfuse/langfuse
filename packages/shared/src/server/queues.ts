@@ -450,6 +450,7 @@ export enum QueueJobs {
   BatchExportJob = "batch-export-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
   CloudSpendAlertJob = "cloud-spend-alert-job",
+  CloudSpendAlertFanOutJob = "cloud-spend-alert-fan-out-job",
   CloudFreeTierUsageThresholdJob = "cloud-free-tier-usage-threshold-job",
   OtelIngestionJob = "otel-ingestion-job",
   IngestionJob = "ingestion-job",
@@ -703,12 +704,21 @@ export type TQueueJobTypes = {
     payload: EntityChangeEventType;
     name: QueueJobs.EntityChangeJob;
   };
-  [QueueName.CloudSpendAlertQueue]: {
-    timestamp: Date;
-    id: string;
-    payload: CloudSpendAlertJobType;
-    name: QueueJobs.CloudSpendAlertJob;
-  };
+  // Per-org evaluation, plus the recurring fan-out that produces those jobs
+  // for ClickHouse-billed orgs (Stripe-billed ones are enqueued by the usage
+  // metering job, which only iterates Stripe customers).
+  [QueueName.CloudSpendAlertQueue]:
+    | {
+        timestamp: Date;
+        id: string;
+        payload: CloudSpendAlertJobType;
+        name: QueueJobs.CloudSpendAlertJob;
+      }
+    | {
+        timestamp: Date;
+        id: string;
+        name: QueueJobs.CloudSpendAlertFanOutJob;
+      };
   [QueueName.CloudFreeTierUsageThresholdQueue]: {
     timestamp: Date;
     id: string;

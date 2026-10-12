@@ -13,7 +13,10 @@ import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { useStore } from "zustand";
 import Page from "@/src/components/layouts/page";
 import { DataTable } from "@/src/components/table/data-table";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControls,
@@ -188,7 +191,7 @@ export default function EvaluatorsPage() {
     column: "updatedAt",
     order: "DESC",
   });
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "evaluatorsV2",
     "s",
   );
@@ -344,6 +347,7 @@ export default function EvaluatorsPage() {
         isAllMatching: deleteAll,
       });
       showSuccessToast({
+        operation: "evaluator.bulk_delete",
         title: "Evaluators deleted",
         description: `${deletedCount} evaluator${deletedCount === 1 ? "" : "s"} deleted.`,
       });
@@ -697,6 +701,7 @@ export default function EvaluatorsPage() {
             <SearchableTableFilterLayout
               search={
                 <TableSearchBar
+                  size="large"
                   key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
                   projectId={projectId}
                   tableName={filterConfig.tableName}
@@ -728,6 +733,7 @@ export default function EvaluatorsPage() {
                   setColumnOrder={handleColumnOrderChange}
                   rowHeight={rowHeight}
                   setRowHeight={setRowHeight}
+                  customRowHeight={customRowHeightMenu(rowHeights)}
                   filterState={filterState}
                   orderByState={orderBy}
                   currentSearchQuery={searchQuery ?? ""}
@@ -788,6 +794,9 @@ export default function EvaluatorsPage() {
                   columnOrder={columnOrder}
                   onColumnOrderChange={handleColumnOrderChange}
                   rowHeight={rowHeight}
+                  customRowHeightPx={rowHeights.activeHeightPx}
+                  onCustomRowHeightChange={rowHeights.setCustomPx}
+                  onSelectRowHeight={setRowHeight}
                   orderBy={orderBy}
                   setOrderBy={handleOrderByChange}
                   onRowClick={(row) =>

@@ -24,6 +24,8 @@ templates. The local dev template sets the idle time below.
 | `LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES` | `5000` | Exclude a trace whose pending window exceeds this many event updates; `0` disables. |
 | `LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES` | `52428800` | Exclude a trace whose pending window exceeds these serialized bytes (50 MiB); `0` disables. |
 | `LANGFUSE_TRACE_BATCH_MAX_THREADS` | `2` | ClickHouse threads per query (positive integer). |
+| `LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS` | `40000` | ClickHouse client socket idle timeout in milliseconds, including pauses for summary backpressure. Independent of the 30-second server query execution limit. |
+| `LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES` | `104857600` | Queued input/output/metadata payload threshold (100 MiB). Includes the active summary; excludes the current trace, tool fields, transport buffers and JavaScript object overhead. |
 | `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE` | unset | Optional positive `max_block_size` hint; unset inherits the server profile. |
 | `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID` | unset | Optional 1–64 character attempt/query label: letters, digits, `.`, `_`, `-`; first character alphanumeric. |
 | `LANGFUSE_TRACE_BATCH_CONCURRENCY` | `2` | Concurrent batch jobs per worker process. |
@@ -270,19 +272,34 @@ unavailable Topics token estimate increments
 `topics_transcript_token_estimation_unavailable`; a rejected estimate increments
 `topics_transcript_failed`. Character metrics remain available in either case.
 
-The worker submits one transcript for tokenization while streaming the next
-trace's observations. Before submitting another transcript it awaits the previous
-promise. Projections are tokenized sequentially, keeping at most one pending
-tokenizer request per batch. Success and stream
-failure both drain accepted promises; a stream failure never assembles its
-partial final trace. Assembly itself remains synchronous. Wall-clock duration
+The reader queues completed traces behind one serial transcript/Topics chain
+while continuing to consume ClickHouse rows. Projections are tokenized
+sequentially, keeping at most one pending tokenizer request per batch. The chain
+yields to the event loop before each trace's assembly. When queued logical
+payload bytes exceed `LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES`, reading
+pauses until completed summaries reduce the queue to that threshold or below;
+it does not wait for the entire chain. Each pause increments
+`langfuse.trace_batch.summary_backpressure`. Time from enqueue to summary start
+is recorded as `langfuse.trace_batch.summary_queue_wait_ms`.
+
+The dispatcher byte budget estimates only pending updates, while reads can
+include older observations, so it does not guarantee avoiding backpressure.
+`LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS` allows 40 seconds of socket inactivity
+by default. This is a starting value, not a per-trace processing deadline:
+slow tokenization or provider calls can still exceed it. Tune the timeout with
+observed pauses and provider latency; the query's server execution limit remains
+30 seconds. Success and stream failure both drain accepted summaries; a stream
+failure never assembles its partial final trace. Assembly itself remains
+synchronous. Wall-clock duration
 of that work, including tokenization, is the span attribute `duration_ms` and
 the experiment completion log. The generic queue series
 `langfuse.queue.trace_batch.time_distribution` with `type:processing` records
 the same duration when the processor returns.
 
-Memory includes the current trace, the previous transcript being tokenized and
-stream buffers, multiplied by active batch jobs. Each trace also retains its
+Memory includes the current trace, queued observations, the active transcript
+and stream buffers, multiplied by active batch jobs. The payload threshold is
+checked at trace boundaries and is not a hard job-memory limit.
+The active trace also retains its
 assembled JSON, generic text, and Topics text for sequential tokenizer calls.
 A single trace remains unbounded. Each message belongs to one JSON partition;
 there is no additional tool-response tokenization pass.

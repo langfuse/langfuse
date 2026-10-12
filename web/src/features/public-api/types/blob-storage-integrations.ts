@@ -19,6 +19,7 @@ const BlobStorageIntegrationType = z.enum([
   "S3",
   "S3_COMPATIBLE",
   "AZURE_BLOB_STORAGE",
+  "GOOGLE_CLOUD_STORAGE",
 ]);
 
 const BlobStorageIntegrationFileType = z.enum([

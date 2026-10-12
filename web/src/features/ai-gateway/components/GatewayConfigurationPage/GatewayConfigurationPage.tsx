@@ -40,6 +40,7 @@ export function GatewayConfigurationPage({
     });
     await utils.aiGateway.getConfig.invalidate({ orgId: organizationId });
     showSuccessToast({
+      operation: "gateway_configuration.save",
       title: "Gateway configuration saved",
       description: "New gateway requests will use this configuration.",
     });

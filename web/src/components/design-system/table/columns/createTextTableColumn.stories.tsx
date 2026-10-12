@@ -4,9 +4,9 @@ import { fn } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
 
 import {
-  DataTable,
+  Table,
   type AsyncTableData,
-} from "@/src/components/table/data-table";
+} from "@/src/components/design-system/table/Table";
 import { createTextTableColumn } from "./createTextTableColumn";
 
 type Row = {
@@ -49,15 +49,7 @@ const columns = [
 ];
 
 function TextTableColumnStory({ data }: { data: AsyncTableData<Row[]> }) {
-  return (
-    <DataTable
-      tableName="text-column-story"
-      columns={columns}
-      data={data}
-      hidePagination
-      cellPadding="comfortable"
-    />
-  );
+  return <Table tableName="text-column-story" columns={columns} data={data} />;
 }
 
 const meta = preview.meta({
@@ -70,8 +62,7 @@ const meta = preview.meta({
 export const Default = meta.story({
   args: {
     data: {
-      isLoading: false,
-      isError: false,
+      status: "success",
       data: [{ name: "Production generation", count: 1200 }],
     },
   },
@@ -81,8 +72,7 @@ export const EmptyValue = meta.story({
   name: "Empty Value",
   args: {
     data: {
-      isLoading: false,
-      isError: false,
+      status: "success",
       data: [{ name: null, count: null }],
     },
   },
@@ -92,8 +82,7 @@ export const MappedValueLoading = meta.story({
   name: "Mapped Value Loading",
   args: {
     data: {
-      isLoading: false,
-      isError: false,
+      status: "success",
       data: [
         { name: "Production generation", count: null, isCountLoading: true },
       ],
@@ -104,8 +93,7 @@ export const MappedValueLoading = meta.story({
 export const Loading = meta.story({
   args: {
     data: {
-      isLoading: true,
-      isError: false,
+      status: "loading",
     },
   },
 });

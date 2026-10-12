@@ -408,6 +408,7 @@ function CreateEvaluatorTemplateForm({
       onFormSuccess={(newTemplate) => {
         onSuccess(newTemplate);
         showSuccessToast({
+          operation: "evaluator.create",
           title: "Evaluator created successfully",
           description: "You can now use this evaluator.",
         });

@@ -299,8 +299,12 @@ export const flushMetricsToCloudWatch = () => {
 };
 
 // Metrics ending with these suffixes have their tags flattened into the
-// CloudWatch metric name (excluding "unit"). Other metrics are unaffected.
+// CloudWatch metric name (excluding CW_UNFLATTENED_TAGS). Other metrics are
+// unaffected.
 const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate", ".dlq_oldest_age"];
+// "reason" is a Datadog-only breakdown; flattening it would rename existing
+// CloudWatch series.
+const CW_UNFLATTENED_TAGS = new Set(["unit", "reason"]);
 
 function buildCloudWatchKey(
   stat: string,
@@ -310,7 +314,7 @@ function buildCloudWatchKey(
     return stat;
   }
   const suffix = Object.entries(tags)
-    .filter(([k]) => k !== "unit")
+    .filter(([k]) => !CW_UNFLATTENED_TAGS.has(k))
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}_${v}`)
     .join(".");

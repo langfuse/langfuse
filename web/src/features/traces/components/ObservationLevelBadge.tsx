@@ -21,6 +21,7 @@ export function ObservationLevelBadge({
   return (
     <Badge
       color={observationLevelBadgeColors[level]}
+      size="md"
       text={level.charAt(0) + level.slice(1).toLowerCase()}
     />
   );

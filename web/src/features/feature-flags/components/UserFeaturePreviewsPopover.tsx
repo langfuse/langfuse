@@ -52,6 +52,7 @@ export function UserFeaturePreviewsControl({
         await session.update();
       }
       showSuccessToast({
+        operation: "user_feature_preview.update",
         title: "Feature preview updated",
         description: `${featurePreviewLabels[variables.flag]} was ${
           variables.enabled ? "enabled" : "disabled"

@@ -428,13 +428,40 @@ describe("ClickhouseWriter", () => {
     expect(serverExports.recordIncrement).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.rows_dropped",
       1,
-      { entity_type: TableName.EventsFull, format: "native" },
+      { entity_type: TableName.EventsFull, format: "native", reason: "other" },
     );
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining("Max attempts reached"),
       expect.objectContaining({ droppedIds: [event.ids] }),
     );
     expect(nativeWriter["queue"][TableName.EventsFull]).toHaveLength(0);
+  });
+
+  it("logs the row a ClickHouse parse error names, with its S3 file", async () => {
+    const rows = ["e-1", "e-2", "e-3"].map((id) => ({
+      id,
+      project_id: "project-1",
+      trace_id: "trace-1",
+      blob_storage_file_path: `project-1/observation/${id}/event.json`,
+    }));
+    vi.spyOn(clickhouseClientMock, "insert").mockRejectedValue(
+      new Error(
+        "Cannot parse input: expected ',' before: 'abc' (at row 2) : While executing WaitForAsyncInsert",
+      ),
+    );
+
+    rows.forEach((row) => writer.addToQueue(TableName.EventsFull, row as any));
+    await writer["flushAll"](true);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("ClickHouse rejected events_full row"),
+      {
+        project_id: "project-1",
+        trace_id: "trace-1",
+        id: "e-2",
+        blobStorageFilePath: "project-1/observation/e-2/event.json",
+      },
+    );
   });
 
   it("should mark writer insert log comments as multi-project", async () => {
@@ -508,7 +535,7 @@ describe("ClickhouseWriter", () => {
     expect(serverExports.recordIncrement).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.rows_dropped",
       1,
-      { entity_type: TableName.Traces, format: "json" },
+      { entity_type: TableName.Traces, format: "json", reason: "other" },
     );
   });
 

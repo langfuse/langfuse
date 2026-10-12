@@ -51,7 +51,7 @@ const DatasetAggregateCellContent = ({
 
   const hasAnnotationWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "scores:CUD",
+    scope: "scores:save",
   });
 
   // Merge server columns with cache-only columns

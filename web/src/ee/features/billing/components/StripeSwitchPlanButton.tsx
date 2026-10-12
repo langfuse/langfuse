@@ -15,6 +15,7 @@ import {
 import { ActionButton } from "@/src/components/ActionButton";
 import { planLabels } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
+import { showSuccessToast } from "@/src/features/notifications";
 import { toast } from "sonner";
 import { nanoid } from "nanoid";
 
@@ -42,7 +43,11 @@ export const StripeSwitchPlanButton = ({
   const mutChangePlan =
     api.cloudBilling.changeStripeSubscriptionProduct.useMutation({
       onSuccess: () => {
-        toast.success("Plan changed successfully");
+        showSuccessToast({
+          operation: "billing_plan.change",
+          title: "Plan changed successfully",
+          description: "",
+        });
         onProcessing(null);
         setOpId(null);
         setTimeout(() => window.location.reload(), 500);

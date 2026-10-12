@@ -123,6 +123,7 @@ describe("SignOutAllSessionsButton", () => {
       expect(showSuccessToastMock).toHaveBeenCalledWith({
         title: "Signed Out of All Sessions",
         description: "All sessions have been invalidated.",
+        operation: "account.revoke_sessions",
       });
     });
     expect(showErrorToastMock).not.toHaveBeenCalledWith(

@@ -215,16 +215,23 @@ export const aiGatewayRouter = createTRPCRouter({
   createApiKey: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({
-        note: z.string().max(500).optional(),
+        name: z.string().max(500).optional(),
         metadata: GatewayMetadataSchema.default({}),
+        expiresAt: z
+          .date()
+          .nullish()
+          .refine((date) => date == null || date.getTime() > Date.now(), {
+            message: "Expiration date must be in the future",
+          }),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       const key = await new GatewayApiKeyService(ctx.prisma, redis).create({
         organizationId: input.orgId,
-        note: input.note,
+        name: input.name,
         metadata: input.metadata,
+        expiresAt: input.expiresAt,
         session: ctx.session,
       });
       return key;

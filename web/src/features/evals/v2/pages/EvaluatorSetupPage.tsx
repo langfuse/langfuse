@@ -29,7 +29,9 @@ import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluat
 import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupFooter/EvaluatorSetupFooter";
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
+import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
 import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
@@ -288,6 +290,12 @@ export function EvaluatorSetupPage(
     sourceCode: codeDraft.sourceCode,
     sourceCodeLanguage: codeDraft.sourceCodeLanguage,
   });
+  const fallbackDecisionModel = useFallbackDecisionModel(
+    projectId,
+    modelDraft.type === "DECISION_MODEL",
+  );
+  // The default decision model arrives with the connection list. It is applied
+  // on save, not stored, so it must not count as an edit.
   const getCurrentSnapshot = (state = evaluatorSetupStore.getState()) =>
     JSON.stringify({
       name: state.name.trim(),
@@ -385,6 +393,7 @@ export function EvaluatorSetupPage(
   const reactivate = api.evalsV2.reactivate.useMutation({
     onSuccess: async () => {
       showSuccessToast({
+        operation: "evaluator.reactivate",
         title: "Evaluator reactivated",
         description:
           "The model test succeeded and the evaluator is active again.",
@@ -409,6 +418,7 @@ export function EvaluatorSetupPage(
         isAllMatching: false,
       });
       showSuccessToast({
+        operation: "evaluator.delete",
         title: "Evaluator deleted",
         description: "The evaluator and all of its versions were deleted.",
       });
@@ -581,7 +591,9 @@ export function EvaluatorSetupPage(
           return;
         }
       }
-      const { definition } = prepareEvaluatorDraft(state);
+      const { definition } = prepareEvaluatorDraft(
+        applyFallbackDecisionModel(state, fallbackDecisionModel),
+      );
       if (!definition) return;
       const { name, description } = metadata;
 
@@ -602,6 +614,7 @@ export function EvaluatorSetupPage(
             : {}),
         });
         showSuccessToast({
+          operation: "evaluator.save",
           title: "Evaluator saved",
           description: "Your evaluator changes are saved.",
         });
@@ -717,7 +730,9 @@ export function EvaluatorSetupPage(
 
   const runTest = () => {
     const state = evaluatorSetupStore.getState();
-    const { definition } = prepareEvaluatorDraft(state);
+    const { definition } = prepareEvaluatorDraft(
+      applyFallbackDecisionModel(state, fallbackDecisionModel),
+    );
     const selectedObservation = state.selectedObservation;
     if (!definition || !selectedObservation?.traceId) return;
     capture("evaluators:test", {
@@ -948,6 +963,7 @@ export function EvaluatorSetupPage(
                   }
                 : null
             }
+            fallbackDecisionModel={fallbackDecisionModel}
             onClose={requestClose}
             onSave={save}
           />

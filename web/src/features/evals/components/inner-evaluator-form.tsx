@@ -897,7 +897,12 @@ export const InnerEvaluatorForm = (props: {
                           }
                         }}
                       >
-                        <Tabs.List layout="packed" gap="lg">
+                        <Tabs.List
+                          variant="inset"
+                          size="md"
+                          layout="packed"
+                          gap="lg"
+                        >
                           <span className="min-w-[100px]">
                             <Tabs.Trigger
                               value="event"
@@ -980,7 +985,12 @@ export const InnerEvaluatorForm = (props: {
                       );
                     }}
                   >
-                    <Tabs.List layout="packed" gap="lg">
+                    <Tabs.List
+                      variant="inset"
+                      size="md"
+                      layout="packed"
+                      gap="lg"
+                    >
                       <span className="min-w-[100px]">
                         <Tabs.Trigger
                           value="otel"

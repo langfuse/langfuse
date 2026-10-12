@@ -23,6 +23,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   ChevronDown,
@@ -58,13 +59,54 @@ interface TracePanelNavigationHeaderProps {
   onTogglePanel: () => void;
 }
 
-export function TracePanelNavigationHeader(
-  props: TracePanelNavigationHeaderProps,
-) {
+export function TracePanelNavigationHeader({
+  isLoading = false,
+  ...props
+}: TracePanelNavigationHeaderProps & { isLoading?: boolean }) {
   if (props.isPanelCollapsed) {
     return <TracePanelNavigationHeaderCollapsed {...props} />;
   }
+  if (isLoading) {
+    return <TracePanelNavigationHeaderLoading {...props} />;
+  }
   return <TracePanelNavigationHeaderExpanded {...props} />;
+}
+
+const frameClassName =
+  "h-auto shrink-0 overflow-hidden rounded-none border-b bg-transparent";
+const gridClassName =
+  "grid min-h-8 grid-cols-[auto_minmax(0,1fr)_auto] items-center py-1 pr-3 pl-1 @max-[299px]/navheader:min-h-0 @max-[299px]/navheader:gap-y-1 @max-[299px]/navheader:pt-1 @max-[299px]/navheader:pb-1.5";
+const toggleSlotClassName =
+  "col-start-1 row-start-1 flex flex-row items-center p-0.5";
+const toolsSlotClassName =
+  "col-start-3 row-start-1 flex shrink-0 flex-row items-center gap-0.5";
+
+/** Same frame and toggle; search, tools and the view switch as placeholders. */
+function TracePanelNavigationHeaderLoading({
+  isPanelCollapsed,
+  onTogglePanel,
+}: TracePanelNavigationHeaderProps) {
+  return (
+    <Command className={frameClassName}>
+      <div className="@container/navheader">
+        <div className={gridClassName}>
+          <div className={toggleSlotClassName}>
+            <TracePanelNavigationButton
+              isPanelCollapsed={isPanelCollapsed}
+              onTogglePanel={onTogglePanel}
+            />
+          </div>
+          <div className="col-start-2 row-start-1 flex h-7 min-w-0 items-center px-2">
+            <Skeleton className="h-3 w-16" />
+          </div>
+          <div className={toolsSlotClassName}>
+            <Skeleton className="size-7 rounded-md" />
+            <Skeleton className="ml-2 h-7 w-56 rounded-md" />
+          </div>
+        </div>
+      </div>
+    </Command>
+  );
 }
 
 function TracePanelNavigationHeaderCollapsed({
@@ -206,20 +248,17 @@ function TracePanelNavigationHeaderExpanded({
   );
 
   return (
-    <Command className="h-auto shrink-0 overflow-hidden rounded-none border-b bg-transparent">
+    <Command className={frameClassName}>
       {/* Container queries keep the primary view switch visible for as long as
           it fits. Search moves below the controls before that switch collapses,
           and remains the same input across every layout. */}
       <div ref={headerContainerRef} className="@container/navheader">
-        <div className="grid min-h-8 grid-cols-[auto_minmax(0,1fr)_auto] items-center py-1 pr-3 pl-1 @max-[299px]/navheader:min-h-0 @max-[299px]/navheader:gap-y-1 @max-[299px]/navheader:pt-1 @max-[299px]/navheader:pb-1.5">
+        <div className={gridClassName}>
           {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed
               version. Hidden while the detail panel is closed (nothing useful to
               collapse the full-width tree/timeline into). */}
           {!isDetailPanelCollapsed && (
-            <div
-              key="toggle"
-              className="col-start-1 row-start-1 flex flex-row items-center p-0.5"
-            >
+            <div key="toggle" className={toggleSlotClassName}>
               <TracePanelNavigationButton
                 isPanelCollapsed={isPanelCollapsed}
                 onTogglePanel={onTogglePanel}
@@ -230,10 +269,7 @@ function TracePanelNavigationHeaderExpanded({
               The keyed element is moved rather than duplicated, preserving its
               value and focus across panel resizing. */}
           {!isSearchWrapped ? searchControl : null}
-          <div
-            key="tools"
-            className="col-start-3 row-start-1 flex shrink-0 flex-row items-center gap-0.5"
-          >
+          <div key="tools" className={toolsSlotClassName}>
             {/* Minor tools — inline when the panel is wide enough. */}
             <div className="hidden flex-row items-center gap-0.5 @min-[510px]/navheader:flex">
               <Button
@@ -372,7 +408,7 @@ function ViewModeSwitch({
       value={activeView}
       onValueChange={(value) => onSelect(value as TraceViewMode)}
     >
-      <Tabs.List size="md" aria-label="Trace view">
+      <Tabs.List variant="inset" size="md" aria-label="Trace view">
         <Tabs.Trigger value="tree" label="Tree" />
         {/* One Timeline. What it IS depends on the Compact Timeline feature
             preview — see TracePanelNavigation — rather than on a third segment

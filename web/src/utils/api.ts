@@ -26,10 +26,12 @@ import { versionUpdateStore } from "@/src/features/version-update/versionUpdateS
 import { type AppRouter } from "@/src/server/api/root";
 import { reportError } from "@/src/utils/reportError";
 import { setUpSuperjson } from "@/src/utils/superjson";
+import { EXPECTED_TRPC_BAD_REQUEST_PATHS } from "@/src/utils/trpcErrorClassification";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
 
 export { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
+export { EXPECTED_TRPC_BAD_REQUEST_PATHS } from "@/src/utils/trpcErrorClassification";
 
 setUpSuperjson();
 
@@ -159,22 +161,6 @@ export const EXPECTED_TRPC_ERROR_CODES = [
  */
 export const EXPECTED_TRPC_CONFLICT_PATHS = [
   "inAppAgent.decideToolApproval",
-] as const;
-
-/**
- * BAD_REQUEST is usually a client bug (a missing hydrated route param,
- * an invariant the UI should not have sent). These procedures throw 400
- * only as user-configured-URL / secret-header validation the product
- * already toasts — expected user-facing state, not a regression.
- *
- * `datasets.triggerRemoteExperiment` and `datasets.upsertRemoteExperiment`
- * wrap `validateWebhookURL` (and related header checks) as BAD_REQUEST.
- * A DNS miss, private IP, or missing remote URL is the user fixing their
- * webhook, not an app failure.
- */
-export const EXPECTED_TRPC_BAD_REQUEST_PATHS = [
-  "datasets.triggerRemoteExperiment",
-  "datasets.upsertRemoteExperiment",
 ] as const;
 
 const getTrpcErrorData = (

@@ -23,7 +23,7 @@ const evaluationTypes = [
   },
   {
     value: EvalTemplateTypeEnum.DECISION_MODEL,
-    label: "Decision model (experimental)",
+    label: "Decision model",
     icon: Scale,
   },
 ] as const;
@@ -80,7 +80,7 @@ export function EvaluationTypeToggle({
           value={value}
           onValueChange={(mode) => onValueChange(mode as EvalTemplateType)}
         >
-          <Tabs.List variant="outline">
+          <Tabs.List variant="inset" size="md">
             {visibleTypes.map(({ value: typeValue, label, icon }) => (
               <Tabs.Trigger
                 key={typeValue}

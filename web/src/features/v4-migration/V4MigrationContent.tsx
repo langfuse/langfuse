@@ -125,6 +125,7 @@ export function useCopyMigrationPrompt() {
     await copyTextToClipboard(V4_CODING_AGENT_PROMPT);
     capture("v4_migration:coding_agent_prompt_copied");
     showSuccessToast({
+      operation: "prompt.copy",
       title: "Prompt copied",
       description: "Paste it into Cursor, Codex, or another coding agent.",
     });
@@ -1377,7 +1378,7 @@ export function V4MigrationAgentUpgradeSection({
     mutCreateProjectApiKey
       .mutateAsync({
         projectId,
-        note: "v4-migration-key",
+        name: "v4-migration-key",
       })
       .then(({ secretKey, publicKey }) => {
         setGeneratedKeys({

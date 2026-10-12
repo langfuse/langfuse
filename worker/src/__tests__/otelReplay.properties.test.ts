@@ -146,15 +146,26 @@ function expectedMetadata(seed: SpanSeed): Record<string, unknown> {
 }
 
 // Test-side contract oracle for the persisted flattened metadata. Arrays stay
-// leaves; returning pairs preserves duplicate flattened paths.
+// leaves; a path produced twice (literal-dot/nested collision) is persisted
+// once with its first value.
 function expectedMetadataPairs(
+  metadata: Record<string, unknown>,
+): Array<[string, string]> {
+  const firstValueByPath = new Map<string, string>();
+  for (const [path, value] of flattenedMetadataPairs(metadata)) {
+    if (!firstValueByPath.has(path)) firstValueByPath.set(path, value);
+  }
+  return [...firstValueByPath];
+}
+
+function flattenedMetadataPairs(
   metadata: Record<string, unknown>,
   prefix = "",
 ): Array<[string, string]> {
   return Object.entries(metadata).flatMap(([key, value]) => {
     const path = prefix ? `${prefix}.${key}` : key;
     if (value !== null && typeof value === "object" && !Array.isArray(value)) {
-      return expectedMetadataPairs(value as Record<string, unknown>, path);
+      return flattenedMetadataPairs(value as Record<string, unknown>, path);
     }
     const persistedValue =
       value === null || value === undefined

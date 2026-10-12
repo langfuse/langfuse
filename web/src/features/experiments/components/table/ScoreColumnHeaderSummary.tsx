@@ -1,14 +1,6 @@
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import { DiffLabel } from "@/src/features/datasets";
-import {
-  getScoreDataTypeExplanation,
-  splitScoreDataTypeIcon,
-} from "@/src/features/scores";
+import { splitScoreDataTypeIcon } from "@/src/features/scores";
 import {
   type ScoreColumnDataType,
   type ScoreColumnSummary,
@@ -24,24 +16,9 @@ const DIFF_LABEL_TITLES: Record<ScoreColumnDataType, string> = {
   CATEGORICAL: "modal value",
 };
 
-/** The type, quietly: the marker the column already had, now explained. */
-const ScoreDataTypeMarker = ({
-  icon,
-  dataType,
-}: {
-  icon: string;
-  dataType: ScoreColumnDataType;
-}) => (
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <span className="text-muted-foreground shrink-0 cursor-default">
-        {icon}
-      </span>
-    </TooltipTrigger>
-    <TooltipContent className="max-w-[280px]">
-      {getScoreDataTypeExplanation(dataType)}
-    </TooltipContent>
-  </Tooltip>
+/** Score data-type marker shown beside the column name. */
+const ScoreDataTypeMarker = ({ icon }: { icon: string }) => (
+  <span className="text-muted-foreground shrink-0 cursor-default">{icon}</span>
 );
 
 const SummaryRow = ({
@@ -112,9 +89,6 @@ export const ScoreColumnHeaderSummary = ({
         content={
           <div className="flex w-64 flex-col gap-1 p-3 font-normal">
             <span className="text-xs font-bold break-all">{label}</span>
-            <span className="text-muted-foreground text-[10px]">
-              {getScoreDataTypeExplanation(dataType)}
-            </span>
             <SummaryRow
               label={`${hasBaseline ? "Baseline experiment" : "This experiment"} (${DIFF_LABEL_TITLES[dataType]})`}
               value={
@@ -166,7 +140,7 @@ export const ScoreColumnHeaderSummary = ({
             {...getTriggerProps()}
           >
             <span className="flex min-w-0 items-baseline gap-1">
-              {icon && <ScoreDataTypeMarker icon={icon} dataType={dataType} />}
+              {icon && <ScoreDataTypeMarker icon={icon} />}
               <span className="truncate" title={label}>
                 {nameLabel}
               </span>

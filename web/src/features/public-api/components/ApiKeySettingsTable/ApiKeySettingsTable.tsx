@@ -7,6 +7,7 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { isApiKeyExpired } from "@/src/features/apiKey";
 import { type RouterOutput } from "@/src/utils/types";
 
 export type ApiKeySettingsTableRow =
@@ -14,7 +15,7 @@ export type ApiKeySettingsTableRow =
   | RouterOutput["organizationApiKeys"]["byOrganizationId"][number];
 
 export function ApiKeySettingsTable({
-  editNoteAction,
+  editNameAction,
   hasWriteAccess,
   onDelete,
   ...tableProps
@@ -22,7 +23,7 @@ export function ApiKeySettingsTable({
   TableProps<ApiKeySettingsTableRow>,
   "data" | "loadingRowCount" | "noResultsMessage"
 > & {
-  editNoteAction: {
+  editNameAction: {
     hasAccess: boolean;
     onClick: (apiKey: ApiKeySettingsTableRow) => void;
   };
@@ -31,11 +32,20 @@ export function ApiKeySettingsTable({
 }) {
   const columns = useMemo<LangfuseColumnDef<ApiKeySettingsTableRow>[]>(
     () => [
-      createDateTableColumn<ApiKeySettingsTableRow>({
-        accessorKey: "createdAt",
-        header: "Created",
-        hideBelowMd: true,
+      createTextTableColumn<ApiKeySettingsTableRow>({
+        id: "note",
+        accessorFn: (apiKey) => apiKey.note || null,
+        header: "Name",
         enableResizing: false,
+        nullValue: "—",
+        trailingAction: editNameAction.hasAccess
+          ? {
+              type: "custom",
+              icon: Pencil,
+              label: "Edit name",
+              onClick: ({ row }) => editNameAction.onClick(row.original),
+            }
+          : undefined,
       }),
       createUserTableColumn<ApiKeySettingsTableRow>({
         accessorKey: "createdByUser",
@@ -62,21 +72,6 @@ export function ApiKeySettingsTable({
         },
       }),
       createTextTableColumn<ApiKeySettingsTableRow>({
-        id: "note",
-        accessorFn: (apiKey) => apiKey.note || null,
-        header: "Note",
-        enableResizing: false,
-        nullValue: "—",
-        trailingAction: editNoteAction.hasAccess
-          ? {
-              type: "custom",
-              icon: Pencil,
-              label: "Edit note",
-              onClick: ({ row }) => editNoteAction.onClick(row.original),
-            }
-          : undefined,
-      }),
-      createTextTableColumn<ApiKeySettingsTableRow>({
         accessorKey: "publicKey",
         header: "Public Key",
         trailingAction: { type: "copy-to-clipboard" },
@@ -87,8 +82,23 @@ export function ApiKeySettingsTable({
         header: "Secret Key",
         enableResizing: false,
       }),
+      createDateTableColumn<ApiKeySettingsTableRow>({
+        accessorKey: "expiresAt",
+        header: "Expiration",
+        hideBelowMd: true,
+        enableResizing: false,
+        emptyValue: "No expiration",
+        getPrefix: (expiresAt) =>
+          isApiKeyExpired(expiresAt) ? "Expired on " : null,
+      }),
+      createDateTableColumn<ApiKeySettingsTableRow>({
+        accessorKey: "createdAt",
+        header: "Created",
+        hideBelowMd: true,
+        enableResizing: false,
+      }),
     ],
-    [editNoteAction],
+    [editNameAction],
   );
 
   const actions = useCallback<
@@ -113,6 +123,7 @@ export function ApiKeySettingsTable({
   return (
     <SettingsTable
       tableName="API keys"
+      columnOrderKey="apiKeysColumnOrder-v2"
       columns={columns}
       actions={actions}
       {...tableProps}

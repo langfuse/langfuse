@@ -18,9 +18,11 @@ import {
 } from "lucide-react";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -53,6 +55,7 @@ import {
   SkillTagsSelect,
 } from "@/src/features/skills/components/SkillMetadataSelect";
 import { SkillVersionHistory } from "@/src/features/skills/components/SkillVersionHistory";
+import { SkillFilePreview } from "@/src/features/skills/components/SkillFilePreview";
 import { useSkillFileContents } from "@/src/features/skills/hooks/useSkillFileContents";
 import {
   parseSkillFrontmatterMetadata,
@@ -65,6 +68,7 @@ export function SkillEditor({
   projectId,
   store,
   canCreate,
+  view,
   onCreated,
   history,
   metadataOptions,
@@ -74,6 +78,9 @@ export function SkillEditor({
   projectId: string;
   store: SkillEditorStore;
   canCreate: boolean;
+  view:
+    | { kind: "draft"; onDiscard: () => Promise<void> }
+    | { kind: "version"; hasDraft: boolean; onEdit: () => Promise<void> };
   onCreated: (created: { name: string; version: number }) => Promise<void>;
   history:
     | { kind: "new" }
@@ -88,6 +95,8 @@ export function SkillEditor({
           creator: string | null | undefined;
         }>;
         selectedVersion: number;
+        draftStore: SkillEditorStore | null;
+        onSelectDraft: () => Promise<void>;
         hasMore: boolean;
         isLoadingMore: boolean;
         loadMoreError: boolean;
@@ -158,7 +167,7 @@ export function SkillEditor({
   const capture = usePostHogClientCapture();
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [isDraft, setIsDraft] = useState(baseVersion === null);
+  const isDraft = view.kind === "draft";
   const canEditFiles = isDraft && canCreate && !isSaving;
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
   const [treeState, setTreeState] = useState<SkillFileExplorerState>(() => ({
@@ -215,6 +224,7 @@ export function SkillEditor({
         isFirstVersion: createNew,
       });
       showSuccessToast({
+        operation: "skill_version.create",
         title: "Skill version created",
         description: `Version ${created.version} is now available.`,
       });
@@ -259,6 +269,7 @@ export function SkillEditor({
           ]),
       });
       showSuccessToast({
+        operation: "skill_labels.update",
         title: "Skill labels updated",
         description: `Version ${version} now uses the selected labels.`,
       });
@@ -291,6 +302,7 @@ export function SkillEditor({
           ]),
       });
       showSuccessToast({
+        operation: "skill_tags.update",
         title: "Skill tags updated",
         description: "All versions now use the selected tags.",
       });
@@ -327,7 +339,9 @@ export function SkillEditor({
   };
 
   const renderHeaderActions = (
-    openDialog: (createNew: boolean) => void,
+    openDialog: (
+      state: { kind: "save"; createNew: boolean } | { kind: "discard" },
+    ) => void,
     closeMenu?: () => void,
   ) => (
     <div className="flex max-w-full flex-wrap items-center justify-start gap-2 sm:justify-end">
@@ -396,56 +410,90 @@ export function SkillEditor({
         <Button
           disabled={!canCreate}
           title={!canCreate ? "You do not have write access" : undefined}
-          onClick={() => {
+          onClick={async () => {
             closeMenu?.();
-            setIsDraft(true);
+            if (view.kind === "version") await view.onEdit();
           }}
         >
           <Plus className="icon-base mr-1.5" />
-          New version
+          {view.kind === "version" && view.hasDraft ? "Resume draft" : "Edit"}
         </Button>
       ) : (
-        <Button
-          onClick={() => {
-            closeMenu?.();
-            openDialog(createsNewSkill);
-          }}
-          disabled={
-            !canCreate ||
-            isSaving ||
-            isImporting ||
-            (!createsNewSkill && !dirty) ||
-            Boolean(createDisabledReason) ||
-            isCheckingName
-          }
-          title={createButtonTitle}
-        >
-          <Save className="icon-base mr-1.5" />
-          Save
-        </Button>
+        <>
+          <Button
+            variant="outline"
+            disabled={isSaving || isImporting}
+            onClick={async () => {
+              closeMenu?.();
+              if (view.kind !== "draft") return;
+              if (dirty) openDialog({ kind: "discard" });
+              else await view.onDiscard();
+            }}
+          >
+            Discard draft
+          </Button>
+          <Button
+            onClick={() => {
+              closeMenu?.();
+              openDialog({ kind: "save", createNew: createsNewSkill });
+            }}
+            disabled={
+              !canCreate ||
+              isSaving ||
+              isImporting ||
+              (!createsNewSkill && !dirty) ||
+              Boolean(createDisabledReason) ||
+              isCheckingName
+            }
+            title={createButtonTitle}
+          >
+            <Save className="icon-base mr-1.5" />
+            Publish
+          </Button>
+        </>
       )}
     </div>
   );
 
   return (
-    <DialogController<boolean>
-      renderDialog={({ state: createNew, closeDialog }) => (
-        <CreateSkillVersionDialog
-          store={store}
-          name={createNew ? draftName : name}
-          isFirstVersion={createNew}
-          isSaving={isSaving}
-          disabled={
-            isImporting ||
-            Boolean(createDisabledReason) ||
-            isCheckingName ||
-            (!createNew && (hasNameChanged || !dirty))
-          }
-          onConfirm={async () => {
-            if (await save(createNew)) closeDialog();
-          }}
-        />
-      )}
+    <DialogController<
+      { kind: "save"; createNew: boolean } | { kind: "discard" }
+    >
+      renderDialog={({ state, closeDialog }) =>
+        state.kind === "discard" ? (
+          <Dialog
+            title="Discard draft?"
+            text="Your unsaved file changes and commit note will be lost."
+            actions={[
+              {
+                label: "Discard draft",
+                variant: "destructive",
+                onClick: async () => {
+                  if (view.kind === "draft") await view.onDiscard();
+                  closeDialog();
+                },
+              },
+            ]}
+          />
+        ) : (
+          <CreateSkillVersionDialog
+            projectId={projectId}
+            store={store}
+            name={state.createNew ? draftName : name}
+            isFirstVersion={state.createNew}
+            isSaving={isSaving}
+            disabled={
+              isImporting ||
+              Boolean(createDisabledReason) ||
+              isCheckingName ||
+              (!state.createNew && (hasNameChanged || !dirty))
+            }
+            onConfirm={async () => {
+              if (await save(state.createNew)) closeDialog();
+            }}
+          />
+        )
+      }
     >
       {({ openDialog }) => (
         <Page
@@ -540,8 +588,9 @@ export function SkillEditor({
               <div className="flex min-h-[720px] flex-1 flex-col overflow-hidden border-t md:min-h-[560px] md:flex-row">
                 {history.kind === "versions" ? (
                   <SkillVersionHistory
+                    projectId={projectId}
+                    name={name}
                     {...history}
-                    dirty={dirty}
                     isDraft={isDraft}
                     canEdit={canCreate}
                     labelOptions={metadataOptions.labels}
@@ -578,6 +627,7 @@ export function SkillEditor({
                       <SkillFileEditor
                         projectId={projectId}
                         store={store}
+                        isDraft={isDraft}
                         editable={canEditFiles}
                       />
                     </ResizablePanel>
@@ -642,10 +692,12 @@ function SkillMetadataFields({
 function SkillFileEditor({
   projectId,
   store,
+  isDraft,
   editable,
 }: {
   projectId: string;
   store: SkillEditorStore;
+  isDraft: boolean;
   editable: boolean;
 }) {
   const activePath = useStore(store, (state) => state.activePath);
@@ -682,6 +734,9 @@ function SkillFileEditor({
         </div>
       );
     }
+    if (!isDraft) {
+      return <SkillFilePreview path={activePath} content={content} />;
+    }
     return (
       <CodeMirrorEditor
         key={activePath}
@@ -701,6 +756,7 @@ function SkillFileEditor({
     fileContents.error,
     refetch,
     activePath,
+    isDraft,
     editable,
     updateActiveFile,
   ]);
@@ -711,6 +767,10 @@ function SkillFileEditor({
         <span className="min-w-0 truncate font-mono text-xs" title={activePath}>
           {activePath}
         </span>
+        <Badge
+          text={isDraft ? "Editing draft" : "Viewing"}
+          color={isDraft ? "blue" : "primary"}
+        />
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-3">{editorContent}</div>
     </section>

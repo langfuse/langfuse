@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
+import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -1263,26 +1264,26 @@ function FilterBuilderForm({
             </table>
           )}
           {!disabled ? (
-            <Button
-              onClick={() => addNewFilter()}
-              type="button" // required as it will otherwise submit forms where this component is used
-              className={cn(
-                subtleAddButton
-                  ? "text-foreground hover:text-foreground mt-2 h-6 w-full justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
-                  : "mt-2",
-                compact && !subtleAddButton && "mt-4 self-start",
-              )}
-              variant={subtleAddButton ? "ghost" : "outline"}
-              size="sm"
-            >
-              <Plus
-                className={cn(
-                  "icon-base text-icon-foreground shrink-0",
-                  !subtleAddButton && "mr-2",
-                )}
-              />
-              Add filter
-            </Button>
+            subtleAddButton ? (
+              <div className="mt-2">
+                <TextActionButton
+                  text="Add filter"
+                  width="fill"
+                  onClick={() => addNewFilter()}
+                />
+              </div>
+            ) : (
+              <Button
+                onClick={() => addNewFilter()}
+                type="button" // required as it will otherwise submit forms where this component is used
+                className={cn("mt-2", compact && "mt-4 self-start")}
+                variant="outline"
+                size="sm"
+              >
+                <Plus className="icon-base text-icon-foreground mr-2 shrink-0" />
+                Add filter
+              </Button>
+            )
           ) : null}
         </>
       )}

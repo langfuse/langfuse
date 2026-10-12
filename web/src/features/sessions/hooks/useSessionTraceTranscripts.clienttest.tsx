@@ -74,7 +74,10 @@ it("bounds concurrent requests and releases slots after success and failure", as
   const { result, unmount, client } = setup();
   await waitFor(() => expect(query).toHaveBeenCalledTimes(4));
   expect(
-    query.mock.calls.every(([input]) => input.pairTextToolResponses === true),
+    query.mock.calls.every(([input]) => input.recoverToolResponses === true),
+  ).toBe(true);
+  expect(
+    query.mock.calls.every(([input]) => input.fallbackToRootIO === true),
   ).toBe(true);
   expect(result.current.get("trace-4")).toEqual({ state: "loading" });
   expect(result.current.has("trace-6")).toBe(false);

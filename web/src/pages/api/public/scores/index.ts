@@ -19,7 +19,7 @@ import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Score",
-    action: "scores:create",
+    action: "scores:save",
     bodySchema: PostScoresBodyV1,
     responseSchema: PostScoresResponseV1,
     allowedAccessLevels: ["project", "scores"],
@@ -30,6 +30,44 @@ export default withMiddlewares({
         );
       }
 
+      const scoresApiService = new ScoresApiService("v1");
+      const attribution = createIngestionAttribution({
+        headers: req.headers,
+        authCheck: auth,
+      });
+
+      if (Array.isArray(body)) {
+        const conformedBodies = body.map((score) => {
+          if (
+            typeof score !== "object" ||
+            score === null ||
+            Array.isArray(score)
+          ) {
+            // Leave malformed items for ingestion to reject.
+            return score;
+          }
+          // Generate IDs for scores with missing or empty IDs.
+          return { ...score, id: ("id" in score && score.id) || randomUUID() };
+        });
+        const { result } = await scoresApiService.createScores({
+          bodies: conformedBodies,
+          auth,
+          attribution,
+        });
+        if (result.errors.length > 0) {
+          res.status(207);
+          return {
+            accepted: result.successes.length,
+            rejected: result.errors.length,
+            errors: result.errors.map((error) => ({
+              message: error.error ?? error.message ?? "Failed to create score",
+            })),
+          };
+        }
+        res.status(202);
+        return { message: "Accepted" };
+      }
+
       const conformedBody = {
         ...body,
         // We previously used `if(!body.id)` to decide if a new ID should be generated,
@@ -38,14 +76,10 @@ export default withMiddlewares({
         id: body.id || randomUUID(),
       };
 
-      const scoresApiService = new ScoresApiService("v1");
       const { id, result } = await scoresApiService.createScore({
         body: conformedBody,
         auth,
-        attribution: createIngestionAttribution({
-          headers: req.headers,
-          authCheck: auth,
-        }),
+        attribution,
       });
       if (result.errors.length > 0) {
         const error = result.errors[0];

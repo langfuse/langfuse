@@ -29,6 +29,7 @@ export const useViewMutations = ({
       });
       utils.TableViewPresets.getByTableName.invalidate();
       showSuccessToast({
+        operation: "saved_view.update",
         title: "View updated",
         description: `${data.view.name} has been updated to reflect your current table state`,
       });
@@ -56,6 +57,7 @@ export const useViewMutations = ({
         copyTextToClipboard(data)
           .then(() =>
             showSuccessToast({
+              operation: "saved_view.permalink_copy",
               title: "Permalink copied to clipboard",
               description: "You can now share the permalink with others",
             }),

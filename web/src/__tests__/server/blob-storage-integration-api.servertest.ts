@@ -6,9 +6,15 @@ import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import {
   OBSERVATION_FIELD_GROUPS_FULL,
   LEGACY_EXPORT_PROJECT_CUTOFF,
@@ -124,11 +130,14 @@ describe("Blob Storage Integrations API", () => {
     testProject2Id = testProject2.id;
 
     // Create organization API key
-    const orgApiKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: testOrgId,
-      scope: "ORGANIZATION",
-      note: "Test API Key for Blob Storage API",
+    const orgKeyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const orgApiKey = await createApiKey(prisma, {
+      owner: OrganizationId(testOrgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(orgKeyCreator.id),
+      name: "Test API Key for Blob Storage API",
       predefinedKeys: {
         publicKey: `pk-lf-blob-${randomUUID().substring(0, 8)}`,
         secretKey: `sk-lf-blob-${randomUUID().substring(0, 8)}`,
@@ -235,11 +244,14 @@ describe("Blob Storage Integrations API", () => {
 
     it("should return 403 with project-scoped API key", async () => {
       // Create project API key
-      const projectApiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: testProject1Id,
-        scope: "PROJECT",
-        note: "Project API Key",
+      const keyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      });
+      const projectApiKey = await createApiKey(prisma, {
+        owner: ProjectId(testProject1Id),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(keyCreator.id),
+        name: "Project API Key",
         predefinedKeys: {
           publicKey: `pk-lf-proj-${randomUUID().substring(0, 8)}`,
           secretKey: `sk-lf-proj-${randomUUID().substring(0, 8)}`,
@@ -1459,11 +1471,14 @@ describe("Blob Storage Integrations API", () => {
     });
 
     it("should return 403 with project-scoped API key", async () => {
-      const projectApiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: testProject1Id,
-        scope: "PROJECT",
-        note: "Project API Key",
+      const keyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      });
+      const projectApiKey = await createApiKey(prisma, {
+        owner: ProjectId(testProject1Id),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(keyCreator.id),
+        name: "Project API Key",
         predefinedKeys: {
           publicKey: `pk-lf-proj-del-${randomUUID().substring(0, 8)}`,
           secretKey: `sk-lf-proj-del-${randomUUID().substring(0, 8)}`,

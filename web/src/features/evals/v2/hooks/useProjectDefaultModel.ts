@@ -77,6 +77,7 @@ export function useProjectDefaultModel({
             isReplacement,
           });
           showSuccessToast({
+            operation: "project_default_model.update",
             title: "Project default model updated",
             description: `${model.provider} / ${model.model} is now the project default.`,
           });

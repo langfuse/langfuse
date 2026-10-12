@@ -443,6 +443,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         <SearchableTableFilterLayout
           search={
             <TableSearchBar
+              size="large"
               key={queryFilter.draftResetKey}
               projectId={projectId}
               tableName={evaluatorFilterConfig.tableName}
@@ -543,6 +544,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 setEditConfigId(null);
                 utils.evals.allConfigs.invalidate();
                 showSuccessToast({
+                  operation: "evaluator.update",
                   title: "Evaluator updated successfully",
                   description:
                     "Changes will automatically be reflected future evaluator runs",

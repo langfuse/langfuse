@@ -5,8 +5,10 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Label } from "@/src/components/ui/label";
 import { Textarea } from "@/src/components/ui/textarea";
 import { type SkillEditorStore } from "@/src/features/skills/components/skillEditorStore";
+import { SkillDraftChanges } from "./SkillDraftChanges";
 
 export function CreateSkillVersionDialog({
+  projectId,
   store,
   name,
   isFirstVersion,
@@ -14,6 +16,7 @@ export function CreateSkillVersionDialog({
   disabled,
   onConfirm,
 }: {
+  projectId: string;
   store: SkillEditorStore;
   name: string;
   isFirstVersion: boolean;
@@ -33,6 +36,7 @@ export function CreateSkillVersionDialog({
   return (
     <Dialog
       title={isFirstVersion ? "Create skill" : "Create new version"}
+      size="xxl"
       actions={[
         {
           label: isFirstVersion ? "Create skill" : "Create version",
@@ -44,45 +48,53 @@ export function CreateSkillVersionDialog({
       ]}
     >
       <Dialog.Body>
-        <div className="ph-no-capture flex flex-col gap-4">
-          <p className="text-muted-foreground">
-            {isFirstVersion ? (
-              <>
-                Create <strong>{name}</strong> as a new skill using the current
-                files.
-              </>
-            ) : (
-              <>
-                Commit the current draft of <strong>{name}</strong> as an
-                immutable version.
-              </>
-            )}
-          </p>
-          {isFirstVersion && originalName ? (
-            <Alert variant="warning" icon={TriangleAlert}>
-              <Alert.Title>You are duplicating this skill</Alert.Title>
-              <Alert.Description>
-                This creates <strong>{name}</strong> as a separate skill,
-                starting at version 1. <strong>{originalName}</strong> stays
-                unchanged.
-              </Alert.Description>
-            </Alert>
-          ) : null}
-          <div className="grid gap-2">
-            <Label htmlFor="skill-version-note">Version note</Label>
-            <p className="text-muted-foreground text-sm">
-              Describe the changes in this version to make the history easier to
-              understand.
+        <div className="ph-no-capture flex min-h-0 flex-1 flex-col gap-4">
+          <div className="flex shrink-0 flex-col gap-4">
+            <p className="text-muted-foreground">
+              {isFirstVersion ? (
+                <>
+                  Create <strong>{name}</strong> as a new skill using the
+                  current files.
+                </>
+              ) : (
+                <>
+                  Commit the current draft of <strong>{name}</strong> as an
+                  immutable version.
+                </>
+              )}
             </p>
-            <Textarea
-              id="skill-version-note"
-              value={commitMessage}
-              onChange={(event) => setCommitMessage(event.target.value)}
-              placeholder="Add version note…"
-              rows={5}
-              autoFocus
-            />
+            {isFirstVersion && originalName ? (
+              <Alert variant="warning" icon={TriangleAlert}>
+                <Alert.Title>You are duplicating this skill</Alert.Title>
+                <Alert.Description>
+                  This creates <strong>{name}</strong> as a separate skill,
+                  starting at version 1. <strong>{originalName}</strong> stays
+                  unchanged.
+                </Alert.Description>
+              </Alert>
+            ) : null}
+            <div className="grid gap-2">
+              <Label htmlFor="skill-version-note">Version note</Label>
+              <p className="text-muted-foreground text-sm">
+                Describe the changes in this version to make the history easier
+                to understand.
+              </p>
+              <Textarea
+                id="skill-version-note"
+                value={commitMessage}
+                onChange={(event) => setCommitMessage(event.target.value)}
+                placeholder="Add version note…"
+                rows={3}
+                autoFocus
+              />
+            </div>
           </div>
+          <h3 className="shrink-0 text-sm font-bold">File changes</h3>
+          <SkillDraftChanges
+            projectId={projectId}
+            store={store}
+            isFirstVersion={isFirstVersion}
+          />
         </div>
       </Dialog.Body>
     </Dialog>

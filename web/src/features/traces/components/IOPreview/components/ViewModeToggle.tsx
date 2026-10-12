@@ -31,9 +31,9 @@ export function ViewModeToggle({
           value={selectedViewTab}
           onValueChange={handleViewTabChange}
         >
-          <Tabs.List size="sm">
-            <Tabs.Trigger value="pretty" size="sm" label="Formatted" />
-            <Tabs.Trigger value="json" size="sm" label="Raw" />
+          <Tabs.List variant="inset" size="sm">
+            <Tabs.Trigger value="pretty" label="Formatted" />
+            <Tabs.Trigger value="json" label="Raw" />
           </Tabs.List>
         </Tabs>
       </div>

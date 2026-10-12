@@ -168,6 +168,7 @@ function SsoConfigDialogContent({
     onSuccess: () => {
       utils.ssoConfig.get.invalidate({ orgId });
       showSuccessToast({
+        operation: existing ? "sso.update" : "sso.configure",
         title: existing ? "SSO updated" : "SSO configured",
         description: `Active for @${domain} within 1 hour.`,
       });

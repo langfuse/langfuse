@@ -198,7 +198,11 @@ export function useTopicTraceSelector({
           setRequest(null);
         }}
       >
-        <Tabs.List aria-label="Trace selection method">
+        <Tabs.List
+          variant="inset"
+          size="md"
+          aria-label="Trace selection method"
+        >
           <Tabs.Trigger value="filters" label="Filters" />
           <Tabs.Trigger value="paste" label="Paste IDs" />
         </Tabs.List>

@@ -24,6 +24,7 @@ import {
   StorageServiceFactory,
   blobStorageEndpointConnectionValidationOptions,
   validateBlobStorageEndpoint,
+  assertGcsBlobStorageBucketAllowed,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -98,17 +99,21 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         projectId: input.projectId,
       });
       try {
-        const config = await ctx.prisma.blobStorageIntegration.findFirst({
+        const row = await ctx.prisma.blobStorageIntegration.findFirst({
           where: {
             projectId: input.projectId,
           },
-          omit: {
-            secretAccessKey: true,
-          },
         });
+        // Never return the (encrypted) secret; only whether one is stored, so the
+        // form can tell a keyless GCS integration from one with a key.
+        let config = null;
+        if (row) {
+          const { secretAccessKey, ...rest } = row;
+          config = { ...rest, hasSecretAccessKey: Boolean(secretAccessKey) };
+        }
 
         return {
-          config: config ?? null,
+          config,
           writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
         };
       } catch (e) {
@@ -389,19 +394,26 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         if (endpoint) {
           await validateBlobStorageEndpoint(endpoint);
         }
+        const isGcs = type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE;
+        // GCS: stored secret = customer service account JSON key; none = the
+        // deployment's default credentials, which only allowlisted buckets get.
+        const gcsServiceAccountKey = isGcs ? secretAccessKey : undefined;
+        if (isGcs && !gcsServiceAccountKey) {
+          assertGcsBlobStorageBucketAllowed(bucketName);
+        }
 
         // Create storage service with provided configuration
         const storageService = StorageServiceFactory.getInstance({
-          accessKeyId: accessKeyId || undefined,
-          secretAccessKey,
+          accessKeyId: isGcs ? undefined : accessKeyId || undefined,
+          secretAccessKey: isGcs ? undefined : secretAccessKey,
           bucketName,
           endpoint: endpoint || undefined,
           region: region || undefined,
           forcePathStyle: forcePathStyle || false,
           useAzureBlob: type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
-          useGoogleCloudStorage: false, // Not supported in blob storage integration
+          useGoogleCloudStorage: isGcs,
           useOCIObjectStorage: false, // Not supported in blob storage integration
-          googleCloudCredentials: undefined,
+          googleCloudCredentials: gcsServiceAccountKey,
           awsSse: undefined,
           awsSseKmsKeyId: undefined,
           externalEndpoint: undefined,
@@ -418,13 +430,23 @@ Timestamp: ${new Date().toISOString()}
 Configuration: ${type} storage
 This file can be safely deleted.`;
 
-        // Upload the test file
-        const result = await storageService.uploadWithSignedUrl({
+        // Upload the test file. Keyless GCS skips the signed URL: V4 signing
+        // needs a private key, which ADC identities (e.g. GKE metadata) don't
+        // have, and the export itself never signs. A GCS key can sign.
+        const testFile = {
           fileName: testFileName,
           fileType: "text/plain",
           data: testContent,
-          expiresInSeconds: 3600, // 1 hour
-        });
+        };
+        let signedUrl: string | undefined;
+        if (isGcs && !gcsServiceAccountKey) {
+          await storageService.uploadFile(testFile);
+        } else {
+          ({ signedUrl } = await storageService.uploadWithSignedUrl({
+            ...testFile,
+            expiresInSeconds: 3600, // 1 hour
+          }));
+        }
 
         logger.info(
           `Blob storage validation successful for project ${input.projectId}`,
@@ -450,7 +472,7 @@ This file can be safely deleted.`;
           success: true,
           message: "Validation successful! Test file uploaded.",
           testFileName,
-          signedUrl: result.signedUrl,
+          signedUrl,
         };
       } catch (e) {
         const errorMessage = getErrorMessage(

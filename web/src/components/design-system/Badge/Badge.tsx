@@ -30,11 +30,17 @@ const badgeVariants = cva(
         true: "underline-dotted",
         false: "",
       },
+      /** Metric values (latency, cost, timestamps) read in mono. */
+      font: {
+        sans: "font-sans",
+        mono: "font-mono",
+      },
     },
     defaultVariants: {
       color: "primary",
       size: "default",
       interactive: false,
+      font: "sans",
     },
   },
 );
@@ -55,13 +61,17 @@ export function BadgeShell({
   color,
   size,
   interactive,
+  font,
   ...props
 }: BadgeShellProps) {
   const Component = asChild ? Slot : "span";
 
   return (
     <Component
-      className={cn(badgeVariants({ color, size, interactive }))}
+      className={cn(
+        "group/badge",
+        badgeVariants({ color, size, interactive, font }),
+      )}
       {...props}
     />
   );
@@ -72,7 +82,7 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
   /** Key shown muted before the value, e.g. `latency` before `0.71s`. */
   label?: string;
   trailingIcon?: LucideIcon;
-  /** Link badges tint the arrow so the affordance reads before the hover. */
+  /** Link badges tint the arrow and underline the text on hover. */
   trailingIconTone?: "default" | "link";
 };
 
@@ -95,6 +105,8 @@ export function Badge({
           interactive
             ? "underline-dotted overflow-clip"
             : "overflow-x-clip overflow-y-visible",
+          trailingIconTone === "link" &&
+            "underline-offset-2 group-hover/badge:underline",
         )}
         title={title ?? (interactive ? undefined : text)}
       >

@@ -126,8 +126,11 @@ Existing topic names remain until their definitions change during **Update topic
 ## Trace-batch connection
 
 After the trace-batch job assembles a transcript, it summarizes that same
-transcript for each current facet of an allowlisted project. It does not load
-the trace from ClickHouse again. Projects outside
+transcript for all current facets of an allowlisted project in one model call:
+the system prompt lists every facet under a key, asks for each to be answered
+independently with short evidence notes, and returns one entry per facet. The
+call's usage is recorded on the first facet's row. It does not load the trace
+from ClickHouse again. Projects outside
 `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` are skipped. A finished facet version is
 skipped on retry. A failing trace does not stop the batch: every trace is
 processed and outcomes are counted once per job (`langfuse.topics.trace_outcomes`
@@ -150,12 +153,12 @@ Required for a local run, in addition to Postgres, ClickHouse, and Redis:
 | `LANGFUSE_AI_AWS_BEDROCK_REGION`              | Bedrock region for summaries, naming, and embeddings.                                                                                                                                                                                                |
 | `LANGFUSE_TOPICS_SUMMARY_MODEL`               | Required internal PoC setting; Bedrock model ID used for trace summaries.                                                                                                                                                                            |
 | `LANGFUSE_TOPICS_EMBEDDING_MODEL`             | Required internal PoC setting; Bedrock embedding model ID.                                                                                                                                                                                           |
-| `LANGFUSE_AI_FEATURES_AWS_PROFILE`           | Optional shared local AI profile. `AWS_PROFILE` takes precedence; falls back to `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`.                                                                                                                                                                                          |
+| `LANGFUSE_AI_FEATURES_AWS_PROFILE`            | Optional shared local AI profile. `AWS_PROFILE` takes precedence; falls back to `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`.                                                                                                                                 |
 
 ## Run the experiment
 
-1. Initialize facets and inspect their instructions. `Intent`, `Outcome`, and
-   `Issues` are built-in presets with immutable instructions. Create a custom
+1. Initialize facets and inspect their instructions. `Intent`, `Sentiment`,
+   `Outcome`, and `Issues` are built-in presets with immutable instructions. Create a custom
    facet for different instructions; a facet is not a list of topic classes.
 2. Choose **Process traces** and select traces through filters or pasted IDs.
    The request freezes the selection and selected facet versions. It generates
@@ -502,15 +505,20 @@ Postgres and ClickHouse migrations before running it.
 
 ## Default facet extraction
 
-Intent describes the requested task even when execution fails. Outcome describes
-what was actually delivered or confirmed, keeping a proposed action distinct from
-an assistant's claim and a confirming result. Issues describes the principal
-observed obstacle, its consequence and recovery; a problem quoted for analysis
-is not itself an agent defect. Each preset prompt defines its facet's semantics;
-custom facets use their own versioned instructions.
+Intent names the goals of the whole run, earliest first, even when execution
+fails; follow-up checks belong to the goal they serve. Sentiment labels the end
+user's attitude toward the interaction (`Positive`, `Negative`, `Mixed`,
+`Neutral`) and what it was directed at; runs without end-user text are not
+applicable. Outcome labels where the run ended (`Completed`, `Partial`,
+`Unconfirmed`, `Needs input`, `Not completed`), judged on results rather than the
+assistant's claims. Issues describes the mistake that did the most damage to the
+result in one sentence (the mistake, the kind of step, and its consequence),
+without a category label, and checks four points before reporting no issue; a
+problem quoted for analysis is not itself an agent defect. Each preset prompt
+defines its facet's semantics; custom facets use their own versioned instructions.
 
-The shared extraction wrapper asks for compact English prose (normally one
-sentence, at most two and 100 words), preserves meaningful distinctions, and
+The shared extraction wrapper asks for one English sentence of at most 30 words
+(a second only for a material distinction), preserves meaningful distinctions, and
 omits incidental identifiers, source references and narration. Applicability is
 separate from task success: absent signals and insufficient evidence retain their
 distinct statuses and empty summaries, so they do not become embedded topics.

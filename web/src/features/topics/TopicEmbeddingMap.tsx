@@ -1,6 +1,5 @@
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { type ReactNode } from "react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { EmbeddingMapView } from "./EmbeddingMapView";
@@ -8,7 +7,7 @@ import { EmbeddingMapView } from "./EmbeddingMapView";
 type Topic = Pick<
   RouterOutputs["topics"]["currentResults"][number]["topics"][number],
   "id" | "name"
->;
+> & { description?: string };
 
 export function TopicEmbeddingMap({
   projectId,
@@ -17,9 +16,9 @@ export function TopicEmbeddingMap({
   topics,
   selectedTopic,
   onSelectTopic,
-  headerStats,
   onSelectTrace,
   selectedTraceId,
+  fillContainer = false,
 }: {
   projectId: string;
   runId: string;
@@ -27,9 +26,9 @@ export function TopicEmbeddingMap({
   topics: Topic[];
   selectedTopic: string | null;
   onSelectTopic: (id: string | null) => void;
-  headerStats?: ReactNode;
   onSelectTrace: (traceId: string | null) => void;
   selectedTraceId: string | null;
+  fillContainer?: boolean;
 }) {
   const { openPeek } = usePeekNavigation({
     tableName: "topics-traces",
@@ -72,9 +71,9 @@ export function TopicEmbeddingMap({
       topics={topics}
       selectedTopic={selectedTopic}
       onSelectTopic={onSelectTopic}
-      headerStats={headerStats}
       onSelectTrace={onSelectTrace}
       selectedTraceId={selectedTraceId}
+      fillContainer={fillContainer}
     />
   );
 }

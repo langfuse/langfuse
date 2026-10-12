@@ -296,7 +296,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               }}
             >
               {!initialPrompt ? (
-                <Tabs.List layout="full">
+                <Tabs.List variant="inset" size="md" layout="full">
                   <span className="flex-1">
                     <Tabs.Trigger
                       disabled={

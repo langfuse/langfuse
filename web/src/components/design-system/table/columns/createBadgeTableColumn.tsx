@@ -31,7 +31,10 @@ type NeutralBadgeVariant = Extract<
   "default" | "secondary" | "tertiary"
 >;
 
-type GetBadge<TData extends RowData, TVariant extends BadgeVariant> = (
+type GetBadge<
+  TData extends RowData,
+  TVariant extends BadgeVariant | "unknown",
+> = (
   value: string,
   context: CellContext<TData, string | null | undefined>,
 ) => {
@@ -51,7 +54,7 @@ type BadgeTableColumnOptions<TData extends RowData> =
     })
   | (TableColumnOptions<TData, string> & {
       range: "semantic";
-      getBadge: GetBadge<TData, SemanticBadgeVariant>;
+      getBadge: GetBadge<TData, SemanticBadgeVariant | "unknown">;
     });
 
 export function createBadgeTableColumn<TData extends RowData>({
@@ -80,7 +83,11 @@ export function createBadgeTableColumn<TData extends RowData>({
 
       return (
         <Badge
-          variant={badge.variant ?? "secondary"}
+          variant={
+            badge.variant === "unknown"
+              ? "default"
+              : (badge.variant ?? "secondary")
+          }
           className="max-w-fit gap-1 truncate rounded-sm px-1 font-normal"
           title={badge.value}
         >
