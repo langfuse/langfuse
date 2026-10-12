@@ -123,13 +123,7 @@ async fn relay(
     let gateway_key = gateway_key(request.headers(), route.api_format())?.to_owned();
     let query = forwarded_query(route, request.uri().query());
     let (parts, body) = request.into_parts();
-    let (bytes, model) = if route.method() == axum::http::Method::GET {
-        (Bytes::new(), None)
-    } else {
-        let bytes = read_request_body(body).await?;
-        let model = request_model(&bytes)?;
-        (bytes, Some(model))
-    };
+    let (bytes, model) = request_body_and_model(route, body).await?;
     let (permit, context) = inference
         .resolve_and_admit(
             &gateway_key,
@@ -159,6 +153,18 @@ async fn relay(
 #[derive(Deserialize)]
 struct InferenceRequest {
     model: String,
+}
+
+async fn request_body_and_model(
+    route: Route,
+    body: Body,
+) -> Result<(Bytes, Option<String>), InferenceHttpError> {
+    if route.method() == axum::http::Method::GET {
+        return Ok((Bytes::new(), None));
+    }
+    let bytes = read_request_body(body).await?;
+    let model = request_model(&bytes)?;
+    Ok((bytes, Some(model)))
 }
 
 fn request_model(body: &[u8]) -> Result<String, InferenceHttpError> {
