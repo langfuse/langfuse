@@ -60,25 +60,21 @@ export async function prepareOtelBatch(params: {
           );
         },
         read: async (response) => {
-          await maskedInput?.dispose();
-          const bytes = Buffer.from(await response.arrayBuffer());
-          // Match Node's Response.json() handling: it accepts up to two leading
-          // UTF-8 BOMs and rejects a third through the JSON parser.
-          let offset = 0;
-          while (
-            offset < 6 &&
-            bytes[offset] === 0xef &&
-            bytes[offset + 1] === 0xbb &&
-            bytes[offset + 2] === 0xbf
-          ) {
-            offset += 3;
+          const disposal = Promise.allSettled([maskedInput?.dispose()]);
+          try {
+            const json = stripResponseJsonBoms(
+              Buffer.from(await response.arrayBuffer()),
+            );
+            maskedInput = await validateOtelJson(json);
+            return {
+              bytes: maskedInput.normalizedBytes() ?? json,
+              validated: maskedInput,
+            };
+          } finally {
+            await disposal.then(([result]) => {
+              if (result.status === "rejected") throw result.reason;
+            });
           }
-          const json = offset === 0 ? bytes : bytes.subarray(offset);
-          maskedInput = await validateOtelJson(json);
-          return {
-            bytes: maskedInput.normalizedBytes() ?? json,
-            validated: maskedInput,
-          };
         },
       },
     );
@@ -124,4 +120,19 @@ export async function prepareOtelBatch(params: {
         );
       });
   }
+}
+
+// Match Node's Response.json(): accept up to two leading UTF-8 BOMs and leave
+// a third for the JSON parser to reject.
+function stripResponseJsonBoms(bytes: Buffer): Buffer {
+  let offset = 0;
+  while (
+    offset < 6 &&
+    bytes[offset] === 0xef &&
+    bytes[offset + 1] === 0xbb &&
+    bytes[offset + 2] === 0xbf
+  ) {
+    offset += 3;
+  }
+  return offset === 0 ? bytes : bytes.subarray(offset);
 }
