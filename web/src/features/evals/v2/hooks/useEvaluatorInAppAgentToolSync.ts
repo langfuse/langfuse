@@ -18,6 +18,71 @@ import { applyEvaluatorInAppAgentToolResult } from "@/src/features/evals/v2/fns/
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { api } from "@/src/utils/api";
 
+const EDITOR_UPDATE_HIGHLIGHT_DURATION_MS = 3_200;
+const EDITOR_UPDATE_HIGHLIGHT_GRACE_MS = 1_000;
+
+function getEditorUpdateHighlightKey(projectId: string, evaluatorId: string) {
+  return `langfuse:evaluator-assistant-highlight:${projectId}:${evaluatorId}`;
+}
+
+function takePendingEditorUpdateHighlight(
+  projectId: string,
+  evaluatorId: string | null,
+) {
+  if (!evaluatorId || typeof window === "undefined") {
+    return null;
+  }
+
+  const key = getEditorUpdateHighlightKey(projectId, evaluatorId);
+  try {
+    const value = window.sessionStorage.getItem(key);
+    window.sessionStorage.removeItem(key);
+    if (!value) {
+      return null;
+    }
+    const pending = JSON.parse(value) as { id?: unknown; expiresAt?: unknown };
+    return typeof pending.id === "string" &&
+      typeof pending.expiresAt === "number" &&
+      pending.expiresAt > Date.now()
+      ? pending.id
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function preserveEditorUpdateHighlight(
+  projectId: string,
+  evaluatorId: string,
+  updateId: string,
+) {
+  const key = getEditorUpdateHighlightKey(projectId, evaluatorId);
+  try {
+    window.sessionStorage.setItem(
+      key,
+      JSON.stringify({
+        id: updateId,
+        expiresAt:
+          Date.now() +
+          EDITOR_UPDATE_HIGHLIGHT_DURATION_MS +
+          EDITOR_UPDATE_HIGHLIGHT_GRACE_MS,
+      }),
+    );
+    window.setTimeout(() => {
+      try {
+        const pending = window.sessionStorage.getItem(key);
+        if (pending && JSON.parse(pending)?.id === updateId) {
+          window.sessionStorage.removeItem(key);
+        }
+      } catch {
+        // Ignore unavailable or malformed session storage.
+      }
+    }, EDITOR_UPDATE_HIGHLIGHT_DURATION_MS + EDITOR_UPDATE_HIGHLIGHT_GRACE_MS);
+  } catch {
+    // Storage can be unavailable; the current mount still shows the highlight.
+  }
+}
+
 export function useEvaluatorInAppAgentToolSync({
   projectId,
   evaluatorId,
@@ -38,7 +103,9 @@ export function useEvaluatorInAppAgentToolSync({
   const router = useRouter();
   const utils = api.useUtils();
   const { messages, open, selectedConversationId } = useInAppAiAgent();
-  const [editorUpdateId, setEditorUpdateId] = useState<string | null>(null);
+  const [editorUpdateId, setEditorUpdateId] = useState<string | null>(() =>
+    takePendingEditorUpdateHighlight(projectId, evaluatorId),
+  );
   const [testUpdateId, setTestUpdateId] = useState<string | null>(null);
   const handledTestToolCallIdRef = useRef<string | null>(null);
   const handledLiveToolCallIdsRef = useRef(new Set<string>());
@@ -113,6 +180,7 @@ export function useEvaluatorInAppAgentToolSync({
           ) {
             state.actions.setDescription(toolArguments.description ?? "");
           }
+          preserveEditorUpdateHighlight(projectId, evaluatorId, updateId);
           setEditorUpdateId(updateId);
           await utils.evalsV2.get.invalidate({ projectId, evaluatorId });
         },
