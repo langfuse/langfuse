@@ -3,9 +3,11 @@ import type { ChangeEvent } from "react";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Label } from "@/src/components/ui/label";
-import { apiKeyExpirationOptions } from "@/src/constants/apiKeyExpirationOptions";
+import {
+  apiKeyExpirationOptions,
+  type ApiKeyExpirationPreset,
+} from "@/src/constants/apiKeyExpirationOptions";
 import { localDateInputValue } from "@/src/fns/localDateInputValue";
-import type { ApiKeyExpirationPreset } from "@/src/types/apiKeyExpiration";
 
 type ApiKeyExpirationInputProps = {
   id: string;

@@ -19,9 +19,9 @@ import {
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import type { ApiKeyExpirationPreset } from "@/src/constants/apiKeyExpirationOptions";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent";
 import { resolveApiKeyExpiration } from "@/src/fns/resolveApiKeyExpiration";
-import type { ApiKeyExpirationPreset } from "@/src/types/apiKeyExpiration";
 import {
   api,
   reportNonTrpcError,

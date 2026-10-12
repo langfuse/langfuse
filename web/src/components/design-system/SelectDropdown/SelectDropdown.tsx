@@ -24,7 +24,7 @@ type SelectNode<V> =
       type: "group";
       id: string;
       label: string;
-      options: SelectOption<V>[];
+      options: readonly SelectOption<V>[];
     };
 
 function isSelectGroup<V>(
@@ -79,7 +79,7 @@ export function SelectDropdown<V extends string>({
   ...triggerProps
 }: {
   value: V;
-  options: SelectNode<V>[];
+  options: readonly SelectNode<V>[];
   onValueChange: (value: V) => void;
   emptyMessage?: string;
   children: (

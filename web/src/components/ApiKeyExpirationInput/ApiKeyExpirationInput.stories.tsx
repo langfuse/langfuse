@@ -2,8 +2,8 @@ import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
-import type { ApiKeyExpirationPreset } from "@/src/types/apiKeyExpiration";
 import { ApiKeyExpirationInput } from "@/src/components/ApiKeyExpirationInput/ApiKeyExpirationInput";
+import type { ApiKeyExpirationPreset } from "@/src/constants/apiKeyExpirationOptions";
 
 const meta = preview.meta({
   component: ApiKeyExpirationInput,

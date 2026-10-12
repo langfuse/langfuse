@@ -24,13 +24,13 @@ import {
   SelectContent,
   SelectTrigger,
 } from "@/src/components/ui/select";
+import type { ApiKeyExpirationPreset } from "@/src/constants/apiKeyExpirationOptions";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 import { resolveApiKeyExpiration } from "@/src/fns/resolveApiKeyExpiration";
-import type { ApiKeyExpirationPreset } from "@/src/types/apiKeyExpiration";
 
 type ApiKeyScope = "project" | "organization";
 
