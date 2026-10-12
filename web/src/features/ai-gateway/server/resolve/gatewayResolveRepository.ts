@@ -42,7 +42,6 @@ export class GatewayResolveRepository {
                     status: "ENABLED",
                   },
                   orderBy: { routingPriority: "asc" },
-                  take: 1,
                   select: {
                     id: true,
                     name: true,

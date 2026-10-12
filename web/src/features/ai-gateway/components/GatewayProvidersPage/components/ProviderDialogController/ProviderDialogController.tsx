@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useState, type ReactNode } from "react";
+import { TriangleAlert } from "lucide-react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
@@ -150,9 +151,22 @@ export function ProviderDialogController({
               onNameChange={setName}
               onCredentialChange={setCredential}
             />
+            {selectedConnection && name.trim() !== selectedConnection.name ? (
+              <Alert variant="warning" icon={TriangleAlert}>
+                <Alert.Title>Renaming changes model slugs</Alert.Title>
+                <Alert.Description>
+                  Requests using model slugs with the old connection name will
+                  stop resolving.
+                </Alert.Description>
+              </Alert>
+            ) : null}
             {isError ? (
               <Alert variant="destructive">
-                <Alert.Title>Provider validation failed</Alert.Title>
+                <Alert.Title>
+                  {test.isError
+                    ? "Provider validation failed"
+                    : "Provider credential could not be saved"}
+                </Alert.Title>
                 <Alert.Description>
                   {test.error?.message ??
                     create.error?.message ??

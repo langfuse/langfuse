@@ -9,6 +9,7 @@ import {
   gatewayProviders,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
+import { parseGatewayModelSlug } from "@/src/features/ai-gateway/server/fns/parseGatewayModelSlug";
 import {
   type CachedResolveContext,
   GATEWAY_RESOLVE_KEY_NON_EXISTENT,
@@ -16,7 +17,12 @@ import {
 } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayResolveRepository } from "@/src/features/ai-gateway/server/resolve/gatewayResolveRepository";
 
-export type GatewayApiKeyAuthContext = CachedResolveContext;
+export type GatewayApiKeyAuthContext = Omit<
+  CachedResolveContext,
+  "connections"
+> & {
+  connection: CachedResolveContext["connections"][number] | null;
+};
 
 type GatewayApiKeyAuthenticatorConfig = {
   resolveCache?: GatewayResolveCache;
@@ -37,13 +43,22 @@ export class GatewayApiKeyAuthenticator {
   async authenticateRequest(params: {
     fastHashedSecretKey: string;
     apiFormat: GatewayApiFormat;
+    model?: string;
   }): Promise<GatewayApiKeyAuthContext> {
-    const cached = await this.cache.get(params);
+    const modelSlug = params.model ? parseGatewayModelSlug(params.model) : null;
+    if (params.model && !modelSlug) {
+      throw new GatewayControlPlaneError("Invalid gateway model slug", 400);
+    }
+    const cacheParams = {
+      fastHashedSecretKey: params.fastHashedSecretKey,
+      apiFormat: params.apiFormat,
+    };
+    const cached = await this.cache.get(cacheParams);
     if (cached === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
       throw new GatewayControlPlaneError("Invalid gateway key", 401);
     }
 
-    const context = cached ?? (await this.loadAndCacheContext(params));
+    const context = cached ?? (await this.loadAndCacheContext(cacheParams));
 
     // Re-check on cache hits so removing an organization from the allowlist
     // takes effect without waiting for the cache TTL.
@@ -53,13 +68,21 @@ export class GatewayApiKeyAuthenticator {
         403,
       );
     }
-    return context;
+    return {
+      ...context,
+      connection:
+        (modelSlug
+          ? context.connections.find(
+              (connection) => connection.name === modelSlug.connectionName,
+            )
+          : context.connections[0]) ?? null,
+    };
   }
 
   private async loadAndCacheContext(params: {
     fastHashedSecretKey: string;
     apiFormat: GatewayApiFormat;
-  }): Promise<GatewayApiKeyAuthContext> {
+  }): Promise<CachedResolveContext> {
     const row = await this.repository.resolveContext({
       fastHashedSecretKey: params.fastHashedSecretKey,
       providers: supportedProviders(params.apiFormat),
@@ -69,7 +92,8 @@ export class GatewayApiKeyAuthenticator {
     const organization = row?.apiKey.organization;
     if (!row || !organizationId || !organization) {
       await this.cache.set({
-        ...params,
+        fastHashedSecretKey: params.fastHashedSecretKey,
+        apiFormat: params.apiFormat,
         context: GATEWAY_RESOLVE_KEY_NON_EXISTENT,
       });
       throw new GatewayControlPlaneError("Invalid gateway key", 401);
@@ -81,9 +105,7 @@ export class GatewayApiKeyAuthenticator {
       Boolean(project) &&
       !project?.deletedAt &&
       project?.orgId === organizationId;
-    const connection = organization.gatewayAiConnections[0];
-
-    const context: GatewayApiKeyAuthContext = {
+    const context: CachedResolveContext = {
       organizationId,
       apiKeyId: row.apiKeyId,
       keyMetadata: toKeyMetadata(row.metadata),
@@ -91,18 +113,12 @@ export class GatewayApiKeyAuthenticator {
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
         : null,
       ingestionMode: gatewayConfig?.ingestionMode ?? null,
-      connection: connection
-        ? {
-            id: connection.id,
-            name: connection.name,
-            provider: connection.provider,
-            encryptedCredential: connection.encryptedCredential,
-          }
-        : null,
+      connections: organization.gatewayAiConnections,
     };
 
     await this.cache.set({
-      ...params,
+      fastHashedSecretKey: params.fastHashedSecretKey,
+      apiFormat: params.apiFormat,
       context,
       expiresAt: row.apiKey.expiresAt,
     });

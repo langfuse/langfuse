@@ -313,11 +313,17 @@ describe("AI gateway live end-to-end", () => {
       async ({ provider, apiFormat, baseUrl, authType }) => {
         await withGatewayApiKey(
           { provider, apiFormat },
-          async ({ secretKey, id: keyId, providerConnectionId }) => {
+          async ({
+            secretKey,
+            id: keyId,
+            providerConnectionId,
+            providerConnectionName,
+          }) => {
             const resolveBody = await gatewayControlPlaneRequest({
               path: RESOLVE_PATH,
               apiFormat,
               virtualSecretKey: secretKey,
+              model: `${providerConnectionName}:ai-gateway-e2e`,
             });
             const resolved = GatewayResolveResponseSchema.parse(resolveBody);
 
@@ -377,6 +383,7 @@ async function withGatewayApiKey(
     secretKey: string;
     id: string;
     providerConnectionId: string;
+    providerConnectionName: string;
   }) => Promise<void>,
 ) {
   const targetConnectionId = connectionIdsByProvider.get(input.provider);
@@ -386,6 +393,10 @@ async function withGatewayApiKey(
     );
   }
   await selectOnlyConnection(targetConnectionId);
+  const targetConnection = await prisma.gatewayAiConnection.findUniqueOrThrow({
+    where: { id: targetConnectionId },
+    select: { name: true },
+  });
 
   const gatewayKey = await admin.caller.aiGateway.createApiKey({
     orgId: ORGANIZATION_ID,
@@ -410,6 +421,7 @@ async function withGatewayApiKey(
       secretKey: gatewayKey.secretKey,
       id: gatewayKey.id,
       providerConnectionId: targetConnectionId,
+      providerConnectionName: targetConnection.name,
     });
   } finally {
     await admin.caller.aiGateway.revokeApiKey({
@@ -547,6 +559,7 @@ async function gatewayControlPlaneRequest(input: {
   path: string;
   apiFormat: GatewayApiFormat;
   virtualSecretKey: string;
+  model?: string;
 }): Promise<unknown> {
   const timestamp = Math.floor(Date.now() / 1000);
   const canonicalMessage = [
@@ -571,7 +584,7 @@ async function gatewayControlPlaneRequest(input: {
     },
     body: isModelsRequest
       ? undefined
-      : JSON.stringify({ apiFormat: input.apiFormat }),
+      : JSON.stringify({ apiFormat: input.apiFormat, model: input.model }),
   });
   return readJsonResponse(response, 200, input.path);
 }

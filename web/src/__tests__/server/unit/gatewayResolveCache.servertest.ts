@@ -19,7 +19,7 @@ const context: CachedResolveContext = {
   keyMetadata: {},
   ingestionProjectId: null,
   ingestionMode: null,
-  connection: null,
+  connections: [],
 };
 
 describe("GatewayResolveCache", () => {

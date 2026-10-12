@@ -17,17 +17,32 @@ describe("aggregateModels", () => {
       provider: "ANTHROPIC",
     } as Connection;
     const results = [
-      { connectionId: "second", success: true, models: ["a-model"] },
-      { connectionId: "first", success: true, models: ["z-model", "b-model"] },
+      {
+        connectionId: "second",
+        success: true,
+        models: ["a-model", "shared-model"],
+      },
+      {
+        connectionId: "first",
+        success: true,
+        models: ["z-model", "b-model", "shared-model"],
+      },
     ] as Result[];
 
     expect(aggregateModels(results, [first]).map((model) => model.id)).toEqual([
-      "b-model",
-      "z-model",
+      "First:b-model",
+      "First:shared-model",
+      "First:z-model",
     ]);
     expect(
       aggregateModels(results, [first, second]).map((model) => model.id),
-    ).toEqual(["b-model", "z-model", "a-model"]);
+    ).toEqual([
+      "First:b-model",
+      "First:shared-model",
+      "First:z-model",
+      "Second:a-model",
+      "Second:shared-model",
+    ]);
   });
 
   it("does not duplicate badges for connections repeated across pages", () => {
