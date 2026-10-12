@@ -1,3 +1,4 @@
+import { toolResultOutput } from "./message-parts/tool-results";
 import { registeredProviders } from "../../conventions";
 import type { NormalizedMessagePart, NormalizedMessageRole } from "../../types";
 import { ownLookup } from "../utils/json";
@@ -54,10 +55,7 @@ export function coerceRole(
       return "assistant";
     }
     if (parts.every((part): boolean => part.type === "text")) {
-      const output = {
-        type: "content" as const,
-        value: parts.filter((part) => part.type === "text"),
-      };
+      const output = toolResultOutput(parts, parts);
       parts.splice(0, parts.length, {
         type: "tool-result",
         toolCallId: null,

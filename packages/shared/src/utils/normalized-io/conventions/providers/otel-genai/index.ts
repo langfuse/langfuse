@@ -1,7 +1,13 @@
 import { claimed, dropped, unmatched } from "../..";
-import { asRecord, compact, optionalString } from "../../../core/utils/json";
+import {
+  asRecord,
+  compact,
+  nullableString,
+  optionalString,
+  parseIfString,
+} from "../../../core/utils/json";
 import { toolCallPart } from "../../../core/normalize/message-parts/tool-calls";
-import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
+import { toolResultOutput } from "../../../core/normalize/message-parts/tool-results";
 import type {
   FinishReason,
   NormalizedMessage,
@@ -12,6 +18,7 @@ import type {
   IOConvention,
   MessageEnvelopeContext,
   PartHandler,
+  PartHandlerContext,
   ToolDefinitionCarrier,
   ToolDefinitionSource,
 } from "../../io-convention";
@@ -25,20 +32,23 @@ import type {
  */
 function normalizeOtelGenaiToolResult(
   value: Record<string, unknown>,
+  context: PartHandlerContext,
 ): ConventionResult<ToolResultPart> {
+  const output =
+    value.output ?? value.response ?? value.result ?? value.content;
   return claimed(
-    toolResultPart({
-      toolCallId:
+    compact<ToolResultPart>({
+      type: "tool-result",
+      toolCallId: nullableString(
         value.toolCallId /* ai sdk */ ??
-        value.tool_use_id /* anthropic */ ??
-        value.call_id /* openai responses */ ??
-        value.id,
-      toolName: value.toolName /* ai sdk */ ?? value.tool_name /* otel */,
-      output:
-        value.output /* ai sdk, openai responses */ ??
-        value.response /* gemini */ ??
-        value.result /* loose/traceloop */ ??
-        value.content /* anthropic, openai chat message */,
+          value.tool_use_id /* anthropic */ ??
+          value.call_id /* openai responses */ ??
+          value.id,
+      ),
+      toolName: optionalString(
+        value.toolName /* ai sdk */ ?? value.tool_name /* otel */,
+      ),
+      output: toolResultOutput(context.normalizePartList([output]), output),
       isError: [
         value.is_error /* anthropic */,
         value.isError /* ai sdk */,
@@ -69,8 +79,7 @@ const OTEL_GENAI_PART_HANDLERS = {
         toolType: optionalString(value.type),
       }),
     ),
-  tool_call_response: (value: Record<string, unknown>) =>
-    normalizeOtelGenaiToolResult(value),
+  tool_call_response: normalizeOtelGenaiToolResult,
 } satisfies Readonly<Record<string, PartHandler>>;
 
 /** GenAI choice events: `{index?, message, finish_reason?}`. */

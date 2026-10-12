@@ -94,10 +94,13 @@ with the provider's verbatim value kept in `raw`.
 
 `ToolResultPart.output` is a tagged value: `{ type: "text", value: string }`,
 `{ type: "json", value: JsonValue }`, or `{ type: "content", value: ToolResultContentPart[] }`.
-Explicit JSON stays JSON, including arrays and null. Explicitly declared content uses existing part normalization; arbitrary JSON is not
-searched recursively. Content can contain text, data, files, reasoning, and custom
-parts, but not nested calls/results. Transcript assembly preserves normalized part
-boundaries. Display projections such as the session tool preview belong to consumers.
+Provider handlers use the existing part normalizer for tool payloads; explicit JSON
+stays JSON, including arrays and null. The output helper only packages normalized
+parts: a single bare text/data part becomes text/JSON, while multiple parts or parts
+with metadata remain content. It does not recognize provider formats or normalize
+parts again. Content can contain text, data, files, reasoning, and custom parts, but
+not nested calls/results; unrepresentable output stays JSON. Display projections
+such as the session tool preview belong to consumers.
 
 ## How parsing works
 

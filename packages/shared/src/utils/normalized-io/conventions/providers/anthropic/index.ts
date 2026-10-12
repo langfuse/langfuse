@@ -3,6 +3,8 @@ import { claimed, unmatched } from "../..";
 import {
   asRecord,
   compact,
+  nullableString,
+  parseIfString,
   optionalString,
   recordKeyAsParsed,
   toJsonValue,
@@ -17,12 +19,12 @@ import {
   providerExecutedToolCall,
   toolCallPart,
 } from "../../../core/normalize/message-parts/tool-calls";
-import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
+import { toolResultOutput } from "../../../core/normalize/message-parts/tool-results";
 import {
   toolDefinition,
   toolDefinitionProviderMetadata,
 } from "../../../core/normalize/tool-definitions";
-import type { FilePart, FinishReason } from "../../../types";
+import type { FilePart, FinishReason, ToolResultPart } from "../../../types";
 import type {
   IOConvention,
   PartHandler,
@@ -174,16 +176,22 @@ const normalizeAnthropicContainerUpload: PartHandler = (value) => {
 
 // Anthropic result blocks: { type: "tool_result" | "*_tool_result",
 // tool_use_id, content, is_error? }.
-const normalizeAnthropicToolResult: PartHandler = (value) =>
-  claimed(
-    toolResultPart({
-      toolCallId: value.tool_use_id ?? value.id,
-      output: Array.isArray(value.content)
-        ? { type: "content", value: value.content }
-        : value.content,
+const normalizeAnthropicToolResult: PartHandler = (value, context) => {
+  const raw = parseIfString(value.content ?? null);
+  return claimed(
+    compact<ToolResultPart>({
+      type: "tool-result",
+      toolCallId: nullableString(value.tool_use_id ?? value.id),
+      output: toolResultOutput(
+        Array.isArray(value.content)
+          ? context.normalizePartList(value.content)
+          : context.normalizePartList([raw]),
+        raw,
+      ),
       isError: typeof value.is_error === "boolean" ? value.is_error : undefined,
     }),
   );
+};
 
 const ANTHROPIC_PART_HANDLERS = {
   tool_use: (value) => claimed(anthropicToolCall(value, "tool_use")),

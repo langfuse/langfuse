@@ -7,6 +7,7 @@ import {
   omitKeys,
   optionalString,
   parseArray,
+  parseIfString,
   recordKeyAsParsed,
   toJsonValue,
   toProviderMetadata,
@@ -21,10 +22,7 @@ import {
   providerExecutedToolCall,
   toolCallPart,
 } from "../../../core/normalize/message-parts/tool-calls";
-import {
-  toolResultPart,
-  normalizeToolResultOutput,
-} from "../../../core/normalize/message-parts/tool-results";
+import { toolResultOutput } from "../../../core/normalize/message-parts/tool-results";
 import {
   toolDefinition,
   toolDefinitionProviderMetadata,
@@ -35,6 +33,7 @@ import type {
   NormalizedMessage,
   NormalizedMessagePart,
   ToolCallPart,
+  ToolResultPart,
 } from "../../../types";
 import type {
   ConventionResult,
@@ -253,13 +252,16 @@ const normalizeOpenAiBuiltInCall: PartHandler = (value) =>
   claimed(normalizeBuiltInToolItem(value));
 
 // OpenAI Responses output items: { type: "*_output", call_id, output }.
-const normalizeOpenAiToolResult: PartHandler = (value) =>
-  claimed(
-    toolResultPart({
-      toolCallId: value.call_id ?? value.id,
-      output: value.output,
+const normalizeOpenAiToolResult: PartHandler = (value, context) => {
+  const raw = parseIfString(value.output ?? null);
+  return claimed(
+    compact<ToolResultPart>({
+      type: "tool-result",
+      toolCallId: nullableString(value.call_id ?? value.id),
+      output: toolResultOutput(context.normalizePartList([raw]), raw),
     }),
   );
+};
 
 // OpenAI Responses custom (free-form input) tool call:
 // { type: "custom_tool_call", call_id, name, input }.
@@ -582,6 +584,7 @@ const tryUnwrapLegacyFunctionMessage = (
   _fallbackRole: "user" | "assistant",
   ctx: MessageEnvelopeContext,
 ): ConventionResult<NormalizedMessage> => {
+  const content = parseIfString(value.content ?? null);
   if (
     // LangChain dict serializations carry `type: "tool"` instead of a role
     // key; the same tool-result shape (tool_call_id, artifact, status).
@@ -599,10 +602,11 @@ const tryUnwrapLegacyFunctionMessage = (
           // A `name` on a tool message is the tool's name, never a
           // participant name.
           toolName: optionalString(value.name),
-          output: normalizeToolResultOutput(
+          output: toolResultOutput(
             Array.isArray(value.content)
-              ? { type: "content", value: value.content }
-              : value.content,
+              ? ctx.normalizePartList(value.content)
+              : ctx.normalizePartList([content]),
+            content,
           ),
           isError: value.status === "error" ? true : undefined,
           providerMetadata:
@@ -626,10 +630,11 @@ const tryUnwrapLegacyFunctionMessage = (
     ...(optionalString(value.id) ? { id: String(value.id) } : {}),
     role: "tool",
     parts: [
-      toolResultPart({
-        toolCallId: value.tool_call_id,
-        toolName: value.name,
-        output: value.content,
+      compact<ToolResultPart>({
+        type: "tool-result",
+        toolCallId: nullableString(value.tool_call_id),
+        toolName: optionalString(value.name),
+        output: toolResultOutput(ctx.normalizePartList([content]), content),
       }),
     ],
     source: ctx.source,

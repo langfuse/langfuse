@@ -2,6 +2,7 @@ import { claimed, unmatched } from "../..";
 import {
   asRecord,
   compact,
+  nullableString,
   optionalString,
   parseArray,
   recordKeyAsParsed,
@@ -14,7 +15,6 @@ import {
 } from "../../../core/normalize/message-parts/media";
 import { reasoningPart } from "../../../core/normalize/message-parts/reasoning";
 import { toolCallPart } from "../../../core/normalize/message-parts/tool-calls";
-import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
 import type {
   FilePart,
   FinishReason,
@@ -81,9 +81,12 @@ function normalizeGeminiPart(
     // Gemini functionResponse: { name, response } — the name doubles as the
     // call id fallback, not the tool name (parity with the original join).
     return claimed(
-      toolResultPart({
-        toolCallId: functionResponse.id ?? functionResponse.name ?? value.id,
-        output: functionResponse.response,
+      compact<ToolResultPart>({
+        type: "tool-result",
+        toolCallId: nullableString(
+          functionResponse.id ?? functionResponse.name ?? value.id,
+        ),
+        output: { type: "json", value: toJsonValue(functionResponse.response) },
       }),
     );
   }

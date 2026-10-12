@@ -2,6 +2,8 @@ import { claimed, unmatched } from "../..";
 import {
   asRecord,
   compact,
+  nullableString,
+  parseIfString,
   optionalString,
   recordKeyAsParsed,
   toJsonValue,
@@ -12,12 +14,17 @@ import {
   parseMediaReference,
 } from "../../../core/normalize/message-parts/media";
 import { toolCallPart } from "../../../core/normalize/message-parts/tool-calls";
-import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
+import { toolResultOutput } from "../../../core/normalize/message-parts/tool-results";
 import {
   toolDefinition,
   toolDefinitionProviderMetadata,
 } from "../../../core/normalize/tool-definitions";
-import type { FilePart, FinishReason } from "../../../types";
+import type {
+  FilePart,
+  FinishReason,
+  ToolResultPart,
+  ToolResultOutput,
+} from "../../../types";
 import type {
   IOConvention,
   MessageSource,
@@ -110,16 +117,18 @@ const normalizeAiSdkFile: PartHandler = (value) => {
   return part ? claimed(part) : unmatched;
 };
 
-const normalizeAiSdkToolError: PartHandler = (value) =>
-  claimed({
-    // AI SDK tool execution error: the error is the result.
-    ...toolResultPart({
-      toolCallId: value.toolCallId,
-      toolName: value.toolName,
-      output: value.error ?? null,
+const normalizeAiSdkToolError: PartHandler = (value, context) => {
+  const raw = parseIfString(value.error ?? null);
+  return claimed(
+    compact<ToolResultPart>({
+      type: "tool-result",
+      toolCallId: nullableString(value.toolCallId),
+      toolName: optionalString(value.toolName),
+      output: toolResultOutput(context.normalizePartList([raw]), raw),
+      isError: true,
     }),
-    isError: true,
-  });
+  );
+};
 
 const normalizeAiSdkReasoningFile: PartHandler = (value) => {
   // AI SDK reasoning-generated file (a FilePart nested under `file`; older
@@ -155,15 +164,55 @@ const normalizeAiSdkToolCall: PartHandler = (value) =>
   );
 // AI SDK tool-result parts: { toolCallId, toolName, output } (v4 emissions
 // used `result`).
-const normalizeAiSdkToolResult: PartHandler = (value) =>
-  claimed(
-    toolResultPart({
-      toolCallId: value.toolCallId,
-      toolName: value.toolName,
-      output: value.output ?? value.result,
-      isError: typeof value.isError === "boolean" ? value.isError : undefined,
+const normalizeAiSdkToolResult: PartHandler = (value, context) => {
+  const raw = value.output ?? value.result;
+  const record = asRecord(raw);
+  const wrapper =
+    record && ("value" in record || record.type === "execution-denied")
+      ? record
+      : undefined;
+  let output: ToolResultOutput;
+  let isError = typeof value.isError === "boolean" ? value.isError : undefined;
+  switch (wrapper?.type) {
+    case "text":
+    case "error-text":
+      output =
+        typeof wrapper.value === "string"
+          ? { type: "text", value: wrapper.value }
+          : { type: "json", value: toJsonValue(wrapper.value) };
+      isError ??= wrapper.type === "error-text" ? true : undefined;
+      break;
+    case "json":
+    case "error-json":
+      output = { type: "json", value: toJsonValue(wrapper.value) };
+      isError ??= wrapper.type === "error-json" ? true : undefined;
+      break;
+    case "content":
+      output = toolResultOutput(
+        Array.isArray(wrapper.value)
+          ? context.normalizePartList(wrapper.value)
+          : [],
+        wrapper.value,
+      );
+      break;
+    case "execution-denied":
+      output = { type: "json", value: toJsonValue(raw) };
+      break;
+    default: {
+      const parsed = parseIfString(raw ?? null);
+      output = toolResultOutput(context.normalizePartList([parsed]), parsed);
+    }
+  }
+  return claimed(
+    compact<ToolResultPart>({
+      type: "tool-result",
+      toolCallId: nullableString(value.toolCallId),
+      toolName: optionalString(value.toolName),
+      output,
+      isError,
     }),
   );
+};
 
 // Model-facing tool outputs use explicit URL/data variants rather than the
 // legacy image/file payloads used in ordinary messages.

@@ -25,7 +25,7 @@ export type PartHandlerContext = {
   normalizePartList(values: unknown[]): NormalizedMessagePart[];
 };
 
-export type MessageEnvelopeContext = {
+export type MessageEnvelopeContext = PartHandlerContext & {
   /** The observation side being normalized — for implementations that
    * construct a message directly instead of recursing. */
   readonly source: "input" | "output";

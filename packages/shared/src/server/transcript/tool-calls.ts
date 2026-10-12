@@ -1,3 +1,4 @@
+import { toolResultOutput } from "../../utils/normalized-io/core/normalize/message-parts/tool-results";
 import type {
   NormalizedMessage,
   ToolCallPart,
@@ -221,7 +222,7 @@ export function createToolCallRegistry() {
           type: "tool-result",
           toolCallId: call.part.toolCallId,
           toolName: call.part.toolName,
-          output: { type: "content", value: parts },
+          output: toolResultOutput(parts, parts),
         },
       ]);
     } else {
