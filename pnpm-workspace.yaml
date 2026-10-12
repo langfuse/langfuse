@@ -115,7 +115,7 @@ overrides:
   tar-fs: ^2.1.2
   rollup@^4.0.0: ^4.22.4
   "@types/node-fetch": ^2.6.13
-  "@types/react-dom": 19.2.3
+  "@types/react-dom": 19.3.0
   fast-xml-builder: 1.1.7
   glob: ^10.5.0
   qs: 6.16.0
@@ -194,33 +194,11 @@ publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
 minimumReleaseAgeExclude:
-  # Next.js security fixes; eligible without exceptions after 2026-10-05 16:08 UTC.
-  - next@16.3.8
-  - "@next/env@16.3.8"
-  - "@next/eslint-plugin-next@16.3.8"
-  - "@next/swc-darwin-arm64@16.3.8"
-  - "@next/swc-darwin-x64@16.3.8"
-  - "@next/swc-linux-arm64-gnu@16.3.8"
-  - "@next/swc-linux-arm64-musl@16.3.8"
-  - "@next/swc-linux-x64-gnu@16.3.8"
-  - "@next/swc-linux-x64-musl@16.3.8"
-  - "@next/swc-win32-arm64-msvc@16.3.8"
-  - "@next/swc-win32-x64-msvc@16.3.8"
   # AI SDK Decisions API (`experimental_decide`); eligible after 2026-10-12 01:47 UTC.
   - ai@7.0.130
   - "@ai-sdk/openai@4.0.86"
   - "@ai-sdk/gateway@4.0.106"
   - "@ai-sdk/provider@4.0.24"
   - "@ai-sdk/provider-utils@5.0.56"
-  # Turbo and lint companions; eligible after 2026-10-06 04:01 UTC.
-  - turbo@2.11.6
-  - eslint-config-turbo@2.11.6
-  - eslint-plugin-turbo@2.11.6
-  - "@turbo/darwin-64@2.11.6"
-  - "@turbo/darwin-arm64@2.11.6"
-  - "@turbo/linux-64@2.11.6"
-  - "@turbo/linux-arm64@2.11.6"
-  - "@turbo/windows-64@2.11.6"
-  - "@turbo/windows-arm64@2.11.6"
   # Handlebars security fixes; eligible after 2026-10-10 22:37 UTC.
   - handlebars@4.7.10

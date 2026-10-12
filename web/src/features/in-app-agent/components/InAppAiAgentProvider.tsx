@@ -69,6 +69,7 @@ import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickA
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   getCompletedToolCalls,
   performToolSideEffectsForCompletedToolCalls,
@@ -592,7 +593,11 @@ function InAppAiAgentProviderInner({
 
     fetchNextConversationsPage().catch((error) => {
       const errorMessage = getAgentErrorMessage(error);
-      showErrorToast("Failed to load conversations", errorMessage);
+      showErrorToast(
+        "Failed to load conversations",
+        errorMessage,
+        classifyTrpcToastError(error, "in_app_agent_conversations.load"),
+      );
       console.error("Failed to load in-app agent conversations", error);
     });
   }, [
@@ -613,7 +618,14 @@ function InAppAiAgentProviderInner({
     }
 
     const errorMessage = getAgentErrorMessage(conversationListQuery.error);
-    showErrorToast("Failed to load conversations", errorMessage);
+    showErrorToast(
+      "Failed to load conversations",
+      errorMessage,
+      classifyTrpcToastError(
+        conversationListQuery.error,
+        "in_app_agent_conversations.load",
+      ),
+    );
     console.error("Failed to load in-app agent conversations", {
       error: conversationListQuery.error,
       projectId,
@@ -1000,7 +1012,11 @@ function InAppAiAgentProviderInner({
         ]);
       } catch (error) {
         const errorMessage = getAgentErrorMessage(error);
-        showErrorToast("Failed to delete conversation", errorMessage);
+        showErrorToast(
+          "Failed to delete conversation",
+          errorMessage,
+          classifyTrpcToastError(error, "in_app_agent_conversation.delete"),
+        );
         console.error("Failed to delete in-app agent conversation", error);
         throw error;
       }
@@ -1168,7 +1184,11 @@ function InAppAiAgentProviderInner({
         });
       } catch (error) {
         const errorMessage = getAgentErrorMessage(error);
-        showErrorToast("Failed to save feedback", errorMessage);
+        showErrorToast(
+          "Failed to save feedback",
+          errorMessage,
+          classifyTrpcToastError(error, "in_app_agent_feedback.save"),
+        );
         console.error("Failed to save in-app agent feedback", error);
         throw error;
       }
@@ -1292,7 +1312,11 @@ function InAppAiAgentProviderInner({
     );
 
     backgroundSession.cancel().catch((error: unknown) => {
-      showErrorToast("Failed to stop the run", getAgentErrorMessage(error));
+      showErrorToast(
+        "Failed to stop the run",
+        getAgentErrorMessage(error),
+        classifyTrpcToastError(error, "in_app_agent_run.stop"),
+      );
     });
   }, [
     conversationQuery.data,

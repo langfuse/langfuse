@@ -18,7 +18,7 @@ const call = (id: string | null): ToolCallPart => ({
 const result = (id: string | null): ToolResultPart => ({
   type: "tool-result",
   toolCallId: id,
-  output: "found",
+  output: { type: "text", value: "found" },
 });
 const text = (value: string): NormalizedMessagePart => ({
   type: "text",
@@ -84,7 +84,7 @@ describe("groupTranscriptMessages", () => {
   });
 
   it("pairs a server-produced identified tool response", () => {
-    const output = "found";
+    const output = { type: "text", value: "found" } as const;
     const parts = [{ ...result("a"), toolName: "search", output }];
     const toolCall = call("a");
     const response = {

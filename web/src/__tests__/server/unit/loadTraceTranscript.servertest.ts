@@ -236,7 +236,7 @@ it.each(["ERROR", "WARNING"] as const)(
         {
           type: "tool-result",
           toolCallId: "call-1",
-          output: null,
+          output: { type: "json", value: null },
           isError: level === "ERROR",
         },
       ],
@@ -392,7 +392,7 @@ it.each(["missing", "idless"])(
       { toolCallId: "call-1" },
     ]);
     expect(parts.filter((part) => part.type === "tool-result")).toMatchObject([
-      { toolCallId: "call-1", output: { answer: 42 } },
+      { toolCallId: "call-1", output: { type: "json", value: { answer: 42 } } },
     ]);
     expect(observations).toEqual(snapshot);
   },
@@ -905,7 +905,7 @@ it("preserves explicit results that conflict with TOOL metadata", async () => {
     (message) => message.parts,
   );
   expect(parts.filter((part) => part.type === "tool-result")).toMatchObject([
-    { toolCallId: "explicit", output: "result" },
+    { toolCallId: "explicit", output: { type: "text", value: "result" } },
   ]);
   expect(
     parts.some(
@@ -1007,7 +1007,7 @@ it.each([
           type: "tool-result",
           toolCallId: "call-1",
           toolName: "execute",
-          output,
+          output: { type: "json", value: output },
         },
       ],
     });
@@ -1082,7 +1082,7 @@ it("opts into provenance-based reverse multi-call responses without mutating ass
         type: "tool-result",
         toolCallId: "call-1",
         toolName: "weather",
-        output: "weather",
+        output: { type: "content", value: [{ type: "text", text: "weather" }] },
       },
     ],
     [
@@ -1090,7 +1090,7 @@ it("opts into provenance-based reverse multi-call responses without mutating ass
         type: "tool-result",
         toolCallId: "call-0",
         toolName: "search",
-        output: "search",
+        output: { type: "content", value: [{ type: "text", text: "search" }] },
       },
     ],
   ]);
@@ -1127,14 +1127,19 @@ it.each([
     expect(
       result.transcript?.threads[0]?.currentTurn.messages[1]?.parts,
     ).toEqual([
-      { type: "tool-result", toolCallId: "call-0", toolName: "search", output },
+      {
+        type: "tool-result",
+        toolCallId: "call-0",
+        toolName: "search",
+        output: { type: "content", value: [{ type: "data", value: output }] },
+      },
     ]);
     expect(original).toEqual(snapshot);
     expect((await loadTraceTranscript(trace)).transcript).toBe(original);
   },
 );
 
-it("preserves multiple JSON parts as an output array", async () => {
+it("preserves multiple JSON parts as typed content", async () => {
   const original = fixture(["search"], ["search"]);
   original.threads[0]!.currentTurn.messages[1]!.parts = [
     { type: "data", value: { answer: 42 } },
@@ -1150,7 +1155,13 @@ it("preserves multiple JSON parts as an output array", async () => {
         type: "tool-result",
         toolCallId: "call-0",
         toolName: "search",
-        output: [{ answer: 42 }, { confidence: 0.9 }],
+        output: {
+          type: "content",
+          value: [
+            { type: "data", value: { answer: 42 } },
+            { type: "data", value: { confidence: 0.9 } },
+          ],
+        },
       },
     ],
   );
@@ -1192,7 +1203,11 @@ it.each([
     messages.push({
       ...messages[1]!,
       parts: [
-        { type: "tool-result", toolCallId: "call-0", output: "explicit" },
+        {
+          type: "tool-result",
+          toolCallId: "call-0",
+          output: { type: "text", value: "explicit" },
+        },
       ],
     });
   }
@@ -1221,7 +1236,13 @@ it("preserves explicit result precedence", async () => {
   const original = fixture(["search"], ["search"]);
   original.threads[0]!.currentTurn.messages.push({
     ...original.threads[0]!.currentTurn.messages[1]!,
-    parts: [{ type: "tool-result", toolCallId: "call-0", output: "explicit" }],
+    parts: [
+      {
+        type: "tool-result",
+        toolCallId: "call-0",
+        output: { type: "text", value: "explicit" },
+      },
+    ],
   });
   expect(
     (await loadTraceTranscript({ ...trace, recoverToolResponses: true }))
