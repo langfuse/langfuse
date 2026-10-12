@@ -34,7 +34,8 @@ import { ClickHouseOperationNodeTransformer } from "./transformer";
 /**
  * Compile-time tenancy scope. Every ClickHouse query compiled through
  * {@link compileClickhouseQuery} must carry one of these; the tenancy
- * injection pass keys off `projectId`.
+ * injection pass keys off `projectId`. A query is always scoped to exactly one
+ * project.
  */
 export type ExecutionContext = {
   projectId: string;
@@ -66,11 +67,7 @@ type Relation =
  */
 export class TenancyInjectionPlugin implements KyselyPlugin {
   constructor(private readonly ctx: ExecutionContext) {
-    if (!ctx?.projectId) {
-      throw new QueryCompileError(
-        "ExecutionContext.projectId is required for tenancy injection",
-      );
-    }
+    requireExecutionContext(ctx);
   }
 
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
@@ -149,10 +146,8 @@ function injectSelect(
 
   let where = node.where;
   for (const table of tenantedFrom) {
-    if (
-      !predicateCovers(where?.where, table, ctx.projectId, requireQualified)
-    ) {
-      const predicate = projectIdPredicate(table, ctx.projectId);
+    if (!predicateCovers(where?.where, table, ctx, requireQualified)) {
+      const predicate = projectIdPredicate(table, ctx);
       // Prepend: the tenancy scope is the leading WHERE predicate, so its bound
       // value keeps a stable (first) parameter position regardless of the other
       // predicates a caller wrote.
@@ -168,12 +163,12 @@ function injectSelect(
     }
     const onExpr = join.on?.on;
     if (
-      predicateCovers(onExpr, relation, ctx.projectId, requireQualified) ||
-      predicateCovers(where?.where, relation, ctx.projectId, requireQualified)
+      predicateCovers(onExpr, relation, ctx, requireQualified) ||
+      predicateCovers(where?.where, relation, ctx, requireQualified)
     ) {
       return join;
     }
-    const predicate = projectIdPredicate(relation, ctx.projectId);
+    const predicate = projectIdPredicate(relation, ctx);
     if (!join.on) {
       return JoinNode.createWithOn(join.joinType, join.table, predicate);
     }
@@ -228,18 +223,23 @@ function identifierName(node: OperationNode): string | undefined {
   return undefined;
 }
 
-function projectIdPredicate(
+function projectIdColumn(
   table: Extract<Relation, { kind: "table" }>,
-  projectId: string,
 ): OperationNode {
   const column = ColumnNode.create(PROJECT_ID_COLUMN);
-  const left = table.alias
+  return table.alias
     ? ReferenceNode.create(column, TableNode.create(table.alias))
     : column;
+}
+
+function projectIdPredicate(
+  table: Extract<Relation, { kind: "table" }>,
+  ctx: ExecutionContext,
+): OperationNode {
   return BinaryOperationNode.create(
-    left,
+    projectIdColumn(table),
     OperatorNode.create("="),
-    ValueNode.create(projectId),
+    ValueNode.create(ctx.projectId),
   );
 }
 
@@ -255,32 +255,34 @@ function projectIdPredicate(
 function predicateCovers(
   expr: OperationNode | undefined,
   table: Extract<Relation, { kind: "table" }>,
-  projectId: string,
+  ctx: ExecutionContext,
   requireQualified: boolean,
 ): boolean {
   if (!expr) return false;
   if (AndNode.is(expr)) {
     return (
-      predicateCovers(expr.left, table, projectId, requireQualified) ||
-      predicateCovers(expr.right, table, projectId, requireQualified)
+      predicateCovers(expr.left, table, ctx, requireQualified) ||
+      predicateCovers(expr.right, table, ctx, requireQualified)
     );
   }
   if (OrNode.is(expr)) {
     return (
-      predicateCovers(expr.left, table, projectId, requireQualified) &&
-      predicateCovers(expr.right, table, projectId, requireQualified)
+      predicateCovers(expr.left, table, ctx, requireQualified) &&
+      predicateCovers(expr.right, table, ctx, requireQualified)
     );
   }
   if (ParensNode.is(expr)) {
-    return predicateCovers(expr.node, table, projectId, requireQualified);
+    return predicateCovers(expr.node, table, ctx, requireQualified);
   }
-  if (!BinaryOperationNode.is(expr)) return false;
-  if (!OperatorNode.is(expr.operator) || expr.operator.operator !== "=") {
+  if (!BinaryOperationNode.is(expr) || !OperatorNode.is(expr.operator)) {
+    return false;
+  }
+  if (!isProjectIdColumn(expr.leftOperand, table, requireQualified)) {
     return false;
   }
   return (
-    isProjectIdColumn(expr.leftOperand, table, requireQualified) &&
-    isProjectIdValue(expr.rightOperand, projectId)
+    expr.operator.operator === "=" &&
+    isProjectIdValue(expr.rightOperand, ctx.projectId)
   );
 }
 
