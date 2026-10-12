@@ -10,6 +10,7 @@ const {
   reportNonTrpcErrorMock,
   showErrorToastMock,
   testConnectionMutateAsync,
+  createConnectionMutateAsync,
   createApiKeyMutateAsync,
   mutationStates,
 } = vi.hoisted(() => {
@@ -41,6 +42,7 @@ const {
     reportNonTrpcErrorMock: vi.fn(),
     showErrorToastMock: vi.fn(),
     testConnectionMutateAsync: vi.fn(),
+    createConnectionMutateAsync: vi.fn(),
     createApiKeyMutateAsync: vi.fn(),
     mutationStates,
   };
@@ -51,6 +53,21 @@ const providerValidationError = () =>
     result: {
       error: {
         message: "Provider credential validation failed",
+        code: -32600,
+        data: {
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "aiGateway.createConnection",
+        },
+      },
+    },
+  });
+
+const duplicateConnectionNameError = () =>
+  new TRPCClientError("A provider credential with this name already exists.", {
+    result: {
+      error: {
+        message: "A provider credential with this name already exists.",
         code: -32600,
         data: {
           code: "BAD_REQUEST",
@@ -143,9 +160,10 @@ vi.mock("@/src/utils/api", () => {
           ),
         },
         createConnection: {
-          useMutation: createStatefulMutation(async () => {
-            throw providerValidationError();
-          }, "createConnection"),
+          useMutation: createStatefulMutation(
+            createConnectionMutateAsync,
+            "createConnection",
+          ),
         },
         updateConnection: {
           useMutation: createStatefulMutation(async () => {
@@ -215,6 +233,8 @@ describe("gateway mutation local error handling", () => {
     reportNonTrpcErrorMock.mockClear();
     showErrorToastMock.mockClear();
     testConnectionMutateAsync.mockClear();
+    createConnectionMutateAsync.mockReset();
+    createConnectionMutateAsync.mockRejectedValue(providerValidationError());
     createApiKeyMutateAsync.mockClear();
     mutationStates.testConnection = {
       isError: false,
@@ -297,6 +317,71 @@ describe("gateway mutation local error handling", () => {
     expect(
       await screen.findByText("Provider credential validation failed"),
     ).toBeInTheDocument();
+  });
+
+  it("shows duplicate connection names on the name field", async () => {
+    createConnectionMutateAsync.mockRejectedValueOnce(
+      duplicateConnectionNameError(),
+    );
+    render(
+      <ProviderDialogController organizationId="org-1">
+        {({ openAddDialog }) => (
+          <Button onClick={openAddDialog}>Add provider</Button>
+        )}
+      </ProviderDialogController>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add provider" }));
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Production" },
+    });
+    fireEvent.change(screen.getByLabelText("Secret key"), {
+      target: { value: "sk-test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Test and save" }));
+
+    expect(
+      await screen.findByText(
+        "A provider credential with this name already exists.",
+      ),
+    ).toHaveAttribute("role", "alert");
+    expect(screen.getByLabelText("Name")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(
+      screen.queryByText("Provider credential could not be saved"),
+    ).not.toBeInTheDocument();
+    expect(showErrorToastMock).not.toHaveBeenCalled();
+  });
+
+  it("validates colons directly on the connection name field", async () => {
+    render(
+      <ProviderDialogController organizationId="org-1">
+        {({ openAddDialog }) => (
+          <Button onClick={openAddDialog}>Add provider</Button>
+        )}
+      </ProviderDialogController>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add provider" }));
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Production:OpenAI" },
+    });
+    fireEvent.change(screen.getByLabelText("Secret key"), {
+      target: { value: "sk-test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Test and save" }));
+
+    expect(
+      await screen.findByText("Connection names cannot contain a colon."),
+    ).toHaveAttribute("role", "alert");
+    expect(screen.getByLabelText("Name")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(createConnectionMutateAsync).not.toHaveBeenCalled();
+    expect(showErrorToastMock).not.toHaveBeenCalled();
   });
 
   it("opens the selected credential through the dialog controller", () => {

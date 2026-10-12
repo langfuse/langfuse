@@ -26,6 +26,11 @@ import {
   reportTrpcErrorWithoutToast,
 } from "@/src/utils/api";
 
+const DUPLICATE_CONNECTION_NAME_ERROR =
+  "A provider credential with this name already exists.";
+const INVALID_CONNECTION_NAME_ERROR =
+  "Connection names cannot contain a colon.";
+
 export function ProviderDialogController({
   organizationId,
   connection,
@@ -42,6 +47,7 @@ export function ProviderDialogController({
     connection?.provider ?? "OPENAI",
   );
   const [name, setName] = useState(connection?.name ?? "");
+  const [nameError, setNameError] = useState<string | null>(null);
   const [credential, setCredential] = useState("");
   const utils = api.useUtils();
   const test = api.aiGateway.testConnection.useMutation({
@@ -58,12 +64,23 @@ export function ProviderDialogController({
   });
   const isSaving = create.isPending || update.isPending;
   const isPending = test.isPending || isSaving;
-  const isError = test.isError || create.isError || update.isError;
+  const saveError = create.error ?? update.error;
+  const isNameMutationError =
+    saveError?.message === DUPLICATE_CONNECTION_NAME_ERROR;
+  const isError =
+    test.isError ||
+    ((create.isError || update.isError) && !isNameMutationError);
 
   const reset = () => {
     setProvider("OPENAI");
     setName("");
+    setNameError(null);
     setCredential("");
+  };
+
+  const updateName = (value: string) => {
+    setName(value);
+    setNameError(null);
   };
 
   const testCredential = async (
@@ -84,6 +101,12 @@ export function ProviderDialogController({
     selectedConnection: GatewayConnection | null,
     closeDialog: () => void,
   ) => {
+    if (name.includes(":")) {
+      setNameError(INVALID_CONNECTION_NAME_ERROR);
+      return;
+    }
+    setNameError(null);
+
     try {
       if (selectedConnection) {
         await update.mutateAsync({
@@ -108,6 +131,13 @@ export function ProviderDialogController({
       closeDialog();
       reset();
     } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === DUPLICATE_CONNECTION_NAME_ERROR
+      ) {
+        setNameError(DUPLICATE_CONNECTION_NAME_ERROR);
+        return;
+      }
       reportNonTrpcError(error, "ai-gateway-providers");
     }
   };
@@ -142,13 +172,14 @@ export function ProviderDialogController({
             )}
             <CredentialFields
               name={name}
+              nameError={nameError}
               credential={credential}
               credentialPlaceholder={
                 selectedConnection
                   ? "Leave blank to keep current key"
                   : "Enter secret key"
               }
-              onNameChange={setName}
+              onNameChange={updateName}
               onCredentialChange={setCredential}
             />
             {selectedConnection && name.trim() !== selectedConnection.name ? (
@@ -210,12 +241,14 @@ export function ProviderDialogController({
           openAddDialog: () => {
             setProvider(connection?.provider ?? "OPENAI");
             setName(connection?.name ?? "");
+            setNameError(null);
             setCredential("");
             openDialog(connection ?? null);
           },
           openEditDialog: (selectedConnection) => {
             setProvider(selectedConnection.provider);
             setName(selectedConnection.name);
+            setNameError(null);
             setCredential("");
             openDialog(selectedConnection);
           },
