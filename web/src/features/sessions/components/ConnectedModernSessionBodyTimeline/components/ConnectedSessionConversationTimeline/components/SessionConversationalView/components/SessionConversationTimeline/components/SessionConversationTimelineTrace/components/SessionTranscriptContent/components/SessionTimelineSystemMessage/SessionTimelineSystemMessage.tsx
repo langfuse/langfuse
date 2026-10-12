@@ -1,4 +1,3 @@
-import type { SessionContentPart } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/groupTranscriptMessages";
 import { useState, type ReactNode } from "react";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { SessionTimelineCollapsibleRow } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
@@ -9,7 +8,7 @@ export function SessionTimelineSystemMessage({
   senderName,
   trailingContent,
 }: {
-  parts: SessionContentPart[];
+  parts: NormalizedMessage["parts"];
   senderName: NormalizedMessage["senderName"];
   trailingContent?: ReactNode;
 }) {

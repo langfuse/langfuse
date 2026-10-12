@@ -7,8 +7,6 @@ import { cn } from "@/src/utils/tailwind";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
 import { type Observation } from "@langfuse/shared";
 
-import type { getSessionToolOutputPreview } from "./getSessionToolOutputPreview";
-
 const hasPreviewValue = (value: unknown) =>
   value !== null && value !== undefined && value !== "";
 
@@ -16,7 +14,6 @@ export function SessionTimelineToolRow({
   name,
   input,
   output,
-  omittedContent = [],
   isExpanded,
   onExpandedChange,
   level,
@@ -26,16 +23,12 @@ export function SessionTimelineToolRow({
   name: string;
   input: unknown;
   output: unknown;
-  omittedContent?: ReturnType<
-    typeof getSessionToolOutputPreview
-  >["omittedContent"];
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
   level?: Observation["level"];
   statusMessage?: Observation["statusMessage"];
   trailingContent?: ReactNode;
 }) {
-  const hasOutput = hasPreviewValue(output);
   const StatusIcon = level
     ? (
         {
@@ -106,28 +99,17 @@ export function SessionTimelineToolRow({
             </div>
           </div>
         ) : null}
-        {hasOutput || omittedContent.length > 0 ? (
+        {hasPreviewValue(output) ? (
           <div className="flex min-w-0 flex-col gap-1">
             <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
               Output
             </span>
-            {hasOutput ? (
-              <div className="grid max-h-96 min-w-0">
-                <Codeblock label="Tool output" value={output} allowFormatting />
-              </div>
-            ) : null}
-            {omittedContent.map(({ kind, count }) => (
-              <p key={kind} className="text-muted-foreground text-xs">
-                {count} {kind} {count === 1 ? "item" : "items"} omitted from
-                this preview. View the tool observation for the original
-                content.
-              </p>
-            ))}
+            <div className="grid max-h-96 min-w-0">
+              <Codeblock label="Tool output" value={output} allowFormatting />
+            </div>
           </div>
         ) : null}
-        {!hasPreviewValue(input) &&
-        !hasOutput &&
-        omittedContent.length === 0 ? (
+        {!hasPreviewValue(input) && !hasPreviewValue(output) ? (
           <div className="relative">
             <span className="text-muted-foreground text-xs">
               No input or output

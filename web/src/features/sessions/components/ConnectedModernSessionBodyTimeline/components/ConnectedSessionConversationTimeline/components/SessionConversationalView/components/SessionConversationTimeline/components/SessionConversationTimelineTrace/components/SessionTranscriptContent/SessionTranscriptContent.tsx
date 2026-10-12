@@ -352,7 +352,6 @@ function SessionTranscriptTool({
       name={row.call?.toolName ?? row.result?.toolName ?? "Tool"}
       input={row.call?.input}
       output={preview?.value}
-      omittedContent={preview?.omittedContent}
       {...status}
       isExpanded={isExpanded}
       onExpandedChange={setIsExpanded}
@@ -367,10 +366,7 @@ function SessionTranscriptMessage({
   onOpenObservation,
   expandRequestId,
 }: {
-  message: Extract<
-    TranscriptMessageGroup<DisplayMessage>,
-    { type: "message" }
-  >["message"];
+  message: DisplayMessage;
   trailingContent: ReactNode;
   onOpenObservation: (observationId: string) => void;
   expandRequestId?: number;
