@@ -128,6 +128,9 @@ async fn relay(
             .map_err(InferenceHttpError::Resolution)?;
         return model_catalog_response(route, models);
     }
+    let upload_permit = inference
+        .try_admit_upload()
+        .map_err(InferenceHttpError::Provider)?;
     let query = forwarded_query(route, request.uri().query());
     let (parts, body) = request.into_parts();
     let mut bytes = if route.method() == axum::http::Method::GET {
@@ -148,6 +151,7 @@ async fn relay(
             RequestPreparationError::Resolution(error) => InferenceHttpError::Resolution(error),
             RequestPreparationError::Provider(error) => InferenceHttpError::Provider(error),
         })?;
+    drop(upload_permit);
     if let Some(upstream_model) = context.model() {
         bytes = replace_request_model(&bytes, upstream_model)?;
     }

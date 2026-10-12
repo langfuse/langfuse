@@ -237,7 +237,7 @@ impl ControlPlaneClient {
             None => serde_json::json!({ "apiFormat": api_format }),
         })
         .map_err(|_| ResolutionError::Configuration)?;
-        let mut response = self
+        let response = self
             .client
             .post(self.config.endpoint(RESOLVE_PATH))
             .header(AUTHORIZATION, credential)
@@ -256,25 +256,7 @@ impl ControlPlaneClient {
             429 | 500..=599 => return Err(ResolutionError::Unavailable),
             _ => return Err(ResolutionError::InvalidResponse),
         }
-        let limit = self.config.limits.max_response_bytes;
-        if response
-            .content_length()
-            .is_some_and(|size| size > limit as u64)
-        {
-            return Err(ResolutionError::ResponseTooLarge);
-        }
-        let mut bytes = Vec::new();
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .map_err(|_| ResolutionError::Transport)?
-        {
-            if chunk.len() > limit - bytes.len() {
-                return Err(ResolutionError::ResponseTooLarge);
-            }
-            bytes.extend_from_slice(&chunk);
-        }
-        Ok(bytes)
+        read_bounded_response(response, self.config.limits.max_response_bytes).await
     }
 
     async fn fetch_models(
@@ -313,22 +295,32 @@ impl ControlPlaneClient {
             429 | 500..=599 => return Err(ResolutionError::Unavailable),
             _ => return Err(ResolutionError::InvalidResponse),
         }
-        let limit = self.config.limits.max_response_bytes;
-        if response
-            .content_length()
-            .is_some_and(|size| size > limit as u64)
-        {
-            return Err(ResolutionError::ResponseTooLarge);
-        }
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|_| ResolutionError::Transport)?;
-        if bytes.len() > limit {
-            return Err(ResolutionError::ResponseTooLarge);
-        }
-        Ok(bytes.to_vec())
+        read_bounded_response(response, self.config.limits.max_response_bytes).await
     }
+}
+
+async fn read_bounded_response(
+    mut response: reqwest::Response,
+    limit: usize,
+) -> Result<Vec<u8>, ResolutionError> {
+    if response
+        .content_length()
+        .is_some_and(|size| size > limit as u64)
+    {
+        return Err(ResolutionError::ResponseTooLarge);
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|_| ResolutionError::Transport)?
+    {
+        if chunk.len() > limit - bytes.len() {
+            return Err(ResolutionError::ResponseTooLarge);
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(bytes)
 }
 
 fn valid_token(value: &str) -> bool {
