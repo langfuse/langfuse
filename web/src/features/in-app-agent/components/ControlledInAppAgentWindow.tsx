@@ -59,6 +59,7 @@ export function ControlledInAppAgentWindow(
     isLoadingMoreConversations,
     isRunning,
     isSelectedConversationHydrating,
+    isSelectedConversationPersisted,
     execution,
     isSubmitting,
     invalidateConversations,
@@ -172,7 +173,10 @@ export function ControlledInAppAgentWindow(
       ? router.query.projectId
       : undefined;
   const titleActions =
-    internalFeaturesEnabled && projectId && selectedConversationId ? (
+    internalFeaturesEnabled &&
+    projectId &&
+    selectedConversationId &&
+    isSelectedConversationPersisted ? (
       <InAppAgentInternalSessionMenu
         projectId={projectId}
         conversationId={selectedConversationId}

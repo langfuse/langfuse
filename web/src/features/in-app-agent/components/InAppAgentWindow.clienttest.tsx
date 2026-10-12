@@ -28,6 +28,7 @@ const controlledAgent = vi.hoisted(() => ({
     isLoadingMoreConversations: false,
     isRunning: true,
     isSelectedConversationHydrating: false,
+    isSelectedConversationPersisted: false,
     isSubmitting: false,
     execution: {
       run: null as {
@@ -449,6 +450,7 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
   afterEach(() => {
     sessionUser.admin = false;
     controlledAgent.value.selectedConversationId = undefined;
+    controlledAgent.value.isSelectedConversationPersisted = false;
     telemetryProjectQuery.value = {
       data: { projectId: "ai-features-project" },
       isPending: false,
@@ -471,8 +473,9 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
     );
   }
 
-  it("offers session actions in the internal view only", async () => {
+  it("offers session actions in the internal view once the conversation is persisted", async () => {
     controlledAgent.value.selectedConversationId = "aconv_1";
+    controlledAgent.value.isSelectedConversationPersisted = true;
     const external = renderControlledWindow();
 
     expect(
@@ -481,6 +484,15 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
     external.unmount();
 
     sessionUser.admin = true;
+    controlledAgent.value.isSelectedConversationPersisted = false;
+    const unpersisted = renderControlledWindow();
+
+    expect(
+      screen.queryByRole("button", { name: "Internal session actions" }),
+    ).not.toBeInTheDocument();
+    unpersisted.unmount();
+
+    controlledAgent.value.isSelectedConversationPersisted = true;
     renderControlledWindow();
     fireEvent.click(
       screen.getByRole("button", { name: "Internal session actions" }),
@@ -504,6 +516,7 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
   it("keeps the open-session action inert when the telemetry lookup fails", async () => {
     sessionUser.admin = true;
     controlledAgent.value.selectedConversationId = "aconv_1";
+    controlledAgent.value.isSelectedConversationPersisted = true;
     telemetryProjectQuery.value = {
       data: undefined,
       isPending: false,
