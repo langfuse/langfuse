@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type UIEvent,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, Search } from "lucide-react";
@@ -144,12 +145,15 @@ export function SessionConversationSidebar(
   const autoFollowTimerRef = useRef<number | undefined>(undefined);
   const resumeAutoFollowRef = useRef<(() => void) | null>(null);
   const [isListScrolled, setIsListScrolled] = useState(false);
+  const handleListScroll = (event: UIEvent<HTMLDivElement>) =>
+    setIsListScrolled(event.currentTarget.scrollTop > 0);
   const virtualizer = useVirtualizer({
     count: traces.length,
     getScrollElement: () => listRef.current,
     estimateSize: () => 160,
     overscan: 5,
-    paddingStart: 0,
+    paddingStart:
+      props.searchVisibility === "hidden" ? SIDEBAR_SCROLL_PADDING : 0,
     paddingEnd: SIDEBAR_SCROLL_PADDING,
     scrollPaddingStart: SIDEBAR_SCROLL_PADDING,
     scrollPaddingEnd: SIDEBAR_SCROLL_PADDING,
@@ -300,9 +304,7 @@ export function SessionConversationSidebar(
         role="region"
         aria-label="Session turns"
         className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]"
-        onScroll={(event) =>
-          setIsListScrolled(event.currentTarget.scrollTop > 0)
-        }
+        onScroll={handleListScroll}
         onWheel={pauseAutoFollow}
         onTouchMove={pauseAutoFollow}
         onKeyDown={(event) => {
@@ -527,7 +529,7 @@ export function SessionConversationSidebar(
                                                 firstTool.id,
                                               )
                                             }
-                                            className="ph-no-capture text-muted-foreground hover:bg-foreground/10 -mx-2 flex min-w-0 items-center gap-2 px-2 py-1 text-left text-[13px] transition-colors duration-150"
+                                            className="ph-no-capture text-muted-foreground hover:bg-foreground/10 focus-visible:ring-ring -mx-2 flex min-w-0 items-center gap-2 px-2 py-1 text-left text-[13px] transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
                                           >
                                             <span
                                               className="min-w-0 flex-1 truncate"
@@ -665,7 +667,7 @@ export function SessionConversationSidebar(
                                           row.id,
                                         )
                                       }
-                                      className="ph-no-capture hover:bg-foreground/10 -mx-2 flex min-w-0 items-center gap-2 px-2 py-1 text-left transition-colors duration-150"
+                                      className="ph-no-capture hover:bg-foreground/10 focus-visible:ring-ring -mx-2 flex min-w-0 items-center gap-2 px-2 py-1 text-left transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
                                       aria-label={
                                         row.role === "tool"
                                           ? `tool: ${row.label}`
