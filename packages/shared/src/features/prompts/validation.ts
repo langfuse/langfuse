@@ -1,7 +1,6 @@
 import { StringNoHTMLNonEmpty } from "../../utils/zod";
 import { withFolderPathValidation } from "../folders/validation";
 import {
-  PROMPT_NAME_MAX_LENGTH,
   PROMPT_NAME_PIPE_RESTRICTION_REGEX,
   PROMPT_NAME_PIPE_RESTRICTION_ERROR,
   RESERVED_PROMPT_NAMES,
@@ -11,10 +10,7 @@ import {
  * Prompt name validation schema for API, tRPC and client
  */
 export const PromptNameSchema = withFolderPathValidation(
-  StringNoHTMLNonEmpty.max(
-    PROMPT_NAME_MAX_LENGTH,
-    `Prompt name must be at most ${PROMPT_NAME_MAX_LENGTH} characters`,
-  ).regex(
+  StringNoHTMLNonEmpty.regex(
     PROMPT_NAME_PIPE_RESTRICTION_REGEX,
     // Note: pipe character is used for prompt composition
     PROMPT_NAME_PIPE_RESTRICTION_ERROR,
