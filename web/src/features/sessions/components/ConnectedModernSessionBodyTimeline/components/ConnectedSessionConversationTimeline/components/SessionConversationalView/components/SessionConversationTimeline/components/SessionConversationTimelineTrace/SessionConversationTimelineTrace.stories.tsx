@@ -1,6 +1,6 @@
 import preview from "@/.storybook/preview";
 import { type ComponentProps } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 
 type Props = ComponentProps<typeof SessionConversationTimelineTrace>;
@@ -151,6 +151,9 @@ const weatherState = transcriptState({
 function toolPreviewState(
   previews: {
     name: string;
+    level?: Thread["currentTurn"]["messages"][number]["level"];
+    statusMessage?: Thread["currentTurn"]["messages"][number]["statusMessage"];
+    isError?: boolean;
     input: Extract<
       Thread["currentTurn"]["messages"][number]["parts"][number],
       { type: "tool-call" }
@@ -164,7 +167,7 @@ function toolPreviewState(
   return transcriptState({
     history: [],
     messages: previews.flatMap<Thread["currentTurn"]["messages"][number]>(
-      ({ name, input, output }) => [
+      ({ name, input, output, level, statusMessage, isError }) => [
         {
           ...provenance,
           role: "assistant",
@@ -182,12 +185,15 @@ function toolPreviewState(
           ...provenance,
           role: "tool",
           source: "output",
+          level,
+          statusMessage,
           parts: [
             {
               type: "tool-result",
               toolCallId: name,
               toolName: name,
               output,
+              isError,
             },
           ],
         },
@@ -868,10 +874,377 @@ export const ToolFailure = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByLabelText("Failed")).toBeInTheDocument();
+    await expect(canvas.getByLabelText("Tool status: ERROR")).toBeVisible();
+    await expect(
+      canvas.queryByLabelText("Tool status: WARNING"),
+    ).not.toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand get_order" }),
     );
     await expect(canvas.getByText(/TOOL_TIMEOUT/)).toBeInTheDocument();
+  },
+});
+
+export const ToolErrorStatus = meta.story({
+  name: "(Test) Tool Error Status Message",
+  args: {
+    ...commonArgs,
+    state: toolPreviewState([
+      {
+        name: "search",
+        input: null,
+        output: null,
+        level: "ERROR",
+        statusMessage: "Search timed out",
+        isError: true,
+      },
+    ]),
+  },
+  play: async ({ args, canvas, canvasElement, userEvent }) => {
+    if (args.state.type !== "transcript") {
+      throw new globalThis.Error("Expected transcript fixture");
+    }
+    const message =
+      args.state.result.transcript?.threads[0]?.currentTurn.messages.find(
+        (message) => message.role === "tool",
+      );
+    if (!message?.level || !message.statusMessage) {
+      throw new globalThis.Error("Expected tool status fixture");
+    }
+    const overlays = within(canvasElement.ownerDocument.body);
+    const indicator = canvas.getByLabelText(`Tool status: ${message.level}`);
+    if (message.level === "WARNING" || message.level === "ERROR") {
+      await expect(indicator).toBeVisible();
+    } else {
+      await expect(indicator).not.toBeVisible();
+    }
+    await expect(canvas.queryByLabelText("Failed")).not.toBeInTheDocument();
+    await expect(overlays.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    // Simulated pointer events do not activate CSS :hover in browser tests.
+    if ("__vitest_browser__" in globalThis) {
+      const { userEvent: browserUserEvent } = await import("vitest/browser");
+      await browserUserEvent.hover(
+        canvas.getByRole("button", { name: "search" }),
+      );
+      await expect(indicator).toBeVisible();
+      await browserUserEvent.unhover(
+        canvas.getByRole("button", { name: "search" }),
+      );
+    }
+    await userEvent.click(canvas.getByRole("button", { name: "search" }));
+    await expect(indicator).toBeVisible();
+    await userEvent.hover(indicator);
+    await expect(await overlays.findByRole("tooltip")).toHaveTextContent(
+      message.statusMessage,
+    );
+    const tooltip = within(overlays.getByRole("tooltip"));
+    await waitFor(() => expect(tooltip.getByText("search")).toBeVisible());
+    const statusMessage = tooltip.getByText(message.statusMessage);
+    await waitFor(() => expect(statusMessage).toBeVisible());
+    await userEvent.unhover(indicator);
+    await waitFor(() =>
+      expect(overlays.queryByRole("tooltip")).not.toBeInTheDocument(),
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "search" }));
+    await expect(canvas.getByRole("button", { name: "search" })).toHaveFocus();
+    await expect(indicator).toBeVisible();
+    await userEvent.tab();
+    await expect(indicator).toHaveFocus();
+    await expect(await overlays.findByRole("tooltip")).toHaveTextContent(
+      message.statusMessage,
+    );
+  },
+});
+
+export const ToolResultErrorOverridesWarning = meta.story({
+  name: "(Test) Tool Result Error Overrides Warning",
+  args: {
+    ...commonArgs,
+    state: toolPreviewState([
+      {
+        name: "search",
+        input: null,
+        output: null,
+        level: "WARNING",
+        statusMessage: "Search unavailable",
+        isError: true,
+      },
+    ]),
+  },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const indicator = canvas.getByLabelText("Tool status: ERROR");
+    await expect(indicator).toBeVisible();
+    await expect(
+      canvas.queryByLabelText("Tool status: WARNING"),
+    ).not.toBeInTheDocument();
+    await expect(canvas.queryByLabelText("Failed")).not.toBeInTheDocument();
+    await userEvent.hover(indicator);
+    await expect(
+      await within(canvasElement.ownerDocument.body).findByRole("tooltip"),
+    ).toHaveTextContent("Search unavailable");
+  },
+});
+
+export const LongToolStatus = meta.story({
+  name: "(Test) Scrolls Long Tool Status",
+  args: {
+    ...commonArgs,
+    state: toolPreviewState([
+      {
+        name: "search",
+        input: null,
+        output: null,
+        level: "ERROR",
+        statusMessage: `${"A detailed tool failure\n".repeat(100)}End of status`,
+      },
+    ]),
+  },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await userEvent.hover(canvas.getByLabelText("Tool status: ERROR"));
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await waitFor(() => {
+      const bounds = tooltip.getBoundingClientRect();
+      expect(bounds.top).toBeGreaterThanOrEqual(0);
+      expect(bounds.bottom).toBeLessThanOrEqual(
+        canvasElement.ownerDocument.documentElement.clientHeight,
+      );
+      expect(tooltip.scrollHeight).toBeGreaterThan(tooltip.clientHeight);
+    });
+    tooltip.scrollTo({ top: tooltip.scrollHeight });
+    await waitFor(() => expect(tooltip.scrollTop).toBeGreaterThan(0));
+    const textNodes = canvasElement.ownerDocument.createTreeWalker(
+      tooltip,
+      NodeFilter.SHOW_TEXT,
+    );
+    const finalText = canvasElement.ownerDocument.createRange();
+    let textNode = textNodes.nextNode();
+    while (textNode) {
+      const offset = textNode.textContent?.indexOf("End of status") ?? -1;
+      if (offset >= 0) {
+        finalText.setStart(textNode, offset);
+        finalText.setEnd(textNode, offset + "End of status".length);
+        break;
+      }
+      textNode = textNodes.nextNode();
+    }
+    await expect(textNode).not.toBeNull();
+    await waitFor(() => {
+      const visibleBounds = tooltip.getBoundingClientRect();
+      const textBounds = finalText.getBoundingClientRect();
+      expect(textBounds.height).toBeGreaterThan(0);
+      expect(textBounds.top).toBeGreaterThanOrEqual(visibleBounds.top);
+      expect(textBounds.bottom).toBeLessThanOrEqual(visibleBounds.bottom);
+    });
+  },
+});
+
+export const ToolWarningStatus = ToolErrorStatus.extend({
+  name: "(Test) Tool Warning Status Message",
+  args: {
+    state: toolPreviewState([
+      {
+        name: "search",
+        input: null,
+        output: null,
+        level: "WARNING",
+        statusMessage: "Search returned partial results",
+      },
+    ]),
+  },
+});
+
+export const ToolDefaultStatus = ToolErrorStatus.extend({
+  name: "(Test) Tool Default Status Message",
+  args: {
+    state: toolPreviewState([
+      {
+        name: "search",
+        input: null,
+        output: null,
+        level: "DEFAULT",
+        statusMessage: "Search completed",
+      },
+    ]),
+  },
+});
+
+export const ToolDebugStatus = ToolErrorStatus.extend({
+  name: "(Test) Tool Debug Status Message",
+  args: {
+    state: toolPreviewState([
+      {
+        name: "search",
+        input: null,
+        output: null,
+        level: "DEBUG",
+        statusMessage: "Search used cached results",
+      },
+    ]),
+  },
+});
+
+export const ToolDefaultWithoutMessage = meta.story({
+  name: "(Test) Tool Default Status Without Message",
+  args: {
+    ...commonArgs,
+    state: toolPreviewState([
+      { name: "search", input: null, output: null, level: "DEFAULT" },
+    ]),
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByRole("button", { name: "search" })).toBeVisible();
+    await expect(
+      canvas.queryByLabelText("Tool status: DEFAULT"),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const GroupedToolStatuses = meta.story({
+  name: "(Test) Grouped Tool Errors And Warnings",
+  args: {
+    ...commonArgs,
+    state: toolPreviewState([
+      {
+        name: "search",
+        input: null,
+        output: null,
+        level: "ERROR",
+        statusMessage: "Search timed out",
+        isError: true,
+      },
+      { name: "fetch", input: null, output: null, isError: true },
+      {
+        name: "list",
+        input: null,
+        output: null,
+        level: "WARNING",
+        statusMessage: "Results truncated",
+      },
+      { name: "validate", input: null, output: null, level: "WARNING" },
+      {
+        name: "cache",
+        input: null,
+        output: null,
+        level: "DEFAULT",
+        statusMessage: "Cache hit",
+      },
+      {
+        name: "debug",
+        input: null,
+        output: null,
+        level: "DEBUG",
+        statusMessage: "Diagnostics enabled",
+      },
+    ]),
+  },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const overlays = within(canvasElement.ownerDocument.body);
+    const errors = canvas.getByLabelText("Tool group: 2 errors");
+    const warnings = canvas.getByLabelText("Tool group: 2 warnings");
+    const groupToggle = canvas.getByRole("button", { name: /Show tools:/ });
+    await expect(groupToggle).toHaveAttribute("aria-expanded", "false");
+    await expect(errors).toBeVisible();
+    await expect(warnings).toBeVisible();
+    await expect(
+      canvas.queryByLabelText("Tool status: ERROR"),
+    ).not.toBeInTheDocument();
+
+    await userEvent.hover(errors);
+    await expect(await overlays.findByRole("tooltip")).toHaveTextContent(
+      "Search timed out",
+    );
+    await waitFor(async () => {
+      const tooltip = within(overlays.getByRole("tooltip"));
+      await expect(tooltip.getByText("Search timed out")).toBeVisible();
+      await expect(tooltip.getByText("search")).toBeVisible();
+      await expect(tooltip.getByText("fetch")).toBeVisible();
+    });
+    await expect(
+      within(overlays.getByRole("tooltip")).queryByRole("heading", {
+        name: "Errors",
+      }),
+    ).not.toBeInTheDocument();
+    await expect(overlays.getByRole("tooltip")).not.toHaveTextContent(
+      "Results truncated",
+    );
+    await expect(
+      within(overlays.getByRole("tooltip")).queryByRole("heading", {
+        name: "Tool calls",
+      }),
+    ).not.toBeInTheDocument();
+    await userEvent.unhover(errors);
+    await waitFor(() =>
+      expect(overlays.queryByRole("tooltip")).not.toBeInTheDocument(),
+    );
+    await userEvent.hover(warnings);
+    await expect(await overlays.findByRole("tooltip")).toHaveTextContent(
+      "Results truncated",
+    );
+    await waitFor(() =>
+      expect(
+        within(overlays.getByRole("tooltip")).getByText("Results truncated"),
+      ).toBeVisible(),
+    );
+    await expect(
+      within(overlays.getByRole("tooltip")).queryByRole("heading", {
+        name: "Warnings",
+      }),
+    ).not.toBeInTheDocument();
+    await expect(overlays.getByRole("tooltip")).not.toHaveTextContent(
+      "Search timed out",
+    );
+    await userEvent.unhover(warnings);
+    await waitFor(() =>
+      expect(overlays.queryByRole("tooltip")).not.toBeInTheDocument(),
+    );
+
+    await userEvent.click(groupToggle);
+    await expect(canvas.getAllByLabelText("Tool status: ERROR")).toHaveLength(
+      2,
+    );
+    for (const indicator of canvas.getAllByLabelText("Tool status: ERROR")) {
+      await expect(indicator).toBeVisible();
+    }
+    await expect(canvas.getAllByLabelText("Tool status: WARNING")).toHaveLength(
+      2,
+    );
+    await expect(canvas.queryByLabelText("Failed")).not.toBeInTheDocument();
+    await expect(errors).toHaveTextContent("2 errors");
+    await expect(warnings).toHaveTextContent("2 warnings");
+    await userEvent.tab();
+    await userEvent.tab();
+    await expect(errors).toHaveFocus();
+    await expect(await overlays.findByRole("tooltip")).toHaveTextContent(
+      "Search timed out",
+    );
+    await expect(
+      canvas.getByRole("button", { name: /Hide tools:/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+  },
+});
+
+export const HealthyToolGroup = meta.story({
+  name: "(Test) Healthy Tool Group Has No Status Summary",
+  args: {
+    ...commonArgs,
+    state: toolPreviewState(
+      ["search", "fetch", "cache", "validate"].map((name) => ({
+        name,
+        input: null,
+        output: null,
+        level: "DEFAULT",
+      })),
+    ),
+  },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByRole("button", { name: /Show tools:/ }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByLabelText(/Tool group:/),
+    ).not.toBeInTheDocument();
   },
 });

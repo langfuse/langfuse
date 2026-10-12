@@ -23,7 +23,7 @@ import {
   roleHasProjectPolicy,
 } from "../../features/rbac/systemRoleAccessRights";
 import { logger } from "../logger";
-import { assignRole } from "../../features/rbac/roleAssignmentRepository";
+import { assignRole } from "../../features/rbac/roleAssignmentService";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 import { withTransaction } from "../utils/withTransaction";
 

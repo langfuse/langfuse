@@ -941,6 +941,8 @@ async function getObservationsFromEventsTableInternal<T>(
     tags: { projectId },
     clickhouseConfigs,
     preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
+    // Buffering reads ahead on every stream; wasted once LIMIT is filled.
+    clickhouseSettings: { read_in_order_use_buffering: 0 },
   });
 }
 
@@ -1613,7 +1615,11 @@ async function getObservationsRowsFromBuilder<T>(
     params,
     tags: { projectId, ...extraTags },
     preferredClickhouseService: "EventsReadOnly",
-    clickhouseSettings,
+    clickhouseSettings: {
+      // Buffering reads ahead on every stream; wasted once LIMIT is filled.
+      read_in_order_use_buffering: 0,
+      ...clickhouseSettings,
+    },
   });
 }
 
