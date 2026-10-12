@@ -10,6 +10,12 @@ type FernAvailability =
     };
 
 type FernDefinition = {
+  types?: Record<
+    string,
+    {
+      properties?: Record<string, string | { availability?: FernAvailability }>;
+    }
+  >;
   "base-path"?: string;
   service?: {
     "base-path"?: string;
@@ -113,3 +119,25 @@ export function getFernDeprecatedOperations(
     });
   });
 }
+
+export function getFernDeprecatedProperties(
+  directory: string,
+): DeprecatedProperty[] {
+  return listYamlFiles(directory).flatMap((definitionPath) => {
+    const definition = parse(
+      fs.readFileSync(definitionPath, "utf8"),
+    ) as FernDefinition;
+    return Object.entries(definition.types ?? {}).flatMap(([schema, type]) =>
+      Object.entries(type.properties ?? {}).flatMap(([property, value]) =>
+        typeof value === "object" && isDeprecated(value.availability)
+          ? [{ schema, property }]
+          : [],
+      ),
+    );
+  });
+}
+
+export type DeprecatedProperty = {
+  schema: string;
+  property: string;
+};

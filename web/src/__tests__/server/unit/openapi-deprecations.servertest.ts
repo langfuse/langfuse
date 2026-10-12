@@ -5,6 +5,7 @@ import { parse } from "yaml";
 
 import {
   getFernDeprecatedOperations,
+  getFernDeprecatedProperties,
   type DeprecatedOperation,
 } from "../../../../scripts/openapi/fern-deprecations";
 import {
@@ -93,6 +94,43 @@ function withDefinition(
 }
 
 describe("OpenAPI deprecations", () => {
+  it("preserves field descriptions while marking deprecated properties", () => {
+    withDefinition(
+      {
+        "comments.yml": `types:
+  CreateCommentRequest:
+    properties:
+      authorUserId:
+        type: optional<string>
+        availability: deprecated
+      content: string
+`,
+      },
+      (directory) => {
+        const source = `${SPEC}
+components:
+  schemas:
+    CreateCommentRequest:
+      properties:
+        authorUserId:
+          type: string
+          description: Ignored.
+        content:
+          type: string
+`;
+        const properties = getFernDeprecatedProperties(directory);
+        expect(properties).toEqual([
+          { schema: "CreateCommentRequest", property: "authorUserId" },
+        ]);
+        const result = stampDeprecations(source, [], properties);
+        const expected = parse(source);
+        expected.components.schemas.CreateCommentRequest.properties.authorUserId.deprecated = true;
+        expect(parse(result)).toEqual(expected);
+        expect(stampDeprecations(result, [], properties)).toBe(result);
+      },
+    );
+  });
+
   it("matches the deprecated endpoints in the Fern definitions", () => {
     const openApi = parseSpec(fs.readFileSync(openApiPath, "utf8"));
     const openApiDeprecatedOperations = Object.entries(openApi.paths).flatMap(

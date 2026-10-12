@@ -27,9 +27,6 @@ const APIComment = z
  */
 
 // POST /comments
-// Note: Public API does not process mentions or inline comment positioning.
-// authorUserId is accepted for backwards compatibility but ignored: project API
-// keys are not a user identity, so the stored author is always null.
 export const PostCommentsV1Body = z
   .object({
     projectId: z.string(),
@@ -38,7 +35,11 @@ export const PostCommentsV1Body = z
     objectType: z.enum(CommentObjectType),
   })
   .extend({
-    authorUserId: z.string().nullish(),
+    authorUserId: z.string().nullish().meta({
+      deprecated: true,
+      description:
+        "Ignored. Attribution uses the authenticated user or API key creator.",
+    }),
   })
   .strict();
 export const PostCommentsV1Response = z.object({ id: z.string() }).strict();

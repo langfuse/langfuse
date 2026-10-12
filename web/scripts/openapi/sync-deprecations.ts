@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { getFernDeprecatedOperations } from "./fern-deprecations";
+import {
+  getFernDeprecatedOperations,
+  getFernDeprecatedProperties,
+} from "./fern-deprecations";
 import { stampDeprecations } from "./stamp-deprecations";
 
 const webDirectory = process.cwd();
@@ -15,11 +18,16 @@ const openApiPath = path.resolve(
 );
 
 const deprecatedOperations = getFernDeprecatedOperations(definitionDirectory);
+const deprecatedProperties = getFernDeprecatedProperties(definitionDirectory);
 const openApiSource = fs.readFileSync(openApiPath, "utf8");
-const syncedSource = stampDeprecations(openApiSource, deprecatedOperations);
+const syncedSource = stampDeprecations(
+  openApiSource,
+  deprecatedOperations,
+  deprecatedProperties,
+);
 
 if (syncedSource !== openApiSource) fs.writeFileSync(openApiPath, syncedSource);
 
 console.log(
-  `Synced ${deprecatedOperations.length} deprecated OpenAPI operations from Fern definitions.`,
+  `Synced ${deprecatedOperations.length} deprecated OpenAPI operations and ${deprecatedProperties.length} properties from Fern definitions.`,
 );

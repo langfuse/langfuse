@@ -9189,10 +9189,10 @@ components:
           type: string
           nullable: true
           description: >-
-            Deprecated and ignored. Project API keys are not bound to a user, so
-            comments created via this endpoint are stored without an author. The
-            field remains accepted for backwards compatibility. Use GET filters
-            or the dashboard to read authors of comments created in the UI.
+            Deprecated and ignored. Attribution uses the API key's creator,
+            following parent API keys until a user is found. If no creator is
+            found, the comment has no author.
+          deprecated: true
       required:
         - projectId
         - objectType

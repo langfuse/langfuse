@@ -61,7 +61,8 @@ types:
         docs: The content of the comment. May include markdown. Currently limited to 5000 characters.
       authorUserId:
         type: optional<string>
-        docs: Deprecated and ignored. Project API keys are not bound to a user, so comments created via this endpoint are stored without an author. The field remains accepted for backwards compatibility. Use GET filters or the dashboard to read authors of comments created in the UI.
+        availability: deprecated
+        docs: Deprecated and ignored. Attribution uses the API key's creator, following parent API keys until a user is found. If no creator is found, the comment has no author.
   CreateCommentResponse:
     properties:
       id:

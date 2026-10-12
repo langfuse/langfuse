@@ -9,21 +9,7 @@ import type {
   PostCommentsV1Body,
 } from "@/src/features/public-api/types/comments";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-
-type CommentAuditScope = {
-  projectId: string;
-  orgId: string;
-  apiKeyId: string;
-  // Server-authenticated user only (e.g. MCP session). Never taken from the
-  // request body — project API keys are not a user identity.
-  userId?: string | null;
-};
-
-type CreateCommentInput = {
-  input: z.infer<typeof PostCommentsV1Body>;
-  auditScope: CommentAuditScope;
-};
+import { prisma, type ApiKey } from "@langfuse/shared/src/db";
 
 type ListCommentsInput = z.infer<typeof GetCommentsV1Query> & {
   projectId: string;
@@ -74,16 +60,14 @@ export const getCommentRecordOrThrow = async ({
   return comment;
 };
 
+/** createCommentForApi attributes comments to authenticated users or API key creators. */
 export const createCommentForApi = async ({
   input,
   auditScope,
-}: CreateCommentInput) => {
-  // Ignore client-supplied authorUserId. A project API secret is not bound to a
-  // user, so persisting a caller-chosen id would let any write key impersonate
-  // another member in the dashboard. Attribute only when the caller itself is a
-  // server-authenticated user (MCP session).
-  const authorUserId = auditScope.userId ?? null;
-
+}: {
+  input: z.infer<typeof PostCommentsV1Body>;
+  auditScope: CommentAuditScope;
+}) => {
   const result = await validateCommentReferenceObject({
     ctx: { prisma, auth: { scope: { projectId: auditScope.projectId } } },
     input: {
@@ -96,7 +80,9 @@ export const createCommentForApi = async ({
     throw new LangfuseNotFoundError(result.errorMessage);
   }
 
-  // Create comment with content as-is (no mention processing, no inline positioning).
+  const authorUserId =
+    auditScope.userId ?? (await resolveApiKeyCreator(auditScope));
+
   const comment = await prisma.comment.create({
     data: {
       content: input.content,
@@ -162,4 +148,42 @@ export const getCommentForApi = async ({
 }: GetCommentInput) => {
   const comment = await getCommentRecordOrThrow({ projectId, commentId });
   return toPublicComment(comment);
+};
+
+/** resolveApiKeyCreator follows creator keys within the authenticated tenant. */
+const resolveApiKeyCreator = async ({
+  apiKeyId,
+  projectId,
+  orgId,
+}: CommentAuditScope): Promise<string | null> => {
+  const visited = new Set<string>();
+  let currentId: string | null = apiKeyId;
+
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    const key: Pick<ApiKey, "createdByUserId" | "createdByApiKeyId"> | null =
+      await prisma.apiKey.findFirst({
+        where: {
+          id: currentId,
+          OR: [
+            { scope: "PROJECT", projectId },
+            { scope: "ORGANIZATION", orgId },
+          ],
+        },
+        select: { createdByUserId: true, createdByApiKeyId: true },
+      });
+
+    if (!key) return null;
+    if (key.createdByUserId) return key.createdByUserId;
+    currentId = key.createdByApiKeyId;
+  }
+
+  return null;
+};
+
+type CommentAuditScope = {
+  projectId: string;
+  orgId: string;
+  apiKeyId: string;
+  userId?: string | null;
 };

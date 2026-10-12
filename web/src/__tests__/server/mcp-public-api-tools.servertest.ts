@@ -34,6 +34,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 import { v4 as uuidv4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  createAndAddApiKeysToDb,
   createObservation,
   createObservationsCh,
   createDatasetRunItem,
@@ -441,6 +442,105 @@ describe("MCP public API tools", () => {
       message: "Annotation queue item deleted successfully",
     });
   });
+
+  it.each([0, 2])(
+    "attributes comments through %i parent API keys",
+    async (depth) => {
+      const { context, projectId, orgId } = await createMcpTestSetup();
+      const user = await createProjectUser({ projectId, orgId });
+      const prompt = await createPromptInDb({
+        projectId,
+        name: `comment-creator-${uuidv4()}`,
+        prompt: "Test prompt",
+      });
+      let key = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: depth ? orgId : projectId,
+        scope: depth ? "ORGANIZATION" : "PROJECT",
+        createdByUserId: user.id,
+      });
+      for (let index = 0; index < depth; index++) {
+        key = await createAndAddApiKeysToDb({
+          prisma,
+          entityId: projectId,
+          scope: "PROJECT",
+          createdByApiKeyId: key.id,
+        });
+      }
+
+      const created = (await handleCreateComment(
+        {
+          objectType: "PROMPT",
+          objectId: prompt.id,
+          content: "API key creator comment",
+          authorUserId: uuidv4(),
+        },
+        { ...context, apiKeyId: key.id },
+      )) as { id: string };
+
+      await expect(
+        handleGetComment({ commentId: created.id }, context),
+      ).resolves.toMatchObject({ authorUserId: user.id });
+
+      const sessionUserId = uuidv4();
+      const sessionComment = (await handleCreateComment(
+        {
+          objectType: "PROMPT",
+          objectId: prompt.id,
+          content: "Authenticated session comment",
+          authorUserId: user.id,
+        },
+        { ...context, apiKeyId: key.id, userId: sessionUserId },
+      )) as { id: string };
+      await expect(
+        handleGetComment({ commentId: sessionComment.id }, context),
+      ).resolves.toMatchObject({ authorUserId: sessionUserId });
+    },
+  );
+
+  it.each(["deleted", "cycle", "foreign organization", "foreign project"])(
+    "leaves comments unattributed for a %s creator key",
+    async (scenario) => {
+      const { context, projectId, orgId, apiKeyId } =
+        await createMcpTestSetup();
+      const other = await createMcpTestSetup();
+      const user = await createProjectUser(other);
+      const parent = await createAndAddApiKeysToDb({
+        prisma,
+        entityId:
+          scenario === "foreign organization" ? other.orgId : other.projectId,
+        scope: scenario === "foreign organization" ? "ORGANIZATION" : "PROJECT",
+        createdByUserId: user.id,
+      });
+      await prisma.apiKey.update({
+        where: { id: apiKeyId },
+        data: {
+          createdByApiKeyId: scenario === "cycle" ? apiKeyId : parent.id,
+        },
+      });
+      if (scenario === "deleted") {
+        await prisma.apiKey.delete({ where: { id: parent.id } });
+      }
+      const prompt = await createPromptInDb({
+        projectId,
+        name: `comment-creator-${uuidv4()}`,
+        prompt: "Test prompt",
+      });
+      const created = (await handleCreateComment(
+        {
+          objectType: "PROMPT",
+          objectId: prompt.id,
+          content: "Unattributed comment",
+          authorUserId: user.id,
+        },
+        { ...context, orgId },
+      )) as { id: string };
+
+      await expect(
+        handleGetComment({ commentId: created.id }, context),
+      ).resolves.toMatchObject({ authorUserId: null });
+    },
+  );
 
   it("covers comment and model public API routes", async () => {
     const { context, projectId } = await createMcpTestSetup();

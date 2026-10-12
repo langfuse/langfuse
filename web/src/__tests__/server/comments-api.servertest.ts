@@ -8,6 +8,8 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import {
+  createAndAddApiKeysToDb,
+  createBasicAuthHeader,
   createObservationsCh,
   createTracesCh,
   createObservation,
@@ -16,9 +18,6 @@ import {
 
 const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
-// POST /api/public/comments ignores client-supplied authorUserId. Create an
-// organization member so tests can prove a write key cannot attribute comments
-// to that user.
 let orgMemberUserId: string;
 
 beforeAll(async () => {
@@ -92,6 +91,42 @@ describe("Create and get comments", () => {
       content: "hello",
       authorUserId: null,
     });
+  });
+
+  it("attributes REST comments to the API key creator", async () => {
+    const key = await createAndAddApiKeysToDb({
+      prisma,
+      entityId: seedProjectId,
+      scope: "PROJECT",
+      createdByUserId: orgMemberUserId,
+    });
+    const auth = createBasicAuthHeader(key.publicKey, key.secretKey);
+    try {
+      const created = await makeZodVerifiedAPICall(
+        PostCommentsV1Response,
+        "POST",
+        "/api/public/comments",
+        {
+          projectId: seedProjectId,
+          objectId: "1234",
+          objectType: "TRACE",
+          content: "API key creator comment",
+          authorUserId: randomUUID(),
+        },
+        auth,
+      );
+      const comment = await makeZodVerifiedAPICall(
+        GetCommentV1Response,
+        "GET",
+        `/api/public/comments/${created.body.id}`,
+        undefined,
+        auth,
+      );
+      expect(comment.body.authorUserId).toBe(orgMemberUserId);
+      await prisma.comment.delete({ where: { id: created.body.id } });
+    } finally {
+      await prisma.apiKey.delete({ where: { id: key.id } });
+    }
   });
 
   it("should fail to create comment if reference object does not exist", async () => {
