@@ -2,7 +2,7 @@ import { type ComponentProps, type ReactNode } from "react";
 import { Highlight, themes, type PrismTheme } from "prism-react-renderer";
 import { useTheme } from "next-themes";
 
-// Same tokens as the table JSON viewer; Prism aliases `null` to `keyword`.
+/** JSON token colors shared with the table JSON viewer; Prism aliases `null` to `keyword`. */
 const JSON_TOKEN_STYLES: PrismTheme["styles"] = [
   { types: ["property"], style: { color: "hsl(var(--muted-foreground))" } },
   { types: ["string"], style: { color: "var(--json-value-string)" } },
@@ -13,11 +13,6 @@ const JSON_TOKEN_STYLES: PrismTheme["styles"] = [
     style: { color: "var(--json-value-nullish)" },
   },
 ].map((entry) => ({ ...entry, languages: ["json"] }));
-
-const withJsonTokens = (theme: PrismTheme): PrismTheme => ({
-  ...theme,
-  styles: [...theme.styles, ...JSON_TOKEN_STYLES],
-});
 
 const LIGHT_THEME = withJsonTokens(themes.github);
 const DARK_THEME = withJsonTokens(themes.vsDark);
@@ -61,4 +56,8 @@ export function SyntaxHighlight({
       }
     </Highlight>
   );
+}
+
+function withJsonTokens(theme: PrismTheme): PrismTheme {
+  return { ...theme, styles: [...theme.styles, ...JSON_TOKEN_STYLES] };
 }
