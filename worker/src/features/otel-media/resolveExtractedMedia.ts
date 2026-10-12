@@ -8,6 +8,8 @@ import {
 } from "@langfuse/shared";
 import {
   logger,
+  forEachMedia,
+  otelMediaUploads,
   recordDistribution,
   recordIncrement,
   type OtelMediaTarget,
@@ -83,6 +85,7 @@ export async function uploadExtractedMediaOnce(params: {
   mediaPrefix: string;
   sha256Hash: string;
   contentType: MediaContentType;
+  byteLengthUpperBound: number;
   loadBody: () => Promise<Buffer>;
 }): Promise<CachedMediaUpload> {
   const {
@@ -123,24 +126,27 @@ export async function uploadExtractedMediaOnce(params: {
     return { ...result, outcome: "reused" };
   }
 
-  const uploadPromise = (async (): Promise<CachedMediaUpload> => {
-    const contentBytes = await loadBody();
-    return {
-      ...(await uploadMediaForTrace({
-        projectId,
-        traceId,
-        observationId,
-        field,
-        contentType,
-        contentBytes,
-        sha256Hash,
-        mediaBucket,
-        mediaPrefix,
-        origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
-      })),
-      byteLength: contentBytes.length,
-    };
-  })();
+  const uploadPromise = otelMediaUploads.run(
+    params.byteLengthUpperBound,
+    async (): Promise<CachedMediaUpload> => {
+      const contentBytes = await loadBody();
+      return {
+        ...(await uploadMediaForTrace({
+          projectId,
+          traceId,
+          observationId,
+          field,
+          contentType,
+          contentBytes,
+          sha256Hash,
+          mediaBucket,
+          mediaPrefix,
+          origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+        })),
+        byteLength: contentBytes.length,
+      };
+    },
+  );
   cache.set(key, uploadPromise);
   try {
     return await uploadPromise;
@@ -222,6 +228,8 @@ export async function resolveExtractedMedia(params: {
         traceId: target.traceId,
         observationId: target.observationId,
         field,
+        // Native retains encoded source spelling, which bounds the decoded body.
+        byteLengthUpperBound: entry.originalByteLength,
         loadBody: () => batch.mediaBody(entry.index),
       });
       const replacement = entry.reference.replace(
@@ -261,15 +269,19 @@ export async function resolveExtractedMedia(params: {
     }
   }
 
-  for (const target of targets) {
-    for (const field of ["input", "output", "metadata"] as const) {
-      target.payload[field] = await rewriteMediaValues(
-        target.payload[field],
-        (text) =>
-          rewrite(text, (entry) => resolveReference(entry, target, field)),
-      );
-    }
-  }
+  await forEachMedia(targets, async (target) => {
+    await forEachMedia(
+      ["input", "output", "metadata"] as const,
+      async (field) => {
+        target.payload[field] = await rewriteMediaValues(
+          target.payload[field],
+          (text) =>
+            rewrite(text, (entry) => resolveReference(entry, target, field)),
+          true,
+        );
+      },
+    );
+  });
   return stats;
 }
 

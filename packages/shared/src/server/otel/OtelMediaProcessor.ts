@@ -10,6 +10,7 @@ import {
   type MediaPayloadKind,
 } from "../media/MediaPayloadProcessor";
 import type { UploadMediaForTraceResult } from "../media/mediaService";
+import { forEachMedia, otelMediaUploads } from "../media/otelMediaUploads";
 
 export type OtelMediaKind = MediaPayloadKind;
 export type OtelMediaWritePath = "direct" | "legacy";
@@ -92,8 +93,8 @@ type ProcessContext = {
  * Detects and uploads embedded media for normalized OTEL payloads selected by
  * either the direct or legacy events-table persistence path.
  *
- * Events, fields, and candidates are processed sequentially to bound peak
- * decoded media memory. Successful replacements mutate each event in place.
+ * Upload slots and decoded-byte reservations are shared across ingestion jobs.
+ * Successful replacements mutate each event in place.
  * Invalid values and failed uploads are left unchanged; their outcomes are
  * reflected in the returned counters instead of failing the whole run.
  */
@@ -136,48 +137,51 @@ export async function processOtelMedia(params: {
       structured_payload: 0,
     },
   };
-  for (const target of targets) {
-    for (const field of ["input", "output", "metadata"] as const) {
-      const originalValue = target.payload[field];
-      if (originalValue == null) continue;
+  await forEachMedia(targets, async (target) => {
+    await forEachMedia(
+      ["input", "output", "metadata"] as const,
+      async (field) => {
+        const originalValue = target.payload[field];
+        if (originalValue == null) return;
 
-      const context: ProcessContext = {
-        projectId,
-        traceId: target.traceId,
-        observationId: target.observationId,
-        field,
-        writePath,
-        mediaPath,
-        mediaBucket,
-        mediaPrefix,
-        uploadMedia,
-        result,
-      };
-      const transformed = await transformMediaPayload(originalValue, {
-        processCandidate: (candidate) => processCandidate(candidate, context),
-        onInvalidCandidate: (kind, reason) =>
-          recordInvalidCandidate(kind, reason, context),
-        onIgnoredCandidate: (kind, reason) =>
-          recordIgnoredCandidate(kind, reason, context),
-        onDetectionPath: (path, checkedBytes) =>
-          recordDetectionCheck(path, checkedBytes, context),
-      });
+        const context: ProcessContext = {
+          projectId,
+          traceId: target.traceId,
+          observationId: target.observationId,
+          field,
+          writePath,
+          mediaPath,
+          mediaBucket,
+          mediaPrefix,
+          uploadMedia,
+          result,
+        };
+        const transformed = await transformMediaPayload(originalValue, {
+          processCandidate: (candidate) => processCandidate(candidate, context),
+          onInvalidCandidate: (kind, reason) =>
+            recordInvalidCandidate(kind, reason, context),
+          onIgnoredCandidate: (kind, reason) =>
+            recordIgnoredCandidate(kind, reason, context),
+          onDetectionPath: (path, checkedBytes) =>
+            recordDetectionCheck(path, checkedBytes, context),
+        });
 
-      // Structured objects are mutated by transformMediaPayload itself and keep
-      // their identity. Strings instead return a new value that must be assigned.
-      if (transformed.value !== originalValue) {
-        target.payload[field] = transformed.value;
-      }
-      if (transformed.bytesRemoved > 0) {
-        result.bytesRemoved += transformed.bytesRemoved;
-        recordDistribution(
-          "langfuse.ingestion.otel.media.bytes_removed",
-          transformed.bytesRemoved,
-          { write_path: context.writePath, media_path: context.mediaPath },
-        );
-      }
-    }
-  }
+        // Structured objects are mutated by transformMediaPayload itself and keep
+        // their identity. Strings instead return a new value that must be assigned.
+        if (transformed.value !== originalValue) {
+          target.payload[field] = transformed.value;
+        }
+        if (transformed.bytesRemoved > 0) {
+          result.bytesRemoved += transformed.bytesRemoved;
+          recordDistribution(
+            "langfuse.ingestion.otel.media.bytes_removed",
+            transformed.bytesRemoved,
+            { write_path: context.writePath, media_path: context.mediaPath },
+          );
+        }
+      },
+    );
+  });
 
   return result;
 }
@@ -186,10 +190,20 @@ async function processCandidate(
   candidate: MediaPayloadCandidate,
   context: ProcessContext,
 ): Promise<string | undefined> {
-  // Base64 decoding and hashing are synchronous and may be expensive for large
-  // media. Yield between candidates so a batch with many items does not hold
-  // the worker event loop continuously. Processing remains sequential to bound
-  // the number of decoded Buffers retained at once.
+  // Reserve before decoding. Base64 length is known without allocating its body;
+  // a Python literal's source length safely overestimates its decoded bytes.
+  const bytes =
+    candidate.encoding === "base64"
+      ? Buffer.byteLength(candidate.encodedData, "base64")
+      : candidate.encodedData.length;
+  return otelMediaUploads.run(bytes, () => decodeAndUpload(candidate, context));
+}
+
+async function decodeAndUpload(
+  candidate: MediaPayloadCandidate,
+  context: ProcessContext,
+): Promise<string | undefined> {
+  // Yield before synchronous decoding/hash work so uploads do not monopolize JS.
   await new Promise<void>((resolve) => setImmediate(resolve));
 
   let contentBytes: Buffer;

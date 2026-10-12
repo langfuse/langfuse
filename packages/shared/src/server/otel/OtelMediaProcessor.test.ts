@@ -9,7 +9,9 @@ vi.mock("../logger", () => ({
 }));
 
 import type { MediaField } from "../../domain/media";
+import { env } from "../../env";
 import { recordDistribution, recordIncrement } from "../instrumentation";
+import { mapMedia } from "../media/otelMediaUploads";
 import {
   DATA_URI,
   MEDIA_ID,
@@ -30,6 +32,16 @@ import {
 const TRACE_ID = "0123456789abcdef0123456789abcdef";
 const SPAN_ID = "0123456789abcdef";
 const MEDIA_REFERENCE = `@@@langfuseMedia:type=image/png|id=${MEDIA_ID}|source=base64_data_uri@@@`;
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
+}
 
 function createEvent(params: { value: unknown; field?: MediaField }): {
   event: OtelMediaTarget;
@@ -69,6 +81,51 @@ async function processEvents(
 }
 
 describe("processOtelMedia", () => {
+  it("shares upload slots across jobs and preserves source order on failure", async () => {
+    const uri = (id: number) =>
+      `data:image/png;base64,${Buffer.from(String(id)).toString("base64")}`;
+    const first = createEvent({ value: [1, 2, 3].map(uri).join(" ") });
+    const second = createEvent({
+      value: [4, 5, 6].map((id) => ({ image: uri(id) })),
+    });
+    const finish = new Map<number, () => void>();
+    let active = 0;
+    let peak = 0;
+    const upload = vi.fn(async ({ contentBytes }: { contentBytes: Buffer }) => {
+      const id = Number(contentBytes.toString());
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise<void>((resolve) => finish.set(id, resolve));
+      active--;
+      if (id === 2) throw new Error("upload failed");
+      return { mediaId: String(id), outcome: "uploaded" as const };
+    });
+    const jobs = [
+      processEvents([first.event], upload),
+      processEvents([second.event], upload),
+    ];
+    await vi.waitFor(() => expect(finish.size).toBe(5));
+    expect(active).toBe(5);
+    // Free a later slot while earlier uploads remain held. The sixth item must start.
+    finish.get(3)!();
+    await vi.waitFor(() => expect(finish.size).toBe(6));
+    for (const resolve of [...finish.values()].reverse()) resolve();
+    const results = await Promise.all(jobs);
+    const reference = (id: number) =>
+      `@@@langfuseMedia:type=image/png|id=${id}|source=base64_data_uri@@@`;
+    expect(peak).toBe(5);
+    expect(first.body.input).toBe(`${reference(1)} ${uri(2)} ${reference(3)}`);
+    expect(second.body.input).toEqual(
+      [4, 5, 6].map((id) => ({ image: reference(id) })),
+    );
+    expect(
+      results.map(({ uploaded, failed }) => ({ uploaded, failed })),
+    ).toEqual([
+      { uploaded: 2, failed: 1 },
+      { uploaded: 3, failed: 0 },
+    ]);
+  });
+
   it("uploads a normalized observation Data URI and replaces it after success", async () => {
     const dataUri = DATA_URI;
     const { event, body } = createEvent({ value: dataUri });
@@ -350,5 +407,58 @@ describe("processOtelMedia", () => {
       }),
     );
     expect(body.input).toBe(MEDIA_REFERENCE);
+  });
+});
+
+describe("mapMedia", () => {
+  it("drains active work after failure without pulling unused values", async () => {
+    const previousConcurrency = env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY;
+    env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY = 2;
+
+    try {
+      const held = deferred<number>();
+      let pulls = 0;
+      const values = (function* () {
+        while (true) yield pulls++;
+      })();
+      const failure = new Error("upload failed");
+      const failedMap = mapMedia(values, async (value) => {
+        if (value === 0) throw failure;
+        return held.promise;
+      });
+      let settled = false;
+      failedMap.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
+
+      await Promise.resolve();
+      expect(pulls).toBe(2);
+      expect(settled).toBe(false);
+
+      held.resolve(1);
+      await expect(failedMap).rejects.toBe(failure);
+      expect(pulls).toBe(2);
+
+      const completions = [
+        deferred<number>(),
+        deferred<number>(),
+        deferred<number>(),
+      ];
+      const orderedMap = mapMedia(
+        [0, 1, 2],
+        async (value) => completions[value].promise,
+      );
+      completions[1].resolve(1);
+      completions[0].resolve(0);
+      completions[2].resolve(2);
+      await expect(orderedMap).resolves.toEqual([0, 1, 2]);
+    } finally {
+      env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY = previousConcurrency;
+    }
   });
 });
