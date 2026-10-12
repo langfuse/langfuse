@@ -26,8 +26,15 @@ const sharedExclude = [
 // process.env, or close shared connections (redis.disconnect() etc.) would
 // leak that state into other files in a shared context, so they keep the
 // default per-file isolation and run in the matching "-isolated" project.
-// Classification is content-based at config load so new test files sort
-// themselves into the right project.
+//
+// Classification is content-based and happens once, at config load, by
+// reading each file. Vitest does not treat those reads as config
+// dependencies, so under `test:watch` a file is only reclassified when the
+// watcher restarts. The unit pair is therefore split the other way round —
+// the shared-context project takes the explicit list and the isolated one
+// keeps the glob — so a unit test added mid-watch still runs, on the safe
+// side of the split. The "server" pair predates this and lists both sides
+// explicitly, so a server test added mid-watch needs a restart.
 const GLOBAL_STATE_PATTERN =
   /vi\.(mock|doMock|unmock|spyOn|useFakeTimers|setSystemTime|resetModules|stubEnv|stubGlobal|unstubAllEnvs|unstubAllGlobals)|process\.env\.[A-Z0-9_]+\s*=[^=]|process\.env\[[^\]]+\]\s*=[^=]|delete\s+process\.env|\(env as any\)\.\w+\s*=[^=]|\.(disconnect|quit|shutdown)\(|disconnectQueues/;
 
@@ -270,7 +277,13 @@ export default defineConfig({
         isolate: false,
         env: { VITEST_SHARED_CONTEXT: "1" },
       }),
-      serverProject("server-unit-isolated", unitTestFiles.isolated),
+      // Keeps the glob the single "server-unit" project used to carry, so a
+      // unit test added while a watcher is running is still collected.
+      serverProject(
+        "server-unit-isolated",
+        ["src/__tests__/server/unit/**/*.servertest.{ts,tsx}"],
+        { exclude: [...sharedSourceUnitTestFiles, ...unitTestFiles.shared] },
+      ),
       serverProject("server-shared-source-unit", sharedSourceUnitTestFiles, {
         resolve: sharedSourceResolve,
       }),
