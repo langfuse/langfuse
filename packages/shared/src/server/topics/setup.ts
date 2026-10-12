@@ -50,7 +50,6 @@ export async function saveTopicsSetup(
       userId,
       filter: setup.filter,
       sampling: setup.sampling,
-      idleTimeMs: setup.idleSeconds * 1000,
       facetIds,
     },
     models,

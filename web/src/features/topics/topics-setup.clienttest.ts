@@ -39,24 +39,17 @@ const draft: ConfigureTopicsSaveDraft = {
 };
 
 describe("topicsSetupPayload", () => {
-  it("keeps the filter, sampling, idle time, and built-in enabled state", () => {
+  it("keeps the filter, sampling, and built-in enabled state", () => {
     expect(topicsSetupPayload(draft, slots)).toMatchObject({
       enabled: true,
       embeddingDimensions: 1024,
       sampling: 0.25,
-      idleSeconds: 120,
       filter: draft.filters,
       facets: DEFAULT_TOPIC_FACETS.map((facet, index) => ({
         name: facet.name,
         enabled: index !== 1,
       })),
     });
-  });
-
-  it("rejects an idle time that is not a whole number of seconds", () => {
-    expect(() =>
-      topicsSetupPayload({ ...draft, idleSeconds: "1.5" }, slots),
-    ).toThrow(/whole number of seconds/);
   });
 
   it("rejects a setup with every built-in facet turned off", () => {

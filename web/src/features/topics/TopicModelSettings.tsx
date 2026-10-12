@@ -169,8 +169,7 @@ function ConfigureTopicsSettings({
     facets: facetDrafts(facets, rule ? new Set(rule.facetIds) : null),
     filters: rule?.filter ?? [],
     sampling: rule?.sampling ?? 1,
-    idleSeconds:
-      rule?.idleTimeMs != null ? String(rule.idleTimeMs / 1000) : "600",
+    idleSeconds: "600",
     embeddingLocked: false,
   };
   const paused = stored.blockMessage

@@ -37,7 +37,6 @@ const savedRow = {
   name: "Topics",
   filter: [],
   sampling: 0.25,
-  idleTime: 120_000,
   updatedAt: new Date("2026-10-08T00:00:00Z"),
   assignments: [{ evaluatorId: "intent" }],
 };
@@ -51,28 +50,25 @@ describe("saveTopicRule", () => {
     mocks.update.mockResolvedValue(savedRow);
   });
 
-  it("stores the sampling rate and idle time on the single rule", async () => {
+  it("stores the sampling rate on the single rule", async () => {
     const rule = await saveTopicRule({
       projectId,
       name: "Topics",
       filter: [],
       facetIds: ["intent"],
       sampling: 0.25,
-      idleTimeMs: 120_000,
     });
 
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           sampling: 0.25,
-          idleTime: 120_000,
           projectId,
         }),
       }),
     );
     expect(rule).toMatchObject({
       sampling: 0.25,
-      idleTimeMs: 120_000,
       facetIds: ["intent"],
     });
   });
@@ -84,7 +80,6 @@ describe("saveTopicRule", () => {
       filter: [],
       facetIds: ["intent"],
       sampling: 0.5,
-      idleTimeMs: 60_000,
     };
 
     // The rule is looked up under the project lock, so a racing first save
@@ -105,7 +100,6 @@ describe("saveTopicRule", () => {
         data: expect.objectContaining({
           name: "Topics",
           sampling: 0.5,
-          idleTime: 60_000,
         }),
       }),
     );

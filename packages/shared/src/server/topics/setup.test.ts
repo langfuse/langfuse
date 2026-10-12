@@ -49,7 +49,6 @@ const setup = {
   })),
   filter: [{ column: "name", type: "string", operator: "=", value: "billing" }],
   sampling: 0.25,
-  idleSeconds: 120,
 } satisfies Parameters<typeof saveTopicsSetup>[1];
 
 describe("Topics setup", () => {
@@ -75,7 +74,6 @@ describe("Topics setup", () => {
       projectId,
       filter: setup.filter,
       sampling: 0.25,
-      idleTimeMs: 120_000,
       facetIds: facets.flatMap((facet) => (facet.enabled ? [facet.id] : [])),
       userId: "user-a",
     });

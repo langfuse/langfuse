@@ -22,8 +22,8 @@ Topics reuses the evaluator and evaluation-rule tables:
   original request, including its selection criteria. Retries never re-evaluate a rule.
 
 Postgres uses normal Prisma migrations; `topic_clustering_runs` is the only new
-Topics table. `EvaluationRule.idleTime` stores an optional duration in milliseconds;
-it does not change automatic scheduling or trace-batch admission.
+Topics table. Topics does not write `EvaluationRule.idleTime`; the setup sheet's idle
+time field is not saved yet and will move to a per-project readiness setting.
 
 ## Setup
 

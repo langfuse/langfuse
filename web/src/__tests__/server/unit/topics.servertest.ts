@@ -1338,7 +1338,6 @@ describe("Topics setup", () => {
       },
     ],
     sampling: 0.25,
-    idleSeconds: 120,
   };
 
   it("saves setup for a writer and rejects a viewer before saving", async () => {
@@ -1366,7 +1365,6 @@ describe("Topics setup", () => {
         customFacetIds: [],
         filter: setup.filter,
         sampling: 0.25,
-        idleSeconds: 120,
       },
       "user-a",
     );
@@ -1432,7 +1430,6 @@ describe("Topics write access", () => {
         })),
         filter: [],
         sampling: 1,
-        idleSeconds: 600,
       }),
     trigger: (api, projectId) => api.trigger({ ...input, projectId }),
     retry: (api, projectId) =>

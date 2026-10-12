@@ -170,7 +170,6 @@ const topicRule = (row: RuleRow): TopicRule => ({
   ...topicRuleSettingsSchema.parse({
     filter: row.filter,
     sampling: Number(row.sampling),
-    idleTimeMs: row.idleTime,
   }),
   facetIds: row.assignments.map((assignment) => assignment.evaluatorId),
   updatedAt: row.updatedAt.toISOString(),
@@ -224,9 +223,9 @@ async function lockProjectTopicRule(
 
 export type TopicRuleInput = Omit<
   TopicRule,
-  "id" | "name" | "updatedAt" | "sampling" | "idleTimeMs"
+  "id" | "name" | "updatedAt" | "sampling"
 > &
-  Partial<Pick<TopicRule, "name" | "sampling" | "idleTimeMs">> & {
+  Partial<Pick<TopicRule, "name" | "sampling">> & {
     id?: string;
     /** The user saving the rule; recorded when it is created. */
     userId?: string | null;
@@ -274,7 +273,6 @@ export async function writeTopicRule(
     filter: JSON.parse(JSON.stringify(config.filter)) as Prisma.InputJsonValue,
     sampling: config.sampling,
     delay: 0,
-    idleTime: config.idleTimeMs,
     targetObject: EvalTargetObject.TRACE,
     timeScope: ["NEW"],
     status: "ACTIVE" as const,

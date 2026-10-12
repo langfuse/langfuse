@@ -108,7 +108,6 @@ export const topicTraceSelectionSnapshotSchema =
   });
 export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
   sampling: z.number().min(0).max(1).default(1),
-  idleTimeMs: z.number().int().min(0).max(86_400_000).nullable().default(null),
 });
 
 export const topicsSetupSchema = topicsModelSettingsSchema.extend({
@@ -145,7 +144,6 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
   customFacetIds: z.array(topicIdSchema).default([]),
   filter: topicRuleConfigSchema.shape.filter,
   sampling: z.number().min(0).max(1),
-  idleSeconds: z.number().int().min(0).max(86_400),
 });
 export type TopicsSetup = z.infer<typeof topicsSetupSchema>;
 

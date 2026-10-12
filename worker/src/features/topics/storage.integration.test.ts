@@ -282,7 +282,6 @@ describe("Topics eval-backed configuration", () => {
     ).toMatchObject({
       targetObject: "trace",
       delay: 0,
-      idleTime: null,
       timeScope: ["NEW"],
       status: "ACTIVE",
     });
