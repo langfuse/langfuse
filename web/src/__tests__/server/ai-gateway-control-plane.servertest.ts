@@ -683,6 +683,7 @@ describe("AI gateway control plane", () => {
   });
 
   it("persists connection model allowlists and enforces them for resolve and models", async () => {
+    configureGatewayJwtSigning();
     const { caller, org, project } = await prepare();
     await caller.aiGateway.updateConfig({
       orgId: org.id,
