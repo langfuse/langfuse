@@ -156,6 +156,11 @@ impl ControlPlaneClient {
             .await
     }
 
+    /// Fetch the connection-qualified model catalog from Web.
+    ///
+    /// # Errors
+    /// Returns a sanitized [`ResolutionError`] for invalid credentials, authentication
+    /// failures, unavailable Web, timeouts, oversized responses, or invalid payloads.
     pub async fn models(
         &self,
         gateway_key: &str,
