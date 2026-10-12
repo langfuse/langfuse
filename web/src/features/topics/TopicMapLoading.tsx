@@ -1,6 +1,6 @@
 import { cn } from "@/src/utils/tailwind";
 
-export function TopicMapLoading({ fillContainer }: { fillContainer: boolean }) {
+export function TopicMapLoading({ fillContainer }: TopicMapLoadingProps) {
   return (
     <div
       role="status"
@@ -22,3 +22,7 @@ export function TopicMapLoading({ fillContainer }: { fillContainer: boolean }) {
     </div>
   );
 }
+
+type TopicMapLoadingProps = {
+  fillContainer: boolean;
+};

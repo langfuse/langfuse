@@ -25,6 +25,16 @@ const allColors = Object.keys({
   green: true,
   ghost: true,
   filled: true,
+  violetTint: true,
+  skyTint: true,
+  emeraldTint: true,
+  amberTint: true,
+  pinkTint: true,
+  indigoTint: true,
+  tealTint: true,
+  orangeTint: true,
+  limeTint: true,
+  fuchsiaTint: true,
 } satisfies Record<Color, true>) as Color[];
 
 export const Default = meta.story({});
@@ -93,7 +103,7 @@ export const LongWrappedLabel = meta.story({
   name: "(Test) Long Wrapped Label",
   args: {
     text: "Quality dashboard widgets and score distribution",
-    wrap: true,
+    shouldWrap: true,
   },
   render: (args) => (
     <div className="w-36">

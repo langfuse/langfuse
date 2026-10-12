@@ -11,7 +11,6 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
@@ -19,7 +18,8 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
 import { TopicGroupCard } from "./TopicGroupCard";
-import { topicColor } from "./topic-map-colors";
+import { topicBadgeColor, topicColor } from "./topic-map-colors";
+import { TopicBadge } from "./TopicBadge";
 import { SummaryInspector } from "./SummaryInspector";
 import { isValidTopicTimeRange } from "./time-range";
 
@@ -318,26 +318,8 @@ function CurrentTraceTable({
   });
   const peekConfig = { itemType: "TRACE" as const, ...peekNavigation };
   const topicColors = new Map(
-    topics.map((topic, index) => [topic.id, topicColor(index)]),
+    topics.map((topic, index) => [topic.id, topicBadgeColor(index)]),
   );
-  function renderTopicBadge(row: Facet["rows"][number], size?: "sm") {
-    const color = row.topicId ? topicColors.get(row.topicId) : undefined;
-    return (
-      <Badge
-        text={row.topicName ?? row.outcome.replaceAll("_", " ")}
-        size={size}
-        wrap
-        style={
-          color
-            ? {
-                borderColor: `${color}66`,
-                backgroundColor: `${color}1a`,
-              }
-            : undefined
-        }
-      />
-    );
-  }
   const pageIndex = Math.min(
     pagination.pageIndex,
     Math.max(0, Math.ceil(rows.length / pagination.pageSize) - 1),
@@ -373,7 +355,13 @@ function CurrentTraceTable({
       header: "Topic",
       size: 148,
       minSize: 100,
-      cell: ({ row }) => renderTopicBadge(row.original),
+      cell: ({ row }) => (
+        <TopicBadge
+          row={row.original}
+          color={topicColors.get(row.original.topicId ?? "")}
+          size="default"
+        />
+      ),
     },
     {
       accessorKey: "summary",
@@ -398,7 +386,11 @@ function CurrentTraceTable({
             {isMobile && (
               <div className="flex w-full min-w-0 items-center justify-between gap-2">
                 <div className="min-w-0">
-                  {renderTopicBadge(row.original, "sm")}
+                  <TopicBadge
+                    row={row.original}
+                    color={topicColors.get(row.original.topicId ?? "")}
+                    size="sm"
+                  />
                 </div>
                 <TextLink
                   path={`/project/${projectId}/traces/${encodeURIComponent(row.original.traceId)}`}

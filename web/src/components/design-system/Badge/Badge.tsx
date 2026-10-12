@@ -25,6 +25,26 @@ const badgeVariants = cva(
         green: "border-transparent bg-light-green text-dark-green",
         ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
         filled: "border-transparent bg-muted text-foreground-secondary",
+        violetTint:
+          "border-category-violet/40 bg-category-violet/10 text-foreground-secondary",
+        skyTint:
+          "border-category-sky/40 bg-category-sky/10 text-foreground-secondary",
+        emeraldTint:
+          "border-category-emerald/40 bg-category-emerald/10 text-foreground-secondary",
+        amberTint:
+          "border-category-amber/40 bg-category-amber/10 text-foreground-secondary",
+        pinkTint:
+          "border-category-pink/40 bg-category-pink/10 text-foreground-secondary",
+        indigoTint:
+          "border-category-indigo/40 bg-category-indigo/10 text-foreground-secondary",
+        tealTint:
+          "border-category-teal/40 bg-category-teal/10 text-foreground-secondary",
+        orangeTint:
+          "border-category-orange/40 bg-category-orange/10 text-foreground-secondary",
+        limeTint:
+          "border-category-lime/40 bg-category-lime/10 text-foreground-secondary",
+        fuchsiaTint:
+          "border-category-fuchsia/40 bg-category-fuchsia/10 text-foreground-secondary",
       },
       interactive: {
         true: "underline-dotted",
@@ -35,7 +55,7 @@ const badgeVariants = cva(
         sans: "font-sans",
         mono: "font-mono",
       },
-      wrap: {
+      shouldWrap: {
         true: "h-auto leading-snug",
         false: "",
       },
@@ -49,7 +69,10 @@ const badgeVariants = cva(
   },
 );
 
-type BadgeShellProps = Omit<ComponentPropsWithoutRef<"span">, "className"> &
+type BadgeShellProps = Omit<
+  ComponentPropsWithoutRef<"span">,
+  "className" | "style"
+> &
   VariantProps<typeof badgeVariants> & {
     asChild?: boolean;
   };
@@ -66,7 +89,7 @@ export function BadgeShell({
   size,
   interactive,
   font,
-  wrap,
+  shouldWrap,
   ...props
 }: BadgeShellProps) {
   const Component = asChild ? Slot : "span";
@@ -75,7 +98,7 @@ export function BadgeShell({
     <Component
       className={cn(
         "group/badge",
-        badgeVariants({ color, size, interactive, font, wrap }),
+        badgeVariants({ color, size, interactive, font, shouldWrap }),
       )}
       {...props}
     />
@@ -97,18 +120,18 @@ export function Badge({
   label,
   title,
   interactive,
-  wrap,
+  shouldWrap,
   trailingIcon: TrailingIcon,
   trailingIconTone = "default",
   ...props
 }: BadgeProps) {
   return (
-    <BadgeShell color={color} wrap={wrap} {...props}>
+    <BadgeShell color={color} shouldWrap={shouldWrap} {...props}>
       {label && <span className="shrink-0 py-0.5">{label}:</span>}
       <span
         className={cn(
           "py-0.5",
-          wrap
+          shouldWrap
             ? "min-w-0 break-words whitespace-normal"
             : "text-ellipsis whitespace-nowrap",
           interactive
