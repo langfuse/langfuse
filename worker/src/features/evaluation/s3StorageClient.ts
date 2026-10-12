@@ -15,11 +15,8 @@ let s3StorageServiceClient: StorageService | null = null;
 let s3ScoreStorageServiceClient: StorageService | null = null;
 
 /**
- * Gets the singleton S3 storage client for eval operations.
+ * Gets the singleton S3 storage client for observation eval operations.
  * Creates the client on first call using environment configuration.
- *
- * @param bucketName - The S3 bucket name to use
- * @returns The S3 storage service client
  */
 export function getEvalS3StorageClient(): StorageService {
   if (!s3StorageServiceClient) {
