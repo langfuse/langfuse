@@ -281,7 +281,6 @@ export function SessionConversationSidebar(
       <div
         className={cn(
           "relative z-10 shrink-0 p-4",
-          isListScrolled && "shadow-sm",
           props.searchVisibility === "hidden" && "hidden",
         )}
       >
@@ -298,6 +297,12 @@ export function SessionConversationSidebar(
             className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
           />
         </div>
+        {isListScrolled ? (
+          <div
+            aria-hidden="true"
+            className="from-background pointer-events-none absolute inset-x-0 top-full h-6 bg-linear-to-b to-transparent"
+          />
+        ) : null}
       </div>
       <div
         ref={setListElement}
