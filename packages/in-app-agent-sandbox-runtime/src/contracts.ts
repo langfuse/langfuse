@@ -30,6 +30,8 @@ const BashSandboxOperationSchema = z.object({
   operation: z.literal("bash"),
   command: z.string(),
   timeoutMs: z.number().finite().optional(),
+  /** Extra process environment for this command only. Values are never logged. */
+  env: z.record(z.string(), z.string()).optional(),
   toolCallFiles: z.array(SandboxFileSchema).optional(),
 });
 

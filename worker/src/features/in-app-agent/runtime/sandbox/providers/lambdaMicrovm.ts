@@ -47,7 +47,12 @@ type LambdaMicrovmOperation =
   | { operation: "read"; path: string }
   | { operation: "write"; path: string; content: string }
   | { operation: "edit"; path: string; oldText: string; newText: string }
-  | { operation: "bash"; command: string; timeoutMs?: number };
+  | {
+      operation: "bash";
+      command: string;
+      timeoutMs?: number;
+      env?: Readonly<Record<string, string>>;
+    };
 
 type LambdaMicrovmSession = {
   endpoint: string;
@@ -360,11 +365,12 @@ export function createLambdaMicrovmSandboxProvider(params: {
         newText,
       });
     },
-    async bash({ command, timeoutMs }) {
+    async bash({ command, timeoutMs, env }) {
       return executeOperation(sessionId, {
         operation: "bash",
         command,
         ...(timeoutMs ? { timeoutMs } : {}),
+        ...(env ? { env } : {}),
       });
     },
   });

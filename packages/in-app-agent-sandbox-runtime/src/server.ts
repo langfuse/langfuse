@@ -258,7 +258,12 @@ async function editOperation(body: EditSandboxOperation, requestId: string) {
 }
 
 async function bashOperation(body: BashSandboxOperation, requestId: string) {
-  const result = await runCommand(body.command, body.timeoutMs, requestId);
+  const result = await runCommand(
+    body.command,
+    body.timeoutMs,
+    requestId,
+    body.env,
+  );
   logSandboxServer("bash.complete", {
     requestId,
     result: summarizeBashResult(result),
@@ -319,6 +324,7 @@ function runCommand(
   command: string,
   timeoutMs: number | undefined,
   requestId: string,
+  env?: Record<string, string>,
 ) {
   return new Promise<{
     stdout: string;
@@ -330,6 +336,7 @@ function runCommand(
     const child = spawn("sh", ["-lc", command], {
       cwd: WORKSPACE_ROOT,
       detached: true,
+      ...(env ? { env: { ...process.env, ...env } } : {}),
     });
     let stdout = "";
     let stderr = "";
@@ -365,6 +372,7 @@ function runCommand(
       pid: child.pid ?? null,
       commandBytes: Buffer.byteLength(command, "utf8"),
       timeoutMs: timeoutMs ?? null,
+      envKeyCount: env ? Object.keys(env).length : 0,
     });
 
     child.stdout.on("data", (chunk: Buffer | string) => {
