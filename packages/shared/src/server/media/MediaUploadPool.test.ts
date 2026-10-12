@@ -125,8 +125,20 @@ describe("MediaUploadPool", () => {
     await activeRun;
     await Promise.resolve();
     expect(started).toEqual(["active", "following", "large"]);
+
+    const duringLarge = deferred<void>();
+    const duringLargeRun = pool.run(0, async () => {
+      started.push("during large");
+      return duringLarge.promise;
+    });
+    await Promise.resolve();
+    expect(started).toEqual(["active", "following", "large"]);
+
     large.resolve();
     await largeRun;
+    expect(started).toEqual(["active", "following", "large", "during large"]);
+    duringLarge.resolve();
+    await duringLargeRun;
   });
 
   it("releases its reservation after rejection", async () => {
