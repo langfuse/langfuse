@@ -178,6 +178,20 @@ describe("prompts trpc", () => {
         }),
       ).resolves.toMatchObject({ prompts: [], totalCount: 0 });
     });
+
+    it("lists prompts when orderBy is null", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.prompts.all({
+          projectId: project.id,
+          page: 0,
+          limit: 10,
+          filter: [],
+          orderBy: null,
+        }),
+      ).resolves.toMatchObject({ prompts: [], totalCount: 0 });
+    });
   });
 
   describe("prompts.importBulk", () => {

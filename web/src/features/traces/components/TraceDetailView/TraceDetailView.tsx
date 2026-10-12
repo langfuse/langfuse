@@ -333,6 +333,26 @@ function LoadedTraceDetailView({
                       ) && "invisible",
                     )}
                   >
+                    {/* Stays mounted so the row keeps its width; the virtualized log has no Raw view. */}
+                    {selectedViewTab === "json" && (
+                      <div
+                        className={cn(
+                          "flex items-center gap-1.5",
+                          selectedTab === "log" &&
+                            isLogViewVirtualized &&
+                            "invisible",
+                        )}
+                      >
+                        <Switch
+                          size="sm"
+                          checked={jsonBetaEnabled}
+                          onCheckedChange={handleBetaToggle}
+                        />
+                        <span className="text-muted-foreground text-xs">
+                          Beta
+                        </span>
+                      </div>
+                    )}
                     <div className="h-fit shrink-0 py-0.5 pr-4 pl-2">
                       <Tabs
                         value={
@@ -391,26 +411,6 @@ function LoadedTraceDetailView({
                         </Tabs.List>
                       </Tabs>
                     </div>
-                    {/* Stays mounted so the row keeps its width; the virtualized log has no Raw view. */}
-                    {selectedViewTab === "json" && (
-                      <div
-                        className={cn(
-                          "mr-1 flex items-center gap-1.5",
-                          selectedTab === "log" &&
-                            isLogViewVirtualized &&
-                            "invisible",
-                        )}
-                      >
-                        <Switch
-                          size="sm"
-                          checked={jsonBetaEnabled}
-                          onCheckedChange={handleBetaToggle}
-                        />
-                        <span className="text-muted-foreground text-xs">
-                          Beta
-                        </span>
-                      </div>
-                    )}
                   </div>
                 }
               />

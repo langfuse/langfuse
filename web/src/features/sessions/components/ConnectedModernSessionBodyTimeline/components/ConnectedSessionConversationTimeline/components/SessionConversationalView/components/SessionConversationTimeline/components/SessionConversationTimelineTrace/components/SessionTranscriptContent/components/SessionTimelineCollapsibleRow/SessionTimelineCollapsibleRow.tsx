@@ -7,6 +7,7 @@ export function SessionTimelineCollapsibleRow({
   labelActionName,
   labelTitle,
   searchableLabel,
+  labelTrailingContent,
   icon,
   isExpanded,
   onExpandedChange,
@@ -19,6 +20,7 @@ export function SessionTimelineCollapsibleRow({
   labelActionName?: string;
   labelTitle?: string;
   searchableLabel?: boolean;
+  labelTrailingContent?: ReactNode;
   icon?: ReactNode;
   onOpenObservation?: () => void;
   trailingContent?: ReactNode;
@@ -74,6 +76,7 @@ export function SessionTimelineCollapsibleRow({
             {label}
           </span>
         )}
+        {labelTrailingContent}
         {onExpandedChange && (
           <button
             type="button"

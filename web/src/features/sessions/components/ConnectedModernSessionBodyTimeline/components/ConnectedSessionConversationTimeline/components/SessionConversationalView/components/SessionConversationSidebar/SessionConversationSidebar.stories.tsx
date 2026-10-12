@@ -1,5 +1,5 @@
 import preview from "@/.storybook/preview";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { type ComponentProps, useState } from "react";
 import { SessionConversationSidebar } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationSidebar/SessionConversationSidebar";
 
@@ -124,6 +124,185 @@ export const DarkMode = meta.story({
   globals: { theme: "dark" },
 });
 export const Empty = meta.story({ args: { ...loadedArgs, traces: [] } });
+
+export const GroupedToolStatuses = meta.story({
+  name: "(Test) Grouped Tool Status Indicators",
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        ...loadedArgs.traces[0]!,
+        transcriptRows: [
+          {
+            id: "0:0",
+            observationId: "search",
+            role: "tool",
+            label: "search",
+            level: "ERROR",
+            statusMessage: "Search timed out",
+          },
+          {
+            id: "0:1",
+            observationId: "fetch",
+            role: "tool",
+            label: "fetch",
+            level: "ERROR",
+          },
+          {
+            id: "0:2",
+            observationId: "list",
+            role: "tool",
+            label: "list",
+            level: "WARNING",
+            statusMessage: "Results truncated",
+          },
+          {
+            id: "0:3",
+            observationId: "validate",
+            role: "tool",
+            label: "validate",
+            level: "WARNING",
+          },
+          {
+            id: "0:4",
+            observationId: "cache",
+            role: "tool",
+            label: "cache",
+            level: "DEFAULT",
+          },
+          {
+            id: "0:5",
+            observationId: "debug",
+            role: "tool",
+            label: "debug",
+            level: "DEBUG",
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvas, canvasElement, userEvent, args }) => {
+    if (args.state !== "loaded")
+      throw new globalThis.Error("Expected loaded sidebar");
+    const errors = await canvas.findByLabelText("2 tool errors");
+    await expect(errors).toBeVisible();
+    await expect(canvas.getByLabelText("2 tool warnings")).toBeVisible();
+    const button = canvas.getByRole("button", { name: /^Tool:/ });
+    await userEvent.hover(button);
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await waitFor(async () => {
+      await expect(within(tooltip).getByText("search")).toBeVisible();
+      await expect(within(tooltip).getByText("fetch")).toBeVisible();
+      await expect(within(tooltip).getByText("list")).toBeVisible();
+      await expect(within(tooltip).getByText("validate")).toBeVisible();
+    });
+    await expect(within(tooltip).getByText("Search timed out")).toBeVisible();
+    await expect(within(tooltip).getByText("Results truncated")).toBeVisible();
+    await expect(
+      within(tooltip).getByRole("heading", { name: "Tool calls" }),
+    ).toBeVisible();
+    await expect(
+      within(tooltip).getByRole("heading", { name: "Errors" }),
+    ).toBeVisible();
+    await expect(
+      within(tooltip).getByRole("heading", { name: "Warnings" }),
+    ).toBeVisible();
+    await userEvent.click(button);
+    await expect(args.onSelect).toHaveBeenCalledWith(0, "search", "0:0", "0:0");
+  },
+});
+
+export const IndividualToolStatuses = meta.story({
+  name: "(Test) Individual Tool Status Indicators",
+  args: {
+    ...loadedArgs,
+    search: "search",
+    traces: [
+      {
+        ...loadedArgs.traces[0]!,
+        transcriptRows: [
+          {
+            id: "0:0",
+            observationId: "failed",
+            role: "tool",
+            label: "search_failed",
+            level: "ERROR",
+            statusMessage: "Search timed out",
+          },
+          {
+            id: "0:1",
+            observationId: "partial",
+            role: "tool",
+            label: "search_partial",
+            level: "WARNING",
+            statusMessage: "Results truncated",
+          },
+          {
+            id: "0:2",
+            observationId: "healthy",
+            role: "tool",
+            label: "search_healthy",
+            level: "DEFAULT",
+            statusMessage: "Search completed",
+          },
+          {
+            id: "0:3",
+            observationId: "debug",
+            role: "tool",
+            label: "search_debug",
+            level: "DEBUG",
+            statusMessage: "Diagnostics enabled",
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvas, canvasElement, userEvent, args }) => {
+    if (args.state !== "loaded")
+      throw new globalThis.Error("Expected loaded sidebar");
+    await expect(
+      await canvas.findByLabelText("Tool status: ERROR"),
+    ).toBeVisible();
+    await expect(canvas.getByLabelText("Tool status: WARNING")).toBeVisible();
+    await expect(
+      canvas.queryByLabelText("Tool status: DEFAULT"),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByLabelText("Tool status: DEBUG"),
+    ).not.toBeInTheDocument();
+    const overlays = within(canvasElement.ownerDocument.body);
+    const failed = canvas.getByRole("button", { name: "tool: search_failed" });
+    await userEvent.hover(failed);
+    await expect(await overlays.findByRole("tooltip")).toHaveTextContent(
+      "Search timed out",
+    );
+    await waitFor(async () => {
+      const tooltip = within(overlays.getByRole("tooltip"));
+      await expect(tooltip.getByText("search_failed")).toBeVisible();
+      await expect(tooltip.getByText("Search timed out")).toBeVisible();
+    });
+    await userEvent.unhover(failed);
+    await waitFor(() =>
+      expect(overlays.queryByRole("tooltip")).not.toBeInTheDocument(),
+    );
+    await userEvent.click(failed);
+    await expect(args.onSelect).toHaveBeenCalledWith(0, "failed", "0:0");
+    await userEvent.tab();
+    await expect(
+      canvas.getByRole("button", { name: "tool: search_partial" }),
+    ).toHaveFocus();
+    await expect(await overlays.findByRole("tooltip")).toHaveTextContent(
+      "Results truncated",
+    );
+    await waitFor(async () => {
+      const tooltip = within(overlays.getByRole("tooltip"));
+      await expect(tooltip.getByText("search_partial")).toBeVisible();
+      await expect(tooltip.getByText("Results truncated")).toBeVisible();
+    });
+  },
+});
 export const Error = meta.story({
   args: {
     ...loadedArgs,

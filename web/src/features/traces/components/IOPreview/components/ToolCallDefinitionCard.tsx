@@ -207,7 +207,7 @@ function ToolGroupSummary({
       className={cn(
         "hover:bg-muted/20 flex w-full items-center justify-between gap-2 rounded-sm border px-3 py-2 text-left",
         isCalledGroup &&
-          "border-light-green bg-accent-light-green hover:bg-accent-light-green/80",
+          "border-dark-green/60 bg-accent-light-green hover:bg-accent-light-green/80",
       )}
       aria-expanded={expanded}
       onClick={onToggle}
