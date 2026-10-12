@@ -19,6 +19,7 @@ migrate
 
 # next.js
 /.next/
+/.next-check/
 /out/
 next-env.d.ts
 
@@ -75,6 +76,7 @@ node_modules
 **/node_modules
 **/dist
 **/.next/*
+**/.next-check/*
 **/.turbo/*
 .yarn
 .turbo
