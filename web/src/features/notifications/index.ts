@@ -10,5 +10,4 @@ export { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 export {
   showToast,
   showCustomToast,
-  dismissToast,
 } from "@/src/features/notifications/showToast";

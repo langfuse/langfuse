@@ -194,16 +194,19 @@ describe("projectsRouter system role assignments", () => {
 
     await expect(
       prisma.roleAssignment.count({
-        where: { principalApiKeyId: key.id },
+        where: { apiKeyId: key.id },
       }),
     ).resolves.toBe(1);
 
     const assignment = await prisma.roleAssignment.create({
       data: {
         orgId,
-        principalUserId: user.id,
-        ownerProjectId: projectId,
+        userId: user.id,
+        principalId: `user/${user.id}`,
+        projectId,
+        ownerId: `project/${projectId}`,
         systemRole: "VIEWER",
+        roleId: "system/VIEWER",
       },
     });
 
@@ -211,7 +214,7 @@ describe("projectsRouter system role assignments", () => {
 
     await expect(
       prisma.roleAssignment.count({
-        where: { principalApiKeyId: key.id },
+        where: { apiKeyId: key.id },
       }),
     ).resolves.toBe(0);
     await expect(
@@ -230,7 +233,7 @@ describe("projectsRouter system role assignments", () => {
     ).resolves.toEqual([
       expect.objectContaining({
         id: assignment.id,
-        ownerProjectId: projectId,
+        projectId: projectId,
         systemRole: "VIEWER",
       }),
     ]);
@@ -254,16 +257,16 @@ describe("projectsRouter system role assignments", () => {
     });
 
     const before = await prisma.roleAssignment.findFirstOrThrow({
-      where: { principalApiKeyId: key.id },
+      where: { apiKeyId: key.id },
     });
     expect(before.orgId).toBe(sourceOrgId);
 
     await caller.projects.transfer({ projectId, targetOrgId });
 
     const after = await prisma.roleAssignment.findFirstOrThrow({
-      where: { principalApiKeyId: key.id },
+      where: { apiKeyId: key.id },
     });
     expect(after.orgId).toBe(targetOrgId);
-    expect(after.ownerProjectId).toBe(projectId);
+    expect(after.projectId).toBe(projectId);
   });
 });

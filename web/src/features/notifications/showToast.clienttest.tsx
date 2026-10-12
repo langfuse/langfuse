@@ -1,11 +1,7 @@
 import { StrictMode, type ReactNode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
-import { expectTypeOf, vi } from "vitest";
-import {
-  dismissToast,
-  showCustomToast,
-  showToast,
-} from "@/src/features/notifications";
+import { vi } from "vitest";
+import { showCustomToast, showToast } from "@/src/features/notifications";
 
 vi.mock("@/src/features/notifications/showErrorToast", () => ({
   showErrorToast: vi.fn(),
@@ -16,7 +12,6 @@ vi.mock("@/src/features/notifications/showSuccessToast", () => ({
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
-  dismiss: vi.fn(),
   custom: vi.fn<
     (render: (id: string | number) => unknown, options?: unknown) => string
   >(() => "custom-return-id"),
@@ -43,7 +38,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("sonner", () => ({
   toast: {
     custom: mocks.custom,
-    dismiss: mocks.dismiss,
     error: mocks.error,
     info: mocks.info,
     loading: mocks.loading,
@@ -231,34 +225,24 @@ describe("showToast", () => {
       "PRIVATE-CUSTOM-CONTENT",
     );
   });
-
-  it("requires registered operations and complete error classification", () => {
-    expectTypeOf<ReturnType<typeof showToast>>().toExtend<string | number>();
-
-    if (false) {
-      // @ts-expect-error analytics are mandatory for every native toast
-      showToast({ type: "SUCCESS", title: "Saved" });
-      showToast({
-        type: "SUCCESS",
-        title: "Saved",
-        // @ts-expect-error success operations must be registered static IDs
-        analytics: { operation: "resource.dynamic" },
-      });
-      // @ts-expect-error errors require both origin and category
-      showToast({
-        type: "ERROR",
-        title: "Failed",
-        analytics: { operation: "dashboard.create", errorOrigin: "backend" },
-      });
-      // @ts-expect-error custom rendering requires metadata too
-      showCustomToast(() => "Rendered");
-    }
-  });
-
-  it("dismisses a toast by ID without recording another shown event", () => {
-    dismissToast("toast-to-dismiss");
-
-    expect(mocks.dismiss).toHaveBeenCalledExactlyOnceWith("toast-to-dismiss");
-    expect(mocks.capture).not.toHaveBeenCalled();
-  });
 });
+
+// These invalid calls guard the TypeScript contract without invoking UI code.
+if (false) {
+  // @ts-expect-error analytics are mandatory for every native toast
+  showToast({ type: "SUCCESS", title: "Saved" });
+  showToast({
+    type: "SUCCESS",
+    title: "Saved",
+    // @ts-expect-error success operations must be registered static IDs
+    analytics: { operation: "resource.dynamic" },
+  });
+  // @ts-expect-error errors require both origin and category
+  showToast({
+    type: "ERROR",
+    title: "Failed",
+    analytics: { operation: "dashboard.create", errorOrigin: "backend" },
+  });
+  // @ts-expect-error custom rendering requires metadata too
+  showCustomToast(() => "Rendered");
+}

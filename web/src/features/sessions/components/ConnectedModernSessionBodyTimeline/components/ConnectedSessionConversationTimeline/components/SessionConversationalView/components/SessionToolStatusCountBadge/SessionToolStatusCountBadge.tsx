@@ -3,11 +3,13 @@ import { CircleAlert, TriangleAlert } from "lucide-react";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 
 type SessionToolStatusCountBadgeProps = {
-  count: number;
   severity: "error" | "warning";
-  variant: "timeline" | "sidebar";
   ref?: ComponentProps<"span">["ref"];
-} & Pick<ComponentProps<typeof BadgeShell>, "aria-label" | "tabIndex">;
+} & Pick<ComponentProps<typeof BadgeShell>, "aria-label" | "tabIndex"> &
+  (
+    | { variant: "timeline"; count: number }
+    | { variant: "sidebar"; count?: number }
+  );
 
 export function SessionToolStatusCountBadge({
   count,

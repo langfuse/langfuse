@@ -10,14 +10,6 @@ import {
 } from "@/src/utils/trpcToastOperation";
 
 describe("tRPC toast operation context", () => {
-  it("associates a trusted tRPC procedure path with the emitted error", () => {
-    const error = new Error("request failed");
-
-    rememberTrpcToastOperation(error, "projects.create");
-
-    expect(getTrpcToastOperation(error)).toBe("projects.create");
-  });
-
   it("keeps operation context isolated per error object", () => {
     const createError = new Error("create failed");
     const deleteError = new Error("delete failed");

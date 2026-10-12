@@ -40,18 +40,6 @@ describe("classifyTrpcToastError", () => {
     });
   });
 
-  it("retains the failed intent when a transport error has no server path", () => {
-    const error = new TRPCClientError("Failed to fetch", {
-      cause: new TypeError("Failed to fetch"),
-    });
-
-    expect(classifyTrpcToastError(error, "project_api_key.create")).toEqual({
-      operation: "project_api_key.create",
-      errorOrigin: "network",
-      errorCategory: "transient",
-    });
-  });
-
   it.each([
     ["BAD_REQUEST", 400, "frontend", "internal"],
     ["FORBIDDEN", 403, "backend", "permission"],

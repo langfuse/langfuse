@@ -303,6 +303,7 @@ export async function processObservationEval(
     traceId: executionParams.job.jobInputTraceId,
     observationId: executionParams.job.jobInputObservationId,
     environment: executionParams.environment,
+    executionType: params.executionType,
     deps: executionParams.deps,
     result: executionResult,
   });

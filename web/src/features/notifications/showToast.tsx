@@ -52,8 +52,6 @@ export const showCustomToast = (
     options,
   );
 
-export const dismissToast = toast.dismiss;
-
 /** Captures on mount and guards rerenders and StrictMode reattachments. */
 const ToastContent = ({ children, properties }: ToastContentProps) => {
   const capture = usePostHogClientCapture();
