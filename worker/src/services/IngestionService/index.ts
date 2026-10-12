@@ -1269,48 +1269,56 @@ export class IngestionService {
     skills_available: SkillsAvailable;
     skills_resource_loaded: SkillsResourceLoaded;
   }> {
-    const availableSkills = type === "GENERATION" ? available : [];
-    const skillIds = [
-      ...new Set(
-        availableSkills
-          .concat(loaded)
-          .flatMap((ref) => (ref.langfuseSkillId ? [ref.langfuseSkillId] : [])),
-      ),
-    ];
-    if (skillIds.length === 0) {
-      return {
-        skills_available: availableSkills,
-        skills_resource_loaded: loaded,
-      };
+    const skillVersions: { name: string; version: number }[] = [];
+    for (const skill of available) {
+      if (skill.langfuseSkillVersion != null) {
+        skillVersions.push({
+          name: skill.skillName,
+          version: skill.langfuseSkillVersion,
+        });
+      }
     }
 
-    const skills = await this.prisma.skill.findMany({
-      where: { projectId, id: { in: skillIds } },
-      select: {
-        id: true,
-        name: true,
-        version: true,
+    const skills =
+      skillVersions.length === 0
+        ? []
+        : await this.prisma.skill.findMany({
+            where: { projectId, OR: skillVersions },
+            select: { id: true, name: true, version: true },
+          });
+
+    const availableSkills = available.map(
+      ({ skillName, langfuseSkillVersion }) => {
+        const skill = skills.find(
+          (skill) =>
+            skill.name === skillName && skill.version === langfuseSkillVersion,
+        );
+        return {
+          skillName,
+          langfuseSkillVersion,
+          langfuseSkillId: skill?.id,
+        };
       },
+    );
+
+    const loadedResources = loaded.map(({ skillName, filePath }) => {
+      const candidates = availableSkills.filter(
+        (skill) => skill.skillName === skillName,
+      );
+      if (candidates.length !== 1) return { skillName, filePath };
+
+      const skill = candidates[0];
+      return {
+        skillName,
+        filePath,
+        langfuseSkillId: skill?.langfuseSkillId,
+        langfuseSkillVersion: skill?.langfuseSkillVersion,
+      };
     });
-    const byId = new Map(skills.map((skill) => [skill.id, skill]));
-    const resolveReference = <T extends SkillsAvailable[number]>(
-      ref: T,
-    ): T[] => {
-      if (!ref.langfuseSkillId) return [ref];
-      const skill = byId.get(ref.langfuseSkillId);
-      if (
-        !skill ||
-        skill.name !== ref.skillName ||
-        (ref.langfuseSkillVersion != null &&
-          skill.version !== ref.langfuseSkillVersion)
-      )
-        return [];
-      return [{ ...ref, langfuseSkillVersion: skill.version }];
-    };
 
     return {
-      skills_available: availableSkills.flatMap(resolveReference),
-      skills_resource_loaded: loaded.flatMap(resolveReference),
+      skills_available: type === "GENERATION" ? availableSkills : [],
+      skills_resource_loaded: loadedResources,
     };
   }
 

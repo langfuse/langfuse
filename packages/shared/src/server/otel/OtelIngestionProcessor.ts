@@ -57,6 +57,15 @@ import { defineOwnValue } from "../../utils/objects";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
+const SKILL_RESOURCE_TOOL_NAMES = new Set([
+  "skill",
+  "Skill",
+  "loadSkill",
+  "skill_read",
+  "readFile",
+  "Read",
+]);
+
 // Foreign level vocabularies observed from OTel senders (OTel severity
 // names, python logging, loguru, console) mapped onto the Langfuse enum.
 //  The classic ingestion API keeps its strict enum; only the
@@ -3967,23 +3976,11 @@ export class OtelIngestionProcessor {
     );
     if (!loaded.success) return {};
 
-    const reference = {
-      ...loaded.data,
-      skillName: loaded.data.skillName.replace(/^inline\//, ""),
-    };
-    if (!reference.skillName) return {};
-    const matches = (available.success ? available.data : []).filter(
-      (skill) => skill.skillName === reference.skillName,
-    );
-    const matchedSkill = matches.length === 1 ? matches[0] : undefined;
+    const skillName = loaded.data.skillName.replace(/^inline\//, "");
+    if (!skillName) return {};
     return {
-      skillsResourceLoaded: [
-        {
-          ...reference,
-          langfuseSkillId: matchedSkill?.langfuseSkillId,
-          langfuseSkillVersion: matchedSkill?.langfuseSkillVersion,
-        },
-      ],
+      ...(available.success ? { skillsAvailable: available.data } : {}),
+      skillsResourceLoaded: [{ skillName, filePath: loaded.data.filePath }],
     };
   }
 
@@ -3993,7 +3990,7 @@ export class OtelIngestionProcessor {
     output: unknown,
     available: SkillsAvailable,
   ) {
-    if (output == null) return;
+    if (output == null || !SKILL_RESOURCE_TOOL_NAMES.has(toolName)) return;
 
     const args = this.parseJsonPayload(input);
     if (!OtelIngestionProcessor.isPlainObject(args)) return;

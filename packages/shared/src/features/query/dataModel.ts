@@ -21,10 +21,10 @@ import { EvalExecutionMetadataKey } from "../evals/evalExecutionMetadata";
 function getSkillObservationFields(
   table: "observations" | "events_observations",
 ): Pick<ViewDeclarationType, "dimensions" | "measures"> {
-  const availableNames = `arrayMap(skill -> skill.skillName, ${table}.skills_available)`;
-  const loadedNames = `arrayMap(resource -> resource.skillName, ${table}.skills_resource_loaded)`;
-  const availableIds = `arrayMap(skill -> assumeNotNull(skill.langfuseSkillId), arrayFilter(skill -> isNotNull(skill.langfuseSkillId), ${table}.skills_available))`;
-  const loadedResourceIds = `arrayMap(resource -> toJSONString([assumeNotNull(resource.langfuseSkillId), resource.filePath]), arrayFilter(resource -> isNotNull(resource.langfuseSkillId), ${table}.skills_resource_loaded))`;
+  const availableNames = `${table}.skills_available.skillName`;
+  const loadedNames = `${table}.skills_resource_loaded.skillName`;
+  const availableIds = `${table}.skills_available.langfuseSkillId`;
+  const loadedResourceIds = `arrayMap(resource -> toJSONString([resource.langfuseSkillId, resource.filePath]), ${table}.skills_resource_loaded)`;
   const loadedResources = `arrayMap(resource -> toJSONString([resource.skillName, resource.filePath]), ${table}.skills_resource_loaded)`;
 
   return {
