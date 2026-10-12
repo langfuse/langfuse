@@ -300,7 +300,7 @@ export const getOrganizationSettingsPages = ({
     show: showAiGateway,
   },
   {
-    title: "Gateway API keys",
+    title: "Gateway keys",
     slug: "ai-gateway-api-keys",
     section: "AI Gateway",
     cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
