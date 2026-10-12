@@ -445,6 +445,7 @@ export const eventsRouter = createTRPCRouter({
         projectId: zodSchema.string(),
         traceId: zodSchema.string(),
         timestamp: zodSchema.date().optional(),
+        // Accepted for existing clients; shared assembly always pairs tool responses.
         recoverToolResponses: zodSchema.boolean().default(false),
         fallbackToRootIO: zodSchema.boolean().default(false),
       }),
@@ -494,7 +495,6 @@ export const eventsRouter = createTRPCRouter({
             projectId: input.projectId,
             traceId: input.traceId,
             timestamp,
-            recoverToolResponses: input.recoverToolResponses,
             fallbackToRootIO: input.fallbackToRootIO,
           });
         },

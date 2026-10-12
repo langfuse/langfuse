@@ -79,6 +79,10 @@ export type ToolResultPart = NormalizedPartBase & {
   toolCallId: string | null;
   toolName?: string;
   output: JsonValue;
+  /** Transcript-only metadata, separate from user output to avoid key collisions.
+   * Media and unsupported parts cannot be previewed by the JSON tool-result
+   * renderer; the original content remains available on the TOOL observation. */
+  omittedContent?: { kind: "media" | "unsupported"; count: number }[];
   isError?: boolean;
 };
 

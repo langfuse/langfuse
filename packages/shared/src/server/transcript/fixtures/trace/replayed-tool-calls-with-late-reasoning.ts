@@ -167,7 +167,14 @@ export const replayedToolCallsWithLateReasoningFixture = {
             },
             ...results.map((value, index) => ({
               role: "tool" as const,
-              parts: [{ type: "data" as const, value }],
+              parts: [
+                {
+                  type: "tool-result" as const,
+                  toolCallId: calls[index]!.id,
+                  toolName: calls[index]!.name,
+                  output: value,
+                },
+              ],
               source: "output" as const,
               ...provenance(
                 `synthetic-block-tool-${index + 1}`,

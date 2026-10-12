@@ -1,6 +1,7 @@
 import type {
   NormalizedMessage,
   ToolCallPart,
+  ToolResultPart,
 } from "../../utils/normalized-io";
 import type { ThreadMessage } from "./types";
 import {
@@ -12,6 +13,7 @@ import {
 } from "./threads";
 
 type Call = {
+  part: ToolCallPart;
   thread: ThreadState;
   message: ThreadMessage;
   response?: ThreadMessage;
@@ -39,7 +41,7 @@ export function createToolCallRegistry() {
       : undefined;
     if (id && calls.has(id)) return;
 
-    const call: Call = { thread, message };
+    const call: Call = { part, thread, message };
     if (id) calls.set(id, call);
     if (part.toolCallId) {
       if (!callsByThread.has(thread)) callsByThread.set(thread, new Map());
@@ -182,13 +184,35 @@ export function createToolCallRegistry() {
     const parts = output.flatMap(({ message }) => message.parts);
     if (!parts.length) return;
 
+    // Tool rows render JSON, not normalized media/custom parts. Consume those
+    // parts with the response so they cannot leak into independent messages;
+    // typed omission metadata points users back to the untouched observation.
+    const omittedContent: NonNullable<ToolResultPart["omittedContent"]> = [];
+    const mediaCount = parts.filter((part) => part.type === "file").length;
+    const unsupportedCount = parts.filter(
+      (part) =>
+        part.type !== "text" &&
+        part.type !== "data" &&
+        part.type !== "tool-result" &&
+        part.type !== "file",
+    ).length;
+    if (mediaCount) omittedContent.push({ kind: "media", count: mediaCount });
+    if (unsupportedCount)
+      omittedContent.push({ kind: "unsupported", count: unsupportedCount });
+
     let hasId = false;
     for (const part of parts) {
       if (part.type !== "tool-result" || !part.toolCallId) continue;
 
       hasId = true;
       const call = calls.get(key(observation.traceId, part.toolCallId));
-      if (call) setResponse(call, observation, [part]);
+      if (call)
+        setResponse(call, observation, [
+          {
+            ...part,
+            ...(omittedContent.length ? { omittedContent } : {}),
+          },
+        ]);
     }
     if (hasId || !observation.name) return;
 
@@ -199,7 +223,38 @@ export function createToolCallRegistry() {
     const call = queue.calls[queue.next];
     if (call) {
       queue.next++;
-      setResponse(call, observation, parts);
+      const content = parts.filter(
+        (part) =>
+          part.type === "text" ||
+          part.type === "data" ||
+          part.type === "tool-result",
+      );
+      const responseOutput = (() => {
+        if (!content.length) return null;
+        if (content.every((part) => part.type === "text")) {
+          return content.map((part) => part.text).join("\n");
+        }
+        const values = content.map((part) => {
+          if (part.type === "text") return part.text;
+          if (part.type === "data") return part.value;
+          return part.output;
+        });
+        return values.length === 1 ? values[0]! : values;
+      })();
+      setResponse(call, observation, [
+        {
+          type: "tool-result",
+          toolCallId: call.part.toolCallId,
+          toolName: call.part.toolName,
+          output: responseOutput,
+          ...(content.some(
+            (part) => part.type === "tool-result" && part.isError,
+          )
+            ? { isError: true }
+            : {}),
+          ...(omittedContent.length ? { omittedContent } : {}),
+        },
+      ]);
     }
   }
 
