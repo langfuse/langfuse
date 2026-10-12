@@ -8,6 +8,13 @@ export const IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE = "tool_call_rejected";
 export const IN_APP_AGENT_GENERIC_ERROR_MESSAGE =
   "An error occurred. Please try again or start a new conversation.";
 
+/** Public keys of sandbox script keys carry this prefix; secrets stay `sk-lf-` so existing redaction matches. */
+export const SANDBOX_PUBLIC_KEY_PREFIX = "pk-lf-sbx-";
+
+export function isSandboxPublicKey(publicKey: string | undefined): boolean {
+  return publicKey?.startsWith(SANDBOX_PUBLIC_KEY_PREFIX) ?? false;
+}
+
 /** Runs that are not yet in a terminal state, including parked approvals. */
 export const IN_APP_AGENT_UNSETTLED_RUN_STATUSES = [
   InAppAgentRunStatus.QUEUED,

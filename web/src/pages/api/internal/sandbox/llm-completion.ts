@@ -14,7 +14,7 @@ import {
   logger,
   mapLegacyLLMCompletionParams,
 } from "@langfuse/shared/src/server";
-import { isSandboxPublicKey } from "@langfuse/shared/in-app-agent/server/sandboxKey";
+import { isSandboxPublicKey } from "@langfuse/shared/in-app-agent";
 
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";

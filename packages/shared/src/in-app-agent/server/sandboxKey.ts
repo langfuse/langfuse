@@ -5,6 +5,7 @@ import { InvalidRequestError } from "../../errors";
 import type { ProjectAction } from "../../features/rbac/systemRoleAccessRights";
 import { ProjectId, SystemRoleId, UserId } from "../../features/rbac/types";
 import { createApiKey, deleteApiKeyFromDb } from "../../server/auth/apiKeys";
+import { SANDBOX_PUBLIC_KEY_PREFIX } from "../constants";
 
 /**
  * Langfuse API keys for scripts the in-app agent runs in its sandbox.
@@ -14,9 +15,6 @@ import { createApiKey, deleteApiKeyFromDb } from "../../server/auth/apiKeys";
  * script completes, fails, or is cancelled. The guest can read and copy the
  * key while it is valid; deleting the row is what ends its use.
  */
-
-/** Public keys of sandbox script keys carry this prefix; secrets stay `sk-lf-` so existing redaction matches. */
-const SANDBOX_PUBLIC_KEY_PREFIX = "pk-lf-sbx-";
 
 const SANDBOX_KEY_NAME = "In-app agent sandbox script";
 
@@ -70,10 +68,6 @@ export type SandboxKey = {
   secretKey: string;
   expiresAt: Date;
 };
-
-export function isSandboxPublicKey(publicKey: string): boolean {
-  return publicKey.startsWith(SANDBOX_PUBLIC_KEY_PREFIX);
-}
 
 /**
  * Mints the key for one approved script.

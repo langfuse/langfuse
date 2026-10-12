@@ -9,6 +9,7 @@ import {
   UnauthorizedError,
 } from "../../errors";
 import { type AuthHeaderValidVerificationResultIngestion } from "../auth/types";
+import { isSandboxPublicKey } from "../../in-app-agent/constants";
 import {
   getClickhouseEntityType,
   type IngestionEntityTypes,
@@ -171,6 +172,24 @@ export const processEventBatch = async (
       if (event.type === eventTypes.SDK_LOG) {
         // Log SDK_LOG events, but remove them from further processing
         logger.info("SDK Log Event", { event });
+        return [];
+      }
+      return [event];
+    })
+    .flatMap((event) => {
+      // Public traces are readable by anyone with the link, which would let a
+      // sandbox script publish project data without any network egress.
+      if (
+        event.type === eventTypes.TRACE_CREATE &&
+        event.body.public === true &&
+        isSandboxPublicKey(authCheck.scope.publicKey)
+      ) {
+        validationErrors.push({
+          id: event.id,
+          error: new InvalidRequestError(
+            "Sandbox script keys cannot make traces public",
+          ),
+        });
         return [];
       }
       return [event];
