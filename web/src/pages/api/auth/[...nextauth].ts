@@ -172,6 +172,13 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   // SSO signups can be attributed to ad clicks (cloud_signup_complete event).
   // Password reset asks NextAuth's email provider for a code. The sign-in
   // callback verifies this token before that email is sent.
+  //
+  // The Turnstile check itself lives in the `signIn` callback (auth.ts), which
+  // already limits it to the email provider's send request. This flag only
+  // controls when the token and client IP are read from the request body:
+  // for POST /api/auth/signin/email, the one request that consumes them. For
+  // every other request on this route, the request context is undefined and
+  // nothing in the body is inspected or forwarded.
   const isPasswordResetEmailRequest =
     req.method === "POST" &&
     nextAuthAction === "signin" &&
