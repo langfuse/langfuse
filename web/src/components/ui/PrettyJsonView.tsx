@@ -14,11 +14,15 @@ import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type MediaReturnType } from "@/src/features/media";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import {
+  MarkdownJsonViewHeader,
+  SystemPromptCollapseButton,
+} from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
+import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import {
   ChevronDown,
   ChevronRight,
@@ -1191,6 +1195,27 @@ export function PrettyJsonView(props: {
       : [];
   const shouldRenderStandaloneMedia =
     isMarkdownMode && standaloneMediaReferenceStrings.length > 0;
+
+  // In markdown mode the body is a nested MarkdownView rendered WITHOUT a title
+  // (this view owns the header), so it renders no header of its own and the
+  // header-side collapse control has to live here. `markdownContent` is the very
+  // value that nested view receives, and `isMarkdownContent` only ever yields a
+  // string, so its own collapsible content is identical — the two hook instances
+  // agree on `shouldBeCollapsible` by construction. They also share one
+  // persisted preference through useSyncExternalStore, so the header control and
+  // the nested inline control stay in sync with no state lifting.
+  //
+  // No large-string guard is needed: the markdown probe is skipped for gated
+  // large strings and `isMarkdown` is then hard-coded false, so `isMarkdownMode`
+  // below is already false for them.
+  const {
+    shouldBeCollapsible: shouldCollapseSystemPrompt,
+    isCollapsed: isSystemPromptCollapsed,
+    toggleCollapsed: toggleSystemPromptCollapsed,
+  } = useCollapsibleSystemPrompt({
+    isSystemPrompt: Boolean(props.isSystemPrompt),
+    content: markdownContent ?? "",
+  });
   const remainingMarkdownMedia = filterAlreadyRenderedMedia(
     props.media,
     getRenderedInlineMediaIds({
@@ -1429,6 +1454,16 @@ export function PrettyJsonView(props: {
           hoverRevealControls
           controlButtons={
             <>
+              {/* Expanded only, and only when the nested MarkdownView that owns
+                  the inline control is the thing being rendered. */}
+              {shouldCollapseSystemPrompt &&
+              !isSystemPromptCollapsed &&
+              isMarkdownMode &&
+              !shouldRenderStandaloneMedia ? (
+                <SystemPromptCollapseButton
+                  onCollapse={() => toggleSystemPromptCollapsed("header")}
+                />
+              ) : null}
               {expandCollapseButton}
               {props.controlButtons}
             </>

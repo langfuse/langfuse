@@ -88,6 +88,39 @@ export function MarkdownJsonViewHeader({
 }
 
 /**
+ * Collapse control for the message header, rendered only while a long system
+ * prompt is EXPANDED — so it is always a "collapse", never an "expand".
+ *
+ * The collapsed state deliberately keeps its single inline control: with a
+ * four-line preview every control is on screen at once, so a second one is
+ * pure duplication (the reason the previous header controls were removed).
+ * Expanded, the two ends of the message can be thousands of pixels apart, so
+ * one control at each end is not duplication — it is the only way to collapse
+ * without first scrolling the whole prompt.
+ *
+ * Callers decide whether to render it; it never renders itself away.
+ */
+export function SystemPromptCollapseButton({
+  onCollapse,
+}: {
+  onCollapse: () => void;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="xs"
+      type="button"
+      onClick={onCollapse}
+      aria-label="Collapse system prompt"
+      title="Collapse system prompt"
+      className="text-muted-foreground hover:bg-border w-fit text-xs"
+    >
+      Collapse
+    </Button>
+  );
+}
+
+/**
  * Whether `content` renders through MarkdownView (inline text/image/audio
  * parts) rather than as a JSON table. Narrows to the schema's INPUT type:
  * `MediaReferenceStringSchema` transforms `@@@langfuseMedia:…@@@` into a parsed

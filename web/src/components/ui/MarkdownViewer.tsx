@@ -38,7 +38,10 @@ import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import {
+  MarkdownJsonViewHeader,
+  SystemPromptCollapseButton,
+} from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
@@ -589,6 +592,22 @@ export function MarkdownView({
     </div>
   ) : null;
 
+  // Expanded only: the inline control above sits after the body, which on a
+  // multi-thousand-token prompt means scrolling the whole thing to hide it.
+  // Collapsed, the header stays control-free so the preview keeps offering
+  // exactly one way to expand.
+  const headerControlButtons =
+    shouldBeCollapsible && !isCollapsed ? (
+      <>
+        <SystemPromptCollapseButton
+          onCollapse={() => toggleCollapsed("header")}
+        />
+        {controlButtons}
+      </>
+    ) : (
+      controlButtons
+    );
+
   return (
     <div className="group/iosection overflow-hidden" key={theme}>
       {title ? (
@@ -597,7 +616,7 @@ export function MarkdownView({
           titleIcon={titleIcon}
           handleOnCopy={handleOnCopy}
           hoverRevealControls
-          controlButtons={controlButtons}
+          controlButtons={headerControlButtons}
         />
       ) : null}
       {afterHeader}
