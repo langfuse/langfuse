@@ -1,8 +1,3 @@
-type PendingUpload = {
-  bytes: number;
-  ready: () => void;
-};
-
 /** Runs admitted uploads in FIFO order while bounding active work and bytes. */
 export class MediaUploadQueue {
   private readonly queue: PendingUpload[] = [];
@@ -67,3 +62,8 @@ export class MediaUploadQueue {
     );
   }
 }
+
+type PendingUpload = {
+  bytes: number;
+  ready: () => void;
+};

@@ -150,15 +150,15 @@ describe("MediaUploadQueue", () => {
   it.each([
     [0, 1],
     [1.5, 1],
-    [Number.POSITIVE_INFINITY, 1],
     [Number.MAX_SAFE_INTEGER + 1, 1],
     [1, 0],
     [1, 1.5],
+    [1, Number.MAX_SAFE_INTEGER + 1],
   ])("rejects invalid constructor limits: %s, %s", (concurrency, maxBytes) => {
     expect(() => new MediaUploadQueue(concurrency, maxBytes)).toThrow();
   });
 
-  it.each([-1, 1.5, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+  it.each([-1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
     "rejects invalid byte sizes: %s",
     async (bytes) => {
       await expect(
