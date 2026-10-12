@@ -19,7 +19,6 @@
   },
   "scripts": {
     "build": "tsc",
-    "build:check": "tsc",
     "typecheck": "dotenv -e ../../.env -- tsc --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "tsc --watch",
     "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0 --concurrency 2",

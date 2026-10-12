@@ -72,9 +72,7 @@ impl ValidatedOtelJson {
                 }
             };
             let batch = ExtractedBatch {
-                json: Mutex::new(Some(String::from_utf8(result.compact_json).map_err(
-                    |_| Error::new("ERR_OTEL_INTERNAL", "compacted JSON is not UTF-8"),
-                )?)),
+                json: Mutex::new(Some(result.compact_json)),
                 media: result.media,
                 _memory: memory,
             };

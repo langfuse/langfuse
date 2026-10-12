@@ -20,6 +20,9 @@ export const TURNSTILE_ACTIONS = {
   login: "login",
   signup: "signup",
   signupVerify: "signup_verify",
+  // Password-reset and password-setup both send the code through the
+  // NextAuth email provider.
+  passwordReset: "password_reset",
 } as const;
 
 export type TurnstileAction =
