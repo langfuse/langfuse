@@ -112,17 +112,24 @@ async function legacyWithShadow(
   const resource = requestResource(params.req);
   const legacyAuth = await runLegacyAuth(params);
   const newAuth = await runNewAuth(params);
-  shadowAuthDiff(
-    newAuth,
-    legacyAuth,
-    params.action,
-    getAuthMetadata({ newAuth, legacyAuth, resource }),
-  );
+  shadowAuthDiff(newAuth, legacyAuth, params.action, {
+    ...getScopeIdentity(newAuth, legacyAuth),
+    resource,
+  });
   const result = legacyResult(legacyAuth);
   if (result.success && newAuth.success) {
     return { ...result, ctx: withShadowResource(newAuth.ctx, resource) };
   }
   return result;
+}
+
+function getScopeIdentity(
+  newAuth: EnforceAuthResult,
+  legacyAuth: LegacyDecision,
+) {
+  const successfulAuth = newAuth.success ? newAuth : legacyAuth;
+  const scope = successfulAuth.success ? successfulAuth.scope : undefined;
+  return { apiKeyId: scope?.apiKeyId, publicKey: scope?.publicKey };
 }
 
 function withShadowResource(
@@ -252,33 +259,15 @@ function diffOrGate(
       decision,
       params.legacyDecision,
       params.action,
-      getAuthMetadata({ ctx: params.ctx }),
+      getAuthMetadata(params.ctx),
     );
     return params.legacyDecision;
   }
   return decision;
 }
 
-function getAuthMetadata(source: AuthMetadataSource) {
-  if ("ctx" in source) {
-    return {
-      ...getPrincipalIdentity(source.ctx),
-      resource: getResource(source.ctx),
-    };
-  }
-  return {
-    ...getScopeIdentity(source.newAuth, source.legacyAuth),
-    resource: source.resource,
-  };
-}
-
-function getScopeIdentity(
-  newAuth: EnforceAuthResult,
-  legacyAuth: LegacyDecision,
-) {
-  const successfulAuth = newAuth.success ? newAuth : legacyAuth;
-  const scope = successfulAuth.success ? successfulAuth.scope : undefined;
-  return { apiKeyId: scope?.apiKeyId, publicKey: scope?.publicKey };
+function getAuthMetadata(ctx: AuthorizationContext | undefined) {
+  return { ...getPrincipalIdentity(ctx), resource: getResource(ctx) };
 }
 
 function getPrincipalIdentity(ctx: AuthorizationContext | undefined) {
@@ -310,14 +299,6 @@ function tenantFor(ctx: AuthorizationContext, resource: Resource): TenantId {
     ctx.principal.kind === "apiKey" ? ctx.principal.boundResource.orgId : "";
   return OrganizationId(boundOrg);
 }
-
-type AuthMetadataSource =
-  | { ctx: AuthorizationContext | undefined }
-  | {
-      newAuth: EnforceAuthResult;
-      legacyAuth: LegacyDecision;
-      resource: string;
-    };
 
 /** ShadowAuthParams is enforceAuth's params plus the access levels the legacy verify gates on. */
 export type ShadowAuthParams = EnforceAuthParams & {
