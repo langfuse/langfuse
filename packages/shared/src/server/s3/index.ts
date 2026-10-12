@@ -34,6 +34,7 @@ export const getS3MediaStorageClient = (bucketName: string): StorageService => {
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
       awsSse: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE,
       awsSseKmsKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID,
+      s3RequestTimeoutMs: env.LANGFUSE_S3_MEDIA_UPLOAD_REQUEST_TIMEOUT_MS,
     });
   }
   return s3MediaStorageClient;

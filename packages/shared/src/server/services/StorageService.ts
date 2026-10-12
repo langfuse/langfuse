@@ -129,13 +129,19 @@ function handleStorageError(err: unknown, operation: string): never {
 
 function createS3RequestHandler(
   connectionValidation?: OutboundUrlConnectionValidationOptions,
+  s3RequestTimeoutMs?: number,
 ): NodeHttpHandler {
   const maxSockets = env.LANGFUSE_S3_CONCURRENT_WRITES;
+  const timeout =
+    s3RequestTimeoutMs === undefined
+      ? {}
+      : { requestTimeout: s3RequestTimeoutMs, throwOnRequestTimeout: true };
 
   if (!connectionValidation) {
     // Both agents need the limit: plain-HTTP endpoints (e.g. MinIO) go through
     // httpAgent, which otherwise stays at the SDK default of 50 sockets.
     return new NodeHttpHandler({
+      ...timeout,
       httpAgent: { maxSockets },
       httpsAgent: { maxSockets },
     });
@@ -147,6 +153,7 @@ function createS3RequestHandler(
   );
 
   return new NodeHttpHandler({
+    ...timeout,
     httpAgent,
     httpsAgent,
   });
@@ -360,6 +367,7 @@ export class StorageServiceFactory {
    * @param params.logSlowDownAsWarning - Log S3 SlowDown as a warning. Set only when the caller escalates to an error after its own retries are spent.
    * @param params.maxAttempts - Maximum AWS SDK attempts for each S3 operation.
    * @param params.connectionValidation - Optional connection-time DNS/IP validation for user-controlled endpoints.
+   * @param params.s3RequestTimeoutMs - Optional S3 HTTP request deadline; timeout rejects the request.
    */
   public static getInstance(params: {
     accessKeyId: string | undefined;
@@ -378,6 +386,7 @@ export class StorageServiceFactory {
     logSlowDownAsWarning?: boolean;
     maxAttempts?: number;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
+    s3RequestTimeoutMs?: number;
   }): StorageService {
     if (
       params.useAzureBlob !== undefined
@@ -785,6 +794,7 @@ class S3StorageService implements StorageService {
     logSlowDownAsWarning?: boolean;
     maxAttempts?: number;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
+    s3RequestTimeoutMs?: number;
   }) {
     // Use accessKeyId and secretAccessKey if provided or fallback to default credentials
     const { accessKeyId, secretAccessKey } = params;
@@ -796,7 +806,10 @@ class S3StorageService implements StorageService {
           }
         : undefined;
 
-    const requestHandler = createS3RequestHandler(params.connectionValidation);
+    const requestHandler = createS3RequestHandler(
+      params.connectionValidation,
+      params.s3RequestTimeoutMs,
+    );
     const region =
       params.region === undefined
         ? undefined
