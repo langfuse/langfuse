@@ -1,0 +1,148 @@
+{
+  "window": { "from": "2026-10-06", "to": "2026-10-12", "kind": "trailing-7-days", "tz": "UTC" },
+  "windowRule": "trailing 7 calendar days ending today (UTC), independent of ISO week boundaries",
+  "isoWeekNote": "2026-10-12 is the Monday that starts ISO week 42; the file is labelled by the week containing the window end, matching the 2026-W41-partial-1005 convention.",
+  "generatedAt": "2026-10-12",
+  "overlapWithPrevious": "none - previous report covered 2026-09-29..2026-10-05, so this is a clean non-overlapping week-over-week pair",
+  "population": {
+    "timing": "successful merge_group runs only",
+    "vitestAndFlaky": "all successful runs except push/main (merge_group + pull_request)",
+    "excluded": "failed and cancelled runs excluded from every analysis, counted separately as context"
+  },
+  "runCounts": {
+    "mergeGroup": {
+      "2026-10-06": { "success": 63, "failure": 7 },
+      "2026-10-07": { "success": 57, "failure": 4 },
+      "2026-10-08": { "success": 34, "failure": 1 },
+      "2026-10-09": { "success": 60, "failure": 13 },
+      "2026-10-10": { "success": 4, "failure": 0 },
+      "2026-10-11": { "success": 0, "failure": 0 },
+      "2026-10-12": { "success": 0, "failure": 0 },
+      "total": { "success": 218, "failure": 25 }
+    },
+    "note": "218 successes vs 53 in W41. W41 was artificially thin (Oct 3 holiday plus two zero days); this week is the normal volume, so the comparison is medians-vs-medians, not volume-vs-volume. 2026-10-09 carried 13 of the week's 25 failures while also being the busiest day - checked per the standing rule, and its medians are not inflated.",
+    "sampled": 28,
+    "samplingMethod": "up to 6 evenly-spaced (by start time) merge_group successes per day; all 4 on 2026-10-10"
+  },
+  "dailyMedians": {
+    "2026-10-06": { "n": 6, "perceived": 225, "gated": 223.5, "execution": 198, "runnerWait": 18, "webBuildStep": 50.5, "webRunTestsStep": 81.5, "workerBuildStep": 29, "workerRunTestsStep": 89.5, "e2eTestsJob": 155, "e2eBuildStep": 38.5, "e2eRunStep": 51, "fipsMaxJob": null },
+    "2026-10-07": { "n": 6, "perceived": 260, "gated": 229, "execution": 254.5, "runnerWait": 8.5, "webBuildStep": 49, "webRunTestsStep": 86, "workerBuildStep": 34, "workerRunTestsStep": 90.5, "e2eTestsJob": 197, "e2eBuildStep": 67, "e2eRunStep": 51, "fipsMaxJob": 261 },
+    "2026-10-08": { "n": 6, "perceived": 255, "gated": 229.5, "execution": 244.5, "runnerWait": 5.5, "webBuildStep": 52.5, "webRunTestsStep": 89.5, "workerBuildStep": 33, "workerRunTestsStep": 97, "e2eTestsJob": 160, "e2eBuildStep": 39.5, "e2eRunStep": 44, "fipsMaxJob": 240 },
+    "2026-10-09": { "n": 6, "perceived": 248, "gated": 207.5, "execution": 241, "runnerWait": 6.5, "webBuildStep": 49, "webRunTestsStep": 86, "workerBuildStep": 30, "workerRunTestsStep": 90.5, "e2eTestsJob": 152.5, "e2eBuildStep": 44.5, "e2eRunStep": 41, "fipsMaxJob": 239 },
+    "2026-10-10": { "n": 4, "perceived": 241, "gated": 203, "execution": 234, "runnerWait": 6.5, "webBuildStep": 46.5, "webRunTestsStep": 82, "workerBuildStep": 30.5, "workerRunTestsStep": 89, "e2eTestsJob": 131, "e2eBuildStep": 23, "e2eRunStep": 40.5, "fipsMaxJob": 233.5 }
+  },
+  "denseDays": ["2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09"],
+  "thinDaysChartedButExcludedFromAggregate": {
+    "2026-10-10": "the whole day had only 4 successful merge_group runs; its median uses all 4 and is charted, but it is left out of the weekly aggregate and pooled percentiles per the established dense-day (n>=5) method. Including it would move perceived 251.5 -> 248."
+  },
+  "emptyDays": ["2026-10-11", "2026-10-12"],
+  "emptyDayNote": "10-11 (Sun) and 10-12 (Mon, today, partial) had zero merge_group runs. Charts omit these days rather than plotting zeros.",
+  "weeklyAggregate": {
+    "perceived": 251.5,
+    "gated": 226.3,
+    "execution": 242.8,
+    "runnerWait": 7.5,
+    "webBuildStep": 49.8,
+    "webRunTestsStep": 86,
+    "workerBuildStep": 31.5,
+    "workerRunTestsStep": 90.5,
+    "e2eTestsJob": 157.5,
+    "e2eBuildStep": 42,
+    "e2eRunStep": 47.5,
+    "fipsMaxJob": 240,
+    "unit": "seconds",
+    "method": "median of the 4 dense (n>=5) daily medians"
+  },
+  "pooledPercentiles": {
+    "n": 24,
+    "scope": "dense days only",
+    "perceived": { "p50": 249.5, "p90": 302.4 },
+    "gated": { "p50": 219.5, "p90": 294.8 },
+    "execution": { "p50": 244.5, "p90": 281.5 },
+    "runnerWait": { "p50": 8, "p90": 19.1 },
+    "webBuildStep": { "p50": 50, "p90": 57.4 },
+    "webRunTestsStep": { "p50": 85.5, "p90": 108.1 },
+    "workerBuildStep": { "p50": 31, "p90": 39.8 },
+    "workerRunTestsStep": { "p50": 91, "p90": 104.4 },
+    "e2eTestsJob": { "p50": 160, "p90": 234 },
+    "e2eBuildStep": { "p50": 42.5, "p90": 88.1 },
+    "e2eRunStep": { "p50": 48.5, "p90": 61.8 },
+    "fipsMaxJob": { "p50": 241, "p90": 316.6 }
+  },
+  "vsW41partial1005": {
+    "perceived": "216.5 -> 251.5 (+16.2%)",
+    "gated": "216.5 -> 226.3 (+4.5%)",
+    "execution": "203 -> 242.8 (+19.6%)",
+    "runnerWait": "16.5 -> 7.5 (-54.5%) - MEASUREMENT ARTIFACT, see headline",
+    "webBuildStep": "47 -> 49.8 (+6.0%)",
+    "webRunTestsStep": "77 -> 86 (+11.7%)",
+    "workerRunTestsStep": "86.5 -> 90.5 (+4.6%)",
+    "e2eTestsJob": "167 -> 157.5 (-5.7%)",
+    "e2eBuildStep": "37 -> 42 (+13.5%)",
+    "e2eRunStep": "50.5 -> 47.5 (-5.9%)"
+  },
+  "headline": {
+    "finding": "Perceived run wall time rose +16.2% but the merge gate barely moved (+4.5%). The gap is a new NON-GATING job pair.",
+    "cause": "tests-fips (web) and tests-fips (worker), added by bb1b6645182e90ed2f7f5678ee73d6c958d27869 'feat(docker): create zero vuln base images and add fips mode (#18009)' merged 2026-10-07 08:57:06Z. First run carrying them is 37597253112 (2026-10-07 08:57). They run 211-401s (typically 220-265s) and are now the LONGEST jobs in the run, exceeding tests-web (~200s) and e2e-tests (~140s).",
+    "notGating": "pipeline.yml's own comment on the job says 'Not part of all-ci-passed yet.' Confirmed empirically: e.g. run 37965772066 (10-09 17:22) perceived 271, all-ci-passed at 220, fips jobs 258/262.",
+    "preFipsControl": "2026-10-06 is the only full pre-fips day this week: perceived 225 vs W41's 216.5 (+3.9%), i.e. essentially flat. The entire step change lands on 10-07.",
+    "runnerWaitArtifact": "runnerWait = perceived - execution, and execution is the UNION of successful job intervals. tests-fips spans nearly the whole run, so the union now nearly equals the full perceived window and almost no gap is left. The 16.5 -> 7.5s drop is NOT a queue improvement. Do not report it as one.",
+    "correctMetricNow": "Use run_started_at -> all-ci-passed.completed_at ('gated') as the merge-queue metric while a long non-gating job exists. Perceived wall time now overstates developer-visible merge latency by ~25s."
+  },
+  "criticalPath": {
+    "executionMinusE2e": "242.8 - 157.5 = ~85s of execution now sits outside the e2e-tests job, versus ~36s in W41 and ~17.8s in W40.",
+    "consequence": "e2e-tests is NO LONGER the whole critical path. The gating critical path is now tests-web / tests-worker (ending ~203-209s) rather than e2e (ending ~147s). Per the standing rule, shard-level test optimization is legitimately on the critical path again for the first time in this regime - but see optimizationCandidatesExamined for why nothing was proposed this week.",
+    "caveat": "Part of that 85s is tests-fips itself, which does not gate. Net of fips, the gating slack is smaller; re-measure next week once fips has a full 7-day history."
+  },
+  "regressionCheck": {
+    "sustainedShiftScan": "no metric moved >=50% across 3+ consecutive days",
+    "perceivedByDay": [225, 260, 255, 248, 241],
+    "maxOverMin": 1.16,
+    "webRunTestsByDay": [81.5, 86, 89.5, 86, 82]
+  },
+  "vitestAnalysis": {
+    "coverageVsSlowdown": "RESOLVED: webRunTests +11.7% is coverage growth, not a slowdown.",
+    "web": {
+      "2026-10-06": { "job": 112157869114, "testFiles": 324, "tests": 5551, "skipped": 10, "duration": 82.29, "detail": "transform 74.51s, import 600.44s, tests 348.30s" },
+      "2026-10-10": { "job": 114187601417, "testFiles": 337, "tests": 6205, "skipped": 10, "duration": 77.28, "detail": "transform 70.61s, import 581.93s, tests 312.37s" },
+      "w41Baseline": { "testFiles": 319, "tests": 5479, "duration": 71.99 },
+      "perTestCost": "71.99/5479 = 13.14 ms/test (W41) -> 77.28/6205 = 12.45 ms/test (10-10), i.e. -5%. Test count +13.2% while the step grew +11.7%."
+    },
+    "worker": {
+      "2026-10-10": { "job": 114187601531, "testFiles": 214, "tests": 2708, "skipped": 4, "duration": 89.19, "detail": "transform 4.88s, import 195.20s, tests 144.95s" },
+      "w41Baseline": { "testFiles": 194, "tests": 2517, "duration": 82.8 },
+      "perTestCost": "files +10.3%, tests +7.6%, duration +7.5% - flat per test."
+    },
+    "importDominance": "web import time (581.93s summed across workers) is 1.86x actual test time (312.37s); transform 70.61s. Worker is the opposite shape (import 195.20s vs tests 144.95s, transform only 4.88s). Web module-graph/transform cost, not test bodies, is where web shard time actually goes. Parked as a candidate - unverifiable without node_modules.",
+    "retriedTests": "ZERO. No 'Retried tests (N):' block in any of the 4 shard logs inspected (web 10-06, web 10-09, web 10-10, worker 10-10).",
+    "flakyStreak": "6 consecutive zero-retry weeks. Watchlist remains dropped. 35d16971a 'chore(ci): fix flaky storybook tests (#18564)' landed 10-09/10-10 and did not introduce retries.",
+    "slowestWeb": [
+      "3.40-3.61s event-repository.servertest.ts > streams complete trace batches with full payloads and exact per-trace time bounds",
+      "1.70-2.08s unit/teardown.servertest.ts > closes clients created through the built shared server export",
+      "1.51-1.85s ingestion-api.servertest.ts > should create observations via the ingestion API (generation)"
+    ],
+    "slowestWebFiles": "event-repository.servertest.ts 22.02-26.57s (104 tests); score-comparison-analytics 14.98-18.85s (46); ingestion-api 15.21-15.50s (63); traces-api 12.72-15.50s (84); queryBuilder 8.89-14.82s (115)",
+    "slowestWorker": [
+      "13.64s traceBatching.test.ts > ingests through BullMQ, postpones readiness on new activity, and consumes full ClickHouse payloads once due",
+      "7.00s otelReplay.properties.test.ts > edge-biased recursive JSON",
+      "6.21s otelReplay.properties.test.ts > broad recursive JSON"
+    ],
+    "slowestWorkerFiles": "traceBatching 15.28s (49 tests); batchExport 14.56s (82); IngestionService.integration 13.62s (60); otelReplay.properties 13.21s (2 tests); evalService 9.73s (108)"
+  },
+  "optimizationCandidatesExamined": {
+    "otelReplayProperties": {
+      "observation": "worker/src/__tests__/otelReplay.properties.test.ts spends 13.21s on exactly 2 tests - by far the worst time-per-test ratio in either suite. Two fc.assert properties at numRuns: 128 each, run sequentially via it.each.",
+      "rejected": "Lowering numRuns would reduce coverage (prohibited). Making the two concurrent would halve the file's wall time, but the file's own comment at lines 682-683 says Vitest retries 'could overlap an unfinished replay and race the shared writer singleton' - concurrency is unsafe for the same reason. Dropped."
+    },
+    "webImportCost": "Parked. See vitestAnalysis.importDominance. Any fix (pool/isolate/deps.optimizer tuning) is unverifiable in this sandbox.",
+    "verificationBlockers": "No node_modules, no pnpm, no turbo; DB blocked (github/gh-aw#52140, github/gh-aw-firewall#7268). No runtime change could be proved this week, so NO suggested diff was included - per the rule that an unverified diff must be dropped rather than shipped."
+  },
+  "structuralWasteReportOnly": {
+    "finding": "tests-fips adds ~25s to every merge-queue run's wall clock and consumes two runners (16vcpu + 8vcpu) per run while gating nothing.",
+    "whyNoDiff": "The fix lives in .github/workflows/pipeline.yml, which this workflow is forbidden to edit even temporarily, and no in-sandbox check could verify it. Reported to the human as a recommendation, explicitly marked not verifiable here.",
+    "options": "(a) add tests-fips to all-ci-passed so the cost buys merge safety, or (b) move it to a schedule/nightly trigger so merge-queue runs stop paying for it. Either is a deliberate product call, not a perf tweak."
+  },
+  "outlierRuns": {
+    "37688100781": "2026-10-07 21:15, perceived 573 / gated 572, workerRunTests 165s. Genuine slow run, not fips-related. Single occurrence."
+  }
+}

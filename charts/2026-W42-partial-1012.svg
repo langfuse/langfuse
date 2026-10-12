@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="430" viewBox="0 0 780 430" font-family="Helvetica,Arial,sans-serif">
+<rect width="780" height="430" fill="#ffffff"/>
+<text x="390" y="28" text-anchor="middle" font-size="16" font-weight="600" fill="#1b1b1b">Langfuse merge-queue run time, weekly medians (seconds)</text>
+<text x="390" y="46" text-anchor="middle" font-size="11" fill="#666">trailing-7-day windows; median of dense (n&#8805;5) daily medians; successful merge_group runs only</text>
+<line x1="62" y1="366" x2="758" y2="366" stroke="#e3e3e3" stroke-width="1"/>
+<text x="54" y="370" text-anchor="end" font-size="11" fill="#666">0</text>
+<line x1="62" y1="288" x2="758" y2="288" stroke="#e3e3e3" stroke-width="1"/>
+<text x="54" y="292" text-anchor="end" font-size="11" fill="#666">65</text>
+<line x1="62" y1="210" x2="758" y2="210" stroke="#e3e3e3" stroke-width="1"/>
+<text x="54" y="214" text-anchor="end" font-size="11" fill="#666">130</text>
+<line x1="62" y1="132" x2="758" y2="132" stroke="#e3e3e3" stroke-width="1"/>
+<text x="54" y="136" text-anchor="end" font-size="11" fill="#666">195</text>
+<line x1="62" y1="54" x2="758" y2="54" stroke="#e3e3e3" stroke-width="1"/>
+<text x="54" y="58" text-anchor="end" font-size="11" fill="#666">260</text>
+<line x1="62" y1="366" x2="758" y2="366" stroke="#9a9a9a" stroke-width="1"/>
+<line x1="62" y1="54" x2="62" y2="366" stroke="#9a9a9a" stroke-width="1"/>
+<text x="62" y="386" text-anchor="middle" font-size="12" fill="#444">W38</text>
+<text x="236" y="386" text-anchor="middle" font-size="12" fill="#444">W39</text>
+<text x="410" y="386" text-anchor="middle" font-size="12" fill="#444">W40</text>
+<text x="584" y="386" text-anchor="middle" font-size="12" fill="#444">W41</text>
+<text x="758" y="386" text-anchor="middle" font-size="12" fill="#444">W42</text>
+<line x1="671" y1="54" x2="671" y2="366" stroke="#b0b0b0" stroke-width="1" stroke-dasharray="4 4"/>
+<text x="677" y="70" font-size="10" fill="#777">tests-fips added 2026-10-07 (not gating)</text>
+<polyline fill="none" stroke="#3987e5" stroke-width="2.5" stroke-linejoin="round" points="62,142.4 236,85.2 410,94.2 584,106.2 758,64.2"/>
+<circle cx="62" cy="142.4" r="3.5" fill="#3987e5"/>
+<text x="62" y="133.4" text-anchor="middle" font-size="10" fill="#3987e5">186.3</text>
+<circle cx="236" cy="85.2" r="3.5" fill="#3987e5"/>
+<text x="236" y="76.2" text-anchor="middle" font-size="10" fill="#3987e5">234</text>
+<circle cx="410" cy="94.2" r="3.5" fill="#3987e5"/>
+<text x="410" y="85.2" text-anchor="middle" font-size="10" fill="#3987e5">226.5</text>
+<circle cx="584" cy="106.2" r="3.5" fill="#3987e5"/>
+<text x="584" y="97.2" text-anchor="middle" font-size="10" fill="#3987e5">216.5</text>
+<circle cx="758" cy="64.2" r="3.5" fill="#3987e5"/>
+<text x="758" y="55.2" text-anchor="middle" font-size="10" fill="#3987e5">251.5</text>
+<polyline fill="none" stroke="#de5a20" stroke-width="2.5" stroke-linejoin="round" points="62,161.6 236,104.6 410,108.2 584,122.4 758,74.6"/>
+<circle cx="62" cy="161.6" r="3.5" fill="#de5a20"/>
+<text x="62" y="152.6" text-anchor="middle" font-size="10" fill="#de5a20">170.3</text>
+<circle cx="236" cy="104.6" r="3.5" fill="#de5a20"/>
+<text x="236" y="95.6" text-anchor="middle" font-size="10" fill="#de5a20">217.8</text>
+<circle cx="410" cy="108.2" r="3.5" fill="#de5a20"/>
+<text x="410" y="99.2" text-anchor="middle" font-size="10" fill="#de5a20">214.8</text>
+<circle cx="584" cy="122.4" r="3.5" fill="#de5a20"/>
+<text x="584" y="113.4" text-anchor="middle" font-size="10" fill="#de5a20">203</text>
+<circle cx="758" cy="74.6" r="3.5" fill="#de5a20"/>
+<text x="758" y="65.6" text-anchor="middle" font-size="10" fill="#de5a20">242.8</text>
+<polyline fill="none" stroke="#8875e0" stroke-width="2.5" stroke-linejoin="round" points="62,345.8 236,349.2 410,349.8 584,346.2 758,357"/>
+<circle cx="62" cy="345.8" r="3.5" fill="#8875e0"/>
+<text x="62" y="336.8" text-anchor="middle" font-size="10" fill="#8875e0">16.8</text>
+<circle cx="236" cy="349.2" r="3.5" fill="#8875e0"/>
+<text x="236" y="340.2" text-anchor="middle" font-size="10" fill="#8875e0">14</text>
+<circle cx="410" cy="349.8" r="3.5" fill="#8875e0"/>
+<text x="410" y="340.8" text-anchor="middle" font-size="10" fill="#8875e0">13.5</text>
+<circle cx="584" cy="346.2" r="3.5" fill="#8875e0"/>
+<text x="584" y="337.2" text-anchor="middle" font-size="10" fill="#8875e0">16.5</text>
+<circle cx="758" cy="357" r="3.5" fill="#8875e0"/>
+<text x="758" y="348" text-anchor="middle" font-size="10" fill="#8875e0">7.5</text>
+<rect x="90" y="402" width="14" height="4" fill="#3987e5"/>
+<text x="110" y="408" font-size="11" fill="#444">Overall incl. runner wait</text>
+<rect x="310" y="402" width="14" height="4" fill="#de5a20"/>
+<text x="330" y="408" font-size="11" fill="#444">Overall excl. runner wait</text>
+<rect x="530" y="402" width="14" height="4" fill="#8875e0"/>
+<text x="550" y="408" font-size="11" fill="#444">Runner wait</text>
+</svg>
