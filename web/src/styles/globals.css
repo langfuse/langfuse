@@ -497,7 +497,7 @@
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%; /* zinc-100 */
+    --sidebar-accent: 240 5.2% 93.5%; /* between zinc-100 and zinc-200 */
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 240 5.9% 90%; /* zinc-200 */
     --sidebar-ring: 217.2 91.2% 59.8%;
