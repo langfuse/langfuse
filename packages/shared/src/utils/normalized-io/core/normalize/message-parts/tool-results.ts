@@ -22,9 +22,19 @@ export function toolResultOutput(
 
   const [part] = parts;
   // Only unwrap bare scalar parts; annotations and metadata stay on the part.
-  if (parts.length === 1 && Object.keys(part).length === 2) {
-    if (part.type === "text") return { type: "text", value: part.text };
-    if (part.type === "data") return { type: "json", value: part.value };
+  if (parts.length === 1) {
+    if (
+      part.type === "text" &&
+      Object.keys(part).every((key) => key === "type" || key === "text")
+    ) {
+      return { type: "text", value: part.text };
+    }
+    if (
+      part.type === "data" &&
+      Object.keys(part).every((key) => key === "type" || key === "value")
+    ) {
+      return { type: "json", value: part.value };
+    }
   }
   return { type: "content", value: parts };
 }

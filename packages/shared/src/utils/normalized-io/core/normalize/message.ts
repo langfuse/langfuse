@@ -178,7 +178,6 @@ export function normalizeMessage(
 
   const envelopeContext: MessageEnvelopeContext = {
     source,
-    normalizePartValue: (part) => normalizePartValue(part, parserContext),
     normalizePartList: (parts) => normalizePartList(parts, parserContext),
     normalizeMessage: (nestedValue, nestedFallbackRole) =>
       normalizeMessage(nestedValue, nestedFallbackRole, parserContext),

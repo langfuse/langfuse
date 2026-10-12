@@ -120,15 +120,7 @@ export function renderTranscript(
         return `${part.toolName} ${json(part.input)}`;
       case "tool-result":
         return part.output.type === "content"
-          ? part.output.value
-              .filter(
-                (content) =>
-                  (content.type !== "reasoning" || config.reasoning.include) &&
-                  !(content.type === "file" && content.reasoning),
-              )
-              .map(partContent)
-              .filter(Boolean)
-              .join("\n")
+          ? toolResultContent(part.output.value)
           : json(part.output.value);
       case "file":
         return `[${part.mediaType ?? "file"} omitted]`;
@@ -138,6 +130,15 @@ export function renderTranscript(
         return json({ [part.kind]: part.value });
     }
   };
+  const toolResultContent = (parts: NormalizedMessagePart[]): string =>
+    parts
+      .map((part) => {
+        if (part.type === "reasoning" && !config.reasoning.include) return "";
+        if (part.type === "file" && part.reasoning) return "";
+        return partContent(part);
+      })
+      .filter(Boolean)
+      .join("\n");
   const rootContent = (
     observation: Observation,
     source: "input" | "output",

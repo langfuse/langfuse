@@ -4,6 +4,7 @@ import type {
   NormalizedIO,
   NormalizedMessage,
   NormalizedMessagePart,
+  ToolResultPart,
   ToolDefinition as NormalizedToolDefinition,
 } from "@langfuse/shared/src/utils/normalized-io";
 import {
@@ -75,7 +76,10 @@ function toToolDefinition(definition: NormalizedToolDefinition): {
   };
 }
 
-type ToolCallResponse = { output: unknown; isError?: boolean } | null;
+type ToolCallResponse = {
+  output: ToolResultPart["output"]["value"];
+  isError?: boolean;
+} | null;
 
 function toToolCallPart(
   part: Extract<NormalizedMessagePart, { type: "tool-call" }>,
