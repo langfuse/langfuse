@@ -621,7 +621,7 @@ const EnvSchema = z.object({
     ),
   LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
   // Cloud runtime credentials require an operator-provisioned connection.
-  LANGFUSE_BEDROCK_DEFAULT_CREDENTIALS_ALLOWED_PROJECT_IDS: z
+  LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS: z
     .string()
     .default("")
     .transform((value) =>

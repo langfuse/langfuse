@@ -931,7 +931,9 @@ describe("AI SDK request shapes", () => {
     const originalEnv = { ...env };
     Object.assign(env, {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "eu",
-      LANGFUSE_BEDROCK_DEFAULT_CREDENTIALS_ALLOWED_PROJECT_IDS: ["allowed"],
+      LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS: [
+        "allowed",
+      ],
     });
     vi.stubEnv("AWS_PROFILE", undefined);
     vi.stubEnv("AWS_ACCESS_KEY_ID", "AKIARUNTIME");
@@ -952,7 +954,8 @@ describe("AI SDK request shapes", () => {
           "Invalid Bedrock credentials",
         );
       }
-      env.LANGFUSE_BEDROCK_DEFAULT_CREDENTIALS_ALLOWED_PROJECT_IDS = [];
+      env.LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS =
+        [];
       await expect(call("allowed")).rejects.toThrow(
         "Invalid Bedrock credentials",
       );

@@ -189,7 +189,7 @@ export function buildBedrockModel(params: {
 
   const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const allowedProjects =
-    env.LANGFUSE_BEDROCK_DEFAULT_CREDENTIALS_ALLOWED_PROJECT_IDS;
+    env.LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS;
   const auth = resolveBedrockProviderAuth({
     secretKey: apiKey,
     allowDefaultCredentials:
