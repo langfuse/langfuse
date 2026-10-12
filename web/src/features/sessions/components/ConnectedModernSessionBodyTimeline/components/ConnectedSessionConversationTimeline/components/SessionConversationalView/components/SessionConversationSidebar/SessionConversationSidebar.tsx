@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, CircleAlert, Search, TriangleAlert } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { type Observation } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
@@ -688,14 +688,16 @@ export function SessionConversationSidebar(
                                         )}
                                       </span>
                                       {hasError && (
-                                        <CircleAlert
-                                          className="icon-sm text-destructive shrink-0"
+                                        <SessionToolStatusCountBadge
+                                          severity="error"
+                                          variant="sidebar"
                                           aria-label="Tool status: ERROR"
                                         />
                                       )}
                                       {hasWarning && (
-                                        <TriangleAlert
-                                          className="icon-sm shrink-0 text-yellow-600 dark:text-yellow-500"
+                                        <SessionToolStatusCountBadge
+                                          severity="warning"
+                                          variant="sidebar"
                                           aria-label="Tool status: WARNING"
                                         />
                                       )}
