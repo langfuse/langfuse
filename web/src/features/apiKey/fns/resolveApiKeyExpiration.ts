@@ -1,7 +1,7 @@
 import {
   apiKeyExpirationOptions,
   type ApiKeyExpirationPreset,
-} from "@/src/constants/apiKeyExpirationOptions";
+} from "@/src/features/apiKey/constants/apiKeyExpirationOptions";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 

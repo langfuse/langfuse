@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveApiKeyExpiration } from "@/src/fns/resolveApiKeyExpiration";
+import { resolveApiKeyExpiration } from "./resolveApiKeyExpiration";
 
 describe("resolveApiKeyExpiration", () => {
   const now = new Date("2026-01-01T00:00:00.000Z");

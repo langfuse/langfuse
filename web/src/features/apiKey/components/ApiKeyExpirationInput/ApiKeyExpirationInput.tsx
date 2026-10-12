@@ -6,8 +6,8 @@ import { Label } from "@/src/components/ui/label";
 import {
   apiKeyExpirationOptions,
   type ApiKeyExpirationPreset,
-} from "@/src/constants/apiKeyExpirationOptions";
-import { localDateInputValue } from "@/src/fns/localDateInputValue";
+} from "@/src/features/apiKey/constants/apiKeyExpirationOptions";
+import { localDateInputValue } from "@/src/features/apiKey/fns/localDateInputValue";
 
 type ApiKeyExpirationInputProps = {
   id: string;

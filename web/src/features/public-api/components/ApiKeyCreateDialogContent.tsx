@@ -8,7 +8,6 @@ import {
   systemRoleAccessRights,
 } from "@langfuse/shared/rbac";
 
-import { ApiKeyExpirationInput } from "@/src/components/ApiKeyExpirationInput/ApiKeyExpirationInput";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -24,13 +23,16 @@ import {
   SelectContent,
   SelectTrigger,
 } from "@/src/components/ui/select";
-import type { ApiKeyExpirationPreset } from "@/src/constants/apiKeyExpirationOptions";
+import {
+  ApiKeyExpirationInput,
+  type ApiKeyExpirationPreset,
+  resolveApiKeyExpiration,
+} from "@/src/features/apiKey";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
-import { resolveApiKeyExpiration } from "@/src/fns/resolveApiKeyExpiration";
 
 type ApiKeyScope = "project" | "organization";
 

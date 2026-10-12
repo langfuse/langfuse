@@ -2,7 +2,6 @@ import { useState, type ReactNode } from "react";
 import { ChevronRight, Plus, X } from "lucide-react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { ApiKeyExpirationInput } from "@/src/components/ApiKeyExpirationInput/ApiKeyExpirationInput";
 import { Button } from "@/src/components/ui/button";
 import {
   Collapsible,
@@ -19,9 +18,12 @@ import {
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import type { ApiKeyExpirationPreset } from "@/src/constants/apiKeyExpirationOptions";
+import {
+  ApiKeyExpirationInput,
+  type ApiKeyExpirationPreset,
+  resolveApiKeyExpiration,
+} from "@/src/features/apiKey";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent";
-import { resolveApiKeyExpiration } from "@/src/fns/resolveApiKeyExpiration";
 import {
   api,
   reportNonTrpcError,

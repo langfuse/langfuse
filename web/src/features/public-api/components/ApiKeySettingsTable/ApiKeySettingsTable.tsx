@@ -7,7 +7,7 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
+import { isApiKeyExpired } from "@/src/features/apiKey";
 import { type RouterOutput } from "@/src/utils/types";
 
 export type ApiKeySettingsTableRow =

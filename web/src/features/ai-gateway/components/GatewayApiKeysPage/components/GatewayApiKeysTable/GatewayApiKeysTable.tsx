@@ -7,7 +7,7 @@ import { createBadgeListTableColumn } from "@/src/components/design-system/table
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import type { AsyncTableData } from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
+import { isApiKeyExpired } from "@/src/features/apiKey";
 
 type GatewayApiKey = {
   metadata: unknown;
