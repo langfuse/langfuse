@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   type CachedResolveContext,
   GatewayResolveCache,
-} from "./gatewayResolveCache";
+} from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 
 vi.mock("@/src/env.mjs", () => ({
   env: {
@@ -46,8 +46,8 @@ describe("GatewayResolveCache", () => {
     expect(redis.set).toHaveBeenCalledWith(
       expect.any(String),
       expect.any(String),
-      "EX",
-      10,
+      "PXAT",
+      new Date("2026-10-09T15:00:10.000Z").getTime(),
     );
     expect(redis.expire).toHaveBeenCalledWith(expect.any(String), 600);
   });

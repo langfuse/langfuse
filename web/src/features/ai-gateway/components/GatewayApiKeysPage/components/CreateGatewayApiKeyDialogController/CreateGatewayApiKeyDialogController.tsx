@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { ChevronRight, Plus, X } from "lucide-react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { ApiKeyExpirationInput } from "@/src/components/ApiKeyExpirationInput";
 import { Button } from "@/src/components/ui/button";
 import {
   Collapsible,
@@ -18,20 +19,9 @@ import {
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent";
-import {
-  expiryPresetOptions,
-  localDateInputValue,
-  resolveExpiresAt,
-  type ExpiryPreset,
-} from "@/src/features/public-api/components/apiKeyFormOptions";
+import { resolveApiKeyExpiration } from "@/src/fns/resolveApiKeyExpiration";
+import type { ApiKeyExpirationPreset } from "@/src/types/apiKeyExpiration";
 import {
   api,
   reportNonTrpcError,
@@ -52,7 +42,8 @@ export function CreateGatewayApiKeyDialogController({
   children: (control: { openDialog: () => void }) => ReactNode;
 }) {
   const [name, setName] = useState("");
-  const [expiryPreset, setExpiryPreset] = useState<ExpiryPreset>("never");
+  const [expiryPreset, setExpiryPreset] =
+    useState<ApiKeyExpirationPreset>("never");
   const [customExpiry, setCustomExpiry] = useState("");
   const [metadata, setMetadata] = useState<MetadataField[]>(() => [
     { id: 1, key: "", value: "" },
@@ -80,7 +71,7 @@ export function CreateGatewayApiKeyDialogController({
   };
 
   const metadataCount = metadata.filter((field) => field.key.trim()).length;
-  const expiresAt = resolveExpiresAt(expiryPreset, customExpiry);
+  const expiresAt = resolveApiKeyExpiration(expiryPreset, customExpiry);
 
   const submit = async () => {
     if (expiresAt === undefined) return;
@@ -146,43 +137,13 @@ export function CreateGatewayApiKeyDialogController({
                     onChange={(event) => setName(event.target.value)}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="gateway-key-expiry">Expiration</Label>
-                  <div
-                    className={
-                      expiryPreset === "custom" ? "mt-1.5 flex gap-2" : "mt-1.5"
-                    }
-                  >
-                    <Select
-                      value={expiryPreset}
-                      onValueChange={(value) =>
-                        setExpiryPreset(value as ExpiryPreset)
-                      }
-                    >
-                      <SelectTrigger id="gateway-key-expiry" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {expiryPresetOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {expiryPreset === "custom" ? (
-                      <Input
-                        type="date"
-                        aria-label="Custom expiration date"
-                        min={localDateInputValue(new Date())}
-                        value={customExpiry}
-                        onChange={(event) =>
-                          setCustomExpiry(event.target.value)
-                        }
-                      />
-                    ) : null}
-                  </div>
-                </div>
+                <ApiKeyExpirationInput
+                  id="gateway-key-expiry"
+                  expiryPreset={expiryPreset}
+                  customExpiry={customExpiry}
+                  onExpiryPresetChange={setExpiryPreset}
+                  onCustomExpiryChange={setCustomExpiry}
+                />
                 <Collapsible
                   open={isMetadataOpen}
                   onOpenChange={setIsMetadataOpen}

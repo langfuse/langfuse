@@ -110,16 +110,20 @@ export class GatewayResolveCache {
 
     const key = contextCacheKey(params.fastHashedSecretKey, params.apiFormat);
     const configuredTtl = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS;
-    const ttl = params.expiresAt
-      ? Math.min(
-          configuredTtl,
-          Math.floor((params.expiresAt.getTime() - Date.now()) / 1000),
-        )
-      : configuredTtl;
-    if (ttl <= 0) return;
+    const now = Date.now();
+    const expirationTimestamp = Math.min(
+      now + configuredTtl * 1000,
+      params.expiresAt?.getTime() ?? Number.POSITIVE_INFINITY,
+    );
+    if (expirationTimestamp <= now) return;
     try {
       if (params.context === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
-        await this.redis!.set(key, JSON.stringify(params.context), "EX", ttl);
+        await this.redis!.set(
+          key,
+          JSON.stringify(params.context),
+          "PXAT",
+          expirationTimestamp,
+        );
         return;
       }
 
@@ -127,7 +131,12 @@ export class GatewayResolveCache {
       // commands separately instead of wrapping them in one transaction.
       const index = organizationIndexKey(params.context.organizationId);
       await Promise.all([
-        this.redis!.set(key, JSON.stringify(params.context), "EX", ttl),
+        this.redis!.set(
+          key,
+          JSON.stringify(params.context),
+          "PXAT",
+          expirationTimestamp,
+        ),
         this.redis!.sadd(index, key),
         // The index must outlive its entries, otherwise invalidation can miss a
         // cached key that is still live.
