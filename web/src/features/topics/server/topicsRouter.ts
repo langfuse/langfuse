@@ -318,7 +318,7 @@ export const topicsRouter = createTRPCRouter({
     getTracingProcessingSettings(input.projectId),
   ),
   saveProcessingSettings: topicsWriteProcedure
-    .input(projectInput.merge(tracingProcessingSettingsSchema))
+    .input(projectInput.extend(tracingProcessingSettingsSchema.shape))
     .mutation(({ input: { projectId, ...settings } }) =>
       saveTracingProcessingSettings(projectId, settings),
     ),
