@@ -673,17 +673,27 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
       fetchMock.mockReset();
     });
 
+    // The re-link runs in the background; its summary line marks the end.
+    const relinkFinished = (summary: Record<string, unknown>) =>
+      vi.waitFor(() =>
+        expect(loggerMock.info).toHaveBeenCalledWith(
+          "[SFDC] linked existing members after plan change",
+          expect.objectContaining(summary),
+        ),
+      );
+    const preSyncOwner = {
+      userId: "owner-old",
+      role: "OWNER",
+      user: {
+        email: "owner@old.test",
+        name: "Old Owner",
+        createdAt: PRE_SYNC_SIGNUP_AT,
+      },
+    };
+
     it("links every member on the Hobby→paid upgrade, upserting Leads only for pre-sync signups", async () => {
       prismaMock.organizationMembership.findMany.mockResolvedValueOnce([
-        {
-          userId: "owner-old",
-          role: "OWNER",
-          user: {
-            email: "owner@old.test",
-            name: "Old Owner",
-            createdAt: PRE_SYNC_SIGNUP_AT,
-          },
-        },
+        preSyncOwner,
         {
           userId: "member-new",
           role: "MEMBER",
@@ -705,31 +715,74 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
         billingCycleAnchor: CONVERTED_AT,
       });
 
-      const bodies = sentBodies();
-      expect(bodies[0]).toMatchObject({ type: "updateOrg", plan: "Pro" });
-      expect(bodies.slice(1)).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            userId: "owner-old",
-            email: "owner@old.test",
-            leadSource: "Langfuse Cloud Signup",
-          }),
-          expect.objectContaining({
-            type: "setUserRole",
-            orgId: "org-1",
-            userId: "owner-old",
-            role: "ADMIN",
-          }),
-          expect.objectContaining({
-            type: "setUserRole",
-            orgId: "org-1",
-            userId: "member-new",
-            role: "DEVELOPER",
-          }),
-        ]),
+      await relinkFinished({ orgId: "org-1", members: 2, linked: 2 });
+
+      // Account first, then each member's Lead before its bridge. The
+      // post-sync member got its Lead at signup — only the bridge is sent.
+      expect(sentBodies()).toEqual([
+        expect.objectContaining({ type: "updateOrg", plan: "Pro" }),
+        expect.objectContaining({
+          userId: "owner-old",
+          email: "owner@old.test",
+          leadSource: "Langfuse Cloud Signup",
+        }),
+        expect.objectContaining({
+          type: "setUserRole",
+          orgId: "org-1",
+          userId: "owner-old",
+          role: "ADMIN",
+        }),
+        expect.objectContaining({
+          type: "setUserRole",
+          orgId: "org-1",
+          userId: "member-new",
+          role: "DEVELOPER",
+        }),
+      ]);
+    });
+
+    it("sends no bridge for a member whose Lead was not delivered", async () => {
+      fetchMock.mockImplementation(async (url: string) =>
+        url === "https://mulesoft.test/manage-user"
+          ? nonOkResponse(500)
+          : emptyOkResponse(),
       );
-      // The post-sync member got its Lead at signup — only the bridge is sent.
-      expect(bodies).toHaveLength(4);
+      prismaMock.organizationMembership.findMany.mockResolvedValueOnce([
+        preSyncOwner,
+      ]);
+
+      await syncOrgPlanChangeToSfdc({
+        orgBeforeUpdate: orgBefore(null),
+        updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+        billingCycleAnchor: CONVERTED_AT,
+      });
+      await relinkFinished({ members: 1, linked: 0 });
+
+      expect(sentBodies().map((body) => body.type ?? "upsertUser")).toEqual([
+        "updateOrg",
+        "upsertUser",
+      ]);
+    });
+
+    it("keeps a member query failure inside the re-link", async () => {
+      prismaMock.organizationMembership.findMany.mockRejectedValueOnce(
+        new Error("db down"),
+      );
+
+      await expect(
+        syncOrgPlanChangeToSfdc({
+          orgBeforeUpdate: orgBefore(null),
+          updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+          billingCycleAnchor: CONVERTED_AT,
+        }),
+      ).resolves.toBeUndefined();
+      await vi.waitFor(() =>
+        expect(loggerMock.error).toHaveBeenCalledWith(
+          "[SFDC] failed to link existing members after plan change",
+          { orgId: "org-1", error: "db down" },
+        ),
+      );
+      expect(fetchMock).toHaveBeenCalledOnce();
     });
 
     it("does not re-link members of orgs created after the live sync started", async () => {

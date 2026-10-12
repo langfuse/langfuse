@@ -36,7 +36,8 @@ const SFDC_LIVE_SYNC_STARTED_AT = new Date("2026-07-01T00:00:00Z");
  *
  * When an org created before the live sync leaves Hobby, its current members
  * are linked as well, since neither the live sync nor the backfill may ever
- * have linked them.
+ * have linked them. That re-link runs in the background once the account
+ * push is acked, so the returned promise does not wait for it.
  */
 export async function syncOrgPlanChangeToSfdc(args: {
   orgBeforeUpdate: Pick<
@@ -81,13 +82,22 @@ export async function syncOrgPlanChangeToSfdc(args: {
       planAfter !== "cloud:hobby" ? billingCycleAnchor : undefined,
   });
 
-  // Member bridges need the Account, so they wait for its 2xx.
+  // Member bridges need the Account, so they wait for its 2xx. Not awaited:
+  // the Stripe webhook must not wait on per-member Mulesoft calls.
   if (
     accountOk &&
     planBefore === "cloud:hobby" &&
     orgBeforeUpdate.createdAt < SFDC_LIVE_SYNC_STARTED_AT
   ) {
-    await linkExistingMembersToSfdc(sfdc, orgBeforeUpdate.id);
+    const orgId = orgBeforeUpdate.id;
+    linkExistingMembersToSfdc(sfdc, orgId).catch((err) => {
+      // SfdcService never rejects, so this is a membership read failing.
+      traceException(err);
+      logger.error("[SFDC] failed to link existing members after plan change", {
+        orgId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
   }
 }
 
@@ -95,52 +105,50 @@ export async function syncOrgPlanChangeToSfdc(args: {
  * Replays the backfill's member steps for one org: a Lead for every member
  * who signed up before the live sync (later signups got theirs at signup),
  * then the org-member bridge for every member. A member whose Lead was not
- * delivered gets no bridge, since SFDC needs the Lead first.
+ * delivered gets no bridge, since SFDC needs the Lead first. Members are
+ * processed one at a time so an upgrade never bursts Mulesoft.
  */
 async function linkExistingMembersToSfdc(
   sfdc: SfdcService,
   orgId: string,
 ): Promise<void> {
-  try {
-    const members = await prisma.organizationMembership.findMany({
-      where: {
-        orgId,
-        role: { not: Role.NONE },
-        user: { email: { not: null } },
-      },
-      select: {
-        userId: true,
-        role: true,
-        user: { select: { email: true, name: true, createdAt: true } },
-      },
-    });
-    const excludeOrgIds = env.NEXT_PUBLIC_DEMO_ORG_ID
-      ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
-      : [];
-
-    await Promise.all(
-      members.map(async ({ userId, role, user }) => {
-        if (user.createdAt < SFDC_LIVE_SYNC_STARTED_AT) {
-          const leadOk = await sfdc.upsertUser({
-            userId,
-            email: user.email,
-            name: user.name,
-            createdAt: user.createdAt,
-            leadSource: await deriveLeadSourceFromMemberships(
-              userId,
-              excludeOrgIds,
-            ),
-          });
-          if (!leadOk) return;
-        }
-        await sfdc.setUserRole({ orgId, userId, email: user.email, role });
-      }),
-    );
-  } catch (err) {
-    traceException(err);
-    logger.error("[SFDC] failed to link existing members after plan change", {
+  const members = await prisma.organizationMembership.findMany({
+    where: {
       orgId,
-      error: err instanceof Error ? err.message : String(err),
-    });
+      role: { not: Role.NONE },
+      user: { email: { not: null } },
+    },
+    select: {
+      userId: true,
+      role: true,
+      user: { select: { email: true, name: true, createdAt: true } },
+    },
+  });
+  const excludeOrgIds = env.NEXT_PUBLIC_DEMO_ORG_ID
+    ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+    : [];
+
+  let linked = 0;
+  for (const { userId, role, user } of members) {
+    if (user.createdAt < SFDC_LIVE_SYNC_STARTED_AT) {
+      const leadOk = await sfdc.upsertUser({
+        userId,
+        email: user.email,
+        name: user.name,
+        createdAt: user.createdAt,
+        leadSource: await deriveLeadSourceFromMemberships(
+          userId,
+          excludeOrgIds,
+        ),
+      });
+      if (!leadOk) continue;
+    }
+    if (await sfdc.setUserRole({ orgId, userId, email: user.email, role }))
+      linked++;
   }
+  logger.info("[SFDC] linked existing members after plan change", {
+    orgId,
+    members: members.length,
+    linked,
+  });
 }
