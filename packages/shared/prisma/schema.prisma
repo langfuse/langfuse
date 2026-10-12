@@ -77,6 +77,8 @@ model User {
   tableViewPresetUpdated    TableViewPreset[]           @relation("UpdatedByUser")
   monitorsCreated           Monitor[]                   @relation("CreatedByUser")
   monitorsUpdated           Monitor[]                   @relation("UpdatedByUser")
+  tracingReadinessCreated   TracingReadinessSettings[]  @relation("CreatedByUser")
+  tracingReadinessUpdated   TracingReadinessSettings[]  @relation("UpdatedByUser")
   annotationQueueAssignment AnnotationQueueAssignment[]
   surveys                   Survey[]
   commentReactions          CommentReaction[]
@@ -1263,6 +1265,11 @@ model TracingReadinessSettings {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  createdBy     String? @map("created_by")
+  createdByUser User?   @relation("CreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedBy     String? @map("updated_by")
+  updatedByUser User?   @relation("UpdatedByUser", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   // A trace is due this long after its latest event. Null uses
   // LANGFUSE_TRACE_BATCH_IDLE_MS. Bounds are enforced on write, not in the DB.

@@ -35,12 +35,13 @@ export async function getTracingReadinessSettings(
 export async function saveTracingReadinessSettings(
   projectId: string,
   settings: TracingReadinessSettings,
+  { userId = null }: { userId?: string | null } = {},
 ): Promise<TracingReadinessSettings> {
   const data = tracingReadinessSettingsSchema.parse(settings);
   const row = await prisma.tracingReadinessSettings.upsert({
     where: { projectId },
-    create: { projectId, ...data },
-    update: data,
+    create: { projectId, ...data, createdBy: userId, updatedBy: userId },
+    update: { ...data, updatedBy: userId },
     select: { traceIdleMs: true },
   });
   return { traceIdleMs: row.traceIdleMs };
