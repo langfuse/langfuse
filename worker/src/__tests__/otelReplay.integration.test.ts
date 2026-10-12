@@ -1022,8 +1022,7 @@ describe(
           mediaUploadEnabled: true,
         });
 
-        expect(compactedBatches).toHaveLength(1);
-        expect(compactedBatches[0].references).toEqual([]);
+        expect(compactedBatches).toEqual([]);
         expectRawOtelReplayParity(comparison);
         expect(comparison.originalTs.storedRows).toHaveLength(1);
         expect(comparison.originalTs.storedRows[0]?.tags).toEqual([

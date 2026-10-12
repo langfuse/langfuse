@@ -81,6 +81,12 @@ export interface ExtractedOtelMedia {
 }
 
 /**
+ * Extract media from unmasked input. Null means the caller should parse its original bytes;
+ * marker-free input has NOT been validated. Masking callers must use validateOtelJson first.
+ */
+export declare function extractOtelMedia(bytes: Buffer): Promise<EarlyOtelBatch | null>
+
+/**
  * Hello-world entry point. It proves that the worker can load and call the
  * addon and that native code reports through the same telemetry as the rest
  * of the worker: one increment of the `langfuse.native.hello_calls` counter

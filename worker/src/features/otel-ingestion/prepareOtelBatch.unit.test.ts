@@ -2,15 +2,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const nativeMocks = vi.hoisted(() => ({
   validateOtelJson: vi.fn(),
+  extractOtelMedia: vi.fn(),
 }));
 const maskingMocks = vi.hoisted(() => ({
   applyIngestionMasking: vi.fn(),
+  isIngestionMaskingEnabled: vi.fn(),
 }));
 
 vi.mock("@langfuse/native", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@langfuse/native")>();
   nativeMocks.validateOtelJson.mockImplementation(actual.validateOtelJson);
-  return { ...actual, validateOtelJson: nativeMocks.validateOtelJson };
+  nativeMocks.extractOtelMedia.mockImplementation(actual.extractOtelMedia);
+  return {
+    ...actual,
+    validateOtelJson: nativeMocks.validateOtelJson,
+    extractOtelMedia: nativeMocks.extractOtelMedia,
+  };
 });
 
 vi.mock("@langfuse/shared/src/server", () => ({
@@ -21,6 +28,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
 
 vi.mock("@langfuse/shared/src/server/ee/ingestionMasking", () => ({
   applyIngestionMasking: maskingMocks.applyIngestionMasking,
+  isIngestionMaskingEnabled: maskingMocks.isIngestionMaskingEnabled,
 }));
 
 import { parsePreparedOtelBatch, prepareOtelBatch } from "./prepareOtelBatch";
@@ -28,6 +36,8 @@ import { parsePreparedOtelBatch, prepareOtelBatch } from "./prepareOtelBatch";
 describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
   beforeEach(() => {
     nativeMocks.validateOtelJson.mockClear();
+    nativeMocks.extractOtelMedia.mockClear();
+    maskingMocks.isIngestionMaskingEnabled.mockReturnValue(true);
     maskingMocks.applyIngestionMasking.mockImplementation(
       async (params: { data: unknown }) => ({
         success: true,
@@ -36,6 +46,33 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
       }),
     );
   });
+
+  it.each([true, false])(
+    "skips native validation and masking for marker-free input (extract=%s)",
+    async (extractMedia) => {
+      maskingMocks.isIngestionMaskingEnabled.mockReturnValue(false);
+      const bytes = Buffer.from('{"note":"plain input"}');
+
+      const prepared = await prepareOtelBatch({
+        bytes,
+        projectId: "project-id",
+        extractMedia,
+      });
+
+      expect(nativeMocks.extractOtelMedia).toHaveBeenCalledTimes(
+        extractMedia ? 1 : 0,
+      );
+      expect(nativeMocks.validateOtelJson).not.toHaveBeenCalled();
+      expect(maskingMocks.applyIngestionMasking).not.toHaveBeenCalled();
+      expect(prepared.batch).toBeUndefined();
+      expect(prepared.sourceUnchanged).toBe(true);
+      if ("error" in prepared) throw new Error("unexpected masking failure");
+      expect(await parsePreparedOtelBatch(prepared, bytes)).toEqual({
+        resourceSpans: { note: "plain input" },
+        batch: undefined,
+      });
+    },
+  );
 
   it.each(["unchanged", "masked", "sanitized"] as const)(
     "allows download reuse only for unchanged bytes (%s)",
@@ -70,6 +107,7 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
       try {
         if (!prepared.batch) throw new Error("expected native preparation");
         expect(prepared.batch.mediaCount()).toBe(0);
+        expect(nativeMocks.extractOtelMedia).not.toHaveBeenCalled();
         expect(prepared.sourceUnchanged).toBe(inputKind === "unchanged");
         const parsed = await parsePreparedOtelBatch(prepared, bytes);
         expect(parsed.batch).toBe(

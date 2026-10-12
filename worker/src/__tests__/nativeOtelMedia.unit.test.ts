@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
-import { validateOtelJson } from "@langfuse/native";
+import { extractOtelMedia, validateOtelJson } from "@langfuse/native";
 import { MediaContentType } from "@langfuse/shared";
 import {
   mediaPayloadCases,
@@ -103,30 +103,33 @@ async function expectMediaParity(json: string): Promise<void> {
   });
 
   const validated = await validateOtelJson(Buffer.from(json));
+  const batches: Array<Awaited<ReturnType<typeof extractOtelMedia>>> = [];
   try {
-    const batch = await validated.extract(true);
-    try {
-      // Assert at the NAPI boundary. Running the late TS detector here could
-      // repair a missed extraction and let a broken native implementation pass.
-      const compact = (await batch.takeJsonBuffer()).toString("utf8");
-      expect(
-        canonicalizeNativeReferences(JSON.parse(compact), batch.media),
-      ).toEqual(payload.input);
-      if (batch.media.length === 0) expect(compact).toBe(json);
+    batches.push(await validated.extract(true));
+    batches.push(await extractOtelMedia(Buffer.from(json)));
+    for (const batch of batches) {
+      // Assert at the NAPI boundary, before late TS detection can repair a miss.
+      const media = batch?.media ?? [];
+      const compact = batch?.takeJsonBuffer().toString("utf8") ?? json;
+      expect(canonicalizeNativeReferences(JSON.parse(compact), media)).toEqual(
+        payload.input,
+      );
+      if (media.length === 0) expect(compact).toBe(json);
       const actualBodies: MediaBody[] = [];
-      for (const media of batch.media) {
-        const bytes = await batch.mediaBody(media.index);
-        expect(media.sha256Hash).toBe(
+      for (const entry of media) {
+        const bytes = await batch!.mediaBody(entry.index);
+        expect(entry.sha256Hash).toBe(
           createHash("sha256").update(bytes).digest("base64"),
         );
-        actualBodies.push({ contentType: media.contentType, bytes });
+        actualBodies.push({ contentType: entry.contentType, bytes });
       }
       expect(sortedBodies(actualBodies)).toEqual(sortedBodies(expectedBodies));
-    } finally {
-      await batch.dispose();
     }
   } finally {
-    await validated.dispose();
+    await Promise.all([
+      validated.dispose(),
+      ...batches.map((batch) => batch?.dispose()),
+    ]);
   }
 }
 
@@ -137,6 +140,8 @@ describe(
     it.each(mediaPayloadCases)("$name", ({ json }) => expectMediaParity(json));
 
     it.each([
+      '{"input":"\\u0064ata:image/png;base64,YWJj"}',
+      '{"type":"file","media\\u0054ype":"image/png","data":"YWJj"}',
       '{"type":"file","mediaType":"image/png","data":"YWJj","data":"ZGVm"}',
       '{"type":"other","type":"file","mediaType":"text/plain","mediaType":"image/png","data":"ZGVm"}',
       '{"inline_data":{"mime_type":"image/png","data":"YWJj"},"inline_data":{"mime_type":"image/png","data":"YWJj","data":"ZGVm"}}',
@@ -195,8 +200,7 @@ describe(
           },
         ],
       });
-      const validated = await validateOtelJson(Buffer.from(input));
-      const batch = await validated.extract(true);
+      const batch = (await extractOtelMedia(Buffer.from(input)))!;
       try {
         expect(batch.media).toHaveLength(3);
         expect(batch.media.map((media) => media.contentType)).toEqual([
@@ -247,7 +251,6 @@ describe(
         ]);
       } finally {
         await batch.dispose();
-        await validated.dispose();
       }
     });
 

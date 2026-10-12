@@ -221,27 +221,30 @@ describe("early media extraction rollout", () => {
     vi.mocked(getS3EventStorageClient).mockReturnValue({
       downloadBytes: vi.fn().mockResolvedValue(bytes),
     } as unknown as ReturnType<typeof getS3EventStorageClient>);
-    const prepare = otelPreparation.prepareOtelBatch;
+    const native =
+      await vi.importActual<typeof import("@langfuse/native")>(
+        "@langfuse/native",
+      );
+    const validated = await native.validateOtelJson(bytes);
+    const nativeBatch = await validated.extract(false);
     const parse = JSON.parse;
     let checkedBeforeParse = false;
     const stop = new Error("stop after parsing");
     try {
       vi.spyOn(otelPreparation, "prepareOtelBatch").mockImplementation(
-        async (params) => {
-          const prepared = await prepare(params);
-          const batch = prepared.batch!;
-          expect(batch.mediaCount()).toBe(0);
-          vi.spyOn(batch, "takeJsonBuffer").mockImplementation(() => {
+        async () => {
+          expect(nativeBatch.mediaCount()).toBe(0);
+          vi.spyOn(nativeBatch, "takeJsonBuffer").mockImplementation(() => {
             throw new Error("must not transfer a second document to Node");
           });
           vi.spyOn(JSON, "parse").mockImplementation((text, reviver) => {
             if (text === json) {
-              expect(() => batch.mediaCount()).toThrow(/disposed/);
+              expect(() => nativeBatch.mediaCount()).toThrow(/disposed/);
               checkedBeforeParse = true;
             }
             return parse(text, reviver);
           });
-          return prepared;
+          return { batch: nativeBatch, sourceUnchanged: true };
         },
       );
       vi.spyOn(
@@ -259,6 +262,38 @@ describe("early media extraction rollout", () => {
       Object.assign(env, original);
       vi.restoreAllMocks();
       vi.clearAllMocks();
+    }
+  });
+
+  it("still rejects malformed JSON when native marker scanning is negative", async () => {
+    const original = {
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
+        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED,
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS:
+        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS,
+      LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED:
+        env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+    };
+    const bytes = Buffer.from('{"note":"ordinary"} trailing');
+    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED = "true";
+    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS = ["*"];
+    env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "true";
+    env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET = "media-bucket";
+    vi.mocked(getS3EventStorageClient).mockReturnValue({
+      downloadBytes: vi.fn().mockResolvedValue(bytes),
+    } as unknown as ReturnType<typeof getS3EventStorageClient>);
+
+    try {
+      await expect(
+        otelIngestionQueueProcessorBuilder(false)(
+          createJob("project"),
+          undefined,
+        ),
+      ).rejects.toThrow(SyntaxError);
+    } finally {
+      Object.assign(env, original);
+      vi.mocked(getS3EventStorageClient).mockReset();
     }
   });
 
