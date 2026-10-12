@@ -9,7 +9,7 @@ import {
   gatewayProviders,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
-import { parseGatewayModelSlug } from "@/src/features/ai-gateway/server/fns/parseGatewayModelSlug";
+import { parseGatewayModelSlug } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
 import {
   type CachedResolveContext,
   GATEWAY_RESOLVE_KEY_NON_EXISTENT,

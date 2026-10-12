@@ -1,5 +1,5 @@
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
-import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
+import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
 import type { RouterOutputs } from "@/src/utils/api";
 
 type Connection = RouterOutputs["aiGateway"]["listConnections"]["data"][number];
