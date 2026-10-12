@@ -219,7 +219,7 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
   skillName: {
     kind: "array",
     expression:
-      "arrayDistinct(arrayConcat(arrayMap(skill -> skill.skillName, e.skills_available), arrayMap(resource -> resource.skillName, e.skills_resource_loaded)))",
+      "arrayDistinct(arrayConcat(e.skills_available.skillName, e.skills_resource_loaded.skillName))",
     sort: "countDesc",
   },
   toolNames: {
