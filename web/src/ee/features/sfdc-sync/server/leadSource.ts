@@ -23,7 +23,7 @@ export async function deriveLeadSourceFromMemberships(
     where: {
       userId,
       role: { not: Role.NONE },
-      ...(excludeOrgIds.length ? { orgId: { notIn: excludeOrgIds } } : {}),
+      ...(excludeOrgIds.length > 0 ? { orgId: { notIn: excludeOrgIds } } : {}),
     },
     orderBy: { createdAt: "asc" },
     select: { role: true },
