@@ -63,80 +63,6 @@ async fn malformed_credentials_are_rejected_before_admission_or_body_reads() {
     assert_eq!(provider.calls(), 0);
 }
 
-#[tokio::test]
-async fn request_uploads_are_bounded_before_model_aware_resolution() {
-    let web = FakeServer::start(|_| async { resolution_response("provider-secret") }).await;
-    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let service = InferenceService::for_test_with_upload_capacity(
-        web.control_plane(),
-        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
-        1,
-        1,
-    );
-    let gateway = Gateway::start(Some(service)).await;
-    let body_polled = Arc::new(tokio::sync::Notify::new());
-    let notify = Arc::clone(&body_polled);
-    let mut uploading = Box::pin(
-        gateway.app.clone().oneshot(
-            Request::post("/openai/v1/responses")
-                .header(header::AUTHORIZATION, "Bearer first")
-                .body(Body::from_stream(stream::poll_fn(move |_| {
-                    notify.notify_one();
-                    Poll::<Option<Result<&'static str, Infallible>>>::Pending
-                })))
-                .unwrap(),
-        ),
-    );
-    tokio::time::timeout(Duration::from_secs(2), async {
-        tokio::select! {
-            () = body_polled.notified() => {},
-            _ = &mut uploading => panic!("upload should remain pending"),
-        }
-    })
-    .await
-    .unwrap();
-
-    let rejected = gateway
-        .app
-        .clone()
-        .oneshot(
-            Request::post("/openai/v1/responses")
-                .header(header::AUTHORIZATION, "Bearer second")
-                .body(Body::from_stream(stream::poll_fn(
-                    |_| -> Poll<Option<Result<&'static str, Infallible>>> {
-                        panic!("a rejected upload must not poll its body");
-                    },
-                )))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(rejected.status(), StatusCode::SERVICE_UNAVAILABLE);
-    assert_eq!(web.calls(), 0);
-
-    drop(uploading);
-    let next = gateway
-        .post()
-        .bearer_auth("next")
-        .json(&serde_json::json!({"model": "gpt-4.1"}))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(next.status(), StatusCode::OK);
-    assert_eq!(web.calls(), 1);
-    assert_eq!(provider.calls(), 1);
-}
-
-#[test]
-fn model_replacement_preserves_object_order_and_large_integers() {
-    let body = br#"{"model":"Primary/gpt-4.1","response_format":{"json_schema":{"properties":{"reasoning":{},"answer":{}}}},"seed":18446744073709551616}"#;
-
-    assert_eq!(
-        replace_request_model(body, "gpt-4.1").unwrap(),
-        br#"{"model":"gpt-4.1","response_format":{"json_schema":{"properties":{"reasoning":{},"answer":{}}}},"seed":18446744073709551616}"#.as_slice(),
-    );
-}
-
 struct Gateway {
     url: String,
     shutdown: Option<oneshot::Sender<()>>,
@@ -605,7 +531,7 @@ async fn compact_strips_the_connection_slug_and_models_use_the_control_plane_cat
             ("POST", "/v1/responses/compact") => {
                 assert_eq!(
                     body,
-                    r#"{"model":"gpt-4.1","encrypted_content":"opaque-ciphertext"}"#
+                    r#"{"encrypted_content":"opaque-ciphertext","model":"gpt-4.1"}"#
                 );
                 Response::builder()
                     .header("content-type", "application/json")

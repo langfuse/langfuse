@@ -3,7 +3,7 @@ use axum::{
     body::{Body, Bytes},
     http::{HeaderMap, Response},
 };
-use tokio::sync::{Semaphore, SemaphorePermit};
+use tokio::sync::Semaphore;
 use tracing::Instrument;
 
 use crate::{
@@ -19,7 +19,6 @@ pub struct InferenceService {
     control_plane: ControlPlaneClient,
     provider: ProviderTransport,
     resolution_capacity: Semaphore,
-    upload_capacity: Semaphore,
     telemetry: Option<crate::telemetry::Telemetry>,
 }
 
@@ -49,7 +48,6 @@ impl InferenceService {
                 .map_err(|_| ResolutionError::Configuration)?
                 .with_telemetry(telemetry.clone()),
             resolution_capacity: Semaphore::new(max_concurrent_resolutions),
-            upload_capacity: Semaphore::new(max_active_requests),
             telemetry: Some(telemetry),
         })
     }
@@ -69,14 +67,6 @@ impl InferenceService {
         })?;
         let _active = crate::observability::Active::new("resolution");
         self.control_plane.models(gateway_key, api_format).await
-    }
-
-    /// Bound request buffering before model-aware credential resolution.
-    pub(crate) fn try_admit_upload(&self) -> Result<SemaphorePermit<'_>, ProviderError> {
-        self.upload_capacity.try_acquire().map_err(|_| {
-            crate::observability::rejected("upload");
-            ProviderError::Busy
-        })
     }
 
     /// Authenticate with a separate bounded budget before reserving execution capacity.
@@ -163,26 +153,10 @@ impl InferenceService {
         provider: ProviderTransport,
         resolutions: usize,
     ) -> Self {
-        Self::for_test_with_upload_capacity(
-            control_plane,
-            provider,
-            resolutions,
-            Semaphore::MAX_PERMITS,
-        )
-    }
-
-    #[cfg(test)]
-    pub(crate) fn for_test_with_upload_capacity(
-        control_plane: ControlPlaneClient,
-        provider: ProviderTransport,
-        resolutions: usize,
-        uploads: usize,
-    ) -> Self {
         Self {
             control_plane,
             provider,
             resolution_capacity: Semaphore::new(resolutions),
-            upload_capacity: Semaphore::new(uploads),
             telemetry: None,
         }
     }
