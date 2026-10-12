@@ -10,11 +10,13 @@ describe("aggregateModels", () => {
       id: "first",
       name: "First",
       provider: "OPENAI",
+      allowedModels: null,
     } as Connection;
     const second = {
       id: "second",
       name: "Second",
       provider: "ANTHROPIC",
+      allowedModels: ["shared-model"],
     } as Connection;
     const results = [
       {
@@ -30,18 +32,30 @@ describe("aggregateModels", () => {
     ] as Result[];
 
     expect(aggregateModels(results, [first]).map((model) => model.id)).toEqual([
-      "First:b-model",
-      "First:shared-model",
-      "First:z-model",
+      "b-model",
+      "shared-model",
+      "z-model",
     ]);
     expect(
       aggregateModels(results, [first, second]).map((model) => model.id),
+    ).toEqual(["b-model", "shared-model", "z-model", "a-model"]);
+    expect(
+      aggregateModels(results, [first, second]).find(
+        (model) => model.id === "shared-model",
+      )?.availableVia,
     ).toEqual([
-      "First:b-model",
-      "First:shared-model",
-      "First:z-model",
-      "Second:a-model",
-      "Second:shared-model",
+      {
+        connectionId: "first",
+        connectionName: "First",
+        provider: "OPENAI",
+        enabled: true,
+      },
+      {
+        connectionId: "second",
+        connectionName: "Second",
+        provider: "ANTHROPIC",
+        enabled: true,
+      },
     ]);
   });
 
@@ -50,6 +64,7 @@ describe("aggregateModels", () => {
       id: "first",
       name: "First",
       provider: "OPENAI",
+      allowedModels: [],
     } as Connection;
     const result = {
       connectionId: "first",
@@ -64,6 +79,7 @@ describe("aggregateModels", () => {
         connectionId: "first",
         connectionName: "First",
         provider: "OPENAI",
+        enabled: false,
       },
     ]);
   });

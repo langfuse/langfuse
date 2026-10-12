@@ -14,7 +14,7 @@ export class GatewayModelsRepository {
         status: "ENABLED",
       },
       orderBy: [{ routingPriority: "asc" }, { id: "asc" }],
-      select: { id: true, name: true },
+      select: { id: true, name: true, allowedModels: true },
     });
   }
 }

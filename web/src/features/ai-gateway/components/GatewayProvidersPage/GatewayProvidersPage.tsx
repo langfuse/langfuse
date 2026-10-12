@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
+import { useRouter } from "next/router";
 
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -7,9 +8,11 @@ import { ConfirmationDialogController } from "@/src/components/design-system/Con
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { GatewayConnectionModelsPage } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/GatewayConnectionModelsPage";
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/ProviderDialogController/ProviderDialogController";
 import { GatewayProvidersTable } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/GatewayProvidersTable/GatewayProvidersTable";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
@@ -18,6 +21,11 @@ export function GatewayProvidersPage({
 }: {
   organizationId: string;
 }) {
+  const router = useRouter();
+  const connectionId =
+    typeof router.query.connectionId === "string"
+      ? router.query.connectionId
+      : undefined;
   const connectionsQuery = api.aiGateway.listConnections.useInfiniteQuery(
     { orgId: organizationId, limit: 50 },
     { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
@@ -27,7 +35,7 @@ export function GatewayProvidersPage({
     { enabled: connectionsQuery.isSuccess },
   );
   const [retriedModelCounts, setRetriedModelCounts] = useState<
-    Record<string, number>
+    Record<string, { enabled: number; total: number }>
   >({});
   const [pageIndex, setPageIndex] = useState(0);
   const utils = api.useUtils();
@@ -43,7 +51,12 @@ export function GatewayProvidersPage({
       if (result.success) {
         setRetriedModelCounts((current) => ({
           ...current,
-          [connection.id]: result.models.length,
+          [connection.id]: {
+            enabled: result.models.filter((model) =>
+              isGatewayModelAllowed(connection.allowedModels, model),
+            ).length,
+            total: result.models.length,
+          },
         }));
       }
       await utils.aiGateway.listConnections.invalidate({
@@ -68,6 +81,19 @@ export function GatewayProvidersPage({
       throw error;
     }
   };
+
+  const selectConnection = (connection: GatewayConnection) => {
+    void router.push(buildGatewayModelsUrl(organizationId, connection.id));
+  };
+
+  if (connectionId) {
+    return (
+      <GatewayConnectionModelsPage
+        organizationId={organizationId}
+        connectionId={connectionId}
+      />
+    );
+  }
 
   if (connectionsQuery.isPending) {
     return <ProvidersSkeleton />;
@@ -98,7 +124,13 @@ export function GatewayProvidersPage({
   const visiblePageIndex = Math.min(pageIndex, Math.max(0, pages.length - 1));
   const allConnections = pages.flatMap((page) => page.data);
   const connections = pages[visiblePageIndex]?.data ?? [];
-  const modelCounts: Record<string, number | "loading"> = modelsQuery.isPending
+  const connectionsById = new Map(
+    allConnections.map((connection) => [connection.id, connection]),
+  );
+  const modelCounts: Record<
+    string,
+    { enabled: number; total: number } | "loading"
+  > = modelsQuery.isPending
     ? Object.fromEntries(
         allConnections
           .filter((connection) => connection.status === "ENABLED")
@@ -107,7 +139,18 @@ export function GatewayProvidersPage({
     : Object.fromEntries(
         (modelsQuery.data ?? [])
           .filter((result) => result.success)
-          .map((result) => [result.connectionId, result.models.length]),
+          .map((result) => {
+            const connection = connectionsById.get(result.connectionId);
+            const enabled = connection
+              ? result.models.filter((model) =>
+                  isGatewayModelAllowed(connection.allowedModels, model),
+                ).length
+              : result.models.length;
+            return [
+              result.connectionId,
+              { enabled, total: result.models.length },
+            ];
+          }),
       );
   Object.assign(modelCounts, retriedModelCounts);
 
@@ -147,9 +190,7 @@ export function GatewayProvidersPage({
                 <GatewayProvidersTable
                   connections={connections}
                   modelCounts={modelCounts}
-                  getModelsUrl={(connection) =>
-                    buildGatewayModelsUrl(organizationId, connection.id)
-                  }
+                  onSelect={selectConnection}
                   onRetry={retryConnection}
                   retryDisabled={
                     retry.isPending

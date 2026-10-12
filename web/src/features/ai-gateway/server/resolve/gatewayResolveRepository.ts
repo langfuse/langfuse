@@ -47,6 +47,7 @@ export class GatewayResolveRepository {
                     name: true,
                     provider: true,
                     encryptedCredential: true,
+                    allowedModels: true,
                   },
                 },
               },

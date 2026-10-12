@@ -1,9 +1,11 @@
-import type {
-  GatewayConnectionStatus,
-  GatewayProvider,
+import {
   Prisma,
-  PrismaClient,
+  type GatewayConnectionStatus,
+  type GatewayProvider,
+  type PrismaClient,
 } from "@langfuse/shared/src/db";
+
+import { normalizeGatewayAllowedModels } from "@/src/features/ai-gateway/fns/normalizeGatewayAllowedModels";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -16,9 +18,21 @@ const safeConnectionSelect = {
   createdById: true,
   routingPriority: true,
   status: true,
+  allowedModels: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.GatewayAiConnectionSelect;
+
+type SafeConnectionRow = Prisma.GatewayAiConnectionGetPayload<{
+  select: typeof safeConnectionSelect;
+}>;
+
+function toSafeConnection<T extends SafeConnectionRow>(connection: T) {
+  return {
+    ...connection,
+    allowedModels: normalizeGatewayAllowedModels(connection.allowedModels),
+  };
+}
 
 export class GatewayProviderRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -44,29 +58,34 @@ export class GatewayProviderRepository {
     const hasMore = rows.length > params.limit;
     const data = hasMore ? rows.slice(0, params.limit) : rows;
     return {
-      data,
+      data: data.map(toSafeConnection),
       nextCursor: hasMore ? (data.at(-1)?.id ?? null) : null,
     };
   }
 
-  getSafeConnection(params: { organizationId: string; id: string }) {
-    return this.prisma.gatewayAiConnection.findFirst({
+  async getSafeConnection(params: { organizationId: string; id: string }) {
+    const connection = await this.prisma.gatewayAiConnection.findFirst({
       where: params,
       select: safeConnectionSelect,
     });
+    return connection ? toSafeConnection(connection) : null;
   }
 
-  getConnectionWithCredential(params: { organizationId: string; id: string }) {
-    return this.prisma.gatewayAiConnection.findFirst({
+  async getConnectionWithCredential(params: {
+    organizationId: string;
+    id: string;
+  }) {
+    const connection = await this.prisma.gatewayAiConnection.findFirst({
       where: params,
       select: {
         ...safeConnectionSelect,
         encryptedCredential: true,
       },
     });
+    return connection ? toSafeConnection(connection) : null;
   }
 
-  createConnection(params: {
+  async createConnection(params: {
     organizationId: string;
     name: string;
     provider: GatewayProvider;
@@ -75,7 +94,7 @@ export class GatewayProviderRepository {
     createdById: string | null;
     status: GatewayConnectionStatus;
   }) {
-    return this.prisma.$transaction(async (tx) => {
+    const connection = await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${params.organizationId}))`;
       const aggregate = await tx.gatewayAiConnection.aggregate({
         where: { organizationId: params.organizationId },
@@ -89,9 +108,10 @@ export class GatewayProviderRepository {
         select: safeConnectionSelect,
       });
     });
+    return toSafeConnection(connection);
   }
 
-  updateConnection(params: {
+  async updateConnection(params: {
     organizationId: string;
     id: string;
     name?: string;
@@ -100,11 +120,28 @@ export class GatewayProviderRepository {
     status?: GatewayConnectionStatus;
   }) {
     const { organizationId, id, ...data } = params;
-    return this.prisma.gatewayAiConnection.update({
+    const connection = await this.prisma.gatewayAiConnection.update({
       where: { id, organizationId },
       data,
       select: safeConnectionSelect,
     });
+    return toSafeConnection(connection);
+  }
+
+  async updateAllowedModels(params: {
+    organizationId: string;
+    id: string;
+    allowedModels: string[] | null;
+  }) {
+    const connection = await this.prisma.gatewayAiConnection.update({
+      where: { id: params.id, organizationId: params.organizationId },
+      data: {
+        allowedModels:
+          params.allowedModels === null ? Prisma.DbNull : params.allowedModels,
+      },
+      select: safeConnectionSelect,
+    });
+    return toSafeConnection(connection);
   }
 
   /**
@@ -112,8 +149,8 @@ export class GatewayProviderRepository {
    * one transaction. Splitting the two lets a concurrent delete compact
    * against rows that no longer exist, which abandons the gap.
    */
-  deleteConnection(params: { organizationId: string; id: string }) {
-    return this.prisma.$transaction(async (tx) => {
+  async deleteConnection(params: { organizationId: string; id: string }) {
+    const connection = await this.prisma.$transaction(async (tx) => {
       await this.lockOrganization(tx, params.organizationId);
       const deleted = await tx.gatewayAiConnection.delete({
         where: { id: params.id, organizationId: params.organizationId },
@@ -130,6 +167,7 @@ export class GatewayProviderRepository {
       });
       return deleted;
     });
+    return toSafeConnection(connection);
   }
 
   async reorderConnections(params: {
@@ -174,16 +212,17 @@ export class GatewayProviderRepository {
     }
   }
 
-  updateConnectionStatus(params: {
+  async updateConnectionStatus(params: {
     organizationId: string;
     id: string;
     status: GatewayConnectionStatus;
   }) {
-    return this.prisma.gatewayAiConnection.update({
+    const connection = await this.prisma.gatewayAiConnection.update({
       where: { id: params.id, organizationId: params.organizationId },
       data: { status: params.status },
       select: safeConnectionSelect,
     });
+    return toSafeConnection(connection);
   }
 
   private updatePriority(

@@ -38,6 +38,11 @@ const paginatedOrganizationInput = organizationInput.extend({
   cursor: z.string().optional(),
   limit: z.number().int().min(1).max(100).default(50),
 });
+const connectionInput = organizationInput.extend({ id: z.string() });
+const allowedModelsSchema = z
+  .array(z.string().trim().min(1).max(500))
+  .max(10_000)
+  .nullable();
 
 function requireGatewayAdmin(params: { session: Session; orgId: string }) {
   requireGatewayEnabledForOrganization(params.orgId);
@@ -86,6 +91,16 @@ export const aiGatewayRouter = createTRPCRouter({
         organizationId: input.orgId,
         cursor: input.cursor,
         limit: input.limit,
+      });
+    }),
+
+  getConnection: protectedOrganizationProcedure
+    .input(connectionInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayProviderService(ctx.prisma).get({
+        organizationId: input.orgId,
+        id: input.id,
       });
     }),
 
@@ -152,7 +167,7 @@ export const aiGatewayRouter = createTRPCRouter({
     }),
 
   deleteConnection: protectedOrganizationProcedure
-    .input(organizationInput.extend({ id: z.string() }))
+    .input(connectionInput)
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       await new GatewayProviderService(ctx.prisma).delete({
@@ -161,6 +176,18 @@ export const aiGatewayRouter = createTRPCRouter({
         session: ctx.session,
       });
       return { success: true };
+    }),
+
+  updateConnectionModels: protectedOrganizationProcedure
+    .input(connectionInput.extend({ allowedModels: allowedModelsSchema }))
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayProviderService(ctx.prisma).updateAllowedModels({
+        organizationId: input.orgId,
+        id: input.id,
+        allowedModels: input.allowedModels,
+        session: ctx.session,
+      });
     }),
 
   reorderConnections: protectedOrganizationProcedure
@@ -187,6 +214,16 @@ export const aiGatewayRouter = createTRPCRouter({
       );
     }),
 
+  getConnectionModels: protectedOrganizationProcedure
+    .input(connectionInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayModelCatalogService(ctx.prisma).refreshModels({
+        organizationId: input.orgId,
+        connectionId: input.id,
+      });
+    }),
+
   syncModels: protectedOrganizationProcedure
     .input(organizationInput)
     .mutation(async ({ input, ctx }) => {
@@ -198,7 +235,7 @@ export const aiGatewayRouter = createTRPCRouter({
     }),
 
   retryConnection: protectedOrganizationProcedure
-    .input(organizationInput.extend({ id: z.string() }))
+    .input(connectionInput)
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       return new GatewayModelCatalogService(ctx.prisma).retryConnection({
@@ -246,7 +283,7 @@ export const aiGatewayRouter = createTRPCRouter({
     }),
 
   revokeApiKey: protectedOrganizationProcedure
-    .input(organizationInput.extend({ id: z.string() }))
+    .input(connectionInput)
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       await new GatewayApiKeyService(ctx.prisma, redis).revoke({

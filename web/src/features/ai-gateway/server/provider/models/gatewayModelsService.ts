@@ -4,6 +4,7 @@ import type { Cluster, Redis } from "ioredis";
 
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
@@ -76,10 +77,14 @@ export class GatewayModelsService {
       data: successfulResults
         .flatMap(({ connection, catalog }) =>
           catalog.success
-            ? catalog.models.map((model) => ({
-                ...model,
-                id: formatGatewayModelSlug(connection.name, model.id),
-              }))
+            ? catalog.models
+                .filter((model) =>
+                  isGatewayModelAllowed(connection.allowedModels, model.id),
+                )
+                .map((model) => ({
+                  ...model,
+                  id: formatGatewayModelSlug(connection.name, model.id),
+                }))
             : [],
         )
         .sort(compareModels),

@@ -1,5 +1,5 @@
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
-import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import type { RouterOutputs } from "@/src/utils/api";
 
 type Connection = RouterOutputs["aiGateway"]["listConnections"]["data"][number];
@@ -18,6 +18,7 @@ type ModelRow = {
     connectionId: string;
     connectionName: string;
     provider: GatewayProvider;
+    enabled: boolean;
   }>;
   apiFormats: ApiFormat[];
 };
@@ -29,7 +30,7 @@ export function aggregateModels(
   const resultsByConnectionId = new Map(
     results.map((result) => [result.connectionId, result]),
   );
-  const models: ModelRow[] = [];
+  const models = new Map<string, ModelRow>();
   const seenConnectionIds = new Set<string>();
 
   for (const connection of connections) {
@@ -44,14 +45,30 @@ export function aggregateModels(
         connectionId: connection.id,
         connectionName: connection.name,
         provider: connection.provider,
+        enabled: isGatewayModelAllowed(connection.allowedModels, modelId),
       };
-      models.push({
-        id: formatGatewayModelSlug(connection.name, modelId),
+      const existing = models.get(modelId);
+      if (existing) {
+        existing.availableVia.push(availableVia);
+        if (availableVia.enabled) {
+          existing.apiFormats = [
+            ...new Set([
+              ...existing.apiFormats,
+              ...providerFormats[connection.provider],
+            ]),
+          ];
+        }
+        continue;
+      }
+      models.set(modelId, {
+        id: modelId,
         availableVia: [availableVia],
-        apiFormats: [...providerFormats[connection.provider]],
+        apiFormats: availableVia.enabled
+          ? [...providerFormats[connection.provider]]
+          : [],
       });
     }
   }
 
-  return models;
+  return [...models.values()];
 }

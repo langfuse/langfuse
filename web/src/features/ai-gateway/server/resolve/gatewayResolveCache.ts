@@ -35,6 +35,7 @@ export const CachedResolveContext = z.object({
       name: z.string(),
       provider: z.enum(["OPENAI", "ANTHROPIC"]),
       encryptedCredential: z.string(),
+      allowedModels: z.array(z.string()).nullable(),
     }),
   ),
 });

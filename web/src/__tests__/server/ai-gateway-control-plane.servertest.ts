@@ -682,6 +682,98 @@ describe("AI gateway control plane", () => {
     ).rejects.toMatchObject({ status: 404 });
   });
 
+  it("persists connection model allowlists and enforces them for resolve and models", async () => {
+    const { caller, org, project } = await prepare();
+    await caller.aiGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      ingestionMode: "FULL",
+    });
+    const connection = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test-openai",
+    });
+    const gatewayKey = await caller.aiGateway.createApiKey({
+      orgId: org.id,
+      metadata: {},
+    });
+    const fastHashedSecretKey = createShaHash(gatewayKey.secretKey, env.SALT);
+
+    await expect(
+      authenticateRequest({
+        fastHashedSecretKey,
+        apiFormat: "openai.responses",
+        model: "OpenAI:gpt-4o",
+      }),
+    ).resolves.toMatchObject({
+      connection: { id: connection.id, provider_model: "gpt-4o" },
+    });
+
+    await caller.aiGateway.updateConnectionModels({
+      orgId: org.id,
+      id: connection.id,
+      allowedModels: ["gpt-4o-mini"],
+    });
+
+    await expect(
+      authenticateRequest({
+        fastHashedSecretKey,
+        apiFormat: "openai.responses",
+        model: "OpenAI:gpt-4o",
+      }),
+    ).rejects.toMatchObject({
+      status: 403,
+      code: "model_not_allowed",
+    });
+    await expect(
+      authenticateRequest({
+        fastHashedSecretKey,
+        apiFormat: "openai.responses",
+        model: "OpenAI:gpt-4o-mini",
+      }),
+    ).resolves.toMatchObject({
+      connection: { id: connection.id, provider_model: "gpt-4o-mini" },
+    });
+
+    const context = await new GatewayApiKeyAuthenticator(
+      prisma,
+    ).authenticateRequest({
+      fastHashedSecretKey,
+      apiFormat: "openai.responses",
+    });
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        data: [
+          { id: "gpt-4o", created: 10 },
+          { id: "gpt-4o-mini", created: 20 },
+        ],
+      }),
+    );
+    await expect(
+      new GatewayModelsService(prisma, fetcher, null).list({
+        context,
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toMatchObject({
+      data: [{ id: "OpenAI:gpt-4o-mini" }],
+    });
+
+    const listed = await caller.aiGateway.listConnections({ orgId: org.id });
+    expect(listed.data[0]?.allowedModels).toEqual(["gpt-4o-mini"]);
+    await caller.aiGateway.updateConnectionModels({
+      orgId: org.id,
+      id: connection.id,
+      allowedModels: null,
+    });
+    const allowAll = await caller.aiGateway.getConnection({
+      orgId: org.id,
+      id: connection.id,
+    });
+    expect(allowAll.allowedModels).toBeNull();
+  });
+
   it("requires connection names to be unique within an organization", async () => {
     const { caller, org } = await prepare();
     await expect(

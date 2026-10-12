@@ -33,20 +33,22 @@ export const gatewayModelsColumns: LangfuseColumnDef<GatewayModelRow>[] = [
     getBadge: (connection) => ({
       key: connection.connectionId,
       value: connection.connectionName,
-      variant: "secondary",
+      variant: connection.enabled ? "secondary" : "tertiary",
       icon: providerIcons[connection.provider],
-      ariaLabel: `${connection.connectionName}, ${providerLabels[connection.provider]}`,
+      ariaLabel: `${connection.connectionName}, ${providerLabels[connection.provider]}, ${connection.enabled ? "enabled" : "disabled"}`,
     }),
   }),
-  createBadgeListTableColumn<GatewayModelRow, ApiFormat>({
+  {
     accessorKey: "apiFormats",
-    header: "API formats",
+    header: "Routes",
     size: 280,
-    getBadge: (format) => ({
-      value: apiFormatLabels[format],
-      variant: "secondary",
-    }),
-  }),
+    cell: ({ row }) =>
+      row.original.apiFormats.length > 0
+        ? row.original.apiFormats
+            .map((format) => apiFormatLabels[format])
+            .join(", ")
+        : "Not routed",
+  },
 ];
 
 export function GatewayModelsTable({

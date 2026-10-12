@@ -38,6 +38,12 @@ export class GatewayProviderService {
     return this.repository.listConnections(params);
   }
 
+  async get(params: { organizationId: string; id: string }) {
+    const connection = await this.repository.getSafeConnection(params);
+    if (!connection) throw new LangfuseNotFoundError("Gateway connection");
+    return connection;
+  }
+
   async listAll(organizationId: string, status?: GatewayConnectionStatus) {
     const connections = [];
     let cursor: string | undefined;
@@ -189,6 +195,39 @@ export class GatewayProviderService {
       this.prisma,
     );
     return deleted;
+  }
+
+  async updateAllowedModels(params: {
+    organizationId: string;
+    id: string;
+    allowedModels: string[] | null;
+    session: OrgAuthedContext["session"];
+  }) {
+    const existing = await this.get({
+      organizationId: params.organizationId,
+      id: params.id,
+    });
+    const updated = await this.repository.updateAllowedModels({
+      organizationId: params.organizationId,
+      id: params.id,
+      allowedModels:
+        params.allowedModels === null
+          ? null
+          : [...new Set(params.allowedModels)],
+    });
+    await invalidateGatewayResolveCacheForOrganization(params.organizationId);
+    await auditLog(
+      {
+        session: params.session,
+        resourceType: "gatewayAiConnection",
+        resourceId: params.id,
+        action: "update",
+        before: existing,
+        after: updated,
+      },
+      this.prisma,
+    );
+    return updated;
   }
 
   async reorder(params: {

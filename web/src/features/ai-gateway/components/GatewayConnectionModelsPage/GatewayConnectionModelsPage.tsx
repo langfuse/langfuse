@@ -1,0 +1,123 @@
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
+
+import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { ConnectionModelsLoadError } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsLoadError";
+import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton";
+import { GatewayConnectionModelsTable } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsTable";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { api, reportNonTrpcError } from "@/src/utils/api";
+
+export function GatewayConnectionModelsPage({
+  organizationId,
+  connectionId,
+}: {
+  organizationId: string;
+  connectionId: string;
+}) {
+  const utils = api.useUtils();
+  const connectionQuery = api.aiGateway.getConnection.useQuery({
+    orgId: organizationId,
+    id: connectionId,
+  });
+  const modelsQuery = api.aiGateway.getConnectionModels.useQuery({
+    orgId: organizationId,
+    id: connectionId,
+  });
+  const updateModels = api.aiGateway.updateConnectionModels.useMutation({
+    onSuccess: async (connection) => {
+      utils.aiGateway.getConnection.setData(
+        { orgId: organizationId, id: connectionId },
+        connection,
+      );
+      await Promise.all([
+        utils.aiGateway.listConnections.invalidate({ orgId: organizationId }),
+        utils.aiGateway.refreshModels.invalidate({ orgId: organizationId }),
+      ]);
+    },
+    onError: (error) =>
+      reportNonTrpcError(error, "ai-gateway-connection-models"),
+  });
+
+  if (connectionQuery.isPending || modelsQuery.isPending) {
+    return <ConnectionModelsSkeleton />;
+  }
+  if (connectionQuery.isError || modelsQuery.isError) {
+    return (
+      <ConnectionModelsLoadError
+        organizationId={organizationId}
+        retry={() => {
+          void connectionQuery.refetch();
+          void modelsQuery.refetch();
+        }}
+      />
+    );
+  }
+
+  const connection = connectionQuery.data;
+  const result = modelsQuery.data;
+  const models = result.success ? result.models : [];
+  const enabledCount = models.filter((model) =>
+    isGatewayModelAllowed(connection.allowedModels, model),
+  ).length;
+
+  const saveAllowedModels = (allowedModels: string[] | null) => {
+    updateModels.mutate({
+      orgId: organizationId,
+      id: connectionId,
+      allowedModels,
+    });
+  };
+  const toggleModel = (model: string, enabled: boolean) => {
+    const current =
+      connection.allowedModels ??
+      models.filter((availableModel) => availableModel !== model);
+    const next = enabled
+      ? [...new Set([...current, model])]
+      : current.filter((allowedModel) => allowedModel !== model);
+    saveAllowedModels(next);
+  };
+  const enableAll = () => saveAllowedModels(null);
+  const disableAll = () => saveAllowedModels([]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Link
+        className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm"
+        href={`/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway-providers`}
+      >
+        <ArrowLeft className="icon-sm" />
+        Provider credentials
+      </Link>
+      <div>
+        <h2 className="text-lg font-semibold">{connection.name}</h2>
+        <p className="text-muted-foreground mt-2 text-sm">
+          Only enabled models can be requested through this credential.{" "}
+          {enabledCount} of {models.length} enabled.
+        </p>
+      </div>
+      {result.success ? (
+        <GatewayConnectionModelsTable
+          models={models}
+          allowedModels={connection.allowedModels}
+          isSaving={updateModels.isPending}
+          onToggle={toggleModel}
+          onEnableAll={enableAll}
+          onDisableAll={disableAll}
+        />
+      ) : (
+        <Alert variant="destructive">
+          <Alert.Title>Models could not be loaded</Alert.Title>
+          <Alert.Description>
+            The provider returned a model discovery error. Retry the connection
+            before changing model access.
+          </Alert.Description>
+        </Alert>
+      )}
+      <p className="text-muted-foreground text-xs">
+        Disabling a model here does not affect other provider credentials that
+        also offer it.
+      </p>
+    </div>
+  );
+}
