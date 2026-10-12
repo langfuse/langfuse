@@ -72,4 +72,39 @@ describe("GatewayResolveCache", () => {
     expect(redis.sadd).not.toHaveBeenCalled();
     expect(redis.expire).not.toHaveBeenCalled();
   });
+
+  it("keys contexts by connection name instead of upstream model", async () => {
+    const redis = {
+      get: vi.fn().mockResolvedValue(null),
+    } as unknown as Redis;
+
+    await new GatewayResolveCache(redis).get({
+      fastHashedSecretKey: "hashed-key",
+      apiFormat: "openai.responses",
+      connectionName: "Primary",
+    });
+
+    expect(redis.get).toHaveBeenCalledWith(
+      "ai-gateway:resolve:context:openai.responses:Primary:hashed-key",
+    );
+  });
+
+  it("deletes legacy cache keys when revoking an API key", async () => {
+    const redis = {
+      smembers: vi.fn().mockResolvedValue([]),
+      del: vi.fn().mockResolvedValue(1),
+    } as unknown as Redis;
+
+    await new GatewayResolveCache(redis).invalidateApiKey("hashed-key");
+
+    expect(redis.del).toHaveBeenCalledWith(
+      "ai-gateway:resolve:context:openai.responses:hashed-key",
+    );
+    expect(redis.del).toHaveBeenCalledWith(
+      "ai-gateway:resolve:context:openai.chat-completions:hashed-key",
+    );
+    expect(redis.del).toHaveBeenCalledWith(
+      "ai-gateway:resolve:context:anthropic.messages:hashed-key",
+    );
+  });
 });

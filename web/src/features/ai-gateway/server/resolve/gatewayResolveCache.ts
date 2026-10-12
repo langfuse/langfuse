@@ -48,9 +48,14 @@ const CachedResolveEntry = z.union([
 const contextCacheKey = (
   fastHashedSecretKey: string,
   apiFormat: string,
-  model?: string,
+  connectionName?: string,
 ) =>
-  `${CACHE_PREFIX}:context:${apiFormat}:${model ?? ""}:${fastHashedSecretKey}`;
+  `${CACHE_PREFIX}:context:${apiFormat}:${connectionName ?? ""}:${fastHashedSecretKey}`;
+
+const legacyContextCacheKey = (
+  fastHashedSecretKey: string,
+  apiFormat: string,
+) => `${CACHE_PREFIX}:context:${apiFormat}:${fastHashedSecretKey}`;
 
 /**
  * Index of the cache keys written for one organization. Entries are keyed by
@@ -80,7 +85,7 @@ export class GatewayResolveCache {
   async get(params: {
     fastHashedSecretKey: string;
     apiFormat: string;
-    model?: string;
+    connectionName?: string;
   }) {
     if (!this.enabled) return null;
 
@@ -89,7 +94,7 @@ export class GatewayResolveCache {
         contextCacheKey(
           params.fastHashedSecretKey,
           params.apiFormat,
-          params.model,
+          params.connectionName,
         ),
       );
       if (!cached) {
@@ -104,7 +109,7 @@ export class GatewayResolveCache {
           contextCacheKey(
             params.fastHashedSecretKey,
             params.apiFormat,
-            params.model,
+            params.connectionName,
           ),
         );
         recordIncrement("langfuse.gateway.resolve.cache_miss", 1);
@@ -122,7 +127,7 @@ export class GatewayResolveCache {
   async set(params: {
     fastHashedSecretKey: string;
     apiFormat: string;
-    model?: string;
+    connectionName?: string;
     context: CachedResolveContext | typeof GATEWAY_RESOLVE_KEY_NON_EXISTENT;
     expiresAt?: Date | null;
   }) {
@@ -131,7 +136,7 @@ export class GatewayResolveCache {
     const key = contextCacheKey(
       params.fastHashedSecretKey,
       params.apiFormat,
-      params.model,
+      params.connectionName,
     );
     const configuredTtl = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS;
     const now = Date.now();
@@ -210,7 +215,9 @@ export class GatewayResolveCache {
         ...keys.map((key) => this.redis!.del(key)),
         // Remove pre-model cache entries written by an older deployment.
         ...gatewayApiFormats.map((apiFormat) =>
-          this.redis!.del(contextCacheKey(fastHashedSecretKey, apiFormat)),
+          this.redis!.del(
+            legacyContextCacheKey(fastHashedSecretKey, apiFormat),
+          ),
         ),
       ]);
     } catch (error) {

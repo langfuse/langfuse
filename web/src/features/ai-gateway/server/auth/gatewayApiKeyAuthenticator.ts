@@ -40,12 +40,25 @@ export class GatewayApiKeyAuthenticator {
     apiFormat: GatewayApiFormat;
     model?: string;
   }): Promise<GatewayApiKeyAuthContext> {
-    const cached = await this.cache.get(params);
+    const parsedModel = params.model
+      ? parseGatewayModelId(params.model)
+      : undefined;
+    const cacheParams = {
+      fastHashedSecretKey: params.fastHashedSecretKey,
+      apiFormat: params.apiFormat,
+      connectionName: parsedModel?.connectionName,
+    };
+    const cached = await this.cache.get(cacheParams);
     if (cached === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
       throw new GatewayControlPlaneError("Invalid gateway key", 401);
     }
 
-    const context = cached ?? (await this.loadAndCacheContext(params));
+    const context =
+      cached ??
+      (await this.loadAndCacheContext({
+        ...params,
+        connectionName: parsedModel?.connectionName,
+      }));
 
     // Re-check on cache hits so removing an organization from the allowlist
     // takes effect without waiting for the cache TTL.
@@ -61,15 +74,12 @@ export class GatewayApiKeyAuthenticator {
   private async loadAndCacheContext(params: {
     fastHashedSecretKey: string;
     apiFormat: GatewayApiFormat;
-    model?: string;
+    connectionName?: string;
   }): Promise<GatewayApiKeyAuthContext> {
-    const parsedModel = params.model
-      ? parseGatewayModelId(params.model)
-      : undefined;
     const row = await this.repository.resolveContext({
       fastHashedSecretKey: params.fastHashedSecretKey,
       providers: supportedProviders(params.apiFormat),
-      connectionName: parsedModel?.connectionName ?? params.model,
+      connectionName: params.connectionName,
     });
 
     const organizationId = row?.apiKey.orgId;

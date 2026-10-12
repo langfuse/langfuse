@@ -632,7 +632,7 @@ describe("AI gateway control plane", () => {
       defaultIngestionProjectId: project.id,
       ingestionMode: "USAGE",
     });
-    await caller.aiGateway.createConnection({
+    const primary = await caller.aiGateway.createConnection({
       orgId: org.id,
       name: "Primary",
       provider: "OPENAI",
@@ -664,6 +664,18 @@ describe("AI gateway control plane", () => {
         auth: { type: "Bearer", token: "sk-secondary" },
       },
       model: "gpt-4.1",
+    });
+    await expect(
+      authenticateRequest({
+        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+        apiFormat: "openai.responses",
+        model: "gpt-4.1",
+      }),
+    ).resolves.toMatchObject({
+      connection: {
+        id: primary.id,
+        name: "Primary",
+      },
     });
   });
 
