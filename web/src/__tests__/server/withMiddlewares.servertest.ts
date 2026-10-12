@@ -8,7 +8,6 @@ import {
   DYNAMIC_API_ROUTE_TEMPLATES,
 } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { readdirSync, readFileSync } from "fs";
-import { join, relative } from "path";
 import {
   BaseError,
   LangfuseNotFoundError,
@@ -83,27 +82,18 @@ describe("clickHouseRouteForRequest", () => {
   });
 
   it("lists every dynamic API route that tags its ClickHouse queries", () => {
-    const pagesDir = join(__dirname, "../../pages");
-    const walk = (dir: string): string[] =>
-      readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
-        entry.isDirectory()
-          ? walk(join(dir, entry.name))
-          : [join(dir, entry.name)],
-      );
+    const apiDir = `${__dirname}/../../pages/api`;
     const tagsQueries = (file: string) =>
-      file.includes("/api/public/") ||
+      file.startsWith("public/") ||
       /\b(withMiddlewares|createAuthedProjectAPIRoute|clickHouseRouteForRequest)\(/.test(
-        readFileSync(file, "utf8"),
+        readFileSync(`${apiDir}/${file}`, "utf8"),
       );
-    const dynamicTemplates = walk(join(pagesDir, "api"))
+    const dynamicTemplates = readdirSync(apiDir, { recursive: true })
+      .map(String)
       .filter((file) => file.endsWith(".ts") && file.includes("["))
       .filter(tagsQueries)
       .map(
-        (file) =>
-          "/" +
-          relative(pagesDir, file)
-            .replace(/\.ts$/, "")
-            .replace(/\/index$/, ""),
+        (file) => "/api/" + file.replace(/\.ts$/, "").replace(/\/index$/, ""),
       );
 
     expect([...DYNAMIC_API_ROUTE_TEMPLATES].sort()).toEqual(
