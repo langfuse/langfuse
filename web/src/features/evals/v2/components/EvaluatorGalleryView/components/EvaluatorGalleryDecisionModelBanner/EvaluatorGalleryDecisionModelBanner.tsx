@@ -20,7 +20,7 @@ export function EvaluatorGalleryDecisionModelBanner({
           <span className="font-bold">New: decision-model evaluators.</span>{" "}
           <span className="text-muted-foreground">
             Ask Jev or the OpenAI Decisions API typed questions about each
-            observation in one call. Experimental.
+            observation in one call.
           </span>
         </div>
       </div>

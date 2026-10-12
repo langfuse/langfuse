@@ -45,13 +45,16 @@ afterEach(() => {
 });
 
 describe("organization API keys trpc", () => {
-  const organizationId = "seed-org-id";
+  const organizationId = randomUUID();
 
   // The session user is persisted as the API key creator, so it must exist
   // in the database (CI does not run the seeder that creates user-1).
   // createMany + skipDuplicates is atomic, so concurrently running test
   // files can ensure the user without racing each other.
   beforeAll(async () => {
+    await prisma.organization.create({
+      data: { id: organizationId, name: "Test Organization" },
+    });
     await prisma.user.createMany({
       data: [
         {
@@ -615,7 +618,9 @@ describe("organization API keys trpc", () => {
         role: "ADMIN",
       });
 
-      const projectResources = (await getRolesForPrincipal(ApiKeyId(key.id)))
+      const projectResources = (
+        await getRolesForPrincipal(prisma, ApiKeyId(key.id))
+      )
         .flatMap((role) => role.policies)
         .filter((policy) => policy.id.endsWith(":project"))
         .flatMap((policy) => policy.resources);
@@ -643,9 +648,14 @@ describe("organization API keys trpc", () => {
         });
         expect(
           await prisma.roleAssignment.findFirstOrThrow({
-            where: { principalApiKeyId: key.id },
+            where: { apiKeyId: key.id },
           }),
-        ).toMatchObject({ systemRole: role, ownerOrgId: orgId });
+        ).toMatchObject({
+          systemRole: role,
+          orgId,
+          ownerId: `organization/${orgId}`,
+          projectId: null,
+        });
       },
     );
 
@@ -679,11 +689,13 @@ describe("organization API keys trpc", () => {
             ).organizationApiKeys.create({ orgId, ...input });
             expect(
               await prisma.roleAssignment.findFirstOrThrow({
-                where: { principalApiKeyId: key.id },
+                where: { apiKeyId: key.id },
               }),
             ).toMatchObject({
               systemRole: "LEGACY_ORGANIZATION_API_KEY",
-              ownerOrgId: orgId,
+              orgId,
+              ownerId: `organization/${orgId}`,
+              projectId: null,
             });
           },
         );

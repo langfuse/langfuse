@@ -11,6 +11,7 @@ import {
 } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { type SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { getSessionConversationEntries } from "../../fns/getSessionConversationEntries";
+import { type Observation } from "@langfuse/shared";
 
 type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
 
@@ -22,6 +23,8 @@ type WorkflowObservation = TranscriptObservation & {
   inputTruncated: boolean;
   outputTruncated: boolean;
   metadataTruncated: boolean;
+  level?: Observation["level"];
+  statusMessage?: Observation["statusMessage"];
 };
 
 type WorkflowTrace = Pick<TraceProps, "trace" | "turnNumber"> & {
@@ -1187,6 +1190,8 @@ const inAppAgentActions: Array<{
     input: Record<string, unknown>;
     output: unknown;
     outputAsText?: boolean;
+    level?: Observation["level"];
+    statusMessage?: Observation["statusMessage"];
   }>;
 }> = [
   {
@@ -1223,6 +1228,9 @@ const inAppAgentActions: Array<{
       {
         name: "langfuse_listObservations",
         latency: 0.233,
+        level: "WARNING",
+        statusMessage:
+          "Sample limited to 25 observations. More results are available on the next page.",
         input: {
           fields: ["id", "name", "level", "statusMessage"],
           fromStartTime: "2026-01-01T00:00:00Z",
@@ -1267,15 +1275,18 @@ const inAppAgentActions: Array<{
       {
         name: "bash",
         latency: 0.195,
+        level: "ERROR",
+        statusMessage:
+          "Could not parse one observation's status message. Re-fetch the sample before retrying.",
         input: {
           command: "jq 'group_by(.statusMessage)' synthetic-errors.json",
         },
         output: {
           startedAt: "2026-01-08T09:00:17Z",
           completedAt: "2026-01-08T09:00:17Z",
-          exitCode: 0,
-          stdout: "timeout: 9\ninvalid itinerary: 7\nmissing fare: 5\nother: 4",
-          stderr: "",
+          exitCode: 1,
+          stdout: "",
+          stderr: "jq: parse error: Invalid numeric literal",
         },
       },
     ],
@@ -1288,6 +1299,9 @@ const inAppAgentActions: Array<{
       {
         name: "langfuse_listObservations",
         latency: 0.219,
+        level: "WARNING",
+        statusMessage:
+          "Some observation payloads were truncated. Counts are complete, but examples may omit details.",
         input: {
           fields: ["id", "traceId", "input", "output", "statusMessage"],
           filter: [
@@ -1846,30 +1860,34 @@ Active filter: level is ERROR
       }),
       ...action.tools.map((tool, toolIndex) => {
         const toolCallId = `error-analysis-call-${actionIndex + 1}-${toolIndex + 1}`;
-        return codingAgentObservation({
-          traceId: inAppAgentTraceId,
-          id: `error-analysis-tool-${actionIndex + 1}-${toolIndex + 1}`,
-          parentObservationId: inAppAgentTurnId,
-          type: "TOOL",
-          name: tool.name,
-          offsetMs: action.offsetMs + Math.round(action.latency * 1_000),
-          latency: tool.latency,
-          input: JSON.stringify(tool.input),
-          output: tool.outputAsText
-            ? String(tool.output)
-            : JSON.stringify({
-                type: "tool-result",
-                toolCallId,
-                toolName: tool.name,
-                output: tool.output,
-              }),
-          metadata: {
-            ...inAppAgentMetadata,
-            parentMessageId: `message-demo-${actionIndex + 1}`,
-            toolCallApprovalSource: "automatic",
-            toolCallId,
-          },
-        });
+        return {
+          level: tool.level,
+          statusMessage: tool.statusMessage,
+          ...codingAgentObservation({
+            traceId: inAppAgentTraceId,
+            id: `error-analysis-tool-${actionIndex + 1}-${toolIndex + 1}`,
+            parentObservationId: inAppAgentTurnId,
+            type: "TOOL",
+            name: tool.name,
+            offsetMs: action.offsetMs + Math.round(action.latency * 1_000),
+            latency: tool.latency,
+            input: JSON.stringify(tool.input),
+            output: tool.outputAsText
+              ? String(tool.output)
+              : JSON.stringify({
+                  type: "tool-result",
+                  toolCallId,
+                  toolName: tool.name,
+                  output: tool.output,
+                }),
+            metadata: {
+              ...inAppAgentMetadata,
+              parentMessageId: `message-demo-${actionIndex + 1}`,
+              toolCallApprovalSource: "automatic",
+              toolCallId,
+            },
+          }),
+        };
       }),
     ];
   }),
@@ -1909,7 +1927,10 @@ const implementationCodingAgentTrace = {
 } satisfies TraceProps["trace"];
 
 type WorkflowFixture = Pick<TraceProps, "trace" | "turnNumber"> & {
-  observations: Array<TranscriptObservation & { environment: string }>;
+  observations: Array<
+    TranscriptObservation &
+      Pick<WorkflowObservation, "environment" | "level" | "statusMessage">
+  >;
 };
 
 const supportAgentWorkflow: WorkflowFixture[] = [
@@ -2028,8 +2049,14 @@ const workflowTranscripts = new Map(
     manySimpleTurnsWorkflow,
   ].map((workflow) => [
     workflow,
-    workflow.map(
-      (item): WorkflowTrace => ({
+    workflow.map((item): WorkflowTrace => {
+      const transcript = assembleTranscript(
+        orderObservations(item.observations),
+      );
+      const observationsById = new Map(
+        item.observations.map((observation) => [observation.id, observation]),
+      );
+      return {
         trace: item.trace,
         turnNumber: item.turnNumber,
         state: {
@@ -2037,13 +2064,29 @@ const workflowTranscripts = new Map(
           result: {
             state: "loaded",
             cutoff: false,
-            transcript: assembleTranscript(
-              orderObservations(item.observations),
-            ),
+            transcript: transcript
+              ? {
+                  ...transcript,
+                  threads: transcript.threads.map((thread) => ({
+                    ...thread,
+                    currentTurn: {
+                      ...thread.currentTurn,
+                      messages: thread.currentTurn.messages.map((message) => ({
+                        ...message,
+                        level: observationsById.get(message.observationId)
+                          ?.level,
+                        statusMessage: observationsById.get(
+                          message.observationId,
+                        )?.statusMessage,
+                      })),
+                    },
+                  })),
+                }
+              : null,
           },
         },
-      }),
-    ),
+      };
+    }),
   ]),
 );
 
