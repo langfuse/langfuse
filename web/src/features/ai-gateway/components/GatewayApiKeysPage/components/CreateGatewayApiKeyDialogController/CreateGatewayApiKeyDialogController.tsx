@@ -18,6 +18,11 @@ import {
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import {
+  ApiKeyExpirationInput,
+  type ApiKeyExpirationPreset,
+  resolveApiKeyExpiration,
+} from "@/src/features/apiKey";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent";
 import {
   api,
@@ -39,6 +44,9 @@ export function CreateGatewayApiKeyDialogController({
   children: (control: { openDialog: () => void }) => ReactNode;
 }) {
   const [name, setName] = useState("");
+  const [expiryPreset, setExpiryPreset] =
+    useState<ApiKeyExpirationPreset>("never");
+  const [customExpiry, setCustomExpiry] = useState("");
   const [metadata, setMetadata] = useState<MetadataField[]>(() => [
     { id: 1, key: "", value: "" },
   ]);
@@ -56,6 +64,8 @@ export function CreateGatewayApiKeyDialogController({
 
   const reset = () => {
     setName("");
+    setExpiryPreset("never");
+    setCustomExpiry("");
     setMetadata([{ id: 1, key: "", value: "" }]);
     setIsMetadataOpen(false);
     setGeneratedKeys(null);
@@ -63,8 +73,10 @@ export function CreateGatewayApiKeyDialogController({
   };
 
   const metadataCount = metadata.filter((field) => field.key.trim()).length;
+  const expiresAt = resolveApiKeyExpiration(expiryPreset, customExpiry);
 
   const submit = async () => {
+    if (expiresAt === undefined) return;
     const metadataObject = Object.fromEntries(
       metadata
         .filter((field) => field.key.trim())
@@ -75,6 +87,7 @@ export function CreateGatewayApiKeyDialogController({
         orgId: organizationId,
         name: name.trim() || undefined,
         metadata: metadataObject,
+        expiresAt,
       });
       setGeneratedKeys({
         publicKey: created.publicKey,
@@ -126,6 +139,13 @@ export function CreateGatewayApiKeyDialogController({
                     onChange={(event) => setName(event.target.value)}
                   />
                 </div>
+                <ApiKeyExpirationInput
+                  id="gateway-key-expiry"
+                  expiryPreset={expiryPreset}
+                  customExpiry={customExpiry}
+                  onExpiryPresetChange={setExpiryPreset}
+                  onCustomExpiryChange={setCustomExpiry}
+                />
                 <Collapsible
                   open={isMetadataOpen}
                   onOpenChange={setIsMetadataOpen}
@@ -231,7 +251,7 @@ export function CreateGatewayApiKeyDialogController({
                 </Button>
                 <Button
                   loading={create.isPending}
-                  disabled={create.isPending}
+                  disabled={create.isPending || expiresAt === undefined}
                   onClick={submit}
                 >
                   Create key
