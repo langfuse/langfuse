@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { JobConfigState, Prisma, type PrismaClient } from "../../../db";
 import { env } from "../../../env";
 import { TriggerEventSource } from "../../../domain/automations";
+import { isBaseError } from "../../../errors/BaseError";
 import { matchesTriggerFilter } from "../../../server/automations";
 import {
   instrumentAsync,
@@ -49,7 +50,7 @@ import { renderAlertMessage } from "./renderAlertMessage";
 
 export { monitorEvaluationOffsetMs } from "../types";
 
-/** ErrorBadQuery sentinels a metric whose shape doesn't resolve against the v2 data model or whose batch query failed to execute. */
+/** ErrorBadQuery sentinels a metric whose configuration fails query validation. */
 export const ErrorBadQuery = Symbol("ErrorBadQuery");
 
 /** MonitorProcessor evaluates queued monitor events and emits MonitorAlerts. */
@@ -182,8 +183,19 @@ export class MonitorProcessor {
         });
         throw error;
       }
+      // Only explicit query-validation failures disable monitors. Execution
+      // failures leave the run incomplete so the scheduler can retry after TTL.
+      if (!(isBaseError(error) && error.name === "InvalidRequestError")) {
+        logger.error("queryMetrics failed; retrying affected monitors", {
+          projectId: event.projectId,
+          schedulerBatchId: event.schedulerBatchId.toString(),
+          monitorIds: event.monitors.map((m) => m.monitorId),
+          error,
+        });
+        throw error;
+      }
       logger.error(
-        "queryMetrics failed; flipping affected monitors to ERROR_BAD_QUERY",
+        "queryMetrics validation failed; flipping affected monitors to ERROR_BAD_QUERY",
         {
           projectId: event.projectId,
           schedulerBatchId: event.schedulerBatchId.toString(),
