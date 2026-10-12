@@ -9,11 +9,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { applyIngestionMasking } from "@langfuse/shared/src/server/ee/ingestionMasking";
 
-type NativeInput = {
-  bytes: Buffer;
-  validated: ValidatedOtelJson;
-};
-
 type PreparedInput =
   | {
       batch: EarlyOtelBatch;
@@ -38,11 +33,18 @@ export async function prepareOtelBatch(params: {
   const { bytes, extractMedia, ...context } = params;
   const startedAt = performance.now();
   let outcome: "native" | "masking_drop" | "error" = "error";
-  const validators: ValidatedOtelJson[] = [];
+  let originalInput: ValidatedOtelJson | undefined;
+  let maskedInput: ValidatedOtelJson | undefined;
   try {
-    const validated = await validate(bytes);
+    originalInput = await validateOtelJson(bytes);
     const masking = await applyIngestionMasking(
-      { ...context, data: validated },
+      {
+        ...context,
+        data: {
+          bytes: originalInput.normalizedBytes() ?? bytes,
+          validated: originalInput,
+        },
+      },
       undefined,
       {
         body: (input) => {
@@ -58,6 +60,7 @@ export async function prepareOtelBatch(params: {
           );
         },
         read: async (response) => {
+          await maskedInput?.dispose();
           const bytes = Buffer.from(await response.arrayBuffer());
           // Match Node's Response.json() handling: it accepts up to two leading
           // UTF-8 BOMs and rejects a third through the JSON parser.
@@ -71,7 +74,11 @@ export async function prepareOtelBatch(params: {
             offset += 3;
           }
           const json = offset === 0 ? bytes : bytes.subarray(offset);
-          return validate(json);
+          maskedInput = await validateOtelJson(json);
+          return {
+            bytes: maskedInput.normalizedBytes() ?? json,
+            validated: maskedInput,
+          };
         },
       },
     );
@@ -79,13 +86,12 @@ export async function prepareOtelBatch(params: {
       outcome = "masking_drop";
       return { error: masking.error };
     }
-    // A successful callback can replace the body. Release superseded native
-    // ownership before extracting from the accepted response.
-    await Promise.all(
-      validators
-        .filter((input) => input !== masking.data.validated)
-        .map((input) => input.dispose()),
-    );
+    // Release the unused input before extraction allocates its result.
+    if (masking.data.validated === originalInput) {
+      await maskedInput?.dispose();
+    } else {
+      await originalInput.dispose();
+    }
     const batch = await masking.data.validated.extract(extractMedia);
     outcome = "native";
     return {
@@ -96,7 +102,7 @@ export async function prepareOtelBatch(params: {
     outcome = "error";
     throw error;
   } finally {
-    await Promise.all(validators.map((input) => input.dispose()))
+    await Promise.all([originalInput?.dispose(), maskedInput?.dispose()])
       .catch((error) => {
         outcome = "error";
         return Promise.reject(error);
@@ -117,14 +123,5 @@ export async function prepareOtelBatch(params: {
           tags,
         );
       });
-  }
-
-  async function validate(input: Buffer): Promise<NativeInput> {
-    const validated = await validateOtelJson(input);
-    validators.push(validated);
-    return {
-      bytes: validated.normalizedBytes() ?? input,
-      validated,
-    };
   }
 }
