@@ -697,7 +697,7 @@ const cases: ProcessCase[] = [
   ),
   ...(["invalid-request", "invalid-request-duplicate"] as const).map(
     (errorClass): ProcessCase => ({
-      name: `${errorClass} on executeQuery: flips ERROR_BAD_QUERY, PAUSED, no throw, no emit`,
+      name: `${errorClass} on executeQuery: rethrows, stays ACTIVE, not ERROR_BAD_QUERY`,
       monitors: [
         {
           id: monitorAId,
@@ -712,16 +712,17 @@ const cases: ProcessCase[] = [
         message: "Invalid filter column",
       },
       expect: {
+        throws: "Invalid filter column",
         publishCallCount: 0,
         rows: [
           {
             id: monitorAId,
-            status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
-            severity: MonitorSeveritySchema.enum.PAUSED,
-            severityChangedAt: justAfterRunAt,
+            status: MonitorStatusSchema.enum.ACTIVE,
+            severity: MonitorSeveritySchema.enum.OK,
+            severityChangedAt: tenMinutesAgo,
             alertedAt: null,
             lastClaimedAt: justAfterRunAt,
-            lastCompletedAt: justAfterRunAt,
+            lastCompletedAt: null,
           },
         ],
       },

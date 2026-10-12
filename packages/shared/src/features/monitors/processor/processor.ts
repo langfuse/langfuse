@@ -3,14 +3,12 @@ import { randomUUID } from "crypto";
 import { JobConfigState, Prisma, type PrismaClient } from "../../../db";
 import { env } from "../../../env";
 import { TriggerEventSource } from "../../../domain/automations";
-import { isBaseError } from "../../../errors/BaseError";
 import { matchesTriggerFilter } from "../../../server/automations";
 import {
   instrumentAsync,
   instrumentSync,
 } from "../../../server/instrumentation";
 import { logger } from "../../../server/logger";
-import { ClickHouseResourceError } from "../../../server/repositories/clickhouse";
 import {
   getTriggerConfigurations as defaultGetTriggerConfigurations,
   type TriggerDomainWithActions,
@@ -50,7 +48,7 @@ import { renderAlertMessage } from "./renderAlertMessage";
 
 export { monitorEvaluationOffsetMs } from "../types";
 
-/** ErrorBadQuery sentinels a metric whose configuration fails query validation. */
+/** ErrorBadQuery sentinels a metric rejected by monitor query validation. */
 export const ErrorBadQuery = Symbol("ErrorBadQuery");
 
 /** MonitorProcessor evaluates queued monitor events and emits MonitorAlerts. */
@@ -173,40 +171,13 @@ export class MonitorProcessor {
       }
       metricMap["count_count"] = parseNumericValue(row["count_count"]);
     } catch (error) {
-      // Resource pressure is transient, not a bad query; rethrow so the monitor stays ACTIVE and the scheduler retries.
-      if (ClickHouseResourceError.is(error)) {
-        logger.warn("queryMetrics hit a ClickHouse resource limit; retrying", {
-          errorType: error.errorType,
-          projectId: event.projectId,
-          schedulerBatchId: event.schedulerBatchId.toString(),
-          monitorIds: event.monitors.map((m) => m.monitorId),
-        });
-        throw error;
-      }
-      // Only explicit query-validation failures disable monitors. Execution
-      // failures leave the run incomplete so the scheduler can retry after TTL.
-      if (!(isBaseError(error) && error.name === "InvalidRequestError")) {
-        logger.error("queryMetrics failed; retrying affected monitors", {
-          projectId: event.projectId,
-          schedulerBatchId: event.schedulerBatchId.toString(),
-          monitorIds: event.monitors.map((m) => m.monitorId),
-          error,
-        });
-        throw error;
-      }
-      logger.error(
-        "queryMetrics validation failed; flipping affected monitors to ERROR_BAD_QUERY",
-        {
-          projectId: event.projectId,
-          schedulerBatchId: event.schedulerBatchId.toString(),
-          monitorIds: event.monitors.map((m) => m.monitorId),
-          error,
-        },
-      );
-      for (const metric of validation.accepted) {
-        metricMap[metricKey(metric)] = ErrorBadQuery;
-      }
-      metricMap["count_count"] = ErrorBadQuery;
+      logger.error("monitor processor failed", {
+        error: error,
+        projectId: event.projectId,
+        schedulerBatchId: event.schedulerBatchId.toString(),
+        monitorIds: event.monitors.map((m) => m.monitorId),
+      });
+      throw error;
     }
     return metricMap;
   }
