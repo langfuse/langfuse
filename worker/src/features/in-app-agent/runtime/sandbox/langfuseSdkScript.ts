@@ -236,17 +236,23 @@ async function findLangfuseSdkUsage(
     : null;
 }
 
-function rejectOnAbort<T>(promise: Promise<T>, signal: AbortSignal) {
-  if (signal.aborted) {
-    return Promise.reject(new Error("In-app agent run aborted"));
-  }
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(new Error("In-app agent run aborted"));
-    signal.addEventListener("abort", onAbort, { once: true });
-    void promise.then(resolve, reject).finally(() => {
-      signal.removeEventListener("abort", onAbort);
-    });
+async function rejectOnAbort<T>(
+  promise: Promise<T>,
+  signal: AbortSignal,
+): Promise<T> {
+  // The command may still fail after an abort has already won the race.
+  promise.catch(() => undefined);
+  let onAbort = () => {};
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => reject(new Error("In-app agent run aborted"));
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
   });
+  try {
+    return await Promise.race([promise, aborted]);
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
 }
 
 function normalizeBaseUrl(url: string) {
