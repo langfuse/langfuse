@@ -8,7 +8,21 @@ export const otelMediaUploads = new MediaUploadPool(
   Number(env.LANGFUSE_OTEL_MEDIA_UPLOAD_MAX_BYTES ?? 128 * 1024 * 1024),
 );
 
-/** Keep discovery lazy and results ordered; drain active work before propagating errors. */
+/** Map with bounded concurrency, preserving input order in the result. */
+export async function mapMedia<T, R>(
+  values: Iterable<T>,
+  process: (value: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  let index = 0;
+  await forEachMedia(values, async (value) => {
+    const position = index++;
+    results[position] = await process(value);
+  });
+  return results;
+}
+
+/** Iterate lazily; drain active work before propagating an error. */
 export async function forEachMedia<T>(
   values: Iterable<T>,
   process: (value: T) => Promise<unknown>,
@@ -33,18 +47,4 @@ export async function forEachMedia<T>(
     }),
   );
   if (failure) throw failure.error;
-}
-
-/** Resolve concurrently, then rebuild strings in their original source order. */
-export async function mapMedia<T, R>(
-  values: Iterable<T>,
-  process: (value: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = [];
-  let index = 0;
-  await forEachMedia(values, async (value) => {
-    const position = index++;
-    results[position] = await process(value);
-  });
-  return results;
 }

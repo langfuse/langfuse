@@ -569,10 +569,7 @@ describe("processOtelEventMedia", () => {
     const payload = {
       traceId: "trace-id",
       spanId: "observation-id",
-      input: [
-        `first ${first} then ${secondReference}`,
-        { nested: [duplicate, thirdReference] },
-      ],
+      input: [first, secondReference, { nested: [duplicate, thirdReference] }],
     };
     const resolving = resolveExtractedMedia({
       batch,
@@ -597,7 +594,8 @@ describe("processOtelEventMedia", () => {
         failed: 2,
       });
       expect(payload.input).toEqual([
-        `first original-0 then ${replaceReference(descriptors[1]!.reference, "uploaded-1")}`,
+        "original-0",
+        replaceReference(descriptors[1]!.reference, "uploaded-1"),
         {
           nested: [
             "original-3",
@@ -612,6 +610,37 @@ describe("processOtelEventMedia", () => {
       for (const gate of gates)
         gate.resolve({ outcome: "uploaded", mediaId: "cleanup" });
       await resolving.catch(() => undefined);
+    }
+  });
+
+  it("bounds concurrent links for repeated early references", async () => {
+    const { batch } = createFakeMediaBatch();
+    const releaseLinks = deferred<void>();
+    let activeLinks = 0;
+    let peakLinks = 0;
+    mocks.linkMediaToTraceOrObservation.mockImplementation(async () => {
+      activeLinks++;
+      peakLinks = Math.max(peakLinks, activeLinks);
+      try {
+        await releaseLinks.promise;
+      } finally {
+        activeLinks--;
+      }
+    });
+    const payload = {
+      traceId: "trace-id",
+      spanId: "observation-id",
+      input: Array.from({ length: 5 }, () =>
+        Array(5).fill(DEFAULT_MEDIA_REFERENCE).join(" "),
+      ),
+    };
+    const resolving = resolveTarget(batch, payload);
+    try {
+      await vi.waitFor(() => expect(peakLinks).toBeGreaterThanOrEqual(5));
+      expect(peakLinks).toBe(5);
+    } finally {
+      releaseLinks.resolve();
+      await resolving;
     }
   });
 

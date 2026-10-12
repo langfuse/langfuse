@@ -8,7 +8,6 @@ import {
 } from "@langfuse/shared";
 import {
   logger,
-  forEachMedia,
   otelMediaUploads,
   recordDistribution,
   recordIncrement,
@@ -151,7 +150,7 @@ export async function uploadExtractedMediaOnce(params: {
   try {
     return await uploadPromise;
   } catch (error) {
-    /** Evict a failed attempt so later calls can retry. */
+    // Evict a failed attempt so later calls can retry.
     if (cache.get(key) === uploadPromise) cache.delete(key);
     throw error;
   }
@@ -268,19 +267,16 @@ export async function resolveExtractedMedia(params: {
     }
   }
 
-  await forEachMedia(targets, async (target) => {
-    await forEachMedia(
-      ["input", "output", "metadata"] as const,
-      async (field) => {
-        target.payload[field] = await rewriteMediaValues(
-          target.payload[field],
-          (text) =>
-            rewrite(text, (entry) => resolveReference(entry, target, field)),
-          true,
-        );
-      },
-    );
-  });
+  for (const target of targets) {
+    for (const field of ["input", "output", "metadata"] as const) {
+      target.payload[field] = await rewriteMediaValues(
+        target.payload[field],
+        (text) =>
+          rewrite(text, (entry) => resolveReference(entry, target, field)),
+        true,
+      );
+    }
+  }
   return stats;
 }
 
