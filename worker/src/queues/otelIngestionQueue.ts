@@ -45,10 +45,7 @@ import {
   createLegacyOtelMediaTargets,
   processOtelEventMedia,
 } from "../features/otel-media/processOtelMedia";
-import {
-  restoreInlineMedia,
-  restoreOtelTagAttributes,
-} from "../features/otel-media/resolveExtractedMedia";
+import { restoreInlineMedia } from "../features/otel-media/resolveExtractedMedia";
 import { processOtelEvents } from "../features/otel-ingestion/processOtelEvents";
 import { prepareOtelBatch } from "../features/otel-ingestion/prepareOtelBatch";
 
@@ -511,11 +508,12 @@ export const otelIngestionQueueProcessorBuilder = (
         path: mediaPath,
       });
 
+      const eventStorage = getS3EventStorageClient(
+        env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+      );
       let parsedSpans: ResourceSpan[];
       if (earlyMediaEnabled) {
-        const bytes = await getS3EventStorageClient(
-          env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-        ).downloadBytes(fileKey);
+        const bytes = await eventStorage.downloadBytes(fileKey);
         recordHistogram(
           "langfuse.ingestion.s3_file_size_bytes",
           bytes.byteLength,
@@ -557,15 +555,10 @@ export const otelIngestionQueueProcessorBuilder = (
           parsedSpans = JSON.parse(
             earlyBatch.takeJsonBuffer().toString("utf8"),
           );
-          if (Array.isArray(parsedSpans)) {
-            await restoreOtelTagAttributes(earlyBatch, parsedSpans);
-          }
         }
       } else {
         // Download file from blob storage
-        const resourceSpans = await getS3EventStorageClient(
-          env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-        ).download(fileKey);
+        const resourceSpans = await eventStorage.download(fileKey);
 
         recordHistogram(
           "langfuse.ingestion.s3_file_size_bytes",

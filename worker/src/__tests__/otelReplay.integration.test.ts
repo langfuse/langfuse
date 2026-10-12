@@ -1008,23 +1008,31 @@ describe(
       }
     });
 
-    it("restores tag media before scalar tag values are split", async () => {
-      const dataUri = `data:image/png;base64,${Buffer.from("tag-media").toString("base64")}`;
-      const comparison = await runOtelReplayComparison({
-        bytes: focusedReplayBytes({
-          attributes: [stringAttribute("langfuse.trace.tags", dataUri)],
-        }),
-        projectId: `${PROJECT_ID}-tag-media`,
-        fileKey: `${FILE_KEY}.tag-media`,
-        mediaUploadEnabled: true,
-      });
+    it("keeps tag media inline before scalar tag values are split", async () => {
+      const body = Buffer.alloc(1_024, "tag-media").toString("base64");
+      const dataUri = `data:image/png;base64,${body}`;
+      const { compactedBatches, preparation } = capturePreparedBatches();
+      try {
+        const comparison = await runOtelReplayComparison({
+          bytes: focusedReplayBytes({
+            attributes: [stringAttribute("langfuse.trace.tags", dataUri)],
+          }),
+          projectId: `${PROJECT_ID}-tag-media`,
+          fileKey: `${FILE_KEY}.tag-media`,
+          mediaUploadEnabled: true,
+        });
 
-      expectRawOtelReplayParity(comparison);
-      expect(comparison.originalTs.storedRows).toHaveLength(1);
-      expect(comparison.originalTs.storedRows[0]?.tags).toEqual([
-        "data:image/png;base64",
-        Buffer.from("tag-media").toString("base64"),
-      ]);
+        expect(compactedBatches).toHaveLength(1);
+        expect(compactedBatches[0].references).toEqual([]);
+        expectRawOtelReplayParity(comparison);
+        expect(comparison.originalTs.storedRows).toHaveLength(1);
+        expect(comparison.originalTs.storedRows[0]?.tags).toEqual([
+          "data:image/png;base64",
+          body,
+        ]);
+      } finally {
+        preparation.mockRestore();
+      }
     });
 
     it.each([
