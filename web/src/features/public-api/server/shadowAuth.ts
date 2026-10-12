@@ -112,20 +112,33 @@ async function legacyWithShadow(
   const resource = requestResource(params.req);
   const legacyAuth = await runLegacyAuth(params);
   const newAuth = await runNewAuth(params);
-  const successfulAuth = newAuth.success ? newAuth : legacyAuth;
-  const scope = successfulAuth.success ? successfulAuth.scope : undefined;
   shadowAuthDiff(newAuth, legacyAuth, params.action, {
-    apiKeyId: scope?.apiKeyId,
-    publicKey: scope?.publicKey,
+    ...getScopeIdentity(newAuth, legacyAuth),
     resource,
   });
   const result = legacyResult(legacyAuth);
   if (result.success && newAuth.success) {
-    const ctx = { ...newAuth.ctx };
-    shadowResources.set(ctx, resource);
-    return { ...result, ctx };
+    return { ...result, ctx: withShadowResource(newAuth.ctx, resource) };
   }
   return result;
+}
+
+function getScopeIdentity(
+  newAuth: EnforceAuthResult,
+  legacyAuth: LegacyDecision,
+) {
+  const successfulAuth = newAuth.success ? newAuth : legacyAuth;
+  const scope = successfulAuth.success ? successfulAuth.scope : undefined;
+  return { apiKeyId: scope?.apiKeyId, publicKey: scope?.publicKey };
+}
+
+function withShadowResource(
+  ctx: AuthorizationContext,
+  resource: string,
+): AuthorizationContext {
+  const shadowCtx = { ...ctx };
+  shadowResources.set(shadowCtx, resource);
+  return shadowCtx;
 }
 
 /** requestResource reads Next's matched route independently of recording spans. */
@@ -242,20 +255,34 @@ function diffOrGate(
   decision: Decision,
 ): Decision {
   if (env.API_AUTH_MIGRATION === "shadow") {
-    const principal = params.ctx?.principal;
-    const key = principal?.kind === "apiKey" ? principal : undefined;
-    shadowAuthDiff(decision, params.legacyDecision, params.action, {
-      apiKeyId:
-        key?.apiKeyId ??
-        (principal?.kind === "admin" ? "ADMIN_API_KEY" : undefined),
-      publicKey:
-        key?.publicKey ??
-        (principal?.kind === "admin" ? "ADMIN_API_KEY" : undefined),
-      resource: (params.ctx && shadowResources.get(params.ctx)) ?? "unknown",
-    });
+    shadowAuthDiff(
+      decision,
+      params.legacyDecision,
+      params.action,
+      getAuthMetadata(params.ctx),
+    );
     return params.legacyDecision;
   }
   return decision;
+}
+
+function getAuthMetadata(ctx: AuthorizationContext | undefined) {
+  return { ...getPrincipalIdentity(ctx), resource: getResource(ctx) };
+}
+
+function getPrincipalIdentity(ctx: AuthorizationContext | undefined) {
+  const principal = ctx?.principal;
+  if (principal?.kind === "apiKey") {
+    return { apiKeyId: principal.apiKeyId, publicKey: principal.publicKey };
+  }
+  if (principal?.kind === "admin") {
+    return { apiKeyId: "ADMIN_API_KEY", publicKey: "ADMIN_API_KEY" };
+  }
+  return { apiKeyId: undefined, publicKey: undefined };
+}
+
+function getResource(ctx: AuthorizationContext | undefined): string {
+  return (ctx && shadowResources.get(ctx)) ?? "unknown";
 }
 
 /** toResourceId tags a per-item resource for the PDP. */
