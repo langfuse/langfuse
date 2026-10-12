@@ -29,6 +29,10 @@ vi.mock("@aws-sdk/lib-storage", () => ({
 }));
 
 describe("S3StorageService region normalization", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("trims a persisted region before configuring the AWS client", async () => {
     const service = StorageServiceFactory.getInstance({
       accessKeyId: "test-access-key",
@@ -140,7 +144,8 @@ describe("S3StorageService region normalization", () => {
     ]);
   });
 
-  it("configures a custom AWS SDK attempt budget", async () => {
+  it("raises a lower AWS SDK attempt budget to the configured minimum", async () => {
+    vi.stubEnv("AWS_MAX_ATTEMPTS", "2");
     const service = StorageServiceFactory.getInstance({
       accessKeyId: "test-access-key",
       secretAccessKey: "test-secret-key",
@@ -153,11 +158,32 @@ describe("S3StorageService region normalization", () => {
       useOCIObjectStorage: false,
       awsSse: undefined,
       awsSseKmsKeyId: undefined,
-      maxAttempts: 6,
+      minimumMaxAttempts: 6,
     });
     const client = (service as unknown as { client: S3Client }).client;
 
     await expect(client.config.maxAttempts()).resolves.toBe(6);
+  });
+
+  it("preserves an AWS SDK attempt budget above the configured minimum", async () => {
+    vi.stubEnv("AWS_MAX_ATTEMPTS", "10");
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: "us-west-2",
+      forcePathStyle: false,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+      minimumMaxAttempts: 6,
+    });
+    const client = (service as unknown as { client: S3Client }).client;
+
+    await expect(client.config.maxAttempts()).resolves.toBe(10);
   });
 });
 
