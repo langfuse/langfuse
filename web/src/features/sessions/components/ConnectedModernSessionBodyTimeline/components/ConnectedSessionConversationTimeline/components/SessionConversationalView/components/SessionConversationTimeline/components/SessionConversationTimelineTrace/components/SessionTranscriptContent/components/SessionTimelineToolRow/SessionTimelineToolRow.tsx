@@ -70,8 +70,8 @@ export function SessionTimelineToolRow({
                     "ml-1 flex shrink-0 items-center",
                     (
                       {
-                        ERROR: "text-destructive",
-                        WARNING: "text-yellow-600 dark:text-yellow-500",
+                        ERROR: "text-red-800 dark:text-dark-red/90",
+                        WARNING: "text-yellow-800 dark:text-dark-yellow",
                         DEFAULT:
                           "text-muted-foreground invisible group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible",
                         DEBUG:
@@ -94,7 +94,7 @@ export function SessionTimelineToolRow({
             <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
               Input
             </span>
-            <div className="grid max-h-48 min-w-0">
+            <div className="flex max-h-48 min-w-0 flex-col">
               <Codeblock label="Tool input" value={input} allowFormatting />
             </div>
           </div>
@@ -104,7 +104,7 @@ export function SessionTimelineToolRow({
             <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
               Output
             </span>
-            <div className="grid max-h-96 min-w-0">
+            <div className="flex max-h-96 min-w-0 flex-col">
               <Codeblock label="Tool output" value={output} allowFormatting />
             </div>
           </div>
