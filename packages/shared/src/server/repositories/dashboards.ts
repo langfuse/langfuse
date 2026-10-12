@@ -91,6 +91,7 @@ export const getScoreAggregate = async (
         : {}),
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return result;

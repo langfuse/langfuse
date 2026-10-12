@@ -104,7 +104,7 @@ export function StickySearchableTableFilterLayout({
 
   return (
     <SearchBarDraftCacheContext.Provider value={searchDraftCache}>
-      <div className="bg-background sticky top-0 z-30 pb-1.5">
+      <div className="bg-surface sticky top-0 z-30 pb-1.5">
         {isMobile ? null : search}
         {toolbar}
       </div>
@@ -206,7 +206,7 @@ function FilterPanels({
                         emitMobileClose("header");
                       }}
                     >
-                      <X className="h-4 w-4" />
+                      <X className="icon-base text-icon-foreground" />
                     </Button>
                   </div>
                   {mobileSearch && (

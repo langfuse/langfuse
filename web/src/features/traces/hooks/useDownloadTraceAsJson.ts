@@ -1,9 +1,9 @@
 import { useMemo } from "react";
-import { toast } from "sonner";
 import { StringParam, useQueryParam } from "use-query-params";
 
 import { useReadPath } from "@/src/features/events";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { showToast } from "@/src/features/notifications";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "@/src/features/traces/constants/traceDownloadConfig";
 import {
   downloadLegacyTraceAsJson,
@@ -60,16 +60,29 @@ export function useDownloadTraceAsJson({
       });
 
       if (observations.length >= TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD) {
-        toast.warning(
-          `Trace download excludes IO, metadata, toolDefinitions, and toolCalls for traces with ${TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD}+ observations.`,
-        );
+        showToast({
+          type: "WARNING",
+          title: `Trace download excludes IO, metadata, toolDefinitions, and toolCalls for traces with ${TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD}+ observations.`,
+          analytics: {
+            operation: "trace.download",
+            errorOrigin: "frontend",
+            errorCategory: "resource_limit",
+          },
+        });
       }
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to download trace JSON",
-      );
+      showToast({
+        type: "ERROR",
+        title:
+          error instanceof Error
+            ? error.message
+            : "Failed to download trace JSON",
+        analytics: {
+          operation: "trace.download",
+          errorOrigin: isV4 ? "network" : "frontend",
+          errorCategory: isV4 ? "transient" : "internal",
+        },
+      });
     }
   }, [isV4, observations, trace, capture, traceContext]);
 }

@@ -5,11 +5,16 @@
     "devTerminalDescription": "Main development terminal running the development server"
   },
   "mcpServers": {
+    "next-devtools": {
+      "transport": "stdio",
+      "command": "pnpm",
+      "args": ["dlx", "next-devtools-mcp@0.4.0"]
+    },
     "playwright": {
       "transport": "stdio",
-      "command": "npx",
+      "command": "pnpm",
       "args": [
-        "-y",
+        "dlx",
         "@playwright/mcp@latest",
         "--isolated",
         "--save-session",

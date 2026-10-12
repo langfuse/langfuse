@@ -23,6 +23,7 @@ import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { useModelParams } from "@/src/features/playground";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
@@ -264,6 +265,7 @@ export const MultiStepExperimentForm = ({
       showErrorToast(
         error.message || "Failed to trigger dataset run",
         "Please try again.",
+        classifyTrpcToastError(error, "experiment.create"),
       );
     },
     onSettled: handleExperimentSettled ?? (() => {}),
@@ -322,6 +324,11 @@ export const MultiStepExperimentForm = ({
       showErrorToast(
         PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
         "Disable structured output or choose a prompt without tools.",
+        {
+          operation: "experiment.create",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
       );
       return;
     }
@@ -458,7 +465,7 @@ export const MultiStepExperimentForm = ({
     }
 
     if (isStepValid(stepId)) {
-      return <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />;
+      return <Check className="icon-base mr-1.5 text-green-600" />;
     }
 
     if (
@@ -468,7 +475,7 @@ export const MultiStepExperimentForm = ({
       return (
         <CircleX
           aria-label={`${stepLabel} has errors`}
-          className="mr-1.5 h-3.5 w-3.5 text-red-500"
+          className="icon-base mr-1.5 text-red-500"
         />
       );
     }
@@ -703,7 +710,7 @@ export const MultiStepExperimentForm = ({
                 }}
                 disabled={activeStep === "prompt"}
               >
-                <ChevronLeft className="mr-2 h-4 w-4" />
+                <ChevronLeft className="icon-base text-icon-foreground mr-2" />
                 Previous
               </Button>
 
@@ -725,7 +732,7 @@ export const MultiStepExperimentForm = ({
                     }
                   >
                     Next
-                    <ChevronRight className="ml-2 h-4 w-4" />
+                    <ChevronRight className="icon-base ml-2" />
                   </Button>
                 ) : (
                   <Button

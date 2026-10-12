@@ -4,7 +4,11 @@
  */
 
 import { useRouter } from "next/router";
-import { useMemo } from "react";
+import { createElement, useMemo } from "react";
+import {
+  V4MigrationNavItem,
+  useV4MigrationNavItemProject,
+} from "@/src/features/v4-migration/V4MigrationNavItem";
 import type { Session } from "next-auth";
 import { useEntitlements } from "@/src/features/entitlements";
 import { useUiCustomization } from "@/src/ee/features/ui-customization";
@@ -89,6 +93,7 @@ export function useFilteredNavigation(
   organization: Organization,
 ) {
   const router = useRouter();
+  const migrationProject = useV4MigrationNavItemProject();
   const entitlements = useEntitlements();
   const uiCustomization = useUiCustomization();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -144,8 +149,10 @@ export function useFilteredNavigation(
 
   // Memoize filtered routes
   const filteredRoutes = useMemo(() => {
-    return applyNavigationFilters(ROUTES, filterContext, organization);
-  }, [filterContext, organization]);
+    return applyNavigationFilters(ROUTES, filterContext, organization).filter(
+      (route) => route.id !== "v4-migration" || migrationProject !== null,
+    );
+  }, [filterContext, organization, migrationProject]);
 
   // Map filtered routes to NavigationItems with url and isActive
   // This is O(n) - we map directly over filteredRoutes instead of re-iterating ROUTES
@@ -168,6 +175,10 @@ export function useFilteredNavigation(
 
       return {
         ...route,
+        menuNode:
+          route.id === "v4-migration" && migrationProject
+            ? createElement(V4MigrationNavItem, { project: migrationProject })
+            : route.menuNode,
         url,
         isActive: route.isActive
           ? route.isActive(router.pathname)
@@ -204,6 +215,7 @@ export function useFilteredNavigation(
     };
   }, [
     filteredRoutes,
+    migrationProject,
     routerProjectId,
     routerOrganizationId,
     router.pathname,

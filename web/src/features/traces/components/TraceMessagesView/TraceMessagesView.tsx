@@ -18,6 +18,7 @@ import { ChatMessageList } from "@/src/features/traces/components/ChatMessageLis
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { toIOPreview } from "@/src/features/traces/parsers/toIOPreview";
+import { IO_SECTIONS_FLUSH_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 
 type Transcript = NonNullable<
@@ -61,7 +62,7 @@ export function TraceMessagesView() {
 
   const { threads } = data.transcript;
   return (
-    <div className="flex h-full w-full flex-col gap-6 overflow-y-auto p-3">
+    <div className="flex h-full w-full flex-col gap-6 overflow-y-auto py-3">
       {data.cutoff && <CutoffNotice />}
       {threads.map((thread, index) => (
         <ErrorBoundary
@@ -184,7 +185,7 @@ function MessageList({
   );
 
   return (
-    <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+    <div className={IO_SECTIONS_FLUSH_CLASS}>
       <ChatMessageList
         messages={preview.allMessages}
         shouldRenderMarkdown={shouldRenderMarkdown}
@@ -219,7 +220,7 @@ function CutoffNotice() {
 
 function Notice({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-muted-foreground m-3 rounded-md border border-dashed p-3 text-sm">
+    <div className="text-muted-foreground my-3 rounded-md border border-dashed p-3 text-sm">
       {children}
     </div>
   );

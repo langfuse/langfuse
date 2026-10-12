@@ -384,7 +384,7 @@ function SidebarNotifications({
             onClick={() => state.onDismiss(frontNotification.id)}
             title="Dismiss"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="icon-base text-icon-foreground" />
           </Button>
           <CardHeader className="px-3 pt-2.5 pr-6 pb-0">
             <CardTitle className="text-sm">{frontNotification.title}</CardTitle>
@@ -548,7 +548,7 @@ const DemoBadge = () => {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <ExternalLink className="h-4 w-4" />
+                <ExternalLink className="icon-base" />
                 <span>Use Demo App</span>
               </Link>
             </SidebarMenuButton>
@@ -556,7 +556,7 @@ const DemoBadge = () => {
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Your Langfuse Organizations">
               <Link href="/">
-                <Grid2X2 className="h-4 w-4" />
+                <Grid2X2 className="icon-base" />
                 <span>Your Langfuse Orgs</span>
               </Link>
             </SidebarMenuButton>
@@ -632,7 +632,9 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
             />
           )}
           {update && !backgroundMigrationStatus && (
-            <ArrowUp className={`h-3 w-3 ${color}`} />
+            <ArrowUp
+              className={cn("icon-sm", color ?? "text-icon-foreground")}
+            />
           )}
         </Button>
       </DropdownMenuTrigger>
@@ -665,7 +667,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         {selfHostedPlanLabel && (
           <>
             <DropdownMenuLabel className="flex items-center font-normal">
-              <BadgeCheck size={16} className="mr-2" />
+              <BadgeCheck className="icon-base mr-2" />
               {selfHostedPlanLabel.long}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -676,14 +678,14 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
             href="https://github.com/langfuse/langfuse/releases"
             target="_blank"
           >
-            <SiGithub size={16} className="mr-2" />
+            <SiGithub className="icon-base text-icon-foreground mr-2" />
             Releases
           </Link>
         </DropdownMenuItem>
         {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="/background-migrations">
-              <ArrowUp10 size={16} className="mr-2" />
+              <ArrowUp10 className="icon-base text-icon-foreground mr-2" />
               Background Migrations
               {backgroundMigrationStatus && (
                 <StatusBadge
@@ -697,20 +699,20 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         )}
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/changelog" target="_blank">
-            <Newspaper size={16} className="mr-2" />
+            <Newspaper className="icon-base text-icon-foreground mr-2" />
             Changelog
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/roadmap" target="_blank">
-            <Map size={16} className="mr-2" />
+            <Map className="icon-base text-icon-foreground mr-2" />
             Roadmap
           </Link>
         </DropdownMenuItem>
         {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="https://langfuse.com/pricing-self-host" target="_blank">
-              <Info size={16} className="mr-2" />
+              <Info className="icon-base text-icon-foreground mr-2" />
               Compare Versions
             </Link>
           </DropdownMenuItem>
@@ -723,7 +725,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
                 href="https://langfuse.com/docs/deployment/self-host#update"
                 target="_blank"
               >
-                <HardDriveDownload size={16} className="mr-2" />
+                <HardDriveDownload className="icon-base text-icon-foreground mr-2" />
                 Update
               </Link>
             </DropdownMenuItem>

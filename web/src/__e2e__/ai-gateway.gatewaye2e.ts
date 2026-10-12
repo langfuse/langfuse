@@ -389,7 +389,7 @@ async function withGatewayApiKey(
 
   const gatewayKey = await admin.caller.aiGateway.createApiKey({
     orgId: ORGANIZATION_ID,
-    note: `Gateway E2E ${input.provider} ${input.apiFormat}`,
+    name: `Gateway E2E ${input.provider} ${input.apiFormat}`,
     metadata: {
       test: true,
       provider: input.provider,

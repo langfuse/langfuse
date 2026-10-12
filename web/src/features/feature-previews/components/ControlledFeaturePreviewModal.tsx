@@ -5,6 +5,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
 import { featurePreviewLabels } from "@/src/features/feature-flags";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 import {
   FeaturePreviewModal,
@@ -33,12 +34,17 @@ export function ControlledFeaturePreviewModal({
           isEnabled: variables.enabled,
         });
         showSuccessToast({
+          operation: "user_feature_preview.update",
           title: "Feature preview updated",
           description: `${featurePreviewLabels[variables.flag]} preview has been ${variables.enabled ? "enabled" : "disabled"}.`,
         });
       },
       onError: (error) => {
-        showErrorToast("Failed to update feature preview", error.message);
+        showErrorToast(
+          "Failed to update feature preview",
+          error.message,
+          classifyTrpcToastError(error, "user_feature_preview.update"),
+        );
       },
     });
 
@@ -50,6 +56,15 @@ export function ControlledFeaturePreviewModal({
     authSession.data?.environment.enableExperimentalFeatures === true;
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
+    ...(authSession.data?.user?.admin === true
+      ? {
+          langfuseTopics: {
+            enabled: authSession.data.user.featureFlags.langfuseTopics === true,
+            onToggle: onToggle("langfuseTopics"),
+            isToggling: setFeaturePreviewEnabled.isPending,
+          },
+        }
+      : {}),
     modernSession: {
       enabled: isModernSessionEnabled,
       disabled:

@@ -45,15 +45,13 @@ export function EvaluatorGallerySidebar({
               className={cn(
                 "font-regular h-8 justify-start px-3",
                 isActive
-                  ? "hover:bg-secondary"
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent"
                   : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
               )}
               aria-current={isActive ? "page" : undefined}
               onClick={() => onSelectSection(item.key)}
             >
-              <Icon
-                className={cn("mr-2 h-3.5 w-3.5 shrink-0", iconClassName)}
-              />
+              <Icon className={cn("icon-base mr-2 shrink-0", iconClassName)} />
               <span className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
                 <span className="truncate" title={item.label}>
                   {item.label}

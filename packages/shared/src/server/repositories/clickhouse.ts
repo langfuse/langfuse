@@ -15,10 +15,8 @@ import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { type Span, context, SpanKind, trace } from "@opentelemetry/api";
 import { backOff } from "exponential-backoff";
-import {
-  StorageService,
-  StorageServiceFactory,
-} from "../services/StorageService";
+import { StorageService } from "../services/StorageService";
+import { createEventUploadStorageService } from "../s3";
 import { buildEventBucketPrefix } from "../ingestion/eventBucketPath";
 import {
   ClickHouseSettings,
@@ -37,6 +35,7 @@ import {
   clickHouseQueryShape,
   clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
+  recordClickHouseQueryPerformance,
 } from "../clickhouse/queryOutcome";
 
 /**
@@ -136,16 +135,7 @@ let s3StorageServiceClient: StorageService;
 
 const getS3StorageServiceClient = (bucketName: string): StorageService => {
   if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-      awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
-      awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
-    });
+    s3StorageServiceClient = createEventUploadStorageService(bucketName);
   }
   return s3StorageServiceClient;
 };
@@ -607,24 +597,36 @@ export type ClickhouseQueryOpts = {
   allowLegacyEventsRead?: boolean;
 };
 
-function recordSummaryOnSpan(
-  span: Span,
+/**
+ * ClickHouse writes this header when the response starts, so for a result
+ * larger than its output buffer the values cover only the work done until then.
+ */
+function parseClickHouseSummary(
   responseHeaders: Record<string, string | string[] | undefined>,
-): void {
+): Record<string, string> | undefined {
   const summaryHeader = responseHeaders["x-clickhouse-summary"];
-  if (!summaryHeader) return;
+  if (!summaryHeader) return undefined;
   try {
-    const summary = Array.isArray(summaryHeader)
+    return Array.isArray(summaryHeader)
       ? JSON.parse(summaryHeader[0])
       : JSON.parse(summaryHeader);
-    for (const key in summary) {
-      span.setAttribute(`ch.${key}`, summary[key]);
-    }
   } catch (error) {
     logger.debug(
       `Failed to parse clickhouse summary header ${summaryHeader}`,
       error,
     );
+    return undefined;
+  }
+}
+
+function recordSummaryOnSpan(
+  span: Span,
+  responseHeaders: Record<string, string | string[] | undefined>,
+): void {
+  const summary = parseClickHouseSummary(responseHeaders);
+  if (!summary) return;
+  for (const key in summary) {
+    span.setAttribute(`ch.${key}`, summary[key]);
   }
 }
 
@@ -705,7 +707,7 @@ export async function queryClickhouse<T>(
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const table = clickHouseQueryTableLabel(opts.query);
-  const shape = clickHouseQueryShape(opts.query);
+  const shape = clickHouseQueryShape(opts.query, table);
   const clickhouseService = resolveClickhouseService(
     opts.preferredClickhouseService,
   );
@@ -714,6 +716,7 @@ export async function queryClickhouse<T>(
     async (span) => {
       setSpanQueryAttributes(span, opts.query);
 
+      let summary: Record<string, string> | undefined;
       const rows = await backOff(
         async () => {
           const res = await sendClickhouseQuery({
@@ -726,6 +729,7 @@ export async function queryClickhouse<T>(
             format: "JSONEachRow",
             span,
           });
+          summary = parseClickHouseSummary(res.response_headers);
           return (await res.json<T>()).map(handleExceptionRow);
         },
         {
@@ -784,6 +788,15 @@ export async function queryClickhouse<T>(
         shape,
         clickhouseService,
       );
+      if (summary) {
+        recordClickHouseQueryPerformance(
+          summary,
+          normalizedTags,
+          table,
+          shape,
+          clickhouseService,
+        );
+      }
       return rows;
     },
   );

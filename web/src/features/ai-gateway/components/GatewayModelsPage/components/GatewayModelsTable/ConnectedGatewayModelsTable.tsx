@@ -180,7 +180,7 @@ export function ConnectedGatewayModelsTable({
         title="Gateway models"
         actionButtons={
           <Button variant="secondary" loading={isLoading} onClick={onSync}>
-            <RefreshCw className="mr-1.5 size-4" />
+            <RefreshCw className="icon-base mr-1.5" />
             {hasSynced ? "Retry sync" : "Sync models"}
           </Button>
         }

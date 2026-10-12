@@ -195,19 +195,21 @@ function useLineChartLegend(
       hiddenSeriesIds: new Set(hidden ? series.map((item) => item.id) : []),
     });
   };
-  const configuredSeries: ConfiguredLineChartSeries[] = series.flatMap(
-    (item) => {
-      if (hiddenSeriesIds.has(item.id)) return [];
-      let emphasis: ConfiguredLineChartSeries["emphasis"] = "dimmed";
-      if (highlightedSeriesId === undefined) emphasis = "default";
-      else if (highlightedSeriesId === item.id) emphasis = "emphasized";
-      return [
-        {
-          ...item,
-          emphasis,
-        },
-      ];
-    },
+  const configuredSeries = useMemo(
+    () =>
+      series.flatMap<ConfiguredLineChartSeries>((item) => {
+        if (hiddenSeriesIds.has(item.id)) return [];
+        let emphasis: ConfiguredLineChartSeries["emphasis"] = "dimmed";
+        if (highlightedSeriesId === undefined) emphasis = "default";
+        else if (highlightedSeriesId === item.id) emphasis = "emphasized";
+        return [
+          {
+            ...item,
+            emphasis,
+          },
+        ];
+      }),
+    [series, hiddenSeriesIds, highlightedSeriesId],
   );
 
   return {
@@ -329,10 +331,14 @@ export function SeriesChartCore(
           items={series.map((item) => {
             const hidden = hiddenSeriesIds.has(item.id);
             const focused = highlightedSeriesId === item.id;
-            let label = `Show only ${item.label}`;
-            if (legend.interaction === "toggle") {
-              label = hidden ? `Show ${item.label}` : `Hide ${item.label}`;
-            } else if (focused) label = "Show all series";
+            const toggleLabel = hidden
+              ? `Show ${item.label}`
+              : `Hide ${item.label}`;
+            const highlightLabel = focused
+              ? "Show all series"
+              : `Show only ${item.label}`;
+            const label =
+              legend.interaction === "toggle" ? toggleLabel : highlightLabel;
             return {
               id: item.id,
               label: item.label,
@@ -698,15 +704,16 @@ function LineChartContent(
   const hasConfiguredEmphasis = series.some(
     (item) => item.emphasis && item.emphasis !== "default",
   );
-  const configuredEmphasizedSeries = series.filter(
-    (item) => item.emphasis === "emphasized",
-  );
-  let activeSeriesId: string | undefined;
-  if (configuredEmphasizedSeries.length === 1) {
-    activeSeriesId = configuredEmphasizedSeries[0]?.id;
-  } else if (!hasConfiguredEmphasis) {
-    activeSeriesId = hoveredSeriesId;
-  }
+  const activeSeriesId = useMemo(() => {
+    const configuredEmphasizedSeries = series.filter(
+      (item) => item.emphasis === "emphasized",
+    );
+    if (configuredEmphasizedSeries.length === 1) {
+      return configuredEmphasizedSeries[0]?.id;
+    }
+    if (!hasConfiguredEmphasis) return hoveredSeriesId;
+    return undefined;
+  }, [series, hasConfiguredEmphasis, hoveredSeriesId]);
 
   if (width <= 0 || height <= 0 || plotWidth <= 0 || plotHeight <= 0) {
     return <svg width={width} height={height} aria-hidden="true" />;

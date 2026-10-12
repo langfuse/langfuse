@@ -8,15 +8,21 @@ other workspace package:
 import { hello } from "@langfuse/native";
 ```
 
+The addon provides telemetry, a health-check function, ClickHouse Native
+encoding, and Topics numerical clustering. Topics calls
+`clusterTopicEmbeddings(embeddings, settings)` from a Node child process so
+CPU-bound fits can be killed without blocking the worker.
+
 ## Layout
 
 | Path                  | Purpose                                                                      |
 | --------------------- | ---------------------------------------------------------------------------- |
 | `src/lib.rs`          | Rust source. Every `#[napi]` item is exported to Node.js.                    |
 | `src/telemetry.rs`    | Metrics and log setup shared by all native code; see Observability.          |
+| `src/topics.rs`       | Seeded UMAP reductions and HDBSCAN for Topics.                               |
 | `Cargo.toml`          | Crate manifest (`cdylib`). `Cargo.lock` is committed.                        |
 | `build.rs`            | napi-rs build hook.                                                          |
-| `rust-toolchain.toml` | Pinned compiler version, kept equal to the Rust shipped in `node:24-alpine`. |
+| `rust-toolchain.toml` | Pinned compiler version, kept equal to the one `worker/Dockerfile` installs. |
 | `package.json`        | npm package; `napi.binaryName` names the compiled `.node` file.              |
 | `index.js`            | Generated loader that picks the `.node` file for the current platform.       |
 | `index.d.ts`          | Generated TypeScript declarations, derived from the `#[napi]` signatures.    |
@@ -49,6 +55,12 @@ pnpm --filter @langfuse/native run lint         # cargo fmt --check && cargo cli
 pnpm --filter @langfuse/native run test         # Rust tests; uses ClickHouse when available
 ```
 
+These commands delegate to `rust:*` scripts in the `langfuse-rust` pnpm
+concurrency group, shared with the gateway across worktrees using the same
+pnpm `stateDir`. This limits concurrent Rust tasks, including tasks launched
+by Turbo; each compiler still controls its own threads. Run `pnpm tasks status`
+to inspect running and waiting tasks. Direct Cargo commands bypass the group.
+
 `pnpm run dev`, `pnpm run build`, `pnpm run test`, and the worker's
 `typecheck`/`lint` tasks build this package first through turbo, so the addon
 is always present when the worker starts or its tests run. A direct
@@ -67,9 +79,9 @@ is always present when the worker starts or its tests run. A direct
 
 ## How it ships
 
-`worker/Dockerfile` copies the toolchain pinned in `rust-toolchain.toml` from
-the official `rust:<version>-alpine` image into the builder stage;
-`turbo run build --filter=worker...` compiles the addon for musl, and
+`worker/Dockerfile` installs the toolchain pinned in `rust-toolchain.toml` from
+the checksum-verified standalone Rust installer into its UBI9 builder stage;
+`turbo run build --filter=worker...` compiles the addon for glibc, and
 `pnpm deploy` copies the `.node` file into the runtime image next to the
 loader. Each architecture builds on a native runner, so no cross
 compilation is involved. The runtime image gains only the compiled library.

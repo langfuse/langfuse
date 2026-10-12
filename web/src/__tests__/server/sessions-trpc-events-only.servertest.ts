@@ -213,6 +213,51 @@ maybe("sessions trpc (events_only write mode)", () => {
     expect(read.bookmarked).toBe(false);
   });
 
+  // Postgres text cannot contain NUL bytes; ClickHouse strings can.
+  describe("session id containing a NUL byte", () => {
+    const nulSessionId = () => `nul-${randomUUID()}\u0000suffix`;
+
+    it("lists the session instead of failing the page", async () => {
+      const sessionId = nulSessionId();
+      await seedSessionEvent(sessionId);
+
+      const result = await caller.sessions.allFromEvents({
+        projectId,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        page: 0,
+        limit: 50,
+      });
+
+      const listed = result.sessions.find((s) => s.id === sessionId);
+      expect(listed?.bookmarked).toBe(false);
+      expect(listed?.public).toBe(false);
+    });
+
+    it("opens the session detail", async () => {
+      const sessionId = nulSessionId();
+      await seedSessionEvent(sessionId);
+
+      const result = await caller.sessions.byIdWithScoresFromEvents({
+        projectId,
+        sessionId,
+      });
+      expect(result.id).toBe(sessionId);
+      expect(result.bookmarked).toBe(false);
+    });
+
+    it("rejects bookmarking and publishing with BAD_REQUEST", async () => {
+      const sessionId = nulSessionId();
+
+      await expect(
+        caller.sessions.bookmark({ projectId, sessionId, bookmarked: true }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(
+        caller.sessions.publish({ projectId, sessionId, public: true }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+  });
+
   it("rejects publishing an empty session id", async () => {
     await expect(
       caller.sessions.publish({

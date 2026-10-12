@@ -37,6 +37,7 @@ describe("handleBlobStorageIntegrationSchedule", () => {
         exportFrequency: "every_20_minutes",
         lastSyncAt: new Date("2026-09-28T11:20:00.000Z"),
         nextSyncAt: new Date("2026-09-28T11:59:00.000Z"),
+        backfill: false,
       },
       {
         // Stalled: watermark is a day old but nextSyncAt says not due.
@@ -44,12 +45,14 @@ describe("handleBlobStorageIntegrationSchedule", () => {
         exportFrequency: "hourly",
         lastSyncAt: new Date("2026-09-27T12:00:00.000Z"),
         nextSyncAt: new Date("2026-09-28T13:00:00.000Z"),
+        backfill: true,
       },
       {
         projectId: "never-synced",
         exportFrequency: "daily",
         lastSyncAt: null,
         nextSyncAt: null,
+        backfill: true,
       },
     ]);
 
@@ -59,12 +62,22 @@ describe("handleBlobStorageIntegrationSchedule", () => {
       [
         EXPORT_STALENESS_METRIC,
         40 * 60,
-        { integration: "blob_storage", window: "20m", unit: "seconds" },
+        {
+          integration: "blob_storage",
+          window: "20m",
+          backfill: "false",
+          unit: "seconds",
+        },
       ],
       [
         EXPORT_STALENESS_METRIC,
         24 * 60 * 60,
-        { integration: "blob_storage", window: "1h", unit: "seconds" },
+        {
+          integration: "blob_storage",
+          window: "1h",
+          backfill: "true",
+          unit: "seconds",
+        },
       ],
     ]);
     const enqueued = addBulk.mock.calls[0][0].map(
@@ -81,6 +94,7 @@ describe("handleBlobStorageIntegrationSchedule", () => {
         exportFrequency: "monthly",
         lastSyncAt: new Date("2026-09-28T10:00:00.000Z"),
         nextSyncAt: new Date("2026-09-28T13:00:00.000Z"),
+        backfill: false,
       },
     ]);
 
@@ -89,7 +103,12 @@ describe("handleBlobStorageIntegrationSchedule", () => {
     expect(recordDistribution).toHaveBeenCalledWith(
       EXPORT_STALENESS_METRIC,
       2 * 60 * 60,
-      { integration: "blob_storage", window: "unknown", unit: "seconds" },
+      {
+        integration: "blob_storage",
+        window: "unknown",
+        backfill: "false",
+        unit: "seconds",
+      },
     );
     expect(addBulk).not.toHaveBeenCalled();
   });

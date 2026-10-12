@@ -10,6 +10,8 @@ use std::{collections::BTreeMap, fmt};
 pub enum ApiFormat {
     #[serde(rename = "openai.responses")]
     OpenAiResponses,
+    #[serde(rename = "openai.chat-completions")]
+    OpenAiChatCompletions,
     #[serde(rename = "anthropic.messages")]
     AnthropicMessages,
 }
@@ -22,6 +24,14 @@ pub enum Provider {
 }
 
 impl Provider {
+    /// The stable lowercase provider type, as Web sends it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::OpenAi => "openai",
+            Self::Anthropic => "anthropic",
+        }
+    }
+
     pub fn official_origin(self) -> &'static str {
         match self {
             Self::OpenAi => "https://api.openai.com/v1",
@@ -32,8 +42,10 @@ impl Provider {
     fn supports(self, api_format: ApiFormat) -> bool {
         matches!(
             (self, api_format),
-            (Self::OpenAi, ApiFormat::OpenAiResponses)
-                | (Self::Anthropic, ApiFormat::AnthropicMessages)
+            (
+                Self::OpenAi,
+                ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions
+            ) | (Self::Anthropic, ApiFormat::AnthropicMessages)
         )
     }
 
@@ -126,6 +138,9 @@ impl Auth {
 #[serde(deny_unknown_fields)]
 pub struct ProviderConnection {
     id: String,
+    // Optional so the gateway keeps resolving against a Web that predates it.
+    #[serde(default)]
+    name: Option<String>,
     #[serde(deserialize_with = "string_enum")]
     provider: Provider,
     #[serde(deserialize_with = "string_enum")]
@@ -137,6 +152,10 @@ pub struct ProviderConnection {
 impl ProviderConnection {
     pub fn id(&self) -> &str {
         &self.id
+    }
+    /// The user-chosen display name. Never send it to callers; it is for operators.
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref().filter(|name| !name.trim().is_empty())
     }
     pub fn provider(&self) -> Provider {
         self.provider

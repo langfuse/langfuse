@@ -91,7 +91,7 @@ export function QuestionTypeSelector({
               )}
             >
               <span className="flex items-center gap-1.5 font-bold">
-                <copy.icon className="h-4 w-4 shrink-0" />
+                <copy.icon className="icon-base shrink-0" />
                 {copy.label}
               </span>
               <span className="text-muted-foreground">{copy.summary}</span>

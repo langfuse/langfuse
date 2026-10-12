@@ -1,3 +1,5 @@
+import { expect, userEvent, waitFor, within } from "storybook/test";
+
 import preview from "../../../../../../.storybook/preview";
 import {
   ToolCallDefinitionCard,
@@ -181,5 +183,55 @@ export const WithLongToolNames = meta.story({
         2,
       ],
     ]),
+  },
+});
+
+const manyToolNames = [
+  "langfuse_getPrompt",
+  "langfuse_getPromptUnresolved",
+  "langfuse_listPrompts",
+  "langfuse_listObservations",
+  "langfuse_getObservation",
+  "langfuse_getObservationFieldSchema",
+  "langfuse_getObservationFilterSchema",
+  "langfuse_getObservationFilterValues",
+  "langfuse_listAnnotationQueues",
+  "langfuse_getAnnotationQueue",
+  "langfuse_listAnnotationQueueItems",
+  "langfuse_createScoreConfigForProject",
+  "langfuse_searchLangfuseDocs",
+  "langfuse_proposeRedirect",
+  "langfuse_listDatasets",
+  "langfuse_getDataset",
+  "langfuse_listSessions",
+  "langfuse_getSession",
+];
+const calledNames = new Set(manyToolNames.slice(12));
+
+/** Both groups collapse: more than five called, more than three not called. */
+export const ManyTools = meta.story({
+  args: {
+    tools: manyToolNames.map((name) => ({ name })),
+    toolCallCounts: new Map(
+      manyToolNames.map((name) => [name, calledNames.has(name) ? 1 : 0]),
+    ),
+    toolCallsByName: new Map(),
+    toolNameToDefinitionNumber: new Map(
+      manyToolNames.map((name, index) => [name, index + 1]),
+    ),
+  },
+});
+
+export const NotCalledListOpen = meta.story({
+  name: "(Test) Not Called List Open",
+  args: ManyTools.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.hover(
+      canvas.getByRole("button", { name: /available tools were not called/i }),
+    );
+    const body = within(canvasElement.ownerDocument.body);
+    await waitFor(() => expect(body.getByText("Not called")).toBeVisible());
+    await expect(body.queryByText("not called")).toBeNull();
   },
 });

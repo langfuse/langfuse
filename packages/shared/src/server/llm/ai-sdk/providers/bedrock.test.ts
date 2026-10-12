@@ -1,8 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { env } from "../../../../env";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "../../../../interfaces/customLLMProviderConfigSchemas";
+
+const fromNodeProviderChain = vi.hoisted(() => vi.fn(() => vi.fn()));
+
+vi.mock("@aws-sdk/credential-providers", () => ({
+  fromNodeProviderChain,
+}));
+
 import {
   assertValidBedrockRegion,
+  buildBedrockModel,
   resolveBedrockProviderAuth,
   translateBedrockProviderOptions,
 } from "./bedrock";
@@ -82,6 +91,48 @@ describe("assertValidBedrockRegion", () => {
       "Invalid Bedrock region",
     );
   });
+});
+
+describe("Bedrock profile selection", () => {
+  const originalEnv = {
+    AWS_PROFILE: env.AWS_PROFILE,
+    LANGFUSE_AI_FEATURES_AWS_PROFILE: env.LANGFUSE_AI_FEATURES_AWS_PROFILE,
+    LANGFUSE_IN_APP_AGENT_AWS_PROFILE: env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE,
+    LANGFUSE_AI_AWS_BEDROCK_REGION: env.LANGFUSE_AI_AWS_BEDROCK_REGION,
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  };
+
+  beforeEach(() => {
+    fromNodeProviderChain.mockClear();
+    env.AWS_PROFILE = undefined;
+    env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = "legacy";
+    env.LANGFUSE_AI_AWS_BEDROCK_REGION = "eu-west-1";
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+  });
+
+  afterEach(() => {
+    Object.assign(env, originalEnv);
+  });
+
+  it.each([
+    ["ai", "langfuse", "ai"],
+    [undefined, "langfuse", "legacy"],
+    ["ai", "user", undefined],
+  ] as const)(
+    "AI profile %s with %s credentials selects %s",
+    (profile, credentialSource, expected) => {
+      env.LANGFUSE_AI_FEATURES_AWS_PROFILE = profile;
+      buildBedrockModel({
+        modelId: "test-model",
+        apiKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+        config: { region: "eu-west-1" },
+        credentialSource,
+      });
+      expect(fromNodeProviderChain).toHaveBeenCalledWith(
+        expected ? { profile: expected } : {},
+      );
+    },
+  );
 });
 
 describe("resolveBedrockProviderAuth", () => {

@@ -430,7 +430,7 @@ Run the narrowest check that actually exercises your change, e.g.:
 - shared-package or eslint-plugin adjacent changes:
   `pnpm --filter @langfuse/shared run test` /
   `pnpm --filter @repo/eslint-plugin run test`.
-- `turbo.json` changes: `npx turbo run build --dry-run` (or the affected
+- `turbo.json` changes: `pnpm exec turbo run build --dry-run` (or the affected
   task) to prove the pipeline graph still resolves as intended.
 - targeted slow/flaky-test fixes and other DB-backed checks: run exactly
   that test file, with the same invocation CI uses, e.g.

@@ -5,9 +5,10 @@ import { compileClickhouseQuery } from "./compile";
 import { ClickHouseQueryCompiler } from "./compiler";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import { arrayJoin, limitBy, mapKeys, mapValues } from "./extensions";
+import { arrayJoin, limitBy, mapKeys, mapValues, useFinal } from "./extensions";
 import {
   ArrayJoinNode,
+  FinalTableNode,
   LimitByNode,
   isClickHouseSelectQueryNode,
 } from "./nodes";
@@ -43,6 +44,17 @@ describe("tenancy injection", () => {
     expect(() => compileClickhouseQuery(qb, { projectId: "" })).toThrow(
       /no tenancy scope/,
     );
+  });
+
+  it("has no multi-project scope", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events_core")
+      .select("environment");
+
+    expect(() =>
+      // @ts-expect-error - a query is scoped to exactly one project
+      compileClickhouseQuery(qb, { projectIds: ["proj-a", "proj-b"] }),
+    ).toThrow(/no tenancy scope/);
   });
 
   it("refuses kysely.compile() when the tenancy pass did not run", () => {
@@ -284,5 +296,37 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
     expect(lower).toContain("limit ");
     expect(lower).toContain(" by ");
     expect(lower.indexOf(" by ")).toBeLessThan(lower.lastIndexOf("limit"));
+  });
+
+  it("wraps the scores FROM table in a FinalTableNode", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("scores as s")
+      .select("s.id")
+      .$call(useFinal(["scores"]));
+
+    const node = qb
+      .withPlugin(new TenancyInjectionPlugin(ctx))
+      .toOperationNode();
+    expect(node.kind).toBe("SelectQueryNode");
+    const from = (node as { from?: { froms?: Array<{ kind: string }> } }).from
+      ?.froms?.[0];
+    expect(from).toBeDefined();
+    expect(FinalTableNode.is(from!)).toBe(true);
+  });
+
+  it("emits FINAL after the scores table expression", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("scores as s")
+      .select("s.id")
+      .$call(useFinal(["scores"]));
+
+    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    expect(compiled.toLowerCase()).toMatch(/from scores as s final/);
+    expect(compiled.toLowerCase()).not.toMatch(/from scores as s,/);
+  });
+
+  it("rejects FINAL on events_core", () => {
+    expect(() => useFinal(["events_core"])).toThrow(QueryCompileError);
+    expect(() => useFinal(["events_core"])).toThrow(/immutable/);
   });
 });

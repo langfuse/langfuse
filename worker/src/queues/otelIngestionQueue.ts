@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { Job, Processor } from "bullmq";
 import { z } from "zod";
 import {
@@ -39,6 +38,7 @@ import {
 import { IngestionService } from "../services/IngestionService";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
+import { logRetryableJobFailure } from "./jobFailureLog";
 import { ForbiddenError } from "@langfuse/shared";
 import {
   createLegacyOtelMediaTargets,
@@ -561,7 +561,9 @@ export const otelIngestionQueueProcessorBuilder = (
         .map((o) => ingestionSchema.safeParse(o))
         .flatMap((o) => {
           if (!o.success) {
-            firstParseError ??= o.error;
+            if (firstParseError === undefined) {
+              firstParseError = o.error;
+            }
             return [];
           }
           return [o.data];
@@ -795,11 +797,12 @@ export const otelIngestionQueueProcessorBuilder = (
         reason: "processing_error",
       });
 
-      logger.error(
-        `Failed job otel ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,
-        { error: e, fileKey },
-      );
-      traceException(e);
+      logRetryableJobFailure({
+        message: `Failed job otel ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,
+        error: e,
+        job,
+        fields: { fileKey },
+      });
       throw e;
     }
   };

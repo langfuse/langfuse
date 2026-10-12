@@ -82,7 +82,9 @@ const COMMON_RESPONSE_HEADERS: &[&str] = &[
 
 pub(crate) fn request_headers(source: &HeaderMap, api_format: ApiFormat) -> HeaderMap {
     match api_format {
-        ApiFormat::OpenAiResponses => selected_headers(source, COMMON_REQUEST_HEADERS, &[]),
+        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => {
+            selected_headers(source, COMMON_REQUEST_HEADERS, &[])
+        }
         ApiFormat::AnthropicMessages => {
             selected_headers(source, COMMON_REQUEST_HEADERS, &["anthropic-"])
         }
@@ -91,7 +93,7 @@ pub(crate) fn request_headers(source: &HeaderMap, api_format: ApiFormat) -> Head
 
 pub(crate) fn response_headers(source: &HeaderMap, api_format: ApiFormat) -> HeaderMap {
     match api_format {
-        ApiFormat::OpenAiResponses => selected_headers(
+        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => selected_headers(
             source,
             &[
                 COMMON_RESPONSE_HEADERS,
@@ -120,6 +122,30 @@ pub(crate) fn response_headers(source: &HeaderMap, api_format: ApiFormat) -> Hea
             &["anthropic-ratelimit-"],
         ),
     }
+}
+
+/// The provider's own request ID, bounded like other captured provider facts.
+pub(crate) fn provider_request_id(headers: &HeaderMap, api_format: ApiFormat) -> Option<&str> {
+    let name = match api_format {
+        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => "x-request-id",
+        ApiFormat::AnthropicMessages => "request-id",
+    };
+    headers
+        .get(name)?
+        .to_str()
+        .ok()
+        .filter(|value| value.len() <= 512)
+}
+
+pub(crate) fn identity_encoding(headers: &HeaderMap) -> bool {
+    headers
+        .get_all(header::CONTENT_ENCODING)
+        .iter()
+        .all(|value| {
+            value
+                .to_str()
+                .is_ok_and(|value| value.eq_ignore_ascii_case("identity"))
+        })
 }
 
 pub(crate) fn relay<T: Send + 'static>(

@@ -31,9 +31,9 @@ export const LabelCommandItem = (props: {
       )}
     >
       {isSelected ? (
-        <CircleCheckIcon className="mr-2 h-4 w-4" />
+        <CircleCheckIcon className="icon-base text-icon-foreground mr-2" />
       ) : (
-        <CircleIcon className="mr-2 h-4 w-4 opacity-20" />
+        <CircleIcon className="icon-base text-icon-foreground mr-2 opacity-20" />
       )}
       {label}
     </Button>

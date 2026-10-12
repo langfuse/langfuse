@@ -322,7 +322,10 @@ export function AnnotationFormContent({
                           className="gap-1.5 text-xs"
                           {...getTriggerProps()}
                         >
-                          <Plus className="size-3.5" aria-hidden="true" />
+                          <Plus
+                            className="icon-base text-icon-foreground"
+                            aria-hidden="true"
+                          />
                           Add score
                         </Button>
                       )}

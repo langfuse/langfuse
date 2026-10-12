@@ -4,6 +4,7 @@ import Link from "next/link";
 import { type MouseEventHandler, type Ref } from "react";
 
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { cn } from "@/src/utils/tailwind";
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md ring-offset-background transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
@@ -28,6 +29,20 @@ const buttonVariants = cva(
     },
   },
 );
+
+const buttonIconVariants = cva("icon-base shrink-0", {
+  variants: {
+    variant: {
+      primary: "",
+      secondary: "",
+      destructive: "",
+      ghost: "text-icon-foreground",
+    },
+  },
+  defaultVariants: {
+    variant: "primary",
+  },
+});
 
 type ButtonProps = {
   text: string;
@@ -61,6 +76,7 @@ export function Button(props: ButtonProps) {
     variant: props.variant,
     size: props.size,
   });
+  const iconClassName = buttonIconVariants({ variant: props.variant });
 
   if (props.href !== undefined) {
     const Icon = props.icon;
@@ -80,16 +96,22 @@ export function Button(props: ButtonProps) {
           target="_blank"
           rel={isLangfuseDomain ? "noopener" : "noopener noreferrer"}
         >
-          {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden /> : null}
+          {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
           {props.text}
-          <ExternalLink className="size-3" aria-hidden />
+          <ExternalLink
+            className={cn(
+              "icon-sm",
+              props.variant === "ghost" && "text-icon-foreground",
+            )}
+            aria-hidden
+          />
         </a>
       );
     }
 
     return (
       <Link className={className} href={props.href} ref={props.ref}>
-        {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden /> : null}
+        {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
         {props.text}
       </Link>
     );
@@ -114,7 +136,7 @@ export function Button(props: ButtonProps) {
         </span>
       ) : (
         <>
-          {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden /> : null}
+          {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
           {props.text}
         </>
       )}

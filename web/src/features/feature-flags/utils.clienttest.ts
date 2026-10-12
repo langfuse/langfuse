@@ -10,6 +10,18 @@ import {
 } from "./utils";
 
 describe("parseFlags", () => {
+  it("requires personal Topics opt-in and ignores team and organization defaults", () => {
+    const context = {
+      email: "team.member@langfuse.com",
+      v4BetaEnabled: true,
+    };
+    expect(
+      parseFlagsWithOrganizationDefaults([], ["langfuseTopics"], context)
+        .langfuseTopics,
+    ).toBe(false);
+    expect(parseFlags(["langfuseTopics"], context).langfuseTopics).toBe(true);
+  });
+
   it("enables feature previews by default for Langfuse team members", () => {
     const flags = parseFlags([], {
       email: "team.member@langfuse.com",
@@ -111,6 +123,21 @@ describe("parseFlags", () => {
 
     expect(enabled.modernSession).toBe(true);
     expect(optedOut.modernSession).toBe(false);
+  });
+
+  it("enables organization-only previews exclusively through organization defaults", () => {
+    const personalOnly = parseFlags(["externalMediaStorage"], {
+      email: "user@example.com",
+      v4BetaEnabled: true,
+    });
+    const organizationEnabled = parseFlagsWithOrganizationDefaults(
+      ["feature-preview:externalMediaStorage:disabled"],
+      ["externalMediaStorage"],
+      { email: "user@example.com", v4BetaEnabled: true },
+    );
+
+    expect(personalOnly.externalMediaStorage).toBe(false);
+    expect(organizationEnabled.externalMediaStorage).toBe(true);
   });
 
   it("does not apply a Session Timeline organization default without Compact Session", () => {

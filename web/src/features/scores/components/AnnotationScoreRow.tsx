@@ -29,8 +29,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { HoverCardContent } from "@radix-ui/react-hover-card";
-import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
+import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { Badge } from "@/src/components/ui/badge";
 import {
   DropdownMenuController,
@@ -88,7 +87,7 @@ function CommentField({
                   onValueChange(null);
                 }}
               >
-                <Trash className="h-3 w-3" />
+                <Trash className="icon-sm text-icon-foreground" />
               </Button>
             </PopoverClose>
           )}
@@ -245,12 +244,19 @@ export function AnnotationScoreRow({
             {config.description ||
             isPresent(config.maxValue) ||
             isPresent(config.minValue) ? (
-              <HoverCard
+              <ControlledHoverCard
                 open={isActive && detailsOpen}
                 onOpenChange={setDetailsOpen}
+                content={
+                  <div className="max-h-[60vh] w-64 max-w-64 overflow-y-auto p-3">
+                    <ScoreConfigDetails config={config} />
+                  </div>
+                }
               >
-                <HoverCardTrigger asChild>
+                {({ getTriggerProps }) => (
                   <span
+                    tabIndex={0}
+                    {...getTriggerProps()}
                     className={cn(
                       "decoration-muted-gray line-clamp-2 min-w-0 text-xs font-bold wrap-break-word underline decoration-dashed underline-offset-2",
                       config.isArchived ? "text-foreground/40" : "",
@@ -258,11 +264,8 @@ export function AnnotationScoreRow({
                   >
                     {score.name}
                   </span>
-                </HoverCardTrigger>
-                <HoverCardContent className="z-20 max-h-[60vh] max-w-64 overflow-y-auto rounded border">
-                  <ScoreConfigDetails config={config} />
-                </HoverCardContent>
-              </HoverCard>
+                )}
+              </ControlledHoverCard>
             ) : (
               <span
                 className={cn(
@@ -296,9 +299,9 @@ export function AnnotationScoreRow({
                   }
                 >
                   {score.comment ? (
-                    <MessageCircleMore className="h-4 w-4" />
+                    <MessageCircleMore className="icon-sm" />
                   ) : (
-                    <MessageCircle className="h-4 w-4" />
+                    <MessageCircle className="icon-sm" />
                   )}
                 </Button>
               </PopoverTrigger>
@@ -583,7 +586,7 @@ export function AnnotationScoreRow({
                     aria-label={`Score actions for ${score.name}${showTarget ? ` (${target.label})` : ""}`}
                     title="Score actions"
                   >
-                    <MoreHorizontal className="size-4" />
+                    <MoreHorizontal className="icon-sm text-icon-foreground" />
                   </Button>
                 </Trigger>
               )}

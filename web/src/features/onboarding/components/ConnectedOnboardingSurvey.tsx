@@ -2,15 +2,22 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { showErrorToast } from "@/src/features/notifications";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { getDemoCallbackRedirectPath } from "../lib/demoCallbackRedirect";
+import {
+  getSurveySubmittedEvent,
+  shuffleBuildIntentOptions,
+} from "../lib/buildIntent";
 import type { SurveyFormData } from "../lib/surveyTypes";
 import { OnboardingSurvey } from "./OnboardingSurvey";
 
 export function ConnectedOnboardingSurvey() {
   const router = useRouter();
   const { update: updateSession } = useSession();
+  const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const onboardingStatus = api.onboarding.status.useQuery();
   const completeOnboardingMutation = api.onboarding.complete.useMutation();
@@ -20,6 +27,8 @@ export function ConnectedOnboardingSurvey() {
     : undefined;
   const [hasStartedOnboardingCompletion, setHasStartedOnboardingCompletion] =
     useState(false);
+  const [onboardingOpenedAt] = useState(() => Date.now());
+  const [buildIntentOptions] = useState(shuffleBuildIntentOptions);
 
   const [finishOnboarding, isFinishingOnboarding] = useWatchedPromiseCallback(
     async (data: SurveyFormData) => {
@@ -30,16 +39,36 @@ export function ConnectedOnboardingSurvey() {
         const canConfigureAiFeatures =
           onboardingStatus.data?.completed === false &&
           onboardingStatus.data.canConfigureAiFeatures;
-        const onboardingResult = await completeOnboardingMutation.mutateAsync(
-          referralSource || canConfigureAiFeatures
+        const buildIntents = data.buildIntents;
+        const buildIntentOther = data.buildIntentOther?.trim();
+        const onboardingResult = await completeOnboardingMutation.mutateAsync({
+          ...(referralSource ? { referralSource } : {}),
+          ...(canConfigureAiFeatures
+            ? { aiFeaturesEnabled: data.aiFeaturesEnabled }
+            : {}),
+          ...(buildIntents.length > 0
             ? {
-                ...(referralSource ? { referralSource } : {}),
-                ...(canConfigureAiFeatures
-                  ? { aiFeaturesEnabled: data.aiFeaturesEnabled }
-                  : {}),
+                buildIntents,
+                buildIntentPositions: buildIntents.map((id) =>
+                  buildIntentOptions.findIndex((option) => option.id === id),
+                ),
               }
-            : undefined,
-        );
+            : {}),
+          ...(buildIntentOther ? { buildIntentOther } : {}),
+        });
+        const surveySubmittedEvent = getSurveySubmittedEvent({
+          surveyCreated: onboardingResult.surveyCreated,
+          buildIntents,
+          hasReferralSource: Boolean(referralSource),
+          surveyDurationMs: Date.now() - onboardingOpenedAt,
+        });
+        if (surveySubmittedEvent) {
+          capture(
+            "onboarding:signup_survey_submitted",
+            surveySubmittedEvent.properties,
+            surveySubmittedEvent.options,
+          );
+        }
         const redirectTo = queryRedirectPath ?? onboardingResult.redirectTo;
         utils.onboarding.status.setData(undefined, {
           completed: true,
@@ -52,10 +81,14 @@ export function ConnectedOnboardingSurvey() {
         showErrorToast(
           "Failed to finish onboarding",
           error instanceof Error ? error.message : "Please try again.",
+          classifyTrpcToastError(error, "onboarding.complete"),
         );
       }
     },
     [
+      capture,
+      onboardingOpenedAt,
+      buildIntentOptions,
       completeOnboardingMutation,
       onboardingStatus.data,
       queryRedirectPath,
@@ -77,6 +110,11 @@ export function ConnectedOnboardingSurvey() {
           showErrorToast(
             "Failed to continue onboarding",
             error instanceof Error ? error.message : "Please try again.",
+            {
+              operation: "onboarding.continue",
+              errorOrigin: "frontend",
+              errorCategory: "internal",
+            },
           );
         }
       },
@@ -127,6 +165,7 @@ export function ConnectedOnboardingSurvey() {
   return (
     <OnboardingSurvey
       state="form"
+      buildIntentOptions={buildIntentOptions}
       canConfigureAiFeatures={
         onboardingStatus.data?.completed === false
           ? onboardingStatus.data.canConfigureAiFeatures

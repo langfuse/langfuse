@@ -19,7 +19,7 @@ import {
 
 describe("buildEventsFilterOptionsForColumnsQuery", () => {
   it.each([
-    ["cachedInputTokens", eventsTableCachedInputTokensSql, "Decimal64(3)"],
+    ["cachedInputTokens", eventsTableCachedInputTokensSql, "Float64"],
     ["cachedInputCost", eventsTableCachedInputCostSql, "Decimal64(12)"],
   ] as const)(
     "maps %s filters to the cached-read metric expression",

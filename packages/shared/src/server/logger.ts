@@ -48,6 +48,45 @@ const severityFormat = function () {
   })();
 };
 
+// `Error` serialises to `{}`, so Errors anywhere in the metadata are expanded,
+// and BigInt is stringified. Build one per log line: the cycle guard breaks
+// cyclic `cause` chains — the replacer hands back a new object for every
+// Error, so the stringifier's identity-based circular check never fires — and
+// renders an Error seen twice in the same line as "[Circular]".
+const createErrorReplacer = () => {
+  const visitedErrors = new WeakSet<Error>();
+
+  return (_key: string, value: unknown) => {
+    if (value instanceof Error) {
+      if (visitedErrors.has(value)) return "[Circular]";
+      visitedErrors.add(value);
+      return {
+        ...value, // keeps fields an SDK attached to its own error type
+        name: value.name,
+        message: value.message,
+        stack: value.stack,
+        // `cause` and `errors` are non-enumerable, so the spread misses them
+        ...(value.cause === undefined ? {} : { cause: value.cause }),
+        ...(value instanceof AggregateError ? { errors: value.errors } : {}),
+      };
+    }
+    return typeof value === "bigint" ? value.toString() : value;
+  };
+};
+
+// Metadata is arbitrary caller-supplied data, and circular values make
+// `JSON.stringify` throw. A logger that throws destroys the diagnostic it was
+// called to emit, so degrade to a marker.
+const stringifyMeta = (meta: Record<string, unknown>) => {
+  try {
+    return JSON.stringify(meta, createErrorReplacer());
+  } catch {
+    return "[unserialisable log metadata]";
+  }
+};
+
+const jsonFormat = winston.format.json();
+
 const getWinstonLogger = (
   nodeEnv: "development" | "production" | "test",
   minLevel = "info",
@@ -57,8 +96,13 @@ const getWinstonLogger = (
     winston.format.timestamp(),
     winston.format.align(),
     winston.format.printf((info) => {
-      const logMessage = `${info.timestamp} ${info.level} ${info.message}`;
-      return info.stack ? `${logMessage}\n${info.stack}` : logMessage;
+      // `splat` is winston's positional-args carrier, not output.
+      const { timestamp, level, message, stack, splat, ...meta } = info;
+      const rendered = Object.keys(meta).length
+        ? ` ${stringifyMeta(meta)}`
+        : "";
+      const logMessage = `${timestamp} ${level} ${message}${rendered}`;
+      return stack ? `${logMessage}\n${stack}` : logMessage;
     }),
   );
 
@@ -67,7 +111,9 @@ const getWinstonLogger = (
     winston.format.timestamp(),
     tracingFormat(),
     severityFormat(),
-    winston.format.json(),
+    winston.format((info) =>
+      jsonFormat.transform(info, { replacer: createErrorReplacer() }),
+    )(),
   );
 
   const format =

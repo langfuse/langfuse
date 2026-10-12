@@ -52,7 +52,7 @@ jobs:
       - name: Generate SDK specs
         env:
           FERN_TOKEN: ${{ secrets.FERN_TOKEN }}
-        run: npx fern-api generate --api server --force
+        run: pnpm dlx fern-api@3.88.0 generate --api server --force
 
       - name: Add Python SDK deprecation warnings
         working-directory: web

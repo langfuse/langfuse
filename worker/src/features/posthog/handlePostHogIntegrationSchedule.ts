@@ -11,6 +11,7 @@ export const handlePostHogIntegrationSchedule = async () => {
   const postHogIntegrationProjects = await prisma.posthogIntegration.findMany({
     select: {
       lastSyncAt: true,
+      backfill: true,
       projectId: true,
     },
     where: {
@@ -24,6 +25,7 @@ export const handlePostHogIntegrationSchedule = async () => {
     integrations: postHogIntegrationProjects.map((integration) => ({
       lastSyncAt: integration.lastSyncAt,
       window: "1h",
+      backfill: integration.backfill,
     })),
   });
 

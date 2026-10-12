@@ -1,6 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { formatDistanceToNow } from "date-fns";
 import {
   type EvalTemplate,
@@ -59,12 +60,17 @@ export function EvaluatorPausedCallout({
     onSuccess: async () => {
       await utils.evals.invalidate();
       showSuccessToast({
+        operation: "evaluator.reactivate",
         title: "Evaluator reactivated",
         description: "The evaluator is active again.",
       });
     },
     onError: (error) => {
-      showErrorToast("Reactivation failed", error.message);
+      showErrorToast(
+        "Reactivation failed",
+        error.message,
+        classifyTrpcToastError(error, "evaluator.reactivate"),
+      );
     },
   });
 
@@ -94,7 +100,7 @@ export function EvaluatorPausedCallout({
       className="border-light-yellow bg-light-yellow rounded-lg border"
     >
       <div className="flex gap-3 p-4">
-        <AlertTriangle className="text-dark-yellow mt-0.5 h-4 w-4 shrink-0" />
+        <AlertTriangle className="text-dark-yellow icon-base mt-0.5 shrink-0" />
 
         <div className="min-w-0 flex-1">
           <h3 className="text-foreground text-base font-bold">
@@ -126,7 +132,7 @@ export function EvaluatorPausedCallout({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <ExternalLinkIcon className="mr-1.5 h-3.5 w-3.5" />
+                <ExternalLinkIcon className="icon-base text-icon-foreground mr-1.5" />
                 {resolutionActionLabel}
               </Link>
             </Button>
@@ -147,7 +153,7 @@ export function EvaluatorPausedCallout({
                 }
                 className="h-8 px-3"
               >
-                <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
+                <RefreshCcw className="icon-base text-icon-foreground mr-1.5" />
                 Reactivate
               </Button>
             ) : null}

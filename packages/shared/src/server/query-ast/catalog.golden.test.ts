@@ -8,7 +8,7 @@ import {
   normalizeParams,
   substituteNamedParams,
 } from "../repositories/goldenHarness";
-import { CATALOG, CATALOG_PROJECT_ID } from "./catalog";
+import { CATALOG, CATALOG_PROJECT_ID } from "./fixtures/catalog";
 import { compileClickhouseQuery } from "./compile";
 
 const describeWithClickhouse = clickhouseFormatAvailable()

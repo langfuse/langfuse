@@ -1,6 +1,8 @@
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import {
+  createS3ThrottledIngestionError,
   getCurrentSpan,
+  isS3SlowDownError,
   logger,
   markProjectIngestFailure,
   OtelIngestionProcessor,
@@ -37,7 +39,7 @@ export type OtelIngestionResult =
       body: unknown;
     };
 
-const OTEL_REQUEST_BODY_WARNING_BYTES = 16 * 1024 * 1024;
+export const OTEL_REQUEST_BODY_WARNING_BYTES = 16 * 1024 * 1024;
 
 function httpResult(status: number, body: unknown): OtelIngestionResult {
   return { kind: "http", status, body };
@@ -59,6 +61,21 @@ export async function processOtelIngestion(
     logger.error(`Invalid content type: ${contentType}`);
     return httpResult(400, { error: "Invalid content type" });
   }
+
+  // Parsing multiplies a body's size in memory, so a large body can get the
+  // container OOM-killed before any later log line is written.
+  if (
+    encodedBodyBytes > OTEL_REQUEST_BODY_WARNING_BYTES ||
+    body.byteLength > OTEL_REQUEST_BODY_WARNING_BYTES
+  ) {
+    logger.warn("Parsing large OTEL request body", {
+      projectId: config.projectId,
+      encodedBodyBytes,
+      decodedBodyBytes: body.byteLength,
+      contentType,
+    });
+  }
+
   if (contentType.includes("application/x-protobuf")) {
     try {
       const parsed =
@@ -264,6 +281,13 @@ export async function processOtelIngestion(
       source: "public_otel_api",
       reason: "publish_failed",
     });
+    if (isS3SlowDownError(error)) {
+      logger.warn("S3 SlowDown error during OTel upload", {
+        projectId: config.projectId,
+        error,
+      });
+      throw createS3ThrottledIngestionError("otel");
+    }
     throw error;
   }
 }

@@ -45,6 +45,7 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
       },
       organizationMembership: {
         findFirst: vi.fn(async (): Promise<unknown> => null),
+        findUnique: vi.fn(async (): Promise<unknown> => null),
         findMany: vi.fn(async (): Promise<unknown[]> => []),
         count: vi.fn(async () => 1),
         create: vi.fn(async (): Promise<unknown> => ({})),
@@ -62,6 +63,9 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
       },
       auditLog: {
         create: vi.fn(async () => ({})),
+      },
+      apiKey: {
+        findUnique: vi.fn(async (): Promise<unknown> => null),
       },
       // Starter-org provisioning serializes on SELECT ... FOR UPDATE.
       $queryRaw: vi.fn(async (): Promise<unknown> => []),
@@ -126,7 +130,9 @@ import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/create
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { handleUpdateMembership } from "@/src/ee/features/admin-api/server/memberships";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { CloudConfigSchema, Role } from "@langfuse/shared";
+import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -784,6 +790,38 @@ describe("call site: tRPC members.updateOrgMembership", () => {
 
 describe("call site: admin API handleUpdateMembership", () => {
   const member = { id: "member-1", email: "member@test.com", name: "Member" };
+  const context: AuthorizationContext = {
+    principal: {
+      kind: "apiKey",
+      apiKeyId: "key-1",
+      userId: null,
+      isInAppAgentKey: false,
+      publicKey: "pk-lf-test",
+      scope: "ORGANIZATION",
+      presentation: "privateKey",
+      organizations: [
+        {
+          orgId: "org-1",
+          organizationCreatedAt: ORG_CREATED_AT.toISOString(),
+          plan: "cloud:team",
+          rateLimitOverrides: [],
+          projectIds: [],
+          isIngestionSuspended: false,
+        },
+      ],
+      boundResource: { orgId: "org-1" },
+    },
+    policies: [
+      {
+        id: "membership-admin",
+        roleId: SystemRoleId("ADMIN"),
+        tenantId: OrganizationId("org-1"),
+        effect: "ALLOW",
+        actions: ["organizationMembers:CUD"],
+        resources: [OrganizationId("org-1")],
+      },
+    ],
+  };
 
   it("syncs a downgrade to NONE as removeUser", async () => {
     prismaMock.user.findUnique.mockResolvedValueOnce(member);
@@ -798,7 +836,7 @@ describe("call site: admin API handleUpdateMembership", () => {
       body: { userId: "member-1", role: "NONE" },
     } as NextApiRequest;
     const res = createMockRes();
-    await handleUpdateMembership(req, res, "org-1");
+    await handleUpdateMembership(req, res, "org-1", "key-1", context);
 
     expect(res.statusCode).toBe(200);
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -825,7 +863,7 @@ describe("call site: admin API handleUpdateMembership", () => {
       body: { userId: "member-1", role: "MEMBER" },
     } as NextApiRequest;
     const res = createMockRes();
-    await handleUpdateMembership(req, res, "org-1");
+    await handleUpdateMembership(req, res, "org-1", "key-1", context);
 
     expect(res.statusCode).toBe(200);
     expect(fetchMock).toHaveBeenCalledOnce();

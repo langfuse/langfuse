@@ -1,7 +1,7 @@
 import { type InferResult } from "kysely";
 
 import { getClickhouseKysely } from "./dialect";
-import { arrayJoin, limitBy, mapKeys, mapValues } from "./extensions";
+import { arrayJoin, limitBy, mapKeys, mapValues, useFinal } from "./extensions";
 import { defineView, fromView } from "./views";
 
 /**
@@ -51,7 +51,7 @@ export function schemaTypeAssertions(): void {
 /**
  * Compile-time assertions that the `$call` extension helpers infer correctly:
  * `arrayJoin` widens the output row type with each declared alias, and `limitBy`
- * preserves it. `tsc` is the test.
+ * / `useFinal` preserve it. `tsc` is the test.
  */
 export function extensionTypeAssertions(): void {
   const db = getClickhouseKysely();
@@ -85,4 +85,14 @@ export function extensionTypeAssertions(): void {
   type _Span = Limited["span_id"];
   // @ts-expect-error limitBy adds no columns
   type _NoExtra = Limited["cost_key"];
+
+  // useFinal preserves the row type: it declares no new columns.
+  const _final = db
+    .selectFrom("scores as s")
+    .select("s.id")
+    .$call(useFinal(["scores"]));
+  type FinalRow = InferResult<typeof _final>[number];
+  type _Id = FinalRow["id"];
+  // @ts-expect-error useFinal adds no columns
+  type _NoFinalExtra = FinalRow["cost_key"];
 }

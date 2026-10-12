@@ -9,6 +9,10 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
  * entries that should not be mounted in the measurement row. Item and overflow
  * presentation remain entirely caller-defined. `trailingContent` stays pinned
  * immediately after the overflow control and participates in width measurement.
+ *
+ * The row gap only ever separates rendered content, so every row starts on the
+ * same inline edge whether it holds items, only the overflow control, or
+ * nothing at all.
  */
 
 // Rows of boxed pills read fine at gap-2; rows of mostly-plain text (the
@@ -147,26 +151,28 @@ export function SingleLineOverflowList<TItem>({
           );
         })}
       </div>
-      <div
-        className={`flex min-w-0 items-center overflow-hidden [&>*]:shrink-0 ${gapClass}`}
-      >
-        {visibleItems.map((item) => {
-          const key = getKey(item);
-          return (
-            <span
-              key={key}
-              data-overflow-visible-item="true"
-              data-tight={isTightItem?.(item) ? "true" : undefined}
-              className={cn(
-                "flex items-center",
-                isTightItem?.(item) && "[[data-tight]+&]:-ml-3",
-              )}
-            >
-              {renderItem(item)}
-            </span>
-          );
-        })}
-      </div>
+      {visibleItems.length > 0 ? (
+        <div
+          className={`flex min-w-0 items-center overflow-hidden [&>*]:shrink-0 ${gapClass}`}
+        >
+          {visibleItems.map((item) => {
+            const key = getKey(item);
+            return (
+              <span
+                key={key}
+                data-overflow-visible-item="true"
+                data-tight={isTightItem?.(item) ? "true" : undefined}
+                className={cn(
+                  "flex items-center",
+                  isTightItem?.(item) && "[[data-tight]+&]:-ml-3",
+                )}
+              >
+                {renderItem(item)}
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
       {overflowItemCount > 0 ? (
         <div ref={overflowRef} className="flex shrink-0 items-center">
           {renderOverflow({ hiddenItems, overflowItemCount })}

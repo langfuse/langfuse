@@ -512,6 +512,33 @@ const FIELD_SETS = {
 
 export type FieldSetName = keyof typeof FIELD_SETS;
 
+/**
+ * SELECT expressions (`expr as alias`) for the given field sets, in
+ * EVENTS_FIELDS declaration order.
+ */
+export function eventsFieldSetSelectExpressions(
+  ...setNames: FieldSetName[]
+): string[] {
+  return eventsFieldSelectExpressions(setNames.flatMap((s) => FIELD_SETS[s]));
+}
+
+// Canonicalize by EVENTS_FIELDS declaration order so SELECT column order does
+// not follow caller field-set order. Clustered ClickHouse reads align result
+// blocks by position; incompatible Map types (cost_details vs metadata) 500
+// when those columns swap places.
+function eventsFieldSelectExpressions(fieldKeys: readonly string[]): string[] {
+  return [...new Set(fieldKeys)]
+    .sort(
+      (a, b) =>
+        (EVENTS_FIELD_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
+        (EVENTS_FIELD_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER),
+    )
+    .flatMap((fieldKey) => {
+      const fieldExpr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];
+      return fieldExpr ? [fieldExpr] : [];
+    });
+}
+
 export const OBSERVATION_FIELD_GROUP_FIELD_NAMES = Object.fromEntries(
   OBSERVATION_FIELD_GROUPS_PUBLIC_API.map((group) => [
     group,
@@ -525,7 +552,7 @@ export const OBSERVATION_FIELD_GROUP_FIELD_NAMES = Object.fromEntries(
  * Aggregation fields for trace-level queries
  * These fields use ClickHouse aggregation functions and require GROUP BY
  */
-const EVENTS_AGGREGATION_FIELDS = {
+export const EVENTS_AGGREGATION_FIELDS = {
   // Grouping keys (must be in GROUP BY)
   id: "trace_id AS id",
   projectId: "project_id",
@@ -548,7 +575,7 @@ const EVENTS_AGGREGATION_FIELDS = {
   updated_at: "max(updated_at) AS updated_at",
   total_cost: "sum(total_cost) AS total_cost",
   latency_milliseconds:
-    "date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds",
+    "if(max(end_time) IS NULL, NULL, date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))) AS latency_milliseconds",
   observation_ids:
     "groupUniqArrayIf(span_id, span_id <> '') AS observation_ids",
   observation_count:
@@ -1172,22 +1199,9 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
       fieldsToExclude.push("metadata");
     }
 
-    // Canonicalize by EVENTS_FIELDS declaration order so SELECT column order
-    // does not follow caller field-set order. Clustered ClickHouse reads align
-    // result blocks by position; incompatible Map types (cost_details vs
-    // metadata) 500 when those columns swap places.
-    const fieldsToProcess = [...this.selectFields]
-      .filter((f) => !fieldsToExclude.includes(f))
-      .sort(
-        (a, b) =>
-          (EVENTS_FIELD_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
-          (EVENTS_FIELD_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER),
-      );
-
-    const fieldExpressions: string[] = fieldsToProcess.flatMap((fieldKey) => {
-      const fieldExpr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];
-      return fieldExpr ? [fieldExpr] : [];
-    });
+    const fieldExpressions = eventsFieldSelectExpressions(
+      [...this.selectFields].filter((f) => !fieldsToExclude.includes(f)),
+    );
 
     // Add I/O fields if configured
     // Note: needsFullTable() is responsible for choosing events_core/events_full (truncated vs full I/O)

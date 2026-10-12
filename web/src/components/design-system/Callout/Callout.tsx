@@ -86,7 +86,7 @@ export function Callout({
                       onClick={action.onClick}
                       type="button"
                     >
-                      {Icon ? <Icon className="size-4" aria-hidden /> : null}
+                      {Icon ? <Icon className="icon-base" aria-hidden /> : null}
                       {action.label}
                     </button>
                   );
@@ -131,7 +131,7 @@ export function Callout({
           onClick={onDismiss}
           type="button"
         >
-          <X className="size-4" aria-hidden />
+          <X className="icon-base" aria-hidden />
         </button>
       </div>
     </div>

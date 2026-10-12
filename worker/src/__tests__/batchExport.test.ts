@@ -36,6 +36,64 @@ const maybeDescribe =
     ? describe
     : describe.skip;
 
+// Seven scores over three timestamps, four tied on one millisecond, so pages of
+// two must split a tie group.
+const createScoresWithTiedTimestamps = async (projectId: string) => {
+  const timestamps = [
+    "2024-01-01T00:00:00.000Z",
+    "2024-01-02T00:00:00.000Z",
+    "2024-01-02T00:00:00.000Z",
+    "2024-01-02T00:00:00.000Z",
+    "2024-01-02T00:00:00.000Z",
+    "2024-01-03T00:00:00.000Z",
+    "2024-01-03T00:00:00.000Z",
+  ];
+  const scores = timestamps.map((timestamp) =>
+    createTraceScore({
+      project_id: projectId,
+      trace_id: randomUUID(),
+      name: "accuracy",
+      value: 0.5,
+      data_type: "NUMERIC",
+      timestamp: new Date(timestamp).getTime(),
+    }),
+  );
+  await createScoresCh(scores);
+  return scores;
+};
+
+const exportScoresInPages = async (
+  projectId: string,
+  order: "ASC" | "DESC",
+  useEventsTable: boolean,
+) => {
+  const stream = await getDatabaseReadStreamPaginated({
+    projectId,
+    tableName: BatchExportTableName.Scores,
+    cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+    filter: [],
+    orderBy: { column: "timestamp", order },
+    useEventsTable,
+    pageSize: 2,
+  });
+  const rows: any[] = [];
+  for await (const chunk of stream) {
+    rows.push(chunk);
+  }
+  return rows;
+};
+
+const expectEveryScoreOnceInOrder = (
+  rows: any[],
+  scores: { id: string }[],
+  order: "ASC" | "DESC",
+) => {
+  expect(rows.map((r) => r.id).sort()).toEqual(scores.map((s) => s.id).sort());
+  const times = rows.map((r) => new Date(r.timestamp).getTime());
+  const sorted = [...times].sort((a, b) => (order === "ASC" ? a - b : b - a));
+  expect(times).toEqual(sorted);
+};
+
 describe("batch export test suite", () => {
   it("should export observations", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
@@ -1702,6 +1760,55 @@ describe("batch export test suite", () => {
     });
   });
 
+  it.each(["DESC", "ASC"] as const)(
+    "should export every score exactly once across pages sorted by timestamp %s",
+    async (order) => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const scores = await createScoresWithTiedTimestamps(projectId);
+
+      const rows = await exportScoresInPages(projectId, order, false);
+
+      expectEveryScoreOnceInOrder(rows, scores, order);
+    },
+  );
+
+  it("should export every audit log exactly once across pages", async () => {
+    const { projectId, orgId } = await createOrgProjectAndApiKey();
+    const tiedCreatedAt = new Date("2024-01-02T10:00:00Z");
+    // Four entries share one createdAt so pages of two split a tie group.
+    const entries = Array.from({ length: 5 }, (_, i) => ({
+      id: randomUUID(),
+      projectId,
+      orgId,
+      type: "USER" as const,
+      userId: randomUUID(),
+      resourceType: "trace",
+      resourceId: randomUUID(),
+      action: "CREATE",
+      createdAt: i === 0 ? new Date("2024-01-01T10:00:00Z") : tiedCreatedAt,
+      updatedAt: tiedCreatedAt,
+    }));
+    await prisma.auditLog.createMany({ data: entries });
+
+    const stream = await getDatabaseReadStreamPaginated({
+      projectId,
+      tableName: BatchExportTableName.AuditLogs,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+      orderBy: { column: "createdAt", order: "DESC" },
+      pageSize: 2,
+    });
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows.map((r) => r.id).sort()).toEqual(
+      entries.map((e) => e.id).sort(),
+    );
+    expect(rows.at(-1).id).toBe(entries[0].id);
+  });
+
   it("should export traces with searchQuery and searchType filters applied correctly", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
@@ -2504,6 +2611,18 @@ describe("batch export test suite", () => {
   // ==================== EVENTS TABLE EXPORT TESTS ====================
 
   maybeDescribe("events table export tests", () => {
+    it.each(["DESC", "ASC"] as const)(
+      "should export every score exactly once across pages from the events table sorted by timestamp %s",
+      async (order) => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        const scores = await createScoresWithTiedTimestamps(projectId);
+
+        const rows = await exportScoresInPages(projectId, order, true);
+
+        expectEveryScoreOnceInOrder(rows, scores, order);
+      },
+    );
+
     it("should export scores with trace metadata from the events table when useEventsTable is true", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 

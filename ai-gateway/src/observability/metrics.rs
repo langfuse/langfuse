@@ -94,9 +94,6 @@ pub(crate) fn delivery(outcome: &'static str, reason: &'static str, records: u64
 }
 
 pub(crate) fn execution_finished(facts: &crate::capture::InferenceFacts) {
-    if let Some(request_id) = &facts.inference.provider_request_id {
-        tracing::Span::current().record("provider_request_id", request_id.as_str());
-    }
     let outcome = match facts.outcome {
         RelayOutcome::Eof => "complete",
         RelayOutcome::Cancelled => "cancelled",

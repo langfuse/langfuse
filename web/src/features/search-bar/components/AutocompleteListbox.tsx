@@ -15,7 +15,7 @@ import type {
 import { optionDomId } from "@/src/features/search-bar/components/presentation";
 
 function OptionIcon({ kind }: { kind: CompletionOption["kind"] }) {
-  const cls = "h-3.5 w-3.5 flex-none opacity-55";
+  const cls = "icon-base flex-none opacity-55";
   if (kind === "recent") return <Clock className={cls} aria-hidden />;
   if (kind === "preset") return <Bookmark className={cls} aria-hidden />;
   if (kind === "operator" || kind === "pattern")
@@ -141,7 +141,7 @@ export function AutocompleteListbox({
                 ))}
               {o.kind === "value" && o.active && (
                 <Check
-                  className="text-foreground/80 h-3.5 w-3.5 flex-none"
+                  className="text-foreground/80 icon-base flex-none"
                   aria-label="selected"
                 />
               )}

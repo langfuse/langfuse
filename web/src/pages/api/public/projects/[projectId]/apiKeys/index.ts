@@ -1,5 +1,6 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
+import { isBaseError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -91,6 +92,9 @@ export default async function handler(
         return;
     }
   } catch (e) {
+    if (isBaseError(e) && e.isUserError()) {
+      return res.status(e.httpCode).json({ message: e.message });
+    }
     logger.error("Failed to process project API key request", e);
     res.status(500).json({ message: "Internal server error" });
   }

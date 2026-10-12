@@ -94,13 +94,18 @@ export class GatewayApiKeyAuthenticator {
       connection: connection
         ? {
             id: connection.id,
+            name: connection.name,
             provider: connection.provider,
             encryptedCredential: connection.encryptedCredential,
           }
         : null,
     };
 
-    await this.cache.set({ ...params, context });
+    await this.cache.set({
+      ...params,
+      context,
+      expiresAt: row.apiKey.expiresAt,
+    });
     return context;
   }
 }

@@ -25,7 +25,7 @@ import {
 } from "@/src/features/setup";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import SwitcherMenuContent, {
   type SwitcherItem,
 } from "@/src/components/layouts/switcher-menu";
@@ -85,13 +85,16 @@ const BreadcrumbComponent = ({
       <BreadcrumbList>
         {organization && (
           <Popover open={orgSwitcherOpen} onOpenChange={setOrgSwitcherOpen}>
-            <PopoverTrigger className="text-primary flex h-5 items-center gap-1 p-0 text-sm leading-none">
+            <PopoverTrigger className="text-primary flex h-5 items-center gap-1.5 p-0 text-sm leading-none">
               {organization?.name ?? "Organization"}
               {isCloudPlan(organization?.plan) &&
                 organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
-                  <Badge className="ml-1" variant="secondary">
-                    {planLabels[organization.plan]}
-                  </Badge>
+                  <Badge
+                    color="filled"
+                    font="mono"
+                    size="sm"
+                    text={planLabels[organization.plan]}
+                  />
                 )}
               <DropdownIndicator size="sm" nudge />
             </PopoverTrigger>
@@ -114,7 +117,10 @@ const BreadcrumbComponent = ({
                       href={createOrganizationRoute}
                       onClick={() => setOrgSwitcherOpen(false)}
                     >
-                      <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                      <PlusIcon
+                        className="icon-base mr-1.5"
+                        aria-hidden="true"
+                      />
                       New Organization
                     </Link>
                   </Button>
@@ -132,7 +138,7 @@ const BreadcrumbComponent = ({
               open={projectSwitcherOpen}
               onOpenChange={setProjectSwitcherOpen}
             >
-              <PopoverTrigger className="text-primary flex h-5 items-center gap-1 p-0 leading-none">
+              <PopoverTrigger className="text-primary flex h-5 items-center gap-1.5 p-0 leading-none">
                 {project?.name ?? "Project"}
                 <DropdownIndicator size="sm" nudge />
               </PopoverTrigger>
@@ -158,7 +164,7 @@ const BreadcrumbComponent = ({
                         onClick={() => setProjectSwitcherOpen(false)}
                       >
                         <PlusIcon
-                          className="mr-1.5 h-4 w-4"
+                          className="icon-base mr-1.5"
                           aria-hidden="true"
                         />
                         New Project
