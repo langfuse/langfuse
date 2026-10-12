@@ -1,4 +1,5 @@
 import { createHash, getFips } from "crypto";
+import { createServer } from "http";
 import { PassThrough, Readable } from "stream";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -31,38 +32,50 @@ vi.mock("@aws-sdk/lib-storage", () => ({
 
 describe("S3StorageService region normalization", () => {
   it("configures a failing request timeout when requested", async () => {
-    const service = StorageServiceFactory.getInstance({
-      accessKeyId: "test-access-key",
-      secretAccessKey: "test-secret-key",
-      bucketName: "test-bucket",
-      endpoint: undefined,
-      region: "us-west-2",
-      forcePathStyle: false,
-      useAzureBlob: false,
-      useGoogleCloudStorage: false,
-      useOCIObjectStorage: false,
-      awsSse: undefined,
-      awsSseKmsKeyId: undefined,
-      s3RequestTimeoutMs: 50,
-    });
-    const client = (service as unknown as { client: S3Client }).client;
-    const handler = client.config.requestHandler as NodeHttpHandler;
-    await expect(
-      handler.handle(
-        {
-          protocol: "https:",
-          hostname: "example.com",
+    const server = createServer(() => {});
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Expected a local HTTP port");
+    }
+
+    try {
+      const service = StorageServiceFactory.getInstance({
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        bucketName: "test-bucket",
+        endpoint: undefined,
+        region: "us-west-2",
+        forcePathStyle: false,
+        useAzureBlob: false,
+        useGoogleCloudStorage: false,
+        useOCIObjectStorage: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+        s3RequestTimeoutMs: 50,
+      });
+      const client = (service as unknown as { client: S3Client }).client;
+      const handler = client.config.requestHandler as NodeHttpHandler;
+      await expect(
+        handler.handle({
+          protocol: "http:",
+          hostname: "127.0.0.1",
+          port: address.port,
           method: "GET",
           path: "/",
-        } as Parameters<NodeHttpHandler["handle"]>[0],
-        { abortSignal: AbortSignal.abort() },
-      ),
-    ).rejects.toThrow();
+        } as Parameters<NodeHttpHandler["handle"]>[0]),
+      ).rejects.toMatchObject({ name: "TimeoutError" });
 
-    expect(handler.httpHandlerConfigs()).toMatchObject({
-      requestTimeout: 50,
-      throwOnRequestTimeout: true,
-    });
+      expect(handler.httpHandlerConfigs()).toMatchObject({
+        requestTimeout: 50,
+        throwOnRequestTimeout: true,
+      });
+    } finally {
+      server.closeAllConnections();
+      server.close();
+    }
   });
 
   it("trims a persisted region before configuring the AWS client", async () => {
