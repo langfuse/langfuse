@@ -7,7 +7,7 @@ const { captureExceptionMock, addBreadcrumbMock, signInMock, routerState } =
     captureExceptionMock: vi.fn(),
     addBreadcrumbMock: vi.fn(),
     signInMock: vi.fn(),
-    routerState: { query: {} as Record<string, string> },
+    routerState: { query: {} as Record<string, string | string[]> },
   }));
 
 vi.mock("@sentry/nextjs", () => ({
@@ -520,5 +520,73 @@ describe("sign-in page last used SSO email", () => {
       ).toBeInTheDocument();
     });
     expect(storedSsoEmail()).toBe("jane@acme.com");
+  });
+});
+
+// The address is already on screen when "(forgot password?)" is clicked, so the
+// reset page should not ask for it a second time (langfuse#18583).
+describe("sign-in page forgot-password link", () => {
+  beforeEach(() => {
+    signInMock.mockReset();
+    routerState.query = {};
+    window.localStorage.clear();
+  });
+
+  const forgotPasswordLink = () =>
+    screen.getByRole("link", { name: /forgot password/i });
+
+  it("links to the bare reset page while the email field is empty", () => {
+    renderSignIn();
+
+    expect(forgotPasswordLink()).toHaveAttribute(
+      "href",
+      "/auth/reset-password",
+    );
+  });
+
+  it("carries the typed address over, percent-encoded", () => {
+    renderSignIn();
+
+    // A `+` is legal in an address and decodes back as a space unencoded.
+    fireEvent.change(screen.getByLabelText("Email"), {
+      target: { value: "  jane+test@example.com  " },
+    });
+
+    expect(forgotPasswordLink()).toHaveAttribute(
+      "href",
+      "/auth/reset-password?email=jane%2Btest%40example.com",
+    );
+  });
+
+  it("carries over an address restored from the query", () => {
+    routerState.query = { email: "jane@example.com" };
+
+    renderSignIn();
+
+    expect(forgotPasswordLink()).toHaveAttribute(
+      "href",
+      "/auth/reset-password?email=jane%40example.com",
+    );
+  });
+});
+
+// `?email=a&email=b` makes router.query.email an array. Rendering it would put
+// "a,b" in the field; reading it as a string would throw on an array.
+describe("sign-in page repeated ?email= param", () => {
+  beforeEach(() => {
+    signInMock.mockReset();
+    routerState.query = {};
+    window.localStorage.clear();
+  });
+
+  it("ignores the param rather than crashing or joining the values", () => {
+    routerState.query = { email: ["a@example.com", "b@example.com"] };
+
+    renderSignIn();
+
+    expect(screen.getByLabelText("Email")).toHaveValue("");
+    expect(
+      screen.getByRole("link", { name: /forgot password/i }),
+    ).toHaveAttribute("href", "/auth/reset-password");
   });
 });
