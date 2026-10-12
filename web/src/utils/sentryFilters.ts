@@ -308,10 +308,6 @@ const BENIGN_NON_ERROR_REJECTION_VALUE_PREFIXES: readonly string[] = [
   // scripts that reject with `Object Not Found Matching Id:<n>, MethodName:…`.
   // Industry-known scanner noise, never a browser session (LANGFUSE-11Z).
   "Object Not Found Matching Id:",
-  // Tauri desktop host: a plugin command blocked by the app's capability ACL
-  // (LANGFUSE-63P). Format is `Command plugin:<plugin>|<command> not allowed
-  // by ACL`. Same session as LANGFUSE-63Q. Langfuse has no Tauri plugins.
-  "Command plugin:",
 ];
 
 /**

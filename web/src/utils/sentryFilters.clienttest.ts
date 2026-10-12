@@ -685,23 +685,6 @@ describe("isDenylistedNoiseEvent", () => {
         ),
       ).toBe(true);
     });
-
-    it("drops a Tauri plugin ACL rejection (LANGFUSE-63P, variable plugin/command)", () => {
-      expect(
-        isDenylistedNoiseEvent(
-          nonErrorRejectionEvent(
-            "Command plugin:notification|is_permission_granted not allowed by ACL",
-          ),
-        ),
-      ).toBe(true);
-      expect(
-        isDenylistedNoiseEvent(
-          nonErrorRejectionEvent(
-            "Command plugin:fs|read_file not allowed by ACL",
-          ),
-        ),
-      ).toBe(true);
-    });
   });
 
   describe("E. drops environmental storage-access SecurityError (console-captured only)", () => {
@@ -1241,32 +1224,6 @@ describe("isDenylistedNoiseEvent", () => {
       expect(
         isDenylistedNoiseEvent(
           messageEvent("Browser action session is not active."),
-        ),
-      ).toBe(false);
-    });
-
-    it("keeps a Command plugin phrase that is not a Tauri ACL rejection", () => {
-      const unknownRejection = {
-        exception: {
-          values: [
-            {
-              type: "UnhandledRejection",
-              value:
-                "Non-Error promise rejection captured with value: Command plugin failed to initialize",
-              mechanism: {
-                type: "auto.browser.global_handlers.onunhandledrejection",
-                handled: false,
-              },
-            },
-          ],
-        },
-      } as ErrorEvent;
-      expect(isDenylistedNoiseEvent(unknownRejection)).toBe(false);
-      expect(
-        isDenylistedNoiseEvent(
-          exceptionEvent(
-            "Command plugin:notification|is_permission_granted not allowed by ACL",
-          ),
         ),
       ).toBe(false);
     });
