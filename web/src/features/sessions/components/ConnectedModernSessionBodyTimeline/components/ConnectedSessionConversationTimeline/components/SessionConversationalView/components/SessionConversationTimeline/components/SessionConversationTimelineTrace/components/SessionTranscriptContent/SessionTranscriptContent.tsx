@@ -4,6 +4,7 @@ import { getSessionTranscriptRows } from "@/src/features/sessions/components/Con
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
 import { SessionTimelineToolRow } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineToolRow/SessionTimelineToolRow";
 import { Wrench } from "lucide-react";
+import { getSessionToolOutputPreview } from "./components/SessionTimelineToolRow/getSessionToolOutputPreview";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { type SessionTraceTranscriptState } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
 import { SessionTimelineContentMessage } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineContentMessage/SessionTimelineContentMessage";
@@ -338,6 +339,9 @@ function SessionTranscriptTool({
   trailingContent: ReactNode;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const preview = row.result
+    ? getSessionToolOutputPreview(row.result.output)
+    : undefined;
   const status = getSessionToolStatus({
     level: row.message.level,
     statusMessage: row.message.statusMessage,
@@ -347,7 +351,8 @@ function SessionTranscriptTool({
     <SessionTimelineToolRow
       name={row.call?.toolName ?? row.result?.toolName ?? "Tool"}
       input={row.call?.input}
-      output={row.result?.output}
+      output={preview?.value}
+      omittedContent={preview?.omittedContent}
       {...status}
       isExpanded={isExpanded}
       onExpandedChange={setIsExpanded}

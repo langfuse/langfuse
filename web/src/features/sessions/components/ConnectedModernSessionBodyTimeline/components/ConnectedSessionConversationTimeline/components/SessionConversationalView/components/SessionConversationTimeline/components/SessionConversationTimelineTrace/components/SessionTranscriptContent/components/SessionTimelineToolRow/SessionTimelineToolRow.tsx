@@ -7,8 +7,7 @@ import { cn } from "@/src/utils/tailwind";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
 import { type Observation } from "@langfuse/shared";
 
-import type { ToolResultPart } from "@langfuse/shared/src/utils/normalized-io";
-import { getSessionToolOutputPreview } from "./getSessionToolOutputPreview";
+import type { getSessionToolOutputPreview } from "./getSessionToolOutputPreview";
 
 const hasPreviewValue = (value: unknown) =>
   value !== null && value !== undefined && value !== "";
@@ -17,6 +16,7 @@ export function SessionTimelineToolRow({
   name,
   input,
   output,
+  omittedContent = [],
   isExpanded,
   onExpandedChange,
   level,
@@ -25,16 +25,17 @@ export function SessionTimelineToolRow({
 }: {
   name: string;
   input: unknown;
-  output: ToolResultPart["output"] | undefined;
+  output: unknown;
+  omittedContent?: ReturnType<
+    typeof getSessionToolOutputPreview
+  >["omittedContent"];
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
   level?: Observation["level"];
   statusMessage?: Observation["statusMessage"];
   trailingContent?: ReactNode;
 }) {
-  const preview = output ? getSessionToolOutputPreview(output) : undefined;
-  const hasOutput = hasPreviewValue(preview?.value);
-  const omittedContent = preview?.omittedContent ?? [];
+  const hasOutput = hasPreviewValue(output);
   const StatusIcon = level
     ? (
         {
@@ -112,11 +113,7 @@ export function SessionTimelineToolRow({
             </span>
             {hasOutput ? (
               <div className="grid max-h-96 min-w-0">
-                <Codeblock
-                  label="Tool output"
-                  value={preview?.value}
-                  allowFormatting
-                />
+                <Codeblock label="Tool output" value={output} allowFormatting />
               </div>
             ) : null}
             {omittedContent.map(({ kind, count }) => (
