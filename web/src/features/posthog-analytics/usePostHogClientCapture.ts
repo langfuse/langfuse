@@ -524,8 +524,9 @@ export const usePostHogClientCapture = () => {
   return useCallback(
     function capture<E extends EventName>(
       eventName: E,
-      properties?: EventProperties[E],
-      options?: CaptureOptions,
+      ...[properties, options]: E extends keyof ToastEventMap
+        ? [properties: EventProperties[E], options?: CaptureOptions]
+        : [properties?: EventProperties[E], options?: CaptureOptions]
     ): CaptureResult | void {
       return posthog.capture(eventName, properties, options);
     },

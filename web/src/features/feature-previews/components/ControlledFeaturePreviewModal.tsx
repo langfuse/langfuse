@@ -5,6 +5,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
 import { featurePreviewLabels } from "@/src/features/feature-flags";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 import {
   FeaturePreviewModal,
@@ -39,7 +40,11 @@ export function ControlledFeaturePreviewModal({
         });
       },
       onError: (error) => {
-        showErrorToast("Failed to update feature preview", error.message);
+        showErrorToast(
+          "Failed to update feature preview",
+          error.message,
+          classifyTrpcToastError(error, "user_feature_preview.update"),
+        );
       },
     });
 
