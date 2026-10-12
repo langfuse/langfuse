@@ -52,6 +52,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     recordGauge: vi.fn(),
     recordIncrement: vi.fn(),
     getS3EventStorageClient: vi.fn(),
+    getTracingProcessingSettings: vi.fn(original.getTracingProcessingSettings),
   };
 });
 
@@ -904,6 +905,59 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(await dueOffset("capped")).toBeGreaterThan(1_760_000);
     } finally {
       await prisma.organization.delete({ where: { id: orgId } });
+    }
+  });
+
+  it("shares one in-flight idle time read across concurrent jobs of a project", async () => {
+    const projectId = `project-${randomUUID()}`;
+    let resolveRead!: (value: { traceIdleMs: number | null }) => void;
+    vi.mocked(shared.getTracingProcessingSettings).mockImplementationOnce(
+      () => new Promise((resolve) => (resolveRead = resolve)),
+    );
+
+    const tracking = Promise.all([
+      trackTraceBatchActivity(projectId, [event("first")]),
+      trackTraceBatchActivity(projectId, [event("second")]),
+    ]);
+    await vi.waitFor(() => expect(resolveRead).toBeDefined());
+    resolveRead({ traceIdleMs: 120_000 });
+    await tracking;
+    await trackTraceBatchActivity(projectId, [event("cached")]);
+
+    expect(shared.getTracingProcessingSettings).toHaveBeenCalledTimes(1);
+    const now = Date.now();
+    for (const traceId of ["first", "second", "cached"]) {
+      const offset =
+        Number(await client().zscore(dueKey, member(projectId, traceId))) - now;
+      expect(offset).toBeGreaterThan(100_000);
+      expect(offset).toBeLessThan(130_000);
+    }
+  });
+
+  it("uses the default when the idle time read times out, then backs off", async () => {
+    const projectId = `project-${randomUUID()}`;
+    vi.mocked(shared.getTracingProcessingSettings).mockImplementationOnce(
+      () => new Promise(() => {}),
+    );
+    const started = Date.now();
+
+    await trackTraceBatchActivity(projectId, [event("timed-out")]);
+    const waited = Date.now() - started;
+    await trackTraceBatchActivity(projectId, [event("backed-off")]);
+
+    expect(waited).toBeGreaterThanOrEqual(450);
+    expect(waited).toBeLessThan(2_000);
+    expect(shared.getTracingProcessingSettings).toHaveBeenCalledTimes(1);
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.idle_time_read_failures",
+      1,
+    );
+    const now = Date.now();
+    for (const traceId of ["timed-out", "backed-off"]) {
+      const offset =
+        Number(await client().zscore(dueKey, member(projectId, traceId))) - now;
+      expect(offset).toBeGreaterThan(590_000);
+      expect(offset).toBeLessThan(610_000);
     }
   });
 
