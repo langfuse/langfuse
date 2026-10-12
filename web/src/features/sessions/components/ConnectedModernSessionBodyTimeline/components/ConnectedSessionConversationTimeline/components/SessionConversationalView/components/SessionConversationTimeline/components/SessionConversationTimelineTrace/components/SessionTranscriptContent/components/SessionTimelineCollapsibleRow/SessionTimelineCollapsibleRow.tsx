@@ -98,7 +98,7 @@ export function SessionTimelineCollapsibleRow({
           className={cn(
             "mx-3 min-w-0 flex-1",
             showHoverDivider &&
-              "border-border invisible border-t border-dashed group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible",
+              "border-border invisible border-t border-dashed group-hover/collapsible-row:visible group-has-[:focus-visible]/collapsible-row:visible",
           )}
           aria-hidden="true"
         />

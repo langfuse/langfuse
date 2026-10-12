@@ -70,12 +70,12 @@ export function SessionTimelineToolRow({
                     "ml-1 flex shrink-0 items-center",
                     (
                       {
-                        ERROR: "text-red-800 dark:text-dark-red/90",
-                        WARNING: "text-yellow-800 dark:text-dark-yellow",
+                        ERROR: "dark:text-dark-red/90 text-red-800",
+                        WARNING: "dark:text-dark-yellow text-yellow-800",
                         DEFAULT:
-                          "text-muted-foreground invisible group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible",
+                          "text-muted-foreground invisible group-hover/collapsible-row:visible group-has-[:focus-visible]/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible",
                         DEBUG:
-                          "text-muted-foreground invisible group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible",
+                          "text-muted-foreground invisible group-hover/collapsible-row:visible group-has-[:focus-visible]/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible",
                       } satisfies Record<Observation["level"], string>
                     )[level],
                   )}
