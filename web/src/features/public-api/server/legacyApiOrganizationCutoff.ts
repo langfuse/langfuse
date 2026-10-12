@@ -8,7 +8,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
+import { requestPathForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
 
 const utcDateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -41,7 +41,8 @@ export function applyLegacyApiOrganizationCutoff(params: {
     return null;
   }
 
-  const apiPath = clickHouseRouteForRequest(params.req);
+  const { method, pathname } = requestPathForRequest(params.req);
+  const apiPath = `${method} ${pathname}`;
   const callerAttribution = extractPublicApiCallerAttribution(
     params.req.headers,
   );

@@ -54,11 +54,10 @@ export const CLICKHOUSE_RESOURCE_ERROR_OUTCOMES = {
  * - Bare routes (`events.all`, `listObservations`, `langfuse.queue.trace_delete`)
  *   are tRPC procedure paths, MCP tool names and worker routes. Each is set only
  *   after the procedure, tool or queue resolved, so they pass through.
- * - REST routes carry a templated path (`GET /api/public/traces/[traceId]`).
- *   Templating replaces caller-supplied segments with their parameter name, but
- *   it can miss one (e.g. a value that does not round-trip through URL
- *   decoding). A segment that is neither a word, a version (`v2`) nor a
- *   `[param]` placeholder therefore drops the route to `other`.
+ * - REST routes carry their page template (`GET /api/public/traces/[traceId]`),
+ *   taken from a list of the dynamic API routes in web. As a guard against a
+ *   route missing from that list, a segment that is neither a word, a version
+ *   (`v2`) nor a `[param]` placeholder drops the route to `other`.
  */
 const BARE_ROUTE_PATTERN = /^[A-Za-z][\w.]{0,99}$/;
 const REST_PATH_PREFIX = "/api/";

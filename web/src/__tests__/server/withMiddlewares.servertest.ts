@@ -3,7 +3,12 @@ import {
   LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
-import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
+import {
+  clickHouseRouteForRequest,
+  DYNAMIC_API_ROUTE_TEMPLATES,
+} from "@/src/features/public-api/server/clickHouseRequestTags";
+import { readdirSync, readFileSync } from "fs";
+import { join, relative } from "path";
 import {
   BaseError,
   LangfuseNotFoundError,
@@ -54,28 +59,56 @@ describe("clickHouseRouteForRequest", () => {
     ).toBe("POST http://[::1");
   });
 
-  it("replaces dynamic segments with their route parameter names", () => {
+  it("reports a dynamic route as its template", () => {
     expect(
-      clickHouseRouteForRequest({
-        method: "GET",
-        url: "/api/public/v2/prompts/team%2Fsupport/versions/3?label=prod",
-        query: {
-          promptName: "team/support",
-          promptVersion: "3",
-          label: "prod",
-        },
-      } as unknown as NextApiRequest),
+      clickHouseRouteForRequest(
+        request(
+          "GET",
+          "/api/public/v2/prompts/team%2Fsupport/versions/3?label=prod",
+        ),
+      ),
     ).toBe("GET /api/public/v2/prompts/[promptName]/versions/[promptVersion]");
   });
 
-  it("does not template a segment with a caller-chosen search parameter", () => {
-    expect(
-      clickHouseRouteForRequest({
-        method: "GET",
-        url: "/api/public/v2/metrics?anything=metrics",
-        query: { anything: "metrics" },
-      } as unknown as NextApiRequest),
-    ).toBe("GET /api/public/v2/metrics");
+  // A caller-chosen id must not survive into the route: the route tag feeds a
+  // metric, so every distinct id would add a series.
+  it.each([
+    "/api/public/traces/abcdefgh?traceId=x",
+    "/api/public/traces/api",
+    "/api/public/traces/traces/",
+  ])("templates %s regardless of the id's value", (url) => {
+    expect(clickHouseRouteForRequest(request("GET", url))).toBe(
+      "GET /api/public/traces/[traceId]",
+    );
+  });
+
+  it("lists every dynamic API route that tags its ClickHouse queries", () => {
+    const pagesDir = join(__dirname, "../../pages");
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+        entry.isDirectory()
+          ? walk(join(dir, entry.name))
+          : [join(dir, entry.name)],
+      );
+    const tagsQueries = (file: string) =>
+      file.includes("/api/public/") ||
+      /\b(withMiddlewares|createAuthedProjectAPIRoute|clickHouseRouteForRequest)\(/.test(
+        readFileSync(file, "utf8"),
+      );
+    const dynamicTemplates = walk(join(pagesDir, "api"))
+      .filter((file) => file.endsWith(".ts") && file.includes("["))
+      .filter(tagsQueries)
+      .map(
+        (file) =>
+          "/" +
+          relative(pagesDir, file)
+            .replace(/\.ts$/, "")
+            .replace(/\/index$/, ""),
+      );
+
+    expect([...DYNAMIC_API_ROUTE_TEMPLATES].sort()).toEqual(
+      [...new Set(dynamicTemplates)].sort(),
+    );
   });
 
   it("falls back to UNKNOWN method for missing methods", () => {
