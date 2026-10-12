@@ -134,7 +134,7 @@ async fn signs_the_exact_key_and_sends_api_format_and_model() {
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
-            "primary:gpt-4.1",
+            Some("primary:gpt-4.1"),
             NOW_TIME,
             REQUEST_ID,
         )
@@ -189,7 +189,7 @@ async fn denied_and_failed_resolutions_are_classified_without_retries_or_body_le
             .resolve_at(
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
-                "primary:gpt-4.1",
+                Some("primary:gpt-4.1"),
                 NOW_TIME,
                 REQUEST_ID,
             )
@@ -228,7 +228,7 @@ async fn never_follows_redirects_with_credentials() {
             .resolve_at(
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
-                "primary:gpt-4.1",
+                Some("primary:gpt-4.1"),
                 NOW_TIME,
                 REQUEST_ID
             )
@@ -260,7 +260,7 @@ async fn rejects_oversized_declared_and_chunked_responses() {
             .resolve_at(
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
-                "primary:gpt-4.1",
+                Some("primary:gpt-4.1"),
                 NOW_TIME,
                 REQUEST_ID,
             )
@@ -293,7 +293,7 @@ async fn deadline_covers_response_headers_and_body() {
                 .resolve_at(
                     GATEWAY_KEY,
                     ApiFormat::OpenAiResponses,
-                    "primary:gpt-4.1",
+                    Some("primary:gpt-4.1"),
                     NOW_TIME,
                     REQUEST_ID,
                 ),
@@ -314,7 +314,7 @@ async fn malformed_credentials_never_reach_web() {
             .resolve_at(
                 key,
                 ApiFormat::OpenAiResponses,
-                "primary:gpt-4.1",
+                Some("primary:gpt-4.1"),
                 NOW_TIME,
                 REQUEST_ID,
             )
@@ -338,7 +338,7 @@ async fn rejects_a_grant_that_expires_while_resolving_across_a_second_boundary()
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
-            "primary:gpt-4.1",
+            Some("primary:gpt-4.1"),
             NOW_TIME + Duration::from_millis(900),
             REQUEST_ID,
         )
@@ -365,14 +365,14 @@ async fn concurrent_resolutions_keep_credentials_and_contexts_isolated() {
         control_plane.resolve_at(
             "gw_test_alice",
             ApiFormat::OpenAiResponses,
-            "primary:gpt-4.1",
+            Some("primary:gpt-4.1"),
             NOW_TIME,
             REQUEST_ID
         ),
         control_plane.resolve_at(
             "gw_test_bob",
             ApiFormat::OpenAiResponses,
-            "primary:gpt-4.1",
+            Some("primary:gpt-4.1"),
             NOW_TIME,
             REQUEST_ID
         ),
@@ -422,7 +422,7 @@ async fn resolves_anthropic_messages_with_the_native_credential_scheme() {
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::AnthropicMessages,
-            "primary:claude-sonnet-4-5",
+            Some("primary:claude-sonnet-4-5"),
             NOW_TIME,
             REQUEST_ID,
         )
@@ -473,7 +473,7 @@ async fn chat_completions_resolve_only_an_openai_connection_for_that_format() {
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::OpenAiChatCompletions,
-            "primary:gpt-4.1",
+            Some("primary:gpt-4.1"),
             NOW_TIME,
             REQUEST_ID,
         )
@@ -661,7 +661,7 @@ async fn rejects_ingestion_tokens_that_authorize_a_different_tenant() {
             .resolve_at(
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
-                "primary:gpt-4.1",
+                Some("primary:gpt-4.1"),
                 NOW_TIME,
                 REQUEST_ID
             )
@@ -685,7 +685,7 @@ async fn assert_invalid_context_for(body: Value, api_format: ApiFormat) {
         .resolve_at(
             GATEWAY_KEY,
             api_format,
-            "primary:provider-model",
+            Some("primary:provider-model"),
             NOW_TIME,
             REQUEST_ID,
         )
@@ -705,7 +705,7 @@ async fn rejects_malformed_json_without_exposing_response_contents() {
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
-            "primary:gpt-4.1",
+            Some("primary:gpt-4.1"),
             NOW_TIME,
             REQUEST_ID,
         )
