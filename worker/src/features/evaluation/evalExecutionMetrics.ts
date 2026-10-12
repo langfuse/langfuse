@@ -18,6 +18,8 @@ export type EvalExecutionTerminalOutcome =
   | "customer_error"
   | "cancelled";
 
+type EvalScoreCountBucket = "0" | "1" | "2" | "3-5" | "6-10" | "11+";
+
 const LLM_EVAL_CUSTOMER_OUTPUT_ERROR_NAMES: ReadonlySet<string> = new Set([
   "AI_NoObjectGeneratedError",
   "AI_NoOutputGeneratedError",
@@ -55,6 +57,18 @@ export function recordEvalTerminalOutcome(
   recordIncrement("langfuse.evaluation.execution.terminal", 1, {
     evaluator_type: getEvaluatorTypeTag(executionType),
     outcome,
+  });
+}
+
+export function recordEvalScorePersistenceOutcome(
+  executionType: ObservationEvalExecutionType,
+  outcome: "success" | "failure",
+  scoreCount: number,
+): void {
+  recordIncrement("langfuse.evaluation.score_persistence", 1, {
+    evaluator_type: getEvaluatorTypeTag(executionType),
+    outcome,
+    score_count_bucket: getEvalScoreCountBucket(scoreCount),
   });
 }
 
@@ -139,3 +153,16 @@ function getEvaluatorTypeTag(
     ? "llm_as_judge"
     : "code_as_judge";
 }
+
+function getEvalScoreCountBucket(scoreCount: number): EvalScoreCountBucket {
+  if (scoreCount === 0) return "0";
+  if (scoreCount === 1) return "1";
+  if (scoreCount === 2) return "2";
+  if (scoreCount <= 5) return "3-5";
+  if (scoreCount <= 10) return "6-10";
+  return "11+";
+}
+
+export const __test = {
+  getEvalScoreCountBucket,
+};
