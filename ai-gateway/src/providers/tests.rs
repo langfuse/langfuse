@@ -36,12 +36,23 @@ const CALLER_CONTEXT_HEADERS: [(&str, &str); 9] = [
     ("langfuse-metadata", "private:value"),
 ];
 
+#[test]
+fn model_rewrite_changes_only_the_top_level_model_bytes() {
+    let original = Bytes::from_static(
+        br#"{ "z": {"second":2, "first":1}, "model" : "connection:model", "number": 1.0e2, "escaped":"\u00e9" }"#,
+    );
+    let expected = Bytes::from_static(
+        br#"{ "z": {"second":2, "first":1}, "model" : "provider-model", "number": 1.0e2, "escaped":"\u00e9" }"#,
+    );
+    assert_eq!(rewrite_model(original, "provider-model"), expected);
+}
+
 #[tokio::test]
 async fn rewrites_the_model_and_isolates_request_and_response_headers() {
     const REQUEST: &[u8] =
         br#"{ "model": "opaque", "future_field": {"model":"opaque","values":[true,3]} }"#;
     const UPSTREAM_REQUEST: &[u8] =
-        br#"{"future_field":{"model":"opaque","values":[true,3]},"model":"provider-model"}"#;
+        br#"{ "model": "provider-model", "future_field": {"model":"opaque","values":[true,3]} }"#;
     const RESPONSE: &[u8] = b"\x1f\x8b\x08\x00opaque-encoded-response";
     let upstream = FakeServer::start(|request| async move {
         assert_eq!(request.uri(), "/v1/responses");
@@ -566,7 +577,7 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
     const COMPACT: &[u8] =
         br#"{"model":"gpt-4.1","input":[{"encrypted_content":"opaque-ciphertext"}]}"#;
     const UPSTREAM_COMPACT: &[u8] =
-        br#"{"input":[{"encrypted_content":"opaque-ciphertext"}],"model":"provider-model"}"#;
+        br#"{"model":"provider-model","input":[{"encrypted_content":"opaque-ciphertext"}]}"#;
     const COMPACT_RESPONSE: &str =
         r#"{"id":"comp_1","output":[{"encrypted_content":"opaque-ciphertext"}]}"#;
     const MODELS: &str = r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#;
@@ -772,7 +783,7 @@ fn headers(pairs: &[(&'static str, &'static str)]) -> HeaderMap {
 #[tokio::test]
 async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_family() {
     const REQUEST: &[u8] = br#"{"model":"claude-sonnet-4-5","system":[{"type":"text","text":"attribution","cache_control":{"type":"ephemeral"}}],"future_field":true}"#;
-    const UPSTREAM_REQUEST: &[u8] = br#"{"future_field":true,"model":"provider-model","system":[{"cache_control":{"type":"ephemeral"},"text":"attribution","type":"text"}]}"#;
+    const UPSTREAM_REQUEST: &[u8] = br#"{"model":"provider-model","system":[{"type":"text","text":"attribution","cache_control":{"type":"ephemeral"}}],"future_field":true}"#;
     let upstream = FakeServer::start(|request| async move {
         assert_eq!(request.uri(), "/v1/messages");
         assert_eq!(request.method(), "POST");
@@ -874,7 +885,7 @@ async fn count_tokens_relays_the_body_and_models_forwards_only_pagination() {
                 assert_eq!(query, None);
                 assert_eq!(
                     to_bytes(request.into_body(), 1024).await.unwrap(),
-                    r#"{"messages":[],"model":"provider-model"}"#
+                    r#"{"model":"provider-model","messages":[]}"#
                 );
                 Response::builder()
                     .header("content-type", "application/json")
@@ -1027,7 +1038,7 @@ async fn chat_completions_streams_request_usage_and_relay_the_usage_chunk() {
             }
             assert_eq!(
                 to_bytes(request.into_body(), 4096).await.unwrap(),
-                r#"{"messages":[{"content":"Say hello","role":"user"}],"model":"provider-model","stream":true,"stream_options":{"include_usage":true}}"#
+                r#"{"model":"provider-model","messages":[{"role":"user","content":"Say hello"}],"stream":true,"stream_options":{"include_usage":true}}"#
             );
             // Arrive split mid-event, as a provider stream may.
             let native = [CHAT_CONTENT_CHUNK, CHAT_USAGE_CHUNK, CHAT_DONE].concat();
@@ -1088,7 +1099,7 @@ async fn chat_completions_rewrite_non_streamed_models() {
     let upstream = FakeServer::start(|request| async move {
         assert_eq!(
             to_bytes(request.into_body(), 4096).await.unwrap(),
-            r#"{"messages":[],"model":"provider-model"}"#
+            r#"{"model":"provider-model", "messages":[]}"#
         );
         Response::builder()
             .header("content-type", "application/json")

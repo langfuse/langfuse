@@ -317,20 +317,35 @@ impl ProviderTransport {
     }
 }
 
+#[derive(serde::Deserialize)]
+struct ModelMember<'a> {
+    #[serde(borrow)]
+    model: &'a serde_json::value::RawValue,
+}
+
 fn rewrite_model(body: Bytes, provider_model: &str) -> Bytes {
-    let Ok(mut request) = serde_json::from_slice::<serde_json::Value>(&body) else {
+    let (start, end) = {
+        let Ok(request) = serde_json::from_slice::<ModelMember<'_>>(&body) else {
+            return body;
+        };
+        let model = request.model.get();
+        let Some(start) = (model.as_ptr() as usize).checked_sub(body.as_ptr() as usize) else {
+            return body;
+        };
+        let end = start.saturating_add(model.len());
+        if end > body.len() {
+            return body;
+        }
+        (start, end)
+    };
+    let Ok(model) = serde_json::to_vec(provider_model) else {
         return body;
     };
-    let Some(model) = request
-        .as_object_mut()
-        .and_then(|request| request.get_mut("model"))
-    else {
-        return body;
-    };
-    *model = serde_json::Value::String(provider_model.to_owned());
-    serde_json::to_vec(&request)
-        .map(Bytes::from)
-        .unwrap_or(body)
+    let mut rewritten = Vec::with_capacity(body.len() - (end - start) + model.len());
+    rewritten.extend_from_slice(&body[..start]);
+    rewritten.extend_from_slice(&model);
+    rewritten.extend_from_slice(&body[end..]);
+    Bytes::from(rewritten)
 }
 
 fn provider_credential(
