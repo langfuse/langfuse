@@ -46,10 +46,9 @@ export function GatewayConnectionModelsPage({
     return (
       <ConnectionModelsLoadError
         organizationId={organizationId}
-        retry={() => {
-          void connectionQuery.refetch();
-          void modelsQuery.refetch();
-        }}
+        retry={() =>
+          Promise.all([connectionQuery.refetch(), modelsQuery.refetch()])
+        }
       />
     );
   }
@@ -90,7 +89,7 @@ export function GatewayConnectionModelsPage({
         Provider credentials
       </Link>
       <div>
-        <h2 className="text-lg font-semibold">{connection.name}</h2>
+        <h2 className="text-lg font-bold">{connection.name}</h2>
         <p className="text-muted-foreground mt-2 text-sm">
           Only enabled models can be requested through this credential.{" "}
           {enabledCount} of {models.length} enabled.

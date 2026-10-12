@@ -82,9 +82,8 @@ export function GatewayProvidersPage({
     }
   };
 
-  const selectConnection = (connection: GatewayConnection) => {
-    void router.push(buildGatewayModelsUrl(organizationId, connection.id));
-  };
+  const selectConnection = (connection: GatewayConnection) =>
+    router.push(buildGatewayModelsUrl(organizationId, connection.id));
 
   if (connectionId) {
     return (
