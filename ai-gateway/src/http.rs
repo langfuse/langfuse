@@ -121,21 +121,27 @@ async fn relay(
         .filter(|_| state.lifecycle.is_ready())
         .ok_or(InferenceHttpError::Unavailable)?;
     let gateway_key = gateway_key(request.headers(), route.api_format())?.to_owned();
+    if route.method() != axum::http::Method::GET
+        && !crate::transport::identity_encoding(request.headers())
+    {
+        return Err(InferenceHttpError::UnsupportedEncoding);
+    }
+    let resolution_permit = inference
+        .try_reserve_resolution()
+        .map_err(InferenceHttpError::from)?;
     let query = forwarded_query(route, request.uri().query());
     let (parts, body) = request.into_parts();
     let (bytes, model) = request_body_and_model(route, body).await?;
     let (permit, context) = inference
         .resolve_and_admit(
+            resolution_permit,
             &gateway_key,
             route.api_format(),
             model.as_deref(),
             correlation,
         )
         .await
-        .map_err(|error| match error {
-            RequestPreparationError::Resolution(error) => InferenceHttpError::Resolution(error),
-            RequestPreparationError::Provider(error) => InferenceHttpError::Provider(error),
-        })?;
+        .map_err(InferenceHttpError::from)?;
     inference
         .forward(
             permit,
@@ -266,9 +272,19 @@ enum InferenceHttpError {
     AmbiguousCredential,
     TooLarge,
     RequestTimeout,
+    UnsupportedEncoding,
     InvalidBody,
     Resolution(ResolutionError),
     Provider(ProviderError),
+}
+
+impl From<RequestPreparationError> for InferenceHttpError {
+    fn from(error: RequestPreparationError) -> Self {
+        match error {
+            RequestPreparationError::Resolution(error) => Self::Resolution(error),
+            RequestPreparationError::Provider(error) => Self::Provider(error),
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -308,6 +324,7 @@ impl InferenceHttpError {
             Self::AmbiguousCredential => ("authentication", "ambiguous_credential"),
             Self::TooLarge => ("request", "body_too_large"),
             Self::RequestTimeout => ("request", "body_timeout"),
+            Self::UnsupportedEncoding => ("request", "unsupported_content_encoding"),
             Self::InvalidBody => ("request", "invalid_body"),
             Self::Resolution(error) => (
                 "resolution",
@@ -374,6 +391,12 @@ impl InferenceHttpError {
                 "Request body read deadline exceeded",
                 "invalid_request_error",
                 "request_timeout",
+            ),
+            Self::UnsupportedEncoding => (
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                "Unsupported request Content-Encoding",
+                "invalid_request_error",
+                "unsupported_content_encoding",
             ),
             Self::InvalidBody => (
                 StatusCode::BAD_REQUEST,

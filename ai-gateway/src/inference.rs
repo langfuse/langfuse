@@ -3,7 +3,7 @@ use axum::{
     body::{Body, Bytes},
     http::{HeaderMap, Response},
 };
-use tokio::sync::Semaphore;
+use tokio::sync::{Semaphore, SemaphorePermit};
 use tracing::Instrument;
 
 use crate::{
@@ -24,6 +24,10 @@ pub struct InferenceService {
 pub(crate) enum RequestPreparationError {
     Resolution(ResolutionError),
     Provider(ProviderError),
+}
+
+pub(crate) struct ResolutionPermit<'a> {
+    _permit: SemaphorePermit<'a>,
 }
 
 impl InferenceService {
@@ -55,11 +59,22 @@ impl InferenceService {
         self.telemetry.clone()
     }
 
-    /// Authenticate with a separate bounded budget before reserving execution capacity.
-    /// The API format comes from the public route, so Web selects a compatible connection.
-    /// A successful resolution is recorded even if execution admission then fails.
+    pub(crate) fn try_reserve_resolution(
+        &self,
+    ) -> Result<ResolutionPermit<'_>, RequestPreparationError> {
+        let permit = self.resolution_capacity.try_acquire().map_err(|_| {
+            crate::observability::rejected("resolution");
+            RequestPreparationError::Resolution(ResolutionError::Unavailable)
+        })?;
+        Ok(ResolutionPermit { _permit: permit })
+    }
+
+    /// Authenticate with the permit reserved before the request body was buffered, then reserve
+    /// execution capacity. The API format comes from the public route, so Web selects a compatible
+    /// connection. A successful resolution is recorded even if execution admission then fails.
     pub(crate) async fn resolve_and_admit(
         &self,
+        resolution_permit: ResolutionPermit<'_>,
         gateway_key: &str,
         api_format: ApiFormat,
         model: Option<&str>,
@@ -72,7 +87,13 @@ impl InferenceService {
         );
         async {
             let prepared = self
-                .prepare(gateway_key, api_format, model, correlation)
+                .prepare(
+                    resolution_permit,
+                    gateway_key,
+                    api_format,
+                    model,
+                    correlation,
+                )
                 .await;
             tracing::Span::current().record(
                 "gateway.outcome",
@@ -90,22 +111,20 @@ impl InferenceService {
 
     async fn prepare(
         &self,
+        resolution_permit: ResolutionPermit<'_>,
         gateway_key: &str,
         api_format: ApiFormat,
         model: Option<&str>,
         correlation: &mut RequestCorrelation,
     ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
         let context = {
-            let _permit = self.resolution_capacity.try_acquire().map_err(|_| {
-                crate::observability::rejected("resolution");
-                RequestPreparationError::Resolution(ResolutionError::Unavailable)
-            })?;
             let _active = crate::observability::Active::new("resolution");
             self.control_plane
                 .resolve(gateway_key, api_format, model, correlation.id())
                 .await
                 .map_err(RequestPreparationError::Resolution)?
         };
+        drop(resolution_permit);
         correlation.record_resolution(&context);
         let permit = self
             .provider

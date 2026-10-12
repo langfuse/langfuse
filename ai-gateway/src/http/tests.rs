@@ -5,7 +5,11 @@ use crate::{
     test_support::{FakeServer, resolution_response, resolution_response_for},
 };
 use futures_util::{StreamExt, stream};
-use std::convert::Infallible;
+use std::{
+    convert::Infallible,
+    io::Write,
+    sync::atomic::{AtomicBool, Ordering},
+};
 use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
 use tower::ServiceExt;
 
@@ -131,6 +135,65 @@ async fn resolution_capacity_is_bounded_and_released_on_cancellation_and_failure
     }
     assert_eq!(web.calls(), 3);
     assert_eq!(provider.calls(), 1);
+}
+
+#[tokio::test]
+async fn body_read_is_bounded_by_resolution_admission() {
+    let entered = Arc::new(tokio::sync::Notify::new());
+    let started = entered.clone();
+    let web = FakeServer::start(move |_| {
+        let started = started.clone();
+        async move {
+            started.notify_one();
+            std::future::pending().await
+        }
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let gateway = Gateway::start(Some(InferenceService::for_test(
+        web.control_plane(),
+        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+        1,
+    )))
+    .await;
+    let mut held = Box::pin(
+        gateway.app.clone().oneshot(
+            Request::post("/openai/v1/responses")
+                .header(header::AUTHORIZATION, "Bearer held")
+                .body(Body::from(r#"{"model":"connection:model"}"#))
+                .unwrap(),
+        ),
+    );
+    tokio::time::timeout(Duration::from_secs(2), async {
+        tokio::select! {
+            () = entered.notified() => {},
+            _ = &mut held => panic!("resolution should remain pending"),
+        }
+    })
+    .await
+    .unwrap();
+    let body_polled = Arc::new(AtomicBool::new(false));
+    let observed = body_polled.clone();
+    let body = Body::from_stream(stream::once(async move {
+        observed.store(true, Ordering::SeqCst);
+        Ok::<_, Infallible>(Bytes::from_static(br#"{"model":"connection:model"}"#))
+    }));
+    let busy = gateway
+        .app
+        .clone()
+        .oneshot(
+            Request::post("/openai/v1/responses")
+                .header(header::AUTHORIZATION, "Bearer busy")
+                .body(body)
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert!(!body_polled.load(Ordering::SeqCst));
+    assert_eq!(web.calls(), 1);
+    assert_eq!(provider.calls(), 0);
+    drop(held);
 }
 
 impl Gateway {
@@ -461,7 +524,7 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
             .to_owned();
         let body = to_bytes(request.into_body(), 4096).await.unwrap();
         if key == "Bearer provider-json" {
-            assert_eq!(body, r#"{"model":"provider-model","unknown":true}"#);
+            assert_eq!(body, r#"{ "model":"provider-model", "unknown":true }"#);
             Response::builder()
                 .header("content-type", "application/json")
                 .body(Body::from("{\"output\":[]}"))
@@ -516,7 +579,7 @@ async fn compact_rewrites_model_and_models_keep_the_existing_provider_route() {
             ("POST", "/v1/responses/compact") => {
                 assert_eq!(
                     body,
-                    r#"{"encrypted_content":"opaque-ciphertext","model":"provider-model"}"#
+                    r#"{"model":"provider-model","encrypted_content":"opaque-ciphertext"}"#
                 );
                 Response::builder()
                     .header("content-type", "application/json")
@@ -636,6 +699,40 @@ async fn malformed_credentials_skip_resolution_and_oversized_body_releases_capac
     assert_eq!(next.status(), StatusCode::OK);
     assert_eq!(web.calls(), 1);
     assert_eq!(provider.calls(), 1);
+}
+
+#[tokio::test]
+async fn compressed_request_bodies_are_explicitly_rejected() {
+    let web = FakeServer::start(|_| async { resolution_response("provider-secret") }).await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder
+        .write_all(br#"{"model":"connection:model","input":"hello"}"#)
+        .unwrap();
+    for (encoding, body) in [
+        ("gzip", encoder.finish().unwrap()),
+        (
+            "zstd",
+            b"encoded bytes are rejected before parsing".to_vec(),
+        ),
+    ] {
+        let response = gateway
+            .post()
+            .bearer_auth("valid-key")
+            .header(header::CONTENT_ENCODING, encoding)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+        let body: serde_json::Value =
+            serde_json::from_slice(&response.bytes().await.unwrap()).unwrap();
+        assert_eq!(body["error"]["code"], "unsupported_content_encoding");
+    }
+    assert_eq!(web.calls(), 0);
+    assert_eq!(provider.calls(), 0);
 }
 
 #[tokio::test]
@@ -1111,7 +1208,7 @@ async fn anthropic_messages_accept_either_credential_header_and_relay_native_sse
         assert!(!request.headers().contains_key(header::AUTHORIZATION));
         assert_eq!(
             to_bytes(request.into_body(), 4096).await.unwrap(),
-            r#"{"messages":[],"model":"provider-model","stream":true}"#
+            r#"{"model":"provider-model","stream":true,"messages":[]}"#
         );
         Response::builder()
             .header("content-type", "text/event-stream")
@@ -1332,14 +1429,14 @@ async fn chat_completions_resolve_their_own_format_and_relay_native_json_and_err
             "Bearer provider-chat"
         );
         let body = to_bytes(request.into_body(), 4096).await.unwrap();
-        if body == r#"{"messages":[],"model":"unknown-model"}"# {
+        if body == r#"{"model":"unknown-model","messages":[]}"# {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{"error":{"code":"model_not_found"}}"#))
                 .unwrap();
         }
-        assert_eq!(body, r#"{"messages":[],"model":"gpt-4.1-mini"}"#);
+        assert_eq!(body, r#"{ "model":"gpt-4.1-mini", "messages":[] }"#);
         Response::builder()
             .header("content-type", "application/json")
             .body(Body::from(r#"{"id":"chatcmpl-1","choices":[]}"#))
