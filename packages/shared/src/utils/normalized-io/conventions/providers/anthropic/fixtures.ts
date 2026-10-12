@@ -367,10 +367,7 @@ export const anthropicMessagesRawServerToolsAndMediaFixture = {
           {
             type: "tool-result",
             toolCallId: "server-call-1",
-            output: {
-              type: "content",
-              value: [{ type: "text", text: "Search result" }],
-            },
+            output: { type: "text", value: "Search result" },
           },
           {
             type: "tool-result",

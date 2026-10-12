@@ -325,8 +325,10 @@ describe("trace batch queue", () => {
         tokenCount(estimates[0])! + tokenCount(estimates[1])!,
     });
     const toolCharacters = JSON.stringify({
-      type: "text",
-      text: "tool payload",
+      type: "tool-result",
+      toolCallId: "call",
+      toolName: "lookup",
+      output: { type: "text", value: "tool payload" },
     }).length;
     expect(
       span.attributes[

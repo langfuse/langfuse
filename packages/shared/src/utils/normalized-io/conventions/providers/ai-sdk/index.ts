@@ -180,12 +180,12 @@ const normalizeAiSdkToolResult: PartHandler = (value, context) => {
         typeof wrapper.value === "string"
           ? { type: "text", value: wrapper.value }
           : { type: "json", value: toJsonValue(wrapper.value) };
-      isError ??= wrapper.type === "error-text" ? true : undefined;
+      isError = isError ?? (wrapper.type === "error-text" ? true : undefined);
       break;
     case "json":
     case "error-json":
       output = { type: "json", value: toJsonValue(wrapper.value) };
-      isError ??= wrapper.type === "error-json" ? true : undefined;
+      isError = isError ?? (wrapper.type === "error-json" ? true : undefined);
       break;
     case "content":
       output = toolResultOutput(

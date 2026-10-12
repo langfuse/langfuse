@@ -1,17 +1,10 @@
 import { claimed, dropped, unmatched } from "../..";
-import {
-  asRecord,
-  compact,
-  nullableString,
-  optionalString,
-  parseIfString,
-} from "../../../core/utils/json";
+import { asRecord, compact, optionalString } from "../../../core/utils/json";
 import { toolCallPart } from "../../../core/normalize/message-parts/tool-calls";
-import { toolResultOutput } from "../../../core/normalize/message-parts/tool-results";
 import type {
   FinishReason,
   NormalizedMessage,
-  ToolResultPart,
+  NormalizedMessagePart,
 } from "../../../types";
 import type {
   ConventionResult,
@@ -33,28 +26,19 @@ import type {
 function normalizeOtelGenaiToolResult(
   value: Record<string, unknown>,
   context: PartHandlerContext,
-): ConventionResult<ToolResultPart> {
-  const output =
-    value.output ?? value.response ?? value.result ?? value.content;
+): ConventionResult<NormalizedMessagePart[]> {
+  // GenAI carriers can retain AI SDK output envelopes. Delegate their contents
+  // to the existing tool-result handler after translating the carrier fields.
   return claimed(
-    compact<ToolResultPart>({
+    context.normalizePartValue({
       type: "tool-result",
-      toolCallId: nullableString(
-        value.toolCallId /* ai sdk */ ??
-          value.tool_use_id /* anthropic */ ??
-          value.call_id /* openai responses */ ??
-          value.id,
+      toolCallId:
+        value.toolCallId ?? value.tool_use_id ?? value.call_id ?? value.id,
+      toolName: value.toolName ?? value.tool_name,
+      output: value.output ?? value.response ?? value.result ?? value.content,
+      isError: [value.is_error, value.isError].find(
+        (candidate) => typeof candidate === "boolean",
       ),
-      toolName: optionalString(
-        value.toolName /* ai sdk */ ?? value.tool_name /* otel */,
-      ),
-      output: toolResultOutput(context.normalizePartList([output]), output),
-      isError: [
-        value.is_error /* anthropic */,
-        value.isError /* ai sdk */,
-      ].find((candidate) => typeof candidate === "boolean") as
-        | boolean
-        | undefined,
     }),
   );
 }

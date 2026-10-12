@@ -283,15 +283,9 @@ export const vercelAiSdkMixedToolMessagesFixture = {
             type: "tool-result",
             toolCallId: inputToolCallId,
             toolName: "getLangfuseOverview",
-            // Explicit content retains its typed parts.
             output: {
-              type: "content",
-              value: [
-                {
-                  type: "text",
-                  text: "[Langfuse documentation overview response]",
-                },
-              ],
+              type: "text",
+              value: "[Langfuse documentation overview response]",
             },
           },
         ],
@@ -545,13 +539,8 @@ export const vercelAiSdkOutputToolCallFixture = {
             type: "tool-result",
             toolCallId: previousToolCallId,
             output: {
-              type: "content",
-              value: [
-                {
-                  type: "text",
-                  text: "[Reduced documentation search response]",
-                },
-              ],
+              type: "text",
+              value: "[Reduced documentation search response]",
             },
           },
         ],

@@ -421,18 +421,8 @@ export const chartToolsWithOmittedContentFixture: TranscriptFixture = {
                   toolCallId: "call-export",
                   toolName: "export_chart",
                   output: {
-                    type: "content",
-                    value: [
-                      { type: "data", value: { exported: true } },
-                      {
-                        type: "file",
-                        mediaType: "image/*",
-                        content: {
-                          kind: "url",
-                          url: "https://example.com/export.png",
-                        },
-                      },
-                    ],
+                    type: "json",
+                    value: { exported: true },
                   },
                 },
               ],

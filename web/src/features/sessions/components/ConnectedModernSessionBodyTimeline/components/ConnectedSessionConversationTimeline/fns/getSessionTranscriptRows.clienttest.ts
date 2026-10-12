@@ -306,7 +306,7 @@ describe("getSessionTranscriptRows", () => {
     ]);
     expect(rows[1]?.row).toMatchObject({
       call: { toolName: "search" },
-      result: { output: "Found" },
+      result: { output: { type: "text", value: "Found" } },
     });
   });
 
