@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const telemetry = vi.hoisted(() => ({
+  contextWithLangfuseProps: vi.fn(),
   recordDistribution: vi.fn(),
   recordGauge: vi.fn(),
   recordIncrement: vi.fn(),
@@ -9,6 +10,7 @@ const telemetry = vi.hoisted(() => ({
 }));
 
 vi.mock("@langfuse/shared/src/server", () => ({
+  contextWithLangfuseProps: telemetry.contextWithLangfuseProps,
   getCurrentSpan: vi.fn(() => telemetry.span),
   instrumentAsync: vi.fn(
     (
@@ -160,6 +162,12 @@ describe("PeriodicRunner", () => {
     await flushMicrotasks();
 
     expect(runner.callCount).toBe(1);
+    expect(telemetry.contextWithLangfuseProps).toHaveBeenCalledWith({
+      clickhouse: {
+        surface: "worker",
+        route: "langfuse.periodic_runner.test_runner",
+      },
+    });
     expect(telemetry.recordIncrement).toHaveBeenCalledWith(
       "langfuse.periodic_runner.started",
       1,

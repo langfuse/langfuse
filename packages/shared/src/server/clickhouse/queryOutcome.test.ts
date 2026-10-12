@@ -1,9 +1,11 @@
+import { ClickHouseError } from "@clickhouse/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   CLICKHOUSE_QUERY_OUTCOME_METRIC,
   CLICKHOUSE_QUERY_PERFORMANCE_METRICS,
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
+  clickHouseQueryErrorCode,
   clickHouseQueryOutcomeRouteLabel,
   clickHouseQueryShape,
   clickHouseQueryTableLabel,
@@ -40,45 +42,85 @@ describe("ClickHouse query outcome metric", () => {
       ).toBe("get_/api/public/v3/scores");
     });
 
-    // The route tag is derived from the request path, so caller-controlled
-    // segments would otherwise become unbounded metric tag values.
+    it("renders a templated REST route with its parameter placeholders", () => {
+      expect(
+        clickHouseQueryOutcomeRouteLabel("GET /api/public/traces/[traceId]"),
+      ).toBe("get_/api/public/traces/_traceId_");
+    });
+
+    // REST routes are templated at the source; a segment the templating missed
+    // is caller-controlled and would make the tag unbounded.
     it.each([
       "GET /api/public/traces/123e4567-e89b-12d3-a456-426614174000",
+      "GET /api/public/traces/0ae8c5f09183f6e2ea946756897c96ce",
       "GET /api/public/v2/prompts/dashboard.status_headline.low.de",
-      "GET /api/public/v2/observations/some-observation-id",
-      "HEAD /api/public/v2/observations",
-      "POST /api/public/v2/metrics",
+      "GET /api/public/observations/cmraq2djd0018ad0c76smxq4q",
+      "GET /health/[x]",
+      "get /api/public/v2/observations",
     ])("counts %s under the catch-all label", (route) => {
       expect(clickHouseQueryOutcomeRouteLabel(route)).toBe("other");
     });
 
-    it.each([undefined, "", "   ", "no-method-separator"])(
+    it.each([undefined, "", "   ", "no-method-separator!", "1.leading.digit"])(
       "falls back to the catch-all label for %s",
       (route) => {
         expect(clickHouseQueryOutcomeRouteLabel(route)).toBe("other");
       },
     );
 
-    // tRPC procedure paths and MCP tool names carry no method prefix and are
-    // code-defined, so they are matched verbatim against the bare allowlist.
+    // tRPC procedure paths, MCP tool names and worker routes carry no method
+    // prefix and are code-defined, so they pass through.
     it.each([
-      ["events.all", "events.all"],
-      ["events.batchIO", "events.batchIO"],
-      ["events.experimentBatchIO", "events.experimentBatchIO"],
-      ["events.sessionBatchIO", "events.sessionBatchIO"],
-      ["events.filterOptions", "events.filterOptions"],
-      ["experiments.batchIO", "experiments.batchIO"],
-      ["scores.allFromEvents", "scores.allFromEvents"],
-      ["scores.countAllFromEvents", "scores.countAllFromEvents"],
-      ["traces.byId", "traces.byId"],
-      ["listObservations", "listObservations"],
-      ["trace_redirect", "trace_redirect"],
-    ])("labels the bare route %s verbatim", (route, expected) => {
-      expect(clickHouseQueryOutcomeRouteLabel(route)).toBe(expected);
+      "events.all",
+      "traces.byIdWithObservationsAndScores",
+      "listObservations",
+      "trace_redirect",
+      "langfuse.queue.trace_delete",
+      "langfuse.periodic_runner.batch_trace_deletion_cleaner",
+    ])("labels the bare route %s verbatim", (route) => {
+      expect(clickHouseQueryOutcomeRouteLabel(route)).toBe(route);
+    });
+  });
+
+  describe("error codes", () => {
+    it("uses the exception name of a thrown ClickHouseError", () => {
+      const error = new ClickHouseError({
+        message: "Unknown table expression identifier 'topic_assignments'",
+        code: "60",
+        type: "UNKNOWN_TABLE",
+      });
+      expect(clickHouseQueryErrorCode(error)).toBe("unknown_table");
     });
 
-    it("counts an unlisted bare route under the catch-all label", () => {
-      expect(clickHouseQueryOutcomeRouteLabel("prompts.all")).toBe("other");
+    it("parses the exception name from an exception row message", () => {
+      const error = new Error(
+        "Code: 159. DB::Exception: Timeout exceeded: elapsed 30.1 seconds, maximum: 30. (TIMEOUT_EXCEEDED) (version 26.4.1.1)",
+      );
+      expect(clickHouseQueryErrorCode(error)).toBe("timeout_exceeded");
+    });
+
+    it("reads through a wrapping error to its cause", () => {
+      const cause = new ClickHouseError({
+        message: "Memory limit (total) exceeded",
+        code: "241",
+        type: "MEMORY_LIMIT_EXCEEDED",
+      });
+      expect(
+        clickHouseQueryErrorCode(new Error(cause.message, { cause })),
+      ).toBe("memory_limit_exceeded");
+    });
+
+    it.each([
+      ["socket hang up", "network"],
+      ["read ECONNRESET", "network"],
+      ["Timeout error.", "client_timeout"],
+      ["Unexpected end of JSON input", "unknown"],
+    ])("classifies a client-side %s as %s", (message, expected) => {
+      expect(clickHouseQueryErrorCode(new Error(message))).toBe(expected);
+    });
+
+    it("labels a non-Error throw as unknown", () => {
+      expect(clickHouseQueryErrorCode("boom")).toBe("unknown");
     });
   });
 
@@ -315,6 +357,9 @@ describe("ClickHouse query outcome metric", () => {
       "events_full",
       "io_content",
       "events_read_replica",
+      new Error(
+        "Code: 159. DB::Exception: Timeout exceeded. (TIMEOUT_EXCEEDED) (version 26.4.1.1)",
+      ),
     );
 
     expect(recordIncrement).toHaveBeenCalledTimes(1);
@@ -323,6 +368,7 @@ describe("ClickHouse query outcome metric", () => {
       1,
       {
         outcome: "timeout",
+        error_code: "timeout_exceeded",
         surface: "publicapi",
         route: "get_/api/public/v2/observations",
         table: "events_full",
@@ -401,6 +447,7 @@ describe("ClickHouse query outcome metric", () => {
       1,
       {
         outcome: "success",
+        error_code: "none",
         surface: "unknown",
         route: "other",
         table: "other",

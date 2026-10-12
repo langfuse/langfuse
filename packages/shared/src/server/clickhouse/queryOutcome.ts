@@ -1,3 +1,4 @@
+import { ClickHouseError, parseError } from "@clickhouse/client";
 import { recordDistribution, recordIncrement } from "../instrumentation";
 import { type NormalizedClickHouseQueryTags } from "./queryTags";
 import { type ClickhouseService } from "./client";
@@ -47,41 +48,22 @@ export const CLICKHOUSE_RESOURCE_ERROR_OUTCOMES = {
 } as const satisfies Record<string, ClickHouseQueryOutcome>;
 
 /**
- * REST routes whose outcomes are reported under their own `route` tag.
- * Everything else is counted under `other`.
+ * Metric tags must be bounded, so a route only gets its own label when its
+ * value set is fixed by code:
  *
- * `route` on the query tags is derived from the request path, so it carries
- * caller-controlled segments (trace ids, prompt names) and is unbounded. Metric
- * tags must be bounded, so only explicitly listed routes get a label. Add a
- * route here when it gains an SLO.
+ * - Bare routes (`events.all`, `listObservations`, `langfuse.queue.trace_delete`)
+ *   are tRPC procedure paths, MCP tool names and worker routes. Each is set only
+ *   after the procedure, tool or queue resolved, so they pass through.
+ * - REST routes carry a templated path (`GET /api/public/traces/[traceId]`).
+ *   Templating replaces caller-supplied segments with their parameter name, but
+ *   it can miss one (e.g. a value that does not round-trip through URL
+ *   decoding). A segment that is neither a word, a version (`v2`) nor a
+ *   `[param]` placeholder therefore drops the route to `other`.
  */
-const LABELLED_ROUTES = new Set([
-  "GET /api/public/experiments",
-  "GET /api/public/experiment-items",
-  "GET /api/public/v2/observations",
-  "GET /api/public/v2/metrics",
-  "GET /api/public/v3/scores",
-]);
-
-/**
- * Non-REST routes matched verbatim: tRPC procedure paths (`events.all`) and MCP
- * tool names (`listObservations`) are code-defined and already bounded, so they
- * do not need the method/path parsing REST routes get. Add one when it gains an
- * SLO or drives a meaningful share of timeouts.
- */
-const LABELLED_BARE_ROUTES = new Set([
-  "events.all",
-  "events.batchIO",
-  "events.experimentBatchIO",
-  "events.sessionBatchIO",
-  "events.filterOptions",
-  "experiments.batchIO",
-  "scores.allFromEvents",
-  "scores.countAllFromEvents",
-  "traces.byId",
-  "listObservations",
-  "trace_redirect",
-]);
+const BARE_ROUTE_PATTERN = /^[A-Za-z][\w.]{0,99}$/;
+const REST_PATH_PREFIX = "/api/";
+const REST_STATIC_SEGMENT_PATTERN = /^(?:[A-Za-z][A-Za-z_-]*|v\d+|\[\w+\])$/;
+const MAX_REST_SEGMENTS = 10;
 
 const OTHER_ROUTE_LABEL = "other";
 
@@ -89,7 +71,8 @@ const OTHER_ROUTE_LABEL = "other";
  * Renders a route as a Datadog tag value, matching the `resource_name`
  * convention APM uses for the same route (`get_/api/public/v2/metrics`), so
  * SLO and dashboard queries can filter both signals the same way. Datadog tag
- * values cannot contain spaces, so the method is folded in with an underscore.
+ * values cannot contain spaces or brackets, so the method is folded in with an
+ * underscore and a `[param]` placeholder is rendered as `_param_`.
  */
 export function clickHouseQueryOutcomeRouteLabel(route?: string): string {
   if (!route) return OTHER_ROUTE_LABEL;
@@ -97,19 +80,25 @@ export function clickHouseQueryOutcomeRouteLabel(route?: string): string {
   const collapsed = route.trim();
   const separatorIndex = collapsed.indexOf(" ");
   if (separatorIndex === -1) {
-    return LABELLED_BARE_ROUTES.has(collapsed) ? collapsed : OTHER_ROUTE_LABEL;
+    return BARE_ROUTE_PATTERN.test(collapsed) ? collapsed : OTHER_ROUTE_LABEL;
   }
 
   const method = collapsed.slice(0, separatorIndex);
   const path = collapsed.slice(separatorIndex + 1);
   const normalizedPath =
     path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
+  if (!/^[A-Z]+$/.test(method) || !normalizedPath.startsWith(REST_PATH_PREFIX))
+    return OTHER_ROUTE_LABEL;
 
-  if (!LABELLED_ROUTES.has(`${method} ${normalizedPath}`)) {
+  const segments = normalizedPath.slice(1).split("/");
+  if (
+    segments.length > MAX_REST_SEGMENTS ||
+    !segments.every((segment) => REST_STATIC_SEGMENT_PATTERN.test(segment))
+  ) {
     return OTHER_ROUTE_LABEL;
   }
 
-  return `${method.toLowerCase()}_${normalizedPath}`;
+  return `${method.toLowerCase()}_${normalizedPath.replace(/\[(\w+)\]/g, "_$1_")}`;
 }
 
 /**
@@ -291,15 +280,77 @@ function clickHouseQueryMetricTags(
   };
 }
 
+/**
+ * Transport failures the query path retries. Shared with the retry predicate so
+ * an exhausted retry is labelled `network` on the outcome metric.
+ */
+export const CLICKHOUSE_NETWORK_ERROR_PATTERNS = [
+  "socket hang up",
+  "broken pipe",
+  "connection reset",
+  "econnreset",
+  "network_error",
+  "etimedout",
+  "econnrefused",
+] as const;
+
+const CLICKHOUSE_ERROR_TYPE_PATTERN = /^[A-Z][A-Z0-9_]{2,63}$/;
+
+/**
+ * Bounded cause of a failed query, so `error` outcomes are not opaque and a
+ * server-side `TIMEOUT_EXCEEDED` can be told from a client request timeout.
+ *
+ * - The ClickHouse exception name, lowercased (`unknown_table`,
+ *   `timeout_exceeded`, `too_many_simultaneous_queries`). Taken from a thrown
+ *   `ClickHouseError` or parsed from an exception row's `Code: N. … (NAME)`
+ *   message. The names are a fixed server-side enum.
+ * - `network` for a transport failure that outlived the retries.
+ * - `client_timeout` for the client's own request timeout, which carries no
+ *   ClickHouse code.
+ * - `unknown` for anything else.
+ */
+export function clickHouseQueryErrorCode(error: unknown): string {
+  const root =
+    error instanceof Error && error.cause instanceof Error
+      ? error.cause
+      : error;
+  if (!(root instanceof Error)) return "unknown";
+
+  const parsed = root instanceof ClickHouseError ? root : parseError(root);
+  if (
+    parsed instanceof ClickHouseError &&
+    parsed.type &&
+    CLICKHOUSE_ERROR_TYPE_PATTERN.test(parsed.type)
+  ) {
+    return parsed.type.toLowerCase();
+  }
+
+  const message = (root.message ?? "").toLowerCase();
+  if (CLICKHOUSE_NETWORK_ERROR_PATTERNS.some((p) => message.includes(p))) {
+    return "network";
+  }
+  if (message.includes("timeout") || message.includes("timed out")) {
+    return "client_timeout";
+  }
+  return "unknown";
+}
+
+/**
+ * `error` is the thrown error for a failed query and omitted on success, where
+ * `error_code` is `none`.
+ */
 export function recordClickHouseQueryOutcome(
   outcome: ClickHouseQueryOutcome,
   tags: NormalizedClickHouseQueryTags,
   table: ClickHouseQueryTable,
   shape: ClickHouseQueryShape,
   clickhouseService: ClickhouseService,
+  error?: unknown,
 ): void {
   recordIncrement(CLICKHOUSE_QUERY_OUTCOME_METRIC, 1, {
     outcome,
+    error_code:
+      outcome === "success" ? "none" : clickHouseQueryErrorCode(error),
     ...clickHouseQueryMetricTags(tags, table, shape, clickhouseService),
   });
 }

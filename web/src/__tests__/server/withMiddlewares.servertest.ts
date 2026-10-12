@@ -54,6 +54,30 @@ describe("clickHouseRouteForRequest", () => {
     ).toBe("POST http://[::1");
   });
 
+  it("replaces dynamic segments with their route parameter names", () => {
+    expect(
+      clickHouseRouteForRequest({
+        method: "GET",
+        url: "/api/public/v2/prompts/team%2Fsupport/versions/3?label=prod",
+        query: {
+          promptName: "team/support",
+          promptVersion: "3",
+          label: "prod",
+        },
+      } as unknown as NextApiRequest),
+    ).toBe("GET /api/public/v2/prompts/[promptName]/versions/[promptVersion]");
+  });
+
+  it("does not template a segment with a caller-chosen search parameter", () => {
+    expect(
+      clickHouseRouteForRequest({
+        method: "GET",
+        url: "/api/public/v2/metrics?anything=metrics",
+        query: { anything: "metrics" },
+      } as unknown as NextApiRequest),
+    ).toBe("GET /api/public/v2/metrics");
+  });
+
   it("falls back to UNKNOWN method for missing methods", () => {
     expect(
       clickHouseRouteForRequest(request(undefined, "/api/public/health")),
