@@ -17,12 +17,6 @@ export {
   subscribeToInAppAgentToolResults,
   type InAppAgentToolResult,
 } from "@/src/features/in-app-agent/stores/inAppAgentToolResultSubscriptions";
-export {
-  getCompletedInAppAgentToolCalls,
-  type CompletedInAppAgentToolCall,
-} from "@/src/features/in-app-agent/fns/getCompletedInAppAgentToolCalls";
-export {
-  registerInAppAgentContextualLanding,
-  type InAppAgentContextualLanding,
-} from "@/src/features/in-app-agent/stores/inAppAgentContextualLandingStore";
+export { getCompletedInAppAgentToolCalls } from "@/src/features/in-app-agent/fns/getCompletedInAppAgentToolCalls";
+export { registerInAppAgentContextualLanding } from "@/src/features/in-app-agent/stores/inAppAgentContextualLandingStore";
 export { InAppAgentUpdateHighlight } from "@/src/features/in-app-agent/components/InAppAgentUpdateHighlight";

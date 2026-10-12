@@ -38,10 +38,12 @@ export function useEvaluatorAssistantContext({
 
   useEffect(() => {
     const latestResult = getLatestInAppAgentToolResult(projectId);
-    const continuesEvaluatorFlow =
-      selectedConversationId === latestResult?.conversationId &&
+    const continuesEvaluatorFlow = Boolean(
+      latestResult &&
+      selectedConversationId === latestResult.conversationId &&
       (latestResult.toolName === "langfuse_createEvaluator" ||
-        latestResult.toolName === "langfuse_updateEvaluator");
+        latestResult.toolName === "langfuse_updateEvaluator"),
+    );
     if (
       open &&
       !wasOpenRef.current &&
