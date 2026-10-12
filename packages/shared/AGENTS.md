@@ -30,8 +30,15 @@
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
+  `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server
+  barrel; hash the unit identity when a project can dominate traffic.
 - Internal trace-batch queue: `src/server/redis/traceBatch.ts` (cloud-gated);
   payloads in `src/server/queues.ts` accept persisted single-project jobs.
+  The existing per-trace `revision` identifies a dispatch for Topics retries;
+  a late-arrival revision must reprocess the trace. Topics reuses Redis summary
+  staging under a revision scope until ClickHouse persistence succeeds, then
+  keeps compact completion markers in the readiness shard for three hours.
+  Persisted queue payloads require no additional fields.
   Full-event streaming reads live in `src/server/repositories/trace-batch.ts`;
   the worker owns experiment enablement and lifecycle. Reader options control
   per-query threads/block size and experiment attribution; retain exact tenant

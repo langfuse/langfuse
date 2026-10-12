@@ -50,6 +50,18 @@
   `src/features/traceBatching/TraceBatchMetricsRunner.ts` collects bounded queue
   and Redis snapshots independently of dispatch/consumption when either role is
   enabled. Global snapshot gauges must not be summed across worker reporters.
+  Readiness uses project/trace-hashed shards with one dispatcher lease; all Lua
+  keys share a shard hash tag. Hourly first-seen hashes retain packed minimum and
+  maximum event starts after acknowledgement for late arrivals; pending state
+  carries the bucket pointer. Pending expiry is due plus recovery grace, including
+  the whole-key backstop. Tracking accepts a caller's idle duration with the
+  existing environment fallback; project persistence is not introduced here.
+  Cached Lua calls cap tracking/hydration/acknowledgement at 50 and cleanup at 100;
+  locality selection still pools 1,000 candidates. Drain the old layout before upgrade
+  or shard-count/retention changes. Topics consumes the existing revision as a
+  dispatch identity and retains staged results for retry safety; keep Topics
+  staging TTL at least 3 hours. Map gauges include shard and total series; never
+  sum duplicate reporters or add totals to shard series.
   `src/features/traceBatching/traceBatchTranscript.ts` measures per-trace assembly
   phases, thread count, current-turn/history token estimates and their sum. Each
   admitted trace records full assembled-transcript JSON lengths, renders the

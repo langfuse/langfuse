@@ -196,6 +196,19 @@ const EnvSchema = z.object({
     .enum(["project", "locality"])
     .default("project"),
   LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce.number().int().positive(),
+  LANGFUSE_TRACE_BATCH_SHARD_COUNT: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(256)
+    .default(1),
+  LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(7 * 24 * 60 * 60 * 1_000)
+    .default(24 * 60 * 60 * 1_000),
+  // Recovery grace after readiness; whole-key expiry includes the idle interval.
   LANGFUSE_TRACE_BATCH_PENDING_TTL_MS: z.coerce
     .number()
     .int()

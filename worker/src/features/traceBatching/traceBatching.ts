@@ -16,15 +16,19 @@ import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 import {
+  getTraceBatchFirstKeys,
+  getTraceBatchFirstMember,
+  getTraceBatchReadinessKeys,
+  getTraceBatchShard,
+} from "./traceBatchReadiness";
+import {
   getDeterministicSamplingValue,
   shouldSampleEvaluation,
 } from "../evaluation/deterministicSampling";
 
-// The shared client applies REDIS_KEY_PREFIX. Both keys must occupy one
-// Redis Cluster slot for the atomic update, snapshot, and acknowledgement.
-const DUE_KEY = "{trace-batch}:due";
-const STATE_KEY = "{trace-batch}:state";
 const CHUNK_SIZE = 1_000;
+const REDIS_CHUNK_SIZE = 50;
+const CLEANUP_SIZE = 100;
 const QUERY_BUFFER_MS = 2 * 60_000;
 const MINUTE_MS = 60_000;
 const NARROW_BATCH_MAX_ENVELOPE_MS = 60 * MINUTE_MS;
@@ -578,15 +582,51 @@ const TRACK_SCRIPT = `
   ${EXPIRE_PENDING_SCRIPT}
   local clock = redis.call('TIME')
   local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
-  for i = 3, #ARGV, 6 do
+  local firstTtl = tonumber(ARGV[3])
+  local width = tonumber(ARGV[4])
+  local bucket = math.floor(now / width)
+  local current = bucket - tonumber(ARGV[5]) + 3
+  if current < 3 or current > #KEYS then
+    return redis.error_reply('Trace readiness bucket clock changed; retry intake')
+  end
+  for i = 6, #ARGV, 7 do
     local member = ARGV[i]
     local minStart = tonumber(ARGV[i + 1])
     local maxStart = tonumber(ARGV[i + 2])
     local eventUpdateCount = tonumber(ARGV[i + 4])
     local serializedEventBytes = tonumber(ARGV[i + 5])
+    local identity = ARGV[i + 6]
     local previous = redis.call('HGET', KEYS[2], member)
-    if previous then
-      local state = cjson.decode(previous)
+    local state = previous and cjson.decode(previous)
+    local priorDue = tonumber(redis.call('ZSCORE', KEYS[1], member))
+    if not priorDue or priorDue <= now - tonumber(ARGV[2]) then state = nil end
+    if state and state.historyBucket then
+      local old = state.historyBucket - tonumber(ARGV[5]) + 3
+      if old >= 3 and old <= #KEYS and old ~= current then
+        redis.call('HDEL', KEYS[old], identity)
+      end
+    else
+      for key = 3, #KEYS do
+        local retained = redis.call('HGET', KEYS[key], identity)
+        if retained then
+          local start, tail, expires
+          if string.byte(retained, 1) == 147 then
+            local bounds = cmsgpack.unpack(retained)
+            start, tail, expires = bounds[1], bounds[2], bounds[3]
+          else
+            -- Decimal history retains only the minimum; pending state can supply its tail.
+            start, expires = string.match(retained, '^([^:]+):(.+)$')
+            start, expires = tonumber(start), tonumber(expires)
+          end
+          if expires and expires > now then
+            minStart = math.min(minStart, start)
+            if tail then maxStart = math.max(maxStart, tail) end
+          end
+          if key ~= current then redis.call('HDEL', KEYS[key], identity) end
+        end
+      end
+    end
+    if state then
       minStart = math.min(minStart, state.minStart)
       maxStart = math.max(maxStart, state.maxStart)
       if state.eventUpdateCount and state.serializedEventBytes then
@@ -599,19 +639,24 @@ const TRACK_SCRIPT = `
       end
     end
     redis.call('HSET', KEYS[2], member, cjson.encode({
-      minStart = minStart, maxStart = maxStart, revision = ARGV[i + 3],
+      minStart = minStart, maxStart = maxStart, revision = ARGV[i + 3], historyBucket = bucket,
       eventUpdateCount = eventUpdateCount, serializedEventBytes = serializedEventBytes
     }))
     redis.call('ZADD', KEYS[1], now + tonumber(ARGV[1]), member)
+    redis.call('HSET', KEYS[current], identity,
+      cmsgpack.pack({minStart, maxStart, now + firstTtl}))
   end
+  local firstExpiry = math.max((bucket + 1) * width + firstTtl,
+    redis.call('PEXPIRETIME', KEYS[current]))
+  -- Integer command arguments need decimal strings, including round timestamps.
+  redis.call('PEXPIREAT', KEYS[current], string.format('%.0f', firstExpiry))
   local retention = tonumber(ARGV[2])
-  local expired = expirePending(now, retention, ${CHUNK_SIZE})
-  -- Bound abandoned state from the last admitted activity, independent of idle.
-  -- A shorter policy on another writer must not shorten an existing expiry.
-  local expiresAt = math.max(now + retention,
+  local expired = expirePending(now, retention, ${CLEANUP_SIZE})
+  -- The shared inactivity backstop covers the latest required member deadline.
+  local expiresAt = math.max(now + tonumber(ARGV[1]) + retention,
     redis.call('PEXPIRETIME', KEYS[1]), redis.call('PEXPIRETIME', KEYS[2]))
-  redis.call('PEXPIREAT', KEYS[1], expiresAt)
-  redis.call('PEXPIREAT', KEYS[2], expiresAt)
+  redis.call('PEXPIREAT', KEYS[1], string.format('%.0f', expiresAt))
+  redis.call('PEXPIREAT', KEYS[2], string.format('%.0f', expiresAt))
   return expired
 `;
 
@@ -623,7 +668,7 @@ const SNAPSHOT_SCRIPT = `
   local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
   local retention = tonumber(ARGV[1])
   local cutoff = tonumber(ARGV[2]) or now
-  local expired = expirePending(now, retention, ${CHUNK_SIZE})
+  local expired = expirePending(now, retention, ${CLEANUP_SIZE})
   local pending = redis.call('ZCARD', KEYS[1])
   local ready = math.max(0, redis.call('ZCOUNT', KEYS[1], '-inf', cutoff)
     - redis.call('ZCOUNT', KEYS[1], '-inf', now - retention))
@@ -657,10 +702,32 @@ const HYDRATE_SCRIPT = `
 // Returns one flag per member, in argument order: 1 when removed, 0 when a
 // newer revision keeps the trace pending.
 const ACKNOWLEDGE_SCRIPT = `
+  local clock = redis.call('TIME')
+  local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
+  local width = tonumber(ARGV[2])
+  local bucket = math.floor(now / width)
+  local current = bucket - tonumber(ARGV[3]) + 3
+  if current < 3 or current > #KEYS then
+    return redis.error_reply('Trace readiness bucket clock changed; retry acknowledgement')
+  end
   local removed = {}
-  for i = 1, #ARGV, 2 do
+  local retained = false
+  for i = 4, #ARGV, 3 do
     local state = redis.call('HGET', KEYS[2], ARGV[i])
-    if state and cjson.decode(state).revision == ARGV[i + 1] then
+    local decoded = state and cjson.decode(state)
+    if decoded and decoded.revision == ARGV[i + 1] then
+      local identity = ARGV[i + 2]
+      if decoded.historyBucket then
+        local old = decoded.historyBucket - tonumber(ARGV[3]) + 3
+        if old >= 3 and old <= #KEYS and old ~= current then redis.call('HDEL', KEYS[old], identity) end
+      else
+        for key = 3, #KEYS do
+          if key ~= current then redis.call('HDEL', KEYS[key], identity) end
+        end
+      end
+      redis.call('HSET', KEYS[current], identity,
+        cmsgpack.pack({decoded.minStart, decoded.maxStart, now + tonumber(ARGV[1])}))
+      retained = true
       redis.call('ZREM', KEYS[1], ARGV[i])
       redis.call('HDEL', KEYS[2], ARGV[i])
       table.insert(removed, 1)
@@ -668,8 +735,41 @@ const ACKNOWLEDGE_SCRIPT = `
       table.insert(removed, 0)
     end
   end
+  if retained then
+    local expiresAt = math.max((bucket + 1) * width + tonumber(ARGV[1]),
+      redis.call('PEXPIRETIME', KEYS[current]))
+    redis.call('PEXPIREAT', KEYS[current], string.format('%.0f', expiresAt))
+  end
   return removed
 `;
+
+const readinessScriptHashes = new Map(
+  [TRACK_SCRIPT, SNAPSHOT_SCRIPT, HYDRATE_SCRIPT, ACKNOWLEDGE_SCRIPT].map(
+    (script) =>
+      [script, createHash("sha1").update(script).digest("hex")] as const,
+  ),
+);
+
+async function evalReadiness(
+  script: string,
+  keys: string[],
+  args: (string | number | Buffer)[],
+): Promise<unknown> {
+  if (!redis) throw new Error("Trace batching requires Redis");
+  try {
+    return await redis.evalsha(
+      readinessScriptHashes.get(script)!,
+      keys.length,
+      ...keys,
+      ...args,
+    );
+  } catch (error) {
+    // SCRIPT FLUSH or a promoted primary can have an empty script cache.
+    if (!(error instanceof Error) || !error.message.startsWith("NOSCRIPT"))
+      throw error;
+    return redis.eval(script, keys.length, ...keys, ...args);
+  }
+}
 
 function recordTrackingVolume(
   stage: "eligible" | "recorded",
@@ -699,6 +799,7 @@ export async function trackTraceBatchActivity(
     startTimeISO: string;
     serializedEventBytes: number;
   }[],
+  idleMs: number = env.LANGFUSE_TRACE_BATCH_IDLE_MS,
 ): Promise<void> {
   if (
     !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
@@ -735,6 +836,8 @@ export async function trackTraceBatchActivity(
   if (bounds.size === 0) return;
 
   try {
+    if (!Number.isSafeInteger(idleMs) || idleMs <= 0)
+      throw new Error("Trace batch idle time must be a positive integer");
     recordTrackingVolume("eligible", bounds);
     const admitAll = samplingRate === 1 || topicsProject;
     // Sample by trace ID so later observations and retries keep the same decision.
@@ -758,34 +861,52 @@ export async function trackTraceBatchActivity(
     );
     if (entries.length === 0) return;
     if (!redis) throw new Error("Trace batching requires Redis");
-    // Bounded scripts keep ingestion from monopolizing the global Redis slot.
-    for (let offset = 0; offset < entries.length; offset += CHUNK_SIZE) {
-      const chunk = entries.slice(offset, offset + CHUNK_SIZE);
-      const expired = Number(
-        await redis.eval(
-          TRACK_SCRIPT,
-          2,
-          DUE_KEY,
-          STATE_KEY,
-          env.LANGFUSE_TRACE_BATCH_IDLE_MS,
-          env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
-          ...chunk.flatMap(([traceId, state]) => [
-            JSON.stringify([projectId, traceId]),
-            state.minStart,
-            state.maxStart,
-            // Unique even after dispatch deletes and a later arrival recreates state.
-            randomUUID(),
-            state.eventUpdateCount,
-            state.serializedEventBytes,
-          ]),
-        ),
-      );
-      // Count only acknowledged chunks; a timeout can leave Redis's outcome unknown.
-      recordTrackingVolume("recorded", chunk);
-      recordIncrement("langfuse.trace_batch.expired_traces", expired, {
-        source: "ingestion",
-      });
-      recordIncrement("langfuse.trace_batch.tracked_traces", chunk.length);
+    const shards = new Map<number, typeof entries>();
+    for (const entry of entries) {
+      const shard = getTraceBatchShard(JSON.stringify([projectId, entry[0]]));
+      const group = shards.get(shard) ?? [];
+      group.push(entry);
+      shards.set(shard, group);
+    }
+    // Each bounded script touches only one cluster slot.
+    for (const [shard, group] of shards) {
+      const { due, state: stateKey } = getTraceBatchReadinessKeys(shard);
+      for (let offset = 0; offset < group.length; offset += REDIS_CHUNK_SIZE) {
+        const chunk = group.slice(offset, offset + REDIS_CHUNK_SIZE);
+        const clock = await redis.time();
+        const now =
+          Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000);
+        const first = getTraceBatchFirstKeys(shard, now);
+        const expired = Number(
+          await evalReadiness(
+            TRACK_SCRIPT,
+            [due, stateKey, ...first.keys],
+            [
+              idleMs,
+              env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+              env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
+              first.width,
+              first.firstBucket,
+              ...chunk.flatMap(([traceId, state]) => [
+                JSON.stringify([projectId, traceId]),
+                state.minStart,
+                state.maxStart,
+                // Unique even after dispatch deletes and a later arrival recreates state.
+                randomUUID(),
+                state.eventUpdateCount,
+                state.serializedEventBytes,
+                getTraceBatchFirstMember(JSON.stringify([projectId, traceId])),
+              ]),
+            ],
+          ),
+        );
+        // Count only acknowledged chunks; a timeout can leave Redis's outcome unknown.
+        recordTrackingVolume("recorded", chunk);
+        recordIncrement("langfuse.trace_batch.expired_traces", expired, {
+          source: "ingestion",
+        });
+        recordIncrement("langfuse.trace_batch.tracked_traces", chunk.length);
+      }
     }
   } catch (error) {
     // This optional load experiment must not fail normal event ingestion.
@@ -860,20 +981,33 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
   }
 
   private async dispatchDue(): Promise<void> {
+    const totals = { pending: 0, ready: 0, oldestAge: 0 };
+    for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
+      if (this.stopping) return;
+      await this.dispatchShard(shard, totals);
+    }
+    recordGauge("langfuse.trace_batch.pending_traces", totals.pending);
+    recordGauge("langfuse.trace_batch.ready_traces", totals.ready);
+    recordGauge("langfuse.trace_batch.oldest_due_age_ms", totals.oldestAge);
+  }
+
+  private async dispatchShard(
+    shard: number,
+    totals: { pending: number; ready: number; oldestAge: number },
+  ): Promise<void> {
     if (!redis) throw new Error("Trace batching requires Redis");
+    const { due: DUE_KEY, state: STATE_KEY } =
+      getTraceBatchReadinessKeys(shard);
     const queue = TraceBatchQueue.getInstance();
     if (!queue) throw new Error("Trace batch queue is unavailable");
     let cutoff = "";
     let now = 0;
     while (!this.stopping) {
       await this.extendLockOnProgress();
-      const snapshot = (await redis.eval(
+      const snapshot = (await evalReadiness(
         SNAPSHOT_SCRIPT,
-        2,
-        DUE_KEY,
-        STATE_KEY,
-        env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
-        cutoff,
+        [DUE_KEY, STATE_KEY],
+        [env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS, cutoff],
       )) as (string | number)[];
       const [clock, , pending, ready, oldest, expired] = snapshot.map(Number);
       now = clock;
@@ -881,13 +1015,26 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       recordIncrement("langfuse.trace_batch.expired_traces", expired, {
         source: "dispatcher",
       });
-      recordGauge("langfuse.trace_batch.pending_traces", pending);
-      recordGauge("langfuse.trace_batch.ready_traces", ready);
+      recordGauge("langfuse.trace_batch.pending_traces", pending, {
+        shard: String(shard),
+      });
+      recordGauge("langfuse.trace_batch.ready_traces", ready, {
+        shard: String(shard),
+      });
       recordGauge(
         "langfuse.trace_batch.oldest_due_age_ms",
         Math.max(0, now - oldest),
+        { shard: String(shard) },
       );
-      if (expired < CHUNK_SIZE) break;
+      if (expired < CLEANUP_SIZE) {
+        totals.pending += pending;
+        totals.ready += ready;
+        totals.oldestAge = Math.max(
+          totals.oldestAge,
+          Math.max(0, now - oldest),
+        );
+        break;
+      }
     }
     if (this.stopping) return;
 
@@ -935,16 +1082,34 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
 
     const acknowledge = async (
       batch: readonly PendingTrace[],
-    ): Promise<boolean[]> =>
-      (
-        (await redis!.eval(
+    ): Promise<boolean[]> => {
+      const removed: boolean[] = [];
+      for (let offset = 0; offset < batch.length; offset += REDIS_CHUNK_SIZE) {
+        const clock = await redis!.time();
+        const first = getTraceBatchFirstKeys(
+          shard,
+          Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000),
+        );
+        const flags = (await evalReadiness(
           ACKNOWLEDGE_SCRIPT,
-          2,
-          DUE_KEY,
-          STATE_KEY,
-          ...batch.flatMap(({ member, trace }) => [member, trace.revision]),
-        )) as number[]
-      ).map((flag) => Number(flag) === 1);
+          [DUE_KEY, STATE_KEY, ...first.keys],
+          [
+            env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
+            first.width,
+            first.firstBucket,
+            ...batch
+              .slice(offset, offset + REDIS_CHUNK_SIZE)
+              .flatMap(({ member, trace }) => [
+                member,
+                trace.revision,
+                getTraceBatchFirstMember(member),
+              ]),
+          ],
+        )) as number[];
+        removed.push(...flags.map((flag) => Number(flag) === 1));
+      }
+      return removed;
+    };
 
     // Excluded traces leave Redis like dispatched ones; activity after this
     // run's snapshot starts a fresh pending window that is evaluated again.
@@ -1083,15 +1248,26 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     ) {
       await this.extendLockOnProgress();
       const candidates = members.slice(offset, offset + CHUNK_SIZE);
-      const hydrated = (await redis.eval(
-        HYDRATE_SCRIPT,
-        2,
-        DUE_KEY,
-        STATE_KEY,
-        cutoff,
-        env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
-        ...candidates.map(({ member }) => member),
-      )) as string[];
+      const hydrated: string[] = [];
+      for (
+        let start = 0;
+        start < candidates.length;
+        start += REDIS_CHUNK_SIZE
+      ) {
+        await this.extendLockOnProgress();
+        const part = (await evalReadiness(
+          HYDRATE_SCRIPT,
+          [DUE_KEY, STATE_KEY],
+          [
+            cutoff,
+            env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+            ...candidates
+              .slice(start, start + REDIS_CHUNK_SIZE)
+              .map(({ member }) => member),
+          ],
+        )) as string[];
+        hydrated.push(...part);
+      }
       recordIncrement(
         "langfuse.trace_batch.skipped_traces",
         candidates.length - hydrated.length / 3,

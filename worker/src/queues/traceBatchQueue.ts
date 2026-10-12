@@ -24,6 +24,7 @@ type TraceOutcome =
 
 async function summarizeTraceBatch(
   observations: Observation[],
+  revision: string | undefined,
 ): Promise<TraceOutcome> {
   const first = observations[0];
   const traceId = first?.traceId;
@@ -51,6 +52,7 @@ async function summarizeTraceBatch(
           environment: first.environment,
           traceName: first.name ?? "",
           transcript,
+          revision,
         }),
       };
     } catch (error) {
@@ -153,6 +155,12 @@ export const traceBatchQueueProcessor: Processor<
       return { discarded: "expired" };
     }
     const batch = event.payload;
+    const revisions = new Map(
+      batch.traces.map((trace) => [
+        JSON.stringify([trace.projectId, trace.traceId]),
+        trace.revision,
+      ]),
+    );
     const topicsOutcomes: TraceOutcome[] = [];
     const queryOptions = {
       maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
@@ -226,7 +234,17 @@ export const traceBatchQueueProcessor: Processor<
             performance.now() - enqueuedAt,
           );
           if (!summaryFailed)
-            topicsOutcomes.push(await summarizeTraceBatch(observations));
+            topicsOutcomes.push(
+              await summarizeTraceBatch(
+                observations,
+                revisions.get(
+                  JSON.stringify([
+                    observations[0].projectId,
+                    observations[0].traceId,
+                  ]),
+                ),
+              ),
+            );
         })
         .catch((error: unknown) => {
           if (!summaryFailed) summaryError = error;

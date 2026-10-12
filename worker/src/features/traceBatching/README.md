@@ -7,31 +7,36 @@ flags and transcript-metrics switch below default to `false`; an ordinary releas
 needs no infrastructure changes. The four enablement flags stay commented in env
 templates. The local dev template sets the idle time below.
 
+For the local storage prototypes, memory/CPU measurements and dispatcher locality
+tradeoffs, see [Readiness storage comparison](./storage-comparison.md).
+
 ## Controls
 
-| Variable | Default | Role |
-| --- | --- | --- |
-| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED` | `false` | Track accepted direct-v4 event writes in Redis. |
-| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED` | `false` | Schedule idle traces into BullMQ jobs. |
-| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false` | Register the batch worker. |
-| `LANGFUSE_TRACE_BATCH_READ_ENABLED` | `false` | Allow the worker to query ClickHouse; otherwise discard jobs. |
-| `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` | `false` | Emit transcript size distributions. Span attributes and failure counters stay on either way. |
-| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` | `0` | Fraction of other projects admitted by ingestion, from 0 to 1. Unset or `0` is off. Topics-enabled projects are always admitted. |
-| `LANGFUSE_TRACE_BATCH_STRATEGY` | `project` | Choose project-order packing or opt-in locality grouping. |
-| `LANGFUSE_TRACE_BATCH_MAX_SIZE` | `60` | Maximum traces per job, up to 10,000. |
-| `LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES` | `1500` | Estimated event updates per multi-trace job; `0` disables. |
-| `LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES` | `67108864` | Estimated serialized event bytes per multi-trace job (64 MiB); `0` disables. |
-| `LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES` | `5000` | Exclude a trace whose pending window exceeds this many event updates; `0` disables. |
-| `LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES` | `52428800` | Exclude a trace whose pending window exceeds these serialized bytes (50 MiB); `0` disables. |
-| `LANGFUSE_TRACE_BATCH_MAX_THREADS` | `2` | ClickHouse threads per query (positive integer). |
-| `LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS` | `40000` | ClickHouse client socket idle timeout in milliseconds, including pauses for summary backpressure. Independent of the 30-second server query execution limit. |
-| `LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES` | `104857600` | Queued input/output/metadata payload threshold (100 MiB). Includes the active summary; excludes the current trace, tool fields, transport buffers and JavaScript object overhead. |
-| `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE` | unset | Optional positive `max_block_size` hint; unset inherits the server profile. |
-| `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID` | unset | Optional 1–64 character attempt/query label: letters, digits, `.`, `_`, `-`; first character alphanumeric. |
-| `LANGFUSE_TRACE_BATCH_CONCURRENCY` | `2` | Concurrent batch jobs per worker process. |
-| `LANGFUSE_TRACE_BATCH_IDLE_MS` | `600000` | Idle time before a trace is ready. Unset and `DEV` uses `120000` (2 minutes); every other region uses 10 minutes. |
-| `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS` | `7200000` | Pending retention and inactivity expiry (2 hours). |
-| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS` | `30000` | Dispatcher cadence (30 seconds). |
+| Variable                                          | Default     | Role                                                                                                                                                                              |
+| ------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`          | `false`     | Track accepted direct-v4 event writes in Redis.                                                                                                                                   |
+| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`         | `false`     | Schedule idle traces into BullMQ jobs.                                                                                                                                            |
+| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED`     | `false`     | Register the batch worker.                                                                                                                                                        |
+| `LANGFUSE_TRACE_BATCH_READ_ENABLED`               | `false`     | Allow the worker to query ClickHouse; otherwise discard jobs.                                                                                                                     |
+| `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` | `false`     | Emit transcript size distributions. Span attributes and failure counters stay on either way.                                                                                      |
+| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`              | `0`         | Fraction of other projects admitted by ingestion, from 0 to 1. Unset or `0` is off. Topics-enabled projects are always admitted.                                                  |
+| `LANGFUSE_TRACE_BATCH_STRATEGY`                   | `project`   | Choose project-order packing or opt-in locality grouping.                                                                                                                         |
+| `LANGFUSE_TRACE_BATCH_MAX_SIZE`                   | `60`        | Maximum traces per job, up to 10,000.                                                                                                                                             |
+| `LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES`    | `1500`      | Estimated event updates per multi-trace job; `0` disables.                                                                                                                        |
+| `LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES` | `67108864`  | Estimated serialized event bytes per multi-trace job (64 MiB); `0` disables.                                                                                                      |
+| `LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES`    | `5000`      | Exclude a trace whose pending window exceeds this many event updates; `0` disables.                                                                                               |
+| `LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES` | `52428800`  | Exclude a trace whose pending window exceeds these serialized bytes (50 MiB); `0` disables.                                                                                       |
+| `LANGFUSE_TRACE_BATCH_MAX_THREADS`                | `2`         | ClickHouse threads per query (positive integer).                                                                                                                                  |
+| `LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS`         | `40000`     | ClickHouse client socket idle timeout in milliseconds, including pauses for summary backpressure. Independent of the 30-second server query execution limit.                      |
+| `LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES`  | `104857600` | Queued input/output/metadata payload threshold (100 MiB). Includes the active summary; excludes the current trace, tool fields, transport buffers and JavaScript object overhead. |
+| `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE`             | unset       | Optional positive `max_block_size` hint; unset inherits the server profile.                                                                                                       |
+| `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID`              | unset       | Optional 1–64 character attempt/query label: letters, digits, `.`, `_`, `-`; first character alphanumeric.                                                                        |
+| `LANGFUSE_TRACE_BATCH_CONCURRENCY`                | `2`         | Concurrent batch jobs per worker process.                                                                                                                                         |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS`                    | `600000`    | Idle time before a trace is ready. Unset and `DEV` uses `120000` (2 minutes); every other region uses 10 minutes.                                                                 |
+| `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`             | `7200000`   | Recovery grace after a trace becomes due (2 hours). Pending keys expire no earlier than the latest required due-plus-grace deadline.                                              |
+| `LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS`          | `86400000`  | Historical event-start bounds retained after activity or dispatch (24 hours; at most 7 days). Internal and cloud-gated.                                                           |
+| `LANGFUSE_TRACE_BATCH_SHARD_COUNT`                | `1`         | Readiness shards (1–256). One works on standalone Redis and Sentinel; Redis Cluster distributes hash tags across slots. Drain before changing.                                    |
+| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`       | `30000`     | Dispatcher cadence (30 seconds).                                                                                                                                                  |
 
 Producer, dispatcher and consumer can run independently. Sampling reuses the
 evaluator's deterministic trace-ID sampler; every observation of the same trace
@@ -41,31 +46,139 @@ processing, and the shared queue accessor, including admin queue inspection.
 
 ## Redis state and expiry
 
-- `{trace-batch}:due`: sorted set, with JSON `[projectId, traceId]` members and
+- `{trace-batch:<shard>}:due`: sorted set, with JSON `[projectId, traceId]` members and
   Redis server time plus idle delay as the score.
-- `{trace-batch}:state`: hash with the same members and JSON
-  `{minStart, maxStart, revision, eventUpdateCount, serializedEventBytes}` values. Bounds describe observed event start
+- `{trace-batch:<shard>}:state`: hash with the same members and JSON
+  `{minStart, maxStart, revision, historyBucket, eventUpdateCount, serializedEventBytes}` values. Bounds describe observed event start
   times; revision protects newer ingestion from an older dispatch acknowledgment.
 - `{trace-batch}:dispatcher`: renewable dispatcher lease.
+- `{trace-batch:<shard>}:first:<bucket>`: hourly hashes retaining the minimum and
+  maximum event starts independently of pending state. Fields are the first 16 binary
+  bytes of SHA-256 of the JSON project/trace pair; values are MessagePack
+  `[minStart, maxStart, expiresAt]`. This accepts the negligible collision probability of a
+  128-bit identity. Key shape is independent of the processing unit.
+
+Sharding uses the shared SHA-256 shard helper on the complete project/trace pair,
+so a large project spreads across shards. Every Lua call uses only keys with
+one shard's hash tag. The single dispatcher lease covers all shards; batch
+packing operates within each shard. Queue slots are unchanged.
+
+When pending state is absent or has no bucket pointer, tracking looks up the
+bounded set of live time buckets (26 keys for the default TTL), never scans their
+fields, and atomically merges the historical bounds. Valid pending state contains
+both bounds and its current history bucket, allowing direct movement to the new
+bucket on subsequent activity and guarded acknowledgement. The Redis server clock owns
+both retention and readiness. Values with an elapsed deadline are ignored;
+whole-key expiry at bucket end plus retention removes storage without scans.
+Physical removal can lag logical expiry by up to one hour (or the TTL for a
+shorter test override). Activity and guarded acknowledgement refresh retention,
+so the post-dispatch window lasts the configured TTL independently of idle delay.
+One live copy per identity
+is retained under a consistent TTL.
 
 No event payloads are stored here. Atomic Lua updates accumulate estimates and
-refresh bounds, revision and readiness. Each admitted intake
-sets a shared absolute expiry on both pending keys with `PEXPIREAT`, preserving
-any later existing expiry using `PEXPIRETIME` (Redis 7+). With no further intake,
-both keys expire after the retention period even if every application stops;
-idle time is not added to this deadline.
+refresh bounds, revision and readiness:
 
-This is a whole-key inactivity backstop, not native per-member expiry. During
-continuous intake, bounded Lua cleanup removes members whose due time is older
-than retention; ingestion and dispatcher both perform cleanup.
+```text
+due = last admitted activity + effective project idle
+pending expiry = due + recovery grace
+```
+
+Tracking accepts an effective idle duration; existing ingestion uses the deployment
+default until project configuration is persisted. The default is 600 seconds
+outside DEV and 120 seconds in DEV, with the existing environment override.
+No project settings table or database lookup is introduced here. A future nullable
+`Project.traceIdleTimeMs` can use that deployment fallback; retrieve it once per
+project ingestion batch through a bounded cache with mutation invalidation.
+
+Both pending keys receive a whole-key `PEXPIREAT` covering the required expiry,
+preserving any existing later deadline with `PEXPIRETIME` (Redis 7+). During
+activity, cleanup removes at most 100 members per call with
+`due <= now - recovery grace`, using the existing due index. This supports
+different project idle durations without another per-member expiry index.
+Cleanup runs during ingestion and dispatch; whole-key expiry also clears abandoned
+state if all processes stop. Acknowledgement normally removes pending entries
+as soon as enqueueing succeeds, independently of their safety deadline.
+
+### Sharding and atomicity
+
+The shard is `SHA256(JSON.stringify([projectId, traceId]))[first 32 bits] % N`.
+It is stable for a fixed shard count and hashes the trace identity rather than
+the project alone. Redis Cluster then maps the shared `{trace-batch:N}` tag to
+one of its 16,384 slots; the number of logical readiness shards is independent
+of the number of Redis primaries. Standalone Redis executes the same layout.
+Use a `REDIS_KEY_PREFIX` without its own hash tag: Redis uses the first tag in
+the full key, so a tagged prefix would collapse every shard onto one slot.
+
+```mermaid
+flowchart LR
+  identity[Project + trace identity] --> hash[SHA-256 modulo shard count]
+  hash --> slot[One Redis Cluster slot per shard tag]
+  slot --> due[Due sorted set]
+  slot --> state[Pending state hash]
+  slot --> first[First-seen bucket hashes]
+```
+
+| Operation       | Atomic boundary                                                                                                                                                                               |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Track activity  | One Lua call reads retained starts and pending state, merges min/max and counters, replaces the revision, sets readiness, moves first-seen history and sets expiry. All keys share a slot.    |
+| Snapshot/expiry | One Lua call removes a bounded expired cohort and returns readiness counts and the cutoff.                                                                                                    |
+| Hydrate         | One Lua call rechecks due scores and reads corresponding state/revisions. Freshly reactivated traces are not dispatched from an obsolete snapshot.                                            |
+| Acknowledge     | One Lua call compares the revision, refreshes first-seen retention from dispatch time and removes due/state only when it still matches.                                                       |
+| Enqueue         | A separate BullMQ operation precedes acknowledgement. Stable job IDs reduce duplicates if acknowledgement fails. Concurrent arrivals survive the guarded acknowledgement.                     |
+| Persist summary | ClickHouse persistence and Redis completion markers are separate operations. Staging protects paid results until persistence succeeds; retries restore results or consult completion markers. |
+
+No application-side read-then-write decides a trace's bounds, revision or due
+score. `TIME` before tracking selects the bounded bucket keys; Lua reads Redis
+time again and rejects a stale bucket selection before mutating anything.
+Scripts serialize within a Redis primary; different primaries can execute
+different shards concurrently. Tracking, hydration and acknowledgement calls
+contain at most 50 traces; cleanup handles at most 100. Dispatch still pools
+up to 1,000 hydrated candidates for locality selection, so script call size does
+not constrain queue batch packing. Scripts use cached `EVALSHA`, falling back
+to `EVAL` after a missing script cache on the selected primary. Dispatch holds one renewable lease across
+all shards, and checks/extends it while making progress.
+
+Lua atomicity prevents command interleaving, but is not an ACID transaction
+across Redis, BullMQ and ClickHouse and does not roll back writes on a runtime
+script error. Duplicate runs and the accepted Redis failover gap remain part of
+this pipeline's delivery contract. There is no reconciler.
 
 ## Dispatch and reads
 
 One dispatcher holds the renewable lease. It snapshots ready IDs, sorts them by
-project, then hydrates and revalidates state in chunks of 1,000. Jobs contain up
+project, then hydrates and revalidates state in calls of up to 50. Locality
+selection combines those calls into pools of up to 1,000. Jobs contain up
 to the configured trace cap and weight budgets; project leftovers can share a job. The dispatcher
 enqueues before acknowledging matching revisions, so concurrent intake stays
 pending and failed enqueueing can be retried. Stable job IDs limit duplicates.
+
+Acknowledgement removes due/state only. Late arrivals within first-seen
+retention reopen readiness with the merged historical and incoming minimum and
+maximum starts; the existing two-minute query padding reads the trace again.
+Tracking does not classify events as late by comparing timestamps. Every admitted
+event updates readiness; retained history supplies the earlier bound even when
+the incoming start equals it. History without pending state can also result from
+pending expiry, so it does not prove a previous dispatch. Concurrent arrivals
+replace the revision and survive an acknowledgement of an older snapshot.
+The existing revision identifies this dispatch: a new revision summarizes again
+and writes the same Topics sort key, replaced by `ReplacingMergeTree(processed_at)`.
+Retries consult compact, per-dispatch completion hashes in the same readiness
+shard, including when a newer dispatch has completed. Those hashes retain
+facet/version completion timestamps for a fixed 3 hours without renewing expiry.
+Model results use existing Topics staging before ClickHouse persistence; after
+success the completion markers are written and full staged payloads deleted.
+Keep `LANGFUSE_TOPICS_REDIS_TTL_SECONDS` at least 10800 (3 hours) for failed-write
+recovery. Lower staging retention or Redis loss weakens retry protection.
+Completion markers and unfinished staged summary/embedding payloads consume
+additional Redis memory beyond the readiness-map budget; read-disabled load
+tests exclude these costs.
+
+Retaining the historical maximum preserves the previous tail even when a late
+event's start precedes that tail by more than the query buffer. Once historical
+bounds expire or are lost, the prior window cannot be reconstructed from this map.
+Legacy decimal history remains readable but cannot recover a maximum that was
+never stored; legacy pending state contributes its known maximum.
 
 ### Pending-window size estimates
 
@@ -74,9 +187,12 @@ field overflow handling, reusing the writer's existing `event_bytes` calculation
 The accounting field itself is excluded. Acceptance means admission to the writer,
 not confirmation of a ClickHouse flush. `eventUpdateCount` counts accepted updates,
 including retries and repeated observation versions; neither counter represents
-unique observations or a trace's lifetime total. Deletion after enqueue, readiness
-and two-hour retention are unchanged. Later arrivals start another pending window.
+unique observations or a trace's lifetime total. Deletion after enqueue, readiness remain unchanged. Pending state expires two hours after its due time
+by default. Later arrivals start another pending window.
 Entries missing either counter remain unknown until dispatch or expiry removes them.
+For a late window, these counters cover newly accepted events while the read
+also covers retained history. They do not bound the full reread's lifetime
+volume; oversized-trace exclusion still applies to pending-window estimates.
 
 The dispatcher emits `estimated_event_update_count` and
 `estimated_serialized_event_bytes` distributions under `langfuse.trace_batch`, tagged
@@ -377,15 +493,15 @@ The following metrics use the `langfuse.trace_batch` prefix. All additions are
 inside the existing cloud experiment paths; normal ingestion with tracking
 disabled performs no new aggregation or Redis calls.
 
-| Metric                                                     | Kind / tags                          | Meaning                                                                                                                                                                                                                                                                                                                               |
-| ---------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `event_updates`, `serialized_event_bytes`                  | Counters; `stage:eligible\|recorded` | Accepted, valid-start-time updates before sampling, and in Redis-acknowledged chunks. Repeated updates count again. Selected volume is `sampling_decisions`.                                                                                                                                                                          |
-| `active_reads`                                             | Per-process gauge                    | Streams currently being consumed; failures decrement the count too.                                                                                                                                                                                                                                                                   |
-| `failed_read_observation_count`, `failed_read_input_bytes` | Distributions                        | Partial logical rows and input bytes consumed before a stream failure. Separate from successful throughput. Output and metadata bytes stay on the completion log.                                                                                                                                                                     |
-| `queue_depth`                                              | Gauge; `type:delayed`                | Delayed BullMQ jobs. Waiting, active, and failed depth stay on `langfuse.queue.trace_batch.depth`. Request rate, wait time, and processing time use the generic `langfuse.queue.trace_batch` series, the same as every other queue. Processing time is recorded when the processor returns. Discard reasons stay on `discarded_jobs`. |
-| `queue_waiting_head_age_ms`                                | Gauge                                | Maximum creation age of the next FIFO jobs in waiting/paused lists. Zero when empty.                                                                                                                                                                                                                                                  |
-| `redis_key_bytes`                                          | Gauge; `key:due\|state`              | Estimated memory of each readiness key, including Redis overhead.                                                                                                                                                                                                                                                                     |
-| `redis_key_entries`                                        | Gauge; `key:due\|state`              | `ZCARD` / `HLEN` at the memory snapshot.                                                                                                                                                                                                                                                                                              |
+| Metric                                                     | Kind / tags                                      | Meaning                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `event_updates`, `serialized_event_bytes`                  | Counters; `stage:eligible\|recorded`             | Accepted, valid-start-time updates before sampling, and in Redis-acknowledged chunks. Repeated updates count again. Selected volume is `sampling_decisions`.                                                                                                                                                                          |
+| `active_reads`                                             | Per-process gauge                                | Streams currently being consumed; failures decrement the count too.                                                                                                                                                                                                                                                                   |
+| `failed_read_observation_count`, `failed_read_input_bytes` | Distributions                                    | Partial logical rows and input bytes consumed before a stream failure. Separate from successful throughput. Output and metadata bytes stay on the completion log.                                                                                                                                                                     |
+| `queue_depth`                                              | Gauge; `type:delayed`                            | Delayed BullMQ jobs. Waiting, active, and failed depth stay on `langfuse.queue.trace_batch.depth`. Request rate, wait time, and processing time use the generic `langfuse.queue.trace_batch` series, the same as every other queue. Processing time is recorded when the processor returns. Discard reasons stay on `discarded_jobs`. |
+| `queue_waiting_head_age_ms`                                | Gauge                                            | Maximum creation age of the next FIFO jobs in waiting/paused lists. Zero when empty.                                                                                                                                                                                                                                                  |
+| `redis_key_bytes`                                          | Gauge; `key:due\|state\|first`, `shard:N\|total` | Estimated memory of each readiness key, including Redis overhead.                                                                                                                                                                                                                                                                     |
+| `redis_key_entries`                                        | Gauge; `key:due\|state\|first`, `shard:N\|total` | `ZCARD` / `HLEN` at the memory snapshot.                                                                                                                                                                                                                                                                                              |
 
 The eligible and recorded counters reuse the already-computed serialized size and
 per-trace aggregates. Recorded volume is emitted after each acknowledged Lua
@@ -404,14 +520,17 @@ One failed collection does not suppress the others; failed samples are not
 reported as zero. Check `langfuse.periodic_runner.completed` and
 `last_healthy_timestamp_seconds` with `runner:trace_batch_metrics` for freshness.
 
-Memory collection uses one bounded two-key Lua call with `MEMORY USAGE ...
+Memory collection uses bounded per-shard Lua calls with `MEMORY USAGE ...
 SAMPLES 5`, preserving the shared key prefix and Redis Cluster slot routing.
 Missing keys report zero; there is no keyspace scan or exact full-hash traversal.
 Memory sampling estimates storage, not process RSS or event payload size.
 
 Queue/map snapshots are global and can be emitted by several workers: use
 max/latest across reporters, never sum duplicates. For map totals, first
-deduplicate reporters per `key`, then add the due/state estimates. In contrast,
+deduplicate reporters per `key,shard`, then add shard estimates, or use the
+`shard:total` series directly. Never add total and shard series together. First-seen
+counts include physically retained expired entries until their bucket expires.
+In contrast,
 `active_reads` is local to a worker; distinct live worker series may be summed.
 It is emitted on stream start/finish and on each metrics-runner cycle, including
 zero when idle, so unchanged long-running reads remain visible.
@@ -554,6 +673,19 @@ and available instance tags in Datadog before relying on these signals.
 
 ## Stop and drain
 
+Upgrading from the unsharded or minimum-only decimal layout requires a drain; mixed writers and
+dispatchers must not run against different layouts. Disable producers, let the
+old dispatcher empty `{trace-batch}:due` and `{trace-batch}:state`, and drain the
+queue with the old consumers. Stop old dispatchers before deploying all new
+producers/dispatchers. Resume tracking only once all use the new layout. There
+is no retained first-seen history for traces dispatched before this upgrade.
+The same procedure applies before changing shard count or retention. Do not
+delete pending keys to simulate a drain. Old queue payloads remain parseable.
+Draining pending work does not migrate first-seen history. A shard-count change
+must also wait for the old first-seen buckets to expire (TTL plus up to one
+bucket), or explicitly accept losing that retained history. Offline migration
+of first-seen entries is not implemented here.
+
 Disable ingestion and dispatch to stop new work. Leave the consumer enabled and
 set the read flag to `false` to complete and remove jobs without querying or
 parsing their payloads. Jobs at least two hours old are also discarded on pickup.
@@ -573,3 +705,103 @@ For an already enabled cloud experiment, explicitly set the new read flag to
 `true` when deploying this version if reads should continue; leaving it unset
 drains instead. Upgrade all producers before relying on native expiry: older
 producers do not install or refresh that TTL.
+
+## Short local readiness probes
+
+`worker/src/scripts/traceBatchReadinessLoad.ts` exercises tracking, the dispatcher,
+and the actual BullMQ consumer with reads disabled. It writes no ClickHouse data.
+Each run uses a random Redis prefix, saves JSON and CSV samples every ten seconds,
+and removes its queue and bounded readiness keys after the final sample. Parameters
+cover traces/second, duration in seconds, events/trace, events/batch, project skew,
+late fraction/delay, idle time, dispatcher interval, optional dispatcher stall,
+shards, and output path. A stall probe should use `--late 0` to avoid intentionally
+coalescing an initial window with its scheduled late event.
+
+```sh
+mise exec -- pnpm --filter worker exec dotenv -e ../.env -- tsx \
+  src/scripts/traceBatchReadinessLoad.ts --duration 60 --rate 1200 \
+  --shards 1 --output /tmp/trace-readiness-single
+```
+
+For a local Cluster, override `REDIS_CLUSTER_ENABLED`, `REDIS_CLUSTER_NODES`,
+`REDIS_AUTH`, `REDIS_CONNECTION_STRING`, and `REDIS_TLS_ENABLED` after dotenv loads
+the local configuration, and pass `--shards 16`. Use the cluster's actual addresses;
+this probe does not provision or fail over Redis.
+
+### Earlier pipeline probes
+
+These results measure the earlier minimum-only implementation. Current full-bound
+storage and 24h/48h populated-bucket measurements are in
+[readiness storage measurements](storage-comparison.md), with the comparison CSV.
+The later probes include acknowledgement history refresh and cached Lua calls.
+
+The 10 October 2026 probes used an Apple M5 Max, 18 host CPU cores, 64 GiB host RAM,
+and Redis OSS 7.2.4 in Docker. Both used UUID project/trace identifiers, 1,200
+traces/second, five events/trace, 1,000 events/ingestion batch, 30% of traffic in one
+project, and 6% late arrivals compressed to five seconds. Idle and dispatch
+intervals were one second. First-seen retention stayed 24 hours; pending retention
+stayed two hours. The standalone probe enabled a Node CPU profile; its process
+profile includes imports and the entire short probe, rather than a separate steady
+phase. Cluster used three primaries and three replicas on one host.
+
+These performance measurements precede the final acknowledgement change that
+refreshes first-seen retention after dispatch. That additional bounded bucket
+write has not been profiled. After that change, all 52 readiness tests passed on
+both standalone Redis and Redis Cluster, including the post-dispatch TTL case.
+
+| Measurement                                                |       Standalone, 1 shard |  Cluster, 16 shards |
+| ---------------------------------------------------------- | ------------------------: | ------------------: |
+| Ingestion duration                                         |                      30 s |                60 s |
+| Initial / late traces                                      |            35,800 / 2,160 |      71,800 / 4,320 |
+| Lost / duplicate / extra dispatches / wrong earliest start |             0 / 0 / 0 / 0 |       0 / 0 / 0 / 0 |
+| Peak sampled primary main-thread CPU                       |                     6.30% | 4.74%, 3.25%, 2.29% |
+| Tracking CPU upper bound at 1,000 traces/s                 |         5.71% of one core |   5.66% of one core |
+| Tracking call p99, including client/transport work         |                  14.50 ms |            29.43 ms |
+| Maximum dispatcher run                                     |                  94.54 ms |           115.46 ms |
+| Maximum sampled event-loop p99                             |                  13.02 ms |            14.52 ms |
+| Due + state bytes per pending trace, sampled range         |           466.42–471.40 B |     479.92–505.59 B |
+| First-seen bytes per retained trace, final sample          |                  101.97 B |            101.95 B |
+| Largest shard / mean, sampled pending memory               |                         1 |               1.335 |
+| Largest shard / mean, sampled first-seen memory            |                         1 |               1.042 |
+| Prefix-matched slowlog entries above 10 ms                 | 1, 10.485 ms (BullMQ Lua) |                   0 |
+
+The standalone pipeline failed the unchanged “no slowlog entry > 10 ms” criterion
+once in BullMQ Lua. No readiness tracking script appeared in its prefix-matched
+slowlog. This does not establish an eval p99: tracking-call timings also include
+Node, scheduling, and transport. Tracking CPU is an upper bound from process CPU
+across awaited tracking calls, including any concurrent consumer work. Shard
+operation balance was not measured independently of the physical primary CPU.
+
+Both had `maxmemory=0` and AOF disabled. Standalone snapshot configuration was
+`3600 1 300 100 60 10000`; Cluster snapshots were disabled. Host RAM/core counts
+describe the host, not guaranteed Docker allocations. JSON contains raw node INFO,
+configuration, slowlog, per-shard memory/entries, process CPU/memory, and ping
+latency; CSV carries the same sampled diagnostics. Local artifacts are
+`/tmp/trace-readiness-1200-single-uuid.{json,csv}`,
+`/tmp/trace-readiness-1200-cluster.{json,csv}`, and
+`/tmp/trace-readiness-single.cpuprofile`. The earlier standalone 60-second run used
+short IDs and concurrent checks; its pending-byte numbers are not a production
+memory budget.
+
+At approximately 102 B per first-seen entry, 100 million traces/day projects to
+10.2 GB (9.50 GiB) at 100% opt-in, or 3.06 GB (2.85 GiB) at 30%. Whole-hour bucket
+rounding can retain up to another hour, approximately 4.17% at a constant rate.
+These key-memory projections exclude Redis's global key/expiry dictionaries,
+allocator fragmentation, replicas, due/state, BullMQ, and Topics completion
+markers. Pending traces also hold first-seen entries, so idle time and a stalled
+dispatcher add residency beyond the nominal post-dispatch day.
+
+A four-facet completion hash measured 368 B using Redis 7.2.4 `MEMORY USAGE`
+with UUID facet IDs and listpack encoding. At 100 million dispatches/day, its
+fixed three-hour retention projects to another 4.6 GB (1.38 GB at 30% opt-in).
+That measurement excludes Redis's global per-key/expiry dictionaries and
+allocator/replica overhead. Unfinished staged inference results add a separate,
+workload-dependent payload budget; successful results are removed after their
+completion markers are persisted.
+
+These are short Redis correctness and capacity screens. They populate one hourly
+first-seen bucket; the 24-hour working set and CPU with 24 populated buckets remain
+unmeasured. They do not prove the requested 30-minute RSS stability, 1,800/s
+headroom, multi-hour late-arrival mix, dispatcher-stall drain, failover recovery,
+or sustained full-volume load thresholds. No failover was performed in these
+probes, and ten-second ping samples are not `redis-cli --latency-history`.
