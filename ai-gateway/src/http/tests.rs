@@ -118,8 +118,7 @@ async fn request_uploads_are_bounded_before_model_aware_resolution() {
     let next = gateway
         .post()
         .bearer_auth("next")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(r#"{"model":"gpt-4.1"}"#)
+        .json(&serde_json::json!({"model": "gpt-4.1"}))
         .send()
         .await
         .unwrap();
@@ -133,7 +132,7 @@ fn model_replacement_preserves_object_order_and_large_integers() {
     let body = br#"{"model":"Primary/gpt-4.1","response_format":{"json_schema":{"properties":{"reasoning":{},"answer":{}}}},"seed":18446744073709551616}"#;
 
     assert_eq!(
-        replace_request_model(body, "gpt-4.1").ok().unwrap(),
+        replace_request_model(body, "gpt-4.1").unwrap(),
         br#"{"model":"gpt-4.1","response_format":{"json_schema":{"properties":{"reasoning":{},"answer":{}}}},"seed":18446744073709551616}"#.as_slice(),
     );
 }
