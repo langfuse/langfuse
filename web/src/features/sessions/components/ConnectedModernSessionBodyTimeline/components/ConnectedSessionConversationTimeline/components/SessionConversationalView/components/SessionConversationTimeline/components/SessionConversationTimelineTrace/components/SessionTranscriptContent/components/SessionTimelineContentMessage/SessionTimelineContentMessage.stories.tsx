@@ -43,7 +43,9 @@ export const ReasoningActions = meta.story({
         '[aria-hidden="true"].border-dashed',
       )!;
       await expect(divider).toBeInTheDocument();
-      await expect(action).toHaveClass("group-hover/collapsible-row:visible");
+      await expect(action).toHaveClass(
+        "group-hover/collapsible-row:opacity-100",
+      );
       const trigger = within(row).queryByRole("button", { name: "Reasoning" });
       if (trigger) {
         await userEvent.click(trigger);
