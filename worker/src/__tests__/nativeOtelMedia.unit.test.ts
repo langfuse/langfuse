@@ -233,14 +233,18 @@ describe(
           JSON.parse(JSON.parse(attributes[2]!.value.stringValue)),
         ).toMatchObject({ data: batch.media[2]!.reference });
         await expect(
-          batch.originalMedia(0, batch.media[0]!.originalJsonDepth),
-        ).resolves.toBe(MEDIA_URI);
-        await expect(
-          batch.originalMedia(1, batch.media[1]!.originalJsonDepth),
-        ).resolves.toBe(MEDIA_URI);
-        await expect(
-          batch.originalMedia(2, batch.media[2]!.originalJsonDepth),
-        ).resolves.toBe(providerBody.toString("base64"));
+          batch.originalMediaBatch(
+            [2, 0, 2, 1].map((index) => ({
+              index,
+              jsonLayers: batch.media[index]!.originalJsonDepth,
+            })),
+          ),
+        ).resolves.toEqual([
+          providerBody.toString("base64"),
+          MEDIA_URI,
+          providerBody.toString("base64"),
+          MEDIA_URI,
+        ]);
       } finally {
         await batch.dispose();
         await validated.dispose();
@@ -512,13 +516,20 @@ it(
         createHash("sha256").update(MEDIA_BODY).digest("base64"),
       );
       await expect(batch.mediaBody(1)).rejects.toThrow("unknown media index");
+      await expect(
+        batch.originalMediaBatch([{ index: 1, jsonLayers: 0 }]),
+      ).rejects.toMatchObject({ code: "ERR_OTEL_MEDIA_INDEX" });
 
       const body = batch.mediaBody(media.index);
       const original = batch.originalMedia(media.index);
+      const originalBatch = batch.originalMediaBatch([
+        { index: media.index, jsonLayers: media.originalJsonDepth },
+      ]);
       await batch.dispose();
       expect(compact.toString("utf8")).toContain(media.reference);
       await expect(body).resolves.toEqual(MEDIA_BODY);
       await expect(original).resolves.toBe(uri);
+      await expect(originalBatch).resolves.toEqual([uri]);
       await expect(batch.copyJsonBuffer()).rejects.toMatchObject({
         code: "ERR_OTEL_CLOSED",
       });
@@ -534,6 +545,9 @@ it(
       await expect(batch.originalMedia(0)).rejects.toMatchObject({
         code: "ERR_OTEL_CLOSED",
       });
+      await expect(
+        batch.originalMediaBatch([{ index: 0, jsonLayers: 0 }]),
+      ).rejects.toMatchObject({ code: "ERR_OTEL_CLOSED" });
 
       const copyValidated = await validateOtelJson(
         Buffer.from(JSON.stringify({ input: uri })),

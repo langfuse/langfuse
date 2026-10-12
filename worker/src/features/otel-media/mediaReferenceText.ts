@@ -1,8 +1,14 @@
-import type { EarlyOtelBatch, ExtractedOtelMedia } from "@langfuse/native";
+import type {
+  EarlyOtelBatch,
+  ExtractedOtelMedia,
+  MediaRestoreRequest,
+} from "@langfuse/native";
 
 export type MediaRegistry = ReadonlyMap<string, ExtractedOtelMedia>;
 
 const MEDIA_REFERENCE_PREFIX = "@@@langfuseMedia:";
+const RESTORATION_BATCH_SIZE = 64;
+const RESTORATION_BATCH_SOURCE_BYTES = 1024 * 1024;
 // `originalMedia` accepts target serializations through sixteen JSON layers.
 // This restoration bound is separate from native's two-layer discovery limit.
 const MAX_SERIALIZED_REFERENCE_LAYERS = 16;
@@ -76,22 +82,62 @@ export function createMediaReferenceRewriter(
     let layers: Map<number, number> | undefined;
     let output = "";
     let end = 0;
-    for (const match of knownMediaReferenceMatches(value, media)) {
-      let replacement = await resolve?.(match.entry);
-      if (replacement === undefined) {
+    const matches = knownMediaReferenceMatches(value, media);
+    let next = matches.next();
+    while (!next.done) {
+      const group: KnownMediaReferenceMatch[] = [];
+      let sourceBytes = 0;
+      while (!next.done && group.length < RESTORATION_BATCH_SIZE) {
+        const size = next.value.entry.originalByteLength;
+        // Source size estimates the return size; JSON escaping can enlarge it. Large items run alone.
+        if (
+          group.length > 0 &&
+          sourceBytes + size > RESTORATION_BATCH_SOURCE_BYTES
+        )
+          break;
+        group.push(next.value);
+        sourceBytes += size;
+        next = matches.next();
+      }
+      const requests = new Map<string, MediaRestoreRequest>();
+      const replacements: Array<string | { key: string }> = [];
+      for (const match of group) {
+        const replacement = await resolve?.(match.entry);
+        if (replacement !== undefined) {
+          replacements.push(replacement);
+          continue;
+        }
         if (layers === undefined)
           layers = serializedReferenceLayers(value, media);
         const depth = layers.get(match.index)!;
         const key = `${match.reference}\u0000${depth}`;
-        let original = originals.get(key);
-        if (!original) {
-          original = batch.originalMedia(match.entry.index, depth);
-          originals.set(key, original);
-        }
-        replacement = await original;
+        requests.set(key, { index: match.entry.index, jsonLayers: depth });
+        replacements.push({ key });
       }
-      output += value.slice(end, match.index) + replacement;
-      end = match.index + match.reference.length;
+      // Another string may have cached a read while the uploads above were awaited.
+      const missing = [...requests].filter(([key]) => !originals.has(key));
+      if (missing.length > 0) {
+        const reading = batch.originalMediaBatch(
+          missing.map(([, request]) => request),
+        );
+        missing.forEach(([key], index) => {
+          originals.set(
+            key,
+            reading.then((values) => values[index]!),
+          );
+        });
+      }
+      const values = await Promise.all(
+        replacements.map((replacement) =>
+          typeof replacement === "string"
+            ? replacement
+            : originals.get(replacement.key)!,
+        ),
+      );
+      for (const [index, match] of group.entries()) {
+        output += value.slice(end, match.index) + values[index]!;
+        end = match.index + match.reference.length;
+      }
     }
     return end === 0 ? value : output + value.slice(end);
   };

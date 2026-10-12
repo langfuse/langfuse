@@ -3,6 +3,7 @@ import {
   validateOtelJson,
   type EarlyOtelBatch,
   type ExtractedOtelMedia,
+  type MediaRestoreRequest,
 } from "@langfuse/native";
 
 const mocks = vi.hoisted(() => {
@@ -132,6 +133,13 @@ function createFakeMediaBatch({
     mediaPage,
     mediaBody,
     originalMedia: vi.fn().mockResolvedValue(originalValue),
+    originalMediaBatch: vi.fn(async (requests: MediaRestoreRequest[]) =>
+      Promise.all(
+        requests.map(({ index, jsonLayers }) =>
+          batch.originalMedia(index, jsonLayers),
+        ),
+      ),
+    ),
   } as EarlyOtelBatch;
   return { batch, mediaBody, mediaCount, mediaPage, readMedia };
 }
@@ -546,23 +554,35 @@ describe("processOtelEventMedia", () => {
     expect(mocks.uploadMediaForTrace).toHaveBeenCalledOnce();
   });
 
-  it("loads large media registries in cached pages", async () => {
-    const entries = createTestDescriptors(4_097, "page", 4);
-    const { batch, mediaCount, mediaPage } = createFakeMediaBatch({ entries });
-    const reference = entries.at(-1)!.reference;
-    const first = { name: reference };
-    const second = { name: reference };
+  it.each([4, 2 * 1024 * 1024])(
+    "caches registry pages and batches restoration reads (%s source bytes)",
+    async (sourceBytes) => {
+      const entries = createTestDescriptors(4_097, "page", sourceBytes);
+      const { batch, mediaCount, mediaPage } = createFakeMediaBatch({
+        entries,
+      });
+      const reference = [...entries.slice(-65), entries.at(-1)!]
+        .map((entry) => entry.reference)
+        .join(" ");
+      const first = { name: reference };
+      const second = { name: reference };
 
-    await restoreInlineMedia(batch, [first]);
-    await restoreInlineMedia(batch, [second]);
+      await restoreInlineMedia(batch, [first]);
+      await restoreInlineMedia(batch, [second]);
 
-    expect(first.name).toBe("aGk=");
-    expect(second.name).toBe("aGk=");
-    expect(mediaCount).toHaveBeenCalledOnce();
-    expect(mediaPage).toHaveBeenCalledTimes(2);
-    expect(mediaPage).toHaveBeenNthCalledWith(1, 0, 4_096);
-    expect(mediaPage).toHaveBeenNthCalledWith(2, 4_096, 4_096);
-  });
+      expect(first.name).toBe(Array(66).fill("aGk=").join(" "));
+      expect(second.name).toBe(first.name);
+      expect(
+        vi
+          .mocked(batch.originalMediaBatch)
+          .mock.calls.map(([requests]) => requests.length),
+      ).toEqual(sourceBytes === 4 ? [64, 1, 64, 1] : Array(130).fill(1));
+      expect(mediaCount).toHaveBeenCalledOnce();
+      expect(mediaPage).toHaveBeenCalledTimes(2);
+      expect(mediaPage).toHaveBeenNthCalledWith(1, 0, 4_096);
+      expect(mediaPage).toHaveBeenNthCalledWith(2, 4_096, 4_096);
+    },
+  );
 
   it("reuses uploads across destinations even after a failed link", async () => {
     const { batch, mediaPage, mediaBody } = createFakeMediaBatch({
