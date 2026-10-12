@@ -100,6 +100,7 @@ const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
   langfuse_updateDashboard: "Updating dashboard",
   langfuse_updateEvaluationRule: "Updating evaluation rule",
   langfuse_updateScoreConfig: "Updating score config",
+  langfuse_setEvaluatorWorkbenchFilter: "Set Evaluator Workbench Filter",
   langfuse_upsertDataset: "Saving dataset",
   langfuse_upsertDatasetItem: "Saving dataset item",
   langfuse_createEvaluator: "Creating evaluator",
