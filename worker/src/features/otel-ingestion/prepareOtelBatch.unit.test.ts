@@ -47,36 +47,12 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
     );
   });
 
-  it.each([true, false])(
-    "skips native validation and masking for marker-free input (extract=%s)",
-    async (extractMedia) => {
-      maskingMocks.isIngestionMaskingEnabled.mockReturnValue(false);
-      const bytes = Buffer.from('{"note":"plain input"}');
-
-      const prepared = await prepareOtelBatch({
-        bytes,
-        projectId: "project-id",
-        extractMedia,
-      });
-
-      expect(nativeMocks.extractOtelMedia).toHaveBeenCalledTimes(
-        extractMedia ? 1 : 0,
-      );
-      expect(nativeMocks.validateOtelJson).not.toHaveBeenCalled();
-      expect(maskingMocks.applyIngestionMasking).not.toHaveBeenCalled();
-      expect(prepared.batch).toBeUndefined();
-      expect(prepared.sourceUnchanged).toBe(true);
-      if ("error" in prepared) throw new Error("unexpected masking failure");
-      expect(await parsePreparedOtelBatch(prepared, bytes)).toEqual({
-        resourceSpans: { note: "plain input" },
-        batch: undefined,
-      });
-    },
-  );
-
-  it.each(["unchanged", "masked", "sanitized"] as const)(
+  it.each(["unchanged", "masked", "sanitized", "disabled"] as const)(
     "allows download reuse only for unchanged bytes (%s)",
     async (inputKind) => {
+      const disabled = inputKind === "disabled";
+      const sourceUnchanged = inputKind === "unchanged" || disabled;
+      maskingMocks.isIngestionMaskingEnabled.mockReturnValue(!disabled);
       const native =
         await vi.importActual<typeof import("@langfuse/native")>(
           "@langfuse/native",
@@ -102,17 +78,15 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
       const prepared = await prepareOtelBatch({
         bytes,
         projectId: "project-id",
-        extractMedia: true,
+        extractMedia: !disabled,
       });
       try {
-        if (!prepared.batch) throw new Error("expected native preparation");
-        expect(prepared.batch.mediaCount()).toBe(0);
+        if ("error" in prepared) throw new Error("unexpected masking failure");
+        expect(prepared.batch?.mediaCount()).toBe(disabled ? undefined : 0);
         expect(nativeMocks.extractOtelMedia).not.toHaveBeenCalled();
-        expect(prepared.sourceUnchanged).toBe(inputKind === "unchanged");
+        expect(prepared.sourceUnchanged).toBe(sourceUnchanged);
         const parsed = await parsePreparedOtelBatch(prepared, bytes);
-        expect(parsed.batch).toBe(
-          inputKind === "unchanged" ? undefined : prepared.batch,
-        );
+        expect(parsed.batch).toBe(sourceUnchanged ? undefined : prepared.batch);
         expect(parsed.resourceSpans).toEqual({
           note:
             inputKind === "sanitized"
@@ -126,6 +100,21 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
       }
     },
   );
+
+  it("rejects malformed JSON after marker-free preparation", async () => {
+    maskingMocks.isIngestionMaskingEnabled.mockReturnValue(false);
+    const bytes = Buffer.from('{"note":"ordinary"} trailing');
+    const prepared = await prepareOtelBatch({
+      bytes,
+      projectId: "project-id",
+      extractMedia: true,
+    });
+    if ("error" in prepared) throw new Error("unexpected masking failure");
+    expect(prepared.batch).toBeUndefined();
+    await expect(parsePreparedOtelBatch(prepared, bytes)).rejects.toThrow(
+      SyntaxError,
+    );
+  });
 
   it("does not fall back to a second TypeScript processing path", async () => {
     const error = Object.assign(

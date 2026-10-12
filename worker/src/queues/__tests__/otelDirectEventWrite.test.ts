@@ -265,38 +265,6 @@ describe("early media extraction rollout", () => {
     }
   });
 
-  it("still rejects malformed JSON when native marker scanning is negative", async () => {
-    const original = {
-      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
-        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED,
-      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS:
-        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS,
-      LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED:
-        env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
-      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-    };
-    const bytes = Buffer.from('{"note":"ordinary"} trailing');
-    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED = "true";
-    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS = ["*"];
-    env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "true";
-    env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET = "media-bucket";
-    vi.mocked(getS3EventStorageClient).mockReturnValue({
-      downloadBytes: vi.fn().mockResolvedValue(bytes),
-    } as unknown as ReturnType<typeof getS3EventStorageClient>);
-
-    try {
-      await expect(
-        otelIngestionQueueProcessorBuilder(false)(
-          createJob("project"),
-          undefined,
-        ),
-      ).rejects.toThrow(SyntaxError);
-    } finally {
-      Object.assign(env, original);
-      vi.mocked(getS3EventStorageClient).mockReset();
-    }
-  });
-
   it.each([
     ["reference", "disabled with wildcard", false, ["*"]],
     ["reference", "enabled with no projects", true, []],
