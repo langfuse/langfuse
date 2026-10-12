@@ -3,7 +3,6 @@ import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Badge } from "../Badge/Badge";
 import { DropdownMenu } from "./DropdownMenu";
 
 const items: ComponentProps<typeof DropdownMenu>["items"] = [
@@ -40,11 +39,11 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
-export const TitleBadge = meta.story({
+export const Internal = meta.story({
   args: {
     title: undefined,
     ariaLabel: "Session actions",
-    titleBadge: <Badge text="Internal" color="yellow" size="sm" />,
+    internal: true,
   },
 });
 

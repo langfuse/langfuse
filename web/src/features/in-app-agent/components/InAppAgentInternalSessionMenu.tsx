@@ -7,7 +7,6 @@ import {
   type DropdownMenuItemDefinition,
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
 import { showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
@@ -87,7 +86,7 @@ export function InAppAgentInternalSessionMenu({
   return (
     <DropdownMenu
       ariaLabel="Internal session actions"
-      titleBadge={<InternalFeatureBadge />}
+      internal
       items={items}
       placement="bottom-start"
     >

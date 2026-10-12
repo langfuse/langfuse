@@ -31,6 +31,7 @@ import * as React from "react";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 
 const menuVariants = cva(
@@ -193,8 +194,8 @@ type DropdownMenuProps = {
   placement?: Placement;
   search?: { placeholder: string };
   title?: string;
-  /** Shown in the header after the title; renders the header on its own. */
-  titleBadge?: React.ReactNode;
+  /** Marks an internal-only menu with the Internal badge in the header. */
+  internal?: boolean;
   description?: string;
 };
 
@@ -218,14 +219,14 @@ function DropdownMenuNode({
   children,
   description,
   disabled = false,
+  internal = false,
   items,
   maxHeight = "15rem",
   placement = "bottom-start",
   search,
   title,
-  titleBadge,
 }: DropdownMenuProps) {
-  const hasHeader = Boolean(title || titleBadge);
+  const hasHeader = Boolean(title) || internal;
   const [isOpen, setIsOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -356,10 +357,10 @@ function DropdownMenuNode({
             >
               {hasHeader ? (
                 <div className="border-border bg-popover sticky top-0 z-1 border-b px-3 py-2.5 text-sm font-bold">
-                  {titleBadge ? (
+                  {internal ? (
                     <div className="flex items-center gap-2">
                       {title}
-                      {titleBadge}
+                      <Badge text="Internal" color="yellow" size="sm" />
                     </div>
                   ) : (
                     title
