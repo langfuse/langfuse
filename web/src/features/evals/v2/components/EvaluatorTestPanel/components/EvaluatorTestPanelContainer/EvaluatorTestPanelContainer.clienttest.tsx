@@ -34,6 +34,7 @@ describe("EvaluatorTestPanelContainer", () => {
         store={store}
         sampleSelector={null}
         testResult={null}
+        assistantUpdateId={null}
         testPending={false}
         rawResultOpen={false}
         onRawResultOpenChange={vi.fn()}

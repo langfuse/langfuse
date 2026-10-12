@@ -20,6 +20,11 @@ import { api } from "@/src/utils/api";
 
 const EDITOR_UPDATE_HIGHLIGHT_DURATION_MS = 3_200;
 const EDITOR_UPDATE_HIGHLIGHT_GRACE_MS = 1_000;
+type EditorUpdateSurface = "code" | "prompt";
+type PendingEditorUpdateHighlight = {
+  id: string;
+  surface: EditorUpdateSurface;
+};
 
 function getEditorUpdateHighlightKey(projectId: string, evaluatorId: string) {
   return `langfuse:evaluator-assistant-highlight:${projectId}:${evaluatorId}`;
@@ -28,7 +33,7 @@ function getEditorUpdateHighlightKey(projectId: string, evaluatorId: string) {
 function takePendingEditorUpdateHighlight(
   projectId: string,
   evaluatorId: string | null,
-) {
+): PendingEditorUpdateHighlight | null {
   if (!evaluatorId || typeof window === "undefined") {
     return null;
   }
@@ -40,11 +45,16 @@ function takePendingEditorUpdateHighlight(
     if (!value) {
       return null;
     }
-    const pending = JSON.parse(value) as { id?: unknown; expiresAt?: unknown };
+    const pending = JSON.parse(value) as {
+      id?: unknown;
+      surface?: unknown;
+      expiresAt?: unknown;
+    };
     return typeof pending.id === "string" &&
+      (pending.surface === "code" || pending.surface === "prompt") &&
       typeof pending.expiresAt === "number" &&
       pending.expiresAt > Date.now()
-      ? pending.id
+      ? { id: pending.id, surface: pending.surface }
       : null;
   } catch {
     return null;
@@ -55,6 +65,7 @@ function preserveEditorUpdateHighlight(
   projectId: string,
   evaluatorId: string,
   updateId: string,
+  surface: EditorUpdateSurface,
 ) {
   const key = getEditorUpdateHighlightKey(projectId, evaluatorId);
   try {
@@ -62,6 +73,7 @@ function preserveEditorUpdateHighlight(
       key,
       JSON.stringify({
         id: updateId,
+        surface,
         expiresAt:
           Date.now() +
           EDITOR_UPDATE_HIGHLIGHT_DURATION_MS +
@@ -103,8 +115,14 @@ export function useEvaluatorInAppAgentToolSync({
   const router = useRouter();
   const utils = api.useUtils();
   const { messages, open, selectedConversationId } = useInAppAiAgent();
-  const [editorUpdateId, setEditorUpdateId] = useState<string | null>(() =>
+  const [initialEditorUpdate] = useState(() =>
     takePendingEditorUpdateHighlight(projectId, evaluatorId),
+  );
+  const [codeUpdateId, setCodeUpdateId] = useState<string | null>(
+    initialEditorUpdate?.surface === "code" ? initialEditorUpdate.id : null,
+  );
+  const [promptUpdateId, setPromptUpdateId] = useState<string | null>(
+    initialEditorUpdate?.surface === "prompt" ? initialEditorUpdate.id : null,
   );
   const [testUpdateId, setTestUpdateId] = useState<string | null>(null);
   const handledTestToolCallIdRef = useRef<string | null>(null);
@@ -166,7 +184,7 @@ export function useEvaluatorInAppAgentToolSync({
               console.error("Failed to open the created evaluator", error);
             });
         },
-        evaluatorUpdated: async (updateId, _surface, toolArguments) => {
+        evaluatorUpdated: async (updateId, surface, toolArguments) => {
           if (!evaluatorId) {
             return;
           }
@@ -180,8 +198,17 @@ export function useEvaluatorInAppAgentToolSync({
           ) {
             state.actions.setDescription(toolArguments.description ?? "");
           }
-          preserveEditorUpdateHighlight(projectId, evaluatorId, updateId);
-          setEditorUpdateId(updateId);
+          preserveEditorUpdateHighlight(
+            projectId,
+            evaluatorId,
+            updateId,
+            surface,
+          );
+          if (surface === "prompt") {
+            setPromptUpdateId(updateId);
+          } else {
+            setCodeUpdateId(updateId);
+          }
           await utils.evalsV2.get.invalidate({ projectId, evaluatorId });
         },
       }).catch((error: unknown) => {
@@ -274,5 +301,5 @@ export function useEvaluatorInAppAgentToolSync({
     store,
   ]);
 
-  return { editorUpdateId, testUpdateId };
+  return { codeUpdateId, promptUpdateId, testUpdateId };
 }
