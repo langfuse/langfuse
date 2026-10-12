@@ -10,7 +10,6 @@ import {
   type MediaPayloadKind,
 } from "../media/MediaPayloadProcessor";
 import type { UploadMediaForTraceResult } from "../media/mediaService";
-import { otelMediaUploads } from "../media/otelMediaUploads";
 
 export type OtelMediaKind = MediaPayloadKind;
 export type OtelMediaWritePath = "direct" | "legacy";
@@ -87,15 +86,14 @@ type ProcessContext = {
   mediaPrefix: string;
   uploadMedia: UploadOtelMedia;
   result: OtelMediaProcessResult;
-  inFlightUploads: Map<string, Map<MediaContentType, Promise<void>>>;
 };
 
 /**
  * Detects and uploads embedded media for normalized OTEL payloads selected by
  * either the direct or legacy events-table persistence path.
  *
- * Upload slots and decoded-byte reservations are shared across ingestion jobs.
- * Successful replacements mutate each event in place.
+ * Events, fields, and candidates are processed sequentially to bound peak
+ * decoded media memory. Successful replacements mutate each event in place.
  * Invalid values and failed uploads are left unchanged; their outcomes are
  * reflected in the returned counters instead of failing the whole run.
  */
@@ -138,10 +136,6 @@ export async function processOtelMedia(params: {
       structured_payload: 0,
     },
   };
-  const inFlightUploads = new Map<
-    string,
-    Map<MediaContentType, Promise<void>>
-  >();
   for (const target of targets) {
     for (const field of ["input", "output", "metadata"] as const) {
       const originalValue = target.payload[field];
@@ -158,7 +152,6 @@ export async function processOtelMedia(params: {
         mediaPrefix,
         uploadMedia,
         result,
-        inFlightUploads,
       };
       const transformed = await transformMediaPayload(originalValue, {
         processCandidate: (candidate) => processCandidate(candidate, context),
@@ -193,45 +186,10 @@ async function processCandidate(
   candidate: MediaPayloadCandidate,
   context: ProcessContext,
 ): Promise<string | undefined> {
-  /** Serialize identical bodies; each occurrence still creates its own link. */
-  const byContentType =
-    context.inFlightUploads.get(candidate.encodedData) ??
-    new Map<MediaContentType, Promise<void>>();
-  const previous = byContentType.get(candidate.contentType);
-  let release!: () => void;
-  const turn = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  byContentType.set(candidate.contentType, turn);
-  context.inFlightUploads.set(candidate.encodedData, byContentType);
-
-  try {
-    if (previous) await previous;
-    // Reserve before decoding. Base64 length is known without allocating its body;
-    // a Python literal's source length safely overestimates its decoded bytes.
-    const bytes =
-      candidate.encoding === "base64"
-        ? Buffer.byteLength(candidate.encodedData, "base64")
-        : candidate.encodedData.length;
-    return await otelMediaUploads.run(bytes, () =>
-      decodeAndUpload(candidate, context),
-    );
-  } finally {
-    release();
-    if (byContentType.get(candidate.contentType) === turn) {
-      byContentType.delete(candidate.contentType);
-      if (byContentType.size === 0) {
-        context.inFlightUploads.delete(candidate.encodedData);
-      }
-    }
-  }
-}
-
-async function decodeAndUpload(
-  candidate: MediaPayloadCandidate,
-  context: ProcessContext,
-): Promise<string | undefined> {
-  // Yield before synchronous decoding/hash work so uploads do not monopolize JS.
+  // Base64 decoding and hashing are synchronous and may be expensive for large
+  // media. Yield between candidates so a batch with many items does not hold
+  // the worker event loop continuously. Processing remains sequential to bound
+  // the number of decoded Buffers retained at once.
   await new Promise<void>((resolve) => setImmediate(resolve));
 
   let contentBytes: Buffer;

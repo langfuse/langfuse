@@ -1,3 +1,3 @@
 export * from "./MediaPayloadProcessor";
 export * from "./mediaService";
-export { otelMediaUploads, mapMedia, forEachMedia } from "./otelMediaUploads";
+export { otelMediaUploads, forEachMedia } from "./otelMediaUploads";

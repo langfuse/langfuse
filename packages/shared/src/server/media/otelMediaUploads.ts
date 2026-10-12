@@ -1,7 +1,7 @@
 import { env } from "../../env";
 import { MediaUploadPool } from "./MediaUploadPool";
 
-// Shared by early and late OTEL processing, including concurrent ingestion jobs.
+// Shared by early-media ingestion jobs in this worker process.
 // Build-time imports skip env validation and therefore may not have defaults.
 export const otelMediaUploads = new MediaUploadPool(
   Number(env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY ?? 100),
@@ -11,20 +11,6 @@ export const otelMediaUploads = new MediaUploadPool(
 // Structured-value and URI traversals can nest; keep each dispatch level small
 // even when many batches share a larger upload pool.
 const MEDIA_DISPATCH_CONCURRENCY = 5;
-
-/** Map with bounded concurrency, preserving input order in the result. */
-export async function mapMedia<T, R>(
-  values: Iterable<T>,
-  process: (value: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = [];
-  let index = 0;
-  await forEachMedia(values, async (value) => {
-    const position = index++;
-    results[position] = await process(value);
-  });
-  return results;
-}
 
 /** Iterate lazily; drain active work before propagating an error. */
 export async function forEachMedia<T>(
