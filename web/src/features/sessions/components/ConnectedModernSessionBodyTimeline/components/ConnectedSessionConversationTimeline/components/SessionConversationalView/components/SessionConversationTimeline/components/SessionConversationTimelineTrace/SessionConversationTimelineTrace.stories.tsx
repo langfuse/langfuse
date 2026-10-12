@@ -946,11 +946,29 @@ export const ToolErrorStatus = meta.story({
     await waitFor(() =>
       expect(overlays.queryByRole("tooltip")).not.toBeInTheDocument(),
     );
-    await userEvent.click(canvas.getByRole("button", { name: "search" }));
-    await expect(canvas.getByRole("button", { name: "search" })).toHaveFocus();
-    await expect(indicator).toBeVisible();
-    await userEvent.tab();
+    const searchButton = canvas.getByRole("button", { name: "search" });
+    if ("__vitest_browser__" in globalThis) {
+      // Real pointer and keyboard events: a mouse click must not pin the
+      // indicator, while keyboard focus still reaches and reveals it.
+      const { userEvent: browserUserEvent } = await import("vitest/browser");
+      // Earlier synthetic clicks left keyboard-style focus on the button.
+      searchButton.blur();
+      await browserUserEvent.click(searchButton);
+      await browserUserEvent.unhover(searchButton);
+      await expect(searchButton).toHaveFocus();
+      if (message.level === "WARNING" || message.level === "ERROR") {
+        await expect(indicator).toBeVisible();
+      } else {
+        await expect(indicator).not.toBeVisible();
+      }
+      await browserUserEvent.keyboard("{Tab}");
+    } else {
+      await userEvent.click(searchButton);
+      await expect(searchButton).toHaveFocus();
+      await userEvent.tab();
+    }
     await expect(indicator).toHaveFocus();
+    await expect(indicator).toBeVisible();
     await expect(await overlays.findByRole("tooltip")).toHaveTextContent(
       message.statusMessage,
     );

@@ -73,9 +73,9 @@ export function SessionTimelineToolRow({
                         ERROR: "dark:text-dark-red/90 text-red-800",
                         WARNING: "dark:text-dark-yellow text-yellow-800",
                         DEFAULT:
-                          "text-muted-foreground invisible group-hover/collapsible-row:visible group-has-[:focus-visible]/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible",
+                          "text-muted-foreground opacity-0 group-hover/collapsible-row:opacity-100 group-has-[:focus-visible]/collapsible-row:opacity-100 group-data-[expanded=true]/collapsible-row:opacity-100",
                         DEBUG:
-                          "text-muted-foreground invisible group-hover/collapsible-row:visible group-has-[:focus-visible]/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible",
+                          "text-muted-foreground opacity-0 group-hover/collapsible-row:opacity-100 group-has-[:focus-visible]/collapsible-row:opacity-100 group-data-[expanded=true]/collapsible-row:opacity-100",
                       } satisfies Record<Observation["level"], string>
                     )[level],
                   )}
