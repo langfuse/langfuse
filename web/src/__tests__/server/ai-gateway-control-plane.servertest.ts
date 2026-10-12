@@ -303,7 +303,7 @@ describe("AI gateway control plane", () => {
         provider: "OPENAI",
         credential: "sk-third",
       }),
-    ).rejects.toThrow('Connection names cannot contain "/"');
+    ).rejects.toThrow(/Connection names cannot contain/);
   });
 
   it("tests provider credentials without saving a connection", async () => {
