@@ -1245,6 +1245,8 @@ model EvaluationRule {
   filter          Json
   sampling        Decimal
   delay           Int
+  // Unused; kept until no deployed version selects it, then dropped.
+  idleTime        Int?           @map("idle_time") // milliseconds
   timeScope       String[]       @default(["NEW"]) @map("time_scope")
 
   assignments EvaluationRuleEvaluatorAssignment[]
@@ -1263,7 +1265,7 @@ model TracingProcessingSettings {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   // A trace is due this long after its latest event. Null uses
-  // LANGFUSE_TRACE_BATCH_IDLE_MS. DB CHECK: 60000..3600000.
+  // LANGFUSE_TRACE_BATCH_IDLE_MS. Bounds are enforced on write, not in the DB.
   traceIdleMs Int? @map("trace_idle_ms")
 
   @@map("tracing_processing_settings")
