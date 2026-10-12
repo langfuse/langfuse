@@ -8,8 +8,8 @@ import {
 } from "@langfuse/shared/src/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  __test,
   getCodeEvalTerminalErrorOutcome,
-  getEvalScoreCountBucket,
   getLlmEvalTerminalErrorOutcome,
   recordEvalScorePersistenceOutcome,
   recordEvalTerminalOutcome,
@@ -70,7 +70,7 @@ describe("evaluation execution metrics", () => {
     { scoreCount: 10, expected: "6-10" },
     { scoreCount: 11, expected: "11+" },
   ])("buckets $scoreCount scores as $expected", ({ scoreCount, expected }) => {
-    expect(getEvalScoreCountBucket(scoreCount)).toBe(expected);
+    expect(__test.getEvalScoreCountBucket(scoreCount)).toBe(expected);
   });
 
   it.each([

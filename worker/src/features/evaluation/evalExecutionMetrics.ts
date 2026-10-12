@@ -72,17 +72,6 @@ export function recordEvalScorePersistenceOutcome(
   });
 }
 
-export function getEvalScoreCountBucket(
-  scoreCount: number,
-): EvalScoreCountBucket {
-  if (scoreCount === 0) return "0";
-  if (scoreCount === 1) return "1";
-  if (scoreCount === 2) return "2";
-  if (scoreCount <= 5) return "3-5";
-  if (scoreCount <= 10) return "6-10";
-  return "11+";
-}
-
 export function getLlmEvalTerminalErrorOutcome(
   classification: EvaluatorLlmErrorClassification | null,
 ): Extract<
@@ -164,3 +153,16 @@ function getEvaluatorTypeTag(
     ? "llm_as_judge"
     : "code_as_judge";
 }
+
+function getEvalScoreCountBucket(scoreCount: number): EvalScoreCountBucket {
+  if (scoreCount === 0) return "0";
+  if (scoreCount === 1) return "1";
+  if (scoreCount === 2) return "2";
+  if (scoreCount <= 5) return "3-5";
+  if (scoreCount <= 10) return "6-10";
+  return "11+";
+}
+
+export const __test = {
+  getEvalScoreCountBucket,
+};

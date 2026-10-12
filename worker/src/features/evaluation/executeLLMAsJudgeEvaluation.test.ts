@@ -74,6 +74,12 @@ import {
 describe("executeLLMAsJudgeEvaluation", () => {
   const projectId = "test-project-123";
   const jobExecutionId = "test-job-execution-456";
+  const getScorePersistenceMetricCalls = () =>
+    vi
+      .mocked(recordIncrement)
+      .mock.calls.filter(
+        ([metric]) => metric === "langfuse.evaluation.score_persistence",
+      );
 
   beforeEach(() => {
     observabilityMocks.spans.length = 0;
@@ -254,15 +260,17 @@ describe("executeLLMAsJudgeEvaluation", () => {
         }),
       );
       expect(enqueueScoreIngestion).toHaveBeenCalledTimes(1);
-      expect(recordIncrement).toHaveBeenCalledWith(
-        "langfuse.evaluation.score_persistence",
-        1,
-        {
-          evaluator_type: "llm_as_judge",
-          outcome: "success",
-          score_count_bucket: "1",
-        },
-      );
+      expect(getScorePersistenceMetricCalls()).toEqual([
+        [
+          "langfuse.evaluation.score_persistence",
+          1,
+          {
+            evaluator_type: "llm_as_judge",
+            outcome: "success",
+            score_count_bucket: "1",
+          },
+        ],
+      ]);
       expect(updateJobExecution).toHaveBeenCalledWith(
         expect.objectContaining({
           id: jobExecutionId,
@@ -449,15 +457,17 @@ describe("executeLLMAsJudgeEvaluation", () => {
       await expect(
         executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow("Failed to write score");
-      expect(recordIncrement).toHaveBeenCalledWith(
-        "langfuse.evaluation.score_persistence",
-        1,
-        {
-          evaluator_type: "llm_as_judge",
-          outcome: "failure",
-          score_count_bucket: "1",
-        },
-      );
+      expect(getScorePersistenceMetricCalls()).toEqual([
+        [
+          "langfuse.evaluation.score_persistence",
+          1,
+          {
+            evaluator_type: "llm_as_judge",
+            outcome: "failure",
+            score_count_bucket: "1",
+          },
+        ],
+      ]);
     });
 
     it("should throw error if score ingestion queue fails", async () => {
@@ -1209,15 +1219,17 @@ describe("executeLLMAsJudgeEvaluation", () => {
 
       expect(uploadScore).toHaveBeenCalledTimes(2);
       expect(enqueueScoreIngestion).toHaveBeenCalledTimes(2);
-      expect(recordIncrement).toHaveBeenCalledWith(
-        "langfuse.evaluation.score_persistence",
-        1,
-        {
-          evaluator_type: "llm_as_judge",
-          outcome: "success",
-          score_count_bucket: "2",
-        },
-      );
+      expect(getScorePersistenceMetricCalls()).toEqual([
+        [
+          "langfuse.evaluation.score_persistence",
+          1,
+          {
+            evaluator_type: "llm_as_judge",
+            outcome: "success",
+            score_count_bucket: "2",
+          },
+        ],
+      ]);
 
       const firstUploadCall = uploadScore.mock.calls[0][0];
       const secondUploadCall = uploadScore.mock.calls[1][0];
