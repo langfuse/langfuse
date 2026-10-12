@@ -1649,7 +1649,6 @@ jobs:
         if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
         uses: ./.github/actions/notify-slack-failure
         with:
-          title: "❌ CI Failed"
           message: "❌ CI failed on ${{ github.ref_name }}"
           webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
       - name: Output job results
@@ -1997,6 +1996,5 @@ jobs:
         if: failure()
         uses: ./.github/actions/notify-slack-failure
         with:
-          title: "❌ Docker Release Failed"
           message: "❌ Docker release failed on ${{ github.ref_name }}"
           webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
