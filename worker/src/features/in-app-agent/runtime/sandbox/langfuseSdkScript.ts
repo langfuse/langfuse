@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 import { redactLangfuseSecretKeys } from "@langfuse/shared/src/server/auth/apiKeys";
@@ -21,6 +22,7 @@ import type {
 const DEFAULT_BASH_TIMEOUT_MS = 120_000;
 const KEY_EXPIRY_BUFFER_MS = 30_000;
 const MAX_SCANNED_SCRIPT_FILES = 5;
+const CANCEL_TIMEOUT_MS = 5_000;
 
 const LANGFUSE_SDK_IMPORT_PATTERNS = [
   /^\s*(?:from\s+langfuse\b|import\s+langfuse\b)/m,
@@ -171,12 +173,14 @@ async function runApprovedLangfuseSdkScript(params: {
     expiresAt: new Date(Date.now() + ttlMs),
   });
 
+  const commandId = randomUUID();
   try {
     const result = InAppAgentSandboxBashResultSchema.parse(
       await rejectOnAbort(
         sandbox.bash({
           command: params.params.command,
           timeoutMs,
+          commandId,
           env: {
             LANGFUSE_PUBLIC_KEY: key.publicKey,
             LANGFUSE_SECRET_KEY: key.secretKey,
@@ -196,21 +200,50 @@ async function runApprovedLangfuseSdkScript(params: {
       stderr: redactLangfuseSecretKeys(result.stderr),
     };
   } finally {
-    // Runs on success, failure, and abort. An aborted guest process may still
-    // be running; once the row is gone its key is rejected.
-    await revokeSandboxKey({
-      prisma,
-      redis,
-      projectId: ctx.projectId,
-      apiKeyId: key.id,
-    }).catch((error: unknown) => {
-      logger.error("Failed to revoke in-app agent sandbox key", {
-        error,
+    // Runs on success, failure, and abort. Revocation is the control; on abort
+    // the guest command is also killed, in parallel so revocation never waits
+    // on the guest.
+    await Promise.all([
+      revokeSandboxKey({
+        prisma,
+        redis,
         projectId: ctx.projectId,
         apiKeyId: key.id,
-      });
-      throw error;
+      }).catch((error: unknown) => {
+        logger.error("Failed to revoke in-app agent sandbox key", {
+          error,
+          projectId: ctx.projectId,
+          apiKeyId: key.id,
+        });
+        throw error;
+      }),
+      ctx.signal.aborted ? cancelGuestCommand(sandbox, commandId, ctx) : null,
+    ]);
+  }
+}
+
+/** Best effort: process-group kill; descendants that start a new session escape it. */
+async function cancelGuestCommand(
+  sandbox: InAppAgentSandbox,
+  commandId: string,
+  ctx: SdkScriptContext,
+) {
+  let timeoutId: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      sandbox.cancelBash?.({ commandId }),
+      new Promise((resolve) => {
+        timeoutId = setTimeout(resolve, CANCEL_TIMEOUT_MS);
+      }),
+    ]);
+  } catch (error) {
+    logger.warn("Failed to cancel in-app agent sandbox SDK script", {
+      error,
+      projectId: ctx.projectId,
+      conversationId: ctx.conversationId,
     });
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

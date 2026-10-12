@@ -8,6 +8,7 @@ import {
 import path from "node:path";
 
 import {
+  CancelSandboxCommandSchema,
   SandboxFileSchema,
   SandboxOperationSchema,
   type BashSandboxOperation,
@@ -30,6 +31,8 @@ const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024;
 const COMMAND_TERMINATION_GRACE_MS = 1_000;
 let requestCounter = 0;
 let sandboxOperationTail: Promise<unknown> = Promise.resolve();
+/** Kill handles for bash commands started with a `commandId`, removed when they settle. */
+const cancellableCommands = new Map<string, () => void>();
 
 function runSandboxOperationExclusive<T>(task: () => Promise<T>): Promise<T> {
   const result = sandboxOperationTail.then(task, task);
@@ -145,6 +148,19 @@ async function routeRequest(request: IncomingMessage, requestId: string) {
     request.url === `${MICROVM_RUNTIME_HOOKS_ROOT}/terminate`
   ) {
     return { statusCode: 200, body: await terminateHook(requestId) };
+  }
+
+  // Outside the operation queue: the command it targets is holding the queue.
+  if (request.method === "POST" && request.url === "/sandbox/cancel") {
+    const body = CancelSandboxCommandSchema.parse(await readJsonBody(request));
+    const kill = cancellableCommands.get(body.commandId);
+    kill?.();
+    logSandboxServer("bash.cancel", {
+      requestId,
+      commandId: body.commandId,
+      found: Boolean(kill),
+    });
+    return { statusCode: 200, body: { result: { cancelled: Boolean(kill) } } };
   }
 
   if (request.method === "POST" && request.url === "/sandbox") {
@@ -263,6 +279,7 @@ async function bashOperation(body: BashSandboxOperation, requestId: string) {
     body.timeoutMs,
     requestId,
     body.env,
+    body.commandId,
   );
   logSandboxServer("bash.complete", {
     requestId,
@@ -325,6 +342,7 @@ function runCommand(
   timeoutMs: number | undefined,
   requestId: string,
   env?: Record<string, string>,
+  commandId?: string,
 ) {
   return new Promise<{
     stdout: string;
@@ -346,11 +364,36 @@ function runCommand(
     const startedAt = new Date().toISOString();
     const startedAtMs = Date.now();
 
+    const killProcessGroup = () => {
+      if (!child.pid) {
+        child.kill("SIGKILL");
+        return;
+      }
+      try {
+        // Process-group termination is best-effort:
+        // descendants can escape by creating a new session or process group.
+        // A sandbox should have lifetime limits as the final containment boundary.
+        process.kill(-child.pid, "SIGKILL");
+      } catch (error) {
+        logSandboxServer("bash.processGroupKillError", {
+          requestId,
+          pid: child.pid,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        child.kill("SIGKILL");
+      }
+    };
+    const forgetCommand = () => {
+      if (commandId) cancellableCommands.delete(commandId);
+    };
+    if (commandId) cancellableCommands.set(commandId, killProcessGroup);
+
     const resolveTimedOutCommand = () => {
       if (settled) {
         return;
       }
 
+      forgetCommand();
       settled = true;
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -386,6 +429,7 @@ function runCommand(
         return;
       }
 
+      forgetCommand();
       settled = true;
       logSandboxServer("bash.error", {
         requestId,
@@ -405,23 +449,7 @@ function runCommand(
             }
 
             timedOut = true;
-            if (child.pid) {
-              try {
-                // Process-group termination is best-effort:
-                // descendants can escape by creating a new session or process group.
-                // A sandbox should have lifetime limits as the final containment boundary.
-                process.kill(-child.pid, "SIGKILL");
-              } catch (error) {
-                logSandboxServer("bash.processGroupKillError", {
-                  requestId,
-                  pid: child.pid,
-                  error: error instanceof Error ? error.message : String(error),
-                });
-                child.kill("SIGKILL");
-              }
-            } else {
-              child.kill("SIGKILL");
-            }
+            killProcessGroup();
 
             terminationGraceTimeoutId = setTimeout(() => {
               if (settled) {
@@ -444,6 +472,7 @@ function runCommand(
         return;
       }
 
+      forgetCommand();
       logSandboxServer("bash.processComplete", {
         requestId,
         pid: child.pid ?? null,

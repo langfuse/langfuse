@@ -179,15 +179,20 @@ export async function createDockerSandboxProvider(params: {
         toolCallFiles: getSession(sessions, conversationId).toolCallFiles,
       });
     },
-    async bash({ command, timeoutMs, env }) {
+    async bash({ command, timeoutMs, env, commandId }) {
       const container = await ensureContainer({ conversationId });
       return callSandboxServer(container, {
         operation: "bash",
         command,
         ...(timeoutMs ? { timeoutMs } : {}),
         ...(env ? { env } : {}),
+        ...(commandId ? { commandId } : {}),
         toolCallFiles: getSession(sessions, conversationId).toolCallFiles,
       });
+    },
+    async cancelBash({ commandId }) {
+      const container = await ensureContainer({ conversationId });
+      await callSandboxServer(container, { commandId }, "/sandbox/cancel");
     },
   });
 
@@ -323,6 +328,7 @@ async function createSandboxServerNotReadyError(params: {
 async function callSandboxServer(
   container: DockerContainer,
   payload: Record<string, unknown>,
+  route: "/sandbox" | "/sandbox/cancel" = "/sandbox",
 ) {
   logger.debug("In-app agent docker sandbox tool call start", {
     containerId: container.id,
@@ -340,7 +346,7 @@ async function callSandboxServer(
         const chunks = [];
         for await (const chunk of process.stdin) chunks.push(chunk);
         const payload = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-        const response = await fetch("http://127.0.0.1:${DOCKER_SANDBOX_SERVER_PORT}/sandbox", {
+        const response = await fetch("http://127.0.0.1:${DOCKER_SANDBOX_SERVER_PORT}${route}", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -359,7 +365,7 @@ async function callSandboxServer(
     ],
     {
       context: {
-        operation: `sandbox:${String(payload.operation ?? "unknown")}`,
+        operation: `sandbox:${String(payload.operation ?? route)}`,
         containerId: container.id,
       },
       stdin: JSON.stringify(payload),

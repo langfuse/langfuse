@@ -52,7 +52,9 @@ type LambdaMicrovmOperation =
       command: string;
       timeoutMs?: number;
       env?: Readonly<Record<string, string>>;
-    };
+      commandId?: string;
+    }
+  | { operation: "cancel"; commandId: string };
 
 type LambdaMicrovmSession = {
   endpoint: string;
@@ -300,8 +302,9 @@ export function createLambdaMicrovmSandboxProvider(params: {
       sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
     });
 
+    const isCancel = operation.operation === "cancel";
     const response = await fetch(
-      `${normalizeEndpoint(session.endpoint)}/sandbox`,
+      `${normalizeEndpoint(session.endpoint)}${isCancel ? "/sandbox/cancel" : "/sandbox"}`,
       {
         method: "POST",
         headers: {
@@ -309,10 +312,11 @@ export function createLambdaMicrovmSandboxProvider(params: {
           "X-aws-proxy-port": String(DEFAULT_SANDBOX_SERVER_PORT),
           "X-aws-proxy-auth": session.authToken.value,
         },
-        body: JSON.stringify({
-          ...operation,
-          toolCallFiles: session.toolCallFiles,
-        }),
+        body: JSON.stringify(
+          isCancel
+            ? { commandId: operation.commandId }
+            : { ...operation, toolCallFiles: session.toolCallFiles },
+        ),
       },
     );
 
@@ -365,13 +369,17 @@ export function createLambdaMicrovmSandboxProvider(params: {
         newText,
       });
     },
-    async bash({ command, timeoutMs, env }) {
+    async bash({ command, timeoutMs, env, commandId }) {
       return executeOperation(sessionId, {
         operation: "bash",
         command,
         ...(timeoutMs ? { timeoutMs } : {}),
         ...(env ? { env } : {}),
+        ...(commandId ? { commandId } : {}),
       });
+    },
+    async cancelBash({ commandId }) {
+      await executeOperation(sessionId, { operation: "cancel", commandId });
     },
   });
 
