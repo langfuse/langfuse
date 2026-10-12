@@ -26,6 +26,7 @@ import {
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import * as shared from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 import { TraceBatchMetricsRunner } from "../features/traceBatching/TraceBatchMetricsRunner";
 import {
@@ -868,6 +869,42 @@ describe("trace micro-batch scheduling with Redis", () => {
       "langfuse.trace_batch.reactivated_traces",
       1,
     );
+  });
+
+  it("sets the due time from the project's trace idle time, capped below the pending TTL", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Idle time org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Idle time project" },
+    });
+    try {
+      await shared.saveTracingProcessingSettings(projectId, {
+        traceIdleMs: 3_600_000,
+      });
+      const now = Date.now();
+      // The Lua script reads Redis time, so allow for clock skew.
+      const dueOffset = async (traceId: string) =>
+        Number(await client().zscore(dueKey, member(projectId, traceId))) - now;
+
+      await trackTraceBatchActivity(projectId, [event("custom")]);
+      await trackTraceBatchActivity("project", [event("default")]);
+      expect(await dueOffset("custom")).toBeGreaterThan(3_590_000);
+      expect(await dueOffset("custom")).toBeLessThan(3_610_000);
+      expect(
+        Number(await client().zscore(dueKey, member("project", "default"))) -
+          now,
+      ).toBeLessThan(610_000);
+
+      env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 1_800_000;
+      await trackTraceBatchActivity(projectId, [event("capped")]);
+      expect(await dueOffset("capped")).toBeLessThan(1_780_000);
+      expect(await dueOffset("capped")).toBeGreaterThan(1_760_000);
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+    }
   });
 
   it("does not track or dispatch on self-hosted deployments even with experiment flags enabled", async () => {
