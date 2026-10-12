@@ -1,7 +1,7 @@
+import { Prisma } from "@langfuse/shared/src/db";
 import type {
   GatewayConnectionStatus,
   GatewayProvider,
-  Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
 import {
