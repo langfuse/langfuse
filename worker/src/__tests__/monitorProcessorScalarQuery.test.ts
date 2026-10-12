@@ -1,4 +1,3 @@
-import pLimit from "p-limit";
 import { v4 } from "uuid";
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -56,26 +55,19 @@ describe("monitor scalar query — empty project", () => {
 
   it("verifies which parameters return zero and which return null", async (ctx) => {
     if (!hasEventsCore) ctx.skip();
-    // One roundtrip per combo; bounded concurrency keeps the test well inside
-    // its timeout on remote ClickHouse deployments with higher latency.
-    const limit = pLimit(8);
-    const entries = await Promise.all(
-      combos.map(({ view, measure, aggregation }) =>
-        limit(async () => {
-          const value = await scalarValue({
-            view,
-            dimensions: [],
-            metrics: [{ measure, aggregation }],
-            filters: [],
-            timeDimension: null,
-            fromTimestamp: "2025-01-01T00:00:00.000Z",
-            toTimestamp: "2025-03-01T00:00:00.000Z",
-            orderBy: null,
-          });
-          return [`${view}/${measure}/${aggregation}`, value] as const;
-        }),
-      ),
-    );
-    expect(Object.fromEntries(entries)).toMatchSnapshot();
-  }, 30_000);
+    const results: Record<string, number | null> = {};
+    for (const { view, measure, aggregation } of combos) {
+      results[`${view}/${measure}/${aggregation}`] = await scalarValue({
+        view,
+        dimensions: [],
+        metrics: [{ measure, aggregation }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: "2025-01-01T00:00:00.000Z",
+        toTimestamp: "2025-03-01T00:00:00.000Z",
+        orderBy: null,
+      });
+    }
+    expect(results).toMatchSnapshot();
+  }, 60_000);
 });
