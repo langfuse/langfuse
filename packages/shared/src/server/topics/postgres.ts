@@ -342,7 +342,6 @@ export async function saveTopicRule(
       ) as Prisma.InputJsonValue,
       sampling: 1,
       delay: 0,
-      idleTime: null,
       targetObject: EvalTargetObject.TRACE,
       timeScope: ["NEW"],
       status: "ACTIVE" as const,
