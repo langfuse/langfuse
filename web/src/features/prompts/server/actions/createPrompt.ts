@@ -8,6 +8,7 @@ import {
   type Prompt,
   type CreatePromptTRPCType,
   LATEST_PROMPT_LABEL,
+  PROMPT_NAME_MAX_LENGTH,
   PromptType,
   extractVariables,
 } from "@langfuse/shared";
@@ -539,6 +540,12 @@ export const duplicateFolder = async ({
     const newName =
       duplicatedPromptNames.get(originalName) ??
       `${targetPath}${originalName.slice(sourcePath.length)}`;
+
+    if (newName.length > PROMPT_NAME_MAX_LENGTH) {
+      throw new InvalidRequestError(
+        `Prompt name must be at most ${PROMPT_NAME_MAX_LENGTH} characters`,
+      );
+    }
 
     const promptsToCopy = isSingleVersion ? [latestVersion] : versions;
 
