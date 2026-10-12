@@ -33,12 +33,20 @@ function normalizeOtelGenaiToolResult(
     context.normalizePartValue({
       type: "tool-result",
       toolCallId:
-        value.toolCallId ?? value.tool_use_id ?? value.call_id ?? value.id,
-      toolName: value.toolName ?? value.tool_name,
-      output: value.output ?? value.response ?? value.result ?? value.content,
-      isError: [value.is_error, value.isError].find(
-        (candidate) => typeof candidate === "boolean",
-      ),
+        value.toolCallId /* ai sdk */ ??
+        value.tool_use_id /* anthropic */ ??
+        value.call_id /* openai responses */ ??
+        value.id,
+      toolName: value.toolName /* ai sdk */ ?? value.tool_name /* otel */,
+      output:
+        value.output /* ai sdk, openai responses */ ??
+        value.response /* gemini */ ??
+        value.result /* loose/traceloop */ ??
+        value.content /* anthropic, openai chat message */,
+      isError: [
+        value.is_error /* anthropic */,
+        value.isError /* ai sdk */,
+      ].find((candidate) => typeof candidate === "boolean"),
     }),
   );
 }
