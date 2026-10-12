@@ -1044,6 +1044,82 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
      `gpt-5.5-cyber`/`gpt-5.4-cyber` — groupings of this restricted family
      continue to vary by fetch) and the AWS Bedrock Public Extended Access SKU
      were re-confirmed unchanged but remain standing, out-of-scope exclusions.
+- **October 12 2026 audit: first full Anthropic and OpenAI selectable-model
+  lifecycle sweep against official deprecation pages — 25 retired entries
+  removed from `anthropicModels`/`openAIModels`; no price drift found** —
+  Re-fetched the full Anthropic pricing page (model table, Fast mode table,
+  Batch table, cache-hits footnote), the Anthropic models-overview comparison
+  table, `https://platform.claude.com/docs/en/about-claude/model-deprecations`,
+  the OpenAI aggregate Standard/Long-Context/Fast-mode/Flex pricing tables,
+  `https://developers.openai.com/api/docs/deprecations` (with three follow-up
+  verbatim-quote fetches to resolve ambiguous groupings), the OpenAI model
+  catalog, both Gemini pricing pages, the Gemini models catalog, the Gemini
+  deprecations page, the AWS Bedrock pricing page, and the TypeSafe Jev models
+  page. Every price already in the file matched verbatim; no updates were
+  needed. Unlike prior audits (which checked Anthropic/OpenAI mainly for price
+  drift and recent-model lifecycle, and only swept Gemini's full selectable
+  array against its lifecycle page on 2026-10-07), this run checked every
+  `anthropicModels` and `openAIModels` entry individually against the official
+  deprecations pages:
+  - **Anthropic (`model-deprecations` page, "Model status" table plus
+    "Deprecation history" section) — 13 removals, all confirmed `Retired` with
+    a past retirement date**: `claude-sonnet-4-20250514` (retired June 15,
+    2026 → `claude-sonnet-5-5`), `claude-opus-4-1-20250805` (retired August 5,
+    2026 → `claude-opus-4-8`), `claude-opus-4-20250514` (retired June 15, 2026
+    → `claude-opus-4-8`), `claude-3-7-sonnet-20250219` (retired February 19,
+    2026 → `claude-sonnet-5-5`), `claude-3-5-sonnet-20241022` and
+    `claude-3-5-sonnet-20240620` (both retired October 28, 2025 →
+    `claude-sonnet-5-5`), `claude-3-opus-20240229` (retired January 5, 2026 →
+    `claude-opus-4-8`), `claude-3-sonnet-20240229` (retired July 21, 2025 →
+    `claude-sonnet-5-5`), `claude-3-5-haiku-20241022` (retired February 19,
+    2026 → `claude-haiku-4-5-20251001`), `claude-3-haiku-20240307` (retired
+    April 20, 2026 → `claude-haiku-4-5-20251001`), `claude-2.1` and
+    `claude-2.0` (both retired July 21, 2025 → `claude-opus-4-8`), and
+    `claude-instant-1.2` (retired November 6, 2024 → `claude-haiku-4-5-20251001`).
+    The page's own definition of "Retired" is unambiguous: "The model is no
+    longer available for use. Requests to retired models will fail." Note:
+    `claude-sonnet-4-5-20250929` is only `Deprecated` as of this run (deprecated
+    September 30, 2026, retirement date November 30, 2026, not yet passed) —
+    left in `anthropicModels` for now; re-check after November 30, 2026 and
+    remove once the status column reads `Retired`.
+  - **OpenAI (`deprecations` page) — 12 removals, all with a shutdown date
+    before this run's date (2026-10-12)**: `o1-preview` and
+    `o1-preview-2024-09-12` (alias shutdown 2025-07-28 → `o3`), `o1-mini` and
+    `o1-mini-2024-09-12` (alias shutdown 2025-10-27 → `o4-mini`),
+    `gpt-4.5-preview` and `gpt-4.5-preview-2025-02-27` (alias shutdown
+    2025-07-14 → `gpt-4.1`), `gpt-4-turbo-preview` and `gpt-4-0125-preview`
+    (grouped in the same "Legacy GPT model snapshots (March 2026 shutdown)"
+    row, shutdown 2026-03-26 → `gpt-5`/`gpt-4.1*`), `gpt-3.5-turbo-1106`
+    (shutdown 2026-09-28, only 14 days before this audit → `gpt-5.6-terra`),
+    and `gpt-3.5-turbo-0613`/`gpt-3.5-turbo-0301`/`gpt-3.5-turbo-16k-0613`
+    (all three shutdown 2024-09-13 → `gpt-3.5-turbo`). The three bare-alias
+    entries (`o1-preview`, `o1-mini`, `gpt-4.5-preview`) had no explicit dated-
+    snapshot row on the deprecations page itself — each is OpenAI's only
+    snapshot of that alias, and the official model catalog
+    (`developers.openai.com/api/docs/models/all`) independently confirms all
+    three as "Deprecated", so the dated IDs were removed alongside their
+    aliases rather than left as an unresolved gap.
+  - **Important disambiguation found this run**: `gpt-4-turbo-preview` /
+    `gpt-4-0125-preview` (March 26, 2026, passed) is a **different** batch from
+    `gpt-4-turbo` / `gpt-4-turbo-2024-04-09` / bare `gpt-4` / `gpt-4-0613`
+    (October 23, 2026, the "Legacy GPT model snapshots" batch already
+    documented in the 2026-10-09 entry above, still in the future as of this
+    run). A generically-worded fetch conflated the two at first (reporting
+    `gpt-4-turbo-preview`'s shutdown as October 23, 2026); a follow-up fetch
+    asking for each exact string's own verbatim row resolved it. `gpt-4`,
+    `gpt-4-0613`, and `gpt-4-1106-preview` are correctly still in `openAIModels`
+    pending the October 23, 2026 date passing — re-check and remove per the
+    2026-10-09 entry's list once that date has passed.
+  - **No other selectable-model or pricing changes found**: Gemini's models
+    catalog and deprecations page showed no change beyond the already-removed
+    `gemini-2.0-flash`/`gemini-2.0-flash-lite`/`gemini-3-pro-preview`/
+    `gemini-3.1-flash-lite-preview` (all independently reconfirmed "Shut down"
+    this run); `gemini-2.0-flash-thinking-exp-01-21`, `gemini-1.5-pro`,
+    `gemini-1.5-flash`, `gemini-1.5-flash-8b` are still absent from both the
+    models catalog and the deprecations page (neither confirmed available nor
+    shut down) — left unchanged, standing ambiguous gap. AWS Bedrock Public
+    Extended Access Claude 3.5 Sonnet pricing and the TypeSafe Jev `jev-1.13.0`
+    price both re-confirmed unchanged.
 
 Capture:
 
