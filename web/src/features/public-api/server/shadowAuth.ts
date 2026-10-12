@@ -1,4 +1,5 @@
 import { type NextApiRequest } from "next";
+import { getRequestMeta } from "next/dist/server/request-meta";
 
 import { ApiError, isBaseError, type BaseError } from "@langfuse/shared";
 import {
@@ -44,6 +45,9 @@ import {
   type Success,
 } from "@/src/features/auth/policy/types";
 import { isPrismaException } from "@/src/utils/exceptions";
+
+/** shadowResources retains request route templates for asynchronous per-item checks. */
+const shadowResources = new WeakMap<AuthorizationContext, string>();
 
 /** shadowAuth authorizes a public-API request under the active migration mode, returning the scope or the error to render. */
 export async function shadowAuth(
@@ -105,12 +109,29 @@ function genericInfrastructureError(httpCode: number): ErrorResult<BaseError> {
 async function legacyWithShadow(
   params: ShadowAuthParams,
 ): Promise<ShadowAuthResult> {
+  const resource = requestResource(params.req);
   const legacyAuth = await runLegacyAuth(params);
   const newAuth = await runNewAuth(params);
-  shadowAuthDiff(newAuth, legacyAuth, params.action);
+  const successfulAuth = newAuth.success ? newAuth : legacyAuth;
+  const scope = successfulAuth.success ? successfulAuth.scope : undefined;
+  shadowAuthDiff(newAuth, legacyAuth, params.action, {
+    apiKeyId: scope?.apiKeyId,
+    publicKey: scope?.publicKey,
+    resource,
+  });
   const result = legacyResult(legacyAuth);
-  if (result.success && newAuth.success) return { ...result, ctx: newAuth.ctx };
+  if (result.success && newAuth.success) {
+    const ctx = { ...newAuth.ctx };
+    shadowResources.set(ctx, resource);
+    return { ...result, ctx };
+  }
   return result;
+}
+
+/** requestResource reads Next's matched route independently of recording spans. */
+function requestResource(req: NextApiRequest): string {
+  const route = getRequestMeta(req, "match")?.definition.pathname;
+  return `${req.method ?? "UNKNOWN"} ${route ?? "unknown"}`;
 }
 
 /** legacyOnly authorizes solely with the legacy verify. */
@@ -221,7 +242,17 @@ function diffOrGate(
   decision: Decision,
 ): Decision {
   if (env.API_AUTH_MIGRATION === "shadow") {
-    shadowAuthDiff(decision, params.legacyDecision, params.action);
+    const principal = params.ctx?.principal;
+    const key = principal?.kind === "apiKey" ? principal : undefined;
+    shadowAuthDiff(decision, params.legacyDecision, params.action, {
+      apiKeyId:
+        key?.apiKeyId ??
+        (principal?.kind === "admin" ? "ADMIN_API_KEY" : undefined),
+      publicKey:
+        key?.publicKey ??
+        (principal?.kind === "admin" ? "ADMIN_API_KEY" : undefined),
+      resource: (params.ctx && shadowResources.get(params.ctx)) ?? "unknown",
+    });
     return params.legacyDecision;
   }
   return decision;
