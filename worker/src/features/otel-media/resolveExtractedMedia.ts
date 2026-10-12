@@ -1,5 +1,6 @@
 import type { EarlyOtelBatch, ExtractedOtelMedia } from "@langfuse/native";
 import {
+  defineOwnValue,
   isMediaContentType,
   MediaAssociationOrigin,
   type MediaContentType,
@@ -18,7 +19,6 @@ import {
 import {
   createMediaReferenceRewriter,
   rewriteMediaValues,
-  setObjectValue,
   type MediaRegistry,
 } from "./mediaReferenceText";
 
@@ -167,8 +167,11 @@ export async function restoreInlineMedia(
       if (
         includePayloads ||
         (key !== "input" && key !== "output" && key !== "metadata")
-      )
-        setObjectValue(record, key, record[key], await restore(record[key]));
+      ) {
+        const previous = record[key];
+        const next = await restore(previous);
+        if (previous !== next) defineOwnValue(record, key, next);
+      }
     }
   }
 }

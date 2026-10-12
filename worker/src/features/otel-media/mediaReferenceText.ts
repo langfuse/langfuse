@@ -3,6 +3,7 @@ import type {
   ExtractedOtelMedia,
   MediaRestoreRequest,
 } from "@langfuse/native";
+import { asRecord, defineOwnValue } from "@langfuse/shared";
 
 export type MediaRegistry = ReadonlyMap<string, ExtractedOtelMedia>;
 
@@ -54,7 +55,7 @@ function parseSerializedJson(value: string): unknown {
   try {
     const parsed: unknown = JSON.parse(value);
     return Array.isArray(parsed) ||
-      isObject(parsed) ||
+      asRecord(parsed) ||
       typeof parsed === "string"
       ? parsed
       : undefined;
@@ -182,7 +183,8 @@ export async function rewriteMediaValues(
     const key = frame.keys ? frame.keys[index]! : index;
     const current = frame.object[key];
     if (typeof current === "string") {
-      setObjectValue(frame.object, key, current, await rewrite(current));
+      const next = await rewrite(current);
+      if (current !== next) defineOwnValue(frame.object, key, next);
     } else if (typeof current === "object" && current !== null) {
       push(current);
     }
@@ -259,8 +261,9 @@ function serializedReferenceLayers(
         stack.push({ value: current.value[index], depth: current.depth });
       continue;
     }
-    if (isObject(current.value)) {
-      const entries = Object.entries(current.value);
+    const record = asRecord(current.value);
+    if (record) {
+      const entries = Object.entries(record);
       for (let index = entries.length - 1; index >= 0; index--)
         stack.push({ value: entries[index]![1], depth: current.depth });
     }
@@ -275,25 +278,4 @@ function serializedReferenceLayers(
     }
   }
   return layers;
-}
-
-export function setObjectValue(
-  object: Record<string, unknown>,
-  key: string | number,
-  previous: unknown,
-  next: unknown,
-): void {
-  if (previous === next) return;
-  // Define the property instead of assigning through the prototype setter;
-  // media references can occur under a user-controlled `__proto__` key.
-  Object.defineProperty(object, key, {
-    value: next,
-    writable: true,
-    enumerable: true,
-    configurable: true,
-  });
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
