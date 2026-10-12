@@ -90,13 +90,11 @@ variants) canonicalize to
 `stop | length | tool-calls | content-filter | error | other | unknown`,
 with the provider's verbatim value kept in `raw`.
 
-
 ### Tool result output
 
 `ToolResultPart.output` is a tagged value: `{ type: "text", value: string }`,
 `{ type: "json", value: JsonValue }`, or `{ type: "content", value: ToolResultContentPart[] }`.
-Explicit JSON stays JSON, including arrays and null. Declared content and shallow
-recognized content shapes use existing part normalization; arbitrary JSON is not
+Explicit JSON stays JSON, including arrays and null. Explicitly declared content uses existing part normalization; arbitrary JSON is not
 searched recursively. Content can contain text, data, files, reasoning, and custom
 parts, but not nested calls/results. Transcript assembly preserves normalized part
 boundaries. Display projections such as the session tool preview belong to consumers.

@@ -1,7 +1,6 @@
 import type {
   NormalizedMessage,
   ToolCallPart,
-  ToolResultPart,
   ToolResultContentPart,
 } from "../../utils/normalized-io";
 import type { ThreadMessage } from "./types";
@@ -185,52 +184,14 @@ export function createToolCallRegistry() {
     const parts = output.flatMap(({ message }) => message.parts);
     if (!parts.length) return;
 
-    const results = parts.filter(
-      (part): part is ToolResultPart => part.type === "tool-result",
-    );
-    const content = parts.flatMap((part): ToolResultContentPart[] => {
-      if (part.type === "tool-call") return [];
-      if (part.type !== "tool-result") return [part];
-      switch (part.output.type) {
-        case "text":
-          return [{ type: "text", text: part.output.value }];
-        case "json":
-          return [{ type: "data", value: part.output.value }];
-        case "content":
-          return part.output.value;
-      }
-    });
-    const callsInOutput = parts.filter((part) => part.type === "tool-call");
-    const explicitResults = results.filter((part) => part.toolCallId);
-    if (explicitResults.length) {
-      let retainedSiblings = false;
-      for (const part of explicitResults) {
-        const call = calls.get(key(observation.traceId, part.toolCallId!));
-        if (!call || call.fromTool) continue;
-        // A single explicit result owns the observation's accompanying content.
-        // With multiple results, keep unassigned siblings outside those results.
-        const response: Part[] = [
-          results.length === 1 && parts.length > 1
-            ? { ...part, output: { type: "content", value: content } }
-            : part,
-        ];
-        if (!retainedSiblings) {
-          response.push(
-            ...(results.length === 1
-              ? callsInOutput
-              : parts.filter(
-                  (sibling) =>
-                    sibling.type !== "tool-result" ||
-                    !sibling.toolCallId ||
-                    !calls.has(key(observation.traceId, sibling.toolCallId)),
-                )),
-          );
-          retainedSiblings = true;
-        }
-        setResponse(call, observation, response);
-      }
-      return;
+    let hasId = false;
+    for (const part of parts) {
+      if (part.type !== "tool-result" || !part.toolCallId) continue;
+      hasId = true;
+      const call = calls.get(key(observation.traceId, part.toolCallId));
+      if (call) setResponse(call, observation, [part]);
     }
+    if (hasId) return;
     if (!observation.name) return;
 
     const queue = pending.get(key(observation.traceId, observation.name));
@@ -239,20 +200,33 @@ export function createToolCallRegistry() {
     const call = queue.calls[queue.next];
     if (!call) return;
     queue.next++;
-    setResponse(call, observation, [
-      {
-        ...(results.length === 1 && parts.length === 1 ? results[0]! : {}),
-        type: "tool-result",
-        toolCallId: call.part.toolCallId,
-        toolName: call.part.toolName,
-        output:
-          results.length === 1 && parts.length === 1
-            ? results[0]!.output
-            : { type: "content", value: content },
-        ...(results.some((part) => part.isError) ? { isError: true } : {}),
-      },
-      ...callsInOutput,
-    ]);
+    // Already-normalized results retain their output; ordinary content belongs
+    // to the matched execution. Mixed call/result siblings remain separate parts.
+    if (parts.length === 1 && parts[0]!.type === "tool-result") {
+      setResponse(call, observation, [
+        {
+          ...parts[0]!,
+          toolCallId: call.part.toolCallId,
+          toolName: call.part.toolName,
+        },
+      ]);
+    } else if (
+      parts.every(
+        (part): part is ToolResultContentPart =>
+          part.type !== "tool-call" && part.type !== "tool-result",
+      )
+    ) {
+      setResponse(call, observation, [
+        {
+          type: "tool-result",
+          toolCallId: call.part.toolCallId,
+          toolName: call.part.toolName,
+          output: { type: "content", value: parts },
+        },
+      ]);
+    } else {
+      setResponse(call, observation, parts);
+    }
   }
 
   return { forGeneration, attachToolOutput };

@@ -162,17 +162,5 @@ export function normalizeToolResultOutput(value: unknown): ToolResultOutput {
   }
   const parsed = parseIfString(value ?? null);
   if (typeof parsed === "string") return { type: "text", value: parsed };
-  const values = Array.isArray(parsed) ? parsed : [parsed];
-  if (
-    values.length > 0 &&
-    values.every((item) => {
-      const part = asRecord(item);
-      return (
-        part && typeof part.type === "string" && CONTENT_TYPES.has(part.type)
-      );
-    })
-  ) {
-    return { type: "content", value: values.flatMap(normalizeContentItem) };
-  }
   return { type: "json", value: toJsonValue(parsed) };
 }
