@@ -108,13 +108,17 @@ describe("v4 upgrade hint", () => {
       openVersionMenu();
 
       const menu = screen.getByRole("menu");
-      expect(menu).toHaveTextContent("Langfuse v4 is available");
       expect(menu).not.toHaveTextContent("v4.56.0");
-      expect(menu).toHaveTextContent("v3 no longer receives feature updates.");
       expect(menu).not.toHaveTextContent(/this is the latest release/i);
-      expect(
-        screen.getByRole("menuitem", { name: "Upgrade to v4" }),
-      ).toHaveAttribute("href", V4_UPGRADE_GUIDE_URL);
+      const upgradeItems = screen.getAllByRole("menuitem", {
+        name: /Upgrade to v4/,
+      });
+      expect(upgradeItems).toHaveLength(1);
+      expect(upgradeItems[0]).toHaveAttribute("href", V4_UPGRADE_GUIDE_URL);
+      expect(upgradeItems[0]).toHaveTextContent(
+        "v3 no longer receives feature updates.",
+      );
+      expect(screen.queryByRole("menuitem", { name: "Update" })).toBeNull();
     });
 
     it("includes the latest release when the release check succeeds", () => {
@@ -127,7 +131,7 @@ describe("v4 upgrade hint", () => {
       openVersionMenu();
 
       expect(
-        screen.getByText("Langfuse v4 is available: v4.56.0"),
+        screen.getByRole("menuitem", { name: /Upgrade to v4 \(v4\.56\.0\)/ }),
       ).toBeInTheDocument();
     });
 
@@ -137,9 +141,9 @@ describe("v4 upgrade hint", () => {
       render(<VersionLabel />);
       openVersionMenu();
 
-      expect(screen.queryByText(/Langfuse v4 is available/)).toBeNull();
+      expect(screen.queryByText(/Upgrade to v4/)).toBeNull();
       expect(
-        screen.queryByRole("menuitem", { name: "Upgrade to v4" }),
+        screen.queryByRole("menuitem", { name: /Upgrade to v4/ }),
       ).toBeNull();
     });
 
@@ -150,9 +154,9 @@ describe("v4 upgrade hint", () => {
       render(<Label />);
       openVersionMenu();
 
-      expect(screen.queryByText(/Langfuse v4 is available/)).toBeNull();
+      expect(screen.queryByText(/Upgrade to v4/)).toBeNull();
       expect(
-        screen.queryByRole("menuitem", { name: "Upgrade to v4" }),
+        screen.queryByRole("menuitem", { name: /Upgrade to v4/ }),
       ).toBeNull();
       expect(
         screen.getByText("This is the latest release"),

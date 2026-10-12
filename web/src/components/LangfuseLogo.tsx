@@ -67,7 +67,7 @@ export const LangfuseLogo = ({ version = false }: { version?: boolean }) => {
           <LangfuseLogotypeOrCustomized />
         </Link>
         {version && (
-          <VersionLabel className="ml-2 group-data-[collapsible=icon]:hidden" />
+          <VersionLabel className="ml-1 group-data-[collapsible=icon]:hidden" />
         )}
       </div>
     </div>

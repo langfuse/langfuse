@@ -28,7 +28,6 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import {
   useShowV4UpgradeHint,
   V4_UPGRADE_GUIDE_URL,
-  V4_UPGRADE_HINT_TITLE,
 } from "@/src/features/v4-upgrade/useV4UpgradeHint";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
@@ -51,22 +50,41 @@ function VersionMenuStatus({
   isLangfuseCloud,
   updateType,
   latestRelease,
+  onUpgradeGuideClick,
 }: {
   showV4UpgradeHint: boolean;
   isLangfuseCloud: boolean;
   updateType: string | null | undefined;
   latestRelease: string | undefined;
+  onUpgradeGuideClick: () => void;
 }) {
   if (showV4UpgradeHint) {
     return (
       <>
-        <DropdownMenuLabel>
-          {V4_UPGRADE_HINT_TITLE}
-          {latestRelease ? `: ${latestRelease}` : null}
-          <p className="text-muted-foreground font-normal">
-            v3 no longer receives feature updates.
-          </p>
-        </DropdownMenuLabel>
+        <DropdownMenuItem asChild>
+          <Link
+            href={V4_UPGRADE_GUIDE_URL}
+            target="_blank"
+            onClick={onUpgradeGuideClick}
+            className="items-start"
+          >
+            <HardDriveDownload size={16} className="mt-0.5 mr-2 shrink-0" />
+            <div>
+              <p className="font-bold">
+                Upgrade to v4
+                {latestRelease ? (
+                  <span className="text-muted-foreground font-normal">
+                    {" "}
+                    ({latestRelease})
+                  </span>
+                ) : null}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                v3 no longer receives feature updates.
+              </p>
+            </div>
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
       </>
     );
@@ -162,7 +180,10 @@ export const VersionLabel = ({ className }: { className?: string }) => {
         <Button
           variant="ghost"
           size="xs"
-          className={cn("mt-[0.2px] text-[0.625rem]", className)}
+          className={cn(
+            "mt-[0.2px] gap-1 px-0.5 text-[0.625rem] tracking-tight",
+            className,
+          )}
         >
           {VERSION}
           {selfHostedPlanLabel ? <> {selfHostedPlanLabel.short}</> : null}
@@ -170,11 +191,11 @@ export const VersionLabel = ({ className }: { className?: string }) => {
             <StatusBadge
               type={backgroundMigrationStatus.data?.status.toLowerCase()}
               showText={false}
-              className="bg-transparent"
+              className="gap-0 bg-transparent p-0"
             />
           )}
           {hasUpdate && !showBackgroundMigrationStatus && (
-            <ArrowUp className={`h-3 w-3 ${color}`} />
+            <ArrowUp className={`h-2.5 w-2.5 ${color}`} />
           )}
         </Button>
       </DropdownMenuTrigger>
@@ -184,6 +205,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
           isLangfuseCloud={isLangfuseCloud}
           updateType={checkUpdate.data?.updateType}
           latestRelease={checkUpdate.data?.latestRelease}
+          onUpgradeGuideClick={handleUpgradeGuideClick}
         />
         {selfHostedPlanLabel && (
           <>
@@ -238,28 +260,17 @@ export const VersionLabel = ({ className }: { className?: string }) => {
             </Link>
           </DropdownMenuItem>
         )}
-        {hasUpdate && (
+        {hasUpdate && !showV4UpgradeHint && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              {showV4UpgradeHint ? (
-                <Link
-                  href={V4_UPGRADE_GUIDE_URL}
-                  target="_blank"
-                  onClick={handleUpgradeGuideClick}
-                >
-                  <HardDriveDownload size={16} className="mr-2" />
-                  Upgrade to v4
-                </Link>
-              ) : (
-                <Link
-                  href="https://langfuse.com/docs/deployment/self-host#update"
-                  target="_blank"
-                >
-                  <HardDriveDownload size={16} className="mr-2" />
-                  Update
-                </Link>
-              )}
+              <Link
+                href="https://langfuse.com/docs/deployment/self-host#update"
+                target="_blank"
+              >
+                <HardDriveDownload size={16} className="mr-2" />
+                Update
+              </Link>
             </DropdownMenuItem>
           </>
         )}
