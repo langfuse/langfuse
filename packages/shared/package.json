@@ -171,6 +171,10 @@
       "import": "./dist/src/in-app-agent/server/openaiCompatibility.js",
       "require": "./dist/src/in-app-agent/server/openaiCompatibility.js"
     },
+    "./in-app-agent/server/sandboxKey": {
+      "import": "./dist/src/in-app-agent/server/sandboxKey.js",
+      "require": "./dist/src/in-app-agent/server/sandboxKey.js"
+    },
     "./topics": {
       "import": "./dist/src/topics/index.js",
       "require": "./dist/src/topics/index.js"
