@@ -119,7 +119,7 @@ export const promptRouter = createTRPCRouter({
 
       const orderByCondition = orderByToPrismaSql(
         normalizeOrderByForTable({
-          orderBy: input.orderBy,
+          orderBy: input.orderBy ?? { column: "createdAt", order: "DESC" },
           expectedTimeColumn: "createdAt",
         }),
         promptsTableCols,
