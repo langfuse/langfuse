@@ -26,11 +26,7 @@ import {
 } from "@/src/features/sessions/sessionUsers";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Label } from "@/src/components/ui/label";
 import {
   Popover,
@@ -451,21 +447,21 @@ export function ModernSessionHeader({
             open={isMetadataEditorOpen}
             onOpenChange={handleMetadataEditorOpenChange}
           >
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip label="Edit Metadata" placement="bottom">
+              {({ getTriggerProps }) => (
                 <PopoverTrigger asChild>
                   <Button
+                    {...getTriggerProps()}
                     type="button"
                     variant="ghost"
                     size="icon-xs"
-                    aria-label="Add metadata JSONPath"
+                    aria-label="Edit Metadata"
                     data-session-header-pill="true"
                   >
                     <Plus className="icon-base" />
                   </Button>
                 </PopoverTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Edit Metadata</TooltipContent>
+              )}
             </Tooltip>
             {isMetadataEditorOpen ? (
               <MetadataJsonPathEditorContent

@@ -162,7 +162,7 @@ export const TestSearchesHiddenPills = meta.story({
       ),
     ).toBeLessThanOrEqual(0.5);
     const trailingButton = canvas.getByRole("button", {
-      name: "Add metadata JSONPath",
+      name: "Edit Metadata",
     });
     const trailingGap =
       trailingButton.getBoundingClientRect().left -
@@ -272,9 +272,7 @@ export const TestConfiguresMultipleMetadataPaths = meta.story({
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
     const openEditor = () =>
-      userEvent.click(
-        canvas.getByRole("button", { name: "Add metadata JSONPath" }),
-      );
+      userEvent.click(canvas.getByRole("button", { name: "Edit Metadata" }));
 
     await openEditor();
     let input = body.getByLabelText("Metadata JSONPath");
