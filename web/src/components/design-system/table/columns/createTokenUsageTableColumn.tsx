@@ -2,6 +2,7 @@
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { InfoIcon } from "lucide-react";
 
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { formatTokenCounts } from "@/src/utils/numbers";
@@ -22,6 +23,7 @@ type TokenUsageCounts = {
 
 export type TokenUsageTableColumnCell =
   | { type: "loading" }
+  | { type: "empty" }
   | ({ type: "usage" } & TokenUsageCounts &
       (
         | {
@@ -53,6 +55,7 @@ export function createTokenUsageTableColumn<
       const cell = getCell(value, context);
       if (!cell) return null;
       if (cell.type === "loading") return tokenUsageLoadingCell;
+      if (cell.type === "empty") return <EmptyValue />;
 
       const content = formatTokenCounts(
         cell.inputUsage,
