@@ -114,6 +114,7 @@ import { SessionDetailStoreProvider } from "@/src/features/sessions/SessionDetai
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
 import { ModernSession } from "@/src/features/sessions/ModernSession";
+import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
 import { ConnectedSessionAddToDropdownMenuController } from "@/src/features/sessions/ConnectedSessionAddToDropdownMenuController";
@@ -1000,6 +1001,14 @@ export const SessionEventsPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
+  const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
+    enableForAdmins: false,
+    projectId,
+  });
+  const isSessionTimelineEnabled = useIsFeatureEnabled("sessionTimeline", {
+    enableForAdmins: false,
+    projectId,
+  });
   const session = api.sessions.byIdWithScoresFromEvents.useQuery(
     {
       sessionId,
@@ -1064,6 +1073,27 @@ export const SessionEventsPage: React.FC<{
   }
 
   if (!session.data) {
+    if (isModernSessionEnabled && isSessionTimelineEnabled) {
+      return (
+        <Page
+          headerProps={{
+            title: sessionId,
+            itemType: "SESSION",
+            divider: false,
+            breadcrumb: [
+              { name: "Sessions", href: `/project/${projectId}/sessions` },
+            ],
+          }}
+        >
+          <ConnectedModernSessionBodyTimeline
+            tracesState={{ type: "loading" }}
+            projectId={projectId}
+            sessionId={sessionId}
+            openPeek={() => {}}
+          />
+        </Page>
+      );
+    }
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner size="xl" variant="muted" />
