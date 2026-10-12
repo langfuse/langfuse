@@ -13,6 +13,7 @@ import {
   GatewayResolveResponseSchema,
 } from "@/src/features/ai-gateway/server/provider";
 import type { GatewayProviderName } from "@/src/features/ai-gateway/server/provider/registry";
+import { GATEWAY_MODEL_CONNECTION_SEPARATOR } from "@/src/features/ai-gateway/server/provider/models/modelIdentifier";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { signHmacSha256 } from "@/src/server/utils/hmac";
@@ -97,6 +98,7 @@ let gatewayConfigPrepared = false;
 let connectionSnapshots: ConnectionSnapshot[] = [];
 const createdConnectionIds = new Set<string>();
 const connectionIdsByProvider = new Map<GatewayProviderName, string>();
+const connectionNamesByProvider = new Map<GatewayProviderName, string>();
 const apiKeyIds = new Set<string>();
 const originalAllowlist = [
   ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
@@ -176,6 +178,7 @@ describe("AI gateway live end-to-end", () => {
       orderBy: { routingPriority: "asc" },
       select: {
         id: true,
+        name: true,
         provider: true,
         status: true,
         encryptedCredential: true,
@@ -214,6 +217,7 @@ describe("AI gateway live end-to-end", () => {
           },
         });
         connectionIdsByProvider.set(provider, existingConnection.id);
+        connectionNamesByProvider.set(provider, existingConnection.name);
         continue;
       }
       if (credential) {
@@ -231,6 +235,7 @@ describe("AI gateway live end-to-end", () => {
         nextRoutingPriority += 1;
         createdConnectionIds.add(connection.id);
         connectionIdsByProvider.set(provider, connection.id);
+        connectionNamesByProvider.set(provider, connection.name);
         continue;
       }
       const enabledConnection = connections.find(
@@ -240,6 +245,7 @@ describe("AI gateway live end-to-end", () => {
       );
       if (enabledConnection) {
         connectionIdsByProvider.set(provider, enabledConnection.id);
+        connectionNamesByProvider.set(provider, enabledConnection.name);
       }
     }
 
@@ -279,7 +285,7 @@ describe("AI gateway live end-to-end", () => {
       async ({ provider, apiFormat }) => {
         await withGatewayApiKey(
           { provider, apiFormat },
-          async ({ secretKey }) => {
+          async ({ secretKey, providerConnectionName }) => {
             const modelsBody = await gatewayControlPlaneRequest({
               path: MODELS_PATH,
               apiFormat,
@@ -287,6 +293,13 @@ describe("AI gateway live end-to-end", () => {
             });
             const models = GatewayModelsResponseSchema.parse(modelsBody);
             expect(models.data.length).toBeGreaterThan(0);
+            expect(
+              models.data.every(({ id }) =>
+                id.startsWith(
+                  `${providerConnectionName}${GATEWAY_MODEL_CONNECTION_SEPARATOR}`,
+                ),
+              ),
+            ).toBe(true);
             expect(models.data).toEqual(
               expect.arrayContaining([
                 expect.objectContaining({
@@ -377,10 +390,12 @@ async function withGatewayApiKey(
     secretKey: string;
     id: string;
     providerConnectionId: string;
+    providerConnectionName: string;
   }) => Promise<void>,
 ) {
   const targetConnectionId = connectionIdsByProvider.get(input.provider);
-  if (!targetConnectionId) {
+  const targetConnectionName = connectionNamesByProvider.get(input.provider);
+  if (!targetConnectionId || !targetConnectionName) {
     throw new Error(
       `Add and enable a valid ${input.provider} connection for organization ${ORGANIZATION_ID} before running this test.`,
     );
@@ -410,6 +425,7 @@ async function withGatewayApiKey(
       secretKey: gatewayKey.secretKey,
       id: gatewayKey.id,
       providerConnectionId: targetConnectionId,
+      providerConnectionName: targetConnectionName,
     });
   } finally {
     await admin.caller.aiGateway.revokeApiKey({
