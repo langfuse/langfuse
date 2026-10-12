@@ -8,7 +8,6 @@ README.md
 .turbo
 **/.turbo
 **/.next
-**/.next-check
 **/dist
 **/*.tsbuildinfo
 .git

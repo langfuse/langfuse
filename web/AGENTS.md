@@ -353,7 +353,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - Run Vitest in-source utility coverage with `pnpm --filter web run test:in-source`;
   do not try to target these through `test-client` or by assuming a separate
   `*.clienttest.*`/`*.servertest.*` file exists.
-- Do not hand-edit build artifacts: `.next/*`, `.next-check/*`, `dist/*`.
+- Do not hand-edit build artifacts: `.next/*`, `dist/*`.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
