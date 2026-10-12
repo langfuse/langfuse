@@ -252,13 +252,16 @@ const normalizeOpenAiBuiltInCall: PartHandler = (value) =>
   claimed(normalizeBuiltInToolItem(value));
 
 // OpenAI Responses output items: { type: "*_output", call_id, output }.
-const normalizeOpenAiToolResult: PartHandler = (value, context) => {
+const normalizeOpenAiToolResult: PartHandler = (value) => {
   const raw = parseIfString(value.output ?? null);
   return claimed(
     compact<ToolResultPart>({
       type: "tool-result",
       toolCallId: nullableString(value.call_id ?? value.id),
-      output: toolResultOutput(context.normalizePartList([raw]), raw),
+      output:
+        typeof raw === "string"
+          ? { type: "text", value: raw }
+          : { type: "json", value: toJsonValue(raw) },
     }),
   );
 };
@@ -585,6 +588,10 @@ const tryUnwrapLegacyFunctionMessage = (
   ctx: MessageEnvelopeContext,
 ): ConventionResult<NormalizedMessage> => {
   const content = parseIfString(value.content ?? null);
+  let output: ToolResultPart["output"] =
+    typeof content === "string"
+      ? { type: "text", value: content }
+      : { type: "json", value: toJsonValue(content) };
   if (
     // LangChain dict serializations carry `type: "tool"` instead of a role
     // key; the same tool-result shape (tool_call_id, artifact, status).
@@ -592,6 +599,9 @@ const tryUnwrapLegacyFunctionMessage = (
     (typeof value.tool_call_id === "string" ||
       typeof value.tool_call_id === "number")
   ) {
+    if (Array.isArray(value.content)) {
+      output = toolResultOutput(ctx.normalizePartList(value.content), content);
+    }
     return claimed({
       ...(optionalString(value.id) ? { id: String(value.id) } : {}),
       role: "tool",
@@ -602,12 +612,7 @@ const tryUnwrapLegacyFunctionMessage = (
           // A `name` on a tool message is the tool's name, never a
           // participant name.
           toolName: optionalString(value.name),
-          output: toolResultOutput(
-            Array.isArray(value.content)
-              ? ctx.normalizePartList(value.content)
-              : ctx.normalizePartList([content]),
-            content,
-          ),
+          output,
           isError: value.status === "error" ? true : undefined,
           providerMetadata:
             value.artifact !== undefined && value.artifact !== null
@@ -634,7 +639,7 @@ const tryUnwrapLegacyFunctionMessage = (
         type: "tool-result",
         toolCallId: nullableString(value.tool_call_id),
         toolName: optionalString(value.name),
-        output: toolResultOutput(ctx.normalizePartList([content]), content),
+        output,
       }),
     ],
     source: ctx.source,

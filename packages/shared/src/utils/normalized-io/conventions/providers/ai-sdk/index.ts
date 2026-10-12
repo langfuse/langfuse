@@ -117,14 +117,17 @@ const normalizeAiSdkFile: PartHandler = (value) => {
   return part ? claimed(part) : unmatched;
 };
 
-const normalizeAiSdkToolError: PartHandler = (value, context) => {
+const normalizeAiSdkToolError: PartHandler = (value) => {
   const raw = parseIfString(value.error ?? null);
   return claimed(
     compact<ToolResultPart>({
       type: "tool-result",
       toolCallId: nullableString(value.toolCallId),
       toolName: optionalString(value.toolName),
-      output: toolResultOutput(context.normalizePartList([raw]), raw),
+      output:
+        typeof raw === "string"
+          ? { type: "text", value: raw }
+          : { type: "json", value: toJsonValue(raw) },
       isError: true,
     }),
   );
@@ -200,7 +203,10 @@ const normalizeAiSdkToolResult: PartHandler = (value, context) => {
       break;
     default: {
       const parsed = parseIfString(raw ?? null);
-      output = toolResultOutput(context.normalizePartList([parsed]), parsed);
+      output =
+        typeof parsed === "string"
+          ? { type: "text", value: parsed }
+          : { type: "json", value: toJsonValue(parsed) };
     }
   }
   return claimed(

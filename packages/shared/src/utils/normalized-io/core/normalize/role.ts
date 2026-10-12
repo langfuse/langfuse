@@ -55,7 +55,7 @@ export function coerceRole(
       return "assistant";
     }
     if (parts.every((part): boolean => part.type === "text")) {
-      const output = toolResultOutput(parts, parts);
+      const output = toolResultOutput(parts.slice(), parts);
       parts.splice(0, parts.length, {
         type: "tool-result",
         toolCallId: null,

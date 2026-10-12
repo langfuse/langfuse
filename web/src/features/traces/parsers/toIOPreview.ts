@@ -79,6 +79,7 @@ function toToolDefinition(definition: NormalizedToolDefinition): {
 type ToolCallResponse = {
   output: ToolResultPart["output"]["value"];
   isError?: boolean;
+  message?: ChatMlMessage;
 } | null;
 
 function toToolCallPart(
@@ -272,6 +273,9 @@ export function toIOPreview(io: NormalizedIO): ChatMLParserResult {
         if (!entry || entry.response !== null) return true;
         entry.response = {
           output: part.output.value,
+          ...(part.output.type === "content"
+            ? { message: toToolResultMessage(part) }
+            : {}),
           ...(part.isError !== undefined ? { isError: part.isError } : {}),
         };
         return false;

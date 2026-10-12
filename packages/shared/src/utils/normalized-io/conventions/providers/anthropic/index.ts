@@ -178,16 +178,18 @@ const normalizeAnthropicContainerUpload: PartHandler = (value) => {
 // tool_use_id, content, is_error? }.
 const normalizeAnthropicToolResult: PartHandler = (value, context) => {
   const raw = parseIfString(value.content ?? null);
+  let output: ToolResultPart["output"] =
+    typeof raw === "string"
+      ? { type: "text", value: raw }
+      : { type: "json", value: toJsonValue(raw) };
+  if (Array.isArray(value.content)) {
+    output = toolResultOutput(context.normalizePartList(value.content), raw);
+  }
   return claimed(
     compact<ToolResultPart>({
       type: "tool-result",
       toolCallId: nullableString(value.tool_use_id ?? value.id),
-      output: toolResultOutput(
-        Array.isArray(value.content)
-          ? context.normalizePartList(value.content)
-          : context.normalizePartList([raw]),
-        raw,
-      ),
+      output,
       isError: typeof value.is_error === "boolean" ? value.is_error : undefined,
     }),
   );
