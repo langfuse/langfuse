@@ -5,6 +5,8 @@ import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { SessionReviewLeading } from "@/src/features/sessions/sessionReviewLeading";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { IOPreview } from "@/src/features/traces";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
@@ -114,6 +116,7 @@ import { SessionDetailStoreProvider } from "@/src/features/sessions/SessionDetai
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
 import { ModernSession } from "@/src/features/sessions/ModernSession";
+import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
 import { ConnectedSessionAddToDropdownMenuController } from "@/src/features/sessions/ConnectedSessionAddToDropdownMenuController";
@@ -1000,6 +1003,14 @@ export const SessionEventsPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
+  const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
+    enableForAdmins: false,
+    projectId,
+  });
+  const isSessionTimelineEnabled = useIsFeatureEnabled("sessionTimeline", {
+    enableForAdmins: false,
+    projectId,
+  });
   const session = api.sessions.byIdWithScoresFromEvents.useQuery(
     {
       sessionId,
@@ -1063,6 +1074,12 @@ export const SessionEventsPage: React.FC<{
     );
   }
 
+  if (!session.data && isModernSessionEnabled && isSessionTimelineEnabled) {
+    return (
+      <SessionEventsLoadingPage projectId={projectId} sessionId={sessionId} />
+    );
+  }
+
   if (!session.data) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -1081,6 +1098,55 @@ export const SessionEventsPage: React.FC<{
     />
   );
 };
+
+const noopOpenPeek = () => {};
+
+function SessionEventsLoadingPage({
+  projectId,
+  sessionId,
+}: {
+  projectId: string;
+  sessionId: string;
+}) {
+  return (
+    <Page
+      headerProps={{
+        title: sessionId,
+        itemType: "SESSION",
+        divider: false,
+        breadcrumb: [
+          { name: "Sessions", href: `/project/${projectId}/sessions` },
+        ],
+      }}
+    >
+      <TraceReviewPanelProvider
+        key={`${projectId}:${sessionId}`}
+        projectId={projectId}
+      >
+        <SessionReviewWorkspace projectId={projectId}>
+          <div className="flex h-full min-h-0 flex-col overflow-hidden">
+            <SessionReviewLeading>
+              <div
+                className="flex gap-2 border-b px-4 pt-1 pb-1.5"
+                aria-label="Loading session details"
+              >
+                <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-6 w-24" />
+              </div>
+            </SessionReviewLeading>
+            <ConnectedModernSessionBodyTimeline
+              tracesState={{ type: "loading" }}
+              projectId={projectId}
+              sessionId={sessionId}
+              openPeek={noopOpenPeek}
+            />
+          </div>
+        </SessionReviewWorkspace>
+      </TraceReviewPanelProvider>
+    </Page>
+  );
+}
 
 const LoadedSessionEventsPage: React.FC<{
   sessionId: string;
