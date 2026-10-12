@@ -12,8 +12,10 @@ import {
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
+import { staleProps } from "@/src/features/traces/fns/staleProps";
 import { useDownloadTraceAsJson } from "@/src/features/traces/hooks/useDownloadTraceAsJson";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
+import { cn } from "@/src/utils/tailwind";
 
 type TraceDetailData = NonNullable<
   ReturnType<typeof useTraceDetailData>["data"]
@@ -30,6 +32,8 @@ type TraceDetailActionsProps = {
   deleteRedirectUrl?: string;
   onAfterDelete?: (deletedTraceId: string) => void;
   layout?: TraceDetailActionsLayout;
+  /** `trace` is the previous trace, kept while the next one loads. */
+  isPlaceholderData?: boolean;
 };
 
 /**
@@ -50,10 +54,22 @@ type TraceDetailActionsProps = {
 export function TraceDetailActions({
   trace,
   layout = "toolbar",
+  isPlaceholderData = false,
   ...props
 }: TraceDetailActionsProps) {
   if (!trace) return <DisabledTraceDetailActions layout={layout} />;
-  return <LoadedTraceDetailActions trace={trace} layout={layout} {...props} />;
+  const { key, ...stale } = staleProps(isPlaceholderData, {
+    remountOnStale: true,
+  });
+  return (
+    <LoadedTraceDetailActions
+      key={key}
+      trace={trace}
+      layout={layout}
+      stale={stale}
+      {...props}
+    />
+  );
 }
 
 function DisabledTraceDetailActions({
@@ -95,9 +111,11 @@ function LoadedTraceDetailActions({
   deleteRedirectUrl,
   onAfterDelete,
   layout,
-}: Omit<TraceDetailActionsProps, "trace" | "layout"> & {
+  stale,
+}: Omit<TraceDetailActionsProps, "trace" | "layout" | "isPlaceholderData"> & {
   trace: TraceDetailData;
   layout: TraceDetailActionsLayout;
+  stale: Omit<ReturnType<typeof staleProps>, "key">;
 }) {
   const shareItems = useShareMenuItems({
     kind: "trace",
@@ -154,7 +172,13 @@ function LoadedTraceDetailActions({
 
             if (layout === "menu") {
               return (
-                <div className="flex w-full flex-col gap-0.5">
+                <div
+                  inert={stale.inert}
+                  className={cn(
+                    "flex w-full flex-col gap-0.5",
+                    stale.className,
+                  )}
+                >
                   <HeaderActionMenuRow
                     label="Download JSON"
                     icon={downloadIcon}
@@ -167,7 +191,13 @@ function LoadedTraceDetailActions({
             }
 
             return (
-              <div className="flex flex-row items-center gap-1">
+              <div
+                inert={stale.inert}
+                className={cn(
+                  "flex flex-row items-center gap-1",
+                  stale.className,
+                )}
+              >
                 <HeaderActionButton
                   label="Download JSON"
                   icon={downloadIcon}

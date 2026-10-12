@@ -1,9 +1,10 @@
+import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
-import { Spinner } from "@/src/components/layouts/spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { IOPreview } from "@/src/features/traces";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
@@ -324,8 +325,6 @@ const SessionScores = ({
   );
 };
 
-const HEADER_ACTION_CLASS =
-  "text-foreground-secondary hover:bg-accent hover:text-foreground-secondary";
 type SessionAnnotatePayload = AnnotateDrawerPayload<{
   type: "session";
   sessionId: string;
@@ -1062,8 +1061,8 @@ export const SessionEventsPage: React.FC<{
 
   if (!session.data) {
     return (
-      <div className="bg-background fixed inset-0 z-50 flex">
-        <Spinner message="Loading" />
+      <div className="flex h-full items-center justify-center">
+        <Spinner size="xl" variant="muted" />
       </div>
     );
   }
@@ -1725,7 +1724,7 @@ const LoadedSessionEventsPage: React.FC<{
                     <Button
                       variant="ghost"
                       size="sm"
-                      className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
+                      className={headerActionClassName}
                       {...getTriggerProps()}
                     >
                       <Plus
@@ -1746,7 +1745,7 @@ const LoadedSessionEventsPage: React.FC<{
                       variant="ghost"
                       size="sm"
                       disabled={disabled}
-                      className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
+                      className={headerActionClassName}
                       onClick={() =>
                         openDrawer({
                           scoreTarget: { type: "session", sessionId },
@@ -1766,9 +1765,9 @@ const LoadedSessionEventsPage: React.FC<{
                       {disabled ? (
                         <LockIcon className="icon-base text-icon-foreground" />
                       ) : (
-                        <Plus className="icon-base text-icon-foreground" />
+                        <SquarePen className="icon-base text-icon-foreground" />
                       )}
-                      Score
+                      Annotate
                       {isModernSessionEnabled && annotationCount > 0 ? (
                         <ActionButtonCountBadge count={annotationCount} />
                       ) : null}
@@ -1786,7 +1785,7 @@ const LoadedSessionEventsPage: React.FC<{
                       variant="ghost"
                       size="sm"
                       disabled={disabled}
-                      className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
+                      className={headerActionClassName}
                       onClick={() =>
                         openDrawer({
                           type: "comments",

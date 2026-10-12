@@ -2060,7 +2060,7 @@ function NumericFacet({
       disabledReason={disabledReason}
       onReset={onReset}
     >
-      <div className="px-4 py-2">
+      <div className="px-3 py-2">
         {loading ? (
           <div className="text-muted-foreground text-sm">Loading...</div>
         ) : value === null ? (
@@ -2219,7 +2219,7 @@ function StringFacet({
       disabledReason={disabledReason}
       onReset={onReset}
     >
-      <div className="px-4">
+      <div className="px-3">
         {loading ? (
           <div className="text-muted-foreground text-sm">Loading...</div>
         ) : (
@@ -2229,7 +2229,7 @@ function StringFacet({
             value={localValue}
             placeholder="Search"
             onChange={handleInputChange}
-            className="h-8"
+            className="h-8 font-mono text-xs"
           />
         )}
       </div>
@@ -2269,7 +2269,7 @@ function KeyValueFacet({
       onReset={onReset}
     >
       {loading ? (
-        <div className="text-muted-foreground px-4 py-2 text-sm">
+        <div className="text-muted-foreground px-3 py-2 text-sm">
           Loading...
         </div>
       ) : (
@@ -2318,7 +2318,7 @@ function NumericKeyValueFacet({
       onReset={onReset}
     >
       {loading ? (
-        <div className="text-muted-foreground px-4 py-2 text-sm">
+        <div className="text-muted-foreground px-3 py-2 text-sm">
           Loading...
         </div>
       ) : (
@@ -2366,7 +2366,7 @@ function BooleanKeyValueFacet({
       onReset={onReset}
     >
       {loading ? (
-        <div className="text-muted-foreground px-4 py-2 text-sm">
+        <div className="text-muted-foreground px-3 py-2 text-sm">
           Loading...
         </div>
       ) : (
@@ -2415,7 +2415,7 @@ function StringKeyValueFacet({
       onReset={onReset}
     >
       {loading ? (
-        <div className="text-muted-foreground px-4 py-2 text-sm">
+        <div className="text-muted-foreground px-3 py-2 text-sm">
           Loading...
         </div>
       ) : (

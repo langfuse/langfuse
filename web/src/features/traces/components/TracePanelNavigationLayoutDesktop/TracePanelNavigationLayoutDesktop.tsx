@@ -19,8 +19,10 @@ import { cn } from "@/src/utils/tailwind";
 
 export function TracePanelNavigationLayoutDesktop({
   children,
+  isLoading = false,
 }: {
   children: ReactNode;
+  isLoading?: boolean;
 }) {
   const { isNavigationPanelCollapsed, handleTogglePanel } =
     useDesktopLayoutContext();
@@ -30,6 +32,7 @@ export function TracePanelNavigationLayoutDesktop({
       <TracePanelNavigationHeader
         isPanelCollapsed={isNavigationPanelCollapsed}
         onTogglePanel={handleTogglePanel}
+        isLoading={isLoading}
       />
       <div
         className={cn(
@@ -38,8 +41,12 @@ export function TracePanelNavigationLayoutDesktop({
         )}
         inert={isNavigationPanelCollapsed}
       >
-        <TraceTruncationNotice />
-        <TracePanelNavigationHiddenNotice />
+        {!isLoading && (
+          <>
+            <TraceTruncationNotice />
+            <TracePanelNavigationHiddenNotice />
+          </>
+        )}
         <div className="flex-1 overflow-hidden">{children}</div>
       </div>
     </div>

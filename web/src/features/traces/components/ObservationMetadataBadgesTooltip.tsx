@@ -1,8 +1,4 @@
-/**
- * Tooltip-based metadata badges for ObservationDetailView
- * These badges use BreakdownTooltip to show detailed cost/usage information
- * Metric values render in mono; `contents` keeps the wrapper out of layout.
- */
+/** Cost and token metrics for the trace, observation and session headers; breakdowns open on hover. */
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
@@ -10,7 +6,14 @@ import {
   type CostSource,
   type PriceSource,
 } from "@/src/features/traces/components/BreakdownTooltip";
-import { usdFormatter, numberFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+
+/** Header cost: short, with the exact value on hover. */
+export const formatMetricCost = (cost: number) => usdFormatter(cost, 2, 3);
+
+/** Header tokens, e.g. "21k tokens". */
+export const formatMetricTokens = (tokens: number) =>
+  `${compactNumberFormatter(tokens, 0).toLowerCase()} tokens`;
 
 export function CostBadge({
   totalCost,
@@ -24,7 +27,14 @@ export function CostBadge({
   costSource?: CostSource;
 }) {
   if (!hasBreakdown(costDetails)) {
-    return <Badge font="mono" color="ghost" text={usdFormatter(totalCost)} />;
+    return (
+      <Badge
+        font="mono"
+        color="ghost"
+        text={formatMetricCost(totalCost)}
+        title={`exact $${totalCost.toFixed(6)}`}
+      />
+    );
   }
   return (
     <BreakdownTooltip
@@ -37,7 +47,7 @@ export function CostBadge({
         font="mono"
         color="ghost"
         interactive
-        text={usdFormatter(totalCost)}
+        text={formatMetricCost(totalCost)}
       />
     </BreakdownTooltip>
   );
@@ -54,7 +64,7 @@ export function UsageBadge({
   totalUsage: number;
   usageDetails: Record<string, number>;
 }) {
-  const tokenText = `${numberFormatter(totalUsage, 0)} tokens`;
+  const tokenText = formatMetricTokens(totalUsage);
 
   if (!hasBreakdown(usageDetails)) {
     return <Badge font="mono" color="ghost" text={tokenText} />;

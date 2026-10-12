@@ -307,6 +307,11 @@ export const env = createEnv({
     // EMAIL
     EMAIL_FROM_ADDRESS: z.string().optional(),
     SMTP_CONNECTION_URL: z.string().optional(),
+    // Cloudflare Turnstile. When the secret is set, credentials sign-in and
+    // email sign-up require a valid token whose hostname is in
+    // TURNSTILE_HOSTNAMES (comma-separated frontend hostnames).
+    TURNSTILE_SECRET: z.string().optional(),
+    TURNSTILE_HOSTNAMES: z.string().optional(),
 
     // Otel
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
@@ -729,6 +734,7 @@ export const env = createEnv({
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
     // PR preview deployments only (.github/workflows/preview-build.yml):
     // identify the environment with a top-of-page strip linking back to the PR.
     NEXT_PUBLIC_PREVIEW_PR_URL: z.url().optional(),
@@ -788,6 +794,7 @@ export const env = createEnv({
     NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF:
       process.env.NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_PREVIEW_PR_URL: process.env.NEXT_PUBLIC_PREVIEW_PR_URL,
     NEXT_PUBLIC_PREVIEW_PR_AUTHOR: process.env.NEXT_PUBLIC_PREVIEW_PR_AUTHOR,
     NEXT_PUBLIC_PREVIEW_LAST_UPDATED:
@@ -1006,6 +1013,8 @@ export const env = createEnv({
     // Email
     EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,
     SMTP_CONNECTION_URL: process.env.SMTP_CONNECTION_URL,
+    TURNSTILE_SECRET: process.env.TURNSTILE_SECRET,
+    TURNSTILE_HOSTNAMES: process.env.TURNSTILE_HOSTNAMES,
     // Otel
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,

@@ -1,5 +1,5 @@
 import React from "react";
-import { CodeView } from "@/src/components/ui/CodeJsonViewer";
+import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 
 export const WebhookSecretRender = ({
   webhookSecret,
@@ -15,7 +15,7 @@ export const WebhookSecretRender = ({
           automation settings if needed. Use this secret to verify webhook
           signatures in your endpoint.
         </div>
-        <CodeView content={webhookSecret} defaultCollapsed={false} />
+        <CodeSection variant="outline" content={webhookSecret} />
       </div>
     </>
   );

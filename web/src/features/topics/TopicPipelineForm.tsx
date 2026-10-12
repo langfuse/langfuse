@@ -41,6 +41,12 @@ export function useTopicPipelineForm({
   timeRange: TopicTimeRange | null;
 }) {
   const [configurationOpen, setConfigurationOpen] = useState(false);
+  function openConfiguration() {
+    setConfigurationOpen(true);
+  }
+  function closeConfiguration() {
+    setConfigurationOpen(false);
+  }
   const [operation, setOperation] = useState<TopicOperation>("process");
   const [reuseExistingSummaries, setReuseExistingSummaries] = useState(false);
   const rules = api.topics.rules.useQuery(
@@ -60,7 +66,7 @@ export function useTopicPipelineForm({
     projectId,
     enabled: facets.length > 0 && operation === "process",
     filterOptionsEnabled: configurationOpen,
-    onOpenTrace: () => setConfigurationOpen(false),
+    onOpenTrace: closeConfiguration,
   });
   const [selectedFacetIds, setSelectedFacetIds] = useState<string[]>(() =>
     facets
@@ -161,7 +167,8 @@ export function useTopicPipelineForm({
   async function submit() {
     setError(null);
     try {
-      if (!selectedFacets.length) throw new Error("Select at least one facet.");
+      if (selectedFacets.length === 0)
+        throw new Error("Select at least one facet.");
       const base = {
         projectId,
         facets: selectedFacets,
@@ -172,7 +179,7 @@ export function useTopicPipelineForm({
       const values = (() => {
         if (operation === "update") {
           if (!timeRange)
-            throw new Error("Select a time range of at most 93 days.");
+            throw new Error("Select a time range of at most 90 days.");
           return {
             ...base,
             operation,
@@ -292,41 +299,29 @@ export function useTopicPipelineForm({
     actionLabel = selection?.count
       ? `Process ${selection.count.toLocaleString()} traces`
       : "Process traces";
-  const actions = (
-    <>
-      <Button
-        text="Configure topics"
-        variant="secondary"
-        size="sm"
-        onClick={() => setConfigurationOpen(true)}
-      />
-
-      <Button
-        text={trigger.isPending ? "Starting…" : actionLabel}
-        size="sm"
-        disabled={
-          !canWrite ||
-          !embeddingConfig.success ||
-          (operation === "update" &&
-            (!timeRange || !minimumTraceCountResult.success)) ||
-          trigger.isPending ||
-          !selectedFacets.length ||
-          (operation === "update"
-            ? summaryCounts.isFetching ||
-              !!summaryCounts.error ||
-              !hasStoredSummaries
-            : !selection?.count)
-        }
-        onClick={submit}
-      />
-      {error && (
-        <Alert variant="destructive" size="sm">
-          <Alert.Description>
-            <p className="break-words">{error}</p>
-          </Alert.Description>
-        </Alert>
-      )}
-    </>
+  const triggerAction = {
+    label: trigger.isPending ? "Starting…" : actionLabel,
+    disabled:
+      !canWrite ||
+      !embeddingConfig.success ||
+      (operation === "update" &&
+        (!timeRange || !minimumTraceCountResult.success)) ||
+      trigger.isPending ||
+      selectedFacets.length === 0 ||
+      (operation === "update"
+        ? summaryCounts.isFetching ||
+          !!summaryCounts.error ||
+          !hasStoredSummaries
+        : !selection?.count),
+    onSelect: submit,
+  };
+  const primaryAction = (
+    <Button
+      text={triggerAction.label}
+      size="sm"
+      disabled={triggerAction.disabled}
+      onClick={triggerAction.onSelect}
+    />
   );
   const configuration = (
     <DialogPrimitive.Root
@@ -408,7 +403,7 @@ export function useTopicPipelineForm({
                     disabled={
                       !canWrite ||
                       !ruleName.trim() ||
-                      !activeFacetIds.length ||
+                      activeFacetIds.length === 0 ||
                       saveRule.isPending
                     }
                     onClick={() =>
@@ -535,14 +530,17 @@ export function useTopicPipelineForm({
           <Button
             text="Done"
             variant="secondary"
-            onClick={() => setConfigurationOpen(false)}
+            onClick={closeConfiguration}
           />
         </div>
       </Dialog>
     </DialogPrimitive.Root>
   );
   return {
-    actions: facets.length ? actions : null,
-    configuration: facets.length ? configuration : null,
+    primaryAction: facets.length > 0 ? primaryAction : null,
+    triggerAction: facets.length > 0 ? triggerAction : null,
+    openConfiguration,
+    error: facets.length > 0 ? error : null,
+    configuration: facets.length > 0 ? configuration : null,
   };
 }

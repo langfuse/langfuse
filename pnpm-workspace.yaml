@@ -163,6 +163,11 @@ overrides:
   # @a2a-js/sdk and dockerode all declare ^1 ranges the vulnerable 1.14.4
   # already satisfies, so only an override moves it.
   "@grpc/grpc-js": 1.14.5
+  # CVE-2026-106444/-106445/-106446: code injection and script-tag escaping
+  # fixes land in 4.7.10. eslint-plugin-boundaries and @boundaries/elements
+  # both pin handlebars to exactly 4.7.9, including at their latest releases,
+  # so only an override moves it to the patched version.
+  handlebars: 4.7.10
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
@@ -217,3 +222,5 @@ minimumReleaseAgeExclude:
   - "@turbo/linux-arm64@2.11.6"
   - "@turbo/windows-64@2.11.6"
   - "@turbo/windows-arm64@2.11.6"
+  # Handlebars security fixes; eligible after 2026-10-10 22:37 UTC.
+  - handlebars@4.7.10
