@@ -8,7 +8,7 @@ import {
   systemRoleAccessRights,
 } from "@langfuse/shared/rbac";
 
-import { ApiKeyExpirationInput } from "@/src/components/ApiKeyExpirationInput";
+import { ApiKeyExpirationInput } from "@/src/components/ApiKeyExpirationInput/ApiKeyExpirationInput";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,

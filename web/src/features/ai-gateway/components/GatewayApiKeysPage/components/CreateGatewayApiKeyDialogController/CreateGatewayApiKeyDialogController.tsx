@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { ChevronRight, Plus, X } from "lucide-react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { ApiKeyExpirationInput } from "@/src/components/ApiKeyExpirationInput";
+import { ApiKeyExpirationInput } from "@/src/components/ApiKeyExpirationInput/ApiKeyExpirationInput";
 import { Button } from "@/src/components/ui/button";
 import {
   Collapsible,
