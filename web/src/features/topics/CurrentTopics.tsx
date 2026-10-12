@@ -244,6 +244,7 @@ function CurrentFacet({
         projectId={projectId}
         facetId={facet.facetId}
         rows={visible}
+        topics={topics}
         pagination={pagination}
         onPaginationChange={setPagination}
       />
@@ -298,12 +299,14 @@ function CurrentTraceTable({
   projectId,
   facetId,
   rows,
+  topics,
   pagination,
   onPaginationChange,
 }: {
   projectId: string;
   facetId: string;
   rows: Facet["rows"];
+  topics: { id: string }[];
   pagination: PaginationState;
   onPaginationChange: OnChangeFn<PaginationState>;
 }) {
@@ -314,6 +317,28 @@ function CurrentTraceTable({
     queryParams: ["observation", "display", "timestamp", "traceId"],
   });
   const peekConfig = { itemType: "TRACE" as const, ...peekNavigation };
+  const topicColors = new Map(
+    topics.map((topic, index) => [topic.id, topicColor(index)]),
+  );
+  function renderTopicBadge(row: Facet["rows"][number], size?: "sm") {
+    const color = row.topicId ? topicColors.get(row.topicId) : undefined;
+    return (
+      <Badge
+        text={row.topicName ?? row.outcome.replaceAll("_", " ")}
+        size={size}
+        wrap
+        style={
+          color
+            ? {
+                color,
+                borderColor: `${color}66`,
+                backgroundColor: `${color}1a`,
+              }
+            : undefined
+        }
+      />
+    );
+  }
   const pageIndex = Math.min(
     pagination.pageIndex,
     Math.max(0, Math.ceil(rows.length / pagination.pageSize) - 1),
@@ -349,13 +374,7 @@ function CurrentTraceTable({
       header: "Topic",
       size: 148,
       minSize: 100,
-      cell: ({ row }) => (
-        <Badge
-          text={
-            row.original.topicName ?? row.original.outcome.replaceAll("_", " ")
-          }
-        />
-      ),
+      cell: ({ row }) => renderTopicBadge(row.original),
     },
     {
       accessorKey: "summary",
@@ -379,13 +398,9 @@ function CurrentTraceTable({
           <div className="flex flex-col items-start gap-1 py-1">
             {isMobile && (
               <div className="flex w-full min-w-0 items-center justify-between gap-2">
-                <Badge
-                  text={
-                    row.original.topicName ??
-                    row.original.outcome.replaceAll("_", " ")
-                  }
-                  size="sm"
-                />
+                <div className="min-w-0">
+                  {renderTopicBadge(row.original, "sm")}
+                </div>
                 <TextLink
                   path={`/project/${projectId}/traces/${encodeURIComponent(row.original.traceId)}`}
                   value="Open trace"
@@ -397,8 +412,8 @@ function CurrentTraceTable({
               {row.original.summary || "No applicable summary."}
             </p>
             <Button
-              text="Inspect transcript"
-              variant="ghost"
+              text="Debug transcript"
+              variant="secondary"
               size="sm"
               onClick={inspectTranscript}
             />

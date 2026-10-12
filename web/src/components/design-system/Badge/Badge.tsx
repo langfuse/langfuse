@@ -35,6 +35,10 @@ const badgeVariants = cva(
         sans: "font-sans",
         mono: "font-mono",
       },
+      wrap: {
+        true: "h-auto leading-snug",
+        false: "",
+      },
     },
     defaultVariants: {
       color: "primary",
@@ -62,6 +66,7 @@ export function BadgeShell({
   size,
   interactive,
   font,
+  wrap,
   ...props
 }: BadgeShellProps) {
   const Component = asChild ? Slot : "span";
@@ -70,7 +75,7 @@ export function BadgeShell({
     <Component
       className={cn(
         "group/badge",
-        badgeVariants({ color, size, interactive, font }),
+        badgeVariants({ color, size, interactive, font, wrap }),
       )}
       {...props}
     />
@@ -92,16 +97,20 @@ export function Badge({
   label,
   title,
   interactive,
+  wrap,
   trailingIcon: TrailingIcon,
   trailingIconTone = "default",
   ...props
 }: BadgeProps) {
   return (
-    <BadgeShell color={color} {...props}>
+    <BadgeShell color={color} wrap={wrap} {...props}>
       {label && <span className="shrink-0 py-0.5">{label}:</span>}
       <span
         className={cn(
-          "py-0.5 text-ellipsis whitespace-nowrap",
+          "py-0.5",
+          wrap
+            ? "min-w-0 break-words whitespace-normal"
+            : "text-ellipsis whitespace-nowrap",
           interactive
             ? "underline-dotted overflow-clip"
             : "overflow-x-clip overflow-y-visible",

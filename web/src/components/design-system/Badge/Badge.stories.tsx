@@ -88,3 +88,32 @@ export const VariantMatrix = meta.story({
     </div>
   ),
 });
+
+export const LongWrappedLabel = meta.story({
+  name: "(Test) Long Wrapped Label",
+  args: {
+    text: "Quality dashboard widgets and score distribution",
+    wrap: true,
+  },
+  render: (args) => (
+    <div className="w-36">
+      <Badge {...args} />
+    </div>
+  ),
+  play: async ({ canvas, args }) => {
+    const label = canvas.getByText(args.text);
+    const badge = label.parentElement!;
+    const range = document.createRange();
+    range.selectNodeContents(label);
+    const lines = Array.from(range.getClientRects());
+    await expect(lines.length).toBeGreaterThan(1);
+    for (const line of lines) {
+      await expect(line.right).toBeLessThanOrEqual(
+        badge.getBoundingClientRect().right,
+      );
+      await expect(line.bottom).toBeLessThanOrEqual(
+        badge.getBoundingClientRect().bottom,
+      );
+    }
+  },
+});
