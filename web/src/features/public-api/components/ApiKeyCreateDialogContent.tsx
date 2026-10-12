@@ -22,9 +22,7 @@ import { Label } from "@/src/components/ui/label";
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/src/components/ui/select";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
