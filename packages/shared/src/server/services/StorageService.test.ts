@@ -4,6 +4,7 @@ import { PassThrough, Readable } from "stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { S3Client } from "@aws-sdk/client-s3";
+import type { NodeHttpHandler } from "@smithy/node-http-handler";
 
 import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
 import { env } from "../../env";
@@ -29,6 +30,41 @@ vi.mock("@aws-sdk/lib-storage", () => ({
 }));
 
 describe("S3StorageService region normalization", () => {
+  it("configures a failing request timeout when requested", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: "us-west-2",
+      forcePathStyle: false,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+      s3RequestTimeoutMs: 50,
+    });
+    const client = (service as unknown as { client: S3Client }).client;
+    const handler = client.config.requestHandler as NodeHttpHandler;
+    await expect(
+      handler.handle(
+        {
+          protocol: "https:",
+          hostname: "example.com",
+          method: "GET",
+          path: "/",
+        } as Parameters<NodeHttpHandler["handle"]>[0],
+        { abortSignal: AbortSignal.abort() },
+      ),
+    ).rejects.toThrow();
+
+    expect(handler.httpHandlerConfigs()).toMatchObject({
+      requestTimeout: 50,
+      throwOnRequestTimeout: true,
+    });
+  });
+
   it("trims a persisted region before configuring the AWS client", async () => {
     const service = StorageServiceFactory.getInstance({
       accessKeyId: "test-access-key",

@@ -8,6 +8,7 @@ export { S3_DELETE_OBJECTS_CHUNK_SIZE } from "../services/StorageService";
 
 let s3MediaStorageClient: StorageService;
 let s3EventStorageClient: StorageService;
+const MEDIA_S3_REQUEST_TIMEOUT_MS = 5 * 60_000;
 
 export function resolveMediaStorageEndpoints(params: {
   endpoint: string | undefined;
@@ -34,6 +35,7 @@ export const getS3MediaStorageClient = (bucketName: string): StorageService => {
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
       awsSse: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE,
       awsSseKmsKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID,
+      s3RequestTimeoutMs: MEDIA_S3_REQUEST_TIMEOUT_MS,
     });
   }
   return s3MediaStorageClient;
