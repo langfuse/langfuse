@@ -64,7 +64,7 @@ describe("aggregateModels", () => {
       id: "first",
       name: "First",
       provider: "OPENAI",
-      allowedModels: [],
+      allowedModels: [] as string[],
     } as Connection;
     const result = {
       connectionId: "first",

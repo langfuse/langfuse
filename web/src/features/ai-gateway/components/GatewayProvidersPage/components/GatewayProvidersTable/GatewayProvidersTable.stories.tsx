@@ -18,6 +18,7 @@ const connections = [
     organizationId: "org-1",
     createdById: "user-1",
     routingPriority: 0,
+    allowedModels: null,
     createdAt: new Date("2026-09-07T12:00:00.000Z"),
     updatedAt: new Date("2026-09-07T12:00:00.000Z"),
   },
@@ -30,6 +31,7 @@ const connections = [
     organizationId: "org-1",
     createdById: "user-1",
     routingPriority: 1,
+    allowedModels: null,
     createdAt: new Date("2026-09-07T12:00:00.000Z"),
     updatedAt: new Date("2026-09-07T12:00:00.000Z"),
   },
@@ -46,31 +48,34 @@ const manyConnections = Array.from({ length: 30 }, (_, index) => ({
   organizationId: "org-1",
   createdById: "user-1",
   routingPriority: index,
+  allowedModels: null,
   createdAt: new Date(Date.UTC(2026, 8, 30 - index)),
   updatedAt: new Date("2026-09-30T12:00:00.000Z"),
 })) satisfies ComponentProps<typeof GatewayProvidersTable>["connections"];
 
 const manyModelCounts = Object.fromEntries(
-  manyConnections.map((connection, index) => [connection.id, index * 7 + 1]),
+  manyConnections.map((connection, index) => [
+    connection.id,
+    { enabled: index * 7 + 1, total: index * 7 + 1 },
+  ]),
 );
 
 const actions = {
-  getModelsUrl: (connection) =>
-    `/organization/org-1/settings/ai-gateway-models?connection=${connection.id}`,
+  onSelect: (connection) => onCredentialAction(connection.id),
   onRetry: (connection) => onCredentialAction(connection.id),
   onEdit: (connection) => onCredentialAction(connection.id),
   onDelete: (connection) => onCredentialAction(connection.id),
 } satisfies Pick<
   ComponentProps<typeof GatewayProvidersTable>,
-  "getModelsUrl" | "onRetry" | "onEdit" | "onDelete"
+  "onSelect" | "onRetry" | "onEdit" | "onDelete"
 >;
 
 export const OrderedCredentials = meta.story({
   args: {
     connections,
     modelCounts: {
-      "connection-openai": 42,
-      "connection-anthropic": 18,
+      "connection-openai": { enabled: 42, total: 42 },
+      "connection-anthropic": { enabled: 18, total: 20 },
     },
     ...actions,
   },

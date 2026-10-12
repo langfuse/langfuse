@@ -35,6 +35,7 @@ export function GatewayConnectionModelsTable({
         header: "Model",
       }),
       {
+        accessorKey: "id",
         id: "enabled",
         header: "Enabled",
         size: 100,
@@ -90,14 +91,14 @@ export function GatewayConnectionModelsTable({
           id: "enable-all",
           label: "Enable all",
           variant: "secondary",
-          disabled: isSaving ? { reason: "Saving model access" } : undefined,
+          disabled: isSaving,
           onClick: onEnableAll,
         },
         {
           id: "disable-all",
           label: "Disable all",
           variant: "secondary",
-          disabled: isSaving ? { reason: "Saving model access" } : undefined,
+          disabled: isSaving,
           onClick: onDisableAll,
         },
       ]}
