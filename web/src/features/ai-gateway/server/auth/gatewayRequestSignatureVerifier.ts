@@ -19,7 +19,10 @@ const SIGNATURE_MAX_AGE_SECONDS = 5 * 60;
 const resolveBodySchema = z
   .object({
     apiFormat: GatewayApiFormatSchema,
-    model: z.string().refine((model) => parseGatewayModelSlug(model) !== null),
+    model: z
+      .string()
+      .refine((model) => parseGatewayModelSlug(model) !== null)
+      .optional(),
   })
   .strict();
 const modelsQuerySchema = z
@@ -39,7 +42,7 @@ type GatewayControlPlaneHandlerParams = {
 type GatewayResolveHandler = (
   params: GatewayControlPlaneHandlerParams & {
     apiFormat: GatewayApiFormat;
-    model: string;
+    model?: string;
   },
 ) => Promise<unknown>;
 

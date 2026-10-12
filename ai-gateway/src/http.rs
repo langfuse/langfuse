@@ -121,23 +121,22 @@ async fn relay(
         .filter(|_| state.lifecycle.is_ready())
         .ok_or(InferenceHttpError::Unavailable)?;
     let gateway_key = gateway_key(request.headers(), route.api_format())?.to_owned();
-    if route.method() == axum::http::Method::GET {
-        let body = inference
-            .models(&gateway_key, route.api_format(), correlation)
-            .await
-            .map_err(InferenceHttpError::Resolution)?;
-        return Response::builder()
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(body))
-            .map_err(|_| InferenceHttpError::Unavailable);
-    }
-
     let query = forwarded_query(route, request.uri().query());
     let (parts, body) = request.into_parts();
-    let bytes = read_request_body(body).await?;
-    let model = request_model(&bytes)?;
+    let (bytes, model) = if route.method() == axum::http::Method::GET {
+        (Bytes::new(), None)
+    } else {
+        let bytes = read_request_body(body).await?;
+        let model = request_model(&bytes)?;
+        (bytes, Some(model))
+    };
     let (permit, context) = inference
-        .resolve_and_admit(&gateway_key, route.api_format(), &model, correlation)
+        .resolve_and_admit(
+            &gateway_key,
+            route.api_format(),
+            model.as_deref(),
+            correlation,
+        )
         .await
         .map_err(|error| match error {
             RequestPreparationError::Resolution(error) => InferenceHttpError::Resolution(error),

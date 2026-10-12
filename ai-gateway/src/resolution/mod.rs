@@ -18,7 +18,6 @@ use std::{
 };
 
 const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
-const MODELS_PATH: &str = "/api/internal/ai-gateway/v1/models";
 const REQUEST_ID_HEADER: &str = "langfuse-gateway-request-id";
 // Web sits behind load balancers that drop idle connections after 60s by default
 // (AWS ALB). Evicting pooled connections first keeps the resolver from sending on a
@@ -122,31 +121,32 @@ impl ControlPlaneClient {
     /// Returns a sanitized [`ResolutionError`] for invalid credentials, authentication or
     /// authorization failures, missing routes, unavailable Web or system time, request
     /// construction or transport failures, timeouts, or oversized or invalid responses.
-    pub async fn resolve(
+    pub async fn resolve<'a>(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
-        model: &str,
+        model: impl Into<Option<&'a str>>,
         request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| ResolutionError::Unavailable)?;
-        self.resolve_at(gateway_key, api_format, model, timestamp, request_id)
+        self.resolve_at(gateway_key, api_format, model.into(), timestamp, request_id)
             .await
     }
 
-    async fn resolve_at(
+    async fn resolve_at<'a>(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
-        model: &str,
+        model: impl Into<Option<&'a str>>,
         timestamp: Duration,
         request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
         if gateway_key.len() > 8192 || !valid_token(gateway_key) {
             return Err(ResolutionError::InvalidCredential);
         }
+        let model = model.into();
         let started = Instant::now();
         let body = tokio::time::timeout(
             self.config.limits.timeout,
@@ -167,35 +167,11 @@ impl ControlPlaneClient {
         )
     }
 
-    /// Fetch the caller-visible model catalog from trusted Web.
-    ///
-    /// # Errors
-    /// Returns the same sanitized errors as [`Self::resolve`].
-    pub async fn models(
-        &self,
-        gateway_key: &str,
-        api_format: ApiFormat,
-        request_id: &str,
-    ) -> Result<Vec<u8>, ResolutionError> {
-        if gateway_key.len() > 8192 || !valid_token(gateway_key) {
-            return Err(ResolutionError::InvalidCredential);
-        }
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| ResolutionError::Unavailable)?;
-        tokio::time::timeout(
-            self.config.limits.timeout,
-            self.fetch_models(gateway_key, api_format, timestamp.as_secs(), request_id),
-        )
-        .await
-        .map_err(|_| ResolutionError::Timeout)?
-    }
-
     async fn fetch(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
-        model: &str,
+        model: Option<&str>,
         timestamp: u64,
         request_id: &str,
     ) -> Result<Vec<u8>, ResolutionError> {
@@ -209,9 +185,14 @@ impl ControlPlaneClient {
         ))
         .map_err(|_| ResolutionError::Configuration)?;
         signature.set_sensitive(true);
-        let body =
-            serde_json::to_vec(&serde_json::json!({ "apiFormat": api_format, "model": model }))
-                .map_err(|_| ResolutionError::Configuration)?;
+        let body = match model {
+            Some(model) => serde_json::to_vec(&serde_json::json!({
+                "apiFormat": api_format,
+                "model": model,
+            })),
+            None => serde_json::to_vec(&serde_json::json!({ "apiFormat": api_format })),
+        }
+        .map_err(|_| ResolutionError::Configuration)?;
         let response = self
             .client
             .post(self.config.endpoint(RESOLVE_PATH))
@@ -220,39 +201,6 @@ impl ControlPlaneClient {
             .header(REQUEST_ID_HEADER, request_id)
             .header(CONTENT_TYPE, "application/json")
             .body(body)
-            .send()
-            .await
-            .map_err(|_| ResolutionError::Transport)?;
-        read_response(response, self.config.limits.max_response_bytes).await
-    }
-
-    async fn fetch_models(
-        &self,
-        gateway_key: &str,
-        api_format: ApiFormat,
-        timestamp: u64,
-        request_id: &str,
-    ) -> Result<Vec<u8>, ResolutionError> {
-        let mut credential = HeaderValue::from_str(&format!("Bearer {gateway_key}"))
-            .map_err(|_| ResolutionError::InvalidCredential)?;
-        credential.set_sensitive(true);
-        let mut signature = HeaderValue::from_str(&signing::authorization(
-            &self.config.service_key,
-            gateway_key,
-            timestamp,
-        ))
-        .map_err(|_| ResolutionError::Configuration)?;
-        signature.set_sensitive(true);
-        let response = self
-            .client
-            .get(format!(
-                "{}?api_format={}",
-                self.config.endpoint(MODELS_PATH),
-                api_format.as_str()
-            ))
-            .header(AUTHORIZATION, credential)
-            .header("langfuse-gateway-authorization", signature)
-            .header(REQUEST_ID_HEADER, request_id)
             .send()
             .await
             .map_err(|_| ResolutionError::Transport)?;

@@ -229,6 +229,10 @@ fn assert_pre_upstream_headers(headers: &reqwest::header::HeaderMap, resolved: b
 }
 
 #[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the table keeps native error envelope coverage in one place"
+)]
 async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() {
     let web = FakeServer::start(|request| async move {
         if request.headers().get(header::AUTHORIZATION)
@@ -341,14 +345,8 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
 }
 
 #[tokio::test]
-async fn resolved_requests_name_their_tenant_and_model_lists_skip_the_provider() {
+async fn resolved_requests_name_their_tenant_and_the_provider_connection_sent_to() {
     let web = FakeServer::start(|request| async move {
-        if request.uri().path() == "/api/internal/ai-gateway/v1/models" {
-            return Response::builder()
-                .header("content-type", "application/json")
-                .body(Body::from(r#"{"data":[]}"#))
-                .unwrap();
-        }
         let body = to_bytes(request.into_body(), 1024).await.unwrap();
         let api_format =
             serde_json::from_slice::<serde_json::Value>(&body).unwrap()["apiFormat"].clone();
@@ -382,6 +380,7 @@ async fn resolved_requests_name_their_tenant_and_model_lists_skip_the_provider()
             ),
             "anthropic",
         ),
+        (gateway.models().bearer_auth("gateway-openai"), "openai"),
         (
             anthropic(
                 "messages",
@@ -404,15 +403,7 @@ async fn resolved_requests_name_their_tenant_and_model_lists_skip_the_provider()
         // The model is an operator-side span and log field only.
         assert_eq!(header("langfuse-model"), None);
     }
-    let models = gateway
-        .models()
-        .bearer_auth("gateway-openai")
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(models.status(), StatusCode::OK);
-    assert_pre_upstream_headers(models.headers(), false);
-    assert_eq!(provider.calls(), 2);
+    assert_eq!(provider.calls(), 3);
 }
 
 impl Drop for Gateway {
@@ -515,23 +506,8 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
 }
 
 #[tokio::test]
-async fn compact_rewrites_model_and_models_come_from_the_control_plane() {
-    let web = FakeServer::start(|request| async move {
-        if request.uri().path() == "/api/internal/ai-gateway/v1/models" {
-            assert_eq!(
-                request.uri().query(),
-                Some("api_format=openai.responses")
-            );
-            return Response::builder()
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    r#"{"data":[{"id":"Production key:gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"2026-01-01T00:00:00.000Z"}]}"#,
-                ))
-                .unwrap();
-        }
-        resolution_response("provider-secret")
-    })
-    .await;
+async fn compact_rewrites_model_and_models_keep_the_existing_provider_route() {
+    let web = FakeServer::start(|_| async { resolution_response("provider-secret") }).await;
     let provider = FakeServer::start(|request| async move {
         let method = request.method().clone();
         let uri = request.uri().to_string();
@@ -546,6 +522,15 @@ async fn compact_rewrites_model_and_models_come_from_the_control_plane() {
                     .header("content-type", "application/json")
                     .body(Body::from(
                         r#"{"id":"comp_1","object":"response.compaction","encrypted_content":"opaque-ciphertext"}"#,
+                    ))
+                    .unwrap()
+            }
+            ("GET", "/v1/models") => {
+                assert!(body.is_empty());
+                Response::builder()
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#,
                     ))
                     .unwrap()
             }
@@ -578,10 +563,10 @@ async fn compact_rewrites_model_and_models_come_from_the_control_plane() {
     assert_eq!(models.status(), StatusCode::OK);
     assert_eq!(
         models.text().await.unwrap(),
-        r#"{"data":[{"id":"Production key:gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"2026-01-01T00:00:00.000Z"}]}"#
+        r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#
     );
     assert_eq!(web.calls(), 2);
-    assert_eq!(provider.calls(), 1);
+    assert_eq!(provider.calls(), 2);
 }
 
 #[tokio::test]

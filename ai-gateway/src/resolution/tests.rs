@@ -144,7 +144,7 @@ async fn signs_the_exact_key_and_sends_api_format_and_model() {
     assert_eq!(context.connection().name(), Some("Primary OpenAI"));
     assert_eq!(context.connection().provider(), Provider::OpenAi);
     assert_eq!(context.connection().provider().as_str(), "openai");
-    assert_eq!(context.connection().provider_model(), "gpt-4.1");
+    assert_eq!(context.connection().provider_model(), Some("gpt-4.1"));
     assert!(matches!(
         context.connection().credential(),
         ProviderCredential::Bearer("private-provider-token")
@@ -172,48 +172,6 @@ async fn signs_the_exact_key_and_sends_api_format_and_model() {
         );
     }
     assert_eq!(web.calls(), 1);
-}
-
-#[tokio::test]
-async fn fetches_models_from_the_control_plane() {
-    let web = FakeWeb::start(|request| async move {
-        assert_eq!(request.method(), "GET");
-        assert_eq!(
-            request.uri(),
-            "/api/internal/ai-gateway/v1/models?api_format=openai.responses"
-        );
-        assert_eq!(
-            request.headers()[header::AUTHORIZATION],
-            "Bearer gw_test_alice"
-        );
-        assert_eq!(request.headers()["langfuse-gateway-request-id"], REQUEST_ID);
-        assert!(
-            to_bytes(request.into_body(), 1024)
-                .await
-                .unwrap()
-                .is_empty()
-        );
-        response(json!({
-            "data": [{
-                "id": "Primary OpenAI:gpt-4.1",
-                "provider": "OPENAI",
-                "canonicalSlug": "gpt-4.1",
-                "displayName": "GPT-4.1",
-                "createdAt": "2026-01-01T00:00:00.000Z"
-            }]
-        }))
-    })
-    .await;
-
-    let body = web
-        .control_plane()
-        .fetch_models(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW, REQUEST_ID)
-        .await
-        .unwrap();
-    assert_eq!(
-        serde_json::from_slice::<Value>(&body).unwrap()["data"][0]["id"],
-        "Primary OpenAI:gpt-4.1"
-    );
 }
 
 #[tokio::test]
