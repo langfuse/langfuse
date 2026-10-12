@@ -2,7 +2,7 @@ import { createClient, type ClickHouseSettings } from "@clickhouse/client";
 import { env } from "../../env";
 import { VERSION } from "../../constants/VERSION";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
-import { getCurrentSpan } from "../instrumentation";
+import { getCurrentSpan, recordIncrement } from "../instrumentation";
 import { propagation, context } from "@opentelemetry/api";
 import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
 import {
@@ -283,11 +283,41 @@ export const clickhouseClient = (
   );
 };
 
+const CLICKHOUSE_DATETIME_CLAMPED = "langfuse.clickhouse.datetime_clamped";
+const CLICKHOUSE_DATETIME_MIN_MS = -62135596800000;
+const CLICKHOUSE_DATETIME_MIN = "0001-01-01 00:00:00.000";
+const CLICKHOUSE_DATETIME_MAX_MS = 253402300799999;
+const CLICKHOUSE_DATETIME_MAX = "9999-12-31 23:59:59.999";
+
+/**
+ * Whether ClickHouse can store `date` as DateTime64: UTC years 0001-9999.
+ * `toISOString` writes years past 9999 or before 0000 with six digits
+ * (`+010000-...`), which ClickHouse cannot parse, failing every row in the
+ * insert, and ClickHouse stores year 0000 as an unrelated date.
+ */
+export const isClickhouseDateTimeInRange = (date: Date): boolean => {
+  const millis = date.getTime();
+  return (
+    CLICKHOUSE_DATETIME_MIN_MS <= millis && millis <= CLICKHOUSE_DATETIME_MAX_MS
+  );
+};
+
 /**
  * Accepts a JavaScript date and returns its UTC calendar time in ClickHouse's
- * YYYY-MM-DD HH:MM:SS.sss format.
+ * YYYY-MM-DD HH:MM:SS.sss format. Dates outside the range ClickHouse can store
+ * (see `isClickhouseDateTimeInRange`) are clamped to it.
  */
 export const convertDateToClickhouseDateTime = (date: Date): string => {
+  const millis = date.getTime();
+  if (millis < CLICKHOUSE_DATETIME_MIN_MS) {
+    recordIncrement(CLICKHOUSE_DATETIME_CLAMPED, 1, { bound: "min" });
+    getCurrentSpan()?.setAttribute(CLICKHOUSE_DATETIME_CLAMPED, "min");
+    return CLICKHOUSE_DATETIME_MIN;
+  } else if (millis > CLICKHOUSE_DATETIME_MAX_MS) {
+    recordIncrement(CLICKHOUSE_DATETIME_CLAMPED, 1, { bound: "max" });
+    getCurrentSpan()?.setAttribute(CLICKHOUSE_DATETIME_CLAMPED, "max");
+    return CLICKHOUSE_DATETIME_MAX;
+  }
   // 2024-11-06T20:37:00.123Z -> 2024-11-06 20:37:00.123
   return date.toISOString().replace("T", " ").replace("Z", "");
 };
