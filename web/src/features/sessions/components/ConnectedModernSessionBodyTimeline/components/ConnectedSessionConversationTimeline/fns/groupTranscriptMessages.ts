@@ -5,8 +5,16 @@ import {
   type ToolResultPart,
 } from "@langfuse/shared/src/utils/normalized-io";
 
+export type SessionContentPart = Exclude<
+  NormalizedMessagePart,
+  ToolCallPart | ToolResultPart
+>;
+
 export type TranscriptMessageGroup<T extends NormalizedMessage> =
-  | { type: "message"; message: T }
+  | {
+      type: "message";
+      message: Omit<T, "parts"> & { parts: SessionContentPart[] };
+    }
   | {
       type: "tool";
       message: T;
@@ -84,7 +92,7 @@ export function groupTranscriptMessages<T extends NormalizedMessage>(
   const groups: TranscriptMessageGroup<T>[] = [];
   position = 0;
   for (const message of messages) {
-    let parts: NormalizedMessagePart[] = [];
+    let parts: SessionContentPart[] = [];
     let changed = false;
     const flush = () => {
       if (parts.length)
@@ -113,7 +121,7 @@ export function groupTranscriptMessages<T extends NormalizedMessage>(
       position++;
     }
     if (changed) flush();
-    else groups.push({ type: "message", message });
+    else groups.push({ type: "message", message: { ...message, parts } });
   }
   return groups;
 }

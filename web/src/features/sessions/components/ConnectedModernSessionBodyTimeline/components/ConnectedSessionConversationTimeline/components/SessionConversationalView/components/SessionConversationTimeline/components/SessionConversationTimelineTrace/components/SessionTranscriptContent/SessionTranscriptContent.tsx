@@ -367,7 +367,10 @@ function SessionTranscriptMessage({
   onOpenObservation,
   expandRequestId,
 }: {
-  message: DisplayMessage;
+  message: Extract<
+    TranscriptMessageGroup<DisplayMessage>,
+    { type: "message" }
+  >["message"];
   trailingContent: ReactNode;
   onOpenObservation: (observationId: string) => void;
   expandRequestId?: number;

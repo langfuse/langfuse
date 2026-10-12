@@ -1,13 +1,12 @@
-import { FileIcon, Wrench } from "lucide-react";
+import type { SessionContentPart } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/groupTranscriptMessages";
+import { FileIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { assertUnreachable } from "@langfuse/shared";
 import {
   type FilePart,
-  type NormalizedMessage,
   type ReasoningPart,
 } from "@langfuse/shared/src/utils/normalized-io";
-import { SessionTimelineCollapsiblePart } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelinePart/components/SessionTimelineCollapsiblePart/SessionTimelineCollapsiblePart";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { ExternalMediaView } from "@/src/components/ui/media/ExternalMediaView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
@@ -24,7 +23,7 @@ export function SessionTimelinePart({
   part,
   trailingContent,
 }: {
-  part: NormalizedMessage["parts"][number];
+  part: SessionContentPart;
   trailingContent?: ReactNode;
 }) {
   if (part.type === "text") {
@@ -51,34 +50,6 @@ export function SessionTimelinePart({
 
   if (part.type === "file") {
     return <SessionTimelineFile part={part} />;
-  }
-
-  if (part.type === "tool-call" || part.type === "tool-result") {
-    const isCall = part.type === "tool-call";
-    return (
-      <SessionTimelineCollapsiblePart
-        label={`${part.toolName ?? "Tool"} · ${isCall ? "Call" : "Result"}`}
-        icon={Wrench}
-        status={
-          part.type === "tool-result" && part.isError ? "error" : undefined
-        }
-        variant="plain"
-        alignment="row"
-      >
-        {part.type === "tool-result" && part.output.type === "content" ? (
-          <div className="flex flex-col gap-2">
-            {part.output.value.map((contentPart, index) => (
-              <SessionTimelinePart key={index} part={contentPart} />
-            ))}
-          </div>
-        ) : (
-          <PrettyJsonView
-            json={part.type === "tool-call" ? part.input : part.output.value}
-            currentView="pretty"
-          />
-        )}
-      </SessionTimelineCollapsiblePart>
-    );
   }
 
   if (part.type === "data") {

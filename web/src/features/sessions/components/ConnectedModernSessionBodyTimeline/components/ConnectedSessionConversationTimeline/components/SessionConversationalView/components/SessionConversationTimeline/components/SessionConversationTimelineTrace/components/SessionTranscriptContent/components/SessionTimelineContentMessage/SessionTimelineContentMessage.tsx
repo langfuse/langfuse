@@ -1,3 +1,4 @@
+import type { SessionContentPart } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/groupTranscriptMessages";
 import React, { useState } from "react";
 import { Bot, ChevronDown, UserRound, Wrench } from "lucide-react";
 import {
@@ -47,7 +48,7 @@ export function SessionTimelineContentMessage({
   expandRequestId,
 }: {
   role: Exclude<NormalizedMessage["role"], "system">;
-  parts: NormalizedMessage["parts"];
+  parts: SessionContentPart[];
   senderName: NormalizedMessage["senderName"];
   timestamp?: Date | null;
   onOpenObservation?: () => void;
@@ -59,7 +60,7 @@ export function SessionTimelineContentMessage({
   const [expandedJsonGroupIndices, setExpandedJsonGroupIndices] = useState(
     () => new Set<number>(),
   );
-  type MessagePart = NormalizedMessage["parts"][number];
+  type MessagePart = SessionContentPart;
   type ContentPart = Exclude<MessagePart, ReasoningPart>;
   const groups: Array<
     | { type: "reasoning"; parts: ReasoningPart[] }
@@ -124,9 +125,6 @@ export function SessionTimelineContentMessage({
           (part) => part.type === "data" || part.type === "custom",
         );
         const isJsonExpanded = expandedJsonGroupIndices.has(groupIndex);
-        const hasToolParts = group.parts.some(
-          (part) => part.type === "tool-call" || part.type === "tool-result",
-        );
 
         return (
           <div
@@ -139,7 +137,7 @@ export function SessionTimelineContentMessage({
               className={cn(
                 "group/bubble min-w-0 overflow-hidden",
                 presentation.container,
-                ((isJsonOnly && isJsonExpanded) || hasToolParts) && "w-full",
+                isJsonOnly && isJsonExpanded && "w-full",
               )}
             >
               {showSender && groupIndex === firstContentGroupIndex ? (
