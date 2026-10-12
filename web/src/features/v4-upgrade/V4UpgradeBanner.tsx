@@ -10,8 +10,7 @@ import {
   V4_UPGRADE_HINT_TITLE,
 } from "@/src/features/v4-upgrade/useV4UpgradeHint";
 
-// Shorter than the Callout default (30d) so the hint keeps resurfacing while
-// the deployment stays on v3.
+/** Shorter than the Callout default (30d) so the hint resurfaces while the deployment stays on v3. */
 const DISMISS_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
@@ -21,6 +20,24 @@ const DISMISS_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 export function V4UpgradeBanner() {
   const capture = usePostHogClientCapture();
   const showHint = useShowV4UpgradeHint();
+  const handleDismiss = () => {
+    capture("v4_upgrade_hint:dismiss", { surface: "banner" });
+  };
+  const handleUpgradeGuideClick = () => {
+    capture("v4_upgrade_hint:click_upgrade_guide", { surface: "banner" });
+  };
+  const renderUpgradeGuideAction = () => (
+    <Button asChild size="sm" variant="secondary">
+      <Link
+        href={V4_UPGRADE_GUIDE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={handleUpgradeGuideClick}
+      >
+        Upgrade guide
+      </Link>
+    </Button>
+  );
 
   if (!showHint) return null;
 
@@ -31,25 +48,8 @@ export function V4UpgradeBanner() {
       ttlMs={DISMISS_TTL_MS}
       variant="warning"
       align="middle"
-      onDismiss={() =>
-        capture("v4_upgrade_hint:dismiss", { surface: "banner" })
-      }
-      actions={() => (
-        <Button asChild size="sm" variant="secondary">
-          <Link
-            href={V4_UPGRADE_GUIDE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() =>
-              capture("v4_upgrade_hint:click_upgrade_guide", {
-                surface: "banner",
-              })
-            }
-          >
-            Upgrade guide
-          </Link>
-        </Button>
-      )}
+      onDismiss={handleDismiss}
+      actions={renderUpgradeGuideAction}
     >
       <div className="flex items-center gap-2">
         <ArrowUpCircle className="h-4 w-4 shrink-0" />

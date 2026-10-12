@@ -93,8 +93,7 @@ export const notifications: SidebarNotification[] = [
   },
 ];
 
-// Shown in front of the regular notifications on self-hosted v3 deployments.
-// No createdAt, so it never expires on its own.
+/** Prepended on self-hosted v3. No createdAt, so it does not expire on its own. */
 const v4UpgradeNotification: SidebarNotification = {
   id: "upgrade-to-v4",
   title: V4_UPGRADE_HINT_TITLE,

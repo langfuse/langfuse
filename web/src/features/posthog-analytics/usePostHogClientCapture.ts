@@ -233,8 +233,7 @@ export const events = {
     "compare_run_removed",
   ],
   notification: ["click_link", "dismiss_notification"],
-  // Self-hosted v3 nudge to upgrade to v4; `surface` says which UI fired it
-  // (banner, version_label). The sidebar card reports via `notification:*`.
+  /** Self-hosted v3 nudge to upgrade to v4. `surface` is banner or version_label; the sidebar card uses `notification:*`. */
   v4_upgrade_hint: ["click_upgrade_guide", "dismiss"],
   toast: ["report_issue", "dismiss"],
   tag: [
