@@ -1392,3 +1392,74 @@ describe("Topics setup", () => {
     expect(mocks.saveTopicsSetup).not.toHaveBeenCalled();
   });
 });
+
+describe("Topics write access", () => {
+  const facetDraft = {
+    name: "Intent",
+    description: "",
+    prompt: "Describe the original request.",
+  };
+  const slot = { llmApiKeyId: "key", model: "gpt" };
+  const settings = {
+    summary: slot,
+    embedding: slot,
+    embeddingDimensions: 1024,
+    clustering: slot,
+    enabled: true,
+  };
+  const writes: Record<
+    string,
+    (api: ReturnType<typeof caller>, projectId: string) => Promise<unknown>
+  > = {
+    initialize: (api, projectId) => api.initialize({ projectId }),
+    saveFacet: (api, projectId) => api.saveFacet({ projectId, ...facetDraft }),
+    saveRule: (api, projectId) =>
+      api.saveRule({
+        projectId,
+        name: "Topics",
+        filter: [],
+        facetIds: [facetId],
+      }),
+    testModelSettings: (api, projectId) =>
+      api.testModelSettings({ projectId, ...settings }),
+    saveSetup: (api, projectId) =>
+      api.saveSetup({
+        projectId,
+        ...settings,
+        facets: DEFAULT_TOPIC_FACETS.map(({ name }) => ({
+          name,
+          enabled: true,
+        })),
+        filter: [],
+        sampling: 1,
+        idleSeconds: 600,
+      }),
+    trigger: (api, projectId) => api.trigger({ ...input, projectId }),
+    retry: (api, projectId) =>
+      api.retry({ projectId, executionId: "execution-a" }),
+  };
+  const writeMocks = [
+    mocks.ensureDefaultTopicFacets,
+    mocks.createTopicFacet,
+    mocks.createTopicFacetVersion,
+    mocks.saveTopicRule,
+    mocks.checkTopicsModelSettings,
+    mocks.saveTopicsSetup,
+    mocks.createTopicExecution,
+    mocks.enqueueTopicExecution,
+    mocks.auditLog,
+  ];
+
+  it.each(Object.entries(writes))(
+    "rejects %s for viewers and other projects before any write",
+    async (_, write) => {
+      await expect(write(caller("VIEWER"), projectId)).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+      await expect(write(caller(), "foreign")).rejects.toMatchObject({
+        code: "UNAUTHORIZED",
+      });
+      for (const mock of writeMocks) expect(mock).not.toHaveBeenCalled();
+    },
+  );
+});
