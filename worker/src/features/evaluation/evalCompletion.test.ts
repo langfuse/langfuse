@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { logger } from "@langfuse/shared/src/server";
 import type { EvalExecutionDeps } from "./evalExecutionDeps";
 import {
   completeEvalExecution,
@@ -84,20 +85,36 @@ describe("completeEvalExecution", () => {
     expect(onEvaluatorCompleted).not.toHaveBeenCalled();
   });
 
-  it("retries the execution when downstream scheduling fails", async () => {
+  it("keeps the upstream eval successful when downstream scheduling fails", async () => {
+    const uploadScore = vi.fn(async () => {});
     const updateJobExecution = vi.fn();
 
     await expect(
       completeEvalExecution({
         ...completionParams,
         result,
-        deps: createDeps({ updateJobExecution }),
+        deps: createDeps({ uploadScore, updateJobExecution }),
         onEvaluatorCompleted: async () => {
-          throw new Error("notification failed");
+          throw new Error("scheduling failed");
         },
       }),
-    ).rejects.toThrow("notification failed");
+    ).resolves.toEqual({ scoreCount: 1 });
 
-    expect(updateJobExecution).not.toHaveBeenCalled();
+    expect(uploadScore).toHaveBeenCalled();
+    expect(updateJobExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "COMPLETED",
+        }),
+      }),
+    );
+    expect(logger.error).toHaveBeenCalledWith(
+      "Failed to schedule evaluator result rules",
+      expect.objectContaining({
+        projectId: "project-id",
+        jobExecutionId: "job-execution-id",
+        error: expect.objectContaining({ message: "scheduling failed" }),
+      }),
+    );
   });
 });

@@ -89,7 +89,18 @@ export async function completeEvalExecution({
     !result.evaluationContext.evaluatorExecutionIsTest &&
     onEvaluatorCompleted
   ) {
-    await onEvaluatorCompleted(result);
+    // Scores are already persisted. Log a downstream scheduling failure and
+    // still mark this execution successful.
+    try {
+      await onEvaluatorCompleted(result);
+    } catch (error) {
+      logger.error("Failed to schedule evaluator result rules", {
+        projectId,
+        jobExecutionId,
+        error,
+      });
+      traceException(error);
+    }
   }
 
   await deps.updateJobExecution({
