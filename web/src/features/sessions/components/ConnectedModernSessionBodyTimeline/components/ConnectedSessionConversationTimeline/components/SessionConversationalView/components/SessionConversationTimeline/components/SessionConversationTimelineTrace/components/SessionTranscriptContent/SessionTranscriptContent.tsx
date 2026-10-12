@@ -166,7 +166,7 @@ function SessionTranscriptRow({
   const isSystem = row.message.role === "system";
   const metadata = (isTool || isSystem) &&
     (timing || row.message.observationId) && (
-      <div className="text-muted-foreground invisible flex items-center gap-3 font-mono text-xs group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible">
+      <div className="text-muted-foreground flex items-center gap-3 font-mono text-xs opacity-0 group-hover/collapsible-row:opacity-100 group-has-[:focus-visible]/collapsible-row:opacity-100 group-data-[expanded=true]/collapsible-row:opacity-100">
         {row.message.observationId && (
           <button
             type="button"
