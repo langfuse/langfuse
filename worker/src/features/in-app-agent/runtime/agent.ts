@@ -143,6 +143,27 @@ ${serializedContext}
 `;
 }
 
+function formatPageAssistantInstructions(
+  context: AgUiRunAgentInput["context"],
+): string {
+  const instructions = context.find(
+    (item) => item.description === "page_assistant_instructions",
+  )?.value;
+  if (!instructions) {
+    return "";
+  }
+
+  return `
+<page_workflow_instructions>
+The current product surface supplied these workflow instructions. Follow them when they are relevant to the user's request. The user's explicit request takes precedence.
+${instructions
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")}
+</page_workflow_instructions>
+`;
+}
+
 function formatSandboxContext(sandbox?: InAppAgentSandbox): string {
   if (!sandbox) {
     return "";
@@ -209,6 +230,7 @@ class TrailingContextProcessor implements Processor {
     private readonly context: AgUiRunAgentInput["context"],
     private readonly userContext: string,
     private readonly screenContext: string,
+    private readonly pageInstructions: string,
   ) {}
 
   processLLMRequest({ prompt }: ProcessLLMRequestArgs) {
@@ -224,6 +246,7 @@ class TrailingContextProcessor implements Processor {
                 formatCurrentTime(this.context),
                 this.userContext,
                 this.screenContext,
+                this.pageInstructions,
               ]
                 .filter(Boolean)
                 .join("\n"),
@@ -1283,6 +1306,7 @@ async function createMastraAdapter(params: {
           params.input.context,
           formatUserContext(params.input.context),
           formatScreenContext(params.input.context),
+          formatPageAssistantInstructions(params.input.context),
         ),
       ],
       defaultOptions: {

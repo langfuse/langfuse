@@ -1,0 +1,72 @@
+.root {
+  position: relative;
+  min-width: 0;
+  border-radius: var(--radius-md);
+}
+
+.highlight {
+  pointer-events: none;
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  animation: assistant-update-highlight 3.2s ease-out forwards;
+}
+
+.corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-style: solid;
+}
+
+.topLeft {
+  top: -2px;
+  left: -2px;
+  border-width: 2px 0 0 2px;
+}
+
+.topRight {
+  top: -2px;
+  right: -2px;
+  border-width: 2px 2px 0 0;
+}
+
+.bottomRight {
+  right: -2px;
+  bottom: -2px;
+  border-width: 0 2px 2px 0;
+}
+
+.bottomLeft {
+  bottom: -2px;
+  left: -2px;
+  border-width: 0 0 2px 2px;
+}
+
+@keyframes assistant-update-highlight {
+  0%,
+  65% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .highlight {
+    animation: assistant-update-highlight-reduced 3.2s step-end forwards;
+  }
+}
+
+@keyframes assistant-update-highlight-reduced {
+  0%,
+  99% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}

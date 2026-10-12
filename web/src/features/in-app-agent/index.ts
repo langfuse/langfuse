@@ -12,3 +12,17 @@ export {
   useIsInAppAgentLauncherVisible,
   type InAppAgentEntryPoint,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+export {
+  getLatestInAppAgentToolResult,
+  subscribeToInAppAgentToolResults,
+  type InAppAgentToolResult,
+} from "@/src/features/in-app-agent/stores/inAppAgentToolResultSubscriptions";
+export {
+  getCompletedInAppAgentToolCalls,
+  type CompletedInAppAgentToolCall,
+} from "@/src/features/in-app-agent/fns/getCompletedInAppAgentToolCalls";
+export {
+  registerInAppAgentContextualLanding,
+  type InAppAgentContextualLanding,
+} from "@/src/features/in-app-agent/stores/inAppAgentContextualLandingStore";
+export { InAppAgentUpdateHighlight } from "@/src/features/in-app-agent/components/InAppAgentUpdateHighlight";

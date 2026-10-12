@@ -24,6 +24,7 @@ import {
   InAppAgentRunStatus,
   isUnsettledInAppAgentRunStatus,
 } from "@langfuse/shared/in-app-agent";
+import { useInAppAgentContextualLanding } from "@/src/features/in-app-agent/hooks/useInAppAgentContextualLanding";
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
@@ -48,6 +49,11 @@ export function ControlledInAppAgentWindow(
   props: ControlledInAppAgentWindowProps,
 ) {
   const router = useRouter();
+  const projectId =
+    typeof router.query.projectId === "string"
+      ? router.query.projectId
+      : undefined;
+  const contextualLanding = useInAppAgentContextualLanding(projectId);
   const {
     activityByConversationId,
     conversations,
@@ -183,6 +189,7 @@ export function ControlledInAppAgentWindow(
       quickActionContext={quickActionContext}
       focusedQuickActions={focusedQuickActions}
       quickActionResetKey={quickActionResetKey}
+      contextualLanding={contextualLanding}
       screenContextDescription={screenContextDescription}
       conversations={conversations}
       activityByConversationId={activityByConversationId}

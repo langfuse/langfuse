@@ -47,6 +47,10 @@ import {
   handleDetachEvaluatorFromEvaluationRule,
 } from "./tools/manageEvaluationRuleEvaluators";
 import { handleTestEvaluator, testEvaluatorTool } from "./tools/testEvaluator";
+import {
+  handleSetEvaluatorWorkbenchFilter,
+  setEvaluatorWorkbenchFilterTool,
+} from "./tools/setEvaluatorWorkbenchFilter";
 
 export const evalsFeature = {
   name: "evals",
@@ -68,6 +72,10 @@ export const evalsFeature = {
     {
       definition: testEvaluatorTool,
       handler: handleTestEvaluator,
+    },
+    {
+      definition: setEvaluatorWorkbenchFilterTool,
+      handler: handleSetEvaluatorWorkbenchFilter,
     },
     { definition: createEvaluatorTool, handler: handleCreateEvaluator },
     { definition: updateEvaluatorTool, handler: handleUpdateEvaluator },

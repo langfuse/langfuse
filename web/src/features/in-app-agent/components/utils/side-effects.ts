@@ -1,12 +1,10 @@
 import type { InAppAgentLangfuseMcpToolName } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { safeJsonParse } from "@langfuse/shared";
-import {
-  IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
-  type AgUiMessage,
-} from "@langfuse/shared/in-app-agent";
+import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@langfuse/shared/in-app-agent";
 
 import type { api } from "@/src/utils/api";
 import { assertUnreachable } from "@/src/utils/types";
+import type { CompletedInAppAgentToolCall } from "@/src/features/in-app-agent/fns/getCompletedInAppAgentToolCalls";
 
 export type InAppAgentTrpcInvalidationTarget =
   | "annotationQueues"
@@ -17,6 +15,7 @@ export type InAppAgentTrpcInvalidationTarget =
   | "dashboardWidgets"
   | "datasets"
   | "evals"
+  | "evalsV2"
   | "experiments"
   | "externalMediaStorage"
   | "models"
@@ -72,10 +71,11 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_listEvaluators: [],
   langfuse_listManagedEvaluatorTemplates: [],
   langfuse_getEvaluator: [],
-  langfuse_testEvaluator: ["evals"],
-  langfuse_createEvaluator: ["evals", "models"],
-  langfuse_updateEvaluator: ["evals", "models"],
-  langfuse_deleteEvaluator: ["evals", "models"],
+  langfuse_testEvaluator: ["evals", "evalsV2"],
+  langfuse_setEvaluatorWorkbenchFilter: [],
+  langfuse_createEvaluator: ["evals", "evalsV2", "models"],
+  langfuse_updateEvaluator: ["evals", "evalsV2", "models"],
+  langfuse_deleteEvaluator: ["evals", "evalsV2", "models"],
   langfuse_listEvaluationRules: [],
   langfuse_getEvaluationRule: [],
   langfuse_createEvaluationRule: ["evals"],
@@ -189,6 +189,9 @@ function performTargetInvalidation(
   if (target === "evals") {
     return utils.evals.invalidate();
   }
+  if (target === "evalsV2") {
+    return utils.evalsV2.invalidate();
+  }
   if (target === "experiments") {
     return utils.experiments.invalidate();
   }
@@ -214,46 +217,6 @@ function performTargetInvalidation(
   return assertUnreachable(target);
 }
 
-export type CompletedToolCall = {
-  toolCallId: string;
-  toolName: string;
-  toolError?: unknown;
-};
-
-/**
- * Reconstruct completed tool calls from the durable conversation messages.
- * Background runs can finish while the drawer is detached, so the browser
- * cannot rely on having observed the live TOOL_CALL_RESULT event.
- */
-export function getCompletedToolCalls(
-  messages: readonly AgUiMessage[],
-): CompletedToolCall[] {
-  const toolCalls = new Map<string, Omit<CompletedToolCall, "toolError">>();
-  const toolResults = new Map<string, Extract<AgUiMessage, { role: "tool" }>>();
-
-  for (const message of messages) {
-    if (message.role === "assistant") {
-      for (const toolCall of message.toolCalls ?? []) {
-        toolCalls.set(toolCall.id, {
-          toolCallId: toolCall.id,
-          toolName: toolCall.function.name,
-        });
-      }
-      continue;
-    }
-
-    if (message.role === "tool") {
-      toolResults.set(message.toolCallId, message);
-    }
-  }
-
-  return Array.from(toolCalls.values()).flatMap((toolCall) => {
-    const result = toolResults.get(toolCall.toolCallId);
-    // No result message means the call never completed, so nothing was written.
-    return result ? [{ ...toolCall, toolError: result.error }] : [];
-  });
-}
-
 /**
  * Live TOOL_CALL_RESULT events pass one call while snapshot replay passes every
  * completed call in the transcript. `handledToolCallIds` makes the two
@@ -265,7 +228,7 @@ export function performToolSideEffectsForCompletedToolCalls({
   handledToolCallIds,
   utils,
 }: {
-  toolCalls: readonly CompletedToolCall[];
+  toolCalls: readonly CompletedInAppAgentToolCall[];
   handledToolCallIds: Set<string>;
   utils: ReturnType<typeof api.useUtils>;
 }) {

@@ -75,6 +75,9 @@ import { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/creat
 import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
 import { isJudgeModelAvailable } from "@/src/features/evals/v2/judgeModel";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
+import { useEvaluatorAssistantContext } from "@/src/features/evals/v2/hooks/useEvaluatorAssistantContext";
+import { useEvaluatorInAppAgentToolSync } from "@/src/features/evals/v2/hooks/useEvaluatorInAppAgentToolSync";
+import { InAppAgentUpdateHighlight } from "@/src/features/in-app-agent";
 
 type InitialEvaluator = {
   id: string;
@@ -314,6 +317,20 @@ export function EvaluatorSetupPage(
     null,
   );
   const [rawResultOpen, setRawResultOpen] = useState(false);
+  useEvaluatorAssistantContext({
+    projectId,
+    evaluatorId: initialEvaluator?.id ?? null,
+    mode: props.mode,
+  });
+  const { editorUpdateId, testUpdateId } = useEvaluatorInAppAgentToolSync({
+    projectId,
+    evaluatorId: initialEvaluator?.id ?? null,
+    store: evaluatorSetupStore,
+    setTestResult,
+    setHasCompletedTestCall,
+    setLastTestRunCostUsd,
+    setRawResultOpen,
+  });
   const hasRequestedName = useRef(false);
   const saveInFlightRef = useRef(false);
   const hasCreatedRef = useRef(false);
@@ -778,94 +795,97 @@ export function EvaluatorSetupPage(
   };
 
   const evaluatorEditor = (
-    <EvaluatorSetupEditor
-      projectId={projectId}
-      store={evaluatorSetupStore}
-      isEditing={Boolean(initialEvaluator)}
-      defaultModel={projectDefaultModel.defaultModel}
-      providerGroups={projectDefaultModel.providerGroups}
-      providerAdapters={projectDefaultModel.providerAdapters}
-      connectionsPending={projectDefaultModel.connectionsPending}
-      canSetProjectDefault={projectDefaultModel.canUpdate}
-      onConfigureProviders={() => {
-        onboardingAnalytics?.track(
-          "eval:onboarding_llm_connection_tab_opened",
-          {},
-        );
-        projectDefaultModel.openProviderSettings();
-      }}
-      onSetProjectDefault={projectDefaultModel.update.requestUpdate}
-      codeValidationResult={
-        codeValidation.isPending ? null : codeValidation.validationResult
-      }
-      onStepOpenChange={setStepOpen}
-      nameAIAssistance={
-        !nameAIAssistanceAvailable
-          ? { state: "unavailable" }
-          : suggestName.isPending
-            ? { state: "generating" }
-            : {
-                state: "idle",
-                onGenerate: () => {
-                  onboardingAnalytics?.track(
-                    "eval:onboarding_ai_generate_requested",
-                    { field: "name" },
-                  );
-                  requestNameSuggestion(true).catch((error) =>
-                    trpcErrorToast(error, "evaluator_name.generate"),
-                  );
-                },
-              }
-      }
-      descriptionAIAssistance={
-        !nameAIAssistanceAvailable
-          ? { state: "unavailable" }
-          : suggestDescription.isPending
-            ? { state: "generating" }
-            : {
-                state: "idle",
-                // requestDescriptionSuggestion reports its own failures.
-                onGenerate: () => {
-                  onboardingAnalytics?.track(
-                    "eval:onboarding_ai_generate_requested",
-                    { field: "description" },
-                  );
-                  requestDescriptionSuggestion();
-                },
-              }
-      }
-    />
+    <InAppAgentUpdateHighlight updateId={editorUpdateId}>
+      <EvaluatorSetupEditor
+        projectId={projectId}
+        store={evaluatorSetupStore}
+        isEditing={Boolean(initialEvaluator)}
+        defaultModel={projectDefaultModel.defaultModel}
+        providerGroups={projectDefaultModel.providerGroups}
+        providerAdapters={projectDefaultModel.providerAdapters}
+        connectionsPending={projectDefaultModel.connectionsPending}
+        canSetProjectDefault={projectDefaultModel.canUpdate}
+        onConfigureProviders={() => {
+          onboardingAnalytics?.track(
+            "eval:onboarding_llm_connection_tab_opened",
+            {},
+          );
+          projectDefaultModel.openProviderSettings();
+        }}
+        onSetProjectDefault={projectDefaultModel.update.requestUpdate}
+        codeValidationResult={
+          codeValidation.isPending ? null : codeValidation.validationResult
+        }
+        onStepOpenChange={setStepOpen}
+        nameAIAssistance={
+          !nameAIAssistanceAvailable
+            ? { state: "unavailable" }
+            : suggestName.isPending
+              ? { state: "generating" }
+              : {
+                  state: "idle",
+                  onGenerate: () => {
+                    onboardingAnalytics?.track(
+                      "eval:onboarding_ai_generate_requested",
+                      { field: "name" },
+                    );
+                    requestNameSuggestion(true).catch((error) =>
+                      trpcErrorToast(error, "evaluator_name.generate"),
+                    );
+                  },
+                }
+        }
+        descriptionAIAssistance={
+          !nameAIAssistanceAvailable
+            ? { state: "unavailable" }
+            : suggestDescription.isPending
+              ? { state: "generating" }
+              : {
+                  state: "idle",
+                  onGenerate: () => {
+                    onboardingAnalytics?.track(
+                      "eval:onboarding_ai_generate_requested",
+                      { field: "description" },
+                    );
+                    requestDescriptionSuggestion();
+                  },
+                }
+        }
+      />
+    </InAppAgentUpdateHighlight>
   );
 
   const evaluatorTestPanel = (
-    <EvaluatorTestPanelContainer
-      projectId={projectId}
-      store={evaluatorSetupStore}
-      sampleSelector={
-        <SampleObservationSelectorContainer
-          store={evaluatorSetupStore}
-          projectId={projectId}
-          timeRange={absoluteTimeRange}
-          onOpenTrace={(observation) => {
-            onboardingAnalytics?.track(
-              "eval:onboarding_sample_observation_previewed",
-              {},
-            );
-            if (observation.traceId) {
-              sampleTracePeekNavigation.openPeek(observation.id, observation);
-            }
-          }}
-        />
-      }
-      testResult={testResult}
-      testPending={testEvaluator.isPending}
-      rawResultOpen={rawResultOpen}
-      onRawResultOpenChange={setRawResultOpen}
-      onRunTest={runTest}
-      onOpenExecutionTrace={(traceId) =>
-        sampleTracePeekNavigation.openPeek(traceId)
-      }
-    />
+    <InAppAgentUpdateHighlight updateId={testUpdateId}>
+      <EvaluatorTestPanelContainer
+        projectId={projectId}
+        store={evaluatorSetupStore}
+        sampleSelector={
+          <SampleObservationSelectorContainer
+            store={evaluatorSetupStore}
+            projectId={projectId}
+            timeRange={absoluteTimeRange}
+            onOpenTrace={(observation) => {
+              onboardingAnalytics?.track(
+                "eval:onboarding_sample_observation_previewed",
+                {},
+              );
+              if (observation.traceId) {
+                sampleTracePeekNavigation.openPeek(observation.id, observation);
+              }
+            }}
+          />
+        }
+        testResult={testResult}
+        testPending={testEvaluator.isPending}
+        rawResultOpen={rawResultOpen}
+        onRawResultOpenChange={setRawResultOpen}
+        onRunTest={runTest}
+        onOpenExecutionTrace={(traceId) =>
+          sampleTracePeekNavigation.openPeek(traceId)
+        }
+      />
+    </InAppAgentUpdateHighlight>
   );
 
   return (
