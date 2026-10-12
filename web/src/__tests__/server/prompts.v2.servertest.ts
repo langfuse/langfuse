@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { disconnectQueues, makeAPICall } from "@/src/__tests__/test-utils";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -16,13 +15,16 @@ import { nanoid } from "nanoid";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
   getObservationById,
   MAX_PROMPT_NESTING_DEPTH,
   ChatMessageType,
+  PromptService,
+  redis,
 } from "@langfuse/shared/src/server";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {
   createUserWithOrgRole,
   protectPromptLabel,
@@ -309,7 +311,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       testPromptEquality(createPromptParams, fetchedPrompt.body);
     });
 
-    (it("should fetch the latest prompt if label is latest", async () => {
+    it("should fetch the latest prompt if label is latest", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const promptName = "latestPrompt_" + nanoid();
 
@@ -367,51 +369,51 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       }
 
       testPromptEquality(productionPromptParams, fetchedDefaultPrompt.body);
-    }),
-      it("should fetch the production prompt if no version or label set", async () => {
-        const { projectId, auth } = await createOrgProjectAndApiKey();
-        const promptName = "prompt_" + nanoid();
+    });
+    it("should fetch the production prompt if no version or label set", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const promptName = "prompt_" + nanoid();
 
-        const nonProductionPromptParams: CreatePromptInDBParams = {
-          name: promptName,
-          prompt: "prompt",
-          labels: ["staging"],
-          version: 1,
-          config: {
-            temperature: 0.1,
-          },
-          projectId,
-          createdBy: "user-1",
-        };
+      const nonProductionPromptParams: CreatePromptInDBParams = {
+        name: promptName,
+        prompt: "prompt",
+        labels: ["staging"],
+        version: 1,
+        config: {
+          temperature: 0.1,
+        },
+        projectId,
+        createdBy: "user-1",
+      };
 
-        const productionPromptParams: CreatePromptInDBParams = {
-          name: promptName,
-          prompt: "prompt",
-          labels: ["production"],
-          version: 2,
-          config: {
-            temperature: 0.1,
-          },
-          projectId,
-          createdBy: "user-1",
-        };
+      const productionPromptParams: CreatePromptInDBParams = {
+        name: promptName,
+        prompt: "prompt",
+        labels: ["production"],
+        version: 2,
+        config: {
+          temperature: 0.1,
+        },
+        projectId,
+        createdBy: "user-1",
+      };
 
-        await createPromptInDB(productionPromptParams);
-        await createPromptInDB(nonProductionPromptParams);
+      await createPromptInDB(productionPromptParams);
+      await createPromptInDB(nonProductionPromptParams);
 
-        const fetchedPrompt = await makeAPICall<Prompt>(
-          "GET",
-          `${baseURI}/${encodeURIComponent(promptName)}`,
-          undefined,
-          auth,
-        );
+      const fetchedPrompt = await makeAPICall<Prompt>(
+        "GET",
+        `${baseURI}/${encodeURIComponent(promptName)}`,
+        undefined,
+        auth,
+      );
 
-        if (!isPrompt(fetchedPrompt.body)) {
-          throw new Error("Expected body to be a prompt");
-        }
+      if (!isPrompt(fetchedPrompt.body)) {
+        throw new Error("Expected body to be a prompt");
+      }
 
-        testPromptEquality(productionPromptParams, fetchedPrompt.body);
-      }));
+      testPromptEquality(productionPromptParams, fetchedPrompt.body);
+    });
 
     it("should return a 404 if prompt does not exist", async () => {
       const fetchedPrompt = await makeAPICall<Prompt>(
@@ -1368,6 +1370,33 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         }),
       ]);
       expect(result.meta.totalItems).toBe(1);
+    });
+  });
+
+  describe("when counting a prompt list across prompt writes", () => {
+    it("serves the cached count per filter until the epoch rotates", async () => {
+      // CI disables the prompt cache via env, so enable it explicitly.
+      const promptService = new PromptService(prisma, redis, undefined, true);
+      const projectId = randomUUID();
+      const computeCount = vi.fn();
+      const count = (filterKey: string) =>
+        promptService.getPromptListCount({
+          projectId,
+          filterKey,
+          computeCount,
+        });
+
+      computeCount.mockResolvedValueOnce(1).mockResolvedValueOnce(5);
+      expect(await count("all")).toBe(1);
+      expect(await count("all")).toBe(1);
+      expect(await count("tag=a")).toBe(5);
+      expect(computeCount).toHaveBeenCalledTimes(2);
+
+      await promptService.invalidateCache({ projectId });
+
+      computeCount.mockResolvedValueOnce(2);
+      expect(await count("all")).toBe(2);
+      expect(computeCount).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -3325,12 +3354,11 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
         orgId,
         role: Role.MEMBER,
       });
-      const apiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
+      const apiKey = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(userId),
         isInAppAgentKey: true,
-        createdByUserId: userId,
       });
       const name = "deleteProtectedAgent" + uuidv4();
       await prisma.prompt.create({
@@ -3412,12 +3440,11 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
         orgId,
         role: Role.MEMBER,
       });
-      const apiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
+      const apiKey = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(userId),
         isInAppAgentKey: true,
-        createdByUserId: userId,
       });
       const name = "deleteUnlabeledSibling" + uuidv4();
       await prisma.prompt.createMany({

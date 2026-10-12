@@ -27,6 +27,7 @@ import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
   featurePreviewFlags,
   filterFeaturePreviewFlags,
+  isOrganizationOnlyFeaturePreviewFlag,
   setOrganizationFeatureFlagDefault,
   parseFlags,
 } from "@/src/features/feature-flags/server";
@@ -129,6 +130,7 @@ export const organizationsRouter = createTRPCRouter({
 
       if (
         input.enabled &&
+        !isOrganizationOnlyFeaturePreviewFlag(input.flag) &&
         env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES !== "true"
       ) {
         const actor = await ctx.prisma.user.findUnique({

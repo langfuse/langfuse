@@ -5,7 +5,6 @@ import {
   OtelIngestionProcessor,
   QueueJobs,
   type QueueName,
-  recordDistribution,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
@@ -29,7 +28,6 @@ import {
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getS3EventStorageClient: vi.fn(),
-  recordDistribution: vi.fn(),
 }));
 vi.mock(
   "../../features/evaluation/observationEval",
@@ -132,10 +130,6 @@ describe("direct-v4 trace batch tracking", () => {
           startTimeISO,
           serializedEventBytes: index === 0 ? 101 : 202,
         })),
-      );
-      expect(recordDistribution).toHaveBeenCalledWith(
-        "langfuse.trace_batch.ingestion_trace_count",
-        1,
       );
 
       vi.mocked(trackTraceBatchActivity).mockClear();

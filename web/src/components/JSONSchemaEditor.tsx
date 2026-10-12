@@ -57,6 +57,11 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
       showErrorToast(
         "Failed to prettify JSON",
         "Please verify your input is valid JSON",
+        {
+          operation: "json_schema.prettify",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
         "WARNING",
       );
     }
@@ -76,7 +81,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
               className="hover:text-foreground inline-flex items-center underline"
             >
               See JSON Schema examples
-              <ArrowUpRight className="ml-0.5 h-3 w-3" />
+              <ArrowUpRight className="icon-sm ml-0.5" />
             </a>
           </p>
         )}

@@ -75,25 +75,12 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
   private async collectQueueDepth(): Promise<void> {
     const queue = TraceBatchQueue.getInstance();
     if (!queue) throw new Error("Trace batch queue is unavailable");
-    const counts = await queue.getJobCounts(
-      "waiting",
-      "paused",
-      "active",
-      "delayed",
-      "failed",
-    );
-    const depths = {
-      waiting: (counts.waiting ?? 0) + (counts.paused ?? 0),
-      active: counts.active ?? 0,
-      delayed: counts.delayed ?? 0,
-      failed: counts.failed ?? 0,
-    };
-    for (const [type, depth] of Object.entries(depths)) {
-      recordGauge(`${METRIC_PREFIX}.queue_depth`, depth, {
-        type,
-        unit: "records",
-      });
-    }
+    // Waiting, active, and failed depth are already on the generic queue gauge.
+    const counts = await queue.getJobCounts("delayed");
+    recordGauge(`${METRIC_PREFIX}.queue_depth`, counts.delayed ?? 0, {
+      type: "delayed",
+      unit: "records",
+    });
   }
 
   private async collectWaitingHeadAge(): Promise<void> {

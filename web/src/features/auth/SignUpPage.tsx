@@ -15,7 +15,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { env } from "@/src/env.mjs";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
@@ -36,8 +36,36 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials";
 import { getDemoTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
+import {
+  TurnstileWidget,
+  type TurnstileWidgetHandle,
+} from "@/src/features/auth/components/TurnstileWidget";
+import { TURNSTILE_ACTIONS } from "@/src/features/auth/constants";
 
 type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
+
+const LOGIN_CAPTCHA_WAIT_MS = 20_000;
+const ACCOUNT_CREATED_MESSAGE =
+  "Your account was created. Complete the captcha, then sign in.";
+
+function waitForLoginToken(
+  pending: Promise<string | undefined> | undefined,
+): Promise<string | undefined> {
+  if (!pending) return Promise.resolve(undefined);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(undefined), LOGIN_CAPTCHA_WAIT_MS);
+    pending.then(
+      (token) => {
+        clearTimeout(timer);
+        resolve(token);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(undefined);
+      },
+    );
+  });
+}
 
 // Schema for the verified signup flow (email + name only, no password)
 const signupVerifyFormSchema = z.object({
@@ -97,6 +125,16 @@ function StandardSignupFlow({
     !authProviders.sso,
   );
   const [continueLoading, setContinueLoading] = useState<boolean>(false);
+  const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const [turnstileToken, setTurnstileToken] = useState<string>();
+  // Account creation and the follow-up sign-in are separate siteverify checks
+  // with different actions, so the widget switches to `login` once the
+  // account exists.
+  const [turnstileAction, setTurnstileAction] = useState<
+    typeof TURNSTILE_ACTIONS.signup | typeof TURNSTILE_ACTIONS.login
+  >(TURNSTILE_ACTIONS.signup);
+  const [accountCreated, setAccountCreated] = useState(false);
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
   const [lastUsedAuthMethod, setLastUsedAuthMethod] =
     useLocalStorage<NextAuthProvider | null>(
       "langfuse_last_used_auth_method",
@@ -195,43 +233,85 @@ function StandardSignupFlow({
     }
   }
 
+  async function signInAfterSignup(
+    values: z.infer<typeof signupSchema>,
+    loginTurnstileToken: string | undefined,
+  ) {
+    let callbackUrl =
+      targetPath ??
+      (isLangfuseCloud
+        ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
+        : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`);
+    const demoTargetPath = getDemoTargetPath(targetPath);
+    if (isLangfuseCloud && demoTargetPath) {
+      callbackUrl = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding?targetPath=${encodeURIComponent(demoTargetPath)}`;
+    }
+
+    await signIn<"credentials">("credentials", {
+      email: values.email,
+      password: values.password,
+      callbackUrl,
+      turnstileToken: loginTurnstileToken,
+    });
+  }
+
   async function onSubmit(values: z.infer<typeof signupSchema>) {
+    // Once the account exists, later submits must not call signup again.
+    // The widget is on the login action, so a signup retry would send a
+    // token the signup endpoint rejects.
+    let created = accountCreated;
     try {
       setFormError(null);
+      if (created) {
+        await signInAfterSignup(values, turnstileToken);
+        return;
+      }
+
       const res = await fetch(
         `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/signup`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(values),
+          body: JSON.stringify({ ...values, turnstileToken }),
         },
       );
 
       if (!res.ok) {
+        turnstileRef.current?.reset();
         const payload = (await res.json()) as { message: string };
         setFormError(payload.message);
         return;
       }
 
-      let callbackUrl =
-        targetPath ??
-        (isLangfuseCloud
-          ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
-          : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`);
-      const demoTargetPath = getDemoTargetPath(targetPath);
-      if (isLangfuseCloud && demoTargetPath) {
-        callbackUrl = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding?targetPath=${encodeURIComponent(demoTargetPath)}`;
+      created = true;
+      setAccountCreated(true);
+
+      // The sign-up request redeemed its token; signing in needs a fresh
+      // token issued for the `login` action.
+      let loginTurnstileToken: string | undefined;
+      if (turnstileSiteKey) {
+        const nextToken = turnstileRef.current?.nextToken();
+        setTurnstileToken(undefined);
+        setTurnstileAction(TURNSTILE_ACTIONS.login);
+        loginTurnstileToken = await waitForLoginToken(nextToken);
+      }
+      if (turnstileSiteKey && !loginTurnstileToken) {
+        setFormError(ACCOUNT_CREATED_MESSAGE);
+        return;
       }
 
-      await signIn<"credentials">("credentials", {
-        email: values.email,
-        password: values.password,
-        callbackUrl,
-      });
+      await signInAfterSignup(values, loginTurnstileToken);
     } catch {
-      setFormError("An error occurred. Please try again.");
+      turnstileRef.current?.reset();
+      setFormError(
+        created
+          ? ACCOUNT_CREATED_MESSAGE
+          : "An error occurred. Please try again.",
+      );
     }
   }
+
+  const passwordSubmitLabel = accountCreated ? "Sign in" : "Sign up";
 
   return (
     <SignupPageShell>
@@ -295,16 +375,28 @@ function StandardSignupFlow({
               )}
             />
           )}
+          {showPasswordStep && turnstileSiteKey && (
+            <TurnstileWidget
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              action={turnstileAction}
+              onTokenChange={setTurnstileToken}
+            />
+          )}
           <Button
             type="submit"
             className="w-full"
             loading={
               showPasswordStep ? form.formState.isSubmitting : continueLoading
             }
-            disabled={showPasswordStep ? false : form.watch("email") === ""}
+            disabled={
+              showPasswordStep
+                ? Boolean(turnstileSiteKey) && !turnstileToken
+                : form.watch("email") === ""
+            }
             data-testid="submit-email-password-sign-up-form"
           >
-            {showPasswordStep ? "Sign up" : "Continue"}
+            {showPasswordStep ? passwordSubmitLabel : "Continue"}
           </Button>
           {formError ? (
             <div className="text-destructive text-center text-sm font-bold">
@@ -341,6 +433,9 @@ function VerifiedSignupFlow({
     : "/auth/setup-password";
 
   const [formError, setFormError] = useState<string | null>(null);
+  const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const [turnstileToken, setTurnstileToken] = useState<string>();
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
   const [lastUsedAuthMethod, setLastUsedAuthMethod] =
     useLocalStorage<NextAuthProvider | null>(
       "langfuse_last_used_auth_method",
@@ -367,9 +462,14 @@ function VerifiedSignupFlow({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: values.email, name: values.name }),
+          body: JSON.stringify({
+            email: values.email,
+            name: values.name,
+            turnstileToken,
+          }),
         },
       );
+      turnstileRef.current?.reset();
 
       if (!res.ok) {
         const payload = (await res.json()) as { message: string };
@@ -400,6 +500,7 @@ function VerifiedSignupFlow({
       );
       await router.push(setupPasswordPath);
     } catch {
+      turnstileRef.current?.reset();
       setFormError("An error occurred. Please try again.");
     }
   }
@@ -442,10 +543,19 @@ function VerifiedSignupFlow({
               </FormItem>
             )}
           />
+          {turnstileSiteKey && (
+            <TurnstileWidget
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              action={TURNSTILE_ACTIONS.signupVerify}
+              onTokenChange={setTurnstileToken}
+            />
+          )}
           <Button
             type="submit"
             className="w-full"
             loading={form.formState.isSubmitting}
+            disabled={Boolean(turnstileSiteKey) && !turnstileToken}
             data-testid="submit-email-password-sign-up-form"
           >
             Continue
@@ -491,7 +601,7 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
 
         {isLangfuseCloud && <CloudRegionSwitch isSignUpPage />}
 
-        <div className="bg-background mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+        <div className="bg-card mt-14 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-10">
           {children}
         </div>
         {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (

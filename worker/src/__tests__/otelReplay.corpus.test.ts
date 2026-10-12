@@ -362,8 +362,9 @@ describe("OTEL replay provider corpus", { retry: 0, timeout: 120_000 }, () => {
       expect(sourceSpan).toBeDefined();
 
       const { storedRows } = await runOtelReplay({
-        resourceSpans,
+        bytes: Buffer.from(JSON.stringify(resourceSpans)),
         projectId: `otel-replay-${name.toLowerCase().replaceAll(" ", "-")}`,
+        mediaUploadEnabled: true,
       });
 
       expect(storedRows).toHaveLength(1);

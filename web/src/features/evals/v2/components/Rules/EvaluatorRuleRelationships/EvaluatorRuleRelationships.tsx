@@ -143,7 +143,7 @@ function EvaluatorRuleRelationshipsSheet({
       utils.evalsV2.list.invalidate({ projectId }),
     ]);
   const attach = api.evalsV2.rules.attach.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.attach"),
     onSuccess: async () => {
       capture("evaluation_rules:attach_evaluator", {
         evaluatorCount: 1,
@@ -154,7 +154,7 @@ function EvaluatorRuleRelationshipsSheet({
     },
   });
   const detach = api.evalsV2.rules.detach.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.detach"),
     onSuccess: async () => {
       capture("evaluation_rules:detach_evaluator", {
         evaluatorCount: 1,
@@ -268,7 +268,7 @@ function EvaluatorRuleRelationshipsSheet({
                           })
                         }
                       >
-                        <Unlink className="h-3.5 w-3.5" />
+                        <Unlink className="icon-base text-icon-foreground" />
                         Disconnect
                       </Button>
                     </li>
@@ -340,7 +340,7 @@ function EvaluatorRuleRelationshipsSheet({
                         disabled={!hasWriteAccess}
                       >
                         <span className="flex items-center gap-2 text-sm font-bold">
-                          <Link2 className="h-4 w-4" />
+                          <Link2 className="icon-base" />
                           Attach to rule
                         </span>
                         <span className="text-muted-foreground text-sm font-normal">
@@ -355,7 +355,7 @@ function EvaluatorRuleRelationshipsSheet({
                         className="text-foreground hover:text-foreground h-auto w-full justify-start px-0 py-0 text-xs underline-offset-4 hover:bg-transparent hover:underline"
                         disabled={!hasWriteAccess}
                       >
-                        <Plus className="mr-1.5 h-3.5 w-3.5" />
+                        <Plus className="icon-base text-icon-foreground mr-1.5" />
                         Attach another rule
                       </Button>
                     )}

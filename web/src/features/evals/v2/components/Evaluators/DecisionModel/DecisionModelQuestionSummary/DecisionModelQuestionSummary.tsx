@@ -37,7 +37,9 @@ function Criteria({ question }: { question: DecisionModelQuestion }) {
               <span className="text-muted-foreground shrink-0 font-mono">
                 {index}
               </span>
-              <span>{entryText(level.description)}</span>
+              {level.description ? (
+                <span>{entryText(level.description)}</span>
+              ) : null}
             </li>
           ))}
         </ol>
@@ -79,7 +81,7 @@ export function DecisionModelQuestionSummary({
         <span className="text-muted-foreground shrink-0 font-mono text-xs">
           {index + 1}
         </span>
-        <copy.icon className="h-4 w-4 shrink-0" aria-label={copy.label} />
+        <copy.icon className="icon-base shrink-0" aria-label={copy.label} />
         <Badge variant="secondary" className="shrink-0 font-mono">
           {question.scoreName}
         </Badge>

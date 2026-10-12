@@ -231,7 +231,7 @@ export const TestBoundsManyUsers = meta.story({
     await userEvent.type(searchInput, "user-999@example.com");
     await expect(
       within(results).getByRole("link", {
-        name: "user user-999@example.com",
+        name: "user: user-999@example.com",
       }),
     ).toBeInTheDocument();
   },

@@ -2,9 +2,16 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { type RouterOutputs } from "@/src/utils/api";
 import { CommentList } from "./CommentList";
 
-const { useCommentsQuery, composerRenders } = vi.hoisted(() => ({
+const { useCommentsQuery, composerRenders, accessState } = vi.hoisted(() => ({
   useCommentsQuery: vi.fn(),
   composerRenders: vi.fn(),
+  accessState: {
+    hasReadAccess: true,
+    sessionStatus: "authenticated" as
+      | "authenticated"
+      | "unauthenticated"
+      | "loading",
+  },
 }));
 
 vi.mock("@/src/utils/api", () => ({
@@ -30,12 +37,13 @@ vi.mock("@/src/utils/api", () => ({
 }));
 
 vi.mock("@/src/features/rbac", () => ({
-  useHasProjectAccess: () => true,
+  useHasProjectAccess: ({ scope }: { scope: string }) =>
+    scope === "comments:read" ? accessState.hasReadAccess : true,
 }));
 
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    status: "authenticated",
+    status: accessState.sessionStatus,
     data: { user: { id: "reviewer" } },
   }),
 }));
@@ -68,6 +76,35 @@ vi.mock("./components/CommentComposer", async () => {
 });
 
 describe("CommentList draft lifecycle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    accessState.hasReadAccess = true;
+    accessState.sessionStatus = "authenticated";
+  });
+
+  it.each(["no-read-access", "unauthenticated", "loading"] as const)(
+    "does not mount the thread when access is %s",
+    (state) => {
+      if (state === "no-read-access") {
+        accessState.hasReadAccess = false;
+      } else {
+        accessState.sessionStatus = state;
+      }
+
+      const { container } = render(
+        <CommentList
+          projectId="project-1"
+          objectId="trace-1"
+          objectType="TRACE"
+        />,
+      );
+
+      expect(container).toBeEmptyDOMElement();
+      expect(useCommentsQuery).not.toHaveBeenCalled();
+      expect(composerRenders).not.toHaveBeenCalled();
+    },
+  );
+
   it("retains a draft after a background query error and resets it for a different object", () => {
     const comments: RouterOutputs["comments"]["getByObjectId"] = [
       {

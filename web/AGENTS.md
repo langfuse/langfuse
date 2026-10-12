@@ -21,6 +21,20 @@
 - Public REST API routes: `src/pages/api/public/*`
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
+- Topics PoC: `src/features/topics/TopicsPage.tsx` and
+  `src/features/topics/server/topicsRouter.ts`. Process traces from filters/IDs;
+  update maps from stored summaries. Current results stay visible while the
+  history drawer shows execution status, errors and retry controls.
+  `LANGFUSE_TOPICS_ENABLED` gates all routes and effective session flags.
+  Trigger/retry also requires `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; reads/configuration
+  use the `langfuseTopics` flag and project permissions. Storage, retry and setup
+  details: `../worker/src/features/topics/README.md`. Preview and trigger
+  selection share `topics/server`'s bounded trace selector with worker
+  backfills; preserve sampling and the frozen submission range. Internal PoC
+  model selection requires `LANGFUSE_TOPICS_SUMMARY_MODEL` and
+  `LANGFUSE_TOPICS_EMBEDDING_MODEL` on both web and worker, with no defaults.
+  The source inspector returns `loadTopicTranscript`'s shared `Transcript | null`
+  directly, using the same character cap as worker inference.
 - Reusable UI components: `src/components/*`
 - Tests:
   - Server integration tests: `src/__tests__/server/*.servertest.ts`
@@ -114,9 +128,11 @@ Sentry instrumentation skill first and decide whether it should capture at all
   components under `src/components/*`.
 - We use tRPC for full-stack web features; register routers in
   `src/server/api/root.ts`.
-- RBAC lives in `src/features/rbac`: role definitions in
-  `src/features/rbac/constants`, access checks in
-  `src/features/rbac/utils/checkProjectAccess.ts` and
+- RBAC lives in `src/features/rbac`: the role catalog (definitions, policies,
+  tags, access-right tables, and helpers) lives in `@langfuse/shared/rbac`;
+  assignment reads and writes live in `@langfuse/shared/rbac/server`;
+  web owns policy resolution/evaluation (`getRolesForPrincipal`, `authorize`)
+  and the access checks in `src/features/rbac/utils/checkProjectAccess.ts` and
   `src/features/rbac/utils/checkOrganizationAccess.ts`.
 - Entitlements guidance lives in `src/features/entitlements/README.md`.
 - Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
@@ -219,7 +235,8 @@ Sentry instrumentation skill first and decide whether it should capture at all
   `pnpm exec dotenv -e .env.test -e .env -- pnpm --filter web run dev`.
 - Preserve the server-test project split in `vitest.config.mts`. Most tests
   consume the built `@langfuse/shared` package; only tests importing
-  `@langfuse/shared/in-app-agent` or `@langfuse/shared/src/env` use the
+  `@langfuse/shared/in-app-agent`, `@langfuse/shared/topics`, or
+  `@langfuse/shared/src/env` use the
   `server-shared-source*` projects. Do not move `sharedSourceResolve` back to
   the root config: applying those aliases globally increased server-test
   transforms/imports and made Vitest about 27–30% slower. The integration and
@@ -278,6 +295,25 @@ Sentry instrumentation skill first and decide whether it should capture at all
 1. Throw `BaseError` subclasses (eg `LangfuseNotFoundError`) from handlers and services.
 2. Let `BaseError`s bubble up to the tRPC and REST middlewares (eg. don't `try/catch` and rethrow in to `TRPCError` the handler)
 3. Extend the `BaseError` or its subclasses in [`packages/shared/src/errors/`](../packages/shared/src/errors/) as needed.
+
+### Toasts
+
+- Use the typed helpers exported by `src/features/notifications`; importing the
+  Sonner `toast` API outside their implementation is lint-prohibited.
+- Every toast requires a static `operation` from `toastOperations.ts` or a typed
+  tRPC procedure path. Register a new semantic intent when needed; never use
+  resource identifiers, names, messages, URLs, or form values.
+- Errors and warnings additionally require `errorOrigin` and `errorCategory`.
+  For tRPC catches, use `classifyTrpcToastError(error, operation)` to retain
+  classification, request path, response code/status, and error ID. Local
+  validation, clipboard, and product-state branches must classify explicitly.
+- `showToast` preserves native Sonner presentation; `showErrorToast` and
+  `showSuccessToast` render the custom cards. Analytics captures metadata only,
+  never the title, description, or exception payload.
+- Direct TanStack queries or mutations that can show global error toasts must include a
+  registered `meta.toastOperation`. Unattributed global failures use explicit
+  gap markers (`query.execute` / `mutation.execute`, `isOperationFallback=true`),
+  not an inferred intent from customer-controlled query keys.
 
 ### Add frontend feature
 

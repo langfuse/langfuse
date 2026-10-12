@@ -11,6 +11,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Textarea } from "@/src/components/ui/textarea";
 import { showErrorToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 interface EditDialogDashboardContentProps {
   closeDialog: () => void;
@@ -37,13 +38,21 @@ export function EditDialogDashboardContent({
       closeDialog();
     },
     onError: (e) => {
-      showErrorToast("Failed to update dashboard", e.message);
+      showErrorToast(
+        "Failed to update dashboard",
+        e.message,
+        classifyTrpcToastError(e, "dashboard.update"),
+      );
     },
   });
 
   const handleSave = () => {
     if (!name.trim()) {
-      showErrorToast("Validation error", "Dashboard name is required");
+      showErrorToast("Validation error", "Dashboard name is required", {
+        operation: "dashboard.update",
+        errorOrigin: "frontend",
+        errorCategory: "user_input",
+      });
       return;
     }
 

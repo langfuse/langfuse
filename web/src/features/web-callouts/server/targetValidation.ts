@@ -12,6 +12,7 @@ import {
   getTracesIdentifierForSession,
   getTracesIdentifierForSessionFromEvents,
   logger,
+  isStorableTraceSessionId,
 } from "@langfuse/shared/src/server";
 
 export const assertTargetBelongsToProject = async ({
@@ -389,15 +390,17 @@ const sessionBelongsToProject = async ({
   sessionId: string;
   useEventsTable: boolean;
 }) => {
-  const postgresSession = await prisma.traceSession.findFirst({
-    where: {
-      id: sessionId,
-      projectId,
-    },
-    select: {
-      id: true,
-    },
-  });
+  const postgresSession = isStorableTraceSessionId(sessionId)
+    ? await prisma.traceSession.findFirst({
+        where: {
+          id: sessionId,
+          projectId,
+        },
+        select: {
+          id: true,
+        },
+      })
+    : null;
 
   if (postgresSession) {
     return true;

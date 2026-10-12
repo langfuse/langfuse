@@ -136,7 +136,7 @@ const SwitcherMenuContent = ({
                             onClose();
                           }}
                         >
-                          <Settings size={12} />
+                          <Settings className="icon-sm" />
                         </Link>
                       </Button>
                     </CommandItem>

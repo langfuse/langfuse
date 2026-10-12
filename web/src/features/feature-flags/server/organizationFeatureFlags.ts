@@ -9,6 +9,7 @@ import {
   filterFeaturePreviewFlags,
   featurePreviewFlags,
   type FeaturePreviewFlag,
+  type UserFeaturePreviewFlag,
   type UserFeatureFlag,
   INTERNAL_FEATURE_FLAG,
 } from "@/src/features/feature-flags/available-flags";
@@ -260,7 +261,7 @@ export async function setUserFeaturePreviewWithAuthorization({
   actorIsPlatformAdmin: boolean;
   currentOrgId: string;
   targetUserId: string;
-  flag: FeaturePreviewFlag;
+  flag: UserFeaturePreviewFlag;
   enabled: boolean;
   demoOrgId?: string;
 }): Promise<

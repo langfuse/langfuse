@@ -5,4 +5,4 @@ export {
   assertPersistedExportSourceAllowed,
   resolveExportSource,
 } from "@/src/features/analytics-integrations/server/exportSource";
-export { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
+export { isPrismaRecordNotFoundError } from "@langfuse/shared/src/server";

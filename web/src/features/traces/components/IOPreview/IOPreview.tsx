@@ -83,9 +83,6 @@ export interface IOPreviewProps extends ExpansionStateProps {
   enableInlineComments?: boolean;
   onAddInlineComment?: IOPreviewJSONProps["onAddInlineComment"];
   commentedPathsByField?: IOPreviewJSONProps["commentedPathsByField"];
-  // Whether to show metadata section in pretty view (default: false)
-  // JSON view always shows metadata
-  showMetadata?: boolean;
   // Callback to inform parent if virtualization is being used (for scroll handling)
   onVirtualizationChange?: (isVirtualized: boolean) => void;
   // For CorrectedOutputField
@@ -147,7 +144,6 @@ export function IOPreview({
   enableInlineComments,
   onAddInlineComment,
   commentedPathsByField,
-  showMetadata = false,
   onVirtualizationChange,
   observationId,
   projectId,
@@ -248,14 +244,12 @@ export function IOPreview({
        */}
       {selectedView === "json-beta" ? (
         <IOPreviewJSON
-          hideMetadata={!showMetadata}
+          hideMetadata
           input={input}
           output={output}
           status={status}
-          metadata={metadata}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
-          parsedMetadata={parsedMetadata}
           outputCorrection={outputCorrection}
           isParsing={isParsing}
           hideIfNull={hideIfNull}
@@ -276,15 +270,13 @@ export function IOPreview({
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple
-          hideMetadata={!showMetadata}
+          hideMetadata
           input={input}
           output={output}
           status={status}
-          metadata={metadata}
           outputCorrection={outputCorrection}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
-          parsedMetadata={parsedMetadata}
           isLoading={isLoading}
           isParsing={isParsing}
           hideIfNull={hideIfNull}
@@ -306,7 +298,6 @@ export function IOPreview({
       ) : (
         <IOPreviewPretty
           {...sharedProps}
-          showMetadata={showMetadata}
           contentMode={contentMode}
           showSystemPrompt={showSystemPrompt}
         />
@@ -314,7 +305,7 @@ export function IOPreview({
 
       {showEmptyState && (
         <div className="py-2">
-          <div className="relative mx-2 flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
+          <div className="relative flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
             <Button
               variant="ghost"
               size="sm"
@@ -331,17 +322,17 @@ export function IOPreview({
               }}
               title="Dismiss"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="icon-base text-icon-foreground" />
             </Button>
             <div className="flex w-full flex-row items-center gap-2 pr-6">
               <div className="bg-accent flex h-8 w-8 items-center justify-center rounded-full">
-                <BookOpen className="text-muted-foreground h-4 w-4" />
+                <BookOpen className="text-muted-foreground icon-base" />
               </div>
-              <h3 className="text-sm font-bold">
+              <h3 className="text-base font-bold">
                 Looks like this trace didn&apos;t receive an input or output.
               </h3>
             </div>
-            <p className="text-muted-foreground max-w-sm text-sm">
+            <p className="text-muted-foreground max-w-sm text-base">
               Add it in your code to make debugging a lot easier.
             </p>
             <ActionButton

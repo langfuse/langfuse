@@ -14,7 +14,8 @@ import {
   DialogTrigger,
   DialogBody,
 } from "@/src/components/ui/dialog";
-import { toast } from "sonner";
+import { showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 // planLabels used inside StripeSwitchPlanButton
 import {
@@ -55,10 +56,14 @@ export const BillingSwitchPlanDialog = ({
         setProcessingPlanId(null);
         setOpId(null);
       },
-      onError: () => {
+      onError: (error) => {
         setProcessingPlanId(null);
         setOpId(null);
-        toast.error("Failed to start checkout session");
+        showToast({
+          type: "ERROR",
+          title: "Failed to start checkout session",
+          analytics: classifyTrpcToastError(error, "billing_checkout.start"),
+        });
       },
     });
 
@@ -170,17 +175,18 @@ export const BillingSwitchPlanDialog = ({
                         {isCurrentPlan && (
                           <>
                             {/* Reactivate button when cancellation is scheduled on current plan */}
-                            {cancellation?.isCancelled && (
+                            {cancellation?.isCancelled && organization?.id && (
                               <StripeCancellationButton
-                                orgId={organization?.id}
+                                orgId={organization.id}
                                 variant="default"
                                 className="w-full"
                               />
                             )}
                             {!cancellation?.isCancelled &&
-                              scheduledPlanSwitch && (
+                              scheduledPlanSwitch &&
+                              organization?.id && (
                                 <StripeKeepPlanButton
-                                  orgId={organization?.id}
+                                  orgId={organization.id}
                                   stripeProductId={product.stripeProductId}
                                   onProcessing={setProcessingPlanId}
                                   processing={
@@ -214,18 +220,20 @@ export const BillingSwitchPlanDialog = ({
                           scheduledPlanSwitch.newPlanId !==
                             product.stripeProductId &&
                           (hasValidPaymentMethod ? (
-                            <StripeSwitchPlanButton
-                              orgId={organization?.id}
-                              currentPlan={organization?.plan}
-                              newPlanTitle={product.checkout?.title}
-                              isLegacySubscription={isLegacySubscription}
-                              isUpgrade={isThisUpgrade}
-                              stripeProductId={product.stripeProductId}
-                              onProcessing={setProcessingPlanId}
-                              processing={
-                                processingPlanId === product.stripeProductId
-                              }
-                            />
+                            organization?.id && (
+                              <StripeSwitchPlanButton
+                                orgId={organization.id}
+                                currentPlan={organization?.plan}
+                                newPlanTitle={product.checkout?.title}
+                                isLegacySubscription={isLegacySubscription}
+                                isUpgrade={isThisUpgrade}
+                                stripeProductId={product.stripeProductId}
+                                onProcessing={setProcessingPlanId}
+                                processing={
+                                  processingPlanId === product.stripeProductId
+                                }
+                              />
+                            )
                           ) : (
                             <Button className="w-full" disabled>
                               Payment method required
@@ -236,18 +244,20 @@ export const BillingSwitchPlanDialog = ({
                         {!isCurrentPlan &&
                           !scheduledPlanSwitch &&
                           (hasValidPaymentMethod ? (
-                            <StripeSwitchPlanButton
-                              orgId={organization?.id}
-                              currentPlan={organization?.plan}
-                              newPlanTitle={product.checkout?.title}
-                              isLegacySubscription={isLegacySubscription}
-                              isUpgrade={isThisUpgrade}
-                              stripeProductId={product.stripeProductId}
-                              onProcessing={setProcessingPlanId}
-                              processing={
-                                processingPlanId === product.stripeProductId
-                              }
-                            />
+                            organization?.id && (
+                              <StripeSwitchPlanButton
+                                orgId={organization.id}
+                                currentPlan={organization?.plan}
+                                newPlanTitle={product.checkout?.title}
+                                isLegacySubscription={isLegacySubscription}
+                                isUpgrade={isThisUpgrade}
+                                stripeProductId={product.stripeProductId}
+                                onProcessing={setProcessingPlanId}
+                                processing={
+                                  processingPlanId === product.stripeProductId
+                                }
+                              />
+                            )
                           ) : (
                             <Button className="w-full" disabled>
                               Payment method required

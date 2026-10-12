@@ -8,7 +8,7 @@ export const ObjectNotFoundCard = ({
 }) => (
   <Card className="flex h-full w-full items-center justify-center border-none p-6">
     <div className="text-center">
-      <SearchXIcon className="text-muted-foreground mx-auto mb-2 h-8 w-8" />
+      <SearchXIcon className="text-muted-foreground icon-xl mx-auto mb-2" />
       <p className="text-muted-foreground text-sm capitalize">
         {type.toLowerCase()} not found. Likely deleted.
       </p>

@@ -1,8 +1,10 @@
+import { useMemo } from "react";
 import Link from "next/link";
-import { FileCode2, Plus, Trash } from "lucide-react";
+import { Download, FileCode2, Plus, Terminal, Trash } from "lucide-react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -37,36 +39,122 @@ import {
   SKILLS_FIELD_REGISTRY,
   skillsFilterConfig,
 } from "../constants/skillsFilterConfig";
+import { ImportSkillsDialog } from "./ImportSkillsDialog";
+import { InstallSkillDialog } from "./InstallSkillDialog";
+import { useSkillInstallOptions } from "../hooks/useSkillInstallOptions";
 
 type SkillRow = RouterOutput["skills"]["all"]["data"][number];
 
 export function SkillsPage() {
   const projectId = useProjectIdFromURL() ?? "";
   const canCreate = useHasProjectAccess({ projectId, scope: "skills:CUD" });
-  const capture = usePostHogClientCapture();
-  const newSkillHref = `/project/${projectId}/skills/new`;
+  const { query: filterOptions } = useSkillInstallOptions(projectId, "");
 
   return (
-    <Page
-      headerProps={{
-        title: "Skills",
-        titleBadges: <InternalFeatureBadge />,
-        help: {
-          description:
-            "Create, version, and distribute reusable agent skills from one place.",
-          href: "https://langfuse.com/docs",
-        },
-        actionButtonsRight: (
-          <NewSkillButton
-            canCreate={canCreate}
-            href={newSkillHref}
-            onOpen={() => capture("skills:new_form_open")}
-          />
-        ),
-      }}
+    <DialogController
+      renderDialog={() => (
+        <InstallSkillDialog
+          projectId={projectId}
+          initialValues={{
+            by: "tag",
+            name: "",
+            version: null,
+            label: "production",
+            tag: filterOptions.data?.tags[0]?.value ?? "my-tag",
+          }}
+          labels={["production", "latest"]}
+          tags={filterOptions.data?.tags.map((tag) => tag.value) ?? []}
+        />
+      )}
     >
-      <SkillsList key={projectId} projectId={projectId} canDelete={canCreate} />
-    </Page>
+      {({ openDialog }) => (
+        <Page
+          headerProps={{
+            title: "Skills",
+            titleBadges: <InternalFeatureBadge />,
+            help: {
+              description:
+                "Create, version, and distribute reusable agent skills from one place.",
+              href: "https://langfuse.com/docs",
+            },
+            actionButtonsRight: (
+              <SkillsHeaderActions
+                projectId={projectId}
+                canCreate={canCreate}
+                installDisabled={filterOptions.isPending}
+                onInstall={openDialog}
+              />
+            ),
+            actionButtonsMenu: ({ closeMenu }) => (
+              <SkillsHeaderActions
+                projectId={projectId}
+                canCreate={canCreate}
+                installDisabled={filterOptions.isPending}
+                onInstall={openDialog}
+                closeMenu={() => closeMenu({ handoffFocus: true })}
+              />
+            ),
+          }}
+        >
+          <SkillsList
+            key={projectId}
+            projectId={projectId}
+            canDelete={canCreate}
+          />
+        </Page>
+      )}
+    </DialogController>
+  );
+}
+
+type SkillsHeaderActionsProps = {
+  projectId: string;
+  canCreate: boolean;
+  installDisabled: boolean;
+  onInstall: () => void;
+  closeMenu?: () => void;
+};
+
+function SkillsHeaderActions({
+  projectId,
+  canCreate,
+  installDisabled,
+  onInstall,
+  closeMenu,
+}: SkillsHeaderActionsProps) {
+  const capture = usePostHogClientCapture();
+
+  function handleInstall() {
+    closeMenu?.();
+    onInstall();
+  }
+
+  return (
+    <div className="flex max-w-full flex-wrap items-center gap-2">
+      <DesignSystemButton
+        text="Install with CLI"
+        icon={Terminal}
+        variant="secondary"
+        disabled={installDisabled}
+        onClick={handleInstall}
+      />
+      <ImportSkillsDialog key={projectId} projectId={projectId}>
+        {(openDialog) => (
+          <DesignSystemButton
+            text="Import"
+            icon={Download}
+            variant="secondary"
+            disabled={!canCreate}
+            onClick={openDialog}
+          />
+        )}
+      </ImportSkillsDialog>
+      <NewSkillButton
+        canCreate={canCreate}
+        href={`/project/${projectId}/skills/new`}
+        onOpen={() => capture("skills:new_form_open")}
+      />
+    </div>
   );
 }
 
@@ -130,11 +218,11 @@ function SkillsList({
     },
   });
 
-  let tableData: AsyncTableData<SkillRow[]> = { status: "loading" };
-  if (skills.isError)
-    tableData = { status: "error", error: skills.error.message };
-  else if (skills.data)
-    tableData = { status: "success", data: skills.data.data };
+  const tableData = useMemo<AsyncTableData<SkillRow[]>>(() => {
+    if (skills.isError) return { status: "error", error: skills.error.message };
+    if (skills.data) return { status: "success", data: skills.data.data };
+    return { status: "loading" };
+  }, [skills.isError, skills.error, skills.data]);
   const hasFilters = Boolean(searchQuery) || queryFilter.filterState.length > 0;
   const isEmptyProject =
     skills.data?.meta.totalItems === 0 &&
@@ -198,6 +286,7 @@ function SkillsList({
           </div>
           <div className="min-w-0 flex-1">
             <TableSearchBar
+              size="large"
               key={`${projectId}:${queryFilter.draftResetKey}`}
               projectId={projectId}
               tableName="skills"
@@ -324,14 +413,14 @@ function NewSkillButton({
   if (!canCreate) {
     return (
       <Button disabled title="You do not have write access">
-        <Plus className="mr-1.5 h-4 w-4" /> New skill
+        <Plus className="icon-base mr-1.5" /> New skill
       </Button>
     );
   }
   return (
     <Button asChild>
       <Link href={href} onClick={onOpen}>
-        <Plus className="mr-1.5 h-4 w-4" /> New skill
+        <Plus className="icon-base mr-1.5" /> New skill
       </Link>
     </Button>
   );
@@ -348,7 +437,7 @@ function EmptySkills({
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-24 text-center">
-      <FileCode2 className="text-muted-foreground h-9 w-9" />
+      <FileCode2 className="text-muted-foreground icon-xl" />
       <div>
         <h2 className="font-bold">Create your first skill</h2>
         <p className="text-muted-foreground mt-1 text-sm">

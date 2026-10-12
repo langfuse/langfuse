@@ -110,7 +110,7 @@ export function LLMApiKeySettingsTable({
             id: "add-connection",
             label: "Add LLM Connection",
             variant: "secondary",
-            icon: <PlusIcon className="size-4" aria-hidden="true" />,
+            icon: <PlusIcon className="icon-base" aria-hidden="true" />,
             onClick: createAction.onClick,
           },
         ]

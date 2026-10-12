@@ -90,7 +90,7 @@ export function BatchExportsTable({
           if (isDownloadable) {
             return (
               <ActionButton
-                icon={<DownloadIcon size={16} />}
+                icon={<DownloadIcon className="icon-base" />}
                 size="sm"
                 loading={downloadingIds.has(id)}
                 onClick={() => onDownload(id)}

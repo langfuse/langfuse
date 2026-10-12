@@ -4,6 +4,7 @@ import {
   CreateTableNode,
   CreateViewNode,
   DefaultQueryCompiler,
+  FunctionNode,
   InsertQueryNode,
   ParensNode,
   ReferenceNode,
@@ -20,6 +21,7 @@ import type { QueryId } from "kysely";
 import {
   ArrayJoinNode,
   ArrayIndexNode,
+  FinalTableNode,
   type ClickHouseSelectQueryNode,
   type LimitByNode,
 } from "./nodes";
@@ -31,6 +33,16 @@ const ARRAY_JOIN_SQL: Record<ArrayJoinNode["variant"], string> = {
   left: "left array join",
   inner: "inner array join",
 };
+
+const DATE_WRAPPER_FNS = new Set([
+  "toDate",
+  "toDateTime",
+  "toStartOfMinute",
+  "toStartOfHour",
+  "toStartOfDay",
+  "toStartOfMonth",
+  "toStartOfYear",
+]);
 
 function canonicalParamValue(value: unknown): string {
   if (value instanceof Date) return `d:${value.toISOString()}`;
@@ -100,6 +112,12 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       if (ArrayIndexNode.is(node)) {
         self.nodeStack.push(node);
         this.visitArrayIndex(node);
+        self.nodeStack.pop();
+        return;
+      }
+      if (FinalTableNode.is(node)) {
+        self.nodeStack.push(node);
+        this.visitFinalTable(node);
         self.nodeStack.pop();
         return;
       }
@@ -347,6 +365,11 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.compileList(node.columns);
   }
 
+  private visitFinalTable(node: FinalTableNode): void {
+    this.visitNode(node.table);
+    this.append(" final");
+  }
+
   private bindValue(value: unknown, type?: string): string {
     // `type` is the caller-known ClickHouse type; when omitted we infer the
     // widest canonical type from the JS value (Int64 / Float64 / String /
@@ -372,6 +395,16 @@ function bindTypeOfColumnOperand(node: OperationNode): string | undefined {
   if (ColumnNode.is(node)) return COLUMN_BIND_TYPES[node.column.name];
   if (ReferenceNode.is(node) && ColumnNode.is(node.column)) {
     return COLUMN_BIND_TYPES[node.column.column.name];
+  }
+  // Single-argument date wrappers (`toDate(timestamp)`) keep the inner
+  // column's bind type so the compared value is still DateTime64(3). Extra
+  // arguments such as a timezone are not column values.
+  if (
+    FunctionNode.is(node) &&
+    DATE_WRAPPER_FNS.has(node.func) &&
+    node.arguments.length === 1
+  ) {
+    return bindTypeOfColumnOperand(node.arguments[0]);
   }
   return undefined;
 }

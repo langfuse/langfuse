@@ -74,7 +74,7 @@ export default function BackgroundMigrationsTable() {
             {({ disabled, Trigger }) => (
               <Trigger asChild>
                 <Button variant="ghost" size="xs" disabled={disabled}>
-                  <RotateCcw className="h-4 w-4" />
+                  <RotateCcw className="icon-sm text-icon-foreground" />
                 </Button>
               </Trigger>
             )}

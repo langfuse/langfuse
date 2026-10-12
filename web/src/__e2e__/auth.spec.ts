@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { signIn } from "./utils/auth";
 
 test("should redirect to sign-in if not signed in", async ({ page }) => {
   await page.goto("/");
@@ -7,25 +8,7 @@ test("should redirect to sign-in if not signed in", async ({ page }) => {
 
 test("should redirect to home if signed in", async ({ page }) => {
   await page.goto("/auth/sign-in");
-  await page.fill('input[name="email"]', "demo@langfuse.com");
-  await page.fill('input[type="password"]', "password");
-
-  await expect(
-    page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
-  ).toBeEnabled();
-
-  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
-
-  await page.waitForTimeout(2000);
-
-  const errorElement = page.locator(".text-destructive");
-  const hasError = await errorElement.isVisible().catch(() => false);
-  if (hasError) {
-    const errorText = await errorElement.textContent();
-    throw new Error(`Sign-in failed with error: ${errorText}`);
-  }
-
-  await expect(page).toHaveURL("/");
+  await signIn(page);
 });
 
 test("Successfully sign up & able to go to homepage", async ({ page }) => {
@@ -74,25 +57,7 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
   page,
 }) => {
   await page.goto("/auth/sign-in");
-  await page.fill('input[name="email"]', "demo@langfuse.com");
-  await page.fill('input[type="password"]', "password");
-
-  await expect(
-    page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
-  ).toBeEnabled();
-
-  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
-
-  await page.waitForTimeout(2000);
-
-  const errorElement = page.locator(".text-destructive");
-  const hasError = await errorElement.isVisible().catch(() => false);
-  if (hasError) {
-    const errorText = await errorElement.textContent();
-    throw new Error(`Sign-in failed with error: ${errorText}`);
-  }
-
-  await expect(page).toHaveURL("/");
+  await signIn(page);
 
   // project id and prompt from seed.ts
   const promptUrl =
@@ -108,25 +73,7 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
 
   await expect(page).toHaveURL(/targetPath/);
 
-  await page.fill('input[name="email"]', "demo@langfuse.com");
-  await page.fill('input[type="password"]', "password");
-
-  await expect(
-    page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
-  ).toBeEnabled();
-
-  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
-
-  await page.waitForTimeout(2000);
-
-  const errorElement2 = page.locator(".text-destructive");
-  const hasError2 = await errorElement2.isVisible().catch(() => false);
-  if (hasError2) {
-    const errorText = await errorElement2.textContent();
-    throw new Error(`Sign-in failed with error: ${errorText}`);
-  }
-
-  await expect(page).toHaveURL(promptUrl);
+  await signIn(page, { expectedUrl: promptUrl });
 });
 
 test("Unauthenticated user should not be redirected to non-relative URLs after login", async ({
@@ -137,26 +84,8 @@ test("Unauthenticated user should not be redirected to non-relative URLs after l
     `/auth/sign-in?targetPath=${encodeURIComponent(nonRelativeUrl)}`,
   );
 
-  await page.fill('input[name="email"]', "demo@langfuse.com");
-  await page.fill('input[type="password"]', "password");
-
-  await expect(
-    page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
-  ).toBeEnabled();
-
-  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
-
-  await page.waitForTimeout(2000);
-
-  const errorElement = page.locator(".text-destructive");
-  const hasError = await errorElement.isVisible().catch(() => false);
-  if (hasError) {
-    const errorText = await errorElement.textContent();
-    throw new Error(`Sign-in failed with error: ${errorText}`);
-  }
-
-  // Expect to be redirected to the home page, not the non-relative URL
-  await expect(page).toHaveURL("/");
+  // Lands on the home page, not on the non-relative targetPath
+  await signIn(page, { expectedUrl: "/" });
 
   // Verify we're logged in
   await expect(page.getByRole("button", { name: /Demo User/ })).toBeVisible();
@@ -170,24 +99,6 @@ test("Unauthenticated user should be redirected to relative URL after login", as
     `/auth/sign-in?targetPath=${encodeURIComponent(relativeUrl)}`,
   );
 
-  await page.fill('input[name="email"]', "demo@langfuse.com");
-  await page.fill('input[type="password"]', "password");
-
-  await expect(
-    page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
-  ).toBeEnabled();
-
-  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
-
-  await page.waitForTimeout(2000);
-
-  const errorElement = page.locator(".text-destructive");
-  const hasError = await errorElement.isVisible().catch(() => false);
-  if (hasError) {
-    const errorText = await errorElement.textContent();
-    throw new Error(`Sign-in failed with error: ${errorText}`);
-  }
-
   // Expect to be redirected to the relative URL
-  await expect(page).toHaveURL(relativeUrl);
+  await signIn(page, { expectedUrl: relativeUrl });
 });

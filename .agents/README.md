@@ -37,11 +37,16 @@ Current shape:
     "devTerminalDescription": "Main development terminal running the development server"
   },
   "mcpServers": {
+    "next-devtools": {
+      "transport": "stdio",
+      "command": "pnpm",
+      "args": ["dlx", "next-devtools-mcp@0.4.0"]
+    },
     "playwright": {
       "transport": "stdio",
-      "command": "npx",
+      "command": "pnpm",
       "args": [
-        "-y",
+        "dlx",
         "@playwright/mcp@latest",
         "--isolated",
         "--save-session",
@@ -102,6 +107,12 @@ Current shape:
   }
 }
 ```
+
+## Next.js Runtime Diagnostics
+
+With `pnpm run dev:web` running, use `next-devtools`: `nextjs_index` finds the
+server; `nextjs_call` reads errors, routes, and logs. Use `compile_route` for
+compilation checks and Playwright for browser interaction.
 
 ## How Shims Are Generated
 
@@ -188,8 +199,8 @@ For `stdio` servers:
   "mcpServers": {
     "example": {
       "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "some-package"]
+      "command": "pnpm",
+      "args": ["dlx", "some-package"]
     }
   }
 }

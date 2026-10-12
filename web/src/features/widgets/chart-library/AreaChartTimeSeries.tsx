@@ -98,21 +98,22 @@ export function AreaChartTimeSeries({
       dimension,
     color: seriesColor(index),
   }));
-  let chartLegend: LineChartLegend = { visibility: "hidden" };
-  if (legendPosition !== "none" && legendInteraction === "toggle") {
-    chartLegend = {
-      visibility: legendPosition === "auto" ? "auto" : "visible",
-      interaction: "toggle",
-      summary: legendSummary,
-      maxVisibleSeries,
-    };
-  } else if (legendPosition !== "none") {
-    chartLegend = {
+  const chartLegend = useMemo<LineChartLegend>(() => {
+    if (legendPosition === "none") return { visibility: "hidden" };
+    if (legendInteraction === "toggle") {
+      return {
+        visibility: legendPosition === "auto" ? "auto" : "visible",
+        interaction: "toggle",
+        summary: legendSummary,
+        maxVisibleSeries,
+      };
+    }
+    return {
       visibility: legendPosition === "auto" ? "auto" : "visible",
       interaction: "highlight",
       summary: legendSummary,
     };
-  }
+  }, [legendPosition, legendInteraction, legendSummary, maxVisibleSeries]);
   const chart =
     timeAxis.mode === "category" || hasNonTimestampBucket ? (
       <DesignSystemAreaChart

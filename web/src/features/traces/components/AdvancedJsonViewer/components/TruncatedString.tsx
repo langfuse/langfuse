@@ -2,15 +2,11 @@
  * TruncatedString - String value with truncation and popover
  *
  * Shows truncated string with "..." and full value in a popover on hover.
- * Uses shadcn/ui HoverCard component.
+ * Uses the design-system HoverCard component.
  */
 
 import { useRef, useState, useEffect } from "react";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import {
   Tooltip,
   TooltipContent,
@@ -115,10 +111,38 @@ export function TruncatedString({
 
   // Truncated - show popover on hover, use CSS ellipsis for visual truncation
   return (
-    <HoverCard openDelay={300} closeDelay={100}>
-      <HoverCardTrigger asChild>
+    <HoverCard
+      openDelay={300}
+      closeDelay={100}
+      placement="bottom-start"
+      content={
+        <div
+          className="w-64"
+          style={{
+            width: triggerWidth ? `${triggerWidth}px` : undefined,
+            minWidth: triggerWidth ? `${triggerWidth}px` : undefined,
+            maxWidth: triggerWidth ? `${triggerWidth}px` : "28rem",
+          }}
+        >
+          <div
+            className="max-h-60 overflow-auto p-0.5"
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: theme.fontSize,
+              color: theme.stringColor,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {value}
+          </div>
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
         <span
-          ref={triggerRef}
+          tabIndex={0}
+          {...getTriggerProps({ ref: triggerRef })}
           style={{
             color: theme.stringColor,
             fontFamily: "var(--font-mono)",
@@ -151,30 +175,7 @@ export function TruncatedString({
           })}
           <span>&quot;</span>
         </span>
-      </HoverCardTrigger>
-      <HoverCardContent
-        side="bottom"
-        align="start"
-        className="p-0"
-        style={{
-          width: triggerWidth ? `${triggerWidth}px` : undefined,
-          minWidth: triggerWidth ? `${triggerWidth}px` : undefined,
-          maxWidth: triggerWidth ? `${triggerWidth}px` : "28rem",
-        }}
-      >
-        <div
-          className="max-h-60 overflow-auto p-0.5"
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: theme.fontSize,
-            color: theme.stringColor,
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-          }}
-        >
-          {value}
-        </div>
-      </HoverCardContent>
+      )}
     </HoverCard>
   );
 }

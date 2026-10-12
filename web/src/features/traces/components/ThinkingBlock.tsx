@@ -26,7 +26,7 @@ export function ThinkingBlock({
       >
         <ChevronRight
           className={cn(
-            "text-foreground-tertiary mt-0.5 size-3 shrink-0 translate-y-px transition-transform",
+            "text-foreground-tertiary icon-sm mt-0.5 shrink-0 translate-y-px transition-transform",
             expanded && "rotate-90",
           )}
         />
@@ -69,7 +69,7 @@ export function RedactedThinkingBlock({
       >
         <ChevronRight
           className={cn(
-            "text-foreground-tertiary mt-0.5 size-3 shrink-0 translate-y-px transition-transform",
+            "text-foreground-tertiary icon-sm mt-0.5 shrink-0 translate-y-px transition-transform",
             expanded && "rotate-90",
           )}
         />

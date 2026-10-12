@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
+import { useRouter } from "next/router";
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -43,7 +44,11 @@ import {
 } from "@/src/features/experiments/lib/analytics";
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 import { useOrderByState } from "@/src/features/orderBy";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  getRowHeightIOCharLimit,
+  useAdjustableRowHeight,
+} from "@/src/components/table/data-table-row-height-switch";
 import {
   useColumnOrder,
   useColumnVisibility,
@@ -53,7 +58,10 @@ import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { ExperimentGridView } from "./ExperimentGridView";
+import {
+  ExperimentGridView,
+  GRID_VIEW_ROW_HEIGHTS,
+} from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
@@ -85,7 +93,11 @@ import {
   withPresentScoreKeys,
 } from "@/src/features/scores";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { ExperimentCompareTable } from "./ExperimentCompareTable";
+import {
+  ExperimentCompareTable,
+  LIST_VIEW_ROW_HEIGHTS,
+} from "./ExperimentCompareTable";
+import { useExperimentItemsScoreCache } from "@/src/features/experiments/hooks/useExperimentItemsScoreCache";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import {
   useExperimentItemsFilterOptions,
@@ -178,7 +190,7 @@ function toScoreColumnInput(scoreColumnDefs: ScoreColumnDef[]): Array<{
 /**
  * One summary per score column: the primary experiment's aggregate over the
  * items in view, and the same for the comparison it is read against. Built once
- * per fetch rather than per header render.
+ * per score snapshot rather than per header render.
  */
 function buildScoreColumnSummaries({
   rows,
@@ -355,6 +367,7 @@ const StackedOutputRow = ({
       />
       <ConnectedIOTableCell
         data={output}
+        followRowHeight={false}
         singleLine={singleLine}
         variant="output"
       />
@@ -397,6 +410,7 @@ const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
 
 /**
  * Cell component that renders stacked output values for each experiment.
+ * Display chooses text or JSON. Row height does not.
  */
 const StackedOutputCell = ({
   outputs,
@@ -446,6 +460,7 @@ const StackedOutputCell = ({
             <ConnectedIOTableCell
               isLoading={false}
               data={expectedOutput ?? null}
+              followRowHeight={false}
               singleLine={singleLine}
             />
           </div>
@@ -485,7 +500,11 @@ const StackedOutputCell = ({
             {isLoading ? (
               <div className="flex h-full min-h-0 min-w-0 items-start">
                 <span className="bg-muted mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full" />
-                <ConnectedIOTableCell isLoading singleLine={singleLine} />
+                <ConnectedIOTableCell
+                  isLoading
+                  followRowHeight={false}
+                  singleLine={singleLine}
+                />
               </div>
             ) : out?.output ? (
               <StackedOutputRow
@@ -526,6 +545,7 @@ export default function ExperimentItemsTable({
   hideControls = false,
   toolbarSettings,
 }: ExperimentItemsTableProps) {
+  const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
@@ -617,10 +637,13 @@ export default function ExperimentItemsTable({
     limit: "pageSize",
   });
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
-    "experiment-items-compact",
-    "s",
-  );
+  const {
+    preset: rowHeight,
+    activeHeightPx,
+    setPreset: setRowHeight,
+    setCustomPx,
+    ...adjustableRowHeight
+  } = useAdjustableRowHeight("experiment-items-compact", "s");
   const ioSingleLine = ioRenderMode === "text";
 
   const [orderByState, setOrderByState] = useOrderByState({
@@ -631,7 +654,7 @@ export default function ExperimentItemsTable({
   // Fetch score filter options scoped to selected experiments
   const {
     filterOptions: scoreFilterOptions,
-    scoreColumns: scoreColumnDefs,
+    scoreColumns: serverScoreColumnDefs,
     isLoading: isFilterOptionsLoading,
   } = useExperimentItemsFilterOptions({
     projectId,
@@ -781,6 +804,15 @@ export default function ExperimentItemsTable({
     [filterTargets, defaultFilterTargetExperimentId],
   );
 
+  // A compact row stays on the short preview. Medium, Large, and a dragged
+  // height at or above this layout's Medium preset ask for the expanded read.
+  const ioCharLimit = getRowHeightIOCharLimit(
+    rowHeight,
+    adjustableRowHeight.mode,
+    activeHeightPx,
+    layout === "grid" ? GRID_VIEW_ROW_HEIGHTS : LIST_VIEW_ROW_HEIGHTS,
+  );
+
   // Use the custom hook for experiment items data fetching
   const { items, totalCount, dataUpdatedAt, ioLoading, isTotalCountLoading } =
     useExperimentItemsTableData({
@@ -797,7 +829,11 @@ export default function ExperimentItemsTable({
         limit: paginationState.pageSize,
       },
       itemVisibility,
+      ioCharLimit,
     });
+
+  const { rows: scoreRows, scoreColumns: scoreColumnDefs } =
+    useExperimentItemsScoreCache(items.rows, serverScoreColumnDefs);
 
   // Running items without an expected output is common, so don't spend a column
   // on it before loaded IO confirms there is expected output to display.
@@ -844,7 +880,7 @@ export default function ExperimentItemsTable({
   // columns don't disappear and come back on each fetch.
   const presentScoreKeys = useMemo(() => {
     if (items.status !== "success") return undefined;
-    const experimentsInView = (items.rows ?? []).flatMap(
+    const experimentsInView = (scoreRows ?? []).flatMap(
       (row) => row.experiments,
     );
     return {
@@ -855,10 +891,9 @@ export default function ExperimentItemsTable({
         experimentsInView.map((exp) => exp.traceScores),
       ),
     };
-  }, [items]);
+  }, [items.status, scoreRows]);
 
-  // Create score columns from the shared filter options data
-  // This ensures sidebar filters and column visibility use the same data source
+  // Column visibility and both table layouts share the cache-inclusive score columns.
   const observationScoreColumns = useMemo(
     () =>
       createScoreColumns<ExperimentItemData>({
@@ -1024,7 +1059,7 @@ export default function ExperimentItemsTable({
   );
 
   const scoreColumnSummaries = useMemo(() => {
-    const rowsInView = items.rows ?? [];
+    const rowsInView = scoreRows ?? [];
     return {
       observationScores: buildScoreColumnSummaries({
         rows: rowsInView,
@@ -1042,7 +1077,7 @@ export default function ExperimentItemsTable({
       }),
     };
   }, [
-    items.rows,
+    scoreRows,
     scoreDataTypesByKey,
     primaryExperimentId,
     primaryComparisonId,
@@ -1291,6 +1326,8 @@ export default function ExperimentItemsTable({
     defaultHidden: true,
     // An empty expected output used to render as two literal quote characters.
     getCell: (value) => (ioLoading ? { type: "loading" } : value || undefined),
+    // Display chooses text or JSON. Row height does not.
+    followRowHeight: false,
     singleLine: ioSingleLine,
     variant: "output",
   }) as LangfuseColumnDef<ExperimentItemsTableRow>;
@@ -1340,6 +1377,8 @@ export default function ExperimentItemsTable({
       size: 300,
       enableHiding: true,
       getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
+      // Display chooses text or JSON. Row height does not.
+      followRowHeight: false,
       singleLine: ioSingleLine,
     }),
     // The scores sit between the item's input and its outputs: the input says
@@ -1665,6 +1704,10 @@ export default function ExperimentItemsTable({
       "timestamp",
       "traceId",
       "peekExperimentId",
+      "annotation",
+      "comments",
+      "commentObjectType",
+      "commentObjectId",
     ],
     tableName: experimentItemsFilterConfig.tableName,
     isV4: true,
@@ -1754,18 +1797,37 @@ export default function ExperimentItemsTable({
       itemType: "TRACE",
       detailNavigationKey: "experiment-items",
       ...peekNavigationProps,
+      resolveDetailNavigationPath: (entry) =>
+        peekNavigationProps.resolveDetailNavigationPath({
+          ...entry,
+          params: {
+            ...entry.params,
+            ...(router.query.annotation === "open"
+              ? { annotation: "open" }
+              : {}),
+            ...(router.query.annotation !== "open" &&
+            router.query.comments === "open"
+              ? { comments: "open" }
+              : {}),
+          },
+        }),
     };
-  }, [peekNavigationProps, canUsePeek]);
+  }, [
+    peekNavigationProps,
+    canUsePeek,
+    router.query.annotation,
+    router.query.comments,
+  ]);
 
-  // The page as fetched. The score column header aggregates — and the score
-  // matrix, which reads the same ones — deliberately describe this whole page,
+  // The fetched page with local score writes. The column header aggregates and
+  // the score matrix deliberately describe this whole page,
   // so the movement a comparison filter was built from stays readable while
   // that filter is applied.
   const unfilteredRows: ExperimentItemsTableRow[] = useMemo(() => {
-    if (items.status !== "success" || !items.rows) return [];
+    if (items.status !== "success" || !scoreRows) return [];
     // Add 'id' field for DataTable row identification (peek view requires it)
-    return items.rows.map((row) => ({ ...row, id: row.itemId }));
-  }, [items]);
+    return scoreRows.map((row) => ({ ...row, id: row.itemId }));
+  }, [items.status, scoreRows]);
 
   // The score comparison filters narrow the page here rather than in the
   // query — see `useScoreComparisonFilters` for why.
@@ -1962,7 +2024,7 @@ export default function ExperimentItemsTable({
           type: BatchActionType.Create,
           label: "Evaluate",
           description: "Run evaluators on selected items",
-          icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
+          icon: <LightbulbIcon className="icon-base sm:mr-2" />,
           customDialog: true,
           accessCheck: {
             scope: "evaluationRule:CUD",
@@ -1980,6 +2042,7 @@ export default function ExperimentItemsTable({
           search={
             hideControls ? null : (
               <TableSearchBar
+                size="large"
                 key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
                 projectId={projectId}
                 tableName="experiment-items"
@@ -2026,6 +2089,7 @@ export default function ExperimentItemsTable({
                   orderByState={orderByState}
                   rowHeight={rowHeight}
                   setRowHeight={setRowHeight}
+                  customRowHeight={customRowHeightMenu(adjustableRowHeight)}
                   toolbarSettings={toolbarSettings}
                   multiSelect={{
                     selectAll,
@@ -2132,6 +2196,11 @@ export default function ExperimentItemsTable({
                   isLoading={items.status === "loading" || isViewLoading}
                   ioLoading={ioLoading}
                   rowHeight={rowHeight}
+                  customRowHeightPx={activeHeightPx}
+                  onCustomRowHeightChange={
+                    hideControls ? undefined : setCustomPx
+                  }
+                  onSelectRowHeight={hideControls ? undefined : setRowHeight}
                   showExpectedOutput={showExpectedOutput}
                   pagination={pagination}
                   observationScoreOrder={observationScoreOrder}
@@ -2177,6 +2246,9 @@ export default function ExperimentItemsTable({
                 columnVisibility={columnVisibility}
                 onColumnVisibilityChange={handleColumnVisibilityChange}
                 rowHeight={rowHeight}
+                customRowHeightPx={activeHeightPx}
+                onCustomRowHeightChange={hideControls ? undefined : setCustomPx}
+                onSelectRowHeight={hideControls ? undefined : setRowHeight}
                 peekView={peekConfig}
                 noResultsMessage={
                   !hasSelectedRuns ? (

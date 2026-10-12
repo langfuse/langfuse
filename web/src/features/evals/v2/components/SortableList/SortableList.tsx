@@ -25,11 +25,13 @@ function SortableRow({
   id,
   label,
   disabled,
+  compact,
   children,
 }: {
   id: string;
   label: string;
   disabled: boolean;
+  compact: boolean;
   children: ReactNode;
 }) {
   const {
@@ -59,13 +61,16 @@ function SortableRow({
         ref={setActivatorNodeRef}
         type="button"
         disabled={disabled}
-        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex h-9 w-5 cursor-grab touch-none items-center justify-center rounded focus-visible:ring-2 focus-visible:outline-hidden active:cursor-grabbing disabled:cursor-default disabled:opacity-30"
+        className={cn(
+          "text-muted-foreground hover:text-foreground focus-visible:ring-ring flex w-5 cursor-grab touch-none items-center justify-center rounded focus-visible:ring-2 focus-visible:outline-hidden active:cursor-grabbing disabled:cursor-default disabled:opacity-30",
+          compact ? "h-8" : "h-9",
+        )}
         aria-label={`Reorder ${label}`}
         title="Drag to reorder"
         {...attributes}
         {...listeners}
       >
-        <GripVertical className="h-3.5 w-3.5" />
+        <GripVertical className="icon-base" />
       </button>
       <div className="min-w-0">{children}</div>
     </li>
@@ -124,6 +129,7 @@ export function SortableList<T>({
               id={ids[index]!}
               label={getLabel(item, index)}
               disabled={items.length < 2}
+              compact={gap === "sm"}
             >
               {renderItem(item, index)}
             </SortableRow>

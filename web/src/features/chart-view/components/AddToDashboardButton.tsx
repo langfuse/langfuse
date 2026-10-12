@@ -4,6 +4,7 @@ import { LayoutDashboard } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { showErrorToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
 import { type ChartWidgetInput } from "../lib/chartConfigToWidget";
 
@@ -48,7 +49,11 @@ export const AddToDashboardButton = React.memo(function AddToDashboardButton({
           // Surface failures instead of leaving the dialog open with no feedback;
           // keep it open so the user can retry or pick another dashboard.
           onError: (error) =>
-            showErrorToast("Failed to add chart to dashboard", error.message),
+            showErrorToast(
+              "Failed to add chart to dashboard",
+              error.message,
+              classifyTrpcToastError(error, "dashboard_chart.add"),
+            ),
         },
       );
     },
@@ -64,7 +69,7 @@ export const AddToDashboardButton = React.memo(function AddToDashboardButton({
         onClick={() => setOpen(true)}
         disabled={createWidget.isPending}
       >
-        <LayoutDashboard className="h-3.5 w-3.5" />
+        <LayoutDashboard className="icon-base text-icon-foreground" />
         Add to dashboard
       </Button>
       <SelectDashboardDialog

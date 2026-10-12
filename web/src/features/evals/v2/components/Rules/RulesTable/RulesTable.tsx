@@ -12,7 +12,10 @@ import {
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
@@ -125,7 +128,7 @@ export function RulesTable({
     column: "createdAt",
     order: "DESC",
   });
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "evaluationRulesV2",
     "s",
   );
@@ -217,7 +220,7 @@ export function RulesTable({
     { enabled: ruleIds.length > 0, meta: { silentHttpCodes: [503] } },
   );
   const deleteMany = api.evalsV2.rules.deleteMany.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.delete"),
     onSuccess: async (result) => {
       capture("evaluation_rules:delete", {
         ruleCount: result.ruleIds.length,
@@ -245,7 +248,7 @@ export function RulesTable({
         accessorKey: "name",
         id: "name",
         header: "Name",
-        size: 260,
+        size: 220,
         isFixedPosition: true,
         enableSorting: true,
         cell: ({ row }) => {
@@ -298,8 +301,8 @@ export function RulesTable({
       createNumberTableColumn<RuleTableRow>({
         accessorFn: (row) => costs.data?.[row.id],
         id: "totalCost",
-        header: "Total cost (7d)",
-        size: 140,
+        header: "Cost (7d)",
+        size: 110,
         enableHiding: true,
         formatter: (value) => usdFormatter(value, 2, 4),
         getValue: (value) => {
@@ -392,7 +395,7 @@ export function RulesTable({
                   router.push(ruleExecutionsUrl(projectId, row.original.id));
                 }}
               >
-                View traces <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                View traces <ExternalLink className="icon-base ml-1" />
               </Button>
               <DropdownMenu
                 placement="bottom-end"
@@ -439,7 +442,7 @@ export function RulesTable({
                     aria-label={`Actions for ${row.original.name}`}
                     {...getTriggerProps()}
                   >
-                    <MoreVertical className="h-4 w-4" />
+                    <MoreVertical className="icon-sm text-icon-foreground" />
                   </Button>
                 )}
               </DropdownMenu>
@@ -534,6 +537,7 @@ export function RulesTable({
         <SearchableTableFilterLayout
           search={
             <TableSearchBar
+              size="large"
               key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
               projectId={projectId}
               tableName={filterConfig.tableName}
@@ -566,6 +570,7 @@ export function RulesTable({
               setColumnOrder={handleColumnOrderChange}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              customRowHeight={customRowHeightMenu(rowHeights)}
               filterState={filterState}
               orderByState={orderBy}
               viewConfig={{
@@ -605,6 +610,9 @@ export function RulesTable({
               columnOrder={columnOrder}
               onColumnOrderChange={handleColumnOrderChange}
               rowHeight={rowHeight}
+              customRowHeightPx={rowHeights.activeHeightPx}
+              onCustomRowHeightChange={rowHeights.setCustomPx}
+              onSelectRowHeight={setRowHeight}
               orderBy={orderBy}
               setOrderBy={handleOrderByChange}
               pagination={{

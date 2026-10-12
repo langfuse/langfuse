@@ -58,6 +58,15 @@ export function ChatMessage({
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
 
+  const renderToolResponse = (response: ChatMlMessage) => (
+    <ChatMessage
+      message={response}
+      shouldRenderMarkdown={shouldRenderMarkdown}
+      currentView={currentView}
+      contentMode={contentMode}
+    />
+  );
+
   const title = getMessageTitle(message);
   const toolCalls = parseToolCallsFromMessage(message);
   const hasContent = hasRenderableContent(message);
@@ -79,9 +88,9 @@ export function ChatMessage({
         className="hover:bg-border -mr-2"
       >
         {showTableView ? (
-          <ListChevronsDownUp className="text-primary h-3 w-3" />
+          <ListChevronsDownUp className="icon-sm text-primary" />
         ) : (
-          <ListChevronsUpDown className="h-3 w-3" />
+          <ListChevronsUpDown className="icon-sm text-icon-foreground" />
         )}
       </Button>
     ) : undefined;
@@ -142,9 +151,10 @@ export function ChatMessage({
     toolCalls.length > 0
   ) {
     return (
-      <div className="transition-colors">
+      <div className="group/iosection transition-colors">
         <MarkdownJsonViewHeader
           title={title}
+          hoverRevealControls
           handleOnCopy={() => {
             // Shared stringify (not raw JSON.stringify) so \uXXXX escapes in
             // string fields are copied as real characters, like the rendered
@@ -157,6 +167,7 @@ export function ChatMessage({
         <ToolCallInvocationsView
           message={message}
           toolCallNumbers={toolCallNumbers}
+          renderResponse={renderToolResponse}
         />
       </div>
     );
@@ -203,6 +214,7 @@ export function ChatMessage({
               <ToolCallInvocationsView
                 message={message}
                 toolCallNumbers={toolCallNumbers}
+                renderResponse={renderToolResponse}
               />
             </div>
           )}
@@ -223,6 +235,7 @@ export function ChatMessage({
               <ToolCallInvocationsView
                 message={message}
                 toolCallNumbers={toolCallNumbers}
+                renderResponse={renderToolResponse}
               />
             </div>
           )}

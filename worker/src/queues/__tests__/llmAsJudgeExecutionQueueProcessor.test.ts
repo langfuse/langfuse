@@ -393,6 +393,49 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
   });
 
   describe("LLM completion errors (non-retryable)", () => {
+    it("retries media-not-found validation errors until the final attempt", async () => {
+      const mediaNotFoundError = new Error(
+        "Media asset image-1 was not found in this project",
+      );
+      (processObservationEval as Mock).mockRejectedValue(mediaNotFoundError);
+      vi.mocked(classifyEvaluatorLlmError).mockReturnValue({
+        kind: "validation",
+        message: mediaNotFoundError.message,
+        statusCode: 400,
+        isRetryable: false,
+        error: mediaNotFoundError,
+        validationError: {
+          code: "media-not-found",
+        },
+        blockReason: null,
+      } as ReturnType<typeof classifyEvaluatorLlmError>);
+
+      const job = createMockJob();
+
+      await expect(llmAsJudgeExecutionQueueProcessor(job)).rejects.toThrow(
+        mediaNotFoundError,
+      );
+      expect(prisma.jobExecution.update).not.toHaveBeenCalled();
+
+      vi.mocked(traceException).mockClear();
+      await expect(
+        llmAsJudgeExecutionQueueProcessor(
+          createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
+        ),
+      ).resolves.toBeUndefined();
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: jobExecutionId,
+          projectId,
+        },
+        data: expect.objectContaining({
+          status: JobExecutionStatus.ERROR,
+          error: mediaNotFoundError.message,
+        }),
+      });
+      expect(traceException).not.toHaveBeenCalled();
+    });
+
     it("should set ERROR status for non-retryable LLM errors", async () => {
       const llmError = new Error("Invalid API key");
       (processObservationEval as Mock).mockRejectedValue(llmError);

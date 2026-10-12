@@ -33,7 +33,7 @@ export const NewDatasetItemButton = (props: {
           variant="outline"
           hasAccess={hasAccess}
           trackingEventName="dataset_item:new_form_open"
-          icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+          icon={<PlusIcon className="icon-base" aria-hidden="true" />}
         >
           New item
         </ActionButton>

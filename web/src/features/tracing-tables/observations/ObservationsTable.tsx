@@ -64,7 +64,11 @@ import {
   isObservationCostDisplayable,
 } from "@/src/utils/observationCost";
 import { useOrderByState } from "@/src/features/orderBy";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -293,11 +297,18 @@ export default function ObservationsTable({
     limit: "pageSize",
   });
 
-  const [storedRowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [storedRowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "generations",
     "s",
   );
   const rowHeight = hideControls ? "s" : storedRowHeight;
+  const compactRows =
+    hideControls ||
+    isCompactRowHeight(
+      storedRowHeight,
+      rowHeights.mode,
+      rowHeights.activeHeightPx,
+    );
 
   const [inputFilterState] = useQueryFilterState(
     // If the user loads saved table view presets, we should not apply the default type filter
@@ -677,6 +688,7 @@ export default function ObservationsTable({
         });
       }
       showSuccessToast({
+        operation: "observation.add_to_annotation_queue",
         title: "Observations added to queue",
         description: `Selected observations will be added to queue "${data.queueName}". This may take a minute.`,
         link: {
@@ -803,7 +815,7 @@ export default function ObservationsTable({
       size: 300,
       cellBackground: "gray",
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
@@ -815,7 +827,7 @@ export default function ObservationsTable({
             projectId={projectId}
             startTime={row.getValue("startTime")}
             col="input"
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         );
       },
@@ -828,7 +840,7 @@ export default function ObservationsTable({
       size: 300,
       cellBackground: "green",
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
@@ -840,7 +852,7 @@ export default function ObservationsTable({
             projectId={projectId}
             startTime={row.getValue("startTime")}
             col="output"
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         );
       },
@@ -901,7 +913,7 @@ export default function ObservationsTable({
           >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
-              <InfoIcon className="h-3 w-3" />
+              <InfoIcon className="icon-sm" />
             </div>
           </BreakdownTooltip>
         );
@@ -1021,14 +1033,14 @@ export default function ObservationsTable({
       header: "Trace Tags",
       size: 250,
       enableHiding: true,
-      shouldWrap: rowHeight !== "s",
+      shouldWrap: !compactRows,
     }),
     {
       accessorKey: "metadata",
       header: "Metadata",
       size: 300,
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
@@ -1044,7 +1056,7 @@ export default function ObservationsTable({
             projectId={projectId}
             startTime={row.getValue("startTime")}
             col="metadata"
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         );
       },
@@ -1391,6 +1403,7 @@ export default function ObservationsTable({
           search={
             !hideControls ? (
               <TableSearchBar
+                size={showControlsInPageHeader ? "large" : "default"}
                 key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                 projectId={projectId}
                 tableName={observationsFilterConfig.tableName}
@@ -1434,6 +1447,7 @@ export default function ObservationsTable({
                 orderByState={orderBy}
                 rowHeight={rowHeight}
                 setRowHeight={setRowHeight}
+                customRowHeight={customRowHeightMenu(rowHeights)}
                 timeRange={showControlsInPageHeader ? undefined : timeRange}
                 setTimeRange={
                   showControlsInPageHeader ? undefined : setTimeRange
@@ -1497,6 +1511,13 @@ export default function ObservationsTable({
               columnVisibility={columnVisibility}
               onColumnVisibilityChange={handleColumnVisibilityChange}
               rowHeight={rowHeight}
+              customRowHeightPx={
+                hideControls ? undefined : rowHeights.activeHeightPx
+              }
+              onCustomRowHeightChange={
+                hideControls ? undefined : rowHeights.setCustomPx
+              }
+              onSelectRowHeight={hideControls ? undefined : setRowHeight}
               onRowClick={(row, event) => {
                 // Handle Command/Ctrl+click to open observation in new tab
                 if (event && (event.metaKey || event.ctrlKey)) {

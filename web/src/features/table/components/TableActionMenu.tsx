@@ -31,9 +31,9 @@ type TableActionMenuProps = {
 
 const getDefaultIcon = (type: TableAction["type"]) => {
   if (type === "create") {
-    return <Plus className="h-4 w-4 sm:mr-2" />;
+    return <Plus className="icon-base sm:mr-2" />;
   }
-  return <Trash className="h-4 w-4 sm:mr-2" />;
+  return <Trash className="icon-base sm:mr-2" />;
 };
 
 export function TableActionMenu({
@@ -102,7 +102,7 @@ export function TableActionMenu({
             className="h-8 w-8"
             onClick={onClearSelection}
           >
-            <X className="h-4 w-4" />
+            <X className="icon-base text-icon-foreground" />
           </Button>
           <div className="bg-border h-5 w-px" />
           <div className="flex items-center gap-2">

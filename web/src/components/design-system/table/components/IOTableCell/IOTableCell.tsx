@@ -10,12 +10,15 @@ import {
   type MediaDescriptor,
 } from "@/src/components/ui/media/mediaUtils";
 import { cn } from "@/src/utils/tailwind";
-import { Fragment, memo, useRef, useState, type ReactNode } from "react";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+  Fragment,
+  memo,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 
@@ -28,7 +31,7 @@ export type IOTableCellMediaRenderer = (
 const ioTableCellVariantClassNames: Record<IOTableCellVariant, string> = {
   default: "",
   input: "bg-muted/50",
-  output: "bg-accent-light-green",
+  output: "bg-surface-output",
 };
 
 const ioTableCellPaddingClassNames: Record<IOTableCellSize, string> = {
@@ -124,20 +127,6 @@ export const IOTableCell = memo(function IOTableCell({
   const [isPointerOverMediaTag, setIsPointerOverMediaTag] = useState(false);
   const isPointerOverMediaTagRef = useRef(false);
 
-  if (state.isLoading) {
-    return (
-      <JsonSkeleton
-        borderless
-        numRows={singleLine ? 1 : undefined}
-        className={cn(
-          "h-full w-full overflow-hidden rounded-sm",
-          paddingClassName,
-          variantClassName,
-        )}
-      />
-    );
-  }
-
   const { data } = state;
   const stringifiedJson =
     data !== null && data !== undefined ? stringifyJsonNode(data) : undefined;
@@ -151,78 +140,83 @@ export const IOTableCell = memo(function IOTableCell({
   // marked `scrollbar-visible`: a region that scrolls without ever painting a
   // scrollbar is indistinguishable from one whose content was cut off, and
   // nobody reaches for the wheel on content they read as truncated.
-  let content: ReactNode;
-  if (!stringifiedJson) {
-    // The payload arrived and is empty. Handing that to the JSON viewer renders
-    // the word `null` (or a bare pair of quotes), which a reader takes for a
-    // value, and a blank cell says nothing at all — so it gets the shared
-    // empty treatment. A payload that is only PARTLY empty is untouched: a
-    // `null` nested in a document is content and still renders as `null`.
-    content = (
-      <div
-        className={cn(
-          "h-full w-full self-stretch rounded-sm",
-          paddingClassName,
-          variantClassName,
-        )}
-      >
-        <EmptyValue />
-      </div>
-    );
-  } else if (singleLine) {
-    content = (
-      <div
-        className={cn(
-          "ph-no-capture h-full w-full self-stretch truncate overflow-hidden overflow-y-auto rounded-sm",
-          paddingClassName,
-          variantClassName,
-        )}
-        title={
-          enableExpandOnHover || isPointerOverMediaTag
-            ? undefined
-            : singleLineText
-        }
-        onPointerOver={
-          enableExpandOnHover
-            ? undefined
-            : (event) =>
-                setIsPointerOverMediaTag(
-                  Boolean(
-                    (event.target as Element).closest("[data-media-tag]"),
-                  ),
-                )
-        }
-      >
-        {renderStringWithMediaReferences(singleLineText, renderMediaReference)}
-      </div>
-    );
-  } else if (shouldTruncate) {
-    content = (
-      <div className="grid h-full grid-cols-1">
-        <JSONView
-          json={decodeUnicodeEscapesOnly(
-            stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
-              `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`,
-            true,
-          )}
+  const content = useMemo(() => {
+    if (!stringifiedJson) {
+      // The payload arrived and is empty. Handing that to the JSON viewer renders
+      // the word `null` (or a bare pair of quotes), which a reader takes for a
+      // value, and a blank cell says nothing at all — so it gets the shared
+      // empty treatment. A payload that is only PARTLY empty is untouched: a
+      // `null` nested in a document is content and still renders as `null`.
+      return (
+        <div
           className={cn(
-            "h-full w-full self-stretch overflow-hidden rounded-sm",
+            "h-full w-full self-stretch rounded-sm",
+            paddingClassName,
             variantClassName,
           )}
-          codeClassName={cn(
-            "scrollbar-visible min-h-0 h-full overflow-y-auto",
-            paddingClassName,
-          )}
-          collapseStringsAfterLength={null}
-          borderless
-        />
-        <div className="text-muted-foreground text-xs">
-          Content was truncated.
+        >
+          <EmptyValue />
         </div>
-      </div>
-    );
-  } else {
-    content = (
+      );
+    }
+    if (singleLine) {
+      return (
+        <div
+          className={cn(
+            "ph-no-capture h-full w-full self-stretch truncate overflow-hidden overflow-y-auto rounded-sm",
+            paddingClassName,
+            variantClassName,
+          )}
+          title={
+            enableExpandOnHover || isPointerOverMediaTag
+              ? undefined
+              : singleLineText
+          }
+          onPointerOver={
+            enableExpandOnHover
+              ? undefined
+              : (event) =>
+                  setIsPointerOverMediaTag(
+                    Boolean(
+                      (event.target as Element).closest("[data-media-tag]"),
+                    ),
+                  )
+          }
+        >
+          {renderStringWithMediaReferences(
+            singleLineText,
+            renderMediaReference,
+          )}
+        </div>
+      );
+    }
+    if (shouldTruncate) {
+      return (
+        <div className="grid h-full grid-cols-1">
+          <JSONView
+            json={decodeUnicodeEscapesOnly(
+              stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
+                `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`,
+              true,
+            )}
+            className={cn(
+              "h-full w-full self-stretch overflow-hidden rounded-sm",
+              variantClassName,
+            )}
+            codeClassName={cn(
+              "scrollbar-visible min-h-0 h-full overflow-y-auto",
+              paddingClassName,
+            )}
+            collapseStringsAfterLength={null}
+            borderless
+          />
+          <div className="text-muted-foreground text-xs">
+            Content was truncated.
+          </div>
+        </div>
+      );
+    }
+    return (
       <JSONView
         json={decodeUnicodeEscapesOnly(stringifiedJson, true)}
         className={cn(
@@ -237,6 +231,30 @@ export const IOTableCell = memo(function IOTableCell({
         borderless
       />
     );
+  }, [
+    stringifiedJson,
+    singleLine,
+    shouldTruncate,
+    paddingClassName,
+    variantClassName,
+    enableExpandOnHover,
+    isPointerOverMediaTag,
+    singleLineText,
+    renderMediaReference,
+  ]);
+
+  if (state.isLoading) {
+    return (
+      <JsonSkeleton
+        borderless
+        numRows={singleLine ? 1 : undefined}
+        className={cn(
+          "h-full w-full overflow-hidden rounded-sm",
+          paddingClassName,
+          variantClassName,
+        )}
+      />
+    );
   }
 
   // The expand card renders `data` itself, so an empty payload would come back
@@ -247,7 +265,7 @@ export const IOTableCell = memo(function IOTableCell({
   }
 
   return (
-    <HoverCard
+    <ControlledHoverCard
       openDelay={700}
       closeDelay={100}
       open={isExpandOpen}
@@ -255,32 +273,33 @@ export const IOTableCell = memo(function IOTableCell({
         if (open && isPointerOverMediaTagRef.current) return;
         setIsExpandOpen(open);
       }}
+      placement="top-start"
+      content={
+        <div className="ph-no-capture max-h-[40vh] w-[400px] overflow-y-auto p-3">
+          <JSONView
+            json={data}
+            className="w-full"
+            codeClassName="p-0 border-none"
+          />
+        </div>
+      }
     >
-      <HoverCardTrigger asChild>
+      {({ getTriggerProps }) => (
         <div
           className="group/io-cell relative h-full w-full"
-          onPointerOver={(event) => {
-            const overMediaTag = Boolean(
-              (event.target as Element).closest("[data-media-tag]"),
-            );
-            isPointerOverMediaTagRef.current = overMediaTag;
-            if (overMediaTag) setIsExpandOpen(false);
-          }}
+          {...getTriggerProps({
+            onPointerOver: (event) => {
+              const overMediaTag = Boolean(
+                (event.target as Element).closest("[data-media-tag]"),
+              );
+              isPointerOverMediaTagRef.current = overMediaTag;
+              if (overMediaTag) setIsExpandOpen(false);
+            },
+          })}
         >
           {content}
         </div>
-      </HoverCardTrigger>
-      <HoverCardContent
-        className="ph-no-capture max-h-[40vh] w-[400px] overflow-y-auto"
-        side="top"
-        align="start"
-      >
-        <JSONView
-          json={data}
-          className="w-full"
-          codeClassName="p-0 border-none"
-        />
-      </HoverCardContent>
-    </HoverCard>
+      )}
+    </ControlledHoverCard>
   );
 });

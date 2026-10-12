@@ -80,19 +80,19 @@ export const ConfigurationDropdowns: React.FC = () => {
     abbreviation?: string,
   ) => {
     if (isVeryCompact) {
-      return <IconComponent className="h-3 w-3" />;
+      return <IconComponent className="icon-base" />;
     }
     if (isCompact) {
       return (
         <>
-          <IconComponent className="h-3 w-3" />
+          <IconComponent className="icon-base" />
           <span className="text-sm">{abbreviation ?? fullText}</span>
         </>
       );
     }
     return (
       <>
-        <IconComponent className="h-3 w-3" />
+        <IconComponent className="icon-base" />
         <span className="text-sm">{fullText}</span>
       </>
     );

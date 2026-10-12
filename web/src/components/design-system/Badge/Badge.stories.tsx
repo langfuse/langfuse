@@ -24,6 +24,7 @@ const allColors = Object.keys({
   teal: true,
   green: true,
   ghost: true,
+  filled: true,
 } satisfies Record<Color, true>) as Color[];
 
 export const Default = meta.story({});

@@ -12,12 +12,29 @@ import {
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
+import { staleProps } from "@/src/features/traces/fns/staleProps";
 import { useDownloadTraceAsJson } from "@/src/features/traces/hooks/useDownloadTraceAsJson";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
+import { cn } from "@/src/utils/tailwind";
 
 type TraceDetailData = NonNullable<
   ReturnType<typeof useTraceDetailData>["data"]
 >;
+
+type TraceDetailActionsLayout = "toolbar" | "menu";
+
+type TraceDetailActionsProps = {
+  /** Undefined while the trace loads: the actions render disabled in place. */
+  trace: TraceDetailData | undefined;
+  traceContext: "fullscreen" | "peek";
+  shareUrl?: string;
+  timestamp?: Date;
+  deleteRedirectUrl?: string;
+  onAfterDelete?: (deletedTraceId: string) => void;
+  layout?: TraceDetailActionsLayout;
+  /** `trace` is the previous trace, kept while the next one loads. */
+  isPlaceholderData?: boolean;
+};
 
 /**
  * Trace-level header actions shared by the peek and the standalone trace page.
@@ -36,20 +53,69 @@ type TraceDetailData = NonNullable<
  */
 export function TraceDetailActions({
   trace,
+  layout = "toolbar",
+  isPlaceholderData = false,
+  ...props
+}: TraceDetailActionsProps) {
+  if (!trace) return <DisabledTraceDetailActions layout={layout} />;
+  const { key, ...stale } = staleProps(isPlaceholderData, {
+    remountOnStale: true,
+  });
+  return (
+    <LoadedTraceDetailActions
+      key={key}
+      trace={trace}
+      layout={layout}
+      stale={stale}
+      {...props}
+    />
+  );
+}
+
+function DisabledTraceDetailActions({
+  layout,
+}: {
+  layout: TraceDetailActionsLayout;
+}) {
+  const downloadIcon = <Download className="icon-base" />;
+
+  if (layout === "menu") {
+    return (
+      <div className="flex w-full flex-col gap-0.5">
+        <HeaderActionMenuRow
+          label="Download JSON"
+          icon={downloadIcon}
+          disabled
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-row items-center gap-1">
+      <HeaderActionButton label="Download JSON" icon={downloadIcon} disabled />
+      <HeaderActionButton
+        label="More actions"
+        icon={<MoreVertical className="icon-base" />}
+        disabled
+      />
+    </div>
+  );
+}
+
+function LoadedTraceDetailActions({
+  trace,
   traceContext,
   shareUrl,
   timestamp,
   deleteRedirectUrl,
   onAfterDelete,
-  layout = "toolbar",
-}: {
+  layout,
+  stale,
+}: Omit<TraceDetailActionsProps, "trace" | "layout" | "isPlaceholderData"> & {
   trace: TraceDetailData;
-  traceContext: "fullscreen" | "peek";
-  shareUrl?: string;
-  timestamp?: Date;
-  deleteRedirectUrl?: string;
-  onAfterDelete?: (deletedTraceId: string) => void;
-  layout?: "toolbar" | "menu";
+  layout: TraceDetailActionsLayout;
+  stale: Omit<ReturnType<typeof staleProps>, "key">;
 }) {
   const shareItems = useShareMenuItems({
     kind: "trace",
@@ -71,9 +137,9 @@ export function TraceDetailActions({
   ];
 
   const downloadIcon = isDownloading ? (
-    <Loader2 className="h-4 w-4 animate-spin" />
+    <Loader2 className="icon-base animate-spin" />
   ) : (
-    <Download className="h-4 w-4" />
+    <Download className="icon-base" />
   );
 
   return (
@@ -106,7 +172,13 @@ export function TraceDetailActions({
 
             if (layout === "menu") {
               return (
-                <div className="flex w-full flex-col gap-0.5">
+                <div
+                  inert={stale.inert}
+                  className={cn(
+                    "flex w-full flex-col gap-0.5",
+                    stale.className,
+                  )}
+                >
                   <HeaderActionMenuRow
                     label="Download JSON"
                     icon={downloadIcon}
@@ -119,7 +191,13 @@ export function TraceDetailActions({
             }
 
             return (
-              <div className="flex flex-row items-center gap-1">
+              <div
+                inert={stale.inert}
+                className={cn(
+                  "flex flex-row items-center gap-1",
+                  stale.className,
+                )}
+              >
                 <HeaderActionButton
                   label="Download JSON"
                   icon={downloadIcon}
@@ -130,7 +208,7 @@ export function TraceDetailActions({
                   {({ getTriggerProps }) => (
                     <HeaderActionButton
                       label="More actions"
-                      icon={<MoreVertical className="h-4 w-4" />}
+                      icon={<MoreVertical className="icon-base" />}
                       {...getTriggerProps()}
                     />
                   )}

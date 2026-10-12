@@ -560,6 +560,7 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
             Bytes::from_static(REQUEST),
             Route::AnthropicMessages,
             None,
+            &mut crate::correlation::RequestCorrelation::default(),
         )
         .await
         .unwrap();

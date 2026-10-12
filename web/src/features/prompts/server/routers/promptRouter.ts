@@ -119,7 +119,7 @@ export const promptRouter = createTRPCRouter({
 
       const orderByCondition = orderByToPrismaSql(
         normalizeOrderByForTable({
-          orderBy: input.orderBy,
+          orderBy: input.orderBy ?? { column: "createdAt", order: "DESC" },
           expectedTimeColumn: "createdAt",
         }),
         promptsTableCols,
@@ -637,7 +637,15 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
-        promptService.invalidateCache({ projectId });
+        // The deletion has committed; a cache failure must not skip webhooks.
+        try {
+          await promptService.invalidateCache({ projectId });
+        } catch (error) {
+          logger.error(
+            `Failed to invalidate prompt cache after deleting prompts in project ${projectId}`,
+            error,
+          );
+        }
 
         // Trigger webhooks for prompt deletion
         await Promise.all(

@@ -1,4 +1,5 @@
 import { UiColumnMappings } from "../../tableDefinitions";
+import { tokenCountFilterClickhouseType } from "./tokenCountFilterType";
 
 export const sessionCols: UiColumnMappings = [
   // we do not access the traces scores in ClickHouse. We default back to the trace timestamps.
@@ -64,35 +65,35 @@ export const sessionCols: UiColumnMappings = [
     uiTableId: "inputTokens",
     clickhouseTableName: "traces",
     clickhouseSelect: "session_input_usage",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Output Tokens",
     uiTableId: "outputTokens",
     clickhouseTableName: "traces",
     clickhouseSelect: "session_output_usage",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Total Tokens",
     uiTableId: "totalTokens",
     clickhouseTableName: "traces",
     clickhouseSelect: "session_total_usage",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Usage",
     uiTableId: "totalTokens",
     clickhouseTableName: "traces",
     clickhouseSelect: "session_total_usage",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Session Total Usage",
     uiTableId: "usage",
     clickhouseTableName: "traces",
     clickhouseSelect: "session_total_usage",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Session Duration (s)",

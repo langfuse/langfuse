@@ -1,14 +1,11 @@
+import { useMemo } from "react";
 import Link from "next/link";
 import {
   getEvaluatorBlockMetadata,
   type EvaluatorBlockReason,
 } from "@langfuse/shared";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 type ExecutionSummary = { total: number; failed: number };
 
@@ -55,59 +52,73 @@ export function EvaluatorStatusBadge({
   executionsHref: string | null;
 }) {
   const status = getStatus({ ruleCount, summary, blocked });
-  let explanation: string;
-  if (status === "Blocked") {
-    explanation =
-      blockMessage ??
-      (blockReason
-        ? getEvaluatorBlockMetadata(blockReason).message
-        : "This evaluator is blocked.");
-  } else if (ruleCount === 0) {
-    explanation = "No rule is attached to this evaluator.";
-  } else if (status === "Unknown") {
-    explanation = "Execution status is unavailable.";
-  } else if (status === "Inactive") {
-    explanation = "No execution traces in the last 7 days.";
-  } else if (status === "Healthy") {
-    explanation = "All runs passed in the last 7 days.";
-  } else {
-    explanation = `${summary?.failed} of ${summary?.total} execution traces failed in the last 7 days.`;
-  }
+  const explanation = useMemo(() => {
+    if (status === "Blocked") {
+      return (
+        blockMessage ??
+        (blockReason
+          ? getEvaluatorBlockMetadata(blockReason).message
+          : "This evaluator is blocked.")
+      );
+    }
+    if (ruleCount === 0) {
+      return "No rule is attached to this evaluator.";
+    }
+    if (status === "Unknown") {
+      return "Execution status is unavailable.";
+    }
+    if (status === "Inactive") {
+      return "No execution traces in the last 7 days.";
+    }
+    if (status === "Healthy") {
+      return "All runs passed in the last 7 days.";
+    }
+    return `${summary?.failed} of ${summary?.total} execution traces failed in the last 7 days.`;
+  }, [status, blockMessage, blockReason, ruleCount, summary]);
 
   const badge = (
     <Badge text={status === "Unknown" ? "—" : status} color={colors[status]} />
   );
 
   return (
-    <HoverCard openDelay={200}>
-      <HoverCardTrigger asChild>
-        {executionsHref ? (
-          <Link
-            href={executionsHref}
-            onClick={(event) => event.stopPropagation()}
-            aria-label={`View executions: ${status}`}
-            className="focus-visible:ring-ring inline-flex rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-          >
-            {badge}
-          </Link>
-        ) : (
-          <span className="inline-flex" tabIndex={0}>
-            {badge}
-          </span>
-        )}
-      </HoverCardTrigger>
-      <HoverCardContent align="start" className="w-80 text-sm">
-        <p>{explanation}</p>
-        {executionsHref && (
-          <Link
-            href={executionsHref}
-            onClick={(event) => event.stopPropagation()}
-            className="text-primary mt-2 inline-block underline"
-          >
-            View executions
-          </Link>
-        )}
-      </HoverCardContent>
+    <HoverCard
+      openDelay={200}
+      placement="bottom-start"
+      content={
+        <div className="w-80 p-3 text-sm">
+          <p>{explanation}</p>
+          {executionsHref && (
+            <Link
+              href={executionsHref}
+              onClick={(event) => event.stopPropagation()}
+              className="text-primary mt-2 inline-block underline"
+            >
+              View executions
+            </Link>
+          )}
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <>
+          {executionsHref ? (
+            <Link
+              {...getTriggerProps({
+                onClick: (event) => event.stopPropagation(),
+              })}
+              href={executionsHref}
+              aria-label={`View executions: ${status}`}
+              className="focus-visible:ring-ring inline-flex rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+            >
+              {badge}
+            </Link>
+          ) : (
+            <span className="inline-flex" tabIndex={0} {...getTriggerProps()}>
+              {badge}
+            </span>
+          )}
+        </>
+      )}
     </HoverCard>
   );
 }

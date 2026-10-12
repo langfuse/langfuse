@@ -2,7 +2,6 @@ import { convertEventRecordToObservationForEval } from "@langfuse/shared";
 import {
   logger,
   OtelIngestionProcessor,
-  recordDistribution,
   traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
@@ -174,10 +173,6 @@ export async function processOtelEvents({
   );
 
   if (traceBatchEvents.length > 0) {
-    recordDistribution(
-      "langfuse.trace_batch.ingestion_trace_count",
-      new Set(traceBatchEvents.map((event) => event.traceId)).size,
-    );
     // The writer has accepted these records; its flush completes separately.
     await trackTraceBatchActivity(projectId, traceBatchEvents);
   }

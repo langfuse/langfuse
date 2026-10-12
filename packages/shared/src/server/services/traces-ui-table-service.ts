@@ -311,7 +311,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         COUNT(*) AS observation_count,
         sumMap(usage_details) as usage_details,
         SUM(total_cost) AS total_cost,
-        date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
+        if(min(end_time) IS NULL, NULL, date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time)))) as latency_milliseconds,
         countIf(level = 'ERROR') as error_count,
         countIf(level = 'WARNING') as warning_count,
         countIf(level = 'DEFAULT') as default_count,

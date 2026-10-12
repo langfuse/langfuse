@@ -96,6 +96,9 @@ export const env = createEnv({
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
+    // Internal Topics PoC model selection; not a supported self-hosting setting.
+    LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
+    LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
     SALT: z.string({
       error: (issue) =>
         issue.input === undefined
@@ -304,6 +307,11 @@ export const env = createEnv({
     // EMAIL
     EMAIL_FROM_ADDRESS: z.string().optional(),
     SMTP_CONNECTION_URL: z.string().optional(),
+    // Cloudflare Turnstile. When the secret is set, credentials sign-in and
+    // email sign-up require a valid token whose hostname is in
+    // TURNSTILE_HOSTNAMES (comma-separated frontend hostnames).
+    TURNSTILE_SECRET: z.string().optional(),
+    TURNSTILE_HOSTNAMES: z.string().optional(),
 
     // Otel
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
@@ -398,10 +406,11 @@ export const env = createEnv({
       .number()
       .default(60),
 
-    // auth migration; self-host and default stay legacy
     API_AUTH_MIGRATION: z
       .enum(["legacy", "shadow", "enforce"])
       .default("legacy"),
+    API_KEY_PROJECT_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
+    API_KEY_ORG_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
 
     // Multimodal media upload to S3
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce
@@ -725,6 +734,7 @@ export const env = createEnv({
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
     // PR preview deployments only (.github/workflows/preview-build.yml):
     // identify the environment with a top-of-page strip linking back to the PR.
     NEXT_PUBLIC_PREVIEW_PR_URL: z.url().optional(),
@@ -784,6 +794,7 @@ export const env = createEnv({
     NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF:
       process.env.NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_PREVIEW_PR_URL: process.env.NEXT_PUBLIC_PREVIEW_PR_URL,
     NEXT_PUBLIC_PREVIEW_PR_AUTHOR: process.env.NEXT_PUBLIC_PREVIEW_PR_AUTHOR,
     NEXT_PUBLIC_PREVIEW_LAST_UPDATED:
@@ -792,6 +803,9 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    LANGFUSE_TOPICS_SUMMARY_MODEL: process.env.LANGFUSE_TOPICS_SUMMARY_MODEL,
+    LANGFUSE_TOPICS_EMBEDDING_MODEL:
+      process.env.LANGFUSE_TOPICS_EMBEDDING_MODEL,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:
@@ -999,6 +1013,8 @@ export const env = createEnv({
     // Email
     EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,
     SMTP_CONNECTION_URL: process.env.SMTP_CONNECTION_URL,
+    TURNSTILE_SECRET: process.env.TURNSTILE_SECRET,
+    TURNSTILE_HOSTNAMES: process.env.TURNSTILE_HOSTNAMES,
     // Otel
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
@@ -1117,6 +1133,8 @@ export const env = createEnv({
     LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS:
       process.env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS,
     API_AUTH_MIGRATION: process.env.API_AUTH_MIGRATION,
+    API_KEY_PROJECT_ROLES_ENABLE: process.env.API_KEY_PROJECT_ROLES_ENABLE,
+    API_KEY_ORG_ROLES_ENABLE: process.env.API_KEY_ORG_ROLES_ENABLE,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,

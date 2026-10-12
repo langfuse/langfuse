@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { type FilterState } from "@langfuse/shared";
 import {
   hashKey,
@@ -96,13 +95,21 @@ const getFirstCachedObservation = ({
   queryHashes.forEach((queryHash, index) => {
     const queryState = queryCache.get(queryHash)?.state;
     const response = queryState?.data as ObservationResponse | undefined;
-    hasResolvedQuery ||= response !== undefined;
-    isFetching ||= queryState?.fetchStatus === "fetching";
-    isError ||= queryState?.status === "error";
-    firstObservation ??= getVisibleSessionObservations(
-      response,
-      traceIds[index] ?? "",
-    ).visibleObservations?.[0];
+    if (response !== undefined) {
+      hasResolvedQuery = true;
+    }
+    if (queryState?.fetchStatus === "fetching") {
+      isFetching = true;
+    }
+    if (queryState?.status === "error") {
+      isError = true;
+    }
+    if (firstObservation === undefined) {
+      firstObservation = getVisibleSessionObservations(
+        response,
+        traceIds[index] ?? "",
+      ).visibleObservations?.[0];
+    }
   });
 
   return { firstObservation, hasResolvedQuery, isFetching, isError };

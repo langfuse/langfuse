@@ -39,7 +39,7 @@ export function NoulCriteriaEditor({
         </span>
         <ChevronDown
           className={cn(
-            "text-foreground-tertiary ml-1 size-3.5 translate-y-px transition-transform",
+            "text-foreground-tertiary icon-base ml-1 translate-y-px transition-transform",
             open ? "rotate-180" : "rotate-0",
           )}
         />

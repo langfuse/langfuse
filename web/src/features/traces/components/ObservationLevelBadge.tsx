@@ -15,16 +15,14 @@ const observationLevelBadgeColors: Record<
 
 export function ObservationLevelBadge({
   level,
-  size,
 }: {
   level: DisplayedObservationLevel;
-  size?: "sm";
 }) {
   return (
     <Badge
       color={observationLevelBadgeColors[level]}
-      size={size}
-      text={level}
+      size="md"
+      text={level.charAt(0) + level.slice(1).toLowerCase()}
     />
   );
 }

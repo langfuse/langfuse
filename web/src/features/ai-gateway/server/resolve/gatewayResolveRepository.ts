@@ -24,6 +24,7 @@ export class GatewayResolveRepository {
         apiKey: {
           select: {
             orgId: true,
+            expiresAt: true,
             organization: {
               select: {
                 gatewayConfig: {
@@ -44,6 +45,7 @@ export class GatewayResolveRepository {
                   take: 1,
                   select: {
                     id: true,
+                    name: true,
                     provider: true,
                     encryptedCredential: true,
                   },

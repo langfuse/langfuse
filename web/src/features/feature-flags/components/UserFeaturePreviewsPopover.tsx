@@ -4,19 +4,16 @@ import { useSession } from "next-auth/react";
 
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button } from "@/src/components/ui/button";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { PopoverContent } from "@/src/components/ui/popover";
 import {
-  featurePreviewFlags,
   featurePreviewLabels,
+  userFeaturePreviewFlags,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 type FeaturePreviewManagement = {
   allowed: boolean;
@@ -56,39 +53,53 @@ export function UserFeaturePreviewsControl({
         await session.update();
       }
       showSuccessToast({
+        operation: "user_feature_preview.update",
         title: "Feature preview updated",
         description: `${featurePreviewLabels[variables.flag]} was ${
           variables.enabled ? "enabled" : "disabled"
         } for this user.`,
       });
     },
-    onError: async () => {
+    onError: async (error) => {
       await utils.members.allFromOrg.invalidate();
       showErrorToast(
         "Failed to update feature preview",
         "Your access may have changed. Refresh and try again.",
+        classifyTrpcToastError(error, "user_feature_preview.update"),
       );
     },
   });
-  const enabledCount = Object.values(featurePreviews).filter(Boolean).length;
-  const totalCount = featurePreviewFlags.length;
+  const enabledCount = userFeaturePreviewFlags.filter(
+    (flag) => featurePreviews[flag],
+  ).length;
+  const totalCount = userFeaturePreviewFlags.length;
 
   if (!management.allowed) {
     return (
-      <HoverCard openDelay={0} closeDelay={0}>
-        <HoverCardTrigger asChild>
-          <span className="inline-flex cursor-not-allowed">
+      <HoverCard
+        openDelay={0}
+        closeDelay={0}
+        placement="left"
+        content={
+          <div className="w-64 p-3">
+            <p className="text-xs">
+              You can only change this user&apos;s feature flags if you are an
+              administrator in every organization they belong to.
+            </p>
+          </div>
+        }
+      >
+        {({ getTriggerProps }) => (
+          <span
+            className="inline-flex cursor-not-allowed"
+            tabIndex={0}
+            {...getTriggerProps()}
+          >
             <Button variant="outline" size="sm" disabled>
               {enabledCount}/{totalCount} enabled
             </Button>
           </span>
-        </HoverCardTrigger>
-        <HoverCardContent align="center" side="left">
-          <p className="text-xs">
-            You can only change this user&apos;s feature flags if you are an
-            administrator in every organization they belong to.
-          </p>
-        </HoverCardContent>
+        )}
       </HoverCard>
     );
   }
@@ -105,7 +116,7 @@ export function UserFeaturePreviewsControl({
               Changes apply to this user in every organization.
             </p>
           </div>
-          {featurePreviewFlags.map((flag) => (
+          {userFeaturePreviewFlags.map((flag) => (
             <div key={flag} className="flex items-center justify-between gap-4">
               <span className="text-sm">{featurePreviewLabels[flag]}</span>
               <Switch

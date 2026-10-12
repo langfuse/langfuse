@@ -35,6 +35,7 @@ import Link from "next/link";
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 const displayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -60,6 +61,7 @@ function UpdateDisplayName() {
       await utils.invalidate();
       form.reset();
       showSuccessToast({
+        operation: "account.display_name_update",
         title: "Display Name Updated",
         description: "Your display name has been successfully updated.",
       });
@@ -151,6 +153,7 @@ function DeleteAccountButton() {
     try {
       await deleteAccount.mutateAsync();
       showSuccessToast({
+        operation: "account.delete",
         title: "Account Deleted",
         description: "Your account has been successfully deleted.",
       });
@@ -161,6 +164,7 @@ function DeleteAccountButton() {
       showErrorToast(
         "Failed to Delete Account",
         error instanceof Error ? error.message : "An unexpected error occurred",
+        classifyTrpcToastError(error, "account.delete"),
       );
     }
   };
@@ -247,6 +251,7 @@ function SignOutAllSessionsButton() {
     try {
       await signOutAllSessions.mutateAsync();
       showSuccessToast({
+        operation: "account.revoke_sessions",
         title: "Signed Out of All Sessions",
         description: "All sessions have been invalidated.",
       });
@@ -255,6 +260,7 @@ function SignOutAllSessionsButton() {
       showErrorToast(
         "Failed to Sign Out of All Sessions",
         error instanceof Error ? error.message : "An unexpected error occurred",
+        classifyTrpcToastError(error, "account.revoke_sessions"),
       );
       throw error;
     }

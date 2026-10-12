@@ -133,6 +133,21 @@ describe("organization feature preview defaults", () => {
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
   });
 
+  it("enables organization-only previews without a personal preview", async () => {
+    const { caller, org } = await prepare();
+
+    await expect(
+      caller.organizations.setFeatureFlagOrgDefault({
+        orgId: org.id,
+        flag: "externalMediaStorage",
+        enabled: true,
+      }),
+    ).resolves.toMatchObject({
+      defaults: ["externalMediaStorage"],
+      enabled: true,
+    });
+  });
+
   it("rejects internal flags at the input boundary", async () => {
     const { caller, org } = await prepare();
 
@@ -232,6 +247,7 @@ describe("organization feature preview defaults", () => {
       // not a registered preview, so it is filtered out rather than surfacing
       // here. Asserting that two REGISTERED defaults resolve differently needs
       // a second preview; add that half back with the next one.
+      externalMediaStorage: false,
       modernSession: false,
       sessionTimeline: false,
     });
@@ -492,6 +508,7 @@ describe("organization member feature preview overrides", () => {
     // The state map surfaces every preview; the raw `featureFlags` array stays
     // hidden, which is what this guards.
     expect(row?.featurePreviews).toEqual({
+      externalMediaStorage: false,
       modernSession: true,
       sessionTimeline: false,
     });

@@ -31,6 +31,14 @@ const DEFINITION = `service:
         message: Use listNewThings() instead.
       method: GET
       path: /widgets
+types:
+  Widget:
+    properties:
+      oldValue:
+        type: optional<string>
+        availability:
+          status: deprecated
+          message: Use value instead.
 `;
 
 const GENERATED_CLIENT = `export class GeneratedClient {
@@ -79,6 +87,7 @@ type Fixture = {
   apiRoot: string;
   clientPath: string;
   requestPath: string;
+  responsePath: string;
 };
 
 function withFixture(
@@ -96,11 +105,13 @@ function withFixture(
     resourceRoot,
     "client/requests/GetThingRequest.ts",
   );
+  const responsePath = path.join(resourceRoot, "types/Widget.ts");
 
   try {
     fs.mkdirSync(definitionDirectory, { recursive: true });
     fs.mkdirSync(path.dirname(clientPath), { recursive: true });
     fs.mkdirSync(path.dirname(requestPath), { recursive: true });
+    fs.mkdirSync(path.dirname(responsePath), { recursive: true });
     fs.writeFileSync(path.join(definitionDirectory, "api.yml"), "name: api\n");
     fs.writeFileSync(
       path.join(definitionDirectory, "widget-service.yml"),
@@ -108,8 +119,18 @@ function withFixture(
     );
     fs.writeFileSync(clientPath, GENERATED_CLIENT);
     fs.writeFileSync(requestPath, GENERATED_REQUEST);
+    fs.writeFileSync(
+      responsePath,
+      "export interface Widget {\n    /** Existing field docs. */\n    oldValue?: string;\n}\n",
+    );
 
-    assertions({ definitionDirectory, apiRoot, clientPath, requestPath });
+    assertions({
+      definitionDirectory,
+      apiRoot,
+      clientPath,
+      requestPath,
+      responsePath,
+    });
   } finally {
     fs.rmSync(root, { recursive: true });
   }
@@ -155,6 +176,10 @@ describe("TypeScript SDK deprecations", () => {
             `${generatedPath.replaceAll(path.sep, "/")}:${typeName}.${propertyName}`,
         ),
     ).toEqual([
+      "api/resources/organizations/types/OrganizationApiKey.ts:OrganizationApiKey.note",
+      "api/resources/projects/client/requests/CreateApiKeyRequest.ts:CreateApiKeyRequest.note",
+      "api/resources/projects/types/ApiKeySummary.ts:ApiKeySummary.note",
+      "api/resources/projects/types/ApiKeyResponse.ts:ApiKeyResponse.note",
       "api/resources/scim/client/requests/CreateUserRequest.ts:CreateUserRequest.password",
     ]);
   });
@@ -162,16 +187,25 @@ describe("TypeScript SDK deprecations", () => {
   it("patches exact messages across one shared client and is byte-idempotent", () => {
     withFixture(
       DEFINITION,
-      ({ definitionDirectory, apiRoot, clientPath, requestPath }) => {
+      ({
+        definitionDirectory,
+        apiRoot,
+        clientPath,
+        requestPath,
+        responsePath,
+      }) => {
         expect(
           patchGeneratedTypeScriptDeprecations({
             definitionDirectory,
             apiRoot,
           }),
-        ).toEqual({ changedFiles: 2, decoratedSymbols: 3 });
+        ).toEqual({ changedFiles: 3, decoratedSymbols: 4 });
 
         const client = fs.readFileSync(clientPath, "utf8");
         const request = fs.readFileSync(requestPath, "utf8");
+        const response = fs.readFileSync(responsePath, "utf8");
+        expect(response).toContain("@deprecated Use value instead.");
+        expect(response).toContain("Existing field docs.");
         expect(client.match(/@deprecated/g)).toHaveLength(2);
         expect(client).toContain("@deprecated Use getNewThing()  instead.");
         expect(client).toContain("@deprecated Use listNewThings() instead.");
@@ -194,6 +228,7 @@ describe("TypeScript SDK deprecations", () => {
         ).toEqual({ changedFiles: 0, decoratedSymbols: 0 });
         expect(fs.readFileSync(clientPath, "utf8")).toBe(client);
         expect(fs.readFileSync(requestPath, "utf8")).toBe(request);
+        expect(fs.readFileSync(responsePath, "utf8")).toBe(response);
       },
     );
   });
@@ -228,7 +263,7 @@ describe("TypeScript SDK deprecations", () => {
     );
 
     withFixture(
-      `${DEFINITION}\ntypes:\n  Widget:\n    properties:\n      oldValue:\n        type: optional<string>\n        availability:\n          status: deprecated\n          message: Use the current value.\n`,
+      `${DEFINITION}\n  OldWidget:\n    type: string\n    availability:\n      status: deprecated\n      message: Use Widget instead.\n`,
       ({ definitionDirectory }) => {
         expect(() =>
           getFernTypeScriptDeprecations(definitionDirectory),
