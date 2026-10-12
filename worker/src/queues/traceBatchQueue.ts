@@ -41,30 +41,34 @@ async function summarizeTraceBatch(
     Math.min(...observations.map((row) => row.startTime.getTime())),
   ).toISOString();
   let outcome: TraceOutcome = { outcome: "disabled" };
-  await recordTraceBatchTranscript(observations, async (transcript) => {
-    try {
-      outcome = {
-        outcome: await summarizeAssembledTrace({
+  await recordTraceBatchTranscript(
+    observations,
+    async (transcript, topicsText) => {
+      try {
+        outcome = {
+          outcome: await summarizeAssembledTrace({
+            projectId: first.projectId,
+            traceId,
+            traceTimestamp,
+            environment: first.environment,
+            traceName: first.name ?? "",
+            transcript,
+            topicsText,
+          }),
+        };
+      } catch (error) {
+        // One trace's failure must not fail or re-read the shared batch.
+        const reason =
+          error instanceof TopicsProviderUnavailable ? error.reason : "other";
+        outcome = { outcome: "failed", reason };
+        logger.warn("Topics summary failed for trace", {
           projectId: first.projectId,
           traceId,
-          traceTimestamp,
-          environment: first.environment,
-          traceName: first.name ?? "",
-          transcript,
-        }),
-      };
-    } catch (error) {
-      // One trace's failure must not fail or re-read the shared batch.
-      const reason =
-        error instanceof TopicsProviderUnavailable ? error.reason : "other";
-      outcome = { outcome: "failed", reason };
-      logger.warn("Topics summary failed for trace", {
-        projectId: first.projectId,
-        traceId,
-        reason,
-      });
-    }
-  });
+          reason,
+        });
+      }
+    },
+  );
   return outcome;
 }
 

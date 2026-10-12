@@ -294,7 +294,10 @@ function recordGenericRendering(
 
 export function recordTraceBatchTranscript(
   observations: Observation[],
-  onTranscript?: (transcript: Transcript | null) => Promise<void>,
+  onTranscript?: (
+    transcript: Transcript | null,
+    topicsText: string | undefined,
+  ) => Promise<void>,
 ): Promise<void> {
   // Inherit the batch parent without activating this span while the next trace streams.
   const span = getTracer("trace-batch").startSpan("trace-batch-transcript", {
@@ -466,7 +469,7 @@ export function recordTraceBatchTranscript(
       })()
         .finally(() => span.end())
         // Topics summarizes from the same assembled transcript.
-        .then(() => onTranscript?.(transcript))
+        .then(() => onTranscript?.(transcript, topicsText))
     );
   } catch (error) {
     span.setStatus({

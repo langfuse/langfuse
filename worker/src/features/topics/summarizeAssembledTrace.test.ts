@@ -275,6 +275,43 @@ describe("summarizeAssembledTrace", () => {
     expect(state.embed).not.toHaveBeenCalled();
   });
 
+  it("skips the model call for a trace without content even when rendered text exists", async () => {
+    await summarizeAssembledTrace({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      environment: "default",
+      traceName: "agent-turn",
+      transcript: { threads: [] },
+      topicsText:
+        "<run_facts>\nthreads: 0\n</run_facts>\n<end_of_run>none</end_of_run>",
+    });
+    expect(state.summarize).not.toHaveBeenCalled();
+    expect(state.write.mock.calls[0][0][0]).toMatchObject({
+      state: "insufficient_input",
+    });
+  });
+
+  it("summarizes from the rendered Topics text when the batch provides it", async () => {
+    await summarizeAssembledTrace({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+      topicsText:
+        "<this_run>\n[user · request] Export monthly sales\n</this_run>",
+    });
+    const [, text, , format] = state.summarize.mock.calls[0];
+    expect(text).toContain("[user · request] Export monthly sales");
+    expect(format).toBe("text");
+    expect(state.write.mock.calls[0][0][0]).toMatchObject({
+      transcriptVersion: "topics-text-v1",
+      metadata: { input: "topics-text" },
+    });
+  });
+
   it("keeps the other facets when one facet's output is invalid", async () => {
     const issues: TopicFacet = {
       ...facet,
