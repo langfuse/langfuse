@@ -140,7 +140,7 @@ describe("summarizeAssembledTrace", () => {
     expect(state.write).not.toHaveBeenCalled();
   });
 
-  it("summarizes the assembled transcript once per current facet and skips a finished retry", async () => {
+  it("appends a summary on every execution without reading existing summaries", async () => {
     await summarizeAssembledTrace({
       projectId: "project-a",
       traceId: "trace-1",
@@ -188,12 +188,7 @@ describe("summarizeAssembledTrace", () => {
       expect.any(Number),
       { stage: "trace", outcome: "success", unit: "milliseconds" },
     );
-    state.stored.mockImplementation(async (_projectId, _filter, timeRange) =>
-      new Date(written.unitStartTime) >= timeRange.from &&
-      new Date(written.unitStartTime) < timeRange.to
-        ? [written]
-        : [],
-    );
+    state.stored.mockResolvedValue([written]);
     state.summarize.mockClear();
     state.write.mockClear();
     await summarizeAssembledTrace({
@@ -204,20 +199,12 @@ describe("summarizeAssembledTrace", () => {
       traceName: "agent-turn",
       transcript,
     });
-    expect(state.summarize).not.toHaveBeenCalled();
-    expect(state.write).not.toHaveBeenCalled();
-    await summarizeAssembledTrace({
-      projectId: "project-a",
-      traceId: "trace-1",
-      traceTimestamp: "2026-09-22T11:59:00.000Z",
-      environment: "default",
-      traceName: "agent-turn",
-      transcript,
-    });
     expect(state.summarize).toHaveBeenCalledOnce();
+    expect(state.write).toHaveBeenCalledOnce();
     expect(state.write.mock.calls[0][0][0].unitStartTime).toBe(
-      "2026-09-22T11:59:00.000Z",
+      written.unitStartTime,
     );
+    expect(state.stored).not.toHaveBeenCalled();
   });
 
   it("summarizes all pending facets in one call and records its usage once", async () => {

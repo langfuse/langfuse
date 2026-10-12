@@ -58,10 +58,10 @@
   existing environment fallback; project persistence is not introduced here.
   Cached Lua calls cap tracking/hydration/acknowledgement at 50 and cleanup at 100;
   locality selection still pools 1,000 candidates. Drain the old layout before upgrade
-  or shard-count/retention changes. Topics consumes the existing revision as a
-  dispatch identity and retains staged results for retry safety; keep Topics
-  staging TTL at least 3 hours. Map gauges include shard and total series; never
-  sum duplicate reporters or add totals to shard series.
+  or shard-count/retention changes. The trace-batch consumer generates and appends
+  summaries without reading existing summaries or adding Redis staging/completion
+  state; retries may repeat model calls. Map gauges include shard and total series;
+  never sum duplicate reporters or add totals to shard series.
   `src/features/traceBatching/traceBatchTranscript.ts` measures per-trace assembly
   phases, thread count, current-turn/history token estimates and their sum. Each
   admitted trace records full assembled-transcript JSON lengths, renders the

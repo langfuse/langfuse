@@ -1,11 +1,6 @@
-import { createHash } from "node:crypto";
 import {
-  deleteStagedTopicSummary,
   ensureDefaultTopicFacets,
   isTopicsProjectEnabled,
-  listTopicSummaries,
-  readStagedTopicSummary,
-  stageTopicSummary,
   TOPICS_TRANSCRIPT_VERSION,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
@@ -18,7 +13,6 @@ import {
 import {
   instrumentAsync,
   recordIncrement,
-  redis,
   type Transcript,
 } from "@langfuse/shared/src/server";
 import { prepareAssembledTopicTranscript } from "./assembledTranscript";
@@ -31,9 +25,6 @@ import {
   type TopicModelUsage,
 } from "./summaryResult";
 import { getTopicsModelConfig } from "@langfuse/shared/topics/server";
-import { getTraceBatchShard } from "../traceBatching/traceBatchReadiness";
-
-const COMPLETION_TTL_SECONDS = 3 * 60 * 60;
 
 type FacetOutput = {
   summary: string;
@@ -53,12 +44,11 @@ type AssembledTraceInput = {
   environment: string;
   traceName: string;
   transcript: Transcript | null;
-  revision?: string;
 };
 
 /**
  * Summarizes one trace from the transcript the batch job already assembled,
- * with one model call for all of its pending facets. Does not load
+ * with one model call for all of its configured facets. Does not load
  * observations again.
  */
 export async function summarizeAssembledTrace(
@@ -105,58 +95,11 @@ async function summarizeEnabledTrace(
   const embeddingConfig = topicEmbeddingConfigSchema.parse({
     embeddingModel,
   });
-  const scope = input.revision
-    ? {
-        projectId: input.projectId,
-        executionId: `trace-batch:${input.revision}`,
-      }
-    : undefined;
-  const completedKey = scope
-    ? `{trace-batch:${getTraceBatchShard(JSON.stringify([input.projectId, input.traceId]))}}:completed:${createHash(
-        "sha256",
-      )
-        .update(
-          JSON.stringify([input.projectId, input.traceId, input.revision]),
-        )
-        .digest("hex")}`
-    : undefined;
-  if (completedKey && !redis) throw new Error("Topics retries require Redis.");
-  const complete = async (rows: TopicSummary[]) => {
-    if (!scope || !completedKey || !rows.length || !redis) return;
-    // Completion and expiry are atomic; retries do not extend the retention.
-    await redis.eval(
-      `for i = 2, #ARGV, 2 do redis.call('HSET', KEYS[1], ARGV[i], ARGV[i + 1]) end
-       redis.call('EXPIRE', KEYS[1], ARGV[1], 'NX')`,
-      1,
-      completedKey,
-      COMPLETION_TTL_SECONDS,
-      ...rows.flatMap((row) => [
-        JSON.stringify([row.facetId, row.facetVersion]),
-        Date.parse(row.processedAt),
-      ]),
-    );
-    await Promise.all(
-      rows.map((row) =>
-        deleteStagedTopicSummary(scope, {
-          facetId: row.facetId,
-          facetVersion: row.facetVersion,
-          traceId: input.traceId,
-        }),
-      ),
-    );
-  };
-  const timestamp = Date.parse(input.traceTimestamp);
-  const timeRange = {
-    from: new Date(timestamp),
-    to: new Date(timestamp + 1),
-  };
   const pending: {
     name: string;
     version: TopicFacetVersion;
     builtIn: boolean;
   }[] = [];
-  const restored: TopicSummary[] = [];
-  const accepted: TopicSummary[] = [];
   // Built-in facets first, each group in listing order, so the cached prompt prefix stays stable.
   const ordered = [
     ...facets.filter((facet) => facet.isBuiltIn),
@@ -165,54 +108,8 @@ async function summarizeEnabledTrace(
   for (const facet of ordered) {
     const version = facet.versions[0];
     if (facet.projectId !== input.projectId || !version) continue;
-    if (
-      completedKey &&
-      (await redis?.hexists(
-        completedKey,
-        JSON.stringify([version.facetId, version.version]),
-      ))
-    )
-      continue;
-    const stored = await listTopicSummaries(
-      input.projectId,
-      {
-        traceIds: [input.traceId],
-        facetId: version.facetId,
-        facetVersion: version.version,
-      },
-      timeRange,
-    );
-    if (!scope) {
-      if (!stored.length)
-        pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
-      continue;
-    }
-    const staged = await readStagedTopicSummary(scope, {
-      facetId: version.facetId,
-      facetVersion: version.version,
-      traceId: input.traceId,
-    });
-    if (staged) {
-      accepted.push(staged.summary);
-      // A newer dispatch must not be overwritten when an older batch retries.
-      if (
-        !stored.some(
-          (row) =>
-            Date.parse(row.processedAt) >=
-            Date.parse(staged.summary.processedAt),
-        )
-      )
-        restored.push(staged.summary);
-      continue;
-    }
-    if (
-      !stored.some((row) => row.metadata.traceBatchRevision === input.revision)
-    )
-      pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
+    pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
   }
-  if (restored.length)
-    await metrics.measure("storage", () => writeTopicSummaries(restored));
-  await complete(accepted);
   if (!pending.length) return "unchanged";
 
   const prepared = prepareAssembledTopicTranscript(input.transcript);
@@ -289,14 +186,7 @@ async function summarizeEnabledTrace(
     }
   }
   if (rows.length)
-    await metrics.measure("storage", async () => {
-      if (scope)
-        rows = await Promise.all(
-          rows.map((row) => stageTopicSummary(scope, row, embeddingConfig)),
-        );
-      await writeTopicSummaries(rows);
-      await complete(rows);
-    });
+    await metrics.measure("storage", () => writeTopicSummaries(rows));
   for (const row of rows)
     recordIncrement("langfuse.topics.facet_summaries", 1, { state: row.state });
   if (failure) throw failure;
@@ -310,7 +200,6 @@ function baseSummary(
     traceTimestamp: string;
     environment: string;
     traceName: string;
-    revision?: string;
   },
   facet: TopicFacetVersion,
   config: ReturnType<typeof topicProcessingConfigSchema.parse>,
@@ -335,10 +224,7 @@ function baseSummary(
     embeddingModel,
     ...NO_USAGE,
     processedAt: new Date().toISOString(),
-    metadata: {
-      input: "assembled-transcript",
-      ...(input.revision ? { traceBatchRevision: input.revision } : {}),
-    },
+    metadata: { input: "assembled-transcript" },
   };
 }
 

@@ -7,8 +7,27 @@ flags and transcript-metrics switch below default to `false`; an ordinary releas
 needs no infrastructure changes. The four enablement flags stay commented in env
 templates. The local dev template sets the idle time below.
 
-For the local storage prototypes, memory/CPU measurements and dispatcher locality
-tradeoffs, see [Readiness storage comparison](./storage-comparison.md).
+## Readiness requirements
+
+- Every admitted event refreshes the trace's idle deadline. Tracking accepts an
+  effective project idle interval; ingestion currently uses the deployment default.
+- Keep pending scheduling state separate from retained historical bounds. Enqueue
+  acknowledgement clears pending state; history survives to support later arrivals.
+- A late arrival within history retention opens a new pending window and reads the
+  whole known trace, using the earliest and latest retained event starts plus the
+  existing two-minute buffer. Backdated arrivals must preserve the previous tail.
+- The consumer summarizes every dispatched trace and appends its result without
+  querying existing summaries. Job retries may repeat model calls and append
+  another version; duplicate runs are accepted.
+- Bounds, counters, revision and due time are merged atomically. Readiness is
+  revalidated before enqueue, and acknowledgement must preserve any newer revision.
+- Pending state must survive its idle interval plus recovery grace. Historical
+  values have an independent logical TTL and expire without field scans.
+- Use Redis 7-compatible operations on standalone Redis, Sentinel and Cluster.
+  Every multi-key Lua call stays in one slot; cleanup and Lua batches are bounded.
+  One renewable dispatcher lease coordinates scheduling across all shards.
+- Redis loss and events outside retained history can leave gaps. There is no
+  reconciler, and retained timestamps cannot recover data that was never observed.
 
 ## Controls
 
@@ -87,9 +106,7 @@ pending expiry = due + recovery grace
 Tracking accepts an effective idle duration; existing ingestion uses the deployment
 default until project configuration is persisted. The default is 600 seconds
 outside DEV and 120 seconds in DEV, with the existing environment override.
-No project settings table or database lookup is introduced here. A future nullable
-`Project.traceIdleTimeMs` can use that deployment fallback; retrieve it once per
-project ingestion batch through a bounded cache with mutation invalidation.
+No project idle setting is persisted or looked up from the database here.
 
 Both pending keys receive a whole-key `PEXPIREAT` covering the required expiry,
 preserving any existing later deadline with `PEXPIRETIME` (Redis 7+). During
@@ -119,14 +136,13 @@ flowchart LR
   slot --> first[First-seen bucket hashes]
 ```
 
-| Operation       | Atomic boundary                                                                                                                                                                               |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Track activity  | One Lua call reads retained starts and pending state, merges min/max and counters, replaces the revision, sets readiness, moves first-seen history and sets expiry. All keys share a slot.    |
-| Snapshot/expiry | One Lua call removes a bounded expired cohort and returns readiness counts and the cutoff.                                                                                                    |
-| Hydrate         | One Lua call rechecks due scores and reads corresponding state/revisions. Freshly reactivated traces are not dispatched from an obsolete snapshot.                                            |
-| Acknowledge     | One Lua call compares the revision, refreshes first-seen retention from dispatch time and removes due/state only when it still matches.                                                       |
-| Enqueue         | A separate BullMQ operation precedes acknowledgement. Stable job IDs reduce duplicates if acknowledgement fails. Concurrent arrivals survive the guarded acknowledgement.                     |
-| Persist summary | ClickHouse persistence and Redis completion markers are separate operations. Staging protects paid results until persistence succeeds; retries restore results or consult completion markers. |
+| Operation       | Atomic boundary                                                                                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Track activity  | One Lua call reads retained starts and pending state, merges min/max and counters, replaces the revision, sets readiness, moves first-seen history and sets expiry. All keys share a slot. |
+| Snapshot/expiry | One Lua call removes a bounded expired cohort and returns readiness counts and the cutoff.                                                                                                 |
+| Hydrate         | One Lua call rechecks due scores and reads corresponding state/revisions. Freshly reactivated traces are not dispatched from an obsolete snapshot.                                         |
+| Acknowledge     | One Lua call compares the revision, refreshes first-seen retention from dispatch time and removes due/state only when it still matches.                                                    |
+| Enqueue         | A separate BullMQ operation precedes acknowledgement. Stable job IDs reduce duplicates if acknowledgement fails. Concurrent arrivals survive the guarded acknowledgement.                  |
 
 No application-side read-then-write decides a trace's bounds, revision or due
 score. `TIME` before tracking selects the bounded bucket keys; Lua reads Redis
@@ -137,7 +153,9 @@ contain at most 50 traces; cleanup handles at most 100. Dispatch still pools
 up to 1,000 hydrated candidates for locality selection, so script call size does
 not constrain queue batch packing. Scripts use cached `EVALSHA`, falling back
 to `EVAL` after a missing script cache on the selected primary. Dispatch holds one renewable lease across
-all shards, and checks/extends it while making progress.
+all shards, and checks/extends it while making progress. The lease excludes other
+dispatchers; it does not lock ingestion. Only each synchronous Redis command or
+Lua call blocks its primary, not the dispatcher's entire read/pack/enqueue run.
 
 Lua atomicity prevents command interleaving, but is not an ACID transaction
 across Redis, BullMQ and ClickHouse and does not roll back writes on a runtime
@@ -146,7 +164,10 @@ this pipeline's delivery contract. There is no reconciler.
 
 ## Dispatch and reads
 
-One dispatcher holds the renewable lease. It snapshots ready IDs, sorts them by
+One dispatcher holds the renewable lease and processes each shard in turn. It
+selects the complete due cohort at that shard's cutoff; there is no per-run trace
+limit. The due-ID range read and its response grow with that cohort, even though
+subsequent Lua calls and candidate pools are bounded. It sorts ready IDs by
 project, then hydrates and revalidates state in calls of up to 50. Locality
 selection combines those calls into pools of up to 1,000. Jobs contain up
 to the configured trace cap and weight budgets; project leftovers can share a job. The dispatcher
@@ -161,18 +182,18 @@ event updates readiness; retained history supplies the earlier bound even when
 the incoming start equals it. History without pending state can also result from
 pending expiry, so it does not prove a previous dispatch. Concurrent arrivals
 replace the revision and survive an acknowledgement of an older snapshot.
-The existing revision identifies this dispatch: a new revision summarizes again
-and writes the same Topics sort key, replaced by `ReplacingMergeTree(processed_at)`.
-Retries consult compact, per-dispatch completion hashes in the same readiness
-shard, including when a newer dispatch has completed. Those hashes retain
-facet/version completion timestamps for a fixed 3 hours without renewing expiry.
-Model results use existing Topics staging before ClickHouse persistence; after
-success the completion markers are written and full staged payloads deleted.
-Keep `LANGFUSE_TOPICS_REDIS_TTL_SECONDS` at least 10800 (3 hours) for failed-write
-recovery. Lower staging retention or Redis loss weakens retry protection.
-Completion markers and unfinished staged summary/embedding payloads consume
-additional Redis memory beyond the readiness-map budget; read-disabled load
-tests exclude these costs.
+
+The consumer reads the supplied trace window, generates summaries and appends
+rows to ClickHouse. It does not classify late arrivals, query existing summaries,
+or add Redis completion markers or staged results. Retries may repeat model
+calls and append another summary; consumer retry idempotency is outside this
+readiness-map contract. BullMQ still uses Redis for queue delivery.
+
+`ReplacingMergeTree(processed_at)` retains the greatest processing timestamp
+when the Topics sort key matches. That key includes the start minute: an event
+revealing a genuinely earlier start in a different minute can leave the previous
+summary under its original key. `processed_at` is assigned when summary
+processing starts, so it orders processing attempts rather than dispatch windows.
 
 Retaining the historical maximum preserves the previous tail even when a late
 event's start precedes that tail by more than the query buffer. Once historical
@@ -613,7 +634,7 @@ querying, including failed attempts. The same ID enters ClickHouse
 unset to suppress these per-attempt logs. Strategy attribution uses the
 dispatcher metrics described below. Compare
 query memory/latency and worker memory as well as input/output/metadata byte
-metrics. Redis storage load tests do not measure selector or query memory.
+metrics. Redis storage metrics do not account for selector or query memory.
 
 ### Opt-in locality grouping
 
@@ -705,103 +726,3 @@ For an already enabled cloud experiment, explicitly set the new read flag to
 `true` when deploying this version if reads should continue; leaving it unset
 drains instead. Upgrade all producers before relying on native expiry: older
 producers do not install or refresh that TTL.
-
-## Short local readiness probes
-
-`worker/src/scripts/traceBatchReadinessLoad.ts` exercises tracking, the dispatcher,
-and the actual BullMQ consumer with reads disabled. It writes no ClickHouse data.
-Each run uses a random Redis prefix, saves JSON and CSV samples every ten seconds,
-and removes its queue and bounded readiness keys after the final sample. Parameters
-cover traces/second, duration in seconds, events/trace, events/batch, project skew,
-late fraction/delay, idle time, dispatcher interval, optional dispatcher stall,
-shards, and output path. A stall probe should use `--late 0` to avoid intentionally
-coalescing an initial window with its scheduled late event.
-
-```sh
-mise exec -- pnpm --filter worker exec dotenv -e ../.env -- tsx \
-  src/scripts/traceBatchReadinessLoad.ts --duration 60 --rate 1200 \
-  --shards 1 --output /tmp/trace-readiness-single
-```
-
-For a local Cluster, override `REDIS_CLUSTER_ENABLED`, `REDIS_CLUSTER_NODES`,
-`REDIS_AUTH`, `REDIS_CONNECTION_STRING`, and `REDIS_TLS_ENABLED` after dotenv loads
-the local configuration, and pass `--shards 16`. Use the cluster's actual addresses;
-this probe does not provision or fail over Redis.
-
-### Earlier pipeline probes
-
-These results measure the earlier minimum-only implementation. Current full-bound
-storage and 24h/48h populated-bucket measurements are in
-[readiness storage measurements](storage-comparison.md), with the comparison CSV.
-The later probes include acknowledgement history refresh and cached Lua calls.
-
-The 10 October 2026 probes used an Apple M5 Max, 18 host CPU cores, 64 GiB host RAM,
-and Redis OSS 7.2.4 in Docker. Both used UUID project/trace identifiers, 1,200
-traces/second, five events/trace, 1,000 events/ingestion batch, 30% of traffic in one
-project, and 6% late arrivals compressed to five seconds. Idle and dispatch
-intervals were one second. First-seen retention stayed 24 hours; pending retention
-stayed two hours. The standalone probe enabled a Node CPU profile; its process
-profile includes imports and the entire short probe, rather than a separate steady
-phase. Cluster used three primaries and three replicas on one host.
-
-These performance measurements precede the final acknowledgement change that
-refreshes first-seen retention after dispatch. That additional bounded bucket
-write has not been profiled. After that change, all 52 readiness tests passed on
-both standalone Redis and Redis Cluster, including the post-dispatch TTL case.
-
-| Measurement                                                |       Standalone, 1 shard |  Cluster, 16 shards |
-| ---------------------------------------------------------- | ------------------------: | ------------------: |
-| Ingestion duration                                         |                      30 s |                60 s |
-| Initial / late traces                                      |            35,800 / 2,160 |      71,800 / 4,320 |
-| Lost / duplicate / extra dispatches / wrong earliest start |             0 / 0 / 0 / 0 |       0 / 0 / 0 / 0 |
-| Peak sampled primary main-thread CPU                       |                     6.30% | 4.74%, 3.25%, 2.29% |
-| Tracking CPU upper bound at 1,000 traces/s                 |         5.71% of one core |   5.66% of one core |
-| Tracking call p99, including client/transport work         |                  14.50 ms |            29.43 ms |
-| Maximum dispatcher run                                     |                  94.54 ms |           115.46 ms |
-| Maximum sampled event-loop p99                             |                  13.02 ms |            14.52 ms |
-| Due + state bytes per pending trace, sampled range         |           466.42–471.40 B |     479.92–505.59 B |
-| First-seen bytes per retained trace, final sample          |                  101.97 B |            101.95 B |
-| Largest shard / mean, sampled pending memory               |                         1 |               1.335 |
-| Largest shard / mean, sampled first-seen memory            |                         1 |               1.042 |
-| Prefix-matched slowlog entries above 10 ms                 | 1, 10.485 ms (BullMQ Lua) |                   0 |
-
-The standalone pipeline failed the unchanged “no slowlog entry > 10 ms” criterion
-once in BullMQ Lua. No readiness tracking script appeared in its prefix-matched
-slowlog. This does not establish an eval p99: tracking-call timings also include
-Node, scheduling, and transport. Tracking CPU is an upper bound from process CPU
-across awaited tracking calls, including any concurrent consumer work. Shard
-operation balance was not measured independently of the physical primary CPU.
-
-Both had `maxmemory=0` and AOF disabled. Standalone snapshot configuration was
-`3600 1 300 100 60 10000`; Cluster snapshots were disabled. Host RAM/core counts
-describe the host, not guaranteed Docker allocations. JSON contains raw node INFO,
-configuration, slowlog, per-shard memory/entries, process CPU/memory, and ping
-latency; CSV carries the same sampled diagnostics. Local artifacts are
-`/tmp/trace-readiness-1200-single-uuid.{json,csv}`,
-`/tmp/trace-readiness-1200-cluster.{json,csv}`, and
-`/tmp/trace-readiness-single.cpuprofile`. The earlier standalone 60-second run used
-short IDs and concurrent checks; its pending-byte numbers are not a production
-memory budget.
-
-At approximately 102 B per first-seen entry, 100 million traces/day projects to
-10.2 GB (9.50 GiB) at 100% opt-in, or 3.06 GB (2.85 GiB) at 30%. Whole-hour bucket
-rounding can retain up to another hour, approximately 4.17% at a constant rate.
-These key-memory projections exclude Redis's global key/expiry dictionaries,
-allocator fragmentation, replicas, due/state, BullMQ, and Topics completion
-markers. Pending traces also hold first-seen entries, so idle time and a stalled
-dispatcher add residency beyond the nominal post-dispatch day.
-
-A four-facet completion hash measured 368 B using Redis 7.2.4 `MEMORY USAGE`
-with UUID facet IDs and listpack encoding. At 100 million dispatches/day, its
-fixed three-hour retention projects to another 4.6 GB (1.38 GB at 30% opt-in).
-That measurement excludes Redis's global per-key/expiry dictionaries and
-allocator/replica overhead. Unfinished staged inference results add a separate,
-workload-dependent payload budget; successful results are removed after their
-completion markers are persisted.
-
-These are short Redis correctness and capacity screens. They populate one hourly
-first-seen bucket; the 24-hour working set and CPU with 24 populated buckets remain
-unmeasured. They do not prove the requested 30-minute RSS stability, 1,800/s
-headroom, multi-hour late-arrival mix, dispatcher-stall drain, failover recovery,
-or sustained full-volume load thresholds. No failover was performed in these
-probes, and ten-second ping samples are not `redis-cli --latency-history`.

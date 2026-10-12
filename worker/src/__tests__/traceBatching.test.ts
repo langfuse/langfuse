@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-exotic-operators */
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { Queue, QueueEvents, Worker } from "bullmq";
 import {
   afterAll,
@@ -1119,17 +1119,6 @@ describe("trace micro-batch scheduling with Redis", () => {
         ...usage,
       }),
     );
-    const completionKeys: string[] = [];
-    const rememberCompletionKeys = (
-      traces: TQueueJobTypes[QueueName.TraceBatch]["payload"]["traces"],
-    ) => {
-      for (const trace of traces)
-        completionKeys.push(
-          `{trace-batch:0}:completed:${createHash("sha256")
-            .update(JSON.stringify([projectId, trace.traceId, trace.revision]))
-            .digest("hex")}`,
-        );
-    };
     const original = {
       LANGFUSE_TRACE_BATCH_IDLE_MS: env.LANGFUSE_TRACE_BATCH_IDLE_MS,
       LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
@@ -1308,7 +1297,6 @@ describe("trace micro-batch scheduling with Redis", () => {
       await waitUntilRedisTime(renewedDue);
       await dispatcher.processBatch();
       const [batch] = await queue.getJobs(["wait", "active", "completed"]);
-      rememberCompletionKeys(batch.data.payload.traces);
       expect(
         batch.data.payload.traces.map((trace) => trace.traceId).sort(),
       ).toEqual([traceId, otherTraceId].sort());
@@ -1370,7 +1358,6 @@ describe("trace micro-batch scheduling with Redis", () => {
       const lateBatch = (
         await queue.getJobs(["wait", "active", "completed"])
       ).find((job) => job.id !== batch.id)!;
-      rememberCompletionKeys(lateBatch.data.payload.traces);
       for (const trace of lateBatch.data.payload.traces)
         expect(trace.minStart).toBe(Number(nano / 1_000_000n));
       const lateResult = await lateBatch.waitUntilFinished(batchEvents, 10_000);
@@ -1384,7 +1371,6 @@ describe("trace micro-batch scheduling with Redis", () => {
       const backdatedBatch = (
         await queue.getJobs(["wait", "active", "completed"])
       ).find((job) => job.id !== batch.id && job.id !== lateBatch.id)!;
-      rememberCompletionKeys(backdatedBatch.data.payload.traces);
       expect(backdatedBatch.data.payload.traces).toMatchObject([
         {
           minStart: Number(nano / 1_000_000n),
@@ -1410,11 +1396,6 @@ describe("trace micro-batch scheduling with Redis", () => {
           )!.summary,
         );
       }
-      await traceBatchQueueProcessor(backdatedBatch);
-      await traceBatchQueueProcessor(lateBatch);
-      await traceBatchQueueProcessor(batch);
-      expect(summarizeTopicTraceFacets).toHaveBeenCalledTimes(5);
-      expect(await summaries()).toEqual(latest);
     } finally {
       try {
         await Promise.all([ingestionWorker.close(), batchWorker.close()]);
@@ -1425,7 +1406,6 @@ describe("trace micro-batch scheduling with Redis", () => {
       } finally {
         topicsProjects.delete(projectId);
         await prisma.organization.deleteMany({ where: { id: orgId } });
-        if (completionKeys.length) await client().del(...completionKeys);
         Object.assign(env, original);
       }
     }
