@@ -584,7 +584,7 @@ export function MarkdownView({
       variant="ghost"
       size="xs"
       onClick={() => toggleCollapsed("inline")}
-      className="w-fit text-xs underline"
+      className="text-muted-foreground hover:text-foreground w-fit px-0 underline hover:bg-transparent"
     >
       {isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
     </Button>
