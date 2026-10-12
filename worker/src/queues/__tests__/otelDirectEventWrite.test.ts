@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { type Job } from "bullmq";
+import type { EarlyOtelBatch } from "@langfuse/native";
 import {
   getS3EventStorageClient,
   markProjectIngestFailure,
@@ -10,6 +11,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import * as otelPreparation from "../../features/otel-ingestion/prepareOtelBatch";
+import * as mediaRestoration from "../../features/otel-media/resolveExtractedMedia";
 import { IngestionService } from "../../services/IngestionService";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
 import { fetchObservationEvalRules } from "../../features/evaluation/observationEval";
@@ -54,16 +56,32 @@ describe("direct-v4 trace batch tracking", () => {
       LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
       LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED:
         env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
+        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED,
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS:
+        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS,
     };
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
     env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
     env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
+    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED = "true";
+    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS = ["*"];
 
     try {
       vi.mocked(getS3EventStorageClient).mockReturnValue({
-        download: vi.fn().mockResolvedValue("[]"),
+        downloadBytes: vi.fn().mockResolvedValue(Buffer.from("[]")),
       } as unknown as ReturnType<typeof getS3EventStorageClient>);
+      vi.spyOn(otelPreparation, "prepareOtelBatch").mockResolvedValue({
+        sourceUnchanged: false,
+        batch: {
+          takeJsonBuffer: () => Buffer.from("[]"),
+          dispose: vi.fn(),
+        } as unknown as EarlyOtelBatch,
+      });
+      const restore = vi
+        .spyOn(mediaRestoration, "restoreInlineMedia")
+        .mockResolvedValue(undefined);
       vi.mocked(fetchObservationEvalRules).mockResolvedValue([]);
       vi.spyOn(ClickhouseWriter, "getInstance").mockReturnValue(
         {} as ClickhouseWriter,
@@ -125,6 +143,9 @@ describe("direct-v4 trace batch tracking", () => {
       } as Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>;
 
       await processor(job, undefined);
+      expect(restore.mock.calls.map(([, records]) => records)).toEqual([
+        inputs,
+      ]);
       expect(write).toHaveBeenCalledTimes(3);
       expect(trackTraceBatchActivity).toHaveBeenCalledExactlyOnceWith(
         "project",
@@ -151,7 +172,9 @@ describe("direct-v4 trace batch tracking", () => {
 
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       write.mockClear();
+      restore.mockClear();
       await processor(job, undefined);
+      expect(restore.mock.calls.map(([, records]) => records)).toEqual([[]]);
       expect(write).not.toHaveBeenCalled();
       expect(trackTraceBatchActivity).not.toHaveBeenCalled();
     } finally {

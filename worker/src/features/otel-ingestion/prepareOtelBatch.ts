@@ -6,6 +6,7 @@ import {
 import {
   recordDistribution,
   recordIncrement,
+  type ResourceSpan,
 } from "@langfuse/shared/src/server";
 import { applyIngestionMasking } from "@langfuse/shared/src/server/ee/ingestionMasking";
 
@@ -119,6 +120,34 @@ export async function prepareOtelBatch(params: {
           tags,
         );
       });
+  }
+}
+
+/** Parse for TypeScript consumers. The caller owns the returned batch; failures release it. */
+export async function parsePreparedOtelBatch(
+  prepared: { batch: EarlyOtelBatch; sourceUnchanged: boolean },
+  downloadedBytes: Uint8Array,
+): Promise<{ resourceSpans: ResourceSpan[]; batch?: EarlyOtelBatch }> {
+  let batch: EarlyOtelBatch | undefined = prepared.batch;
+  try {
+    let json: Buffer;
+    if (prepared.sourceUnchanged && batch.mediaCount() === 0) {
+      // Free Rust's duplicate before parsing the unchanged download. An external
+      // Buffer would retain that allocation until Node collects it.
+      await batch.dispose();
+      batch = undefined;
+      json = Buffer.from(
+        downloadedBytes.buffer,
+        downloadedBytes.byteOffset,
+        downloadedBytes.byteLength,
+      );
+    } else {
+      json = batch.takeJsonBuffer();
+    }
+    return { resourceSpans: JSON.parse(json.toString("utf8")), batch };
+  } catch (error) {
+    await batch?.dispose();
+    throw error;
   }
 }
 

@@ -58,14 +58,6 @@ export async function processOtelEvents({
   // Both require enriched event records with trace-level attributes
   // (userId, sessionId, tags, release) that processToEvent provides.
   const eventInputs = processor.processToEvent(resourceSpans);
-  if (earlyBatch) {
-    // Evaluation-only records skip direct media resolution, so restore their
-    // extracted references before evaluation scheduling reads their payloads.
-    await restoreInlineMedia(earlyBatch, eventInputs, {
-      includePayloads: !shouldWriteToEventsTable,
-    });
-  }
-
   if (eventInputs.length === 0) {
     return;
   }
@@ -86,6 +78,14 @@ export async function processOtelEvents({
   // Early exit if no processing needed
   if (!hasEvalConfigs && !shouldWriteToEventsTable) {
     return;
+  }
+
+  if (earlyBatch) {
+    // Evaluation-only records skip direct media resolution, so restore their
+    // extracted references before evaluation scheduling reads their payloads.
+    await restoreInlineMedia(earlyBatch, eventInputs, {
+      includePayloads: !shouldWriteToEventsTable,
+    });
   }
 
   if (

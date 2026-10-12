@@ -47,7 +47,10 @@ import {
 } from "../features/otel-media/processOtelMedia";
 import { restoreInlineMedia } from "../features/otel-media/resolveExtractedMedia";
 import { processOtelEvents } from "../features/otel-ingestion/processOtelEvents";
-import { prepareOtelBatch } from "../features/otel-ingestion/prepareOtelBatch";
+import {
+  parsePreparedOtelBatch,
+  prepareOtelBatch,
+} from "../features/otel-ingestion/prepareOtelBatch";
 
 /**
  * Legacy media processing follows legacy persistence, independently of
@@ -538,24 +541,8 @@ export const otelIngestionQueueProcessorBuilder = (
           });
           return;
         }
-        earlyBatch = prepared.batch;
-        if (prepared.sourceUnchanged && earlyBatch.mediaCount() === 0) {
-          // Free Rust's duplicate before parsing the unchanged download. Transferring
-          // it to a Buffer would keep that allocation alive until Node collects it.
-          await earlyBatch.dispose();
-          earlyBatch = undefined;
-          parsedSpans = JSON.parse(
-            Buffer.from(
-              bytes.buffer,
-              bytes.byteOffset,
-              bytes.byteLength,
-            ).toString("utf8"),
-          );
-        } else {
-          parsedSpans = JSON.parse(
-            earlyBatch.takeJsonBuffer().toString("utf8"),
-          );
-        }
+        ({ batch: earlyBatch, resourceSpans: parsedSpans } =
+          await parsePreparedOtelBatch(prepared, bytes));
       } else {
         // Download file from blob storage
         const resourceSpans = await eventStorage.download(fileKey);
@@ -610,7 +597,8 @@ export const otelIngestionQueueProcessorBuilder = (
       });
       const events: IngestionEventType[] =
         await processor.processToIngestionEvents(parsedSpans);
-      if (earlyBatch) {
+      const writesToLegacyTables = v4WritesToLegacyTables(env);
+      if (earlyBatch && writesToLegacyTables) {
         await restoreInlineMedia(
           earlyBatch,
           events.map((event) => event.body),
@@ -778,7 +766,6 @@ export const otelIngestionQueueProcessorBuilder = (
       // validation already guarantees useDirectEventWrite is true here, so
       // observations and traces don't need the mergeAndWrite / IngestionQueue
       // detour that would otherwise populate the legacy tables.
-      const writesToLegacyTables = v4WritesToLegacyTables(env);
       const skipLegacyWrites = !writesToLegacyTables;
       const shouldProcessLegacyMedia = shouldProcessLegacyOtelMedia({
         mediaUploadEnabled: env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true",

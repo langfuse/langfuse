@@ -23,7 +23,7 @@ vi.mock("@langfuse/shared/src/server/ee/ingestionMasking", () => ({
   applyIngestionMasking: maskingMocks.applyIngestionMasking,
 }));
 
-import { prepareOtelBatch } from "./prepareOtelBatch";
+import { parsePreparedOtelBatch, prepareOtelBatch } from "./prepareOtelBatch";
 
 describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
   beforeEach(() => {
@@ -68,11 +68,14 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
         extractMedia: true,
       });
       try {
-        expect(prepared.batch?.mediaCount()).toBe(0);
+        if (!prepared.batch) throw new Error("expected native preparation");
+        expect(prepared.batch.mediaCount()).toBe(0);
         expect(prepared.sourceUnchanged).toBe(inputKind === "unchanged");
-        expect(
-          JSON.parse(prepared.batch!.takeJsonBuffer().toString("utf8")),
-        ).toEqual({
+        const parsed = await parsePreparedOtelBatch(prepared, bytes);
+        expect(parsed.batch).toBe(
+          inputKind === "unchanged" ? undefined : prepared.batch,
+        );
+        expect(parsed.resourceSpans).toEqual({
           note:
             inputKind === "sanitized"
               ? "�"
