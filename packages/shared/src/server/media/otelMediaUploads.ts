@@ -4,9 +4,13 @@ import { MediaUploadPool } from "./MediaUploadPool";
 // Shared by early and late OTEL processing, including concurrent ingestion jobs.
 // Build-time imports skip env validation and therefore may not have defaults.
 export const otelMediaUploads = new MediaUploadPool(
-  Number(env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY ?? 5),
+  Number(env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY ?? 100),
   Number(env.LANGFUSE_OTEL_MEDIA_UPLOAD_MAX_BYTES ?? 128 * 1024 * 1024),
 );
+
+// Structured-value and URI traversals can nest; keep each dispatch level small
+// even when many batches share a larger upload pool.
+const MEDIA_DISPATCH_CONCURRENCY = 5;
 
 /** Map with bounded concurrency, preserving input order in the result. */
 export async function mapMedia<T, R>(
@@ -29,7 +33,10 @@ export async function forEachMedia<T>(
 ): Promise<void> {
   const iterator = values[Symbol.iterator]();
   let failure: { error: unknown } | undefined;
-  const concurrency = Number(env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY ?? 5);
+  const concurrency = Math.min(
+    MEDIA_DISPATCH_CONCURRENCY,
+    Number(env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY ?? 100),
+  );
   const workers = Array.isArray(values)
     ? Math.min(values.length, concurrency)
     : concurrency;

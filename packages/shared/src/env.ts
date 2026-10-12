@@ -304,7 +304,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(5),
+    .default(100),
   LANGFUSE_OTEL_MEDIA_UPLOAD_MAX_BYTES: z.coerce
     .number()
     .int()

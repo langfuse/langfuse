@@ -81,7 +81,7 @@ async function processEvents(
 }
 
 describe("processOtelMedia", () => {
-  it("shares upload slots across jobs and preserves source order on failure", async () => {
+  it("preserves source order when concurrent uploads finish out of order and one fails", async () => {
     const uri = (id: number) =>
       `data:image/png;base64,${Buffer.from(String(id)).toString("base64")}`;
     const first = createEvent({ value: [1, 2, 3].map(uri).join(" ") });
@@ -104,16 +104,14 @@ describe("processOtelMedia", () => {
       processEvents([first.event], upload),
       processEvents([second.event], upload),
     ];
-    await vi.waitFor(() => expect(finish.size).toBe(5));
-    expect(active).toBe(5);
-    // Free a later slot while earlier uploads remain held. The sixth item must start.
-    finish.get(3)!();
     await vi.waitFor(() => expect(finish.size).toBe(6));
+    expect(active).toBe(6);
+    finish.get(3)!();
     for (const resolve of [...finish.values()].reverse()) resolve();
     const results = await Promise.all(jobs);
     const reference = (id: number) =>
       `@@@langfuseMedia:type=image/png|id=${id}|source=base64_data_uri@@@`;
-    expect(peak).toBe(5);
+    expect(peak).toBe(6);
     expect(first.body.input).toBe(`${reference(1)} ${uri(2)} ${reference(3)}`);
     expect(second.body.input).toEqual(
       [4, 5, 6].map((id) => ({ image: reference(id) })),
@@ -444,6 +442,31 @@ describe("processOtelMedia", () => {
 });
 
 describe("mapMedia", () => {
+  it("keeps traversal fan-out bounded when the shared pool allows more uploads", async () => {
+    const previousConcurrency = env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY;
+    env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY = 100;
+    const gate = deferred<void>();
+    const started: number[] = [];
+    try {
+      const mapping = mapMedia(
+        Array.from({ length: 20 }, (_, index) => index),
+        async (value) => {
+          started.push(value);
+          await gate.promise;
+          return value;
+        },
+      );
+      expect(started).toEqual([0, 1, 2, 3, 4]);
+      gate.resolve();
+      await expect(mapping).resolves.toEqual(
+        Array.from({ length: 20 }, (_, index) => index),
+      );
+    } finally {
+      gate.resolve();
+      env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY = previousConcurrency;
+    }
+  });
+
   it("drains active work after failure without pulling unused values", async () => {
     const previousConcurrency = env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY;
     env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY = 2;
