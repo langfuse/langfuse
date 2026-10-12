@@ -49,8 +49,11 @@ import {
 import {
   createTRPCRouter,
   protectedProjectProcedureWithoutTracing,
+  type ProjectAuthedContext,
 } from "@/src/server/api/trpc";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import {
   previewTopicTraces,
@@ -95,6 +98,31 @@ const topicsWriteProcedure = topicsProcedure.use(({ ctx, input, next }) => {
   });
   return next();
 });
+
+function readTopicConfig(ctx: ProjectAuthedContext, projectId: string) {
+  return ctx.prisma.topicConfig.findUnique({ where: { projectId } });
+}
+
+/** Saves the project's Topics config and records the change in the audit log. */
+async function auditedTopicConfigSave<T>(
+  ctx: ProjectAuthedContext,
+  projectId: string,
+  save: () => Promise<T>,
+): Promise<T> {
+  const before = await readTopicConfig(ctx, projectId);
+  const result = await save();
+  const after = await readTopicConfig(ctx, projectId);
+  if (after)
+    await auditLog({
+      session: ctx.session,
+      resourceType: "topicConfig",
+      resourceId: after.id,
+      action: before ? "update" : "create",
+      before,
+      after,
+    });
+  return result;
+}
 
 async function requireTopicsModels(projectId: string) {
   const models = await getTopicsModels(projectId);
@@ -323,7 +351,20 @@ export const topicsRouter = createTRPCRouter({
         facetIds: z.array(topicIdSchema).min(1),
       }),
     )
-    .mutation(({ input }) => saveTopicRule(input)),
+    .mutation(async ({ input, ctx }) => {
+      const rule = await saveTopicRule({
+        ...input,
+        userId: ctx.session.user.id,
+      });
+      await auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: rule.id,
+        action: input.id ? "update" : "create",
+        after: rule,
+      });
+      return rule;
+    }),
   modelSettings: topicsProcedure.query(({ input }) =>
     readTopicsModelSettings(input.projectId),
   ),
@@ -334,14 +375,26 @@ export const topicsRouter = createTRPCRouter({
     ),
   saveModelSettings: topicsWriteProcedure
     .input(topicsModelSettingsSchema.extend({ projectId: topicIdSchema }))
-    .mutation(({ input: { projectId, ...settings } }) =>
-      saveTopicsModelSettings(projectId, settings),
+    .mutation(({ input: { projectId, ...settings }, ctx }) =>
+      auditedTopicConfigSave(ctx, projectId, () =>
+        saveTopicsModelSettings(projectId, settings, ctx.session.user.id),
+      ),
     ),
   saveSetup: topicsWriteProcedure
     .input(topicsSetupSchema.extend({ projectId: topicIdSchema }))
-    .mutation(({ input: { projectId, ...setup } }) =>
-      saveTopicsSetup(projectId, setup),
-    ),
+    .mutation(async ({ input: { projectId, ...setup }, ctx }) => {
+      const rule = await auditedTopicConfigSave(ctx, projectId, () =>
+        saveTopicsSetup(projectId, setup, ctx.session.user.id),
+      );
+      await auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: rule.id,
+        action: setup.ruleId ? "update" : "create",
+        after: rule,
+      });
+      return rule;
+    }),
   summaryCounts: topicsProcedure
     .input(
       resultInput.extend({

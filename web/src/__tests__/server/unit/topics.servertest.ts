@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => ({
   enqueueTopicExecution: vi.fn(),
   getTopicExecutionQueueState: vi.fn(),
   queryClickhouse: vi.fn(),
+  auditLog: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   const { selectTopicTraceRows } = await importOriginal<typeof topicsServer>();
@@ -53,6 +54,9 @@ vi.mock(
     queryClickhouse: mocks.queryClickhouse,
   }),
 );
+vi.mock("@/src/features/audit-logs/auditLog", () => ({
+  auditLog: mocks.auditLog,
+}));
 vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
   recordBackendActivity: vi.fn(async () => undefined),
 }));
@@ -1350,18 +1354,32 @@ describe("Topics setup", () => {
 
     await expect(caller().saveSetup(setup)).resolves.toEqual({ id: "rule-a" });
     expect(mocks.saveTopicsSetup).toHaveBeenCalledOnce();
-    expect(mocks.saveTopicsSetup).toHaveBeenCalledWith(projectId, {
-      summary: setup.summary,
-      embedding: setup.embedding,
-      embeddingDimensions: 1024,
-      clustering: setup.clustering,
-      enabled: true,
-      facets: setup.facets,
-      customFacetIds: [],
-      filter: setup.filter,
-      sampling: 0.25,
-      idleSeconds: 120,
-    });
+    expect(mocks.saveTopicsSetup).toHaveBeenCalledWith(
+      projectId,
+      {
+        summary: setup.summary,
+        embedding: setup.embedding,
+        embeddingDimensions: 1024,
+        clustering: setup.clustering,
+        enabled: true,
+        facets: setup.facets,
+        customFacetIds: [],
+        filter: setup.filter,
+        sampling: 0.25,
+        idleSeconds: 120,
+      },
+      "user-a",
+    );
+    expect(mocks.auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resourceType: "job",
+        resourceId: "rule-a",
+        action: "create",
+        session: expect.objectContaining({
+          user: expect.objectContaining({ id: "user-a" }),
+        }),
+      }),
+    );
   });
 
   it("rejects a setup with every facet turned off", async () => {

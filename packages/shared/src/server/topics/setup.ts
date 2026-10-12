@@ -16,6 +16,7 @@ import {
 export async function saveTopicsSetup(
   projectId: string,
   input: z.input<typeof topicsSetupSchema>,
+  userId: string | null = null,
 ): Promise<TopicRule> {
   const setup = topicsSetupSchema.parse(input);
   const facets = await ensureDefaultTopicFacets(projectId);
@@ -46,6 +47,7 @@ export async function saveTopicsSetup(
     {
       id: setup.ruleId,
       projectId,
+      userId,
       filter: setup.filter,
       sampling: setup.sampling,
       idleTimeMs: setup.idleSeconds * 1000,
@@ -65,7 +67,10 @@ export async function saveTopicRuleAndModels(
 ): Promise<TopicRule> {
   return prisma.$transaction(async (tx) => {
     const saved = await writeTopicRule(tx, rule);
-    await writeTopicsModelSettings(rule.projectId, models, tx);
+    await writeTopicsModelSettings(rule.projectId, models, {
+      userId: rule.userId,
+      tx,
+    });
     return saved;
   });
 }

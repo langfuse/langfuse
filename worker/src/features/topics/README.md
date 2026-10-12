@@ -70,7 +70,9 @@ credentials; the default credential chain is self-hosted only.
 
 Saving the settings makes one real call per configured slot (structured output
 for summaries and clustering, one embedding whose length must equal the
-configured dimensions) and rejects the save if any call fails.
+configured dimensions) and rejects the save if any call fails. Saves record the
+user in `created_by` / `updated_by` and write `topicConfig` (and, for the rule,
+`job`) audit log entries.
 The embedding model and dimensions cannot change once the project has embedded
 summaries, so existing vectors stay comparable. Summary and clustering model changes apply
 to new work only; an execution frozen on another summary or embedding model

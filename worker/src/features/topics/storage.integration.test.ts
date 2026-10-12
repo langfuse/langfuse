@@ -40,6 +40,8 @@ describe("Topics eval-backed configuration", () => {
   const otherProjectId = randomUUID();
   const ruleProjectId = randomUUID();
   const rollbackProjectId = randomUUID();
+  const auditProjectId = randomUUID();
+  const userIds = [randomUUID(), randomUUID()];
 
   beforeAll(async () => {
     await prisma.organization.create({
@@ -52,14 +54,19 @@ describe("Topics eval-backed configuration", () => {
             { id: otherProjectId, name: "Other project" },
             { id: ruleProjectId, name: "Topics rule" },
             { id: rollbackProjectId, name: "Topics rollback" },
+            { id: auditProjectId, name: "Topics audit" },
           ],
         },
       },
+    });
+    await prisma.user.createMany({
+      data: userIds.map((id) => ({ id, email: `${id}@example.com` })),
     });
   });
 
   afterAll(async () => {
     await prisma.organization.deleteMany({ where: { id: orgId } });
+    await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   });
 
   it("initializes built-in FACET evaluators once under concurrent requests", async () => {
@@ -152,6 +159,51 @@ describe("Topics eval-backed configuration", () => {
         where: { projectId: rollbackProjectId },
       }),
     ).toBeNull();
+  });
+
+  it("records who created and last updated the Topics configuration", async () => {
+    const facets = await ensureDefaultTopicFacets(auditProjectId);
+    const models = {
+      enabled: false,
+      blockedAt: null,
+      blockReason: null,
+      blockMessage: null,
+      summaryLlmApiKeyId: null,
+      summaryModel: null,
+      embeddingLlmApiKeyId: null,
+      embeddingModel: null,
+      embeddingDimensions: 1024,
+      clusteringLlmApiKeyId: null,
+      clusteringModel: null,
+    };
+    const rule = await saveTopicRuleAndModels(
+      {
+        projectId: auditProjectId,
+        filter: [],
+        facetIds: [facets[0].id],
+        userId: userIds[0],
+      },
+      models,
+    );
+    await saveTopicRuleAndModels(
+      {
+        id: rule.id,
+        projectId: auditProjectId,
+        filter: [],
+        facetIds: [facets[0].id],
+        userId: userIds[1],
+      },
+      models,
+    );
+
+    expect(
+      await prisma.topicConfig.findUnique({
+        where: { projectId: auditProjectId },
+      }),
+    ).toMatchObject({ createdBy: userIds[0], updatedBy: userIds[1] });
+    expect(
+      await prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
+    ).toMatchObject({ createdByUserId: userIds[0] });
   });
 
   it("keeps versions and rule assignments scoped to this project's FACET evaluators", async () => {

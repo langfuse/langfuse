@@ -225,10 +225,12 @@ export async function checkTopicsModelSettings(
 export async function saveTopicsModelSettings(
   projectId: string,
   settings: TopicsModelSettings,
+  userId: string | null = null,
 ): Promise<void> {
   await writeTopicsModelSettings(
     projectId,
     await prepareTopicsModelSettings(projectId, settings),
+    { userId },
   );
 }
 
@@ -283,12 +285,15 @@ export async function prepareTopicsModelSettings(
 export async function writeTopicsModelSettings(
   projectId: string,
   data: Awaited<ReturnType<typeof prepareTopicsModelSettings>>,
-  tx: Prisma.TransactionClient = prisma,
+  {
+    userId = null,
+    tx = prisma,
+  }: { userId?: string | null; tx?: Prisma.TransactionClient } = {},
 ): Promise<void> {
   await tx.topicConfig.upsert({
     where: { projectId },
-    create: { projectId, ...data },
-    update: data,
+    create: { projectId, ...data, createdBy: userId, updatedBy: userId },
+    update: { ...data, updatedBy: userId },
   });
 }
 

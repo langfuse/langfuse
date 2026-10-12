@@ -61,7 +61,7 @@ describe("Topics setup", () => {
   });
 
   it("creates the built-in facets and one rule for the enabled ones", async () => {
-    await saveTopicsSetup(projectId, setup);
+    await saveTopicsSetup(projectId, setup, "user-a");
 
     expect(mocks.prepareModels).toHaveBeenCalledWith(projectId, {
       summary: setup.summary,
@@ -77,11 +77,12 @@ describe("Topics setup", () => {
       sampling: 0.25,
       idleTimeMs: 120_000,
       facetIds: facets.flatMap((facet) => (facet.enabled ? [facet.id] : [])),
+      userId: "user-a",
     });
     expect(mocks.writeModels).toHaveBeenCalledWith(
       projectId,
       { enabled: true },
-      "tx",
+      { userId: "user-a", tx: "tx" },
     );
   });
 

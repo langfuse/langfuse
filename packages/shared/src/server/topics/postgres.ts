@@ -228,6 +228,8 @@ export type TopicRuleInput = Omit<
 > &
   Partial<Pick<TopicRule, "name" | "sampling" | "idleTimeMs">> & {
     id?: string;
+    /** The user saving the rule; recorded when it is created. */
+    userId?: string | null;
   };
 
 export async function saveTopicRule(input: TopicRuleInput): Promise<TopicRule> {
@@ -294,6 +296,7 @@ export async function writeTopicRule(
         data: {
           ...data,
           projectId: input.projectId,
+          createdByUserId: input.userId ?? null,
           assignments: { create: assignments },
         },
         include: { assignments: true },
