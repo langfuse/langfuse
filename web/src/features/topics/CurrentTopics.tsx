@@ -330,7 +330,6 @@ function CurrentTraceTable({
         style={
           color
             ? {
-                color,
                 borderColor: `${color}66`,
                 backgroundColor: `${color}1a`,
               }
