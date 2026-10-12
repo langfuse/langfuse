@@ -97,6 +97,52 @@ describe("MediaUploadPool", () => {
     await largeRun;
   });
 
+  it("reserves capacity for a large upload after bounded bypasses", async () => {
+    const pool = new MediaUploadPool(2, 10);
+    const small = Array.from({ length: 5 }, () => deferred<void>());
+    const large = deferred<void>();
+    const started: Array<number | "large"> = [];
+    const runSmall = (index: number) =>
+      pool.run(3, async () => {
+        started.push(index);
+        await small[index].promise;
+      });
+    const first = runSmall(0);
+    const second = runSmall(1);
+    const largeRun = pool.run(8, async () => {
+      started.push("large");
+      await large.promise;
+    });
+
+    small[0].resolve();
+    await first;
+    const third = runSmall(2);
+    await Promise.resolve();
+    expect(started).toContain(2);
+
+    small[1].resolve();
+    await second;
+    const fourth = runSmall(3);
+    await Promise.resolve();
+    expect(started).toContain(3);
+
+    small[2].resolve();
+    await third;
+    const fifth = runSmall(4);
+    await Promise.resolve();
+    expect(started).not.toContain(4);
+
+    small[3].resolve();
+    await fourth;
+    expect(started).toContain("large");
+    expect(started).not.toContain(4);
+    large.resolve();
+    await largeRun;
+    expect(started).toContain(4);
+    small[4].resolve();
+    await fifth;
+  });
+
   it("runs an oversized item alone after current work drains", async () => {
     const pool = new MediaUploadPool(5, 10);
     const active = deferred<void>();

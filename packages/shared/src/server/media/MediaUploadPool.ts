@@ -1,5 +1,6 @@
 /**
- * Bounds active uploads and decoded bytes, admitting any waiting work that fits.
+ * Bounds active uploads and decoded bytes. Fitting work may bypass the oldest
+ * waiter up to `concurrency` times; then new work waits until it starts.
  * The upload must reject on timeout itself. This pool keeps its reservation
  * until work actually settles; timing out only the waiter would free it too soon.
  */
@@ -7,6 +8,7 @@ export class MediaUploadPool {
   private waiting: PendingUpload[] = [];
   private active = 0;
   private reservedBytes = 0;
+  private bypasses = 0;
 
   constructor(
     private readonly concurrency: number,
@@ -31,8 +33,7 @@ export class MediaUploadPool {
 
     await new Promise<void>((ready) => {
       const upload = { bytes, ready };
-      if (this.canStart(upload)) this.start(upload);
-      else this.waiting.push(upload);
+      if (!this.startIfPossible(upload)) this.waiting.push(upload);
     });
 
     try {
@@ -48,9 +49,17 @@ export class MediaUploadPool {
     const waiting = this.waiting;
     this.waiting = [];
     for (const upload of waiting) {
-      if (this.canStart(upload)) this.start(upload);
-      else this.waiting.push(upload);
+      if (!this.startIfPossible(upload)) this.waiting.push(upload);
     }
+  }
+
+  private startIfPossible(upload: PendingUpload): boolean {
+    if (!this.canStart(upload)) return false;
+    // `waiting` contains older uploads still blocked in this scheduling pass.
+    if (this.waiting.length && this.bypasses >= this.concurrency) return false;
+    this.bypasses = this.waiting.length ? this.bypasses + 1 : 0;
+    this.start(upload);
+    return true;
   }
 
   private start(upload: PendingUpload): void {
