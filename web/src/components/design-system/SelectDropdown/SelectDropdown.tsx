@@ -24,7 +24,7 @@ type SelectNode<V> =
       type: "group";
       id: string;
       label: string;
-      options: readonly SelectOption<V>[];
+      options: SelectOption<V>[];
     };
 
 function isSelectGroup<V>(
