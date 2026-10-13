@@ -21,7 +21,7 @@ export function EvaluatorGalleryScorePreview({
     >
       <div className="flex min-w-0 items-center justify-center gap-1">
         {visibleScores.map((score) => (
-          <span key={score.name} className="flex min-w-0 rounded-sm shadow-xs">
+          <span key={score.name} className="flex min-w-0">
             <BadgeShell color="filled" size="md">
               <span className="text-muted-foreground flex min-w-0 font-mono">
                 <span className="truncate py-0.5" title={score.name}>
