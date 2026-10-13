@@ -59,8 +59,7 @@
   --spacing-banner-offset: var(--banner-offset);
   --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
 
-  /* Raised card: two tight layers that darken the bottom edge. */
-  --shadow-card: 0 1px 1px 0 rgb(0 0 0 / 0.04), 0 2px 4px 0 rgb(0 0 0 / 0.06);
+  /* Card lifted on hover. */
   --shadow-card-hover:
     0 1px 2px 0 rgb(0 0 0 / 0.06), 0 6px 14px -2px rgb(0 0 0 / 0.12);
 
