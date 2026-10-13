@@ -1,9 +1,16 @@
 import type { ReactNode } from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import TopicsPage from "./TopicsPage";
 import { useGlobalDateRangeStore } from "@/src/features/global-time-range/globalDateRangeStore";
 import { rangeToString, type TimeRange } from "@/src/utils/date-range-utils";
+import { type TopicFacet } from "@langfuse/shared/topics";
 
 const state = vi.hoisted(() => ({
   status: "failed",
@@ -17,6 +24,14 @@ const state = vi.hoisted(() => ({
   currentTopics: vi.fn(),
   pipeline: vi.fn(),
   picker: vi.fn(),
+  push: vi.fn(),
+  canWrite: true,
+  facets: [] as TopicFacet[],
+  executions: [] as unknown[],
+  settings: {} as Record<string, unknown>,
+  rules: [] as Array<{ facetIds: string[] }>,
+  counts: [] as Array<{ facetId: string; facetVersion: number; count: number }>,
+  trigger: vi.fn(),
 }));
 
 vi.mock("use-query-params", () => ({
@@ -43,10 +58,22 @@ vi.mock("@/src/components/date-picker", () => ({
 vi.mock("next/router", () => ({
   useRouter: () => ({
     query: { projectId: "project", executionId: state.executionId },
+    push: state.push,
   }),
 }));
 vi.mock("@/src/components/layouts/page", () => ({
-  default: ({ children }: { children: ReactNode }) => children,
+  default: ({
+    children,
+    headerProps,
+  }: {
+    children: ReactNode;
+    headerProps?: { actionButtonsRight?: ReactNode };
+  }) => (
+    <>
+      {headerProps?.actionButtonsRight}
+      {children}
+    </>
+  ),
 }));
 vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
   usePeekNavigation: () => ({}),
@@ -55,7 +82,7 @@ vi.mock("@/src/components/table/peek/peek-trace-detail", () => ({
   TablePeekViewTraceDetail: () => null,
 }));
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
-  useHasProjectAccess: () => true,
+  useHasProjectAccess: () => state.canWrite,
 }));
 vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
   default: () => true,
@@ -69,13 +96,6 @@ vi.mock("./TopicPipelineForm", () => ({
       configuration: null,
     };
   },
-}));
-vi.mock("./RegenerateTopicsDialog", () => ({
-  useRegenerateTopics: () => ({
-    action: null,
-    menuRow: () => null,
-    dialog: null,
-  }),
 }));
 vi.mock("./TopicModelSettings", () => ({
   useTopicModelSettings: () => ({
@@ -128,8 +148,27 @@ vi.mock("./CurrentTopics", () => ({
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
-      facets: { useQuery: () => ({ data: [], isLoading: false }) },
-      executions: { useQuery: () => ({ data: [] }) },
+      facets: {
+        useQuery: () => ({
+          data: state.facets,
+          isLoading: false,
+          isSuccess: true,
+        }),
+      },
+      executions: { useQuery: () => ({ data: state.executions }) },
+      modelSettings: {
+        useQuery: () => ({ isPending: false, data: state.settings }),
+      },
+      rules: { useQuery: () => ({ data: state.rules }) },
+      summaryCounts: {
+        useQuery: (input: unknown) =>
+          typeof input === "symbol"
+            ? { isPending: true }
+            : { isPending: false, data: state.counts },
+      },
+      trigger: {
+        useMutation: () => ({ mutateAsync: state.trigger, isPending: false }),
+      },
       execution: {
         useQuery: () => ({
           data: {
@@ -184,6 +223,19 @@ beforeEach(() => {
   state.updatedAt = "2026-09-23T12:00:00Z";
   state.dateRange = undefined;
   state.executionId = undefined;
+  state.canWrite = true;
+  state.facets = [];
+  state.executions = [];
+  state.settings = {
+    summary: { model: "summary" },
+    embedding: { model: "embedding" },
+    clustering: { model: "clustering" },
+    blockedAt: null,
+    blockMessage: null,
+  };
+  state.rules = [];
+  state.counts = [];
+  state.trigger.mockResolvedValue({ id: "regenerated" });
   state.setQueryParams.mockImplementation(
     ({ dateRange }: { dateRange: string }) => {
       state.dateRange = dateRange;
@@ -387,5 +439,123 @@ it("holds relative bounds between renders and advances them after completion", (
   expect(state.currentTopics.mock.lastCall![0].timeRange).toEqual({
     from: new Date("2026-10-02T12:01:00Z"),
     to: new Date("2026-10-09T12:01:00Z"),
+  });
+});
+
+const facet = (id: string, versions: number[]): TopicFacet => ({
+  id,
+  projectId: "project",
+  name: id,
+  description: "",
+  isBuiltIn: true,
+  versions: versions.map((version) => ({
+    projectId: "project",
+    facetId: id,
+    version,
+    prompt: "",
+    createdAt: "2026-10-01T00:00:00Z",
+  })),
+});
+const execution = (status: string, operation: "process" | "update") => ({
+  id: `${operation}-${status}`,
+  status,
+  createdAt: "2026-10-09T11:00:00Z",
+  updatedAt: "2026-10-09T11:00:00Z",
+  input: { operation },
+  facets: [],
+});
+function withSummaries() {
+  state.facets = [
+    facet("intent", [2, 1]),
+    facet("outcome", [1]),
+    facet("language", [1]),
+  ];
+  state.rules = [{ facetIds: ["intent", "outcome"] }];
+  state.counts = [
+    { facetId: "intent", facetVersion: 2, count: 240 },
+    { facetId: "outcome", facetVersion: 1, count: 0 },
+  ];
+}
+
+it.each([
+  {
+    name: "without topics:CUD",
+    setup: () => {
+      state.canWrite = false;
+    },
+    reason:
+      "You need permission to manage Topics in this project to regenerate topics.",
+  },
+  {
+    name: "while Topics is paused",
+    setup: () => {
+      state.settings.blockedAt = "2026-10-09T10:00:00Z";
+      state.settings.blockMessage = "Fix the connection.";
+    },
+    reason: "Topics is paused. Fix the connection.",
+  },
+  {
+    name: "while any Topics run is in progress",
+    setup: () => {
+      state.executions = [execution("running", "process")];
+    },
+    reason: "A Topics run is in progress. Regenerate when it finishes.",
+  },
+  {
+    name: "before any summaries exist",
+    setup: () => {
+      state.counts = [];
+    },
+    reason:
+      "No trace summaries in the selected time range yet. Summarize traces first, then regenerate.",
+  },
+])("disables Regenerate topics $name", ({ setup, reason }) => {
+  withSummaries();
+  setup();
+  render(<TopicsPage />);
+  expect(
+    screen.getByRole("button", { name: "Regenerate topics" }),
+  ).toBeDisabled();
+  expect(screen.getByLabelText(reason)).toBeInTheDocument();
+});
+
+it("regenerates the rule's facets that have summaries, at their latest version, over the page range, then opens the run", async () => {
+  withSummaries();
+  state.executions = [execution("completed", "update")];
+  render(<TopicsPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Regenerate topics" }));
+
+  const dialog = screen.getByRole("dialog", { name: "Regenerate topics" });
+  expect(within(dialog).getByText("Completed")).toBeInTheDocument();
+  expect(
+    within(dialog).getByRole("checkbox", { name: "outcome" }),
+  ).toBeDisabled();
+  expect(
+    within(dialog).queryByRole("checkbox", { name: "language" }),
+  ).toBeNull();
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Regenerate topics" }),
+  );
+
+  await waitFor(() =>
+    expect(state.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.objectContaining({ executionId: "regenerated" }),
+      }),
+      undefined,
+      { shallow: true },
+    ),
+  );
+  expect(state.trigger).toHaveBeenCalledWith({
+    projectId: "project",
+    operation: "update",
+    facets: [{ facetId: "intent", version: 2 }],
+    exploratory: false,
+    timeRange: {
+      from: new Date("2026-10-02T12:00:00Z"),
+      to: new Date("2026-10-09T12:00:00Z"),
+    },
+    minimumTraceCount: 100,
+    requestId: expect.any(String),
   });
 });
