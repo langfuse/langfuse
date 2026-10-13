@@ -812,6 +812,10 @@ export class LlmConnectionService {
             replacementLlmApiKeyId: hasCompatibleOrganizationFallback
               ? organizationFallback?.id
               : undefined,
+            projectReplacementProvider:
+              params.owner.type === "organization"
+                ? connection.provider
+                : undefined,
           });
         const defaultModelBlocksByProjectId = new Map(
           defaultModelResults.map(({ projectId, defaultModelBlock }) => [

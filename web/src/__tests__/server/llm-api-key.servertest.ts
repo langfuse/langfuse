@@ -2168,6 +2168,49 @@ describe("llmApiKey.all RPC", () => {
       ).toBeNull();
     });
 
+    it("rebinds an organization-backed default model to an existing project override", async () => {
+      const organizationConnection = await prisma.llmApiKeys.create({
+        data: {
+          organizationId: orgId,
+          secretKey: encrypt("organization-secret"),
+          displaySecretKey: "...cret",
+          provider: PROVIDER,
+          adapter: LLMAdapter.OpenAI,
+        },
+      });
+      const projectConnection = await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          secretKey: encrypt("project-secret"),
+          displaySecretKey: "...cret",
+          provider: PROVIDER,
+          adapter: LLMAdapter.Anthropic,
+        },
+      });
+      await prisma.defaultLlmModel.create({
+        data: {
+          projectId,
+          llmApiKeyId: organizationConnection.id,
+          provider: PROVIDER,
+          adapter: LLMAdapter.OpenAI,
+          model: "gpt-4o",
+        },
+      });
+
+      await caller.organizationLlmApiKey.delete({
+        orgId,
+        id: organizationConnection.id,
+      });
+
+      expect(mockFinalizeEvaluatorBlocks).not.toHaveBeenCalled();
+      expect(
+        await prisma.defaultLlmModel.findUniqueOrThrow({
+          where: { projectId },
+          select: { llmApiKeyId: true },
+        }),
+      ).toEqual({ llmApiKeyId: projectConnection.id });
+    });
+
     it("turns Topics off and records why when its connection is deleted", async () => {
       await caller.llmApiKey.create({
         projectId,

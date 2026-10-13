@@ -98,13 +98,19 @@ export class DefaultEvalModelService {
     tx: Prisma.TransactionClient;
     llmApiKeyId: string;
     replacementLlmApiKeyId?: string;
+    projectReplacementProvider?: string;
   }): Promise<
     Array<{ projectId: string; defaultModelBlock: EvaluatorBlockResult }>
   > {
-    const { tx, llmApiKeyId, replacementLlmApiKeyId } = params;
+    const {
+      tx,
+      llmApiKeyId,
+      replacementLlmApiKeyId,
+      projectReplacementProvider,
+    } = params;
     const defaultModels = await tx.defaultLlmModel.findMany({
       where: { llmApiKeyId },
-      select: { projectId: true },
+      select: { id: true, projectId: true },
     });
 
     if (defaultModels.length === 0) {
@@ -119,11 +125,43 @@ export class DefaultEvalModelService {
       return [];
     }
 
+    const projectReplacements = projectReplacementProvider
+      ? await tx.llmApiKeys.findMany({
+          where: {
+            projectId: {
+              in: defaultModels.map(({ projectId }) => projectId),
+            },
+            provider: projectReplacementProvider,
+            id: { not: llmApiKeyId },
+          },
+          select: { id: true, projectId: true },
+        })
+      : [];
+    const projectReplacementByProjectId = new Map(
+      projectReplacements.flatMap(({ id, projectId }) =>
+        projectId ? [[projectId, id] as const] : [],
+      ),
+    );
+    const modelsWithoutReplacement = [];
+    for (const defaultModel of defaultModels) {
+      const projectReplacement = projectReplacementByProjectId.get(
+        defaultModel.projectId,
+      );
+      if (projectReplacement) {
+        await tx.defaultLlmModel.update({
+          where: { id: defaultModel.id },
+          data: { llmApiKeyId: projectReplacement },
+        });
+      } else {
+        modelsWithoutReplacement.push(defaultModel);
+      }
+    }
+
     const blockResults: Array<{
       projectId: string;
       defaultModelBlock: EvaluatorBlockResult;
     }> = [];
-    for (const { projectId } of defaultModels) {
+    for (const { projectId } of modelsWithoutReplacement) {
       blockResults.push({
         projectId,
         defaultModelBlock: await blockEvaluatorsUsingDefaultModel({
@@ -134,7 +172,9 @@ export class DefaultEvalModelService {
     }
 
     await tx.defaultLlmModel.deleteMany({
-      where: { llmApiKeyId },
+      where: {
+        id: { in: modelsWithoutReplacement.map(({ id }) => id) },
+      },
     });
 
     return blockResults;
