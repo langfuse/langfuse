@@ -79,7 +79,7 @@ do not load dotenv files:
 | `LANGFUSE_LOG_LEVEL`                           | `info`         | `debug`, `info`, `warn`, `error`, `fatal` |
 | `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300                              |
 | `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` | `128` | Positive integer up to Tokio's semaphore capacity; authenticated requests per instance |
-| `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` | `128` | Positive integer up to Tokio's semaphore capacity; concurrent Web resolutions per instance |
+| `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` | `128` | Positive integer up to Tokio's semaphore capacity; separate request-body and Web-resolution budgets per instance |
 | `LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES` | `67108864` (64 MiB) | Integer from 4194304 (4 MiB) to 4294967296 (4 GiB); span and credential bytes an instance holds for upload before dropping new records |
 
 The gateway shares `LANGFUSE_LOG_LEVEL` with Web and worker. Values are lowercase;
@@ -172,11 +172,10 @@ does not set CORS headers, so no `Access-Control-Expose-Headers` is involved.
 ### Resolution context
 
 Once Web resolution succeeds, the request also carries its tenant, and once it is
-sent upstream, the provider connection it was sent to. Requests rejected
-before resolution carry none of them. A resolved request that fails before reaching
-the provider, such as a 413 body or 503 execution capacity rejection, carries only
-the tenant. Provider failures before response headers (502/504) still name the
-connection that was tried.
+sent upstream, the provider connection it was sent to. Requests rejected before
+resolution, including invalid or oversized bodies, carry none of them. A resolved
+request rejected by execution admission carries only the tenant. Provider failures
+before response headers (502/504) still name the connection that was tried.
 
 | Response header | Server span field | JSON log key | Value |
 | --- | --- | --- | --- |
@@ -372,14 +371,15 @@ error type follows the status (`authentication_error`, `permission_error`,
 `not_found_error`, `request_too_large`, `invalid_request_error`, `overloaded_error`,
 `api_error`).
 
-The gateway authenticates through Web before reserving execution capacity or
-reading the request body. Web resolution uses a separate concurrency budget,
-released after resolution finishes; authenticated requests then reserve execution
-capacity through body reading and response completion. Either budget returns 503
-immediately when full, without a waiting queue. Both defaults of 128 are provisional
-guardrails, not measured capacity: tune them independently using load tests for the
-instance resources, request sizes and stream durations. These limits bound work;
-they do not guarantee fairness between clients or tenants.
+After validating the credential header, the gateway buffers and validates the
+request under a request-body admission budget, then releases that slot and resolves
+the credential through Web under a separate budget. A resolved request then reserves
+execution capacity through response completion. An exhausted budget returns 503
+immediately without a waiting queue. Request-body and Web-resolution budgets share
+one configurable size; execution capacity is configured independently. Their defaults
+of 128 are provisional guardrails, not measured capacity: tune them using load tests
+for the instance resources, request sizes and stream durations. These limits bound
+work; they do not guarantee fairness between clients or tenants.
 
 Other limits are 10 MiB request bodies in both namespaces, 30 seconds to read a request, 5 seconds to
 connect, 120 seconds for provider response headers or an individual upstream read,
@@ -898,6 +898,7 @@ cargo test --locked
 - `providers/mod.rs`: `ProviderTransport` with shared admission, the `Route` enum of
   official operations (method, upstream path, capture, forwarded query) and credential
   placement.
+- `providers/model_list`: provider-native OpenAI and Anthropic model catalog responses.
 - `transport/mod.rs`: per-format header policies, bounded byte relay and response lifetime.
 - `resolution/mod.rs`: trusted base URL configuration and bounded Web HTTP client.
 - `resolution/contracts.rs`: strict Web response validation and immutable execution context.
