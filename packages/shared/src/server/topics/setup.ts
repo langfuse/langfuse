@@ -6,8 +6,8 @@ import {
   type TopicRule,
 } from "../../topics";
 import {
+  checkStoredTopicsModels,
   prepareTopicsModelSettings,
-  testStoredTopicsModels,
   writeTopicsModelSettings,
 } from "./model-config";
 import { prisma } from "../../db";
@@ -102,8 +102,9 @@ export async function saveTopicRuleAndModels(
 }
 
 /**
- * Turns automatic processing of new traces on or off. Turning it on from off or
- * paused tests all three stored models first; either direction clears a pause.
+ * Turns automatic processing of new traces on or off. Turning it on requires all
+ * three stored models and re-tests them after a pause; either direction clears
+ * a pause.
  * Sampling, when given, is written to the project's Topics rule.
  */
 export async function setTopicsAutomaticProcessing(
@@ -125,8 +126,7 @@ export async function setTopicsAutomaticProcessing(
     throw new InvalidRequestError(
       "This project has more than one Topics rule.",
     );
-  // Saved models were tested on save; a pause means a connection failed since.
-  if (enabled && config.blockedAt) await testStoredTopicsModels(config);
+  if (enabled) await checkStoredTopicsModels(config);
 
   await prisma.$transaction(async (tx) => {
     await tx.topicConfig.update({

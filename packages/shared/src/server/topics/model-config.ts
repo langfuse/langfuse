@@ -359,10 +359,10 @@ function changedSlots(
 }
 
 /**
- * Tests every stored model with a real call before automatic processing is
- * turned on. A slot whose connection was deleted fails without a call.
+ * Requires all three stored models before automatic processing is turned on,
+ * and tests them with real calls after a pause.
  */
-export async function testStoredTopicsModels(
+export async function checkStoredTopicsModels(
   config: NonNullable<StoredTopicConfig>,
 ): Promise<void> {
   const slot = (llmApiKeyId: string | null, model: string | null) =>
@@ -377,6 +377,8 @@ export async function testStoredTopicsModels(
     throw new InvalidRequestError(
       "Choose a summary, embedding, and clustering model in Configure Topics before turning on automatic processing.",
     );
+  // Saved models were tested on save; a pause means a connection failed since.
+  if (!config.blockedAt) return;
   await testTopicsModels(
     settings,
     await loadTopicsModelKeys(config.projectId, settings),

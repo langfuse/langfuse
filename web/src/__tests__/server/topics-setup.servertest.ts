@@ -237,17 +237,10 @@ describe("setTopicsAutomaticProcessing", () => {
     });
   });
 
-  it("refuses to turn on while a connection is deleted", async () => {
+  it("refuses to turn on after a connection was deleted while off", async () => {
     modelsWork();
-    const { projectId, connection, setup } = await topicsProject({
-      enabled: true,
-    });
+    const { projectId, connection, setup } = await topicsProject();
     await saveTopicsSetup(projectId, setup);
-    await pauseTopicsModelsUsingConnection({
-      projectId,
-      llmApiKeyId: connection.id,
-      provider: connection.provider,
-    });
     await prisma.llmApiKeys.delete({ where: { id: connection.id } });
 
     await expect(
@@ -255,7 +248,7 @@ describe("setTopicsAutomaticProcessing", () => {
     ).rejects.toThrow("before turning on automatic processing");
     expect(await storedConfig(projectId)).toMatchObject({
       enabled: false,
-      blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+      ...clearedBlock,
     });
   });
 
