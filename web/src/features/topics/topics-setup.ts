@@ -21,6 +21,7 @@ export function topicsSetupPayload(
       .map((facet) => facet.id),
     filter: value.filters,
     sampling: value.sampling,
+    traceIdleMs: Number(value.idleSeconds) * 1000,
   });
   if (!parsed.success)
     throw new Error(

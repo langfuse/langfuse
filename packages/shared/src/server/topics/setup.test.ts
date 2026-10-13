@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   writeModels: vi.fn(),
   ensureFacets: vi.fn(),
   saveRule: vi.fn(),
+  writeReadiness: vi.fn(),
+  cacheReadiness: vi.fn(),
 }));
 
 vi.mock("./model-config", () => ({
@@ -16,6 +18,10 @@ vi.mock("./model-config", () => ({
 vi.mock("./postgres", () => ({
   ensureDefaultTopicFacets: mocks.ensureFacets,
   writeTopicRule: mocks.saveRule,
+}));
+vi.mock("../tracingReadinessSettings", () => ({
+  writeTracingReadinessSettings: mocks.writeReadiness,
+  cacheTracingReadinessSettings: mocks.cacheReadiness,
 }));
 vi.mock("../../db", () => ({
   prisma: {
@@ -49,6 +55,7 @@ const setup = {
   })),
   filter: [{ column: "name", type: "string", operator: "=", value: "billing" }],
   sampling: 0.25,
+  traceIdleMs: 120_000,
 } satisfies Parameters<typeof saveTopicsSetup>[1];
 
 describe("Topics setup", () => {
@@ -82,6 +89,15 @@ describe("Topics setup", () => {
       { enabled: true },
       { userId: "user-a", tx: "tx" },
     );
+    expect(mocks.writeReadiness).toHaveBeenCalledWith(
+      "tx",
+      projectId,
+      { traceIdleMs: 120_000 },
+      "user-a",
+    );
+    expect(mocks.cacheReadiness).toHaveBeenCalledWith(projectId, {
+      traceIdleMs: 120_000,
+    });
   });
 
   it("enables the models only after the rule is saved", async () => {
@@ -94,6 +110,7 @@ describe("Topics setup", () => {
     );
     expect(mocks.prepareModels).toHaveBeenCalledOnce();
     expect(mocks.writeModels).not.toHaveBeenCalled();
+    expect(mocks.writeReadiness).not.toHaveBeenCalled();
   });
 
   it("keeps enabled custom facets assigned to the rule", async () => {
@@ -127,6 +144,13 @@ describe("Topics setup", () => {
         facets: setup.facets.slice(1),
       }),
     ).rejects.toThrow(/each built-in facet/);
+    expect(mocks.prepareModels).not.toHaveBeenCalled();
+  });
+
+  it("rejects an idle time below 60 seconds before testing models", async () => {
+    await expect(
+      saveTopicsSetup(projectId, { ...setup, traceIdleMs: 59_000 }),
+    ).rejects.toThrow(/at least 60 seconds/);
     expect(mocks.prepareModels).not.toHaveBeenCalled();
   });
 });

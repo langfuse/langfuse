@@ -7,6 +7,10 @@ import {
 } from "./model-config";
 import { prisma } from "../../db";
 import {
+  cacheTracingReadinessSettings,
+  writeTracingReadinessSettings,
+} from "../tracingReadinessSettings";
+import {
   ensureDefaultTopicFacets,
   writeTopicRule,
   type TopicRuleInput,
@@ -53,6 +57,7 @@ export async function saveTopicsSetup(
       facetIds,
     },
     models,
+    setup.traceIdleMs,
   );
 }
 
@@ -63,13 +68,22 @@ export async function saveTopicsSetup(
 export async function saveTopicRuleAndModels(
   rule: TopicRuleInput,
   models: Parameters<typeof writeTopicsModelSettings>[1],
+  traceIdleMs: number,
 ): Promise<TopicRule> {
-  return prisma.$transaction(async (tx) => {
+  const saved = await prisma.$transaction(async (tx) => {
     const saved = await writeTopicRule(tx, rule);
     await writeTopicsModelSettings(rule.projectId, models, {
       userId: rule.userId,
       tx,
     });
+    await writeTracingReadinessSettings(
+      tx,
+      rule.projectId,
+      { traceIdleMs },
+      rule.userId,
+    );
     return saved;
   });
+  await cacheTracingReadinessSettings(rule.projectId, { traceIdleMs });
+  return saved;
 }

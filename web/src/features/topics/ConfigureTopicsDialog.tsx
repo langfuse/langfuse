@@ -363,13 +363,15 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                       aria-label="Seconds to wait after the last observation"
                       type="number"
                       inputMode="numeric"
+                      min={60}
                       value={idleSeconds}
                       onChange={(event) => setIdleSeconds(event.target.value)}
                     />
                   </div>
                   <p className="text-muted-foreground text-sm">
                     seconds to wait after the last observation before
-                    considering the trace done and summarizing it.
+                    considering the trace done and summarizing it (60–3,600
+                    seconds).
                   </p>
                 </div>
                 {sampleScope ? (

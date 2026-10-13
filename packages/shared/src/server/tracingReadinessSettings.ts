@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { prisma } from "../db";
+import type { Prisma } from "../db";
 import { logger } from "./logger";
 import { redis } from "./redis/redis";
 
@@ -77,13 +78,36 @@ export async function saveTracingReadinessSettings(
   { userId = null }: { userId?: string | null } = {},
 ): Promise<TracingReadinessSettings> {
   const data = tracingReadinessSettingsSchema.parse(settings);
-  const row = await prisma.tracingReadinessSettings.upsert({
+  const saved = await writeTracingReadinessSettings(
+    prisma,
+    projectId,
+    data,
+    userId,
+  );
+  await cacheTracingReadinessSettings(projectId, saved);
+  return saved;
+}
+
+export async function writeTracingReadinessSettings(
+  tx: Prisma.TransactionClient,
+  projectId: string,
+  settings: TracingReadinessSettings,
+  userId: string | null = null,
+): Promise<TracingReadinessSettings> {
+  const data = tracingReadinessSettingsSchema.parse(settings);
+  const row = await tx.tracingReadinessSettings.upsert({
     where: { projectId },
     create: { projectId, ...data, createdBy: userId, updatedBy: userId },
     update: { ...data, updatedBy: userId },
     select: { traceIdleMs: true },
   });
-  const saved = { traceIdleMs: row.traceIdleMs };
+  return { traceIdleMs: row.traceIdleMs };
+}
+
+export async function cacheTracingReadinessSettings(
+  projectId: string,
+  saved: TracingReadinessSettings,
+): Promise<void> {
   try {
     await redis?.set(
       cacheKey(projectId),
@@ -97,7 +121,6 @@ export async function saveTracingReadinessSettings(
       error,
     });
   }
-  return saved;
 }
 
 async function readCache(

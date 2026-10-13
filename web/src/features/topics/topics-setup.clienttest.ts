@@ -44,6 +44,7 @@ describe("topicsSetupPayload", () => {
       enabled: true,
       embeddingDimensions: 1024,
       sampling: 0.25,
+      traceIdleMs: 120_000,
       filter: draft.filters,
       facets: DEFAULT_TOPIC_FACETS.map((facet, index) => ({
         name: facet.name,
@@ -62,5 +63,11 @@ describe("topicsSetupPayload", () => {
         slots,
       ),
     ).toThrow(/at least one facet/);
+  });
+
+  it("rejects an idle time below 60 seconds", () => {
+    expect(() =>
+      topicsSetupPayload({ ...draft, idleSeconds: "59" }, slots),
+    ).toThrow();
   });
 });

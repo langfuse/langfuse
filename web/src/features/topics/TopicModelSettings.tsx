@@ -40,6 +40,9 @@ export function useTopicModelSettings({
   facetsReady: boolean;
 }) {
   const settings = api.topics.modelSettings.useQuery({ projectId });
+  const readinessSettings = api.topics.tracingReadinessSettings.useQuery({
+    projectId,
+  });
   const rules = api.topics.rules.useQuery({ projectId });
   const connections = api.llmApiKey.all.useQuery({ projectId });
   const configured = Boolean(
@@ -73,15 +76,20 @@ export function useTopicModelSettings({
     );
 
   const ready = Boolean(
-    settings.data && connections.data && rules.isSuccess && facetsReady,
+    settings.data &&
+    readinessSettings.data &&
+    connections.data &&
+    rules.isSuccess &&
+    facetsReady,
   );
   const rule = rules.data?.length === 1 ? rules.data[0] : null;
   const action = ready ? (
     <ConfigureTopicsSettings
-      key={`${settings.dataUpdatedAt}-${rules.dataUpdatedAt}`}
+      key={`${settings.dataUpdatedAt}-${rules.dataUpdatedAt}-${readinessSettings.dataUpdatedAt}`}
       projectId={projectId}
       canWrite={canWrite}
       stored={settings.data!}
+      traceIdleMs={readinessSettings.data!.traceIdleMs}
       connections={connections.data!.data}
       facets={facets}
       rule={rule}
@@ -117,6 +125,7 @@ function ConfigureTopicsSettings({
   projectId,
   canWrite,
   stored,
+  traceIdleMs,
   connections,
   facets,
   rule,
@@ -124,6 +133,7 @@ function ConfigureTopicsSettings({
   projectId: string;
   canWrite: boolean;
   stored: StoredSettings;
+  traceIdleMs: number | null;
   connections: Connection[];
   facets: TopicFacet[];
   rule: TopicRule | null;
@@ -144,6 +154,7 @@ function ConfigureTopicsSettings({
       utils.topics.modelSettings.invalidate({ projectId });
       utils.topics.facets.invalidate({ projectId });
       utils.topics.rules.invalidate({ projectId });
+      utils.topics.tracingReadinessSettings.invalidate({ projectId });
     },
   });
   const providerGroups = connections.map<[string, string[]]>((connection) => [
@@ -168,7 +179,7 @@ function ConfigureTopicsSettings({
     facets: facetDrafts(facets, rule ? new Set(rule.facetIds) : null),
     filters: [],
     sampling: rule?.sampling ?? 1,
-    idleSeconds: "600",
+    idleSeconds: String((traceIdleMs ?? 600_000) / 1000),
     embeddingLocked: false,
   };
   const paused = stored.blockMessage

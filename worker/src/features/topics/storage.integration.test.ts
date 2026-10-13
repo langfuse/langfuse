@@ -150,6 +150,7 @@ describe("Topics eval-backed configuration", () => {
           clusteringLlmApiKeyId: null,
           clusteringModel: null,
         },
+        120_000,
       ),
     ).rejects.toThrow();
 
@@ -184,6 +185,7 @@ describe("Topics eval-backed configuration", () => {
         userId: userIds[0],
       },
       models,
+      120_000,
     );
     await saveTopicRuleAndModels(
       {
@@ -194,6 +196,7 @@ describe("Topics eval-backed configuration", () => {
         userId: userIds[1],
       },
       models,
+      180_000,
     );
 
     expect(
@@ -201,6 +204,15 @@ describe("Topics eval-backed configuration", () => {
         where: { projectId: auditProjectId },
       }),
     ).toMatchObject({ createdBy: userIds[0], updatedBy: userIds[1] });
+    expect(
+      await prisma.tracingReadinessSettings.findUnique({
+        where: { projectId: auditProjectId },
+      }),
+    ).toMatchObject({
+      traceIdleMs: 180_000,
+      createdBy: userIds[0],
+      updatedBy: userIds[1],
+    });
     expect(
       await prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
     ).toMatchObject({ createdByUserId: userIds[0] });

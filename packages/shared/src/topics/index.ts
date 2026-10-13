@@ -111,6 +111,12 @@ export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
 });
 
 export const topicsSetupSchema = topicsModelSettingsSchema.extend({
+  traceIdleMs: z
+    .number()
+    .int()
+    .multipleOf(1000, "Use whole seconds for the idle time.")
+    .min(60_000, "Wait at least 60 seconds.")
+    .max(3_600_000, "Wait at most 3,600 seconds."),
   // The project's existing rule; omit only when the project has none yet.
   ruleId: topicIdSchema.optional(),
   facets: z

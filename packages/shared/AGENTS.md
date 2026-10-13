@@ -97,8 +97,9 @@
     model slots and the automatic-processing switch). Saving tests every slot
     with a real call; Anthropic works for summaries and clustering but fails the
     embedding test. The embedding model and dimensions are locked once embeddings
-    exist. `setup.ts` tests the models, saves the single Topics rule, then commits
-    the models.
+    exist. `setup.ts` tests the models, then commits the single Topics rule,
+    models, and per-project trace idle time together. Refresh the Redis readiness
+    setting only after that transaction commits.
   - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
     Returns the shared `Transcript | null`, capped at 10,000 serialized characters.
     Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results

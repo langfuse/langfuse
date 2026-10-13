@@ -32,7 +32,8 @@
   selection share `topics/server`'s bounded trace selector with worker
   backfills; preserve sampling and the frozen submission range. Models come
   from the project's LLM connections (`TopicModelSettings.tsx`,
-  `topics.modelSettings` / `saveSetup`); triggers stamp the configured
+  `topics.modelSettings` / `saveSetup`). Configure Topics loads and saves idle time
+  through the project's tracing readiness setting; triggers stamp the configured
   summary and embedding models into the frozen request.
   The source inspector returns `loadTopicTranscript`'s shared `Transcript | null`
   directly, using the same character cap as worker inference.
