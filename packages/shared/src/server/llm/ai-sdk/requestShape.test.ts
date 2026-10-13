@@ -19,6 +19,7 @@ import {
   createLLMOutput,
   generateLLMText,
   mapLegacyLLMCompletionParams,
+  streamLLMText,
 } from "../llmText";
 
 // Request-shape coverage exercises the real provider packages while replacing
@@ -82,6 +83,7 @@ function createCaptureFetch(
     calls.push(capturedRequest);
     const responseBody =
       typeof response === "function" ? response(capturedRequest) : response;
+    if (responseBody instanceof Response) return responseBody;
     return new Response(JSON.stringify(responseBody), {
       status: 200,
       headers: { "content-type": "application/json" },
@@ -265,6 +267,66 @@ describe("AI SDK request shapes", () => {
     expect(request.url).toBe("https://api.openai.com/v1/responses");
     expect(request.headers.get("authorization")).toBe("Bearer sk-test");
     expect(request.body.model).toBe("gpt-4o");
+  });
+
+  it.each([
+    ["eu.api.openai.com", "gpt-6-luna", true],
+    ["api.openai.com.", "gpt-5.6-terra", true],
+    ["eu.api.openai.com", "o3", true],
+    ["eu.api.openai.com.example.com", "gpt-6-luna", false],
+    ["eu.api.openai.com", "gpt-4o", false],
+    ["eu.api.openai.com", "gpt-5-chat-latest", false],
+  ])("OpenAI token limits: %s / %s", async (host, model, completionTokens) => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model,
+        max_tokens: 128,
+        providerOptions: { metadata: { purpose: "evaluation" } },
+      },
+      apiKey: "sk-test",
+      baseURL: `https://${host}/v1`,
+      response: OPENAI_CHAT_RESPONSE,
+    });
+    expect(request.body.max_completion_tokens).toBe(
+      completionTokens ? 128 : undefined,
+    );
+    expect(request.body.max_tokens).toBe(completionTokens ? undefined : 128);
+    expect(request.body.metadata).toEqual({ purpose: "evaluation" });
+  });
+
+  it("regional OpenAI streaming preserves an explicit completion token limit", async () => {
+    const { calls, fetch } = createCaptureFetch(
+      new Response("data: [DONE]\n\n", {
+        headers: { "content-type": "text/event-stream" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const result = await streamLLMText({
+      ...mapLegacyLLMCompletionParams({
+        messages,
+        modelParams: {
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          model: "gpt-6-luna",
+          max_tokens: 128,
+          providerOptions: { max_completion_tokens: 512 },
+        },
+        connection: {
+          secretKey: encrypt("sk-test"),
+          baseURL: "https://eu.api.openai.com/v1",
+        },
+      }),
+      timeout: 10_000,
+    });
+    await result.consumeStream();
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body).toMatchObject({
+      stream: true,
+      max_completion_tokens: 512,
+    });
+    expect(calls[0].body.max_tokens).toBeUndefined();
   });
 
   it("Langfuse AI first-party OpenAI credentials hit /v1/responses", async () => {

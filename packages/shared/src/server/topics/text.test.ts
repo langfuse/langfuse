@@ -9,11 +9,6 @@ import { generateTopicEmbeddings } from "./embeddings";
 import type { TopicsModel } from "./model-config";
 import { generateTopicText } from "./text";
 
-/** Secure transport is tested separately; this suite captures SDK requests. */
-vi.mock("../llm/secureLlmFetch", () => ({
-  createSecureLlmFetch: () => globalThis.fetch,
-}));
-
 const { publishToOtelIngestionQueue, processorConstructor } = vi.hoisted(
   () => ({
     publishToOtelIngestionQueue:
@@ -339,91 +334,6 @@ describe("generateTopicText", () => {
       cacheReadTokens: 2560,
     });
   });
-
-  it.each([
-    {
-      endpoint: "default OpenAI Chat",
-      baseURL: undefined,
-      useResponsesApi: false,
-      tokenParameter: "max_completion_tokens",
-    },
-    {
-      endpoint: "regional OpenAI Chat",
-      baseURL: "https://eu.api.openai.com/v1",
-      useResponsesApi: false,
-      tokenParameter: "max_completion_tokens",
-    },
-    {
-      endpoint: "custom compatible Chat",
-      baseURL: "https://openai-compatible.example.com/v1",
-      useResponsesApi: false,
-      tokenParameter: "max_tokens",
-    },
-    {
-      endpoint: "lookalike compatible Chat",
-      baseURL: "https://eu.api.openai.com.example.com/v1",
-      useResponsesApi: false,
-      tokenParameter: "max_tokens",
-    },
-    {
-      endpoint: "regional OpenAI Responses",
-      baseURL: "https://eu.api.openai.com/v1",
-      useResponsesApi: true,
-      tokenParameter: "max_output_tokens",
-    },
-  ])(
-    "serializes the token limit for $endpoint",
-    async ({ baseURL, useResponsesApi, tokenParameter }) => {
-      const fetch = vi.fn<typeof globalThis.fetch>(async () =>
-        Response.json(
-          {
-            error: {
-              message: "request captured",
-              type: "invalid_request_error",
-              param: null,
-              code: null,
-            },
-          },
-          { status: 400 },
-        ),
-      );
-      vi.stubGlobal("fetch", fetch);
-
-      await expect(
-        generateTopicText({
-          model: {
-            slot: "summary",
-            provider: "openai-topics",
-            adapter: LLMAdapter.OpenAI,
-            model: "gpt-6-luna",
-            connection: {
-              secretKey: encrypt("sk-test"),
-              baseURL,
-              config: { useResponsesApi },
-            },
-          },
-          system: [{ text: "Summarize." }],
-          input: "I cannot sign in.",
-          schema: z.object({ summary: z.string() }),
-          maxOutputTokens: 256,
-        }),
-      ).rejects.toMatchObject({ statusCode: 400 });
-
-      expect(fetch).toHaveBeenCalledTimes(1);
-      const request = new Request(...fetch.mock.calls[0]);
-      expect(request.url).toBe(
-        `${baseURL ?? "https://api.openai.com/v1"}/${useResponsesApi ? "responses" : "chat/completions"}`,
-      );
-      const body = (await request.json()) as Record<string, unknown>;
-      for (const key of [
-        "max_tokens",
-        "max_completion_tokens",
-        "max_output_tokens",
-      ])
-        expect(body[key]).toBe(key === tokenParameter ? 256 : undefined);
-    },
-  );
-
   it("retains SDK usage when no output is generated", async () => {
     vi.stubGlobal(
       "fetch",
