@@ -3,7 +3,10 @@ import type { PrismaClient } from "../../db";
 import { eventsTableTraceNameSelectSql } from "../../eventsTable";
 import type { topicTraceSelectionCriteriaSchema } from "../../topics";
 import { applyCommentFilters } from "../services/commentFilterService";
-import { CTEQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
+import {
+  CTEQueryBuilder,
+  EventsQueryBuilder,
+} from "../queries/clickhouse-sql/event-query-builder";
 import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
 import { queryClickhouse } from "../repositories/clickhouse";
 import {
@@ -40,15 +43,24 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
     projectId: input.projectId,
     prisma,
     objectType: "OBSERVATION",
-    filterState: input.filter.map((filter) =>
-      filter.column === "tags" ? { ...filter, column: "traceTags" } : filter,
-    ),
+    filterState: input.filter.flatMap((filter) => {
+      if (filter.column === "isRootObservation") return [];
+      if (filter.column === "tags")
+        return [{ ...filter, column: "traceTags" as const }];
+      return [filter];
+    }),
   });
   if (hasNoMatches) return [];
 
   const { queryBuilder } = buildEventsObservationRowSelection({
     projectId: input.projectId,
     filter: filterState.concat([
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
       {
         column: "startTime",
         type: "datetime",
@@ -68,18 +80,10 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
             "e.span_id AS span_id",
             "e.event_ts AS event_ts",
             `${eventsTableTraceNameSelectSql} AS trace_name`,
-            "e.environment AS environment",
           ]
         : []),
     )
     .whereRaw("e.trace_id != ''")
-    .whereRaw(
-      "NOT startsWith(e.environment, {internalEnvironmentPrefix:String}) AND e.environment != {publicLlmJudgeEnvironment:String}",
-      {
-        internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-        publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
-      },
-    )
     .buildWithParams();
   const traces = new CTEQueryBuilder()
     .withCTE("matching_observations", {
@@ -87,9 +91,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       schema: [
         "id",
         "start_time",
-        ...(preview
-          ? (["span_id", "event_ts", "trace_name", "environment"] as const)
-          : []),
+        ...(preview ? (["span_id", "event_ts", "trace_name"] as const) : []),
       ] as const,
     })
     .from("matching_observations", "m")
@@ -100,11 +102,44 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       ...(preview
         ? [
             "argMaxIf(m.trace_name, tuple(m.event_ts, m.span_id, m.trace_name), m.trace_name != '') AS name",
-            "argMax(m.environment, tuple(m.event_ts, m.span_id, m.environment)) AS environment",
           ]
         : []),
     )
     .groupBy("m.id")
+    .buildWithParams();
+  // Only candidate identities are time-filtered: processing reads every observation
+  // of each trace, including newer children outside the selected root's window.
+  const candidateEvents = new EventsQueryBuilder({ projectId: input.projectId })
+    .selectRaw(
+      "e.trace_id AS id",
+      "e.event_ts AS event_ts",
+      "e.span_id AS span_id",
+      "e.environment AS environment",
+    )
+    .forceFullTable()
+    .whereRaw("e.trace_id IN (SELECT id FROM matching_traces)")
+    .whereRaw(
+      "xxHash32(e.trace_id) IN (SELECT xxHash32(id) FROM matching_traces)",
+    )
+    .buildWithParams();
+  const environments = new CTEQueryBuilder()
+    .withCTE("candidate_events", {
+      ...candidateEvents,
+      schema: ["id", "event_ts", "span_id", "environment"],
+    })
+    .from("candidate_events", "c")
+    .select(
+      "c.id AS id",
+      "argMax(c.environment, tuple(c.event_ts, c.span_id, c.environment)) AS environment",
+    )
+    .groupBy("c.id")
+    .havingRaw(
+      "NOT startsWith(environment, {internalEnvironmentPrefix:String}) AND environment != {publicLlmJudgeEnvironment:String}",
+      {
+        internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+        publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      },
+    )
     .buildWithParams();
   const selection = new CTEQueryBuilder()
     .withCTE("matching_traces", {
@@ -113,10 +148,15 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
         "id",
         "timestamp",
         "latest_match",
-        ...(preview ? (["name", "environment"] as const) : []),
+        ...(preview ? (["name"] as const) : []),
       ] as const,
     })
+    .withCTE("eligible_environments", {
+      ...environments,
+      schema: ["id", "environment"],
+    })
     .from("matching_traces", "t")
+    .innerJoin("eligible_environments", "v", "ON v.id = t.id")
     .select(
       "t.id AS id",
       ...(mode === "ids"
@@ -125,7 +165,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
             "toUnixTimestamp64Milli(t.timestamp) AS timestampMs",
             "count() OVER () AS matchedTraceCount",
             ...(preview
-              ? ["t.name AS name", "t.environment AS environment"]
+              ? ["t.name AS name", "v.environment AS environment"]
               : ["toUnixTimestamp64Milli(t.latest_match) AS latestMs"]),
           ]),
     )

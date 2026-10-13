@@ -87,8 +87,6 @@ const nextConfig = {
   // symbolication is handled separately by uploading maps with debug IDs (see
   // `sourcemaps` in withSentryConfig below).
   productionBrowserSourceMaps: true,
-  // Allow building to alternate directory for parallel build checks while dev server runs
-  distDir: process.env.NEXT_DIST_DIR || ".next",
   typescript: {
     // CI test jobs run `pnpm run typecheck` separately and skip duplicate
     // Next.js type checks to keep test builds fast. Production/Docker builds
@@ -139,6 +137,10 @@ const nextConfig = {
   turbopack: {
     resolveAlias: {
       "@langfuse/shared": "./packages/shared/src",
+      // Turbopack 16.4 dev omits required factories from Lucide's ESM build.
+      ...(process.env.NODE_ENV === "development"
+        ? { "lucide-react": "lucide-react/dist/cjs/lucide-react.js" }
+        : {}),
     },
     rules: {
       "*.md": {
@@ -164,6 +166,11 @@ const nextConfig = {
     // imports have to stay same-origin. Empty string is a literal prefix, not
     // a fallback: it emits `/_next/...` on the page origin. Unset (undefined)
     // would inherit assetPrefix and break workers on Cloud.
+    //
+    // No worker is started from a bundler URL any more — same-origin is exactly
+    // what pins those chunks to a host that only serves the current build, so
+    // they 404 in a tab that outlives a deploy. This stays as the guard for
+    // anything that reintroduces one.
     turbopackWorkerAssetPrefix: "",
   },
 
@@ -185,6 +192,10 @@ const nextConfig = {
       "./node_modules/@scalar/api-reference/dist/browser/standalone.js",
       "./third-party-licenses/scalar-api-reference.LICENSE.txt",
     ],
+    // elkjs's prebuilt layout worker, served verbatim so the trace graph's
+    // worker URL keeps resolving across a deploy. See
+    // pages/api/workers/elk-worker.ts.
+    "/api/workers/elk-worker": ["./node_modules/elkjs/lib/elk-worker.min.js"],
   },
 
   async redirects() {

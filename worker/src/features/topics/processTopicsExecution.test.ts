@@ -73,10 +73,25 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
     await importOriginal<typeof import("@langfuse/shared/topics/server")>();
   return {
     isTopicsEnabled: () => true,
-    getTopicsModelConfig: () => ({
-      summaryModel: "gpt-4.1-nano",
-      embeddingModel: "eu.cohere.embed-v4:0",
-    }),
+    getTopicsModels: async () => {
+      const slot = (name: string, model: string) => ({
+        slot: name,
+        provider: "openai",
+        adapter: "openai",
+        model,
+        connection: { secretKey: "encrypted" },
+      });
+      return {
+        projectId: "project",
+        enabled: true,
+        summary: slot("summary", "gpt-4.1-nano"),
+        embedding: {
+          ...slot("embedding", "eu.cohere.embed-v4:0"),
+          dimensions: 256,
+        },
+        clustering: slot("clustering", "gpt-5.6-terra"),
+      };
+    },
     TOPICS_TRANSCRIPT_VERSION,
     TOPIC_EMBEDDING_EXPIRED_ERROR,
     stageTopicSummary: async (
@@ -299,14 +314,11 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   };
 });
 vi.mock("./models", () => ({
-  TOPICS_NAMING_MODEL: "us.openai.gpt-5.6-terra",
-  requireTopicsModelConfig: () => ({
-    summaryModel: "gpt-4.1-nano",
-    embeddingModel: "eu.cohere.embed-v4:0",
-  }),
-  summarizeTopicTrace: (...args: unknown[]) => state.summarize(...args),
-  embedTopicSummary: (...args: unknown[]) => state.embed(...args),
-  nameTopicGroup: (...args: unknown[]) => state.name(...args),
+  summarizeTopicTrace: (_models: unknown, ...args: unknown[]) =>
+    state.summarize(...args),
+  embedTopicSummary: (_model: unknown, ...args: unknown[]) =>
+    state.embed(...args),
+  nameTopicGroup: (_models: unknown, ...args: unknown[]) => state.name(...args),
 }));
 vi.mock("./numeric", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./numeric")>()),
@@ -588,6 +600,39 @@ describe("Topics execution", () => {
     },
   );
 
+  it("rejects internal staged summaries when assignment resumes after embedding", async () => {
+    await processSelection("source", 100);
+    await updateSelection("first-map");
+    state.deferEmbeddings = true;
+    await processSelection("resumed", 1, ["trace100"]);
+    const saved = state.batches.get("resumed")!;
+    expect(saved.summarized).toBe(true);
+    const staged = [...state.staged.values()][0];
+    staged.summary = {
+      ...staged.summary,
+      environment: "langfuse-topics",
+      state: "complete",
+      embedding: Array(256).fill(0.25),
+    };
+    saved.assignedAt = "2026-01-01T00:01:00.000Z";
+    state.summarize.mockClear();
+    state.embed.mockClear();
+    state.assignmentWrites.mockClear();
+
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "resumed",
+    });
+
+    expect(state.executions.get("resumed")).toMatchObject({
+      status: "failed",
+      error: "Topics does not process internal Langfuse traces.",
+    });
+    expect(state.summarize).not.toHaveBeenCalled();
+    expect(state.embed).not.toHaveBeenCalled();
+    expect(state.assignmentWrites).not.toHaveBeenCalled();
+  });
+
   it("records null transcripts as insufficient input without inference", async () => {
     state.loadTranscript.mockResolvedValueOnce(traceInput("trace0", null));
     await processSelection("empty-transcript", 1);
@@ -830,7 +875,12 @@ describe("Topics execution", () => {
     const original = state.summarize.getMockImplementation()!;
     state.summarize
       .mockImplementationOnce(original)
-      .mockRejectedValueOnce(topicProviderError({ statusCode: 503 }));
+      .mockRejectedValueOnce(
+        topicProviderError(
+          { statusCode: 503 },
+          { slot: "summary", provider: "openai", model: "gpt-4.1-nano" },
+        ),
+      );
     await processSelection("partial", 3);
     expect(state.batches.get("partial")?.summaries).toHaveLength(1);
     expect(state.executions.get("partial")?.status).toBe("failed");

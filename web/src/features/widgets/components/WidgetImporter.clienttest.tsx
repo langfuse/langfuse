@@ -78,6 +78,11 @@ describe("runImport", () => {
     expect(showErrorToast).toHaveBeenCalledWith(
       "Malformed input",
       expect.any(String),
+      {
+        operation: "widget.import",
+        errorOrigin: "frontend",
+        errorCategory: "user_input",
+      },
       "WARNING",
     );
   });
@@ -106,6 +111,11 @@ describe("runImport", () => {
     expect(showErrorToast).toHaveBeenCalledWith(
       "Widget filters were adjusted",
       expect.any(String),
+      {
+        operation: "widget.import",
+        errorOrigin: "frontend",
+        errorCategory: "product_state",
+      },
       "WARNING",
     );
   });

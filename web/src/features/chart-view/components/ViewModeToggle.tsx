@@ -1,6 +1,6 @@
 import React from "react";
 import { BarChart3, Table } from "lucide-react";
-import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { type ViewMode } from "../types";
 
 /**
@@ -15,34 +15,18 @@ export const ViewModeToggle = React.memo(function ViewModeToggle({
   onModeChange: (mode: ViewMode) => void;
 }) {
   return (
-    <ToggleGroup
-      type="single"
-      value={mode}
-      onValueChange={(v) => {
-        if (v) onModeChange(v as ViewMode);
-      }}
-      variant="outline"
-      // Match the h-8 height of the sibling toolbar controls (preset chips, My
-      // Views, Columns). The view-mode switch is conceptually separate from the
-      // filter presets to its left, so give it a margin bump off that cluster.
-      className="ml-1 gap-0"
-    >
-      <ToggleGroupItem
-        value="table"
-        aria-label="Table view"
-        className="h-8 gap-1.5 rounded-r-none px-2.5 text-xs"
+    // Offset from the filter-preset cluster to its left.
+    <div className="ml-1">
+      <Tabs
+        activationMode="manual"
+        value={mode}
+        onValueChange={(v) => onModeChange(v as ViewMode)}
       >
-        <Table className="icon-base" />
-        Table
-      </ToggleGroupItem>
-      <ToggleGroupItem
-        value="chart"
-        aria-label="Chart view"
-        className="h-8 gap-1.5 rounded-l-none border-l-0 px-2.5 text-xs"
-      >
-        <BarChart3 className="icon-base" />
-        Chart
-      </ToggleGroupItem>
-    </ToggleGroup>
+        <Tabs.List variant="inset" size="md" aria-label="View mode">
+          <Tabs.Trigger value="table" icon={Table} label="Table" />
+          <Tabs.Trigger value="chart" icon={BarChart3} label="Chart" />
+        </Tabs.List>
+      </Tabs>
+    </div>
   );
 });

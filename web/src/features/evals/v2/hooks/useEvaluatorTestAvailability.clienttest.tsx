@@ -9,6 +9,16 @@ vi.mock("@/src/features/evals/v2/hooks/useEvaluatorSetupSample", () => ({
   useEvaluatorSetupSample: () => ({ id: "sample" }),
 }));
 
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    llmApiKey: {
+      all: {
+        useQuery: () => ({ data: undefined }),
+      },
+    },
+  },
+}));
+
 describe("useEvaluatorTestAvailability", () => {
   const store = createEvaluatorSetupStore({
     initialEvaluator: null,

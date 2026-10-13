@@ -24,7 +24,11 @@ import {
   type ModelParams,
   type TraceSinkParams,
 } from "../types";
-import { generateLLMText, mapLegacyLLMCompletionParams } from "../llmText";
+import {
+  createLLMOutput,
+  generateLLMText,
+  mapLegacyLLMCompletionParams,
+} from "../llmText";
 
 const publishToOtelIngestionQueue = vi.fn().mockResolvedValue(undefined);
 
@@ -195,23 +199,13 @@ describe("AI SDK telemetry integration", () => {
       rs.scopeSpans.flatMap((ss: any) => ss.spans),
     );
 
-    // Exactly two spans: the internal root and one generation per model call
-    // (the minimal telemetry integration emits no operation/step spans).
-    expect(spans).toHaveLength(2);
-    for (const span of spans) {
-      expect(span.traceId.toLowerCase()).toBe(VALID_TRACE_ID);
-    }
+    // The evaluator trace is the root span, with the model call written on it.
+    expect(spans).toHaveLength(1);
+    expect(spans[0].traceId.toLowerCase()).toBe(VALID_TRACE_ID);
+    expect(spans[0].parentSpanId ?? "").toBe("");
+    expect(spans[0].name).toBe("Execute evaluator: helpfulness");
 
-    const rootSpans = spans.filter((span: any) => !span.parentSpanId);
-    expect(rootSpans).toHaveLength(1);
-    expect(rootSpans[0].name).toBe("Execute evaluator: helpfulness");
-
-    const generationSpan = spans.find((span: any) => span.parentSpanId);
-    expect(generationSpan.name).toBe("chat gpt-4o");
-    expect(generationSpan.parentSpanId).toBe(rootSpans[0].spanId);
-    // OTLP SpanKind 3 = CLIENT. The detached trace owns the actual GenAI
-    // client span; worker eval.* spans remain INTERNAL orchestration spans.
-    expect(generationSpan.kind).toBe(3);
+    const generationSpan = spans[0];
     expect(
       Object.fromEntries(
         generationSpan.attributes.map((attribute: any) => [
@@ -285,7 +279,7 @@ describe("AI SDK telemetry integration", () => {
     const generation = costedObservations[0];
     expect(generation.type).toBe("generation-create");
     expect(generation.body).toMatchObject({
-      name: "chat gpt-4o",
+      name: "Execute evaluator: helpfulness",
       model: "gpt-4o",
       usageDetails: { input: 3, output: 5 },
       environment: "langfuse-llm-judge",
@@ -310,7 +304,7 @@ describe("AI SDK telemetry integration", () => {
     });
 
     const eventInputs = processor.processToEvent(resourceSpans);
-    expect(eventInputs).toHaveLength(2);
+    expect(eventInputs).toHaveLength(1);
     for (const eventInput of eventInputs) {
       expect(eventInput).toMatchObject({
         evaluationContext: {
@@ -462,7 +456,7 @@ describe("AI SDK telemetry integration", () => {
     const spans = resourceSpans.flatMap((resourceSpan: any) =>
       resourceSpan.scopeSpans.flatMap((scopeSpan: any) => scopeSpan.spans),
     );
-    const generationSpan = spans.find((span: any) => span.parentSpanId);
+    const generationSpan = spans.find((span: any) => !span.parentSpanId);
     const attributes = Object.fromEntries(
       generationSpan.attributes.map((attribute: any) => [
         attribute.key,
@@ -472,6 +466,46 @@ describe("AI SDK telemetry integration", () => {
 
     expect(generationSpan.status).toMatchObject({ code: 2 });
     expect(attributes).toMatchObject({ "error.type": "AI_APICallError" });
+    expect(
+      (generationSpan.events ?? []).filter(
+        (event: { name?: string }) => event.name === "exception",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("keeps the model response when structured output parsing fails", async () => {
+    await expect(
+      generateLLMText({
+        ...mapLegacyLLMCompletionParams({
+          messages,
+          modelParams,
+          connection: { secretKey: encrypt("sk-test") },
+        }),
+        output: createLLMOutput({
+          type: "object",
+          properties: { score: { type: "string" } },
+          required: ["score"],
+        }),
+        timeout: 10_000,
+        trace: traceSinkParams,
+      }),
+    ).rejects.toThrow();
+
+    const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
+    const { OtelIngestionProcessor } = await vi.importActual<
+      typeof import("../../otel/OtelIngestionProcessor")
+    >("../../otel/OtelIngestionProcessor");
+    const eventInputs = new OtelIngestionProcessor({
+      projectId: "project-1",
+      publicKey: "",
+      sdkName: "langfuse-internal-ai-sdk",
+      sdkVersion: "unknown",
+      isLangfuseInternal: true,
+    }).processToEvent(resourceSpans);
+    const rootEvent = eventInputs.find((input: any) => !input.parentSpanId);
+
+    expect(rootEvent).toMatchObject({ level: "ERROR" });
+    expect(String(rootEvent.output)).toContain("Hello there");
   });
 
   it("records unsupported media URL errors without downloading or calling the model", async () => {
@@ -552,8 +586,6 @@ describe("AI SDK telemetry integration", () => {
     expect(rootSpan.status).toMatchObject({ code: 2, message: errorMessage });
     expect(attributes).toMatchObject({ "error.type": "LLMValidationError" });
 
-    // Convert the failed root span through the production ingestion mapper to
-    // prove the evaluator execution trace exposes the validation error.
     const { OtelIngestionProcessor } = await vi.importActual<
       typeof import("../../otel/OtelIngestionProcessor")
     >("../../otel/OtelIngestionProcessor");
@@ -571,5 +603,77 @@ describe("AI SDK telemetry integration", () => {
       statusMessage: errorMessage,
       environment: "langfuse-llm-judge",
     });
+  });
+
+  it("keeps a retried evaluator call on the root span", async () => {
+    let calls = 0;
+    vi.mocked(createOpenAI).mockReturnValue({
+      chat: () =>
+        new MockLanguageModelV4({
+          provider: "openai",
+          modelId: "gpt-4o",
+          doGenerate: async () => {
+            calls += 1;
+            if (calls === 1) {
+              throw new APICallError({
+                message: "Rate limit exceeded",
+                url: "https://api.openai.com/v1/chat/completions",
+                requestBodyValues: {},
+                statusCode: 429,
+                isRetryable: true,
+              });
+            }
+            return {
+              content: [{ type: "text", text: "Hello there" }],
+              finishReason: { unified: "stop", raw: "stop" },
+              usage: {
+                inputTokens: {
+                  total: 4,
+                  noCache: 4,
+                  cacheRead: undefined,
+                  cacheWrite: undefined,
+                },
+                outputTokens: { total: 6, text: 6, reasoning: undefined },
+              },
+              warnings: [],
+            };
+          },
+        }),
+    } as never);
+
+    const result = await generateLLMText({
+      ...mapLegacyLLMCompletionParams({
+        messages,
+        modelParams,
+        connection: { secretKey: encrypt("sk-test") },
+      }),
+      maxRetries: 1,
+      timeout: 10_000,
+      trace: traceSinkParams,
+    });
+
+    expect(result.text).toBe("Hello there");
+    expect(calls).toBe(2);
+    expect(publishToOtelIngestionQueue).toHaveBeenCalledTimes(1);
+
+    const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
+    const spans = resourceSpans.flatMap((resourceSpan: any) =>
+      resourceSpan.scopeSpans.flatMap((scopeSpan: any) => scopeSpan.spans),
+    );
+    expect(spans).toHaveLength(1);
+
+    const attributes = Object.fromEntries(
+      spans[0].attributes.map((attribute: any) => [
+        attribute.key,
+        attribute.value.stringValue ??
+          attribute.value.intValue ??
+          attribute.value,
+      ]),
+    );
+    expect(
+      JSON.parse(attributes["langfuse.observation.metadata"]),
+    ).toMatchObject({ job_execution_id: "job-1" });
+    expect(attributes["gen_ai.usage.input_tokens"]).toBe(4);
+    expect(attributes["gen_ai.usage.output_tokens"]).toBe(6);
   });
 });

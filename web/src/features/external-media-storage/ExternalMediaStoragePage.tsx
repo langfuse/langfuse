@@ -17,6 +17,7 @@ import { type ExternalMediaStorageFormValues } from "@/src/features/external-med
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 const EXTERNAL_MEDIA_STORAGE_FORM_ID = "external-media-storage-form";
 
@@ -54,24 +55,34 @@ export default function ExternalMediaStoragePage() {
     onSuccess: async () => {
       await utils.externalMediaStorage.get.invalidate({ projectId });
       showSuccessToast({
+        operation: "external_media_storage.save",
         title: "External media storage saved",
         description: "The integration configuration has been saved.",
       });
     },
     onError: (error) => {
-      showErrorToast("Failed to save external media storage", error.message);
+      showErrorToast(
+        "Failed to save external media storage",
+        error.message,
+        classifyTrpcToastError(error, "external_media_storage.save"),
+      );
     },
   });
   const deleteMutation = api.externalMediaStorage.delete.useMutation({
     onSuccess: async () => {
       await utils.externalMediaStorage.get.invalidate({ projectId });
       showSuccessToast({
+        operation: "external_media_storage.delete",
         title: "External media storage deleted",
         description: "The integration configuration has been deleted.",
       });
     },
     onError: (error) => {
-      showErrorToast("Failed to delete external media storage", error.message);
+      showErrorToast(
+        "Failed to delete external media storage",
+        error.message,
+        classifyTrpcToastError(error, "external_media_storage.delete"),
+      );
     },
   });
   const testMutation = api.externalMediaStorage.testObject.useMutation();
@@ -97,11 +108,13 @@ export default function ExternalMediaStoragePage() {
             <TestMediaObjectDialog
               isPending={testMutation.isPending}
               onTest={async (uri) => {
+                let failureOrigin: "trpc" | "network" = "trpc";
                 try {
                   const result = await testMutation.mutateAsync({
                     projectId,
                     uri,
                   });
+                  failureOrigin = "network";
                   await testSignedMediaUrlCors(result.signedUrl);
                   return result.signedUrl;
                 } catch (error) {
@@ -110,6 +123,16 @@ export default function ExternalMediaStoragePage() {
                     error instanceof Error
                       ? error.message
                       : "The media object could not be loaded.",
+                    failureOrigin === "trpc"
+                      ? classifyTrpcToastError(
+                          error,
+                          "external_media_storage.test",
+                        )
+                      : {
+                          operation: "external_media_storage.test",
+                          errorOrigin: "network",
+                          errorCategory: "transient",
+                        },
                   );
                   return null;
                 }

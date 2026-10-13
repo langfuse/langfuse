@@ -1,9 +1,10 @@
+import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 /**
  * TraceDetailViewHeader - Extracted header component for TraceDetailView
  *
  * Contains:
- * - Title row with ItemBadge, trace name, options menu
+ * - Title row with EntityTitle, trace name, options menu
  * - Action buttons (Add to, Annotate, Comment)
  * - Metadata badges (timestamp, environment, release, version, target trace)
  * - Trace-level score chips
@@ -11,6 +12,7 @@ import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAn
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
+import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
 import { memo, useRef } from "react";
 import { useReadPath } from "@/src/features/events";
 import {
@@ -19,7 +21,11 @@ import {
   LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { ItemBadge } from "@/src/components/ItemBadge";
+import { EntityTitle } from "@/src/components/EntityTitle";
+import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailViewHeaderShell";
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { cn } from "@/src/utils/tailwind";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
@@ -40,16 +46,15 @@ import {
   LockIcon,
   MessageSquare,
   MessageSquareOff,
-  MoreHorizontal,
   PlusIcon,
   SquarePen,
 } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { cn } from "@/src/utils/tailwind";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 export interface TraceDetailViewHeaderProps {
+  isLoading?: false;
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     latency?: number;
     input: string | null;
@@ -65,7 +70,53 @@ export interface TraceDetailViewHeaderProps {
   };
 }
 
-export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
+const titleRowClassName =
+  "grid w-full grid-cols-1 items-center gap-2 @md:grid-cols-[minmax(0,1fr)_auto]";
+const titleClassName = "flex w-full min-w-0 flex-row items-center gap-2";
+const actionsClassName =
+  "flex flex-wrap content-start items-center justify-start gap-1 @md:justify-end";
+
+const LOADING_BADGE_WIDTHS = ["w-36", "w-24", "w-32", "w-32"];
+
+export const TraceDetailViewHeader = memo(function TraceDetailViewHeader(
+  props: TraceDetailViewHeaderProps | { isLoading: true },
+) {
+  if (props.isLoading === true) return <TraceDetailViewHeaderLoading />;
+  return <LoadedTraceDetailViewHeader {...props} />;
+});
+
+function TraceDetailViewHeaderLoading() {
+  const isMobile = useIsMobile();
+  return (
+    <DetailViewHeaderShell>
+      <div className={titleRowClassName}>
+        <div className={cn(titleClassName, "min-h-7")}>
+          <Skeleton className="size-6 rounded-sm" />
+          <Skeleton className="h-4 w-48" />
+          {isMobile && <Skeleton className="ml-auto size-8 rounded-md" />}
+        </div>
+        {!isMobile && (
+          <div className={actionsClassName}>
+            <Skeleton className="h-6 w-20 rounded-md" />
+            <Skeleton className="h-6 w-24 rounded-md" />
+            <Skeleton className="h-6 w-24 rounded-md" />
+          </div>
+        )}
+      </div>
+      <div className="flex flex-col gap-2">
+        <CollapsibleBadgeRow>
+          {LOADING_BADGE_WIDTHS.map((width, index) => (
+            <BadgeShell key={index} color="ghost">
+              <Skeleton className={cn("h-3", width)} />
+            </BadgeShell>
+          ))}
+        </CollapsibleBadgeRow>
+      </div>
+    </DetailViewHeaderShell>
+  );
+}
+
+function LoadedTraceDetailViewHeader({
   trace,
   parsedMetadata,
   projectId,
@@ -92,21 +143,21 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
     accuracy: "millisecond",
   });
 
+  const timestampBadge = preparedDate && (
+    <Badge
+      font="mono"
+      color="ghost"
+      text={preparedDate.display}
+      title={preparedDate.title}
+    />
+  );
+
   return (
-    <div className="@container shrink-0 space-y-2 border-b p-2">
+    <DetailViewHeaderShell>
       {/* Title row with actions */}
-      <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
-        <div className="flex w-full min-w-0 flex-row items-center gap-1">
-          <ItemBadge type="TRACE" isSmall />
-          <span
-            className={cn(
-              "min-w-0 truncate text-lg leading-7 font-bold",
-              isMobile && "flex-1",
-            )}
-            title={trace.name || trace.id}
-          >
-            {trace.name || trace.id}
-          </span>
+      <div className={titleRowClassName}>
+        <div className={titleClassName}>
+          <EntityTitle as="span" type="TRACE" title={trace.name || trace.id} />
           {!isMobile && (
             <ConnectedDetailHeaderActionsMenuController
               idItems={[{ id: trace.id, name: "Trace ID" }]}
@@ -117,16 +168,13 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               }}
             >
               {({ getTriggerProps }) => (
-                <Button
-                  aria-label="Options"
-                  className="mt-0.5 shrink-0"
-                  size="icon-xs"
-                  title="Options"
-                  variant="ghost"
+                <HeaderActionButton
+                  label="Options"
+                  icon={
+                    <EllipsisVertical className="icon-base text-icon-foreground" />
+                  }
                   {...getTriggerProps()}
-                >
-                  <EllipsisVertical className="icon-sm text-icon-foreground" />
-                </Button>
+                />
               )}
             </ConnectedDetailHeaderActionsMenuController>
           )}
@@ -230,7 +278,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                                 ref: mobileActionsTriggerRef,
                               })}
                             >
-                              <MoreHorizontal className="icon-base text-icon-foreground" />
+                              <EllipsisVertical className="icon-base text-icon-foreground" />
                             </Button>
                           )}
                         </DropdownMenu>
@@ -244,7 +292,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         </div>
         {/* Action buttons (desktop inline cluster) */}
         {!isMobile && (
-          <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
+          <div className={actionsClassName}>
             <ConnectedTraceObservationAddToDropdownMenuController
               analyticsData={{ source: "TraceDetail", isV4 }}
               projectId={projectId}
@@ -256,12 +304,12 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             >
               {({ getTriggerProps }) => (
                 <Button
-                  variant="secondary"
+                  variant="ghost"
                   size="sm"
-                  className="gap-1"
+                  className={headerActionClassName}
                   {...getTriggerProps()}
                 >
-                  <PlusIcon className="icon-base" />
+                  <PlusIcon className="icon-base text-icon-foreground" />
                   <span>Add to</span>
                   <DropdownIndicator size="sm" nudge />
                 </Button>
@@ -272,8 +320,9 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               <AnnotateDrawerController projectId={projectId}>
                 {({ disabled, openDrawer }) => (
                   <Button
-                    variant="secondary"
+                    variant="ghost"
                     size="sm"
+                    className={headerActionClassName}
                     disabled={disabled}
                     onClick={() =>
                       openDrawer(
@@ -288,9 +337,9 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                     }
                   >
                     {disabled ? (
-                      <LockIcon className="icon-base mr-1.5" />
+                      <LockIcon className="icon-base text-icon-foreground" />
                     ) : (
-                      <SquarePen className="icon-base mr-1.5" />
+                      <SquarePen className="icon-base text-icon-foreground" />
                     )}
                     <span>Annotate</span>
                   </Button>
@@ -299,17 +348,17 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             )}
             <Button
               type="button"
-              variant="secondary"
+              variant="ghost"
               size="sm"
               disabled={commentDrawerControl.disabled}
               onClick={commentDrawerControl.openDrawer}
-              className="gap-1"
+              className={headerActionClassName}
             >
               {commentDrawerControl.disabled ? (
                 <MessageSquareOff className="icon-base text-muted-foreground" />
               ) : (
                 <>
-                  <MessageSquare className="icon-base" />
+                  <MessageSquare className="icon-base text-icon-foreground" />
                   <span>{commentActionLabel}</span>
                   {!!commentCount ? (
                     <ActionButtonCountBadge count={commentCount} />
@@ -323,16 +372,11 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
 
       {/* Metadata badges */}
       <div className="flex flex-col gap-2">
-        {/* Timestamp */}
-        {preparedDate ? (
-          <div className="flex flex-wrap items-center gap-1 text-sm">
-            <span title={preparedDate.title}>{preparedDate.display}</span>
-          </div>
-        ) : null}
-
-        {/* Other badges */}
+        {/* Timestamp alone in annotation mode; otherwise first in the badge row */}
+        {isAnnotationMode && timestampBadge}
         {!isAnnotationMode && (
           <CollapsibleBadgeRow>
+            {timestampBadge}
             {targetTraceId && (
               <TargetTraceBadge
                 targetTraceId={targetTraceId}
@@ -347,6 +391,6 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
           </CollapsibleBadgeRow>
         )}
       </div>
-    </div>
+    </DetailViewHeaderShell>
   );
-});
+}

@@ -140,12 +140,14 @@ function TextWithTrailingAction<TData extends RowData, TValue>({
     <TextWithAction
       value={value}
       action={
-        <IconButton
-          icon={action.icon}
-          label={action.label}
-          size="xs"
-          onClick={() => action.onClick(context)}
-        />
+        <span className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
+          <IconButton
+            icon={action.icon}
+            label={action.label}
+            size="xs"
+            onClick={() => action.onClick(context)}
+          />
+        </span>
       }
     />
   );

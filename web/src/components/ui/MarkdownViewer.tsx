@@ -18,6 +18,7 @@ import ReactMarkdown, {
 } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";
 import { useTheme } from "next-themes";
 import { ImageOff, Info } from "lucide-react";
 import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
@@ -242,17 +243,24 @@ function MarkdownCode({
   const theme = forcedTheme ?? resolvedTheme;
   const languageMatch = /language-(\w+)/.exec(className || "");
   const language = languageMatch ? languageMatch[1] : "";
+  const codeLanguage = normalizeCodeblockLanguage(language);
   const codeContent = String(children).replace(/\n$/, "");
   const isMultiLine = codeContent.includes("\n");
 
   return language || isMultiLine ? (
     <CodeBlock
-      language={language}
+      language={
+        codeLanguage === "text"
+          ? { value: codeLanguage, label: language }
+          : codeLanguage
+      }
       value={codeContent}
       theme={theme === "dark" ? "dark" : "light"}
     />
   ) : (
-    <code className="bg-secondary rounded border px-0.5">{codeContent}</code>
+    <code className="bg-secondary rounded border px-0.5 [:is(p,li,td,th)>&]:text-xs">
+      {codeContent}
+    </code>
   );
 }
 
@@ -343,7 +351,7 @@ const markdownComponents: NonNullable<Options["components"]> = {
     return <li className="mt-1">{transformListItemChildren(children)}</li>;
   },
   pre({ children }) {
-    return <pre className="rounded p-2">{children}</pre>;
+    return <pre className="py-2">{children}</pre>;
   },
   h1({ children }) {
     return <h1 className="text-2xl font-bold">{children}</h1>;

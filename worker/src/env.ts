@@ -44,6 +44,16 @@ const EnvSchema = z.object({
     .optional()
     .transform((date) => (date ? new Date(date) : null)),
 
+  // CHB REST credentials, mirroring web/src/env.mjs. The worker needs them for
+  // one read: the spend-alert job asks for the open period's accrued usage.
+  CLICKHOUSE_BILLING_BASE_URL: z.url().optional(),
+  CLICKHOUSE_BILLING_AUTH0_DOMAIN: z.string().optional(),
+  CLICKHOUSE_BILLING_AUTH0_CLIENT_ID: z.string().optional(),
+  CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET: z.string().optional(),
+  // CHB's resource-server identifier. Defaulted because it is the same value
+  // in every CHB tenant, and overridable in case that stops being true.
+  CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
+
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -106,6 +116,22 @@ const EnvSchema = z.object({
   LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    )
+    .refine((ids) => !ids.includes("*") || ids.length === 1, {
+      message:
+        'Use "*" alone to select all projects, or a comma-separated list of project IDs',
+    }),
   LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -134,6 +160,16 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(2),
+  LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(40_000),
+  LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(100 * 1024 * 1024),
   LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
     .number()
     .int()
@@ -176,6 +212,14 @@ const EnvSchema = z.object({
     .enum(["project", "locality"])
     .default("project"),
   LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce.number().int().positive(),
+  LANGFUSE_TRACE_BATCH_SHARD_COUNT: z.coerce.number().int().min(1).max(256),
+  LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(2 * 24 * 60 * 60 * 1_000)
+    .default(24 * 60 * 60 * 1_000),
+  // Recovery grace after readiness; whole-key expiry includes the idle interval.
   LANGFUSE_TRACE_BATCH_PENDING_TTL_MS: z.coerce
     .number()
     .int()
@@ -330,9 +374,6 @@ const EnvSchema = z.object({
   LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
     .enum(["true", "false"])
     .optional(),
-  // Internal Topics PoC model selection; not a supported self-hosting setting.
-  LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
-  LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),
@@ -775,8 +816,20 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+  /** Interval at which one worker per queue set polls queue depth and DLQ age */
   LANGFUSE_QUEUE_METRICS_INTERVAL_MS: z.coerce.number().min(100).default(1000),
   LANGFUSE_QUEUE_METRICS_ENABLED: z.enum(["true", "false"]).default("true"),
+  // Upper bound for a random delay before the worker registers its queues and
+  // starts its periodic runners. Spreads the Redis connection setup of tasks
+  // that boot together (e.g. an autoscaling step) over time. 0 disables it.
+  // Keep it below the container health check grace period: the HTTP server
+  // only starts listening after the delay.
+  LANGFUSE_WORKER_STARTUP_JITTER_MAX_MS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(120_000)
+    .default(0),
 });
 
 type ParsedEnv = z.infer<typeof EnvSchema>;
@@ -844,6 +897,10 @@ const parseEnv = (): ParsedEnv => {
   if (source.LANGFUSE_TRACE_BATCH_IDLE_MS === undefined) {
     source.LANGFUSE_TRACE_BATCH_IDLE_MS =
       source.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "120000" : "600000";
+  }
+  if (source.LANGFUSE_TRACE_BATCH_SHARD_COUNT === undefined) {
+    source.LANGFUSE_TRACE_BATCH_SHARD_COUNT =
+      source.REDIS_CLUSTER_ENABLED === "true" ? "16" : "1";
   }
   const parsed = EnvSchema.parse(source);
   validateV4Flags(parsed);

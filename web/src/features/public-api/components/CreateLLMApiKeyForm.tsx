@@ -12,7 +12,6 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
-  isDecisionModelAdapter,
   resolveTypeSafeUpstream,
   type TypeSafeUpstream,
 } from "@langfuse/shared";
@@ -58,6 +57,15 @@ const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
  * provider can be added through one of the existing adapters.
  */
 const OTHER_MODEL_OPTION = "other-model";
+
+/**
+ * Picker labels that differ from the stored adapter value. Naming the
+ * `systemone` API tells users that third-party providers serving it can use
+ * the TypeSafe adapter with a custom base URL.
+ */
+const ADAPTER_PICKER_LABELS: Partial<Record<LLMAdapter, string>> = {
+  [LLMAdapter.TypeSafe]: "TypeSafe (System One)",
+};
 
 const isCustomModelsRequired = (adapter: LLMAdapter) =>
   adapter === LLMAdapter.Azure || adapter === LLMAdapter.Bedrock;
@@ -760,9 +768,7 @@ export function CreateLLMApiKeyForm({
                   <SelectContent>
                     {adapterOptions.map((provider) => (
                       <SelectItem value={provider} key={provider}>
-                        {isDecisionModelAdapter(provider)
-                          ? `${provider} (experimental)`
-                          : provider}
+                        {ADAPTER_PICKER_LABELS[provider] ?? provider}
                       </SelectItem>
                     ))}
                     {mode === "create" && (
@@ -912,15 +918,18 @@ export function CreateLLMApiKeyForm({
                                 field.onChange(value as BedrockAuthMethod)
                               }
                             >
-                              <Tabs.List layout="full" gap="sm" size="auto">
+                              <Tabs.List
+                                variant="inset"
+                                layout="full"
+                                gap="sm"
+                                size="md"
+                              >
                                 <Tabs.Trigger
                                   value={AuthMethod.AccessKeys}
-                                  size="sm"
                                   label="AWS access keys"
                                 />
                                 <Tabs.Trigger
                                   value={AuthMethod.ApiKey}
-                                  size="sm"
                                   label="API key"
                                 />
                               </Tabs.List>

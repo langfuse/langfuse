@@ -12,11 +12,58 @@ audit date.
 
 ## Latest useful snapshot
 
-**Audit date:** 2026-09-30
+**Audit date:** 2026-10-13
 
 All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: divide by 1,000,000.
 
-The 2026-09-30 run re-fetched the full Anthropic pricing page (model table,
+The 2026-10-13 run re-fetched the full Anthropic pricing page (model table, cache-hits
+footnote, Fast mode, Batch, and tool-use tables) and the Anthropic model-deprecations
+page, targeted rows of the OpenAI aggregate Standard pricing table (the full gpt-6/gpt-5.6
+family plus every gpt-5.x/gpt-4.x/o-series/legacy model and `gpt-5-chat-latest`'s own
+dedicated page), the OpenAI deprecations page and model catalog, the Gemini 3.x and 2.5
+pricing pages plus the Gemini models catalog and deprecations page, the AWS Bedrock
+pricing page, and the TypeSafe Jev models page. This run found and corrected one stale
+price: **Claude Sonnet 5.5's cache-read price dropped from $0.20/MTok (the standard 0.1x
+multiplier) to $0.10/MTok (0.05x)**. The Anthropic pricing page's cache-hits footnote now
+reads "Cache hits and refreshes on Claude Opus 5.5 and Claude Sonnet 5.5 are priced at
+0.05x the base input price" (previously only Opus 5.5 had a non-standard multiplier; Sonnet
+5.5 was previously 0.1x like every other non-Fable-5.1/Mythos-5.1/Opus-5.5 model). The AWS
+Bedrock pricing page independently corroborates this with a footnote: "Starting October 7,
+2026, cache read pricing for Claude Sonnet 5.5 is reduced by 50% from the prior rate" —
+Bedrock could not be queried for the exact numeric row (see the standing Bedrock
+table-extraction limitation below), but the 50% reduction off $0.20 matches the new $0.10
+Anthropic-page rate exactly, so the correction was applied with high confidence from the
+direct Anthropic source alone. Updated `claude-sonnet-5-5`'s `cache_read_input_tokens` /
+`input_cached_tokens` / `input_cache_read` from `2e-7` to `0.1e-6` in the pricing file; every
+other field (input, output, cache-write 5m/1h) is unchanged. Every other price already in
+the file — including every `gpt-6-astra`/`gpt-6-sol`/`gpt-6.1-sol`/`gpt-6-luna`,
+`gpt-5.6-sol`/`terra`/`luna`, the full `gpt-5.x`/`gpt-4.x`/o-series/legacy OpenAI catalog,
+`gpt-5-chat-latest`, `claude-opus-5-5`, `claude-haiku-5-5`, and `gemini-3.6/3.8-flash`/
+`3.5-flash-lite` tier — matched verbatim; no other updates were needed. The OpenAI
+deprecations page confirms no new deprecation was announced between October 9 and October
+13, 2026, and the "Legacy GPT model snapshots" batch (`gpt-3.5-turbo-0125`, `gpt-4-0613`,
+`gpt-4-1106-preview`, `gpt-4-turbo`/`gpt-4-turbo-2024-04-09`, `gpt-4.1-nano`,
+`gpt-4o-2024-05-13`, `o1`/`o1-2024-12-17`, `o1-pro`/`o1-pro-2025-03-19`,
+`o3-mini`/`o3-mini-2025-01-31`, `o4-mini`/`o4-mini-2025-04-16`) still shuts down October 23,
+2026 — still in the future as of this run, so no `openAIModels` removal yet; re-check on or
+after that date per the 2026-10-09/2026-10-12 entries below. The Anthropic deprecations page
+confirms `claude-sonnet-4-5-20250929` is still only `Deprecated` (retirement November 30,
+2026, not yet passed) and `claude-haiku-4-5-20251001`'s tentative retirement
+("Not sooner than October 15, 2026") has not been formally announced with a firm date —
+both left unchanged in `anthropicModels`. The Gemini deprecations page confirms
+`gemini-2.5-pro`/`gemini-2.5-flash`/`gemini-2.5-flash-lite` still have "No shutdown date
+announced" (access-restriction only, not a deprecation), and `gemini-2.0-flash-thinking-exp-01-21`/
+`gemini-1.5-pro`/`gemini-1.5-flash`/`gemini-1.5-flash-8b` are still absent from both the
+Gemini models catalog and the deprecations page (neither confirmed available nor shut
+down) — standing ambiguous gap, left unchanged in `googleAIStudioModels`. One new fetch
+limitation found this run: targeted single-model WebFetch queries against
+`ai.google.dev/gemini-api/docs/pricing` for `gemini-3.7-flash` and `gemini-3.5-flash`
+(the non-Lite, non-3.6/3.8 siblings) each returned "model not found on this page" even
+though the models catalog page lists both as active (not shut down) — see the new
+"Gemini 3.x pricing-page single-model fetch gap" entry in
+`provider-sources-and-price-keys.md`. Treated as a fetch/extraction artifact, not evidence
+of removal; both prices left unchanged and not marked independently re-confirmed this run.
+The 2026-09-30 run before it re-fetched the full Anthropic pricing page (model table,
 cache-hits footnote, Fast mode and Batch tables), the Anthropic models-overview
 comparison table, the OpenAI aggregate Standard/Long-Context/Fast-mode/Flex
 pricing tables, the full OpenAI model catalog, both Gemini pricing pages (3.x
@@ -106,7 +153,7 @@ to have siblings `gpt-5.5-cyber`/`gpt-5.4-cyber`, see provider-sources-and-price
 | Anthropic | claude-opus-4-1-20250805 | Input $15/MTok, Output $75/MTok, 5m $18.75/MTok, 1h $30/MTok, read $1.50/MTok | Yes | Deprecated — no tiering | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing https://platform.claude.com/docs/en/about-claude/model-deprecations | Still "retired, except on Bedrock and Google Cloud"; deprecations page now shows a firm retirement date of August 5, 2026 (previously open-ended). |
 | Anthropic | claude-opus-4-20250514 | Input $15/MTok, Output $75/MTok, 5m $18.75/MTok, 1h $30/MTok, read $1.50/MTok | Yes | Retired except Google Cloud — no tiering | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing https://platform.claude.com/docs/en/about-claude/model-deprecations | Re-confirmed present; deprecations page shows firm retirement date June 15, 2026. |
 | Anthropic | claude-sonnet-5 | Input $2/MTok, Output $10/MTok; 5m $2.50/MTok, 1h $4/MTok, read $0.20/MTok | Yes | Flat 1M context; permanent pricing (no Sep 1 2026 increase) | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged; the $2/$10 permanent-pricing note is still on the page verbatim. Now "legacy (still available)" behind Sonnet 5.5. |
-| Anthropic | claude-sonnet-5-5 | Input $2/MTok, Output $10/MTok; 5m $2.50/MTok, 1h $4/MTok, read $0.20/MTok (standard 0.1x multiplier) | Yes | Flat 1M context; no Fast mode (only Opus 5.5/5/4.8 have it) | Yes | Added | https://platform.claude.com/docs/en/about-claude/pricing https://platform.claude.com/docs/en/models/overview https://platform.claude.com/docs/en/models/sonnet-5-5/overview | New model, released 2026-09-28, now the current Sonnet-tier flagship (Sonnet 5 demoted to legacy). Pricing numerically identical to claude-sonnet-5. matchPattern mirrors claude-sonnet-5 with a `-5` suffix, verified not to collide with it via the match-pattern tester. |
+| Anthropic | claude-sonnet-5-5 | Input $2/MTok, Output $10/MTok; 5m $2.50/MTok, 1h $4/MTok, read $0.10/MTok (0.05x, corrected 2026-10-13; was $0.20/MTok standard 0.1x at launch) | Yes | Flat 1M context; no Fast mode (only Opus 5.5/5/4.8 have it) | Yes | Updated | https://platform.claude.com/docs/en/about-claude/pricing https://platform.claude.com/docs/en/models/overview https://platform.claude.com/docs/en/models/sonnet-5-5/overview | Released 2026-09-28, the current Sonnet-tier flagship (Sonnet 5 demoted to legacy). Input/output/cache-write pricing numerically identical to claude-sonnet-5; cache-read price was corrected 2026-10-13 from the standard 0.1x multiplier to a non-standard 0.05x multiplier per the pricing page's cache-hits footnote, which now lists Sonnet 5.5 alongside Opus 5.5 (both 0.05x) separately from the 0.025x Fable 5.1/Mythos 5.1 rate. AWS Bedrock's pricing page independently corroborates a "Starting October 7, 2026" 50%-off cache-read change for this model. matchPattern mirrors claude-sonnet-5 with a `-5` suffix, verified not to collide with it via the match-pattern tester. |
 | Anthropic | claude-sonnet-4-6 | Input $3/MTok, Output $15/MTok, 5m $3.75/MTok, 1h $6/MTok, read $0.30/MTok | Yes | Flat 1M context | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged. |
 | Anthropic | claude-sonnet-4-5-20250929 | Input $3/MTok, Output $15/MTok, 5m $3.75/MTok, 1h $6/MTok, read $0.30/MTok | Yes | No large-context tier (200k hard cap) | Yes | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed unchanged. |
 | Anthropic | claude-sonnet-4-20250514 | Input $3/MTok, Output $15/MTok, 5m $3.75/MTok, 1h $6/MTok, read $0.30/MTok | Yes | Retired except Bedrock/Google Cloud — no tiering | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing | Re-confirmed present on current page's main table, unchanged. |

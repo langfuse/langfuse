@@ -17,6 +17,7 @@ export {
   setUserFeaturePreviewWithAuthorization,
 } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 export {
+  getContextualFeatureFlags,
   getFeaturePreviewOptOutFlag,
   hasInternalAccess,
 } from "@/src/features/feature-flags/utils";

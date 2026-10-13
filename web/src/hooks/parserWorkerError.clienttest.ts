@@ -32,9 +32,32 @@ describe("reportParserWorkerError", () => {
       lineno: 1,
       colno: 42,
       error: undefined,
+      preventDefault: vi.fn(),
       ...overrides,
     } as ErrorEvent;
   }
+
+  it("cancels the event so the browser does not report it again on window", () => {
+    // A dedicated worker's uncaught error fires at the Worker object and, if it
+    // is not canceled there, is reported a second time on the owning document —
+    // where Sentry's global handler captures it unhandled, without any of the
+    // context above. That echo was ~half of this error family's volume.
+    const event = makeErrorEvent();
+    reportParserWorkerError("useParsedTrace", event);
+
+    expect(event.preventDefault).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps caller context alongside the hook name", () => {
+    reportParserWorkerError("jsonParserWorker", makeErrorEvent(), {
+      waiting: ["useParsedTrace"],
+    });
+
+    const [, opts] = mockCaptureException.mock.calls[0]!;
+    expect(opts).toMatchObject({
+      extra: { workerHook: "jsonParserWorker", waiting: ["useParsedTrace"] },
+    });
+  });
 
   it("captures a synthesized, legible Error with structured context when event.error is absent", () => {
     const event = makeErrorEvent();

@@ -128,6 +128,24 @@ describe("withMiddlewares error handling", () => {
       // Should trace 5xx errors
       expect(traceException).toHaveBeenCalledWith(error);
     });
+    it("should set Retry-After when a ServiceUnavailableError carries one", async () => {
+      const handler = withMiddlewares({
+        POST: async () => {
+          throw new ServiceUnavailableError("Throttled", {
+            retryAfterSeconds: 2,
+          });
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "POST",
+      });
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(503);
+      expect(res.getHeader("Retry-After")).toBe("2");
+    });
   });
 
   describe("LangfuseNotFoundError handling", () => {

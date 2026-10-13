@@ -4,13 +4,10 @@ const state = vi.hoisted(() => ({
   call: vi.fn(),
   embed: vi.fn(),
   increment: vi.fn(),
-  region: vi.fn(),
   project: vi.fn(),
   traceSink: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server", () => ({
-  getLangfuseAIAwsProfile: () => "ai-test",
-  getLangfuseAIBedrockRegion: () => state.region(),
   getLangfuseAITraceSinkParams: state.traceSink,
   LangfuseInternalTraceEnvironment: { Topics: "langfuse-topics" },
   logger: { warn: vi.fn() },
@@ -20,10 +17,6 @@ vi.mock("@langfuse/shared/src/db", () => ({
   prisma: { project: { findFirst: state.project } },
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
-  getTopicsModelConfig: () => ({
-    summaryModel: "us.openai.gpt-5.6-luna",
-    embeddingModel: "eu.cohere.embed-v4:0",
-  }),
   generateTopicText: (...args: unknown[]) => state.call(...args),
   generateTopicEmbedding: (...args: unknown[]) => state.embed(...args),
 }));
@@ -32,8 +25,34 @@ import {
   embedTopicSummary,
   nameTopicGroup,
   summarizeTopicTrace,
+  summarizeTopicTraceFacets,
 } from "./models";
 import { topicProcessingConfigSchema } from "@langfuse/shared/topics";
+import { LLMAdapter } from "@langfuse/shared";
+import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
+
+function slot(slot: TopicsModel["slot"], model: string): TopicsModel {
+  return {
+    slot,
+    provider: "bedrock",
+    adapter: LLMAdapter.Bedrock,
+    model,
+    connection: { secretKey: "encrypted", config: { region: "eu-west-1" } },
+  };
+}
+
+function topicsModels(summaryModel = "us.openai.gpt-5.6-luna"): TopicsModels {
+  return {
+    projectId: "project",
+    enabled: true,
+    summary: slot("summary", summaryModel),
+    embedding: {
+      ...slot("embedding", "eu.cohere.embed-v4:0"),
+      dimensions: 256,
+    },
+    clustering: slot("clustering", "us.openai.gpt-5.6-terra"),
+  };
+}
 
 const facet = {
   projectId: "project",
@@ -55,9 +74,8 @@ beforeEach(() => {
   state.call.mockReset();
   state.embed.mockReset();
   state.increment.mockReset();
-  state.region.mockReset().mockReturnValue("eu-west-1");
   state.project.mockReset().mockResolvedValue({
-    organization: { aiTelemetryEnabled: true },
+    organization: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
   });
   state.traceSink.mockReset().mockImplementation((params) => ({
     targetProjectId: "ai-features",
@@ -74,74 +92,75 @@ beforeEach(() => {
 });
 
 describe("Topics naming boundary", () => {
-  it("summarizes a trace for its facet without requiring citations", async () => {
-    state.call.mockResolvedValue({
-      output: { summary: "A billing request.", status: "applicable" },
-      usage: { inputTokens: 100, outputTokens: 30 },
-    });
-    const result = await summarizeTopicTrace(
-      facet,
-      "RAW_TRANSCRIPT_SENTINEL",
-      topicProcessingConfigSchema.parse({
-        summaryModel: "us.openai.gpt-5.6-luna",
-      }),
-      { source_trace_id: "source-trace" },
-    );
-    expect(result.output).toEqual({
-      summary: "A billing request.",
-      status: "applicable",
-    });
-    expect(result.providedUsageDetails).toEqual({
-      summary_input: 100,
-      summary_output: 30,
-    });
-    expect(result.usageDetails).toEqual({
-      summary_input: 100,
-      summary_output: 30,
-      total: 130,
-    });
-    expect(result.providedCostDetails).toEqual({});
-    expect(result.costDetails.summary_input).toBeCloseTo(0.00002, 10);
-    expect(result.costDetails.summary_output).toBeCloseTo(0.000036, 10);
-    expect(result.costDetails.total).toBeCloseTo(0.000056, 10);
-    const request = state.call.mock.calls[0][0];
-    expect(request).toMatchObject({
-      model: "us.openai.gpt-5.6-luna",
-      region: "eu-west-1",
-      profile: "ai-test",
-      trace: {
+  it.each([
+    ["us.openai.gpt-5.6-luna", 0.00002, 0.000036],
+    ["us.openai.gpt-6-luna", 0.000011, 0.0000165],
+    ["global.openai.gpt-6-luna", 0.00001, 0.000015],
+  ])(
+    "summarizes a trace and prices %s usage",
+    async (model, inputCost, outputCost) => {
+      state.call.mockResolvedValue({
+        output: { summary: "A billing request.", status: "applicable" },
+        usage: { inputTokens: 100, outputTokens: 30 },
+      });
+      const result = await summarizeTopicTrace(
+        topicsModels(model),
+        facet,
+        "RAW_TRANSCRIPT_SENTINEL",
+        topicProcessingConfigSchema.parse({
+          summaryModel: model,
+        }),
+      );
+      expect(result.output).toEqual({
+        summary: "A billing request.",
+        status: "applicable",
+      });
+      expect(result.providedUsageDetails).toEqual({
+        summary_input: 100,
+        summary_output: 30,
+      });
+      expect(result.usageDetails).toEqual({
+        summary_input: 100,
+        summary_output: 30,
+        total: 130,
+      });
+      expect(result.providedCostDetails).toEqual({});
+      expect(result.costDetails.summary_input).toBeCloseTo(inputCost, 10);
+      expect(result.costDetails.summary_output).toBeCloseTo(outputCost, 10);
+      expect(result.costDetails.total).toBeCloseTo(inputCost + outputCost, 10);
+      const request = state.call.mock.calls[0][0];
+      expect(request.model).toMatchObject({ slot: "summary", model });
+      expect(request.trace).toMatchObject({
         targetProjectId: "ai-features",
         traceName: "topics-summary",
         environment: "langfuse-topics",
         aiFeatureOtelIngestion: false,
         metadata: {
-          langfuse_ai_feature: "topics",
           langfuse_project_id: "project",
           facet_id: "facet",
           facet_version: 1,
-          source_trace_id: "source-trace",
         },
-      },
-    });
-    expect(state.project).toHaveBeenCalledWith({
-      where: { id: "project", deletedAt: null },
-      select: { organization: { select: { aiTelemetryEnabled: true } } },
-    });
-    expect(request.messages[0].content).toContain(facet.prompt);
-    expect(request.messages[1].content).toBe("RAW_TRANSCRIPT_SENTINEL");
-  });
+      });
+      expect(request.system).toEqual([
+        { text: expect.stringContaining(facet.prompt), cache: true },
+      ]);
+      expect(request.input).toBe(
+        "<transcript>\nRAW_TRANSCRIPT_SENTINEL\n</transcript>\n\nWrite the summary now, in the facet's format.",
+      );
+    },
+  );
 
-  it("rejects missing Bedrock configuration before calling the provider", async () => {
-    state.region.mockReturnValue(undefined);
+  it("rejects a request frozen on another summary model before calling the provider", async () => {
     await expect(
       summarizeTopicTrace(
+        topicsModels("us.openai.gpt-6-luna"),
         facet,
         "Trace evidence.",
         topicProcessingConfigSchema.parse({
           summaryModel: "us.openai.gpt-5.6-luna",
         }),
       ),
-    ).rejects.toMatchObject({ reason: "authentication" });
+    ).rejects.toMatchObject({ reason: "configuration" });
     expect(state.call).not.toHaveBeenCalled();
   });
 
@@ -154,6 +173,7 @@ describe("Topics naming boundary", () => {
       summaryModel: "us.openai.gpt-5.6-luna",
     });
     const result = await summarizeTopicTrace(
+      topicsModels(),
       facet,
       "A request for an invoice.",
       config,
@@ -176,6 +196,7 @@ describe("Topics naming boundary", () => {
   it("rejects an oversized shared transcript before calling the provider", async () => {
     await expect(
       summarizeTopicTrace(
+        topicsModels(),
         facet,
         "Trace evidence. ".repeat(1000),
         topicProcessingConfigSchema.parse({
@@ -186,6 +207,130 @@ describe("Topics naming boundary", () => {
     ).rejects.toThrow(
       /are \d+ tokens, above this run's 256-token input limit\. No model call was made; the transcript is never shortened per facet\./,
     );
+    expect(state.call).not.toHaveBeenCalled();
+  });
+
+  it("prices cache reads and writes at their cache rates", async () => {
+    state.call.mockResolvedValue({
+      output: { summary: "A billing request.", status: "applicable" },
+      usage: {
+        inputTokens: 4000,
+        outputTokens: 300,
+        totalTokens: 4300,
+        cacheReadTokens: 2840,
+        cacheWriteTokens: 100,
+      },
+    });
+    const result = await summarizeTopicTrace(
+      topicsModels("us.openai.gpt-6-luna"),
+      facet,
+      "RAW_TRANSCRIPT_SENTINEL",
+      topicProcessingConfigSchema.parse({
+        summaryModel: "us.openai.gpt-6-luna",
+      }),
+    );
+    expect(result.usageDetails).toMatchObject({
+      summary_input: 4000,
+      summary_input_cache_read: 2840,
+    });
+    expect(result.usageDetails.summary_input_cache_write).toBe(100);
+    // 1,060 uncached at $0.11, 2,840 cache reads at $0.011 and 100 cache writes at $0.1375 per million.
+    expect(result.costDetails.summary_input).toBeCloseTo(
+      (1060 * 0.11 + 2840 * 0.011 + 100 * 0.1375) / 1_000_000,
+      12,
+    );
+  });
+
+  it("summarizes all facets of a trace in one request and checks its size first", async () => {
+    state.call.mockResolvedValue({
+      output: {
+        intent_1: {
+          notes: "n",
+          summary: "Export sales.",
+          status: "applicable",
+        },
+        issues_2: { notes: "n", summary: "", status: "not_applicable" },
+      },
+      usage: { inputTokens: 100, outputTokens: 30 },
+    });
+    const config = topicProcessingConfigSchema.parse({
+      summaryModel: "us.openai.gpt-5.6-luna",
+    });
+    const issues = {
+      ...facet,
+      facetId: "issues",
+      prompt: "Describe the main problem.",
+    };
+    const facets = [
+      { key: "intent_1", facet, builtIn: true },
+      { key: "issues_2", facet: issues, builtIn: false },
+    ];
+    await summarizeTopicTraceFacets(
+      topicsModels(),
+      facets,
+      "RAW_TRANSCRIPT_SENTINEL",
+      config,
+    );
+    expect(state.call).toHaveBeenCalledOnce();
+    const request = state.call.mock.calls[0][0];
+    // Built-in facets end the first cached prefix, custom facets the second; the transcript is uncached.
+    expect(request.system).toEqual([
+      {
+        text: expect.stringContaining(
+          `<facet key="intent_1">\n${facet.prompt}\n</facet>`,
+        ),
+        cache: true,
+      },
+      {
+        text: `<facet key="issues_2">\n${issues.prompt}\n</facet>`,
+        cache: true,
+      },
+    ]);
+    expect(request.system[0].text).not.toContain("issues_2");
+    expect(request.input).toContain("RAW_TRANSCRIPT_SENTINEL");
+    expect(request.maxOutputTokens).toBe(config.maxOutputTokens * 2);
+    expect(request.trace).toMatchObject({
+      traceName: "topics-summary",
+      environment: "langfuse-topics",
+      metadata: {
+        langfuse_project_id: "project",
+        facets: [
+          { key: "intent_1", facet_id: "facet", facet_version: 1 },
+          { key: "issues_2", facet_id: "issues", facet_version: 1 },
+        ],
+      },
+    });
+    expect(state.project).toHaveBeenCalledWith({
+      where: { id: "project", deletedAt: null },
+      select: {
+        organization: {
+          select: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
+        },
+      },
+    });
+    // Every facet key is required in the structured output.
+    expect(
+      request.schema.safeParse({
+        intent_1: {
+          notes: "n",
+          summary: "Export sales.",
+          status: "applicable",
+        },
+      }).success,
+    ).toBe(false);
+
+    state.call.mockClear();
+    await expect(
+      summarizeTopicTraceFacets(
+        topicsModels(),
+        facets,
+        "Trace evidence. ".repeat(1000),
+        topicProcessingConfigSchema.parse({
+          maxInputTokens: 256,
+          summaryModel: "us.openai.gpt-5.6-luna",
+        }),
+      ),
+    ).rejects.toThrow(/above this run's 256-token input limit/);
     expect(state.call).not.toHaveBeenCalled();
   });
 
@@ -202,24 +347,26 @@ describe("Topics naming boundary", () => {
       },
       usage: { inputTokens: 16000, outputTokens: 30 },
     });
-    const result = await nameTopicGroup({ members, contrasts: [] }, facet, {
-      execution_id: "execution",
+    const result = await nameTopicGroup(topicsModels(), {
+      members,
+      contrasts: [],
     });
     expect(result.output).toMatchObject({
       name: "Invoice assistance",
       evidenceSummaryIds: [members[399].id],
     });
     expect(state.call).toHaveBeenCalledOnce();
-    expect(state.call.mock.calls[0][0].model).toBe("us.openai.gpt-5.6-terra");
     expect(state.call.mock.calls[0][0].trace).toMatchObject({
       traceName: "topics-naming",
       environment: "langfuse-topics",
-      metadata: { execution_id: "execution", facet_id: "facet" },
+      metadata: { langfuse_project_id: "project" },
+    });
+    expect(state.call.mock.calls[0][0].model).toMatchObject({
+      slot: "clustering",
+      model: "us.openai.gpt-5.6-terra",
     });
     expect(result.costDetails.total).toBeCloseTo(0.03236, 10);
-    const submitted = JSON.parse(
-      state.call.mock.calls[0][0].messages[1].content,
-    );
+    const submitted = JSON.parse(state.call.mock.calls[0][0].input);
     expect(submitted.members).toEqual(members);
   });
 
@@ -234,7 +381,7 @@ describe("Topics naming boundary", () => {
         },
         usage: { inputTokens: 100, outputTokens: 30 },
       });
-      await expect(nameTopicGroup(evidence, facet)).rejects.toThrow();
+      await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
       // Provider work is billable even when local output validation rejects it.
       expect(state.increment.mock.calls).toEqual([
         [
@@ -251,35 +398,63 @@ describe("Topics naming boundary", () => {
     },
   );
 
-  it("runs both text calls without tracing when organization analytics is disabled", async () => {
-    state.project.mockResolvedValue({
-      organization: { aiTelemetryEnabled: false },
-    });
-    state.call
-      .mockResolvedValueOnce({
-        output: { summary: "A billing request.", status: "applicable" },
-        usage: {},
-      })
-      .mockResolvedValueOnce({
+  it.each([
+    { aiFeaturesEnabled: true, aiTelemetryEnabled: false },
+    { aiFeaturesEnabled: false, aiTelemetryEnabled: true },
+    null,
+    new Error("database unavailable"),
+  ])(
+    "keeps inference untraced without organization consent: %j",
+    async (organization) => {
+      if (organization instanceof Error)
+        state.project.mockRejectedValue(organization);
+      else
+        state.project.mockResolvedValue(organization ? { organization } : null);
+      state.call
+        .mockResolvedValueOnce({
+          output: { summary: "A billing request.", status: "applicable" },
+          usage: {},
+        })
+        .mockResolvedValueOnce({
+          output: {
+            name: "Billing",
+            description: "Billing requests.",
+            evidenceSummaryIds: ["member-a"],
+          },
+          usage: {},
+        });
+      await summarizeTopicTrace(
+        topicsModels(),
+        facet,
+        "A billing request.",
+        topicProcessingConfigSchema.parse({
+          summaryModel: "us.openai.gpt-5.6-luna",
+        }),
+      );
+      await nameTopicGroup(topicsModels(), evidence);
+      state.call.mockResolvedValueOnce({
         output: {
-          name: "Billing",
-          description: "Billing requests.",
-          evidenceSummaryIds: ["member-a"],
+          intent: {
+            notes: "Invoice request.",
+            summary: "Request invoice.",
+            status: "applicable",
+          },
         },
         usage: {},
       });
-    await summarizeTopicTrace(
-      facet,
-      "A billing request.",
-      topicProcessingConfigSchema.parse({
-        summaryModel: "us.openai.gpt-5.6-luna",
-      }),
-    );
-    await nameTopicGroup(evidence, facet);
-    expect(state.call).toHaveBeenCalledTimes(2);
-    for (const [request] of state.call.mock.calls)
-      expect(request.trace).toBeUndefined();
-  });
+      await summarizeTopicTraceFacets(
+        topicsModels(),
+        [{ key: "intent", facet, builtIn: true }],
+        "Request invoice.",
+        topicProcessingConfigSchema.parse({
+          summaryModel: "us.openai.gpt-5.6-luna",
+        }),
+      );
+      expect(state.call).toHaveBeenCalledTimes(3);
+      for (const [request] of state.call.mock.calls)
+        expect(request.trace).toBeUndefined();
+    },
+  );
 
   it("skips the consent lookup when tracing is unconfigured", async () => {
     state.traceSink.mockReturnValue(undefined);
@@ -288,6 +463,7 @@ describe("Topics naming boundary", () => {
       usage: {},
     });
     await summarizeTopicTrace(
+      topicsModels(),
       facet,
       "A billing request.",
       topicProcessingConfigSchema.parse({
@@ -301,7 +477,7 @@ describe("Topics naming boundary", () => {
   it("records embedding input usage even when the returned vector is invalid", async () => {
     state.embed.mockResolvedValue({ embedding: [], tokens: 12 });
     await expect(
-      embedTopicSummary("An invoice request.", 256, "eu.cohere.embed-v4:0"),
+      embedTopicSummary(topicsModels().embedding, "An invoice request.", 256),
     ).rejects.toMatchObject({
       reason: "invalid_output",
     });
@@ -322,9 +498,9 @@ describe("Topics naming boundary", () => {
         tokens,
       });
       await embedTopicSummary(
+        topicsModels().embedding,
         "An invoice request.",
         256,
-        "eu.cohere.embed-v4:0",
       );
       expect(state.increment.mock.calls).toEqual([
         [

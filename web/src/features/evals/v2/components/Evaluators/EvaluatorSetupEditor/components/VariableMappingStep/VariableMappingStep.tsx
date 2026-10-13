@@ -11,7 +11,7 @@ const COPY = {
   state: {
     title: "Build the state",
     description:
-      "Choose which observation fields the decision model sees, as one JSON object. Questions refer to these fields by name; the live preview shows the exact object sent.",
+      "Choose which observation fields the decision model sees, as one JSON object. The live preview shows the exact object sent.",
   },
 } as const;
 

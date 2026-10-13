@@ -1,6 +1,6 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
-import { type LanguageModel } from "ai";
+import { type EmbeddingModel, type LanguageModel } from "ai";
 
 import { env } from "../../../../env";
 import {
@@ -118,12 +118,19 @@ export function createDefaultBedrockProviderAuth(params?: {
   };
 }
 
-/**
- * Resolves the persisted Bedrock credential contract: the decrypted secret is
- * either the default-credentials sentinel (allowed only self-hosted or for
- * Langfuse-internal AI features), AWS access key JSON, or a Bedrock API key
- * used as a bearer token.
- */
+/** Cloud uses the existing project allowlist for runtime credentials. */
+export function canUseBedrockDefaultCredentials(projectId?: string): boolean {
+  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return true;
+  const allowedProjects =
+    env.LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS;
+  return Boolean(
+    projectId &&
+    Array.isArray(allowedProjects) &&
+    allowedProjects.includes(projectId),
+  );
+}
+
+/** Resolves a default-credential sentinel, AWS access key JSON, or Bedrock API key. */
 export function resolveBedrockProviderAuth(params: {
   secretKey: string;
   allowDefaultCredentials: boolean;
@@ -173,13 +180,13 @@ export function resolveBedrockProviderAuth(params: {
  * Bedrock through VPC endpoints resolving to private IPs, which the secure
  * LLM fetch would block. Requests therefore use the provider's AWS transport.
  */
-export function buildBedrockModel(params: {
-  modelId: string;
+function createBedrockProvider(params: {
+  projectId?: string;
   apiKey: string;
   config?: LLMConnectionConfig | null;
   credentialSource: LLMCredentialSource;
-}): LanguageModel {
-  const { modelId, apiKey, config, credentialSource } = params;
+}) {
+  const { apiKey, config, credentialSource } = params;
   const shouldUseLangfuseAPIKey = credentialSource === "langfuse";
 
   const { region } = shouldUseLangfuseAPIKey
@@ -187,17 +194,36 @@ export function buildBedrockModel(params: {
     : BedrockConfigSchema.parse(config);
   assertValidBedrockRegion(region);
 
-  const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const auth = resolveBedrockProviderAuth({
     secretKey: apiKey,
-    allowDefaultCredentials: isSelfHosted || shouldUseLangfuseAPIKey,
+    allowDefaultCredentials:
+      shouldUseLangfuseAPIKey ||
+      canUseBedrockDefaultCredentials(params.projectId),
     profile: shouldUseLangfuseAPIKey ? getLangfuseAIAwsProfile() : undefined,
   });
 
-  const provider = createAmazonBedrock({
+  return createAmazonBedrock({
     region,
     ...auth,
   });
+}
 
-  return provider(modelId);
+export function buildBedrockModel(params: {
+  projectId?: string;
+  modelId: string;
+  apiKey: string;
+  config?: LLMConnectionConfig | null;
+  credentialSource: LLMCredentialSource;
+}): LanguageModel {
+  return createBedrockProvider(params)(params.modelId);
+}
+
+export function buildBedrockEmbeddingModel(params: {
+  projectId?: string;
+  modelId: string;
+  apiKey: string;
+  config?: LLMConnectionConfig | null;
+  credentialSource: LLMCredentialSource;
+}): EmbeddingModel {
+  return createBedrockProvider(params).embeddingModel(params.modelId);
 }

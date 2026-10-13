@@ -1,6 +1,7 @@
 import { prisma, Prisma } from "../../db";
 import {
-  topicRuleConfigSchema,
+  DEFAULT_TOPIC_FACETS,
+  topicRuleSettingsSchema,
   topicTimeRangeSchema,
   sameTopicGeometry,
   type TopicFacet,
@@ -53,7 +54,8 @@ export async function listTopicFacets(
   const rows = await prisma.evaluator.findMany({
     where: { projectId, type: "FACET" },
     include: { versions: { orderBy: { version: "desc" } } },
-    orderBy: { createdAt: "asc" },
+    // A stable order keeps the Topics summary prompt (and its cache) identical across traces.
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
   return rows.map(topicFacet);
 }
@@ -126,26 +128,7 @@ export async function createTopicFacetVersion(
 export async function ensureDefaultTopicFacets(
   projectId: string,
 ): Promise<TopicFacet[]> {
-  const presets = [
-    {
-      name: "Intent",
-      description: "The task requested for this run.",
-      prompt:
-        "Describe only what this run was asked to accomplish: the requested action or answer, its subject, and constraints that materially change the task. Phrase it as a goal, not a completed action. Exclude the response, tool execution, failures, and eventual result, even when they dominate the recording. Earlier context may clarify the current request but should not introduce unrelated tasks. For automated runs, use the task evident in the input rather than inventing a human requester. Whenever a requested task or question is identifiable, return applicable and describe that goal, even when execution failed or outputs are missing. If the request cannot be established, use insufficient_input. Example: a request to export monthly sales followed by a permission error has applicable intent: Export monthly sales. The permission error does not belong in the intent summary.",
-    },
-    {
-      name: "Outcome",
-      description: "The result actually visible at the end of the run.",
-      prompt:
-        "Describe what this run actually delivered or where it stopped, using the final response and execution results. For an explanation or analysis task, the delivered explanation is the outcome; the situation being explained is not an event in this run. Distinguish a proposed action, an assistant's completion claim, and a confirming result. A returned draft is an observable deliverable; it does not prove a downstream action occurred. Mention remaining work only when the recording establishes it. Preserve the concrete result rather than reducing it to a success or failure label. A delivered response, a confirmed action, or an evidenced blockage is applicable, including failed or partial results. If outputs are missing and no result can be established, use insufficient_input with an empty summary. Examples: a returned explanation of a database error is an applicable delivered explanation; a failed export with a suggested workaround is an applicable blocked export. An input request without any recorded response or execution result is insufficient_input.",
-    },
-    {
-      name: "Issues",
-      description: "Observed problems, their consequences, and recovery.",
-      prompt:
-        "Determine whether a problem occurred in the execution or response of this run. If the run has adequate evidence and no problem, return not_applicable with an empty summary; do not summarize its success. An error quoted in input for explanation is not an error of this run. Missing logs, an appropriate refusal, and routine clarification alone are not defects. If the recording is too incomplete to judge, return insufficient_input with an empty summary. An observed tool error or response defect is applicable even if the agent recovered. Describe the principal observed problem, the operation it affected, and its consequence. Include recovery when shown. Treat complaints as reports, not proof of an underlying cause. Keep related symptoms together; prioritize the most consequential problem when independent problems compete. Examples: an export tool returning permission denied is applicable; accurately explaining a permission error pasted by the user is not_applicable; a recording containing only the initial request is insufficient_input.",
-    },
-  ];
+  const presets = DEFAULT_TOPIC_FACETS;
   const facets = await listTopicFacets(projectId);
   if (
     presets.every((preset) =>
@@ -184,7 +167,10 @@ const topicRule = (row: RuleRow): TopicRule => ({
   id: row.id,
   projectId: row.projectId,
   name: row.name,
-  ...topicRuleConfigSchema.parse(row),
+  ...topicRuleSettingsSchema.parse({
+    filter: row.filter,
+    sampling: Number(row.sampling),
+  }),
   facetIds: row.assignments.map((assignment) => assignment.evaluatorId),
   updatedAt: row.updatedAt.toISOString(),
 });
@@ -221,63 +207,99 @@ export async function getTopicRule(
   return row ? topicRule(row) : null;
 }
 
-export async function saveTopicRule(
-  input: Omit<TopicRule, "id" | "updatedAt"> & { id?: string },
+/**
+ * A project has at most one Topics rule: its trace filter, sampling, and idle
+ * time apply to every facet it runs, because trace readiness keeps one idle
+ * time per trace. Postgres has no constraint for this, so writers hold this
+ * per-project lock while they look up the rule; otherwise two first saves
+ * could each find none and create a rule.
+ */
+async function lockProjectTopicRule(
+  tx: Prisma.TransactionClient,
+  projectId: string,
+) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`topics-rule:${projectId}`}, 0))`;
+}
+
+export type TopicRuleInput = Omit<
+  TopicRule,
+  "id" | "name" | "updatedAt" | "sampling"
+> &
+  Partial<Pick<TopicRule, "name" | "sampling">> & {
+    id?: string;
+    /** The user saving the rule; recorded when it is created. */
+    userId?: string | null;
+  };
+
+export async function saveTopicRule(input: TopicRuleInput): Promise<TopicRule> {
+  return prisma.$transaction((tx) => writeTopicRule(tx, input));
+}
+
+/** Writes the project's rule inside the caller's transaction, under its lock. */
+export async function writeTopicRule(
+  tx: Prisma.TransactionClient,
+  input: TopicRuleInput,
 ): Promise<TopicRule> {
   const facetIds = [...new Set(input.facetIds)];
-  return prisma.$transaction(async (tx) => {
-    const facetCount = await tx.evaluator.count({
-      where: {
-        projectId: input.projectId,
-        type: "FACET",
-        id: { in: facetIds },
-      },
-    });
-    if (!facetIds.length || facetCount !== facetIds.length)
-      throw new InvalidRequestError("Select facets from this project.");
-    if (
-      input.id &&
-      !(await tx.evaluationRule.findFirst({
-        where: { ...topicRuleWhere(input.projectId), id: input.id },
-      }))
-    )
-      throw new InvalidRequestError("Topic rule not found in this project.");
-    const config = topicRuleConfigSchema.parse(input);
-    const data = {
-      name: input.name.trim(),
-      filter: JSON.parse(
-        JSON.stringify(config.filter),
-      ) as Prisma.InputJsonValue,
-      sampling: 1,
-      delay: 0,
-      idleTime: null,
-      targetObject: EvalTargetObject.TRACE,
-      timeScope: ["NEW"],
-      status: "ACTIVE" as const,
-    };
-    const assignments = facetIds.map((evaluatorId) => ({
+  await lockProjectTopicRule(tx, input.projectId);
+  const facetCount = await tx.evaluator.count({
+    where: {
       projectId: input.projectId,
-      evaluatorId,
-    }));
-    const row = input.id
-      ? await tx.evaluationRule.update({
-          where: { ...topicRuleWhere(input.projectId), id: input.id },
-          data: {
-            ...data,
-            assignments: { deleteMany: {}, create: assignments },
-          },
-          include: { assignments: true },
-        })
-      : await tx.evaluationRule.create({
-          data: {
-            ...data,
-            projectId: input.projectId,
-            assignments: { create: assignments },
-          },
-          include: { assignments: true },
-        });
-    return topicRule(row);
+      type: "FACET",
+      id: { in: facetIds },
+    },
   });
+  if (!facetIds.length || facetCount !== facetIds.length)
+    throw new InvalidRequestError("Select facets from this project.");
+  const rules = await tx.evaluationRule.findMany({
+    where: topicRuleWhere(input.projectId),
+    select: { id: true, name: true },
+  });
+  if (rules.length > 1)
+    throw new InvalidRequestError(
+      "This project has more than one Topics rule.",
+    );
+  const ruleId = rules[0]?.id;
+  const name = input.name?.trim() || rules[0]?.name || "Topics";
+  if (ruleId && !input.id)
+    throw new InvalidRequestError(
+      "This project already has a Topics rule. Reload and save that rule instead.",
+    );
+  if (input.id && input.id !== ruleId)
+    throw new InvalidRequestError("Topic rule not found in this project.");
+  const config = topicRuleSettingsSchema.parse(input);
+  const data = {
+    name,
+    filter: JSON.parse(JSON.stringify(config.filter)) as Prisma.InputJsonValue,
+    sampling: config.sampling,
+    delay: 0,
+    targetObject: EvalTargetObject.TRACE,
+    timeScope: ["NEW"],
+    status: "ACTIVE" as const,
+  };
+  const assignments = facetIds.map((evaluatorId) => ({
+    projectId: input.projectId,
+    evaluatorId,
+  }));
+  const row = ruleId
+    ? await tx.evaluationRule.update({
+        where: { ...topicRuleWhere(input.projectId), id: ruleId },
+        data: {
+          ...data,
+          assignments: { deleteMany: {}, create: assignments },
+        },
+        include: { assignments: true },
+      })
+    : await tx.evaluationRule.create({
+        data: {
+          ...data,
+          projectId: input.projectId,
+          createdByUserId: input.userId ?? null,
+          assignments: { create: assignments },
+        },
+        include: { assignments: true },
+      });
+  return topicRule(row);
 }
 
 function runResult(

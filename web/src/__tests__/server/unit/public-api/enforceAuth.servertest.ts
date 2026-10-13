@@ -11,9 +11,6 @@ import {
 
 const { getOrgId, getProjectId } = __test;
 
-const orgIdHeader = "x-langfuse-organization-id";
-const projectIdHeader = "x-langfuse-project-id";
-
 const ORG = "org_1";
 const PRJ = "prj_1";
 
@@ -56,10 +53,27 @@ describe("getOrgId", () => {
       orgId: ORG,
     });
   });
-  it("403s a header disagreeing with the bound org", () => {
+  it.each(["x-langfuse-organization-id", "langfuse-organization-id"])(
+    "403s %s disagreeing with the bound org",
+    (orgIdHeader) => {
+      expect(
+        getOrgId(orgKey(), req({}, { [orgIdHeader]: "org_2" })),
+      ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
+    },
+  );
+  it("prefers the X-prefixed organization header when both are provided", () => {
     expect(
-      getOrgId(orgKey(), req({}, { [orgIdHeader]: "org_2" })),
-    ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
+      getOrgId(
+        orgKey(),
+        req(
+          {},
+          {
+            "x-langfuse-organization-id": ORG,
+            "langfuse-organization-id": "org_2",
+          },
+        ),
+      ),
+    ).toEqual({ success: true, orgId: ORG });
   });
   it("403s a principal carrying no binding", () => {
     expect(getOrgId(adminKey(), req())).toMatchObject({
@@ -69,56 +83,82 @@ describe("getOrgId", () => {
   });
 });
 
-describe("getProjectId", () => {
-  it("resolves the bound project without a header", () => {
-    expect(getProjectId(projectKey(), req())).toEqual({
-      success: true,
-      projectId: PRJ,
-    });
-  });
-  it("resolves the bound project when the header is blank", () => {
-    expect(
-      getProjectId(projectKey(), req({}, { [projectIdHeader]: "" })),
-    ).toEqual({ success: true, projectId: PRJ });
-  });
-  it("resolves an unbound principal from the header", () => {
-    expect(getProjectId(orgKey(), req({}, { [projectIdHeader]: PRJ }))).toEqual(
-      {
+describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
+  "getProjectId with %s",
+  (projectIdHeader) => {
+    it("resolves the bound project without a header", () => {
+      expect(getProjectId(projectKey(), req())).toEqual({
         success: true,
         projectId: PRJ,
-      },
-    );
-  });
-  it("resolves when URL, header, and bound project agree", () => {
-    expect(
-      getProjectId(
-        projectKey(),
-        req({ projectId: PRJ }, { [projectIdHeader]: PRJ }),
-      ),
-    ).toEqual({ success: true, projectId: PRJ });
-  });
-  it("403s a header disagreeing with the bound project", () => {
-    expect(
-      getProjectId(projectKey(), req({}, { [projectIdHeader]: "prj_2" })),
-    ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
-  });
-  it("403s a URL disagreeing with the bound project", () => {
-    expect(
-      getProjectId(projectKey(), req({ projectId: "prj_2" })),
-    ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
-  });
-  it("403s a URL disagreeing with the header", () => {
-    expect(
-      getProjectId(
-        orgKey(),
-        req({ projectId: PRJ }, { [projectIdHeader]: "prj_2" }),
-      ),
-    ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
-  });
-  it("403s when neither URL, header, nor bound project exists", () => {
-    expect(getProjectId(orgKey(), req())).toMatchObject({
-      success: false,
-      error: expect.any(ForbiddenError),
+      });
     });
-  });
-});
+    it("resolves the bound project when the header is blank", () => {
+      expect(
+        getProjectId(projectKey(), req({}, { [projectIdHeader]: "" })),
+      ).toEqual({ success: true, projectId: PRJ });
+    });
+    it("resolves an unbound principal from the header", () => {
+      expect(
+        getProjectId(orgKey(), req({}, { [projectIdHeader]: PRJ })),
+      ).toEqual({
+        success: true,
+        projectId: PRJ,
+      });
+    });
+    it("resolves when URL, header, and bound project agree", () => {
+      expect(
+        getProjectId(
+          projectKey(),
+          req({ projectId: PRJ }, { [projectIdHeader]: PRJ }),
+        ),
+      ).toEqual({ success: true, projectId: PRJ });
+    });
+    it("ignores a header disagreeing with the bound project", () => {
+      expect(
+        getProjectId(projectKey(), req({}, { [projectIdHeader]: "prj_2" })),
+      ).toEqual({ success: true, projectId: PRJ });
+    });
+    it("ignores a URL disagreeing with the bound project", () => {
+      expect(getProjectId(projectKey(), req({ projectId: "prj_2" }))).toEqual({
+        success: true,
+        projectId: PRJ,
+      });
+    });
+    it("ignores conflicting URL and header projects when bound", () => {
+      expect(
+        getProjectId(
+          projectKey(),
+          req({ projectId: "prj_2" }, { [projectIdHeader]: "prj_3" }),
+        ),
+      ).toEqual({ success: true, projectId: PRJ });
+    });
+    it("prefers the URL project over a conflicting header", () => {
+      expect(
+        getProjectId(
+          orgKey(),
+          req({ projectId: PRJ }, { [projectIdHeader]: "prj_2" }),
+        ),
+      ).toEqual({ success: true, projectId: PRJ });
+    });
+    it("prefers the X-prefixed header when both are provided", () => {
+      expect(
+        getProjectId(
+          orgKey(),
+          req(
+            {},
+            {
+              "x-langfuse-project-id": PRJ,
+              "langfuse-project-id": "prj_2",
+            },
+          ),
+        ),
+      ).toEqual({ success: true, projectId: PRJ });
+    });
+    it("403s when neither URL, header, nor bound project exists", () => {
+      expect(getProjectId(orgKey(), req())).toMatchObject({
+        success: false,
+        error: expect.any(ForbiddenError),
+      });
+    });
+  },
+);

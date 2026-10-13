@@ -5,6 +5,7 @@ import { parse } from "yaml";
 
 import {
   getFernDeprecatedOperations,
+  getFernDeprecatedProperties,
   type DeprecatedOperation,
 } from "../../../../scripts/openapi/fern-deprecations";
 import {
@@ -109,6 +110,70 @@ function withDefinition(
 }
 
 describe("OpenAPI deprecations", () => {
+  it("finds deprecated named-type and inline-request properties", () => {
+    withDefinition(
+      {
+        "api.yml": "base-path: /api\n",
+        "keys.yml": `types:
+  Key:
+    properties:
+      oldLabel:
+        type: optional<string>
+        availability: deprecated
+      label: optional<string>
+service:
+  base-path: /admin
+  endpoints:
+    create:
+      method: POST
+      path: /keys
+      request:
+        name: CreateKeyRequest
+        body:
+          properties:
+            oldLabel:
+              type: optional<string>
+              availability:
+                status: deprecated
+            label: optional<string>
+`,
+      },
+      (directory) => {
+        expect(getFernDeprecatedProperties(directory)).toEqual([
+          ["components", "schemas", "Key", "properties", "oldLabel"],
+          [
+            "paths",
+            "/api/admin/keys",
+            "post",
+            "requestBody",
+            "content",
+            "application/json",
+            "schema",
+            "properties",
+            "oldLabel",
+          ],
+        ]);
+      },
+    );
+  });
+
+  it("stamps property deprecations without changing their descriptions", () => {
+    const source = `${SPEC}components:\n  schemas:\n    Key:\n      properties:\n        oldLabel:\n          type: string\n          description: Use label instead.\n        label:\n          type: string\n`;
+    const properties = [
+      ["components", "schemas", "Key", "properties", "oldLabel"],
+    ];
+    const stamped = stampDeprecations(source, [], properties);
+    const schemas = parse(stamped).components.schemas;
+
+    expect(schemas.Key.properties.oldLabel).toEqual({
+      type: "string",
+      description: "Use label instead.",
+      deprecated: true,
+    });
+    expect(schemas.Key.properties.label).toEqual({ type: "string" });
+    expect(stampDeprecations(stamped, [], properties)).toBe(stamped);
+  });
+
   it("matches the deprecated endpoints in the Fern definitions", () => {
     const openApi = parseSpec(fs.readFileSync(openApiPath, "utf8"));
     const openApiDeprecatedOperations = Object.entries(openApi.paths).flatMap(

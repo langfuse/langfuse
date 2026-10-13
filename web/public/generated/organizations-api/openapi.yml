@@ -370,10 +370,27 @@ paths:
             schema:
               type: object
               properties:
+                name:
+                  type: string
+                  nullable: true
+                  description: >-
+                    Optional name for the API key. Cannot be provided together
+                    with note, even if either value is an empty string.
                 note:
                   type: string
                   nullable: true
-                  description: Optional note for the API key
+                  description: >-
+                    Deprecated alias for name. Cannot be provided together with
+                    name, even if either value is an empty string.
+                  deprecated: true
+                expiresAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                  description: >-
+                    Optional expiration timestamp in ISO 8601 format. Must be in
+                    the future. Omit or set to null for a key that does not
+                    expire.
   /api/admin/organizations/{organizationId}/apiKeys/{apiKeyId}:
     delete:
       description: Delete an API key for an organization
@@ -521,13 +538,22 @@ components:
           type: string
           format: date-time
           nullable: true
+          description: Expiration timestamp. Null if the key does not expire.
         lastUsedAt:
           type: string
           format: date-time
           nullable: true
+        name:
+          type: string
+          nullable: true
+          description: >-
+            Name of the API key. Contains the same value as note; null if no
+            name was provided.
         note:
           type: string
           nullable: true
+          description: Deprecated alias for name. Contains the same value as name.
+          deprecated: true
         publicKey:
           type: string
         displaySecretKey:
@@ -547,15 +573,28 @@ components:
         createdAt:
           type: string
           format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Expiration timestamp. Null if the key does not expire.
         publicKey:
           type: string
         secretKey:
           type: string
         displaySecretKey:
           type: string
+        name:
+          type: string
+          nullable: true
+          description: >-
+            Name of the API key. Contains the same value as note; null if no
+            name was provided.
         note:
           type: string
           nullable: true
+          description: Deprecated alias for name. Contains the same value as name.
+          deprecated: true
       required:
         - id
         - createdAt

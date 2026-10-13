@@ -21,7 +21,8 @@ import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { toast } from "sonner";
+import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { Info } from "lucide-react";
 
 const spendAlertSchema = z.object({
@@ -87,7 +88,11 @@ export function SpendAlertDialog({
           alertId: alert.id,
           limit: data.limit,
         });
-        toast.success("Spend alert updated successfully");
+        showSuccessToast({
+          operation: "spend_alert.update",
+          title: "Spend alert updated successfully",
+          description: "",
+        });
       } else {
         // Create new alert
         await createMutation.mutateAsync({
@@ -99,14 +104,23 @@ export function SpendAlertDialog({
           orgId,
           limit: data.limit,
         });
-        toast.success("Spend alert created successfully");
+        showSuccessToast({
+          operation: "spend_alert.create",
+          title: "Spend alert created successfully",
+          description: "",
+        });
       }
       onSuccess();
     } catch (error) {
       reportNonTrpcError(error, "billing");
-      toast.error(
-        `Failed to ${alert ? "update" : "create"} spend alert. Please try again.`,
-      );
+      showToast({
+        type: "ERROR",
+        title: `Failed to ${alert ? "update" : "create"} spend alert. Please try again.`,
+        analytics: classifyTrpcToastError(
+          error,
+          alert ? "spend_alert.update" : "spend_alert.create",
+        ),
+      });
     } finally {
       setIsSubmitting(false);
     }

@@ -1,120 +1,61 @@
-/* eslint-disable no-nested-ternary */
-import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { SelectItem } from "@/src/components/ui/select";
-import {
-  projectNoneRoleComment,
-  projectRoleAccessRights,
-  type Role,
-} from "@langfuse/shared";
-import {
-  organizationRoleAccessRights,
-  orgNoneRoleComment,
-} from "@/src/features/rbac/constants/organizationAccessRights";
-import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
+import { SquareArrowOutUpRight } from "lucide-react";
+import { type SystemRole } from "@langfuse/shared/src/db";
+import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { SelectItem } from "@/src/components/ui/select";
+import { roleIcons } from "@/src/features/rbac/components/roleIcons";
+
+/** RoleSelectItem adds a permission preview to a role option. */
 export const RoleSelectItem = ({
   role,
   isProjectRole,
+  onViewPermissions,
 }: {
-  role: Role;
+  role: SystemRole;
   isProjectRole?: boolean;
+  onViewPermissions: (role: SystemRole) => void;
 }) => {
-  const isProjectNoneRole = role === "NONE" && isProjectRole;
-  const isOrgNoneRole = role === "NONE" && !isProjectRole;
-  const orgScopes = reduceScopesToListItems(organizationRoleAccessRights, role);
-  const projectScopes = reduceScopesToListItems(projectRoleAccessRights, role);
+  const def = systemRoleAccessRights[role];
+  const Icon = roleIcons[role];
+  const keepDefaultNote = role === "NONE" && isProjectRole;
 
   return (
-    <HoverCard
-      openDelay={0}
-      closeDelay={0}
-      hideWhenDetached
-      placement="right"
-      content={
-        <div className="w-64 p-3">
-          {isProjectNoneRole ? (
-            <div className="text-xs">{projectNoneRoleComment}</div>
-          ) : isOrgNoneRole ? (
-            <div className="text-xs">{orgNoneRoleComment}</div>
-          ) : (
-            <>
-              <div className="font-bold">Role: {formatRole(role)}</div>
-              <p className="mt-2 text-xs font-bold">Organization Scopes</p>
-              <ul className="list-inside list-disc text-xs">{orgScopes}</ul>
-              <p className="mt-2 text-xs font-bold">Project Scopes</p>
-              <ul className="list-inside list-disc text-xs">{projectScopes}</ul>
-              <p className="mt-2 border-t pt-2 text-xs">
-                Note:{" "}
-                <span className="text-muted-foreground">Muted scopes</span> are
-                inherited from lower role.
-              </p>
-            </>
-          )}
-        </div>
-      }
+    <SelectItem
+      value={role}
+      className="group pl-2 [&>span:not([data-checkmark])]:flex-1 [&>span[data-checkmark]]:hidden"
     >
-      {({ getTriggerProps }) => (
-        <SelectItem value={role} className="max-w-56" {...getTriggerProps()}>
-          <span>
-            {formatRole(role)}
-            {isProjectNoneRole ? " (keep default role)" : ""}
+      <div className="flex w-full items-start gap-2 text-left">
+        <Icon className="icon-base mt-0.5 shrink-0" />
+        <div className="flex flex-col">
+          <span className="font-bold">
+            {def.name}
+            {keepDefaultNote ? " (keep default role)" : ""}
           </span>
-        </SelectItem>
-      )}
-    </HoverCard>
+          <span className="text-muted-foreground text-xs">
+            {def.description}
+          </span>
+        </div>
+        <Tooltip label="View permissions" hoverableContent={false} delay={0}>
+          {({ getTriggerProps }) => (
+            <button
+              type="button"
+              {...getTriggerProps()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onViewPermissions(role);
+              }}
+              aria-label={`View ${def.name} permissions`}
+              className="text-muted-foreground hover:bg-background hover:text-foreground ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
+            >
+              <SquareArrowOutUpRight className="icon-base" />
+            </button>
+          )}
+        </Tooltip>
+      </div>
+    </SelectItem>
   );
 };
-
-const reduceScopesToListItems = (
-  accessRights: Record<string, string[]>,
-  role: Role,
-) => {
-  const currentRoleLevel = orderedRoles[role];
-  const lowerRole = Object.entries(orderedRoles).find(
-    ([_role, level]) => level === currentRoleLevel - 1,
-  )?.[0] as Role | undefined;
-  const inheritedScopes = lowerRole ? accessRights[lowerRole] : [];
-
-  return accessRights[role].length > 0 ? (
-    <>
-      {Object.entries(
-        accessRights[role].reduce(
-          (acc, scope) => {
-            const [resource, action] = scope.split(":");
-            if (!acc[resource]) {
-              acc[resource] = [];
-            }
-            acc[resource].push(action);
-            return acc;
-          },
-          {} as Record<string, string[]>,
-        ),
-      ).map(([resource, actions]) => {
-        const inheritedActions = actions.filter((action) =>
-          inheritedScopes.includes(`${resource}:${action}`),
-        );
-        const newActions = actions.filter(
-          (action) => !inheritedScopes.includes(`${resource}:${action}`),
-        );
-
-        return (
-          <li key={resource}>
-            <span>{resource}: </span>
-            <span className="text-muted-foreground">
-              {inheritedActions.length > 0 ? inheritedActions.join(", ") : ""}
-              {newActions.length > 0 && inheritedActions.length > 0 ? ", " : ""}
-            </span>
-            <span className="font-bold">
-              {newActions.length > 0 ? newActions.join(", ") : ""}
-            </span>
-          </li>
-        );
-      })}
-    </>
-  ) : (
-    <li>None</li>
-  );
-};
-
-const formatRole = (role: Role) =>
-  role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();

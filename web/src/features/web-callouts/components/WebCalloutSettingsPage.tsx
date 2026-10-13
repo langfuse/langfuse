@@ -40,6 +40,7 @@ import {
   WEB_CALLOUT_HEADER_NAME_PATTERN,
 } from "@/src/features/web-callouts/headerRules";
 import { api, type RouterOutputs } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { ConnectedWebCalloutSettingsTable } from "./WebCalloutSettingsTable/ConnectedWebCalloutSettingsTable";
 
 type WebCalloutEndpoint = RouterOutputs["webCallouts"]["all"][number];
@@ -176,6 +177,9 @@ function WebCalloutEndpointDialog(props: {
     onSuccess: async () => {
       await utils.webCallouts.invalidate();
       showSuccessToast({
+        operation: props.endpoint
+          ? "web_callout_endpoint.update"
+          : "web_callout_endpoint.create",
         title: props.endpoint
           ? "Callout endpoint updated"
           : "Callout endpoint created",
@@ -184,7 +188,16 @@ function WebCalloutEndpointDialog(props: {
       props.closeDialog();
     },
     onError: (error) => {
-      showErrorToast("Failed to save callout endpoint", error.message);
+      showErrorToast(
+        "Failed to save callout endpoint",
+        error.message,
+        classifyTrpcToastError(
+          error,
+          props.endpoint
+            ? "web_callout_endpoint.update"
+            : "web_callout_endpoint.create",
+        ),
+      );
     },
   });
 

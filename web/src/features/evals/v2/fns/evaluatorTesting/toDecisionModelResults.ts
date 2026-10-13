@@ -1,3 +1,5 @@
+import { LLMAdapter } from "@langfuse/shared";
+
 import type { DecisionModelQuestionResult } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelResultView/DecisionModelResultView";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -12,11 +14,17 @@ const toProbabilities = (value: unknown): Record<string, number> =>
       )
     : {};
 
+function readDecisionDetails(metadata: unknown) {
+  if (!isRecord(metadata)) return null;
+  const details = metadata[LLMAdapter.OpenAI] ?? metadata[LLMAdapter.TypeSafe];
+  return isRecord(details) ? details : null;
+}
+
 /**
  * Reads the scores of a decision-model test run into one row per question.
- * Values come from the score itself; distributions and confidence from the
- * `typesafe` metadata namespace the executor writes; the question text from
- * the request that was sent.
+ * Values come from the score itself. Distributions and confidence come from
+ * the provider namespace the executor writes (`openai` or `typesafe`). The
+ * question text comes from the request that was sent.
  */
 export function toDecisionModelResults(
   response: Record<string, unknown>,
@@ -29,10 +37,10 @@ export function toDecisionModelResults(
 
   return scores.flatMap((score, index): DecisionModelQuestionResult[] => {
     if (!isRecord(score)) return [];
-    const typesafe = isRecord(score.metadata) ? score.metadata.typesafe : null;
-    if (!isRecord(typesafe)) return [];
+    const details = readDecisionDetails(score.metadata);
+    if (!details) return [];
 
-    const questionId = String(typesafe.questionId ?? index);
+    const questionId = String(details.questionId ?? index);
     const question = requestQuestions[questionId];
     const common = {
       questionId,
@@ -43,21 +51,21 @@ export function toDecisionModelResults(
           : "",
     };
     const confidence =
-      typeof typesafe.confidence === "number" ? typesafe.confidence : null;
+      typeof details.confidence === "number" ? details.confidence : null;
 
-    switch (typesafe.type) {
+    switch (details.type) {
       case "choice":
         return [
           {
             ...common,
             type: "choice",
-            choice: String(score.value ?? typesafe.choice ?? ""),
-            probabilities: toProbabilities(typesafe.probabilities),
+            choice: String(score.value ?? details.choice ?? ""),
+            probabilities: toProbabilities(details.probabilities),
             confidence,
           },
         ];
       case "score": {
-        const legend = isRecord(typesafe.legend) ? typesafe.legend : {};
+        const legend = isRecord(details.legend) ? details.legend : {};
         return [
           {
             ...common,
@@ -66,7 +74,7 @@ export function toDecisionModelResults(
             levels: Object.keys(legend)
               .sort((a, b) => Number(a) - Number(b))
               .map((level) => String(legend[level] ?? "")),
-            probabilities: toProbabilities(typesafe.probabilities),
+            probabilities: toProbabilities(details.probabilities),
             confidence,
           },
         ];

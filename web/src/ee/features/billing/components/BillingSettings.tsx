@@ -10,7 +10,7 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { BillingUsageChart } from "./BillingUsageChart";
 import { BillingActionButtons } from "./BillingActionButtons";
 import { BillingScheduleNotification } from "./BillingScheduleNotification";
-import { BillingInvoiceTable } from "./BillingInvoiceTable";
+import { ConnectedBillingInvoiceTable } from "./ConnectedBillingInvoiceTable";
 import { BillingDiscountView } from "./BillingDiscountView";
 import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/BillingPlanPeriodView";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
@@ -111,7 +111,12 @@ export const BillingSettings = () => {
           />
         )}
         <BillingActionButtons />
-        <BillingInvoiceTable />
+        {isCloudBillingAvailable &&
+          organization &&
+          Boolean(
+            organization.cloudConfig?.stripe?.customerId ??
+            organization.cloudConfig?.clickhouse?.organizationId,
+          ) && <ConnectedBillingInvoiceTable key={organization.id} />}
         {isSpendAlertEntitled && orgId && hasActiveSubscription && (
           <SpendAlertsSection orgId={orgId} />
         )}

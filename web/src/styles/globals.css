@@ -60,6 +60,7 @@
   --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
 
   --color-primary-accent: hsl(var(--primary-accent));
+  --color-primary-accent-fill: var(--primary-accent-fill);
   --color-link: hsl(var(--link));
   --color-link-hover: hsl(var(--link-hover));
   --color-preview-banner: hsl(var(--preview-banner));
@@ -136,6 +137,18 @@
   --color-light-teal: hsl(var(--light-teal));
   --color-dark-teal: hsl(var(--dark-teal));
 
+  /* Match the canvas palette in features/topics/topic-map-colors.ts. */
+  --color-category-violet: #7c3aed;
+  --color-category-sky: #0284c7;
+  --color-category-emerald: #059669;
+  --color-category-amber: #d97706;
+  --color-category-pink: #db2777;
+  --color-category-indigo: #4f46e5;
+  --color-category-teal: #0d9488;
+  --color-category-orange: #c2410c;
+  --color-category-lime: #65a30d;
+  --color-category-fuchsia: #a21caf;
+
   /* Search-bar query syntax highlighting (key:value token parts). Operators
      (`:` `-` `(` `)`) reuse muted-foreground, so no token for them here. */
   --color-qlang-field: hsl(var(--qlang-field));
@@ -150,6 +163,7 @@
 
   --color-border: hsl(var(--border));
   --color-border-contrast: hsl(var(--border-contrast));
+  --color-line-dotted: hsl(var(--line-dotted));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-background: hsl(var(--background));
@@ -198,6 +212,9 @@
   /* Text styles: each size token carries its size (whole pixels at a 16px
      root), line-height and canonical weight, so `text-*` alone yields a
      complete style. Heavier text opts in via `font-bold`, never a raw number. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: calc(16 / 11);
+  --text-2xs--font-weight: var(--font-weight-regular);
   --text-xs: 0.75rem;
   --text-xs--line-height: calc(18 / 12);
   --text-xs--font-weight: var(--font-weight-regular);
@@ -224,6 +241,7 @@
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-appear: appear 0.2s ease-out forwards;
+  --animate-appear-delayed: appear 0s linear 150ms forwards;
   /* Cycle length comes from REFETCH_SWEEP_MS in components/table/data-table.tsx,
      which sets --table-refetch-cycle on the element: the same number also
      releases the busy flag on a whole sweep, so the two must not drift. */
@@ -334,7 +352,7 @@
          well"), matching the docs site's --surface-code convention. */
     --surface-code: 0 0% 92%;
     --surface-code-header: 0 0% 86%;
-    --surface-sunken: 0 0% 98%; /* zinc-50 */
+    --surface-sunken: 0 0% 99%; /* between white and zinc-50 */
     --surface-output: 240 4.8% 95.9%; /* zinc-100 */
 
     --popover: 0 0% 100%;
@@ -356,6 +374,7 @@
     /* Structural/viz lines (tree connectors, timeline grid + bar outlines):
        one clear step stronger than the hairline --border. */
     --border-contrast: 240 4.9% 83.9%; /* zinc-300 */
+    --line-dotted: 240 5.2% 33.9%; /* zinc-600 */
     --input: 240 5.9% 90%; /* zinc-200 */
 
     --primary: 240 5.9% 10%; /* zinc-900 */
@@ -376,6 +395,7 @@
     --ring: 240 5% 64.9%; /* zinc-400 */
 
     --primary-accent: 243 75.4% 58.6%;
+    --primary-accent-fill: hsl(var(--primary-accent));
     /* Hyperlinks get their own pair (tabs/selection stay on primary-accent):
        same lavender family as dark, but muted — links shouldn't be the
        loudest thing on a light page — with a clearly darker hover step. */
@@ -453,10 +473,10 @@
     --dark-yellow: oklch(47.6% 0.114 61.907);
 
     --light-green: oklch(95% 0.052 163.051 / 0.7);
-    --dark-green: oklch(59.6% 0.145 163.225);
+    --dark-green: oklch(43.2% 0.095 166.913);
 
     --light-blue: 214 94.6% 92.7%;
-    --dark-blue: 219 85% 52%;
+    --dark-blue: 227.1 75.7% 41.1%;
 
     --accent-light-blue: 251 95.2% 91.8%;
     --accent-dark-blue: 224 76.3% 38%;
@@ -477,10 +497,10 @@
        keyword=blue. Scoped to the filter grammar (key:value pills); retune
        freely, a designer can own these later. Operators reuse muted-foreground.
        Values from the langfuse-search-bar prototype. */
-    --qlang-field: 262 60% 47%;
-    --qlang-value: 152 60% 30%;
-    --qlang-number: 24 75% 42%;
-    --qlang-keyword: 221 83% 53%;
+    --qlang-field: 263.4 69.3% 42.2%; /* violet-800 */
+    --qlang-value: 162.9 93.5% 24.3%; /* emerald-700 */
+    --qlang-number: 17.5 88.3% 40.4%; /* orange-700 */
+    --qlang-keyword: 224.3 76.3% 48%; /* blue-700 */
 
     --json-value-string: var(--color-green-800);
     --json-value-number: var(--color-blue-800);
@@ -488,11 +508,11 @@
     --json-value-nullish: var(--color-gray-500);
 
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 100%;
+    --sidebar-background: var(--surface-sunken);
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%; /* zinc-100 */
+    --sidebar-accent: 240 5.2% 93.5%; /* between zinc-100 and zinc-200 */
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 240 5.9% 90%; /* zinc-200 */
     --sidebar-ring: 217.2 91.2% 59.8%;
@@ -562,8 +582,8 @@
     --icon-foreground: 0 0% 54%;
     --surface-code: 0 0% 2.3%;
     --surface-code-header: 0 0% 8.2%;
-    --surface-sunken: 0 0% 4%;
-    --surface-output: 0 0% 9%;
+    --surface-sunken: 0 0% 8%; /* one step below the modal */
+    --surface-output: var(--popover);
 
     --popover: 0 0% 12%;
     --popover-foreground: var(--foreground);
@@ -578,8 +598,9 @@
     --header-foreground: var(--foreground);
 
     /* Hairline must read on EVERY surface tier, including popover (12%). */
-    --border: 0 0% 15%;
+    --border: 0 0% 20%;
     --border-contrast: 0 0% 26%;
+    --line-dotted: 0 0% 42%;
     --input: 0 0% 18%;
 
     --primary: 0 0% 90%;
@@ -602,6 +623,7 @@
     --ring: 246 55% 70%;
 
     --primary-accent: 246 55% 70%;
+    --primary-accent-fill: oklch(50% 0.11 287);
     --link: 246 55% 70%;
     --link-hover: 246 95% 85%;
     /* Preview-deployment strip: fill is blue-500/25 precomposed over the 6%
@@ -707,7 +729,7 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 2%;
+    --sidebar-background: 0 0% 4%; /* one step below the page */
     --sidebar-foreground: 0 0% 60%;
     --sidebar-primary: 0 0% 90%;
     --sidebar-primary-foreground: 0 0% 3.5%;
@@ -909,7 +931,7 @@
     content: "";
     position: absolute;
     right: calc(var(--spacing) * -1);
-    bottom: -2px;
+    bottom: -1px;
     left: calc(var(--spacing) * -1);
     height: 1px;
     background-image: linear-gradient(
@@ -928,6 +950,24 @@
     );
     pointer-events: none;
   }
+}
+
+/* Vertical twin of underline-dotted, e.g. timeline connectors. */
+@utility dotted-line-y {
+  background-image: linear-gradient(
+    to bottom,
+    hsl(var(--line-dotted)) 1px,
+    transparent 1px
+  );
+  background-repeat: repeat-y;
+  background-size: 1px 4px;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black calc(var(--spacing) * 3),
+    black calc(100% - var(--spacing) * 3),
+    transparent
+  );
 }
 
 @utility scrollbar-visible {

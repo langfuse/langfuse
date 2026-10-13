@@ -81,7 +81,7 @@ export function CreateRuleDialogContent({
   );
   const hasRequestedName = useRef(false);
   const suggestName = api.evalsV2.rules.suggestName.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule_name.generate"),
   });
 
   const requestNameSuggestion = async () => {
@@ -98,7 +98,7 @@ export function CreateRuleDialogContent({
     return name;
   };
   const createRule = api.evalsV2.rules.create.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.create"),
   });
 
   const create = async () => {
@@ -124,6 +124,7 @@ export function CreateRuleDialogContent({
     onCreated?.();
     if (successNotification === "toast") {
       showSuccessToast({
+        operation: "evaluation_rule.create",
         title: "Rule created",
         description: `${rule.name} is active.`,
       });

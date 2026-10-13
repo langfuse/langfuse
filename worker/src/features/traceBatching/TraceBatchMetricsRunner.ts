@@ -7,18 +7,31 @@ import {
 import { env } from "../../env";
 import { recordTraceBatchActiveReads } from "../../queues/traceBatchQueue";
 import { PeriodicRunner } from "../../utils/PeriodicRunner";
+import {
+  getTraceBatchFirstKeys,
+  getTraceBatchReadinessKeys,
+} from "./traceBatchReadiness";
 
 const METRIC_PREFIX = "langfuse.trace_batch";
 const MEMORY_INTERVAL_MS = 60_000;
-// EVAL applies the shared client's key prefix and routes both keys to their
+// EVAL applies the shared client's key prefix and routes keys to their
 // cluster slot. Raw MEMORY commands do not identify keys in ioredis metadata.
 const MEMORY_SCRIPT = `
-return {
+local result = {
   redis.call('MEMORY', 'USAGE', KEYS[1], 'SAMPLES', 5) or 0,
   redis.call('ZCARD', KEYS[1]),
   redis.call('MEMORY', 'USAGE', KEYS[2], 'SAMPLES', 5) or 0,
   redis.call('HLEN', KEYS[2])
 }
+local bytes = 0
+local entries = 0
+for i = 3, #KEYS do
+  bytes = bytes + (redis.call('MEMORY', 'USAGE', KEYS[i], 'SAMPLES', 5) or 0)
+  entries = entries + redis.call('HLEN', KEYS[i])
+end
+table.insert(result, bytes)
+table.insert(result, entries)
+return result
 `;
 
 export class TraceBatchMetricsRunner extends PeriodicRunner {
@@ -109,24 +122,49 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
 
   private async collectMemory(): Promise<void> {
     if (!redis) throw new Error("Trace batch metrics require Redis");
-    const [dueBytes, dueEntries, stateBytes, stateEntries] = (await redis.eval(
-      MEMORY_SCRIPT,
-      2,
-      "{trace-batch}:due",
-      "{trace-batch}:state",
-    )) as number[];
+    const clock = await redis.time();
+    const now = Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000);
+    const totals = [0, 0, 0, 0, 0, 0];
+    for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
+      const { due, state } = getTraceBatchReadinessKeys(shard);
+      const first = getTraceBatchFirstKeys(shard, now);
+      const values = (await redis.eval(
+        MEMORY_SCRIPT,
+        2 + first.keys.length,
+        due,
+        state,
+        ...first.keys,
+      )) as number[];
+      this.recordMapMemory(values, String(shard));
+      values.forEach((value, index) => (totals[index] += Number(value)));
+    }
+    this.recordMapMemory(totals, "total");
+  }
+
+  private recordMapMemory(values: number[], shard: string): void {
+    const [
+      dueBytes,
+      dueEntries,
+      stateBytes,
+      stateEntries,
+      firstBytes,
+      firstEntries,
+    ] = values;
     // These are global snapshots emitted by each eligible worker. Aggregate
     // duplicate reporters with max/latest, never sum their identical gauges.
     for (const { key, bytes, entries } of [
       { key: "due", bytes: dueBytes, entries: dueEntries },
       { key: "state", bytes: stateBytes, entries: stateEntries },
+      { key: "first", bytes: firstBytes, entries: firstEntries },
     ]) {
       recordGauge(`${METRIC_PREFIX}.redis_key_bytes`, bytes, {
         key,
+        shard,
         unit: "bytes",
       });
       recordGauge(`${METRIC_PREFIX}.redis_key_entries`, entries, {
         key,
+        shard,
         unit: "records",
       });
     }

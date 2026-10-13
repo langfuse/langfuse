@@ -34,6 +34,8 @@ describe("DecisionModelSelector", () => {
   });
 
   beforeEach(() => {
+    connection.provider = "jev";
+    connection.adapter = "typesafe";
     connection.withDefaultModels = true;
     connection.customModels = [];
   });
@@ -55,8 +57,30 @@ describe("DecisionModelSelector", () => {
       { wrapper: LayerProvider },
     );
 
-    return screen.getByRole("combobox", { name: "Decision model" });
+    return screen.getByRole("button");
   };
+
+  it("selects gpt-6-luna when nothing is selected and the connection offers it", () => {
+    connection.provider = "openai";
+    connection.adapter = "openai";
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      initialType: "DECISION_MODEL",
+      mode: "create",
+    });
+
+    render(
+      <DecisionModelSelector
+        projectId="project"
+        store={store}
+        onConfigureProviders={vi.fn()}
+      />,
+      { wrapper: LayerProvider },
+    );
+
+    expect(screen.getByRole("button")).toHaveTextContent("openai / gpt-6-luna");
+    expect(store.getState().selectedModel).toBeNull();
+  });
 
   it.each([
     ["lists only default models", true],
@@ -67,7 +91,7 @@ describe("DecisionModelSelector", () => {
       connection.withDefaultModels = withDefaultModels;
 
       expect(renderWithSelectedModel("jev-1.13.0")).toHaveTextContent(
-        "jev: jev-1.13.0",
+        "jev / jev-1.13.0",
       );
     },
   );
@@ -84,7 +108,7 @@ describe("DecisionModelSelector", () => {
       connection.customModels = customModels;
 
       expect(renderWithSelectedModel("jev-latest").textContent).toBe(
-        "jev: jev-latest",
+        "jev / jev-latest",
       );
     },
   );

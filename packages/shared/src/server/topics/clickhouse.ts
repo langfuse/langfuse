@@ -19,6 +19,7 @@ import { Readable } from "node:stream";
 import { finished } from "node:stream/promises";
 import {
   INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+  isInternalEvalEnvironment,
   PUBLIC_LLM_JUDGE_ENVIRONMENT,
 } from "../llm/isInternalEvalEnvironment";
 
@@ -356,7 +357,9 @@ export async function listTopicSummaries(
     );
   }
   rows.sort((a, b) => Number(b.processedAtMs) - Number(a.processedAtMs));
-  return rows.map(summaryResult);
+  return rows
+    .filter((row) => !isInternalEvalEnvironment(row.environment))
+    .map(summaryResult);
 }
 /** Without a version filter, use each source's newest processed facet version. */
 export async function getLatestFacetSummaries(
@@ -381,7 +384,9 @@ export async function getLatestFacetSummaries(
     },
     tags: { route: "topics-latest-summaries", projectId },
   });
-  return rows.map(summaryResult);
+  return rows
+    .filter((row) => !isInternalEvalEnvironment(row.environment))
+    .map(summaryResult);
 }
 
 export async function getTopicClusteringSummaries(
@@ -417,6 +422,17 @@ export async function getTopicClusteringSummaries(
     tags: { route: "topics-clustering-summaries", projectId },
   });
   return rows.map(summaryResult);
+}
+
+export async function hasTopicEmbeddings(projectId: string): Promise<boolean> {
+  const rows = await queryClickhouse<{ found: number }>({
+    query: `SELECT 1 AS found FROM topic_facet_summaries
+      WHERE project_id = {projectId:String} AND processing_state = 'complete'
+      LIMIT 1`,
+    params: { projectId },
+    tags: { route: "topics-has-embeddings", projectId },
+  });
+  return rows.length > 0;
 }
 
 /** Count current compatible summaries without loading summary text or vectors. */

@@ -12,7 +12,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Check, Copy, LockIcon, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { toast } from "sonner";
+import { showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 const SKILLS_INSTALL_COMMAND =
   "Install the Langfuse AI skill from github.com/langfuse/skills and use it to add tracing to this application with Langfuse following best practices.";
@@ -35,7 +36,15 @@ function CopyableSnippet({
       setCopied(true);
       setTimeout(() => setCopied(false), 1000);
     } catch {
-      toast.error("Failed to copy to clipboard");
+      showToast({
+        type: "ERROR",
+        title: "Failed to copy to clipboard",
+        analytics: {
+          operation: "onboarding_prompt.copy",
+          errorOrigin: "frontend",
+          errorCategory: "internal",
+        },
+      });
     }
   };
 
@@ -90,7 +99,11 @@ export function TracesSetupOnboardingCard({
       await mutCreateApiKey.mutateAsync({ projectId });
     } catch (error) {
       reportNonTrpcError(error, "setup");
-      toast.error("Failed to create API key");
+      showToast({
+        type: "ERROR",
+        title: "Failed to create API key",
+        analytics: classifyTrpcToastError(error, "project_api_key.create"),
+      });
     }
   };
 

@@ -30,6 +30,8 @@
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
+  `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server
+  barrel; hash the unit identity when a project can dominate traffic.
 - Internal trace-batch queue: `src/server/redis/traceBatch.ts` (cloud-gated);
   payloads in `src/server/queues.ts` accept persisted single-project jobs.
   Full-event streaming reads live in `src/server/repositories/trace-batch.ts`;
@@ -41,7 +43,7 @@
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
 - Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely
-  ClickHouse dialect (ARRAY JOIN / LIMIT BY / metadata indexOf nodes,
+  ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata indexOf nodes,
   `ExecutionContext` tenancy injection, per-table dedup lowering, virtual views,
   catalog parity). Compile only through `compileClickhouseQuery` in
   `src/server/query-ast/compile.ts`. SQL correctness is proven by a golden-SQL
@@ -50,6 +52,8 @@
   `clickhouse format`); each migrated call site keeps its `*.golden.test.ts`
   baseline next to the call site (e.g.
   `src/server/repositories/environments.golden.test.ts`,
+  `src/server/repositories/events.golden.test.ts`,
+  `src/server/repositories/scores.golden.test.ts`,
   `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
@@ -88,9 +92,17 @@
     payloads through assignment and save terminal job state before cleanup.
     Summary references carry facet/version/source fields within project and
     execution scope; exact storage reads also require facet/version scope.
-  - `text.ts` and `embeddings.ts`: Bedrock model transport using the shared AI SDK;
-    text accepts optional internal tracing. Worker model calls own telemetry consent,
-    usage, cost and vector validation.
+  - `text.ts` and `embeddings.ts`: model transport through the project's LLM
+    connections (`generateLLMText` / `embedLLMText`), with cached Bedrock text
+    calls using InvokeModel. Text accepts optional internal generation tracing;
+    worker model calls own organization consent, usage, cost and vector validation.
+  - `model-config.ts`: per-project `topic_configs` (three connection +
+    model slots and the automatic-processing switch). Saving tests every slot
+    with a real call; Anthropic works for summaries and clustering but fails the
+    embedding test. The embedding model and dimensions are locked once embeddings
+    exist. `setup.ts` tests the models, then commits the single Topics rule,
+    models, and per-project trace idle time together. Refresh the Redis readiness
+    setting only after that transaction commits.
   - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
     Returns the shared `Transcript | null`, capped at 10,000 serialized characters.
     Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results
@@ -99,9 +111,6 @@
     including cleanup. Processing also requires
     `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` (empty by default); reads/configuration
     remain feature-flag/RBAC controlled.
-    The internal Topics PoC model IDs come from the default-free
-    `LANGFUSE_TOPICS_SUMMARY_MODEL` and `LANGFUSE_TOPICS_EMBEDDING_MODEL` env vars;
-    keep them out of the production env template.
 
 - `src/server/transcript`: order minimal `TranscriptObservation` inputs with
   `orderObservations`, then pass the enriched result and optional
@@ -119,13 +128,17 @@
 - `@langfuse/shared/src/server` via `src/server/index.ts`: server-only barrel
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,
-  AI SDK-native LLM execution helpers (`generateLLMText` and
-  `streamLLMText`), `isInternalEvalEnvironment` for shared eval/Topics exclusions,
+  AI SDK-native LLM execution helpers (`generateLLMText`, `streamLLMText`, and
+  `embedLLMText`), `isInternalEvalEnvironment` for shared eval/Topics exclusions,
   Bedrock default-credential provider auth
   (`createDefaultBedrockProviderAuth`), and server test utilities. Langfuse AI
   callers select their local profile through `getLangfuseAIAwsProfile`;
   generic Bedrock auth only uses an explicitly supplied profile or the normal
   AWS credential chain.
+  Persisted `LLMConnection` projections must retain the credential row's
+  `projectId`: Cloud Bedrock runtime auth checks it against
+  `LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS`. Raw credential
+  tests omit this identity; only operator-provisioned stored secrets qualify.
 - `@langfuse/shared/src/server/clickhouse` via `src/server/clickhouse/index.ts`:
   ClickHouse clients and helpers without loading the full server barrel. Use this
   entry point for test cleanup so built and source-aliased clients retain the same
@@ -138,6 +151,10 @@
 - `@langfuse/shared/encryption` via `src/encryption/index.ts`: encryption and
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
+- `@langfuse/shared/rbac` via `src/features/rbac/index.ts`: client-safe tagged IDs,
+  role assignments, role catalog, and permission vocabulary.
+- `@langfuse/shared/rbac/server` via `src/features/rbac/server.ts`: server-only
+  role-assignment reads and writes, mapping database foreign keys to tagged IDs.
 - `@langfuse/shared/instrumentation/bootstrap` via
   `src/server/instrumentation/bootstrap/index.ts`: instrumentation initializers loaded before sdk.start(); must not import the server barrel or any instrumented library.
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
@@ -153,6 +170,9 @@
   `@langfuse/shared/src/server/auth/apiKeys`,
   `@langfuse/shared/src/server/clickhouse/clickhouseIdentifiers`,
   `@langfuse/shared/src/server/ee/ingestionMasking`,
+  `@langfuse/shared/src/server/ee/fips` (startup FIPS-mode enforcement; it
+  loads only env and the license check, so it can run before anything
+  connects),
   `@langfuse/shared/src/server/llm/llmText`, and
   `@langfuse/shared/src/utils/chatml`. The
   `@langfuse/shared/src/utils/normalized-io` parser is client-safe and is the

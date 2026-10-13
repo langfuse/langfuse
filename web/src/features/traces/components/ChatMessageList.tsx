@@ -117,7 +117,7 @@ export function ChatMessageList({
 
   return (
     <div className="flex max-h-full min-h-0 flex-col gap-2">
-      <div className="flex max-h-full min-h-0 flex-col gap-2">
+      <div className="flex max-h-full min-h-0 flex-col gap-3">
         <div className="flex flex-col gap-3">
           {visibleMessages.map(({ message, originalIndex }) => (
             <div className="flex flex-col" key={originalIndex}>

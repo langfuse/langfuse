@@ -1,8 +1,10 @@
 import { useStore } from "zustand";
 
+import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
+import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function useEvaluatorTestAvailability({
@@ -19,8 +21,17 @@ export function useEvaluatorTestAvailability({
     store,
     (state) => state.selectedObservation,
   );
+  const evaluatorType = useStore(store, (state) => state.type);
+  const fallbackDecisionModel = useFallbackDecisionModel(
+    projectId,
+    evaluatorType === "DECISION_MODEL",
+  );
   const definitionAvailable = useStore(store, (state) =>
-    Boolean(prepareEvaluatorDraft(state).definition),
+    Boolean(
+      prepareEvaluatorDraft(
+        applyFallbackDecisionModel(state, fallbackDecisionModel),
+      ).definition,
+    ),
   );
   const scoreOutputReason = useStore(store, (state) =>
     state.type === "LLM_AS_JUDGE"

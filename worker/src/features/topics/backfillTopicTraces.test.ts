@@ -15,7 +15,10 @@ import {
   createEventsCh,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import { selectTopicTraceRows } from "@langfuse/shared/topics/server";
+import {
+  loadTopicTranscript,
+  selectTopicTraceRows,
+} from "@langfuse/shared/topics/server";
 
 const enabled = vi.hoisted(() => vi.fn(() => true));
 
@@ -136,6 +139,70 @@ describe("Topics trace selection and backfill", () => {
       }),
     ]);
     expect(options.jobId).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("uses the full trace's latest environment before counting and limiting matches", async () => {
+    const mixedProject = randomUUID();
+    const source = {
+      project_id: mixedProject,
+      trace_name: "agent-turn",
+      input: JSON.stringify({ role: "user", content: "Send an invoice" }),
+      output: null,
+    };
+    await createEventsCh(
+      [
+        ["latest-public", "langfuse-topics", "production"],
+        ["equal-timestamp", "production", "langfuse-topics"],
+        ["latest-internal", "production", "langfuse-topics"],
+      ].flatMap(([traceId, rootEnvironment, latestEnvironment], index) => [
+        createEvent({
+          ...source,
+          trace_id: traceId,
+          span_id: "a-root",
+          start_time: new Date(Date.UTC(2026, 8, 23, 9 + index)),
+          event_ts: new Date("2026-09-24T12:00:00Z"),
+          environment: rootEnvironment,
+        }),
+        createEvent({
+          ...source,
+          trace_id: traceId,
+          span_id: "z-child",
+          parent_span_id: "a-root",
+          start_time: new Date(Date.UTC(2026, 8, 24, 9 + index)),
+          event_ts: new Date(
+            traceId === "equal-timestamp"
+              ? "2026-09-24T12:00:00Z"
+              : "2026-09-24T13:00:00Z",
+          ),
+          environment: latestEnvironment,
+        }),
+      ]),
+    );
+    const input = { ...selection, projectId: mixedProject, limit: 1 };
+    const [preview, ids, backfill] = await Promise.all([
+      selectTopicTraceRows(input, prisma, "preview"),
+      selectTopicTraceRows(input, prisma, "ids"),
+      selectTopicTraceRows(input, prisma, "backfill"),
+    ]);
+    expect(preview).toEqual([
+      expect.objectContaining({
+        id: "latest-public",
+        environment: "production",
+      }),
+    ]);
+    expect(Number(preview[0].matchedTraceCount)).toBe(1);
+    expect(ids).toEqual([{ id: "latest-public" }]);
+    expect(backfill.map(({ id }) => id)).toEqual(["latest-public"]);
+    expect(Number(backfill[0].matchedTraceCount)).toBe(1);
+    for (const [traceId, environment] of [
+      ["latest-internal", "langfuse-topics"],
+      ["latest-public", "production"],
+      ["equal-timestamp", "langfuse-topics"],
+    ]) {
+      expect(
+        await loadTopicTranscript({ projectId: mixedProject, traceId }),
+      ).toMatchObject({ environment });
+    }
   });
 
   it("keeps preview, ID-only triggers and backfill sampling aligned", async () => {
