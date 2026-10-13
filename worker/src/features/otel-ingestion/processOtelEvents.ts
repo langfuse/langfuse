@@ -30,7 +30,6 @@ type ProcessOtelEventsParams = {
   shouldWriteToEventsTable: boolean;
   earlyBatch?: EarlyOtelBatch;
   mediaPath?: "early" | "reference";
-  inputByteLength?: number;
   onMediaPresence?: (presence: OtelMediaPresence) => void;
 };
 
@@ -52,7 +51,6 @@ export async function processOtelEvents({
   shouldWriteToEventsTable,
   earlyBatch,
   mediaPath,
-  inputByteLength,
   onMediaPresence,
 }: ProcessOtelEventsParams): Promise<void> {
   // Process events for observation evals and direct event writes
@@ -102,7 +100,6 @@ export async function processOtelEvents({
       writePath: "direct",
       earlyBatch,
       mediaPath,
-      inputByteLength,
       onMediaPresence,
       projectId,
       fileKey,

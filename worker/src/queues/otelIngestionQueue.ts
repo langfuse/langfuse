@@ -448,6 +448,7 @@ export const otelIngestionQueueProcessorBuilder = (
     let mediaPath: "early" | "reference" | undefined;
     let writePathForMetric: OtelWritePath | undefined;
     let mediaPresence: OtelMediaPresence | undefined;
+    let inputByteLength: number | undefined;
     let completed = false;
     const onMediaPresence = (presence: OtelMediaPresence) => {
       mediaPresence = combineOtelMediaPresence(mediaPresence, presence);
@@ -524,7 +525,6 @@ export const otelIngestionQueueProcessorBuilder = (
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       );
       let parsedSpans: ResourceSpan[];
-      let inputByteLength: number;
       if (earlyMediaEnabled) {
         const bytes = await eventStorage.downloadBytes(fileKey);
         inputByteLength = bytes.byteLength;
@@ -804,7 +804,6 @@ export const otelIngestionQueueProcessorBuilder = (
             writePath: "legacy",
             earlyBatch,
             mediaPath,
-            inputByteLength,
             onMediaPresence,
             projectId,
             fileKey,
@@ -857,7 +856,6 @@ export const otelIngestionQueueProcessorBuilder = (
         shouldWriteToEventsTable,
         earlyBatch,
         mediaPath,
-        inputByteLength,
         onMediaPresence,
       });
       completed = true;
@@ -886,11 +884,12 @@ export const otelIngestionQueueProcessorBuilder = (
       throw e;
     } finally {
       await earlyBatch?.dispose();
-      recordOtelQueuePathDuration({
+      recordOtelMediaProcessingDuration({
         completed,
         processingStartedAt,
         mediaPath,
         mediaPresence,
+        inputByteLength,
         writePath: writePathForMetric,
       });
     }
@@ -906,11 +905,12 @@ function combineOtelMediaPresence(
   return "absent";
 }
 
-function recordOtelQueuePathDuration(params: {
+function recordOtelMediaProcessingDuration(params: {
   completed: boolean;
   processingStartedAt: number;
   mediaPath?: "early" | "reference";
   mediaPresence?: OtelMediaPresence;
+  inputByteLength?: number;
   writePath?: OtelWritePath;
 }): void {
   if (
@@ -925,13 +925,28 @@ function recordOtelQueuePathDuration(params: {
 
   // One sample per completed queue attempt, including preparation, parsing,
   // normalization, media work, and downstream writes.
+  const durationMs = performance.now() - params.processingStartedAt;
+  const tags = {
+    media_path: params.mediaPath,
+    media_presence: params.mediaPresence,
+    write_path: params.writePath,
+  };
   recordDistribution(
-    "langfuse.ingestion.otel.queue_processing_duration_ms",
-    performance.now() - params.processingStartedAt,
-    {
-      media_path: params.mediaPath,
-      media_presence: params.mediaPresence,
-      write_path: params.writePath,
-    },
+    "langfuse.ingestion.otel.media.processing_duration_ms",
+    durationMs,
+    tags,
   );
+  recordIncrement("langfuse.ingestion.otel.media.processing_sample", 1, tags);
+  recordIncrement(
+    "langfuse.ingestion.otel.media.processing_duration_total_ms",
+    durationMs,
+    tags,
+  );
+  if (params.inputByteLength && params.inputByteLength > 0) {
+    recordIncrement(
+      "langfuse.ingestion.otel.media.input_bytes_total",
+      params.inputByteLength,
+      tags,
+    );
+  }
 }
