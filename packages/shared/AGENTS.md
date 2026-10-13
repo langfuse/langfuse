@@ -83,6 +83,8 @@
     Facet versions use `(projectId, facetId, version)`. Reads require a time
     range; replacement includes the source minute, with run/origin suffixes
     for assignments. Definition bounds retain original creation dates on reuse.
+    `getLatestFacetSummaries` returns display fields; processing reads use
+    `listTopicSummaries` or `getTopicClusteringSummaries` for complete summaries.
   - `execution-store.ts`: one BatchAction per request, compact counters and run references.
     Writes accept progress only; immutable settings stay in the stored request.
     Trace inputs and paid outputs belong outside the execution store.
