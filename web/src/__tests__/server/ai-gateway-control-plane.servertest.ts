@@ -974,6 +974,7 @@ describe("AI gateway control plane", () => {
     const resolveParams = {
       fastHashedSecretKey: createShaHash(`sk-lf-${randomUUID()}`, env.SALT),
       apiFormat: "openai.responses" as const,
+      model: "gpt-4o",
     };
     const lookup = vi.spyOn(prisma.gatewayApiKeyAssociation, "findFirst");
 
