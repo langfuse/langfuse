@@ -122,9 +122,7 @@ async fn relay(
         .ok_or(InferenceHttpError::Unavailable)?;
     let gateway_key = gateway_key(request.headers(), route.api_format())?.to_owned();
     // Model extraction and upstream rewriting require an uncompressed JSON body.
-    if route.method() != axum::http::Method::GET
-        && !crate::transport::identity_encoding(request.headers())
-    {
+    if route.has_model_body() && !crate::transport::identity_encoding(request.headers()) {
         return Err(InferenceHttpError::UnsupportedEncoding);
     }
     let resolution_permit = inference
@@ -166,7 +164,7 @@ async fn request_body_and_model(
     route: Route,
     body: Body,
 ) -> Result<(Bytes, Option<String>), InferenceHttpError> {
-    if route.method() == axum::http::Method::GET {
+    if !route.has_model_body() {
         return Ok((Bytes::new(), None));
     }
     let bytes = read_request_body(body).await?;
