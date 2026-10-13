@@ -53,9 +53,10 @@ Order them with `orderObservations` and hand them to
 no eligible observations produce messages. For one trace, read it through
 `getObservationsForTraceFromEventsTable`, the same repository function and
 time bounds the trace tree uses: once for the structure of every observation
-without I/O, once for the `GENERATION`, `TOOL` and `AGENT` observations with I/O, then
-merge the two by id so the walk order comes from the structure and the
-messages from the content.
+without I/O and once for `GENERATION` and `TOOL` I/O, then merge by id.
+If assembly is empty and agents exist, load `AGENT` I/O in a separate capped
+query and assemble again. Agent wrappers do not consume the generation/tool
+budget. The walk order comes from structure and messages from content.
 
 ### Why a trace renderer also needs observations
 
@@ -146,7 +147,7 @@ output:  Assistant: Within five business days.
 - When a trace has no normalized generation messages, Claude Managed Agent
   session turns establish threads instead. These require type `AGENT`, scope
   `com.anthropic.claude-platform`, operation `invoke_agent` and a nonempty
-  `anthropic.session.id`. Both flat and nested metadata are supported. This
+  `anthropic.session.id`. Flat, nested and JSON-encoded nested metadata are supported. This
   excludes application wrappers and other operations sharing the platform scope.
   Parent turns and subagents retain their own messages, provenance and depth.
   Any generation messages in the same trace take precedence over this fallback;
@@ -154,7 +155,10 @@ output:  Assistant: Within five business days.
 - Include `TOOL` observations in the supplied observations to recover responses.
   Match normalized tool-result IDs first. Without an ID, match the observation's
   exact name to the earliest preceding call not yet claimed by a tool observation
-  with that tool name in the same trace. No parent constraint or fuzzy matching.
+  with that tool name in the same trace. For fallback agent calls, name matching
+  is restricted to the execution's nearest AGENT ancestor; missing ownership
+  leaves the inline result intact. Generation calls retain trace-wide matching.
+  No fuzzy matching.
   Unknown explicit IDs do not fall back to names; unmatched tools are skipped.
   Preserve all normalized output parts; tool inputs are ignored. Provider-specific
   payload interpretation belongs to normalized IO, not the transcript builder.

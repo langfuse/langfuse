@@ -8,9 +8,9 @@ import {
   type Transcript,
 } from "@langfuse/shared/src/server";
 
-/** Observations whose I/O one transcript reads at most. */
+/** Maximum observations whose I/O each transcript query reads. */
 const MAX_TRANSCRIPT_OBSERVATIONS = 1_000;
-const TRANSCRIPT_OBSERVATION_TYPES = new Set(["GENERATION", "TOOL", "AGENT"]);
+const TRANSCRIPT_OBSERVATION_TYPES = new Set(["GENERATION", "TOOL"]);
 
 type Observation = Awaited<
   ReturnType<typeof getObservationsForTraceFromEventsTable>
@@ -47,7 +47,7 @@ export async function loadTraceTranscript(trace: {
     getObservationsForTraceFromEventsTable({
       ...trace,
       selectIOAndMetadata: true,
-      types: ["GENERATION", "TOOL", "AGENT"],
+      types: ["GENERATION", "TOOL"],
       limit: MAX_TRANSCRIPT_OBSERVATIONS,
     }),
   ]);
@@ -91,6 +91,32 @@ export async function loadTraceTranscript(trace: {
     return TRANSCRIPT_OBSERVATION_TYPES.has(o.type) ? [] : [o];
   });
   let transcript = assembleTranscript(orderObservations(observations));
+  let cutoff =
+    structure.totalCount > MAX_OBSERVATIONS_PER_TRACE ||
+    content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS;
+  if (
+    !transcript &&
+    structure.observations.some((observation) => observation.type === "AGENT")
+  ) {
+    // Agent wrappers must not consume the generation/tool I/O budget.
+    const agents = await getObservationsForTraceFromEventsTable({
+      ...trace,
+      selectIOAndMetadata: true,
+      types: ["AGENT"],
+      limit: MAX_TRANSCRIPT_OBSERVATIONS,
+    });
+    for (const agent of agents.observations) contentById.set(agent.id, agent);
+    transcript = assembleTranscript(
+      orderObservations(
+        observations.map((observation) =>
+          observation.type === "AGENT"
+            ? (contentById.get(observation.id) ?? observation)
+            : observation,
+        ),
+      ),
+    );
+    cutoff = cutoff || agents.totalCount > MAX_TRANSCRIPT_OBSERVATIONS;
+  }
   if (!transcript && trace.fallbackToRootIO) {
     const root = structure.observations.find(
       (observation) =>
@@ -139,9 +165,7 @@ export async function loadTraceTranscript(trace: {
   }
   return {
     transcript: withToolObservationStatus(transcript, contentById),
-    cutoff:
-      structure.totalCount > MAX_OBSERVATIONS_PER_TRACE ||
-      content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS,
+    cutoff,
   };
 }
 

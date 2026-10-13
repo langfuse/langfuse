@@ -78,11 +78,11 @@ describe("transcript fixtures", () => {
     ]),
   });
 
-  it.each(["flat", "nested"])(
+  it.each(["flat", "nested", "encoded"])(
     "falls back to Claude Managed Agent turns with %s metadata and empty generations",
     (metadataShape) => {
       const agent = managedAgent();
-      if (metadataShape === "nested") {
+      if (metadataShape !== "flat") {
         agent.metadata = {
           scope: { name: "com.anthropic.claude-platform" },
           attributes: {
@@ -90,6 +90,14 @@ describe("transcript fixtures", () => {
             "anthropic.session.id": "synthetic-session",
           },
         };
+        if (metadataShape === "encoded") {
+          agent.metadata = Object.fromEntries(
+            Object.entries(agent.metadata).map(([key, value]) => [
+              key,
+              JSON.stringify(value),
+            ]),
+          );
+        }
       }
       const wrapper = {
         ...agent,
@@ -167,6 +175,63 @@ describe("transcript fixtures", () => {
       expect(observations).toEqual(snapshot);
     },
   );
+
+  it("matches nested managed agents' same-name tools to their owning agent", () => {
+    const parent = { ...managedAgent("parent"), parentObservationId: null };
+    const child = {
+      ...managedAgent("child"),
+      parentObservationId: parent.id,
+      input: "Read the child example.",
+      output: String(parent.output).replaceAll("read-call", "child-call"),
+    };
+    const childSpan: OrderedObservation = {
+      ...generation("2", [], []),
+      id: "child-span",
+      type: "SPAN",
+      parentObservationId: child.id,
+    };
+    const childTool: OrderedObservation = {
+      ...generation("3", [], []),
+      id: "child-tool",
+      type: "TOOL",
+      name: "read",
+      parentObservationId: childSpan.id,
+      output: [{ type: "text", text: "Child result." }],
+    };
+    const parentTool = {
+      ...childTool,
+      id: "parent-tool",
+      parentObservationId: parent.id,
+      startTime: new Date("2026-01-01T12:00:04Z"),
+      output: [{ type: "text", text: "Parent result." }],
+    };
+    const transcript = assembleTranscript(
+      orderObservations([parentTool, childTool, childSpan, parent, child]),
+    );
+    const responses = transcript?.threads.flatMap((thread) =>
+      thread.currentTurn.messages.filter((message) => message.role === "tool"),
+    );
+    expect(responses).toMatchObject([
+      {
+        observationId: parentTool.id,
+        parts: [
+          {
+            toolCallId: "read-call",
+            output: { type: "text", value: "Parent result." },
+          },
+        ],
+      },
+      {
+        observationId: childTool.id,
+        parts: [
+          {
+            toolCallId: "child-call",
+            output: { type: "text", value: "Child result." },
+          },
+        ],
+      },
+    ]);
+  });
 
   it.each(["trace", "other-trace"])(
     "prefers generation messages only within their own trace (%s)",

@@ -5,6 +5,7 @@ import type {
   ToolResultContentPart,
 } from "../../utils/normalized-io";
 import type { ThreadMessage } from "./types";
+import type { OrderedObservation } from "./ordering";
 import {
   addContributor,
   type EmittedMessage,
@@ -21,11 +22,18 @@ type Call = {
   fromTool?: boolean;
 };
 type Part = NormalizedMessage["parts"][number];
-const key = (traceId: string, id: string) => JSON.stringify([traceId, id]);
+const key = (traceId: string, id: string, agentId?: string) =>
+  JSON.stringify([traceId, id, agentId]);
 
 export type ToolCallRegistry = ReturnType<typeof createToolCallRegistry>;
 
-export function createToolCallRegistry() {
+export function createToolCallRegistry(observations: OrderedObservation[]) {
+  const observationsById = new Map(
+    observations.map((observation) => [
+      key(observation.traceId ?? "", observation.id),
+      observation,
+    ]),
+  );
   const calls = new Map<string, Call>();
   const callsByThread = new WeakMap<ThreadState, Map<string, Call[]>>();
   const pending = new Map<string, { calls: Call[]; next: number }>();
@@ -51,7 +59,11 @@ export function createToolCallRegistry() {
       matches.push(call);
       threadCalls.set(part.toolCallId, matches);
     }
-    const name = key(observation.traceId, part.toolName);
+    const name = key(
+      observation.traceId,
+      part.toolName,
+      observation.type === "AGENT" ? observation.id : undefined,
+    );
     if (!pending.has(name)) pending.set(name, { calls: [], next: 0 });
     pending.get(name)!.calls.push(call);
   }
@@ -195,7 +207,10 @@ export function createToolCallRegistry() {
     if (hasId) return;
     if (!observation.name) return;
 
-    const queue = pending.get(key(observation.traceId, observation.name));
+    const agentId = findAgentAncestor(observation, observationsById);
+    const queue =
+      pending.get(key(observation.traceId, observation.name, agentId)) ??
+      pending.get(key(observation.traceId, observation.name));
     if (!queue) return;
     while (queue.calls[queue.next]?.fromTool) queue.next++;
     // Without result IDs, assume execution order matches same-name call order.
@@ -232,4 +247,21 @@ export function createToolCallRegistry() {
   }
 
   return { forGeneration, attachToolOutput };
+}
+
+/** Aggregate agent calls match executions within that agent, including through spans. */
+function findAgentAncestor(
+  observation: TranscriptObservation,
+  observationsById: Map<string, OrderedObservation>,
+): string | undefined {
+  const visited = new Set<string>();
+  let parentId = observation.parentObservationId;
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId);
+    const parent = observationsById.get(key(observation.traceId, parentId));
+    if (!parent) return undefined;
+    if (parent.type === "AGENT") return parent.id;
+    parentId = parent.parentObservationId;
+  }
+  return undefined;
 }

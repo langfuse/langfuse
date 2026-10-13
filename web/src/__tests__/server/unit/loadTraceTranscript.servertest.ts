@@ -90,6 +90,87 @@ it("loads Claude Managed Agent messages when generation I/O is absent", async ()
   ]);
   expect(result.cutoff).toBe(false);
   expect(mocks.root).not.toHaveBeenCalled();
+  expect(mocks.observations).toHaveBeenNthCalledWith(3, {
+    ...trace,
+    selectIOAndMetadata: true,
+    types: ["AGENT"],
+    limit: 1000,
+  });
+});
+
+it("does not let agent wrappers consume the generation and tool I/O budget", async () => {
+  const agents = Array.from({ length: 1000 }, (_, index) => ({
+    id: `agent-${index}`,
+    traceId: "trace",
+    parentObservationId: null,
+    type: "AGENT" as const,
+    name: "Application wrapper",
+    nestingLevel: 0,
+    startTime: new Date(index),
+    endTime: new Date(2000),
+    input: "Wrapper input",
+    output: "Wrapper output",
+    metadata: {},
+  }));
+  const generation = {
+    ...agents[0],
+    id: "generation",
+    parentObservationId: "agent-999",
+    type: "GENERATION" as const,
+    startTime: new Date(1000),
+    input: [{ role: "user", content: "Search" }],
+    output: {
+      role: "assistant",
+      tool_calls: [
+        {
+          id: "call-1",
+          type: "function",
+          function: { name: "search", arguments: "{}" },
+        },
+      ],
+    },
+  };
+  const tool = {
+    ...generation,
+    id: "tool",
+    parentObservationId: generation.id,
+    type: "TOOL" as const,
+    name: "search",
+    startTime: new Date(1001),
+    input: {},
+    output: { role: "tool", tool_call_id: "call-1", content: "Found it" },
+  };
+  const observations = [...agents, generation, tool];
+  mocks.observations.mockImplementation(
+    async ({ selectIOAndMetadata, types, limit }) => {
+      const selected = selectIOAndMetadata
+        ? observations.filter((observation) => types.includes(observation.type))
+        : observations.map((observation) => ({
+            ...observation,
+            input: null,
+            output: null,
+            metadata: {},
+          }));
+      return {
+        observations: selected.slice(0, limit),
+        totalCount: selected.length,
+      };
+    },
+  );
+  mocks.assemble.mockImplementation(assembleTranscript);
+
+  const result = await loadTraceTranscript(trace);
+
+  expect(result.transcript?.threads[0].currentTurn.messages).toMatchObject([
+    { observationId: "generation", role: "user" },
+    { observationId: "generation", role: "assistant" },
+    { observationId: "tool", role: "tool" },
+  ]);
+  expect(mocks.assemble.mock.calls[0][0]).toContainEqual(
+    expect.objectContaining({ id: "agent-999", input: null, output: null }),
+  );
+  expect(mocks.observations).toHaveBeenCalledTimes(2);
+  expect(result.cutoff).toBe(false);
 });
 
 it.each(
@@ -285,7 +366,7 @@ it.each([
     expect(mocks.observations).toHaveBeenNthCalledWith(2, {
       ...trace,
       selectIOAndMetadata: true,
-      types: ["GENERATION", "TOOL", "AGENT"],
+      types: ["GENERATION", "TOOL"],
       limit: 1000,
     });
   },
