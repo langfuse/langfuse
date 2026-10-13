@@ -2,7 +2,7 @@ import { type ZodType } from "zod";
 
 import {
   Output,
-  embed,
+  embedMany,
   generateText,
   jsonSchema,
   streamText,
@@ -11,7 +11,7 @@ import {
   type GenerateTextOnAbortCallback,
   type GenerateTextOnEndCallback,
   type GenerateTextResult,
-  type EmbedResult,
+  type EmbedManyResult,
   type Experimental_DownloadFunction,
   type JSONValue,
   type LanguageModelCallOptions,
@@ -377,15 +377,16 @@ function openLLMConnection(connection: LLMConnection) {
   return { apiKey, extraHeaders, createFetch };
 }
 
-/** Embeds one value with a persisted connection; calls are not traced. */
+/** Embeds values with a persisted connection, batched per provider limit; calls are not traced. */
 export async function embedLLMText(options: {
   model: LLMModelRef;
   connection: LLMConnection;
-  value: string;
+  values: string[];
   providerOptions?: ProviderOptions;
   maxRetries?: number;
+  maxParallelCalls?: number;
   abortSignal?: AbortSignal;
-}): Promise<EmbedResult> {
+}): Promise<EmbedManyResult> {
   resolveAiSdkModelConfig({
     model: options.model,
     connectionConfig: options.connection.config,
@@ -405,11 +406,12 @@ export async function embedLLMText(options: {
     credentialSource: "user",
     createFetch,
   });
-  return embed({
+  return embedMany({
     model: embeddingModel,
-    value: options.value,
+    values: options.values,
     providerOptions: options.providerOptions,
     maxRetries: options.maxRetries,
+    maxParallelCalls: options.maxParallelCalls,
     abortSignal: options.abortSignal,
   });
 }

@@ -594,7 +594,7 @@ describe("trace batch queue", () => {
       }
     },
   );
-  it("resumes streaming below the payload cap while a later Topics summary is pending", async () => {
+  it("summarizes traces concurrently and resumes streaming when any summary brings payloads below the cap", async () => {
     const originalCap = env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES;
     env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES = 1_000;
     const payload = "x".repeat(600);
@@ -666,15 +666,16 @@ describe("trace batch queue", () => {
       );
       expect(reachedEnd).toBe(false);
       await vi.waitFor(() =>
-        expect(summarizeAssembledTrace).toHaveBeenCalledTimes(1),
-      );
-      resolveFirst();
-      await vi.waitFor(() => expect(reachedEnd).toBe(true));
-      await vi.waitFor(() =>
         expect(summarizeAssembledTrace).toHaveBeenCalledTimes(2),
       );
-      expect(settled).toBe(false);
+      // The later trace finishing first releases its payload.
       resolveSecond();
+      await vi.waitFor(() => expect(reachedEnd).toBe(true));
+      await vi.waitFor(() =>
+        expect(summarizeAssembledTrace).toHaveBeenCalledTimes(3),
+      );
+      expect(settled).toBe(false);
+      resolveFirst();
       await expect(processing).resolves.toEqual(
         expect.objectContaining({ traceCount: 3 }),
       );

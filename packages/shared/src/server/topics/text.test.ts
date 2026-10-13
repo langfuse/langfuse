@@ -5,7 +5,7 @@ import { env } from "../../env";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "../../interfaces/customLLMProviderConfigSchemas";
 import { LLMAdapter, type TraceSinkParams } from "../llm/types";
 import type { ResourceSpan } from "../otel/OtelIngestionProcessor";
-import { generateTopicEmbedding } from "./embeddings";
+import { generateTopicEmbeddings } from "./embeddings";
 import type { TopicsModel } from "./model-config";
 import { generateTopicText } from "./text";
 
@@ -453,34 +453,39 @@ describe("generateTopicText", () => {
   );
 });
 
-describe("generateTopicEmbedding", () => {
-  it("requests clustering vectors of the configured size from Cohere on Bedrock", async () => {
+describe("generateTopicEmbeddings", () => {
+  it("embeds every summary in one Cohere request on Bedrock", async () => {
     const vector = Array.from({ length: 512 }, (_, index) => index + 1);
+    const other = vector.map((value) => -value);
     const fetch = vi.fn<typeof globalThis.fetch>(async () =>
       Response.json(
-        { embeddings: { float: [vector] }, texts: ["Account access"] },
+        {
+          embeddings: { float: [vector, other] },
+          texts: ["Account access", "Refund request"],
+        },
         { headers: { "x-amzn-bedrock-input-token-count": "3" } },
       ),
     );
     vi.stubGlobal("fetch", fetch);
 
-    const result = await generateTopicEmbedding({
+    const result = await generateTopicEmbeddings({
       model: bedrockModel("embedding", "eu.cohere.embed-v4:0"),
-      summary: "Account access",
+      summaries: ["Account access", "Refund request"],
       dimensions: 512,
     });
 
+    expect(fetch).toHaveBeenCalledTimes(1);
     const request = new Request(...fetch.mock.calls[0]);
     expect(decodeURIComponent(request.url)).toBe(
       "https://bedrock-runtime.eu-central-1.amazonaws.com/model/eu.cohere.embed-v4:0/invoke",
     );
     expect(await request.json()).toEqual({
       input_type: "clustering",
-      texts: ["Account access"],
+      texts: ["Account access", "Refund request"],
       truncate: "NONE",
       output_dimension: 512,
     });
-    expect(result.embedding).toEqual(vector);
+    expect(result.embeddings).toEqual([vector, other]);
     expect(publishToOtelIngestionQueue).not.toHaveBeenCalled();
   });
 
@@ -494,7 +499,7 @@ describe("generateTopicEmbedding", () => {
     );
     vi.stubGlobal("fetch", fetch);
 
-    const result = await generateTopicEmbedding({
+    const result = await generateTopicEmbeddings({
       model: {
         slot: "embedding",
         provider: "openai-topics",
@@ -502,7 +507,7 @@ describe("generateTopicEmbedding", () => {
         model: "text-embedding-3-small",
         connection: { secretKey: encrypt("sk-test") },
       },
-      summary: "Account access",
+      summaries: ["Account access"],
       dimensions: 768,
     });
 
@@ -513,7 +518,7 @@ describe("generateTopicEmbedding", () => {
       input: ["Account access"],
       dimensions: 768,
     });
-    expect(result.embedding).toHaveLength(768);
+    expect(result.embeddings[0]).toHaveLength(768);
   });
 });
 
@@ -591,15 +596,15 @@ describe("allowlisted Cloud Bedrock runtime credentials", () => {
       ),
     );
     vi.stubGlobal("fetch", fetch);
-    const input = { summary: "Account access", dimensions: 512 };
+    const input = { summaries: ["Account access"], dimensions: 512 };
 
-    await generateTopicEmbedding({
+    await generateTopicEmbeddings({
       ...input,
       model: runtimeModel("embedding", "allowed"),
     });
     expect(fetch).toHaveBeenCalledTimes(1);
     await expect(
-      generateTopicEmbedding({
+      generateTopicEmbeddings({
         ...input,
         model: runtimeModel("embedding", "other"),
       }),

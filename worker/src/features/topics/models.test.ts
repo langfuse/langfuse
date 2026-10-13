@@ -20,11 +20,11 @@ vi.mock("@langfuse/shared/src/db", () => ({
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
   generateTopicText: (...args: unknown[]) => state.call(...args),
-  generateTopicEmbedding: (...args: unknown[]) => state.embed(...args),
+  generateTopicEmbeddings: (...args: unknown[]) => state.embed(...args),
 }));
 
 import {
-  embedTopicSummary,
+  embedTopicSummaries,
   nameTopicGroup,
   summarizeTopicTrace,
   summarizeTopicTraceFacets,
@@ -488,9 +488,13 @@ describe("Topics naming boundary", () => {
   );
 
   it("records embedding input usage even when the returned vector is invalid", async () => {
-    state.embed.mockResolvedValue({ embedding: [], tokens: 12 });
+    state.embed.mockResolvedValue({ embeddings: [[]], tokens: 12 });
     await expect(
-      embedTopicSummary(topicsModels().embedding, "An invoice request.", 256),
+      embedTopicSummaries(
+        topicsModels().embedding,
+        ["An invoice request."],
+        256,
+      ),
     ).rejects.toMatchObject({
       reason: "invalid_output",
     });
@@ -507,12 +511,12 @@ describe("Topics naming boundary", () => {
     "does not invent missing embedding usage: %s",
     async (tokens) => {
       state.embed.mockResolvedValue({
-        embedding: Array(256).fill(0.25),
+        embeddings: [Array(256).fill(0.25)],
         tokens,
       });
-      await embedTopicSummary(
+      await embedTopicSummaries(
         topicsModels().embedding,
-        "An invoice request.",
+        ["An invoice request."],
         256,
       );
       expect(state.increment.mock.calls).toEqual([

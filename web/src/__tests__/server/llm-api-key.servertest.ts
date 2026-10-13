@@ -152,6 +152,29 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].displaySecretKey).toMatch(/^...[a-zA-Z0-9]{4}$/);
   });
 
+  it("returns CONFLICT when creating a key for an existing provider", async () => {
+    const provider = `duplicate-provider-${randomUUID()}`;
+    const input = {
+      projectId,
+      secretKey: "test-secret",
+      provider,
+      adapter: LLMAdapter.OpenAI,
+      customModels: [],
+      withDefaultModels: true,
+    };
+
+    await caller.llmApiKey.create(input);
+
+    await expect(caller.llmApiKey.create(input)).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: "There already exists an API key for this provider.",
+    });
+
+    await expect(
+      prisma.llmApiKeys.count({ where: { projectId, provider } }),
+    ).resolves.toBe(1);
+  });
+
   it("should create a Bedrock llm api key with a Bedrock API key", async () => {
     const secret = "bedrock-api-key-1234";
 

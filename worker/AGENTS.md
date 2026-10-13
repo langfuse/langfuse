@@ -30,7 +30,7 @@
   Transcript assembly is shared with web through `loadTopicTranscript`, returning
   `Transcript | null`; serialize it for inference and skip inference on null.
   Token counting and its WASM dependency stay in `src/features/topics/models.ts`.
-  Model calls use `generateTopicText` and `generateTopicEmbedding` from
+  Model calls use `generateTopicText` and `generateTopicEmbeddings` from
   `@langfuse/shared/topics/server` with the project's resolved `TopicsModels`
   (summary, embedding, clustering LLM connections from `topic_configs`).
   Text tracing requires the source project in

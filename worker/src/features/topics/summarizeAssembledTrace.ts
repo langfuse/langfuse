@@ -18,7 +18,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prepareAssembledTopicTranscript } from "./assembledTranscript";
 import { TopicMetrics } from "./metrics";
-import { embedTopicSummary, summarizeTopicTraceFacets } from "./models";
+import { embedTopicSummaries, summarizeTopicTraceFacets } from "./models";
 import { TopicsProviderUnavailable } from "./provider-error";
 import {
   mergeTopicModelUsage,
@@ -184,24 +184,52 @@ async function summarizeEnabledTrace(
       providedCostDetails: result.providedCostDetails,
       costDetails: result.costDetails,
     };
-    rows = [];
-    // A failed facet (invalid output, embedding error) must not discard the others.
-    for (const [index, { key }] of keyed.entries()) {
-      if (invalidFacets.has(key)) continue;
+    const accepted = keyed.flatMap(({ key }, index) =>
+      invalidFacets.has(key)
+        ? []
+        : [{ base: bases[index], output: outputs[key] }],
+    );
+    const applicable = accepted
+      .filter(({ output }) => output.status === "applicable")
+      .map(({ output }) => output.summary.trim());
+    let embedded: Awaited<ReturnType<typeof embedTopicSummaries>> | undefined;
+    if (applicable.length > 0) {
       try {
-        rows.push(
-          await finalizeSummary(
-            bases[index],
-            outputs[key],
-            // One call serves every facet of the trace; record its usage once.
-            rows.length ? NO_USAGE : usage,
-            models,
-            metrics,
+        embedded = await metrics.measure("embedding", () =>
+          embedTopicSummaries(
+            models.embedding,
+            applicable,
+            models.embedding.dimensions,
           ),
         );
       } catch (error) {
+        // Non-applicable facets are still persisted when the embedding fails.
         if (failure === undefined) failure = error;
       }
+    }
+    // One call summarizes and one embeds every facet of the trace; record their usage once.
+    const traceUsage = embedded ? mergeTopicModelUsage(usage, embedded) : usage;
+    rows = [];
+    let embeddingIndex = 0;
+    for (const { base, output } of accepted) {
+      const rowUsage = rows.length > 0 ? NO_USAGE : traceUsage;
+      if (output.status !== "applicable")
+        rows.push({
+          ...base,
+          state:
+            output.status === "not_applicable"
+              ? "not_applicable"
+              : "insufficient_input",
+          ...rowUsage,
+        });
+      else if (embedded)
+        rows.push({
+          ...base,
+          state: "complete",
+          summary: output.summary.trim(),
+          embedding: embedded.embeddings[embeddingIndex++],
+          ...rowUsage,
+        });
     }
   }
   if (rows.length)
@@ -244,34 +272,5 @@ function baseSummary(
     ...NO_USAGE,
     processedAt: new Date().toISOString(),
     metadata: { input: "assembled-transcript" },
-  };
-}
-
-async function finalizeSummary(
-  base: TopicSummary,
-  output: FacetOutput,
-  usage: TopicModelUsage,
-  models: TopicsModels,
-  metrics: TopicMetrics,
-): Promise<TopicSummary> {
-  if (output.status !== "applicable")
-    return {
-      ...base,
-      state:
-        output.status === "not_applicable"
-          ? "not_applicable"
-          : "insufficient_input",
-      ...usage,
-    };
-  const summary = output.summary.trim();
-  const embedded = await metrics.measure("embedding", () =>
-    embedTopicSummary(models.embedding, summary, models.embedding.dimensions),
-  );
-  return {
-    ...base,
-    state: "complete",
-    summary,
-    embedding: embedded.embedding,
-    ...mergeTopicModelUsage(usage, embedded),
   };
 }

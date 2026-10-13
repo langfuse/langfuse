@@ -36,6 +36,7 @@ vi.mock("@opentelemetry/api", () => ({
   context: {
     with: (_context: unknown, callback: () => unknown) => callback(),
   },
+  createContextKey: (description: string) => Symbol.for(description),
 }));
 
 vi.mock("@langfuse/shared/src/server", async () => {

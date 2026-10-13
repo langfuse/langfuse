@@ -46,7 +46,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 vi.mock("./models", () => ({
-  embedTopicSummary: mocks.embed,
+  embedTopicSummaries: mocks.embed,
 }));
 
 import { processTopicEmbeddingBatch } from "./processTopicEmbeddingBatch";
@@ -94,8 +94,7 @@ const batch = (...rows: TopicSummary[]): TopicEmbeddingBatch => ({
     traceId: row.traceId,
   })),
 });
-const embeddingResult = {
-  embedding: Array(256).fill(0.25),
+const embeddingUsage = {
   providedUsageDetails: { embedding_input: 8, total: 8 },
   usageDetails: { embedding_input: 8, total: 8 },
   providedCostDetails: {},
@@ -121,7 +120,10 @@ beforeEach(() => {
     staged.set(topicSourceKey({ ..._batch, ...ref, sessionId: null }), row);
     return row;
   });
-  mocks.embed.mockResolvedValue(embeddingResult);
+  mocks.embed.mockImplementation(async (_model, summaries: string[]) => ({
+    ...embeddingUsage,
+    embeddings: summaries.map(() => Array(256).fill(0.25)),
+  }));
 });
 
 describe("Topics embedding handoff", () => {
@@ -132,7 +134,7 @@ describe("Topics embedding handoff", () => {
         ...summary(),
         state,
         environment: "langfuse-topics",
-        embedding: state === "complete" ? embeddingResult.embedding : [],
+        embedding: state === "complete" ? Array(256).fill(0.25) : [],
       };
       staged.set(topicSourceKey(row), row);
 
@@ -225,26 +227,58 @@ describe("Topics embedding handoff", () => {
     expect(mocks.write).not.toHaveBeenCalled();
   });
 
-  it("persists completed rows before retrying a later provider failure", async () => {
-    const rows = [summary("first"), summary("second")];
-    for (const row of rows) staged.set(topicSourceKey(row), row);
-    mocks.embed.mockResolvedValueOnce(embeddingResult);
+  it("embeds each trace's facets in one call and keeps finished traces when another fails", async () => {
+    const intent = summary("first");
+    const outcome: TopicSummary = {
+      ...intent,
+      facetId: "outcome",
+      summary: "An outcome of first.",
+    };
+    const other = summary("second");
+    for (const row of [intent, outcome, other])
+      staged.set(topicSourceKey(row), row);
     const failure = new TopicsProviderUnavailable(
       "Topics provider call failed (HTTP 429).",
       "rate_limit",
     );
-    mocks.embed.mockRejectedValueOnce(failure);
-    await expect(processTopicEmbeddingBatch(batch(...rows))).rejects.toBe(
-      failure,
-    );
-    expect(mocks.write.mock.calls[0][0]).toMatchObject([
-      { traceId: "trace-first", state: "complete" },
+    mocks.embed.mockImplementation(async (_model, summaries: string[]) => {
+      if (summaries.includes("A summary of second.")) throw failure;
+      return {
+        ...embeddingUsage,
+        embeddings: summaries.map(() => Array(256).fill(0.25)),
+      };
+    });
+    await expect(
+      processTopicEmbeddingBatch(batch(intent, outcome, other)),
+    ).rejects.toBe(failure);
+    expect(mocks.embed).toHaveBeenCalledTimes(2);
+    expect(mocks.embed.mock.calls.map((call) => call[1])).toContainEqual([
+      "A summary of first.",
+      "An outcome of first.",
     ]);
-    expect(staged.get(topicSourceKey(rows[0]))?.state).toBe("complete");
-    expect(staged.get(topicSourceKey(rows[1]))?.state).toBe("summarized");
-    await processTopicEmbeddingBatch(batch(...rows));
-    expect(mocks.embed).toHaveBeenCalledTimes(3);
-    expect(staged.get(topicSourceKey(rows[1]))?.state).toBe("complete");
+    // The finished trace is stored with the call's usage recorded once.
+    expect(mocks.write.mock.calls[0][0]).toMatchObject([
+      { facetId: "facet", state: "complete", usageDetails: { total: 38 } },
+      { facetId: "outcome", state: "complete", usageDetails: { total: 30 } },
+    ]);
+    expect(staged.get(topicSourceKey(other))?.state).toBe("summarized");
+  });
+
+  it("stops on a permanent failure even when another trace failed retryably", async () => {
+    const rows = [summary("first"), summary("second")];
+    for (const row of rows) staged.set(topicSourceKey(row), row);
+    mocks.embed.mockImplementation(async (_model, summaries: string[]) => {
+      throw summaries.includes("A summary of first.")
+        ? new TopicsProviderUnavailable("Rate limited.", "rate_limit")
+        : new TopicsProviderUnavailable(
+            "Check worker credentials.",
+            "authentication",
+          );
+    });
+    await expect(processTopicEmbeddingBatch(batch(...rows))).rejects.toThrow(
+      UnrecoverableError,
+    );
+    expect(mocks.pause).toHaveBeenCalledOnce();
   });
 
   it("does not retry provider authentication failures", async () => {
@@ -284,7 +318,7 @@ describe("Topics embedding handoff", () => {
     staged.set(topicSourceKey(row), row);
     mocks.embed.mockImplementation(async () => {
       staged.delete(topicSourceKey(row));
-      return embeddingResult;
+      return { ...embeddingUsage, embeddings: [Array(256).fill(0.25)] };
     });
     await expect(processTopicEmbeddingBatch(batch(row))).rejects.toThrow(
       UnrecoverableError,
