@@ -14,10 +14,8 @@ import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type MediaReturnType } from "@/src/features/media";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import {
-  MarkdownJsonViewHeader,
-  SectionCollapseButton,
-} from "@/src/components/ui/MarkdownJsonView";
+import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { SectionCollapseButton } from "@/src/components/ui/SectionCollapseButton";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
@@ -549,10 +547,11 @@ function JsonPrettyTable({
       const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS / 3; // already long if we don't truncate
 
       if (isLongValue) {
-        let topPosition = "0";
-        if (stickyTopLevelKey) {
-          topPosition =
-            row.original.level === 0 ? "0" : `${topLevelRowHeight}px`;
+        // Offset by the section header where the host pins it (--io-header-h).
+        const headerOffset = "var(--io-header-h, 0px)";
+        let topPosition = headerOffset;
+        if (stickyTopLevelKey && row.original.level !== 0) {
+          topPosition = `calc(${headerOffset} + ${topLevelRowHeight}px)`;
         }
 
         return (
@@ -1189,17 +1188,20 @@ export function PrettyJsonView(props: {
   const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
   const isPrettyView = actualCurrentView === "pretty";
   const isMarkdownMode = isMarkdown && isPrettyView;
-  // Mirrors the inline toggle of the title-less MarkdownView rendered below.
-  const systemPrompt = useCollapsibleSystemPrompt({
-    isSystemPrompt: !!props.isSystemPrompt && isMarkdownMode,
-    content: markdownContent ?? "",
-  });
   const standaloneMediaReferenceStrings =
     typeof markdownContent === "string"
       ? getStandaloneMediaReferenceStrings(markdownContent)
       : [];
   const shouldRenderStandaloneMedia =
     isMarkdownMode && standaloneMediaReferenceStrings.length > 0;
+  // Mirrors the inline toggle of the title-less MarkdownView rendered below.
+  const systemPrompt = useCollapsibleSystemPrompt({
+    isSystemPrompt:
+      !!props.isSystemPrompt && isMarkdownMode && !shouldRenderStandaloneMedia,
+    content: markdownContent ?? "",
+  });
+  const handleHeaderCollapseToggle = () =>
+    systemPrompt.toggleCollapsed("header");
   const remainingMarkdownMedia = filterAlreadyRenderedMedia(
     props.media,
     getRenderedInlineMediaIds({
@@ -1443,7 +1445,7 @@ export function PrettyJsonView(props: {
               {systemPrompt.shouldBeCollapsible && (
                 <SectionCollapseButton
                   isCollapsed={systemPrompt.isCollapsed}
-                  onToggle={() => systemPrompt.toggleCollapsed("header")}
+                  onToggle={handleHeaderCollapseToggle}
                   label="system prompt"
                 />
               )}

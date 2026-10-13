@@ -38,10 +38,8 @@ import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import {
-  MarkdownJsonViewHeader,
-  SectionCollapseButton,
-} from "@/src/components/ui/MarkdownJsonView";
+import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { SectionCollapseButton } from "@/src/components/ui/SectionCollapseButton";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
@@ -593,13 +591,20 @@ export function MarkdownView({
     </Button>
   ) : null;
 
-  const headerCollapseButton = shouldBeCollapsible ? (
-    <SectionCollapseButton
-      isCollapsed={isCollapsed}
-      onToggle={() => toggleCollapsed("header")}
-      label="system prompt"
-    />
-  ) : null;
+  // Media-only content renders no collapsible text, so no header toggle.
+  const bodyIsCollapsible =
+    typeof markdown !== "string" ||
+    (standaloneMediaDescriptor?.kind !== "s3" &&
+      inlineMediaReferenceStrings.length === 0);
+  const handleHeaderCollapseToggle = () => toggleCollapsed("header");
+  const headerCollapseButton =
+    shouldBeCollapsible && bodyIsCollapsible ? (
+      <SectionCollapseButton
+        isCollapsed={isCollapsed}
+        onToggle={handleHeaderCollapseToggle}
+        label="system prompt"
+      />
+    ) : null;
 
   return (
     // overflow-clip (not hidden) so the sticky header can track the panel scroll.
