@@ -28,6 +28,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
@@ -135,6 +136,7 @@ export const RemoteExperimentUpsertForm = ({
         showErrorToast(
           error.message || "Failed to setup",
           "Please check your URL and config and try again.",
+          classifyTrpcToastError(error, "remote_experiment.update"),
         );
       },
     });
@@ -158,6 +160,7 @@ export const RemoteExperimentUpsertForm = ({
         showErrorToast(
           error.message || "Failed to delete remote dataset run trigger",
           "Please try again.",
+          classifyTrpcToastError(error, "remote_experiment.delete"),
         );
       },
     });

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export function DeleteSsoConfigDialogController({
   orgId,
@@ -25,7 +26,11 @@ export function DeleteSsoConfigDialogController({
       });
     },
     onError: (err) => {
-      showErrorToast("Failed to remove SSO", err.message);
+      showErrorToast(
+        "Failed to remove SSO",
+        err.message,
+        classifyTrpcToastError(err, "sso.disable"),
+      );
     },
   });
 

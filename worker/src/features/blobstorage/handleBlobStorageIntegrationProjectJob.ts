@@ -607,11 +607,6 @@ const processBlobStorageExport = async (config: {
         };
         heartbeat = setInterval(() => {
           recordGauge(
-            "langfuse.blobstorage.export_heartbeat.rows",
-            sourceStats.rows,
-            heartbeatTags,
-          );
-          recordGauge(
             "langfuse.blobstorage.export_heartbeat.serialized_bytes",
             compressedCounter
               ? compressedCounter.bytes

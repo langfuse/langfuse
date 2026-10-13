@@ -83,9 +83,6 @@ export interface IOPreviewProps extends ExpansionStateProps {
   enableInlineComments?: boolean;
   onAddInlineComment?: IOPreviewJSONProps["onAddInlineComment"];
   commentedPathsByField?: IOPreviewJSONProps["commentedPathsByField"];
-  // Whether to show metadata section in pretty view (default: false)
-  // JSON view always shows metadata
-  showMetadata?: boolean;
   // Callback to inform parent if virtualization is being used (for scroll handling)
   onVirtualizationChange?: (isVirtualized: boolean) => void;
   // For CorrectedOutputField
@@ -147,7 +144,6 @@ export function IOPreview({
   enableInlineComments,
   onAddInlineComment,
   commentedPathsByField,
-  showMetadata = false,
   onVirtualizationChange,
   observationId,
   projectId,
@@ -248,14 +244,12 @@ export function IOPreview({
        */}
       {selectedView === "json-beta" ? (
         <IOPreviewJSON
-          hideMetadata={!showMetadata}
+          hideMetadata
           input={input}
           output={output}
           status={status}
-          metadata={metadata}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
-          parsedMetadata={parsedMetadata}
           outputCorrection={outputCorrection}
           isParsing={isParsing}
           hideIfNull={hideIfNull}
@@ -276,15 +270,13 @@ export function IOPreview({
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple
-          hideMetadata={!showMetadata}
+          hideMetadata
           input={input}
           output={output}
           status={status}
-          metadata={metadata}
           outputCorrection={outputCorrection}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
-          parsedMetadata={parsedMetadata}
           isLoading={isLoading}
           isParsing={isParsing}
           hideIfNull={hideIfNull}
@@ -306,7 +298,6 @@ export function IOPreview({
       ) : (
         <IOPreviewPretty
           {...sharedProps}
-          showMetadata={showMetadata}
           contentMode={contentMode}
           showSystemPrompt={showSystemPrompt}
         />

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { LangfuseMediaView } from "./LangfuseMediaView";
 
 vi.mock("@/src/hooks/useProjectIdFromURL", () => ({
-  default: () => "project-id",
+  default: () => "project-1",
 }));
 
 vi.mock("@/src/utils/api", () => ({

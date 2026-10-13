@@ -3,7 +3,6 @@ import { useMemo } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { type MediaReturnType } from "@/src/features/media";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
@@ -105,8 +104,6 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
-  // Whether to show metadata section (default: false)
-  showMetadata?: boolean;
   observationId?: string;
   projectId: string;
   traceId: string;
@@ -146,11 +143,8 @@ export function IOPreviewPretty({
   media,
   inputExpansionState,
   outputExpansionState,
-  metadataExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
-  onMetadataExpansionChange,
-  showMetadata = false,
   observationId,
   projectId,
   traceId,
@@ -174,16 +168,6 @@ export function IOPreviewPretty({
     ? undefined
     : (preParsedMetadata ??
       deepParseJson(metadata, { maxSize: 100_000, maxDepth: 2 }));
-
-  // Enable the metadata rows' actions menu (copy + add-to-filter). Observation
-  // metadata filters the observations table; trace metadata the traces table.
-  const metadataActions = useMemo<MetadataFilterActions>(
-    () => ({
-      projectId,
-      filterTarget: observationId ? "observations" : "traces",
-    }),
-    [projectId, observationId],
-  );
 
   // Parse into the shared preview contract.
   const parserResult = useIOPreviewParser(
@@ -269,8 +253,6 @@ export function IOPreviewPretty({
     onOutputExpansionChange,
   };
 
-  // Determine if metadata should be shown
-  const shouldShowMetadata = showMetadata && parsedMetadata !== undefined;
   const showData = contentMode !== "conversation";
   const shouldRenderMessages = hasRenderableChatMessages(parserResult);
 
@@ -328,21 +310,6 @@ export function IOPreviewPretty({
           )}
         </div>
       ) : null}
-
-      {/* Metadata Section */}
-      {showData && shouldShowMetadata && (
-        <PrettyJsonView
-          title="Metadata"
-          json={parsedMetadata}
-          isLoading={isLoading}
-          isParsing={isParsing}
-          media={media?.filter((m) => m.field === "metadata") ?? []}
-          currentView="pretty"
-          externalExpansionState={metadataExpansionState}
-          onExternalExpansionChange={onMetadataExpansionChange}
-          metadataActions={metadataActions}
-        />
-      )}
     </div>
   );
 }

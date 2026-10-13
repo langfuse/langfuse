@@ -87,8 +87,6 @@ const nextConfig = {
   // symbolication is handled separately by uploading maps with debug IDs (see
   // `sourcemaps` in withSentryConfig below).
   productionBrowserSourceMaps: true,
-  // Allow building to alternate directory for parallel build checks while dev server runs
-  distDir: process.env.NEXT_DIST_DIR || ".next",
   typescript: {
     // CI test jobs run `pnpm run typecheck` separately and skip duplicate
     // Next.js type checks to keep test builds fast. Production/Docker builds
@@ -139,6 +137,10 @@ const nextConfig = {
   turbopack: {
     resolveAlias: {
       "@langfuse/shared": "./packages/shared/src",
+      // Turbopack 16.4 dev omits required factories from Lucide's ESM build.
+      ...(process.env.NODE_ENV === "development"
+        ? { "lucide-react": "lucide-react/dist/cjs/lucide-react.js" }
+        : {}),
     },
     rules: {
       "*.md": {
