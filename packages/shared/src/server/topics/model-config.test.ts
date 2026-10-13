@@ -61,7 +61,6 @@ const settings = {
   embedding: slot("openai", "text-embedding-3-small"),
   embeddingDimensions: 1024 as const,
   clustering: slot("openai", "gpt-5.6-terra"),
-  enabled: true,
 };
 
 const saveTopicsModelSettings = async (
@@ -128,20 +127,45 @@ describe("prepareTopicsModelSettings", () => {
     expect(mocks.upsert).toHaveBeenCalledOnce();
   });
 
-  it("saves a partial setup but enables Topics only with all three models", async () => {
+  it("saves a partial setup only while automatic processing is off", async () => {
     await saveTopicsModelSettings("project", {
       ...settings,
       clustering: null,
-      enabled: false,
     });
     expect(mocks.upsert).toHaveBeenCalledOnce();
+    expect(mocks.upsert.mock.calls[0][0].create).not.toHaveProperty("enabled");
+
+    mocks.current.mockResolvedValue({ enabled: true });
     await expect(
       saveTopicsModelSettings("project", { ...settings, clustering: null }),
-    ).rejects.toThrow("before turning Topics on");
+    ).rejects.toThrow("while automatic processing is on");
     expect(mocks.upsert).toHaveBeenCalledOnce();
   });
 
-  it("tests every configured slot and names the ones that fail", async () => {
+  it("skips the test calls for unchanged models while automatic processing is on", async () => {
+    mocks.current.mockResolvedValue({
+      enabled: true,
+      summaryLlmApiKeyId: "openai",
+      summaryModel: "gpt-6-luna",
+      embeddingLlmApiKeyId: "openai",
+      embeddingModel: "text-embedding-3-small",
+      embeddingDimensions: 1024,
+      clusteringLlmApiKeyId: "openai",
+      clusteringModel: "gpt-5.6-terra",
+    });
+    await saveTopicsModelSettings("project", {
+      ...settings,
+      clustering: slot("openai", "gpt-6.1-sol"),
+    });
+    expect(mocks.testCall).toHaveBeenCalledOnce();
+    expect(mocks.testCall).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-6.1-sol" }),
+    );
+    expect(mocks.embed).not.toHaveBeenCalled();
+  });
+
+  it("tests every changed slot and names the ones that fail", async () => {
+    mocks.current.mockResolvedValue({ enabled: true });
     mocks.testCall.mockImplementation(async ({ model }) => {
       if (model === "gpt-5.6-terra")
         throw new Error("Model not found (HTTP 404)");

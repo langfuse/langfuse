@@ -248,7 +248,7 @@ export async function writeTopicRule(
     throw new InvalidRequestError("Select facets from this project.");
   const rules = await tx.evaluationRule.findMany({
     where: topicRuleWhere(input.projectId),
-    select: { id: true, name: true },
+    select: { id: true, name: true, sampling: true },
   });
   if (rules.length > 1)
     throw new InvalidRequestError(
@@ -262,7 +262,12 @@ export async function writeTopicRule(
     );
   if (input.id && input.id !== ruleId)
     throw new InvalidRequestError("Topic rule not found in this project.");
-  const config = topicRuleSettingsSchema.parse(input);
+  // Sampling belongs to automatic processing; a write without it keeps the rate.
+  const config = topicRuleSettingsSchema.parse({
+    ...input,
+    sampling:
+      input.sampling ?? (rules[0] ? Number(rules[0].sampling) : undefined),
+  });
   const data = {
     name,
     filter: JSON.parse(JSON.stringify(config.filter)) as Prisma.InputJsonValue,
