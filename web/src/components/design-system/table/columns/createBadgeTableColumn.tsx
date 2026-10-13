@@ -2,6 +2,7 @@
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { type LucideIcon } from "lucide-react";
 
+import { Tag } from "@/src/components/design-system/Tag/Tag";
 import { Badge, type BadgeProps } from "@/src/components/ui/badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
@@ -75,10 +76,9 @@ export function createBadgeTableColumn<TData extends RowData>({
         ) : null;
       }
 
-      const badge =
-        range === "semantic" || range === "decorative"
-          ? getBadge(value, context)
-          : (getBadge?.(value, context) ?? { value, variant: "secondary" });
+      if (!getBadge) return <Tag text={value} />;
+
+      const badge = getBadge(value, context);
       const Icon = badge.icon;
 
       return (

@@ -1,3 +1,4 @@
+import { TagIcon } from "lucide-react";
 import React from "react";
 import { fn } from "storybook/test";
 
@@ -35,6 +36,9 @@ export const Variants = meta.story({
         remove={{ onRemove: fn() }}
       />
       <Tag text="locked" remove={{ onRemove: fn(), disabled: true }} />
+      <Tag text="release-notes" icon={TagIcon} />
+      <Tag text="warning" status="warning" />
+      <Tag text="error" status="error" />
     </div>
   ),
 });

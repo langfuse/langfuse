@@ -1,4 +1,5 @@
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Tag } from "@/src/components/design-system/Tag/Tag";
 import { cn } from "@/src/utils/tailwind";
 import { TagIcon } from "lucide-react";
 import React from "react";
@@ -26,10 +27,8 @@ export const TagButton: React.FC<{
 
   if (viewOnly) {
     return (
-      <span className="inline-flex max-w-40 min-w-0 font-mono">
-        <BadgeShell color="filled" font="mono" size="md">
-          {label}
-        </BadgeShell>
+      <span className="inline-flex max-w-40 min-w-0">
+        <Tag text={tag} icon={TagIcon} />
       </span>
     );
   }
