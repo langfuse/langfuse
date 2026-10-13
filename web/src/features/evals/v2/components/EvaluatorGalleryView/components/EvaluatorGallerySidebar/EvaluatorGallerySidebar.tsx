@@ -1,8 +1,7 @@
 import type { RefObject } from "react";
-import { Search } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
+import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import {
   Select,
   SelectContent,
@@ -23,17 +22,13 @@ function GallerySearch({
   searchInputRef?: RefObject<HTMLInputElement | null>;
 }) {
   return (
-    <div className="relative">
-      <Search className="text-muted-foreground icon-base absolute top-1/2 left-2 -translate-y-1/2" />
-      <Input
-        ref={searchInputRef}
-        value={search}
-        onChange={(event) => onSearchChange(event.target.value)}
-        placeholder="Search templates"
-        aria-label="Search templates"
-        className="pl-8"
-      />
-    </div>
+    <SearchInput
+      ref={searchInputRef}
+      value={search}
+      onChange={onSearchChange}
+      onSubmit={onSearchChange}
+      placeholder="Search templates"
+    />
   );
 }
 
@@ -69,7 +64,7 @@ export function EvaluatorGallerySidebar({
         aria-label="Browse categories"
         className="hidden w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r p-4 @2xl:flex"
       >
-        <div className="pb-4">{searchField(searchInputRef)}</div>
+        <div className="pb-2">{searchField(searchInputRef)}</div>
         {items.map((item) => {
           const isActive = selectedSection === item.key;
 
