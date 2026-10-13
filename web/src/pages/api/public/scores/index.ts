@@ -17,7 +17,7 @@ import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecation
 import { randomUUID } from "crypto";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 
-// Matches /api/public/ingestion; SDKs batch scores up to 1 MB plus JSON overhead.
+/** Body limit matches /api/public/ingestion; SDK score batches reach 1 MB plus JSON overhead */
 export const config = {
   api: {
     bodyParser: {

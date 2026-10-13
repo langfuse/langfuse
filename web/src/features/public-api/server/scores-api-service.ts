@@ -217,6 +217,25 @@ function determineTraceJoinRequirement(
   return { includeTrace, needsTraceJoin };
 }
 
+/**
+ * Wraps a score body in a score-create event whose timestamp is the body's
+ * `timestamp` (default now). Unvalidated values are rejected per event by
+ * processEventBatch.
+ */
+function toScoreCreateEvent(body: unknown) {
+  const isRecord =
+    typeof body === "object" && body !== null && !Array.isArray(body);
+  const { timestamp, ...scoreBody } = isRecord
+    ? (body as Record<string, unknown>)
+    : {};
+  return {
+    id: randomUUID(),
+    type: eventTypes.SCORE_CREATE,
+    timestamp: timestamp ?? new Date().toISOString(),
+    body: isRecord ? scoreBody : body,
+  };
+}
+
 export class ScoresApiService {
   constructor(private readonly apiVersion: "v1" | "v2") {}
 
@@ -245,16 +264,8 @@ export class ScoresApiService {
         })
       : undefined;
 
-    const { timestamp, ...scoreBody } = body;
     const result = await processEventBatch(
-      [
-        {
-          id: randomUUID(),
-          type: eventTypes.SCORE_CREATE,
-          timestamp: timestamp ?? new Date().toISOString(),
-          body: { ...scoreBody, id: scoreId },
-        },
-      ],
+      [toScoreCreateEvent({ ...body, id: scoreId })],
       auth,
       { attribution },
     );
@@ -290,23 +301,11 @@ export class ScoresApiService {
     auth: AuthHeaderValidVerificationResultIngestion;
     attribution: IngestionAttribution;
   }) {
-    const events = bodies.map((body) => {
-      const isRecord =
-        typeof body === "object" && body !== null && !Array.isArray(body);
-      // Batch items are unvalidated here; an invalid timestamp fails event
-      // validation in processEventBatch and rejects only that item.
-      const { timestamp, ...scoreBody } = isRecord
-        ? (body as Record<string, unknown>)
-        : {};
-      return {
-        id: randomUUID(),
-        type: eventTypes.SCORE_CREATE,
-        timestamp: timestamp ?? new Date().toISOString(),
-        body: isRecord ? scoreBody : body,
-      };
-    });
-
-    const result = await processEventBatch(events, auth, { attribution });
+    const result = await processEventBatch(
+      bodies.map((body) => toScoreCreateEvent(body)),
+      auth,
+      { attribution },
+    );
 
     return { result };
   }

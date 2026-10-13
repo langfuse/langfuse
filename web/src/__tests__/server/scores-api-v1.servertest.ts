@@ -386,6 +386,25 @@ describe("/api/public/scores API Endpoint", () => {
       });
     });
 
+    it("should accept a batch body larger than the 1 MB default limit", async () => {
+      const { auth } = await createOrgProjectAndApiKey();
+      const comment = "x".repeat(400_000);
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        [0, 1, 2].map((index) => ({
+          traceId: v4(),
+          name: `large-batch-${index}`,
+          value: index,
+          comment,
+        })),
+        auth,
+      );
+
+      expect(response.status).toBe(202);
+    });
+
     it("should reject only the batch item with an invalid timestamp", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const validId = v4();
