@@ -21,7 +21,10 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   writeTopicSummaries: (...args: unknown[]) => state.write(...args),
   TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v3",
 }));
-vi.mock("@langfuse/shared/src/server", () => ({
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  isInternalEvalEnvironment: (
+    await importOriginal<typeof import("@langfuse/shared/src/server")>()
+  ).isInternalEvalEnvironment,
   recordDistribution: vi.fn(),
   recordIncrement: vi.fn(),
   instrumentAsync: async (
@@ -133,6 +136,25 @@ beforeEach(() => {
 });
 
 describe("summarizeAssembledTrace", () => {
+  it("skips internal traces before reading summaries, calling models or writing", async () => {
+    const result = await summarizeAssembledTrace({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
+      environment: "langfuse-topics",
+      traceName: "topics-summary",
+      transcript,
+      models,
+      facets: [facet],
+    });
+    expect(result).toBe("disabled");
+    expect(state.stored).not.toHaveBeenCalled();
+    expect(state.summarize).not.toHaveBeenCalled();
+    expect(state.embed).not.toHaveBeenCalled();
+    expect(state.write).not.toHaveBeenCalled();
+  });
+
   it("skips a finished job retry but summarizes a later redispatch", async () => {
     await summarizeAssembledTrace({
       projectId: "project-a",
@@ -153,6 +175,10 @@ describe("summarizeAssembledTrace", () => {
     ]);
     expect(submitted[2]).toContain("Export monthly sales");
     expect(submitted[2]).not.toContain("observation");
+    expect(submitted[4]).toEqual({
+      source_trace_id: "trace-1",
+      source_environment: "default",
+    });
     const written = state.write.mock.calls[0][0][0];
     expect(written).toMatchObject({
       projectId: "project-a",

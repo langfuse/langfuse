@@ -6,6 +6,10 @@ import { applyCommentFilters } from "../services/commentFilterService";
 import { CTEQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
 import { queryClickhouse } from "../repositories/clickhouse";
+import {
+  INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+  PUBLIC_LLM_JUDGE_ENVIRONMENT,
+} from "../llm/isInternalEvalEnvironment";
 
 type SelectionRows = {
   ids: { id: string };
@@ -24,7 +28,7 @@ type SelectionRows = {
   };
 };
 
-/** Matching observations select trace identities; processing reads each full trace. */
+/** Select trace identities from matching root observations. */
 export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
   input: z.infer<typeof topicTraceSelectionCriteriaSchema> & {
     projectId: string;
@@ -68,14 +72,10 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
     .selectRaw(
       "e.trace_id AS id",
       "e.start_time AS start_time",
-      ...(preview
-        ? [
-            "e.span_id AS span_id",
-            "e.event_ts AS event_ts",
-            `${eventsTableTraceNameSelectSql} AS trace_name`,
-            "e.environment AS environment",
-          ]
-        : []),
+      "e.span_id AS span_id",
+      "e.event_ts AS event_ts",
+      "e.environment AS environment",
+      ...(preview ? [`${eventsTableTraceNameSelectSql} AS trace_name`] : []),
     )
     .whereRaw("e.trace_id != ''")
     .buildWithParams();
@@ -85,9 +85,10 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       schema: [
         "id",
         "start_time",
-        ...(preview
-          ? (["span_id", "event_ts", "trace_name", "environment"] as const)
-          : []),
+        "span_id",
+        "event_ts",
+        "environment",
+        ...(preview ? (["trace_name"] as const) : []),
       ] as const,
     })
     .from("matching_observations", "m")
@@ -95,14 +96,21 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       "m.id AS id",
       "min(m.start_time) AS timestamp",
       "max(m.start_time) AS latest_match",
+      "argMax(m.environment, tuple(m.event_ts, m.span_id, m.environment)) AS environment",
       ...(preview
         ? [
             "argMaxIf(m.trace_name, tuple(m.event_ts, m.span_id, m.trace_name), m.trace_name != '') AS name",
-            "argMax(m.environment, tuple(m.event_ts, m.span_id, m.environment)) AS environment",
           ]
         : []),
     )
     .groupBy("m.id")
+    .havingRaw(
+      "NOT startsWith(environment, {internalEnvironmentPrefix:String}) AND environment != {publicLlmJudgeEnvironment:String}",
+      {
+        internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+        publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      },
+    )
     .buildWithParams();
   const selection = new CTEQueryBuilder()
     .withCTE("matching_traces", {
@@ -111,7 +119,8 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
         "id",
         "timestamp",
         "latest_match",
-        ...(preview ? (["name", "environment"] as const) : []),
+        "environment",
+        ...(preview ? (["name"] as const) : []),
       ] as const,
     })
     .from("matching_traces", "t")

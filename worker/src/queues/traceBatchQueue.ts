@@ -36,6 +36,8 @@ import {
 import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 
+type TraceBatchObservation = Observation & { eventTimestamp: string };
+
 type TraceOutcome =
   | { outcome: "disabled" | "unchanged" | "summarized" }
   | { outcome: "failed"; reason: string };
@@ -97,7 +99,7 @@ async function loadProjectRule(projectId: string) {
 }
 
 async function summarizeTraceBatch(
-  observations: Observation[],
+  observations: TraceBatchObservation[],
   transcript: Transcript | null,
   topics: TopicsBatchProjects,
   jobEnqueuedAt: Date,
@@ -117,6 +119,13 @@ async function summarizeTraceBatch(
   const traceTimestamp = new Date(
     Math.min(...observations.map((row) => row.startTime.getTime())),
   ).toISOString();
+  // Match manual processing and discovery, preserving event_ts microseconds.
+  const latest = observations.reduce((current, row) => {
+    if (row.eventTimestamp !== current.eventTimestamp)
+      return row.eventTimestamp > current.eventTimestamp ? row : current;
+    if (row.id !== current.id) return row.id > current.id ? row : current;
+    return row.environment > current.environment ? row : current;
+  });
   try {
     const project = await topics.get(first.projectId);
     if (
@@ -133,7 +142,7 @@ async function summarizeTraceBatch(
         traceId,
         traceTimestamp,
         jobEnqueuedAt,
-        environment: first.environment,
+        environment: latest.environment,
         traceName: first.name ?? "",
         transcript,
         models: project.models,
@@ -306,7 +315,10 @@ export const traceBatchQueueProcessor: Processor<
     let pendingSummaryBytes = 0;
     let summaryFailed = false;
     let summaryError: unknown;
-    const enqueueSummary = (observations: Observation[], bytes: number) => {
+    const enqueueSummary = (
+      observations: TraceBatchObservation[],
+      bytes: number,
+    ) => {
       pendingSummaryBytes += bytes;
       const enqueuedAt = performance.now();
       const transcribed = transcribing.then(async () => {
@@ -352,7 +364,7 @@ export const traceBatchQueueProcessor: Processor<
     activeReads++;
     try {
       recordTraceBatchActiveReads();
-      let traceObservations: Observation[] = [];
+      let traceObservations: TraceBatchObservation[] = [];
       let traceBytes = 0;
       for await (const event of getTraceBatchEventStream(batch, queryOptions)) {
         observationCount++;
@@ -394,8 +406,8 @@ export const traceBatchQueueProcessor: Processor<
           if (summaryFailed) break;
         }
         traceBytes += eventBytes;
-        traceObservations.push(
-          convertObservation({
+        traceObservations.push({
+          ...convertObservation({
             ...event,
             id: event.span_id,
             parent_observation_id: event.parent_span_id,
@@ -408,7 +420,8 @@ export const traceBatchQueueProcessor: Processor<
             usage_details: {},
             cost_details: {},
           }),
-        );
+          eventTimestamp: event.event_ts,
+        });
       }
       // Reaching EOF completes the last trace; a failed stream must not flush it.
       if (traceObservations.length && !summaryFailed)
