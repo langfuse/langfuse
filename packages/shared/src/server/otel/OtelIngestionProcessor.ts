@@ -645,14 +645,20 @@ export class OtelIngestionProcessor {
                     : this.extractCostDetails(spanAttributes, spanContext),
 
                   // Properties
-                  tags: this.extractTags(spanAttributes),
+                  tags: this.extractTags(spanAttributes, decodeMetadataValues),
                   public: this.extractPublic(spanAttributes),
                   isAppRoot: this.extractIsAppRoot(spanAttributes),
                   traceName:
                     spanAttributes?.[LangfuseOtelSpanAttributes.TRACE_NAME] ??
                     null,
-                  userId: this.extractUserId(spanAttributes),
-                  sessionId: this.extractSessionId(spanAttributes),
+                  userId: this.extractUserId(
+                    spanAttributes,
+                    decodeMetadataValues,
+                  ),
+                  sessionId: this.extractSessionId(
+                    spanAttributes,
+                    decodeMetadataValues,
+                  ),
                   release:
                     (spanAttributes?.[
                       LangfuseOtelSpanAttributes.RELEASE
@@ -1134,10 +1140,10 @@ export class OtelIngestionProcessor {
           (attributes?.[LangfuseOtelSpanAttributes.RELEASE] as string) ??
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
-        userId: this.extractUserId(attributes),
-        sessionId: this.extractSessionId(attributes),
+        userId: this.extractUserId(attributes, decodeMetadataValues),
+        sessionId: this.extractSessionId(attributes, decodeMetadataValues),
         public: this.extractPublic(attributes),
-        tags: this.extractTags(attributes),
+        tags: this.extractTags(attributes, decodeMetadataValues),
         environment: this.extractEnvironment(attributes, resourceAttributes),
         input,
         output,
@@ -1174,10 +1180,10 @@ export class OtelIngestionProcessor {
           (attributes?.[LangfuseOtelSpanAttributes.RELEASE] as string) ??
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
-        userId: this.extractUserId(attributes),
-        sessionId: this.extractSessionId(attributes),
+        userId: this.extractUserId(attributes, decodeMetadataValues),
+        sessionId: this.extractSessionId(attributes, decodeMetadataValues),
         public: this.extractPublic(attributes),
-        tags: this.extractTags(attributes),
+        tags: this.extractTags(attributes, decodeMetadataValues),
         environment: this.extractEnvironment(attributes, resourceAttributes),
         input: attributes[LangfuseOtelSpanAttributes.TRACE_INPUT],
         output: attributes[LangfuseOtelSpanAttributes.TRACE_OUTPUT],
@@ -2642,45 +2648,77 @@ export class OtelIngestionProcessor {
     };
   }
 
-  private extractUserId(
+  // Structured-metadata SDK majors JSON-encode per-key metadata values, so the
+  // langfuse_* compat keys read from metadata are decoded like the metadata.
+  private readAttribute(
     attributes: Record<string, unknown>,
-  ): string | undefined {
-    const userIdKeys = [
-      "langfuse.user.id",
-      "user.id",
-      `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_user_id`,
-      `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_user_id`,
-      `ai.telemetry.metadata.userId`,
-    ];
+    key: string,
+    decodeMetadataValues: boolean,
+  ): unknown {
+    const value = attributes[key];
+    if (
+      !decodeMetadataValues ||
+      typeof value !== "string" ||
+      !(
+        key.startsWith(`${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.`) ||
+        key.startsWith(`${LangfuseOtelSpanAttributes.TRACE_METADATA}.`)
+      )
+    ) {
+      return value;
+    }
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
 
-    for (const key of userIdKeys) {
-      if (attributes[key]) {
-        return typeof attributes[key] === "string"
-          ? (attributes[key] as string)
-          : JSON.stringify(attributes[key]);
+  private extractStringAttribute(
+    attributes: Record<string, unknown>,
+    keys: string[],
+    decodeMetadataValues: boolean,
+  ): string | undefined {
+    for (const key of keys) {
+      const value = this.readAttribute(attributes, key, decodeMetadataValues);
+      if (value) {
+        return typeof value === "string" ? value : JSON.stringify(value);
       }
     }
   }
 
+  private extractUserId(
+    attributes: Record<string, unknown>,
+    decodeMetadataValues: boolean,
+  ): string | undefined {
+    return this.extractStringAttribute(
+      attributes,
+      [
+        "langfuse.user.id",
+        "user.id",
+        `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_user_id`,
+        `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_user_id`,
+        `ai.telemetry.metadata.userId`,
+      ],
+      decodeMetadataValues,
+    );
+  }
+
   private extractSessionId(
     attributes: Record<string, unknown>,
+    decodeMetadataValues: boolean,
   ): string | undefined {
-    const userIdKeys = [
-      "langfuse.session.id",
-      "session.id",
-      "gen_ai.conversation.id",
-      `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_session_id`,
-      `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_session_id`,
-      `ai.telemetry.metadata.sessionId`,
-    ];
-
-    for (const key of userIdKeys) {
-      if (attributes[key]) {
-        return typeof attributes[key] === "string"
-          ? (attributes[key] as string)
-          : JSON.stringify(attributes[key]);
-      }
-    }
+    return this.extractStringAttribute(
+      attributes,
+      [
+        "langfuse.session.id",
+        "session.id",
+        "gen_ai.conversation.id",
+        `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_session_id`,
+        `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_session_id`,
+        `ai.telemetry.metadata.sessionId`,
+      ],
+      decodeMetadataValues,
+    );
   }
 
   private extractModelParameters(
@@ -3349,16 +3387,23 @@ export class OtelIngestionProcessor {
     return null;
   }
 
-  private extractTags(attributes: Record<string, unknown>): string[] {
+  private extractTags(
+    attributes: Record<string, unknown>,
+    decodeMetadataValues: boolean,
+  ): string[] {
     const tagsValue =
       attributes[LangfuseOtelSpanAttributes.TRACE_TAGS] ||
       attributes["langfuse.tags"] ||
-      attributes[
-        `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_tags`
-      ] ||
-      attributes[
-        `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_tags`
-      ] ||
+      this.readAttribute(
+        attributes,
+        `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_tags`,
+        decodeMetadataValues,
+      ) ||
+      this.readAttribute(
+        attributes,
+        `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_tags`,
+        decodeMetadataValues,
+      ) ||
       attributes["ai.telemetry.metadata.tags"] ||
       attributes["tag.tags"];
 
