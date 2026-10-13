@@ -19,6 +19,14 @@ import {
   vi,
 } from "vitest";
 
+const mocks = vi.hoisted(() => ({
+  getTopicsModels: vi.fn(),
+}));
+
+vi.mock("@langfuse/shared/topics/server", () => ({
+  getTopicsModels: mocks.getTopicsModels,
+}));
+
 // organizations.delete cancels Stripe before deleting; the test env has a cloud
 // region but no Stripe, so force the self-hosted path to reach the eviction.
 vi.mock("@/src/ee/features/billing/utils/isCloudBillingEnabled", () => ({
@@ -232,6 +240,29 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
       projectId,
     });
     await caller.projects.transfer({ projectId, targetOrgId });
+
+    expect(await survivingKeys([...sourceKeys, ...targetKeys])).toEqual([]);
+  });
+
+  it("projects.transfer still evicts cached keys when Topics refresh fails", async () => {
+    const sourceOrgId = await createOrg();
+    const targetOrgId = await createOrg();
+    const projectId = await createProject(sourceOrgId);
+    const user = await createUserInOrgs([sourceOrgId, targetOrgId]);
+    const sourceKeys = await seedOrgScopedKey(sourceOrgId);
+    const targetKeys = await seedOrgScopedKey(targetOrgId);
+    mocks.getTopicsModels.mockRejectedValueOnce(
+      new Error("Topics refresh failed"),
+    );
+
+    const caller = makeCaller({
+      userId: user.id,
+      orgIds: [sourceOrgId, targetOrgId],
+      projectId,
+    });
+    await expect(
+      caller.projects.transfer({ projectId, targetOrgId }),
+    ).rejects.toThrow();
 
     expect(await survivingKeys([...sourceKeys, ...targetKeys])).toEqual([]);
   });

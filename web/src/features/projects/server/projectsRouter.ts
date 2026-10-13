@@ -345,9 +345,6 @@ export const projectsRouter = createTRPCRouter({
         await transferRoleAssignments(tx, input.projectId, input.targetOrgId);
       });
 
-      // Re-resolve inherited credentials against the destination organization.
-      await getTopicsModels(input.projectId);
-
       // API keys need to be deleted from cache. Otherwise, they will still be valid.
       // It has to be called after the db is done to prevent new API keys from being cached.
       await new ApiAuthService(
@@ -375,6 +372,9 @@ export const projectsRouter = createTRPCRouter({
         orgId: input.targetOrgId,
         projectId: input.projectId,
       });
+
+      // Re-resolve inherited credentials against the destination organization.
+      await getTopicsModels(input.projectId);
     }),
 
   environmentFilterOptions: protectedProjectProcedure
