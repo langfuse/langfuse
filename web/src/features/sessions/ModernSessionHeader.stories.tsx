@@ -51,6 +51,7 @@ const manyUsers = Array.from(
 );
 
 const defaultArgs = {
+  dividerTone: "default",
   projectId: "project-1",
   countTraces: 24,
   minTimestamp: new Date("2026-09-11T10:00:00Z"),
