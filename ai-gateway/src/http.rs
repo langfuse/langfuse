@@ -189,11 +189,17 @@ async fn relay(
     if route.requires_model_rewrite() && !crate::transport::identity_encoding(request.headers()) {
         return Err(InferenceHttpError::UnsupportedEncoding);
     }
-    let resolution_permit = inference
-        .try_reserve_resolution()
+    let body_permit = route
+        .requires_model_rewrite()
+        .then(|| inference.try_reserve_request_body())
+        .transpose()
         .map_err(InferenceHttpError::from)?;
     let (parts, body) = request.into_parts();
     let (bytes, model) = request_body_and_model(route, body).await?;
+    drop(body_permit);
+    let resolution_permit = inference
+        .try_reserve_resolution()
+        .map_err(InferenceHttpError::from)?;
     let (permit, context) = inference
         .resolve_and_admit(
             resolution_permit,
