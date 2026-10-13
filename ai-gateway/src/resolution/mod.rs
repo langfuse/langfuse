@@ -26,7 +26,8 @@ const REQUEST_ID_HEADER: &str = "langfuse-gateway-request-id";
 const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(50);
 const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
 
-struct ResolutionLimits {
+#[derive(Clone, Copy)]
+struct ControlPlaneLimits {
     timeout: Duration,
     max_response_bytes: usize,
 }
@@ -35,7 +36,8 @@ struct ResolutionLimits {
 pub struct ControlPlaneConfig {
     web_url: Url,
     service_key: String,
-    limits: ResolutionLimits,
+    resolve_limits: ControlPlaneLimits,
+    models_limits: ControlPlaneLimits,
 }
 
 impl ControlPlaneConfig {
@@ -67,9 +69,14 @@ impl ControlPlaneConfig {
         Ok(Self {
             web_url: url,
             service_key: service_key.to_owned(),
-            limits: ResolutionLimits {
+            resolve_limits: ControlPlaneLimits {
                 timeout: Duration::from_secs(5),
                 max_response_bytes: 256 * 1024,
+            },
+            // Model catalogs are unpaginated and can require cold provider discovery.
+            models_limits: ControlPlaneLimits {
+                timeout: Duration::from_secs(30),
+                max_response_bytes: 10 * 1024 * 1024,
             },
         })
     }
@@ -160,7 +167,7 @@ impl ControlPlaneClient {
             timestamp.as_secs(),
             request_id,
         )?;
-        self.execute(request).await
+        self.execute(request, self.config.models_limits).await
     }
 
     async fn resolve_at(
@@ -190,7 +197,7 @@ impl ControlPlaneClient {
             )?
             .header(CONTENT_TYPE, "application/json")
             .body(body);
-        let body = self.execute(request).await?;
+        let body = self.execute(request, self.config.resolve_limits).await?;
         contracts::decode(
             &body,
             api_format,
@@ -227,13 +234,17 @@ impl ControlPlaneClient {
             .header(REQUEST_ID_HEADER, request_id))
     }
 
-    async fn execute(&self, request: RequestBuilder) -> Result<Vec<u8>, ResolutionError> {
-        tokio::time::timeout(self.config.limits.timeout, async {
+    async fn execute(
+        &self,
+        request: RequestBuilder,
+        limits: ControlPlaneLimits,
+    ) -> Result<Vec<u8>, ResolutionError> {
+        tokio::time::timeout(limits.timeout, async {
             let response = request
                 .send()
                 .await
                 .map_err(|_| ResolutionError::Transport)?;
-            read_response(response, self.config.limits.max_response_bytes).await
+            read_response(response, limits.max_response_bytes).await
         })
         .await
         .map_err(|_| ResolutionError::Timeout)?

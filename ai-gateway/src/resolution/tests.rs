@@ -58,16 +58,16 @@ impl FakeWeb {
     }
 
     fn control_plane(&self) -> ControlPlaneClient {
-        self.control_plane_with_limits(Duration::from_secs(2), 256 * 1024)
+        self.control_plane_with_resolve_limits(Duration::from_secs(2), 256 * 1024)
     }
 
-    fn control_plane_with_limits(
+    fn control_plane_with_resolve_limits(
         &self,
         timeout: Duration,
         max_response_bytes: usize,
     ) -> ControlPlaneClient {
         let mut config = ControlPlaneConfig::new(&self.url, SERVICE_KEY).unwrap();
-        config.limits = ResolutionLimits {
+        config.resolve_limits = ControlPlaneLimits {
             timeout,
             max_response_bytes,
         };
@@ -219,6 +219,34 @@ async fn fetches_models_from_the_control_plane() {
 }
 
 #[tokio::test]
+async fn model_catalogs_have_a_larger_response_limit_than_resolution() {
+    let body = "x".repeat(300 * 1024);
+    let web = FakeWeb::start(move |_| {
+        let body = body.clone();
+        async move { Response::new(Body::from(body)) }
+    })
+    .await;
+    let control_plane = web.control_plane();
+
+    let resolution = control_plane
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            Some("primary:gpt-4.1"),
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await;
+    assert!(matches!(resolution, Err(ResolutionError::ResponseTooLarge)));
+
+    let models = control_plane
+        .models(GATEWAY_KEY, ApiFormat::OpenAiResponses, REQUEST_ID)
+        .await
+        .unwrap();
+    assert_eq!(models.len(), 300 * 1024);
+}
+
+#[tokio::test]
 async fn denied_and_failed_resolutions_are_classified_without_retries_or_body_leaks() {
     for status in [400, 401, 403, 404, 500, 503] {
         let web = FakeWeb::start(move |_| async move {
@@ -300,7 +328,7 @@ async fn rejects_oversized_declared_and_chunked_responses() {
         })
         .await;
         let result = web
-            .control_plane_with_limits(Duration::from_secs(2), 128)
+            .control_plane_with_resolve_limits(Duration::from_secs(2), 128)
             .resolve_at(
                 GATEWAY_KEY,
                 ApiFormat::OpenAiResponses,
@@ -333,7 +361,7 @@ async fn deadline_covers_response_headers_and_body() {
         .await;
         let result = tokio::time::timeout(
             Duration::from_millis(500),
-            web.control_plane_with_limits(Duration::from_millis(30), 256 * 1024)
+            web.control_plane_with_resolve_limits(Duration::from_millis(30), 256 * 1024)
                 .resolve_at(
                     GATEWAY_KEY,
                     ApiFormat::OpenAiResponses,
