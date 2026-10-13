@@ -41,7 +41,7 @@ export class InAppAgentRetentionCleaner extends PeriodicExclusiveRunner {
         JOIN projects p ON p.id = c.project_id
         WHERE p.retention_days > 0
           AND p.deleted_at IS NULL
-          AND c.updated_at < NOW() - p.retention_days * INTERVAL '1 day'
+          AND c.updated_at < (NOW() AT TIME ZONE 'UTC') - p.retention_days * INTERVAL '1 day'
           ${
             this.cursor
               ? Prisma.sql`AND (c.id, c.project_id) > (${this.cursor.id}, ${this.cursor.projectId})`
@@ -120,7 +120,7 @@ export class InAppAgentRetentionCleaner extends PeriodicExclusiveRunner {
         WHERE c.id = selected.id AND c.project_id = selected.project_id
           AND p.id = c.project_id
           AND p.retention_days > 0 AND p.deleted_at IS NULL
-          AND c.updated_at < NOW() - p.retention_days * INTERVAL '1 day'
+          AND c.updated_at < (NOW() AT TIME ZONE 'UTC') - p.retention_days * INTERVAL '1 day'
           AND NOT EXISTS (
             SELECT 1 FROM in_app_agent_runs r
             WHERE r.project_id = c.project_id AND r.conversation_id = c.id

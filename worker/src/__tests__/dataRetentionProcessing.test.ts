@@ -25,7 +25,7 @@ import {
   StorageServiceFactory,
   toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
-import { prisma, Prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma, PrismaClient } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { handleDataRetentionProcessingJob } from "../ee/dataRetention/handleDataRetentionProcessingJob";
@@ -371,6 +371,79 @@ describe("DataRetentionProcessingJob", () => {
         await prisma.inAppAgentConversation.deleteMany({
           where: { id, projectId },
         });
+        await prisma.organization.delete({ where: { id: orgId } });
+      }
+    },
+  );
+
+  it.each(["Asia/Tokyo", "America/Los_Angeles"])(
+    "uses UTC retention boundaries in the %s session timezone",
+    async (timezone) => {
+      const { id: projectId, orgId } = await prisma.project.create({
+        data: {
+          name: "Assistant retention timezone test",
+          retentionDays: 7,
+          org: { create: { name: "Assistant retention timezone test" } },
+        },
+      });
+      const expiredId = randomUUID();
+      const retainedId = randomUUID();
+      const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const hour = 60 * 60 * 1000;
+      const timezonePrisma = new PrismaClient();
+      const candidateQuery = vi.spyOn(prisma, "$queryRaw");
+      const deletionQuery = vi.spyOn(prisma, "$executeRaw");
+
+      try {
+        await prisma.inAppAgentConversation.createMany({
+          data: [
+            { id: expiredId, projectId, updatedAt: new Date(cutoff - hour) },
+            { id: retainedId, projectId, updatedAt: new Date(cutoff + hour) },
+          ],
+        });
+        // SET LOCAL stays on the transaction's connection and cannot leak
+        // timezone changes to other tests using the pool.
+        candidateQuery.mockImplementation((query, ...values) =>
+          timezonePrisma.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT set_config('TimeZone', ${timezone}, true)`;
+            return tx.$queryRaw(Prisma.sql`
+              WITH in_app_agent_conversations AS (
+                SELECT * FROM public.in_app_agent_conversations
+                WHERE project_id = ${projectId}
+              )
+              ${"sql" in query ? query : Prisma.sql(query, values)}
+            `);
+          }),
+        );
+        deletionQuery.mockImplementation((query, ...values) =>
+          timezonePrisma.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT set_config('TimeZone', ${timezone}, true)`;
+            return tx.$executeRaw(query, ...values);
+          }),
+        );
+
+        await new InAppAgentRetentionCleaner().processBatch();
+        expect(await candidateQuery.mock.results[0]!.value).toEqual([
+          { id: expiredId, projectId },
+        ]);
+        expect(
+          await prisma.inAppAgentConversation.findMany({
+            where: { projectId },
+            select: { id: true },
+          }),
+        ).toEqual([{ id: retainedId }]);
+
+        // Independently exercise the live deletion guard with a candidate
+        // whose timestamp no longer qualifies for retention.
+        candidateQuery.mockResolvedValue([{ id: retainedId, projectId }]);
+        await new InAppAgentRetentionCleaner().processBatch();
+        expect(
+          await prisma.inAppAgentConversation.count({ where: { projectId } }),
+        ).toBe(1);
+      } finally {
+        candidateQuery.mockRestore();
+        deletionQuery.mockRestore();
+        await timezonePrisma.$disconnect();
         await prisma.organization.delete({ where: { id: orgId } });
       }
     },
