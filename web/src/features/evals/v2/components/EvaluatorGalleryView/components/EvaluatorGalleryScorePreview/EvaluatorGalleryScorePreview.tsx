@@ -19,7 +19,7 @@ export function EvaluatorGalleryScorePreview({
       aria-hidden="true"
       className="bg-muted-gray/70 dot-grid relative flex h-20 items-center justify-center gap-1 overflow-hidden rounded-sm px-3"
     >
-      <div className="flex min-w-0 items-center justify-center gap-1 group-hover/card:blur-xs">
+      <div className="flex min-w-0 items-center justify-center gap-1">
         {visibleScores.map((score) => (
           <span key={score.name} className="flex min-w-0 rounded-sm shadow-xs">
             <BadgeShell color="filled" size="md">
@@ -41,7 +41,7 @@ export function EvaluatorGalleryScorePreview({
           </span>
         ) : null}
       </div>
-      <div className="bg-foreground/60 text-background absolute inset-0 hidden items-center justify-center gap-1 text-sm font-bold group-hover/card:flex">
+      <div className="bg-foreground/70 text-background absolute inset-0 hidden items-center justify-center gap-1 text-sm font-bold backdrop-blur-sm group-hover/card:flex">
         Use template
         <ChevronRight className="icon-base" />
       </div>
