@@ -63,6 +63,17 @@ impl Route {
         }
     }
 
+    fn rewrites_model(self) -> bool {
+        matches!(
+            self,
+            Self::OpenAiResponses
+                | Self::OpenAiResponsesCompact
+                | Self::OpenAiChatCompletions
+                | Self::AnthropicMessages
+                | Self::AnthropicCountTokens
+        )
+    }
+
     fn path(self) -> &'static str {
         match self {
             Self::OpenAiResponses => "/responses",
@@ -227,10 +238,10 @@ impl ProviderTransport {
             ExecutionCapture::unobserved()
         };
         let provider_model = context.connection().provider_model();
-        let body = if route.method() == Method::GET {
-            body
-        } else {
+        let body = if route.rewrites_model() {
             rewrite_model(body, provider_model.ok_or(ProviderError::Configuration)?)
+        } else {
+            body
         };
         // The capture keeps the caller's own request; only the upstream copy asks for usage.
         let body = match route {
