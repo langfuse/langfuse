@@ -7,6 +7,7 @@ import { createBadgeListTableColumn } from "@/src/components/design-system/table
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import type { AsyncTableData } from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
+import { isApiKeyExpired } from "@/src/features/apiKey";
 
 type GatewayApiKey = {
   metadata: unknown;
@@ -16,6 +17,7 @@ type GatewayApiKey = {
     displaySecretKey: string;
     note: string | null;
     createdAt: Date;
+    expiresAt: Date | null;
   };
 };
 
@@ -50,6 +52,16 @@ export function GatewayApiKeysTable({
       header: "Description",
       nullValue: "-",
       enableResizing: false,
+    }),
+    createDateTableColumn<GatewayApiKey>({
+      accessorFn: (row) => row.apiKey.expiresAt,
+      id: "expiresAt",
+      header: "Expiration",
+      hideBelowMd: true,
+      enableResizing: false,
+      emptyValue: "No expiration",
+      getPrefix: (expiresAt) =>
+        isApiKeyExpired(expiresAt) ? "Expired on " : null,
     }),
     createBadgeListTableColumn<GatewayApiKey>({
       accessorFn: (row) => getMetadataEntries(row.metadata),

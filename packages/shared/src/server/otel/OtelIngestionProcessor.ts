@@ -42,6 +42,7 @@ import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
+import { defineOwnValue } from "../../utils/objects";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
@@ -1742,19 +1743,6 @@ export class OtelIngestionProcessor {
       );
     };
 
-    const defineOwn = (
-      container: ReconstructedContainer,
-      key: string,
-      value: unknown,
-    ): void => {
-      Object.defineProperty(container, key, {
-        configurable: true,
-        enumerable: true,
-        value,
-        writable: true,
-      });
-    };
-
     const applyPath = (
       root: ReconstructedContainer,
       path: readonly string[],
@@ -1773,7 +1761,7 @@ export class OtelIngestionProcessor {
               ? []
               : Object.create(null);
           createdContainers.add(child);
-          defineOwn(current, key, child);
+          defineOwnValue(current, key, child);
           current = child;
           continue;
         }
@@ -1800,7 +1788,7 @@ export class OtelIngestionProcessor {
           return false;
         }
       }
-      if (commit) defineOwn(current, finalKey, value);
+      if (commit) defineOwnValue(current, finalKey, value);
       return true;
     };
 

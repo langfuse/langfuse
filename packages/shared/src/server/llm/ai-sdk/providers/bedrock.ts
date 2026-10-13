@@ -120,8 +120,7 @@ export function createDefaultBedrockProviderAuth(params?: {
 
 /**
  * Resolves the persisted Bedrock credential contract: the decrypted secret is
- * either the default-credentials sentinel (allowed only self-hosted or for
- * Langfuse-internal AI features), AWS access key JSON, or a Bedrock API key
+ * either an authorized default-credentials sentinel, AWS access key JSON, or a Bedrock API key
  * used as a bearer token.
  */
 export function resolveBedrockProviderAuth(params: {
@@ -174,6 +173,7 @@ export function resolveBedrockProviderAuth(params: {
  * LLM fetch would block. Requests therefore use the provider's AWS transport.
  */
 function createBedrockProvider(params: {
+  projectId?: string;
   apiKey: string;
   config?: LLMConnectionConfig | null;
   credentialSource: LLMCredentialSource;
@@ -187,9 +187,16 @@ function createBedrockProvider(params: {
   assertValidBedrockRegion(region);
 
   const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const allowedProjects =
+    env.LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS;
   const auth = resolveBedrockProviderAuth({
     secretKey: apiKey,
-    allowDefaultCredentials: isSelfHosted || shouldUseLangfuseAPIKey,
+    allowDefaultCredentials:
+      isSelfHosted ||
+      shouldUseLangfuseAPIKey ||
+      (!!params.projectId &&
+        Array.isArray(allowedProjects) &&
+        allowedProjects.includes(params.projectId)),
     profile: shouldUseLangfuseAPIKey ? getLangfuseAIAwsProfile() : undefined,
   });
 
@@ -200,6 +207,7 @@ function createBedrockProvider(params: {
 }
 
 export function buildBedrockModel(params: {
+  projectId?: string;
   modelId: string;
   apiKey: string;
   config?: LLMConnectionConfig | null;
@@ -209,6 +217,7 @@ export function buildBedrockModel(params: {
 }
 
 export function buildBedrockEmbeddingModel(params: {
+  projectId?: string;
   modelId: string;
   apiKey: string;
   config?: LLMConnectionConfig | null;

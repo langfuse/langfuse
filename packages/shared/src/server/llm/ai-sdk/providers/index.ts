@@ -39,6 +39,7 @@ export type CreateSecureFetch = (
  * per-provider modules for adapter-specific details.
  */
 export async function buildAiSdkModel(params: {
+  projectId?: string;
   model: { adapter: LLMAdapter; id: string };
   modelConfig: AiSdkModelConfig;
   apiKey: string;
@@ -94,6 +95,7 @@ export async function buildAiSdkModel(params: {
 
     case LLMAdapter.Bedrock:
       return buildBedrockModel({
+        projectId: params.projectId,
         modelId: model.id,
         apiKey,
         config,

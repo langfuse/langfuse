@@ -50,6 +50,7 @@
   `clickhouse format`); each migrated call site keeps its `*.golden.test.ts`
   baseline next to the call site (e.g.
   `src/server/repositories/environments.golden.test.ts`,
+  `src/server/repositories/events.golden.test.ts`,
   `src/server/repositories/scores.golden.test.ts`,
   `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
 - Postgres schema: `prisma/schema.prisma`
@@ -129,6 +130,10 @@
   callers select their local profile through `getLangfuseAIAwsProfile`;
   generic Bedrock auth only uses an explicitly supplied profile or the normal
   AWS credential chain.
+  Persisted `LLMConnection` projections must retain the credential row's
+  `projectId`: Cloud Bedrock runtime auth checks it against
+  `LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS`. Raw credential
+  tests omit this identity; only operator-provisioned stored secrets qualify.
 - `@langfuse/shared/src/server/clickhouse` via `src/server/clickhouse/index.ts`:
   ClickHouse clients and helpers without loading the full server barrel. Use this
   entry point for test cleanup so built and source-aliased clients retain the same

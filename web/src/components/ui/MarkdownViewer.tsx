@@ -258,7 +258,9 @@ function MarkdownCode({
       theme={theme === "dark" ? "dark" : "light"}
     />
   ) : (
-    <code className="bg-secondary rounded border px-0.5">{codeContent}</code>
+    <code className="bg-secondary rounded border px-0.5 [:is(p,li,td,th)>&]:text-xs">
+      {codeContent}
+    </code>
   );
 }
 
@@ -349,7 +351,7 @@ const markdownComponents: NonNullable<Options["components"]> = {
     return <li className="mt-1">{transformListItemChildren(children)}</li>;
   },
   pre({ children }) {
-    return <pre className="rounded p-2">{children}</pre>;
+    return <pre className="py-2">{children}</pre>;
   },
   h1({ children }) {
     return <h1 className="text-2xl font-bold">{children}</h1>;

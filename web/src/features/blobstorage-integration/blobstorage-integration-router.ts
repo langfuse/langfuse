@@ -448,6 +448,16 @@ This file can be safely deleted.`;
           }));
         }
 
+        // Best-effort cleanup, a missing delete permission must not fail validation.
+        try {
+          await storageService.deleteFiles([testFileName]);
+        } catch (deleteError) {
+          logger.warn(
+            `Failed to delete blob storage validation test file ${testFileName}`,
+            deleteError,
+          );
+        }
+
         logger.info(
           `Blob storage validation successful for project ${input.projectId}`,
         );

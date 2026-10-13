@@ -1,4 +1,5 @@
 import { type NextApiRequest } from "next";
+import { getRequestMeta } from "next/dist/server/request-meta";
 
 import { ApiError, isBaseError, type BaseError } from "@langfuse/shared";
 import {
@@ -44,6 +45,9 @@ import {
   type Success,
 } from "@/src/features/auth/policy/types";
 import { isPrismaException } from "@/src/utils/exceptions";
+
+/** shadowResources retains request route templates for asynchronous per-item checks. */
+const shadowResources = new WeakMap<AuthorizationContext, string>();
 
 /** shadowAuth authorizes a public-API request under the active migration mode, returning the scope or the error to render. */
 export async function shadowAuth(
@@ -105,12 +109,42 @@ function genericInfrastructureError(httpCode: number): ErrorResult<BaseError> {
 async function legacyWithShadow(
   params: ShadowAuthParams,
 ): Promise<ShadowAuthResult> {
+  const resource = requestResource(params.req);
   const legacyAuth = await runLegacyAuth(params);
   const newAuth = await runNewAuth(params);
-  shadowAuthDiff(newAuth, legacyAuth, params.action);
+  shadowAuthDiff(newAuth, legacyAuth, params.action, {
+    ...getScopeIdentity(newAuth, legacyAuth),
+    resource,
+  });
   const result = legacyResult(legacyAuth);
-  if (result.success && newAuth.success) return { ...result, ctx: newAuth.ctx };
+  if (result.success && newAuth.success) {
+    return { ...result, ctx: withShadowResource(newAuth.ctx, resource) };
+  }
   return result;
+}
+
+function getScopeIdentity(
+  newAuth: EnforceAuthResult,
+  legacyAuth: LegacyDecision,
+) {
+  const successfulAuth = newAuth.success ? newAuth : legacyAuth;
+  const scope = successfulAuth.success ? successfulAuth.scope : undefined;
+  return { apiKeyId: scope?.apiKeyId, publicKey: scope?.publicKey };
+}
+
+function withShadowResource(
+  ctx: AuthorizationContext,
+  resource: string,
+): AuthorizationContext {
+  const shadowCtx = { ...ctx };
+  shadowResources.set(shadowCtx, resource);
+  return shadowCtx;
+}
+
+/** requestResource reads Next's matched route independently of recording spans. */
+function requestResource(req: NextApiRequest): string {
+  const route = getRequestMeta(req, "match")?.definition.pathname;
+  return `${req.method ?? "UNKNOWN"} ${route ?? "unknown"}`;
 }
 
 /** legacyOnly authorizes solely with the legacy verify. */
@@ -221,10 +255,34 @@ function diffOrGate(
   decision: Decision,
 ): Decision {
   if (env.API_AUTH_MIGRATION === "shadow") {
-    shadowAuthDiff(decision, params.legacyDecision, params.action);
+    shadowAuthDiff(
+      decision,
+      params.legacyDecision,
+      params.action,
+      getAuthMetadata(params.ctx),
+    );
     return params.legacyDecision;
   }
   return decision;
+}
+
+function getAuthMetadata(ctx: AuthorizationContext | undefined) {
+  return { ...getPrincipalIdentity(ctx), resource: getResource(ctx) };
+}
+
+function getPrincipalIdentity(ctx: AuthorizationContext | undefined) {
+  const principal = ctx?.principal;
+  if (principal?.kind === "apiKey") {
+    return { apiKeyId: principal.apiKeyId, publicKey: principal.publicKey };
+  }
+  if (principal?.kind === "admin") {
+    return { apiKeyId: "ADMIN_API_KEY", publicKey: "ADMIN_API_KEY" };
+  }
+  return { apiKeyId: undefined, publicKey: undefined };
+}
+
+function getResource(ctx: AuthorizationContext | undefined): string {
+  return (ctx && shadowResources.get(ctx)) ?? "unknown";
 }
 
 /** toResourceId tags a per-item resource for the PDP. */

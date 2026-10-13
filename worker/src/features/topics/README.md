@@ -22,8 +22,8 @@ Topics reuses the evaluator and evaluation-rule tables:
   original request, including its selection criteria. Retries never re-evaluate a rule.
 
 Postgres uses normal Prisma migrations; `topic_clustering_runs` is the only new
-Topics table. Topics does not write `EvaluationRule.idleTime`; the setup sheet's idle
-time field is not saved yet and will move to a per-project readiness setting.
+Topics table. Idle time is per project, not per rule: see
+`tracing_readiness_settings` in `worker/src/features/traceBatching/README.md`.
 
 ## Setup
 
@@ -299,7 +299,7 @@ and limitations.
 If transcript plus instructions/schema exceeds the execution's input allowance,
 the worker fails before calling the provider; it does not
 silently change the evidence for that facet. Stored summaries record
-`transcript_id` (`poc`) and `transcript_version` (`shared-transcript-v2`), plus the
+`transcript_id` (`poc`) and `transcript_version` (`shared-transcript-v3`), plus the
 models used. Historical summaries from other producer versions are regenerated.
 Accepted Redis payloads retain their recorded version when the same execution
 resumes. Transcripts are regenerated from current observations; original source

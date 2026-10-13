@@ -160,7 +160,7 @@ export const ToolCall = meta.story({
   },
 });
 
-export const WithMetadata = meta.story({
+export const MetadataNotInPreview = meta.story({
   args: {
     input: "Summarize this support conversation.",
     output: "The customer needs help configuring prompt caching.",
@@ -169,7 +169,6 @@ export const WithMetadata = meta.story({
       region: "eu-west-1",
       cached: true,
     },
-    showMetadata: true,
   },
 });
 

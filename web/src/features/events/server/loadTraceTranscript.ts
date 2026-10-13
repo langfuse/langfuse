@@ -251,7 +251,13 @@ function assembleSessionTraceTranscript(
         const marker: NormalizedMessage = {
           role: "tool",
           source: "output",
-          parts: [{ type: "tool-result", toolCallId: callId, output: null }],
+          parts: [
+            {
+              type: "tool-result",
+              toolCallId: callId,
+              output: { type: "json", value: null },
+            },
+          ],
         };
         // Let the registry resolve identity and placement, then retain the
         // original media parts instead of exposing a JSON-only result marker.
@@ -404,7 +410,7 @@ function recoverToolCalls(observations: Observation[]) {
                 type: "tool-result",
                 toolCallId: callId,
                 toolName: observation.name ?? "Tool",
-                output: null,
+                output: { type: "json", value: null },
                 isError: observation.level === "ERROR",
               },
             ],
@@ -412,8 +418,8 @@ function recoverToolCalls(observations: Observation[]) {
         ];
       }
       const parts = messages.flatMap((message) => message.parts);
-      // Tool-result payloads are JSON; wrapping media would discard the file
-      // parts the session renderer needs for previews.
+      // Keep the session media rendering path when metadata recovers a call
+      // whose response contains media or other individually rendered parts.
       if (!parts.length) return messages;
       if (
         !parts.every((part) => part.type === "text") &&
@@ -598,15 +604,12 @@ function pairToolResponses(
             const call = candidates.get(index);
             if (!call?.toolCallId) return message;
             if (candidateCounts.get(call.toolCallId) !== 1) return message;
-            const output = (() => {
-              if (message.parts.every((part) => part.type === "text")) {
-                return message.parts.map((part) => part.text).join("\n");
-              }
-              const values = message.parts.flatMap((part) =>
-                part.type === "data" ? [part.value] : [],
-              );
-              return values.length === 1 ? values[0] : values;
-            })();
+            const output = {
+              type: "content" as const,
+              value: message.parts.filter(
+                (part) => part.type === "text" || part.type === "data",
+              ),
+            };
             return {
               ...message,
               parts: [

@@ -309,6 +309,11 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30_000),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
   LANGFUSE_AZURE_SKIP_CONTAINER_CHECK: z
     .enum(["true", "false"])
@@ -617,6 +622,16 @@ const EnvSchema = z.object({
       },
     ),
   LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+  // Cloud runtime credentials require an operator-provisioned connection.
+  LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
   // Local AI credentials; production normally uses the AWS role chain.
   AWS_PROFILE: z.string().optional(),
   LANGFUSE_AI_FEATURES_AWS_PROFILE: z.string().optional(),
