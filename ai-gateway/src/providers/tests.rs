@@ -572,6 +572,13 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
                 .unwrap()["value"]["stringValue"],
             if cancelled { "WARNING" } else { "ERROR" }
         );
+        assert_eq!(
+            attrs
+                .iter()
+                .find(|a| a["key"] == "langfuse.observation.model.name")
+                .unwrap()["value"]["stringValue"],
+            "provider-model"
+        );
         assert_eq!(metadata["langfuse.gateway.response.status_code"], 200);
         assert!(metadata.get("relay_outcome").is_none());
         telemetry
