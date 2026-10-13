@@ -110,6 +110,7 @@ export * from "./redis/monitorQueue";
 export * from "./redis/inAppAgentRunQueue";
 export * from "./redis/traceDelete";
 export * from "./redis/traceBatch";
+export * from "./redis/sharding";
 export * from "./redis/projectDelete";
 export * from "./redis/scoreDelete";
 export * from "./redis/datasetDelete";
