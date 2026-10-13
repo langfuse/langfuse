@@ -30,6 +30,7 @@ const allSizes = Object.keys({
   xs: true,
   sm: true,
   lg: true,
+  "default-lg": true,
   icon: true,
   "icon-xs": true,
   "icon-sm": true,
