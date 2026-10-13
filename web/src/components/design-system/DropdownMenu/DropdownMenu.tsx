@@ -84,7 +84,7 @@ const menuItemVariants = cva(
           "text-destructive focus:bg-destructive/10 data-[active]:bg-destructive/10",
       },
       hasDescription: {
-        true: "",
+        true: "hover:bg-accent",
         false: "h-8",
       },
     },
