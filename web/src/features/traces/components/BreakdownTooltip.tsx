@@ -8,7 +8,6 @@ import {
 import { useState } from "react";
 import Decimal from "decimal.js";
 import Link from "next/link";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage";
 import { ExternalLink, InfoIcon } from "lucide-react";
@@ -162,7 +161,7 @@ export const BreakdownTooltip = ({
               entries={inputEntries}
               formatValue={formatValue}
               waterfallSegments={waterfallSegments}
-              firstRow={
+              lastRow={
                 cacheHitRate === null ? null : (
                   <CacheHitRateRow rate={cacheHitRate} />
                 )
@@ -308,7 +307,7 @@ interface SectionProps {
   entries: [string, number | undefined][];
   formatValue: (value: number | Decimal) => string;
   waterfallSegments: Map<string, WaterfallSegment>;
-  firstRow?: React.ReactNode;
+  lastRow?: React.ReactNode;
 }
 
 const Section = ({
@@ -316,7 +315,7 @@ const Section = ({
   entries,
   formatValue,
   waterfallSegments,
-  firstRow,
+  lastRow,
 }: SectionProps) => {
   const sectionTotal = sumEntries(entries);
   const titleRow = (
@@ -330,7 +329,6 @@ const Section = ({
   return (
     <div className="col-span-3 grid min-w-0 grid-cols-subgrid gap-y-2">
       {titleRow}
-      {firstRow}
       {entries.map(([key, value]) => (
         <BreakdownRow
           key={key}
@@ -340,6 +338,7 @@ const Section = ({
           waterfallSegment={waterfallSegments.get(key)}
         />
       ))}
+      {lastRow}
     </div>
   );
 };
@@ -351,12 +350,9 @@ function CacheHitRateRow({ rate }: { rate: number }) {
         Cache hit rate
         <CacheHitRateInfo />
       </span>
-      <Badge
-        color="filled"
-        size="sm"
-        font="mono"
-        text={formatCacheHitRate(rate)}
-      />
+      <span className="text-foreground font-mono tabular-nums">
+        {formatCacheHitRate(rate)}
+      </span>
     </div>
   );
 }

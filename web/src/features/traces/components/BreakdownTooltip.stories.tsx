@@ -254,7 +254,7 @@ export const TestNearDecimalCostFormatting = meta.story({
 });
 
 export const TestCacheHitRate = meta.story({
-  name: "(Test) Shows cache hit rate first in input usage",
+  name: "(Test) Shows cache hit rate after input usage details",
   args: {
     details: promptCacheUsage,
     children: <span>253,225 tokens</span>,
@@ -270,8 +270,11 @@ export const TestCacheHitRate = meta.story({
     await expect(text.indexOf("Input usage")).toBeLessThan(
       text.indexOf("Cache hit rate"),
     );
+    await expect(text.lastIndexOf("input")).toBeLessThan(
+      text.indexOf("Cache hit rate"),
+    );
     await expect(text.indexOf("Cache hit rate")).toBeLessThan(
-      text.indexOf("cache_read_input_tokens"),
+      text.indexOf("Output usage"),
     );
 
     await expect(
