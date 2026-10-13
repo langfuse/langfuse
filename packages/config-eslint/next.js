@@ -12,7 +12,7 @@ export default [
   // Global ignores - include config files
   {
     name: "langfuse/ignores",
-    ignores: ["**/.next/", "**/.next-check/"],
+    ignores: ["**/.next/"],
   },
 
   // Use the plugins directly because this repo owns its parser and import resolver setup.
