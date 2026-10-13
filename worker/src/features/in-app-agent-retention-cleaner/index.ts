@@ -1,0 +1,149 @@
+import { prisma, Prisma } from "@langfuse/shared/src/db";
+import { logger, recordIncrement, redis } from "@langfuse/shared/src/server";
+import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
+import { isMissingInAppAgentMcpApiKeyError } from "@langfuse/shared/in-app-agent/server/runLifecycle";
+import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
+
+const BATCH_LIMIT = 100;
+const INTERVAL_MS = 600_000;
+
+export class InAppAgentRetentionCleaner extends PeriodicExclusiveRunner {
+  private cursor: { id: string; projectId: string } | null = null;
+
+  protected get defaultIntervalMs(): number {
+    return INTERVAL_MS;
+  }
+
+  constructor() {
+    super({
+      name: "InAppAgentRetentionCleaner",
+      metricName: "in_app_agent_retention_cleaner",
+      lockKey: "langfuse:in-app-agent-retention-cleaner",
+      lockTtlSeconds: 300,
+      onUnavailable: "fail",
+    });
+  }
+
+  protected async execute(): Promise<number> {
+    if (!isEnterpriseLicenseAvailable()) {
+      return this.defaultIntervalMs;
+    }
+
+    const nextDelay = await this.withLock(async () => {
+      // Unfinished runs belong to the integrity runner. Excluding them here
+      // prevents an unrepairable conversation from blocking actionable work.
+      const conversations = await prisma.$queryRaw<
+        Array<{ id: string; projectId: string }>
+      >`
+        SELECT c.id, c.project_id AS "projectId"
+        FROM in_app_agent_conversations c
+        JOIN projects p ON p.id = c.project_id
+        WHERE p.retention_days > 0
+          AND p.deleted_at IS NULL
+          AND c.updated_at < NOW() - p.retention_days * INTERVAL '1 day'
+          ${
+            this.cursor
+              ? Prisma.sql`AND (c.project_id, c.id) > (${this.cursor.projectId}, ${this.cursor.id})`
+              : Prisma.empty
+          }
+          AND NOT EXISTS (
+            SELECT 1 FROM in_app_agent_runs r
+            WHERE r.project_id = c.project_id AND r.conversation_id = c.id
+              AND r.finished_at IS NULL
+          )
+        ORDER BY c.project_id, c.id
+        LIMIT ${BATCH_LIMIT}
+      `;
+
+      if (conversations.length === 0) {
+        this.cursor = null;
+        return this.defaultIntervalMs;
+      }
+
+      const keyRuns = await prisma.inAppAgentRun.findMany({
+        where: {
+          OR: conversations.map(({ id, projectId }) => ({
+            projectId,
+            conversationId: id,
+          })),
+          finishedAt: { not: null },
+          mcpApiKeyId: { not: null },
+        },
+        select: { id: true, projectId: true, mcpApiKeyId: true },
+        take: BATCH_LIMIT,
+      });
+
+      let cleanedRuns = 0;
+      for (const run of keyRuns) {
+        if (!run.mcpApiKeyId) continue;
+        await this.extendLockOnProgress();
+        try {
+          await deleteInAppAgentMcpApiKeyFromDb({
+            prisma,
+            id: run.mcpApiKeyId,
+            projectId: run.projectId,
+            redis,
+          }).catch((error: unknown) => {
+            if (!isMissingInAppAgentMcpApiKeyError(error)) throw error;
+          });
+          // Keep the pointer on failure so a later sweep can retry revocation.
+          await prisma.inAppAgentRun.updateMany({
+            where: {
+              id: run.id,
+              projectId: run.projectId,
+              mcpApiKeyId: run.mcpApiKeyId,
+            },
+            data: { mcpApiKeyId: null },
+          });
+          cleanedRuns++;
+        } catch (error) {
+          this.markRunFailed(error);
+          logger.error(
+            `${this.instanceName}: Failed to clean run credentials`,
+            {
+              error,
+              id: run.id,
+              projectId: run.projectId,
+            },
+          );
+        }
+      }
+
+      await this.extendLockOnProgress(true);
+      // Re-evaluate the live policy and run guards at deletion time, after
+      // potentially slow credential cleanup. Runs and events cascade.
+      const deleted = await prisma.$executeRaw`
+        DELETE FROM in_app_agent_conversations c
+        USING projects p, (VALUES ${Prisma.join(
+          conversations.map(
+            ({ id, projectId }) => Prisma.sql`(${id}, ${projectId})`,
+          ),
+        )}) AS selected(id, project_id)
+        WHERE c.id = selected.id AND c.project_id = selected.project_id
+          AND p.id = c.project_id
+          AND p.retention_days > 0 AND p.deleted_at IS NULL
+          AND c.updated_at < NOW() - p.retention_days * INTERVAL '1 day'
+          AND NOT EXISTS (
+            SELECT 1 FROM in_app_agent_runs r
+            WHERE r.project_id = c.project_id AND r.conversation_id = c.id
+              AND (r.finished_at IS NULL OR r.mcp_api_key_id IS NOT NULL)
+          )
+      `;
+
+      recordIncrement(
+        "langfuse.in_app_agent_retention_cleaner.conversations_deleted",
+        deleted,
+      );
+      logger.info(`${this.instanceName}: Deleted expired conversations`, {
+        deleted,
+        cleanedRuns,
+      });
+      // Advance even when credentials remain, then retry them on the next sweep.
+      this.cursor = conversations[conversations.length - 1]!;
+      return 0;
+    });
+
+    return nextDelay ?? this.defaultIntervalMs;
+  }
+}

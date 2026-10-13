@@ -33,6 +33,7 @@ import { Job } from "bullmq";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
+import { InAppAgentRetentionCleaner } from "../features/in-app-agent-retention-cleaner";
 
 type LicenseCheckModule =
   typeof import("@langfuse/shared/src/server/ee/licenseCheck");
@@ -119,6 +120,7 @@ describe("DataRetentionProcessingJob", () => {
       data: { retentionDays: 7 },
     });
 
+    const candidateQuery = vi.spyOn(prisma, "$queryRaw");
     try {
       const creator = await prisma.user.create({
         data: {
@@ -241,9 +243,14 @@ describe("DataRetentionProcessingJob", () => {
         ],
       });
 
-      await handleDataRetentionProcessingJob({
-        data: { payload: { projectId, retention: 7 } },
-      } as Job);
+      // Scope discovery to this fixture; the real deletion query still checks
+      // current retention, expiry, unfinished runs, and remaining key pointers.
+      candidateQuery.mockResolvedValue(ids.map((id) => ({ id, projectId })));
+      const cleaner = new InAppAgentRetentionCleaner();
+      // Key cleanup and conversation deletion both advance in bounded batches.
+      for (let batch = 0; batch < 3; batch++) {
+        await cleaner.processBatch();
+      }
 
       const conversations = await prisma.inAppAgentConversation.findMany({
         where: { projectId, id: { in: ids } },
@@ -279,6 +286,7 @@ describe("DataRetentionProcessingJob", () => {
         }),
       ).toBe(1);
     } finally {
+      candidateQuery.mockRestore();
       await prisma.inAppAgentConversation.deleteMany({
         where: { projectId, id: { in: ids } },
       });
@@ -290,37 +298,43 @@ describe("DataRetentionProcessingJob", () => {
     }
   });
 
-  it("retains assistant conversations when retention is disabled after the job was queued", async () => {
-    const id = randomUUID();
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { retentionDays: null },
-    });
-
-    try {
-      await prisma.inAppAgentConversation.create({
-        data: {
-          id,
-          projectId,
-          createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        },
+  it.each([null, 0])(
+    "retains assistant conversations with retention %s",
+    async (retentionDays) => {
+      const id = randomUUID();
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays },
       });
 
-      await handleDataRetentionProcessingJob({
-        data: { payload: { projectId, retention: 7 } },
-      } as Job);
+      const candidateQuery = vi.spyOn(prisma, "$queryRaw");
+      try {
+        await prisma.inAppAgentConversation.create({
+          data: {
+            id,
+            projectId,
+            createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+            updatedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          },
+        });
 
-      expect(
-        await prisma.inAppAgentConversation.findUnique({
-          where: { id_projectId: { id, projectId } },
-        }),
-      ).not.toBeNull();
-    } finally {
-      await prisma.inAppAgentConversation.deleteMany({
-        where: { id, projectId },
-      });
-    }
-  });
+        // Simulate a policy change after discovery without sweeping other fixtures.
+        candidateQuery.mockResolvedValue([{ id, projectId }]);
+        await new InAppAgentRetentionCleaner().processBatch();
+
+        expect(
+          await prisma.inAppAgentConversation.findUnique({
+            where: { id_projectId: { id, projectId } },
+          }),
+        ).not.toBeNull();
+      } finally {
+        candidateQuery.mockRestore();
+        await prisma.inAppAgentConversation.deleteMany({
+          where: { id, projectId },
+        });
+      }
+    },
+  );
 
   it("should NOT delete event files from cloud storage if after expiry cutoff", async () => {
     // Setup: Set retention in database to match job payload

@@ -101,6 +101,7 @@ import {
   BATCH_DATA_RETENTION_TABLES,
 } from "./features/batch-data-retention-cleaner";
 import { MediaRetentionCleaner } from "./features/media-retention-cleaner";
+import { InAppAgentRetentionCleaner } from "./features/in-app-agent-retention-cleaner";
 import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-cleaner";
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
@@ -792,6 +793,11 @@ if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
     }
   }
 }
+
+// Assistant retention runs independently of ingestion retention mode and
+// assistant enablement, so stored conversations still expire after opt-out.
+export const inAppAgentRetentionCleaner = new InAppAgentRetentionCleaner();
+inAppAgentRetentionCleaner.start();
 
 // Media retention cleaner for media files and blob storage
 export let mediaRetentionCleaner: MediaRetentionCleaner | null = null;

@@ -15,6 +15,7 @@ import {
   batchProjectCleaners,
   batchDataRetentionCleaners,
   mediaRetentionCleaner,
+  inAppAgentRetentionCleaner,
   batchProjectMediaCleaner,
   batchProjectBlobCleaner,
   batchTraceDeletionCleaner,
@@ -67,6 +68,7 @@ const runDrainAndClose = async () => {
 
   // Stop media retention cleaner
   mediaRetentionCleaner?.stop();
+  inAppAgentRetentionCleaner.stop();
 
   // Stop batch project media cleaner
   batchProjectMediaCleaner?.stop();

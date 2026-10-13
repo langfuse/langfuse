@@ -148,6 +148,11 @@
 
 ## In-App Agent Runtime
 
+- `src/features/in-app-agent-retention-cleaner/` expires conversations under
+  current licensed project retention policies. Its exclusive periodic runner
+  starts independently of batch-retention and assistant enablement, processes
+  bounded batches, revokes MCP keys before cascading deletion, and leaves
+  unfinished runs to the integrity runner.
 - `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
   instrumentation, prompt loading, continuation handling, tools, skills, and
   sandbox providers.
