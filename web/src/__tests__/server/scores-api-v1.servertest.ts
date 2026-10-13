@@ -271,10 +271,12 @@ describe("/api/public/scores API Endpoint", () => {
       });
     });
 
-    it("should use the provided timestamp for a single score", async () => {
+    it.each([
+      ["with Z", "2026-01-15T10:20:30.123Z"],
+      ["with a +02:00 offset", "2026-01-15T12:20:30.123+02:00"],
+    ])("should store a single score timestamp %s", async (_, timestamp) => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const scoreId = v4();
-      const timestamp = "2026-01-15T10:20:30.123Z";
 
       const response = await makeAPICall(
         "POST",
@@ -316,7 +318,10 @@ describe("/api/public/scores API Endpoint", () => {
       });
     });
 
-    it("should reject a single score with an invalid timestamp", async () => {
+    it.each([
+      ["without an offset", "2026-01-15T10:20:30.123"],
+      ["with a space separator", "2026-01-15 10:20:30"],
+    ])("should reject a single score timestamp %s", async (_, timestamp) => {
       const { auth } = await createOrgProjectAndApiKey();
 
       const response = await makeAPICall(
@@ -326,7 +331,7 @@ describe("/api/public/scores API Endpoint", () => {
           traceId: v4(),
           name: "bad-timestamp",
           value: 1,
-          timestamp: "2026-01-15 10:20:30",
+          timestamp,
         },
         auth,
       );
@@ -422,7 +427,7 @@ describe("/api/public/scores API Endpoint", () => {
             traceId: v4(),
             name: "invalid-timestamp",
             value: 1,
-            timestamp: "not-a-date",
+            timestamp: "2026-01-15T10:20:30",
           },
         ],
         auth,
