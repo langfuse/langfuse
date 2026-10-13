@@ -10,8 +10,8 @@ import { redis } from "./redis/redis";
 export const TRACE_IDLE_MS_MIN = 60_000;
 export const TRACE_IDLE_MS_MAX = 3_600_000;
 
-// Reads are served from Redis for up to this long. Saving deletes the entry, so
-// only a failed delete leaves a stale value, until the entry expires.
+// Cache fills do not replace saved values. A failed cache write can leave a
+// previous value until it expires.
 const CACHE_TTL_SECONDS = 300;
 const CACHE_KEY_PREFIX = "langfuse:tracing-readiness-settings";
 
@@ -44,13 +44,23 @@ export async function getTracingReadinessSettings(
     where: { projectId },
     select: { traceIdleMs: true },
   });
-  const settings = { traceIdleMs: row?.traceIdleMs ?? null };
+  const parsed = tracingReadinessSettingsSchema.safeParse({
+    traceIdleMs: row?.traceIdleMs ?? null,
+  });
+  if (!parsed.success) {
+    logger.warn("Invalid stored trace idle time, using the default", {
+      projectId,
+      traceIdleMs: row?.traceIdleMs,
+    });
+  }
+  const settings = parsed.success ? parsed.data : { traceIdleMs: null };
   try {
     await redis?.set(
       cacheKey(projectId),
       JSON.stringify(settings),
       "EX",
       CACHE_TTL_SECONDS,
+      "NX",
     );
   } catch (error) {
     logger.warn("Failed to cache tracing readiness settings", {
@@ -73,15 +83,21 @@ export async function saveTracingReadinessSettings(
     update: { ...data, updatedBy: userId },
     select: { traceIdleMs: true },
   });
+  const saved = { traceIdleMs: row.traceIdleMs };
   try {
-    await redis?.del(cacheKey(projectId));
+    await redis?.set(
+      cacheKey(projectId),
+      JSON.stringify(saved),
+      "EX",
+      CACHE_TTL_SECONDS,
+    );
   } catch (error) {
-    logger.warn("Failed to clear cached tracing readiness settings", {
+    logger.warn("Failed to cache saved tracing readiness settings", {
       projectId,
       error,
     });
   }
-  return { traceIdleMs: row.traceIdleMs };
+  return saved;
 }
 
 async function readCache(

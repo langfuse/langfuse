@@ -908,7 +908,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     }
   });
 
-  it("caches the project's settings in Redis with an expiry and clears them on save", async () => {
+  it("caches the project's settings in Redis with an expiry and replaces them on save", async () => {
     const orgId = `org-${randomUUID()}`;
     const projectId = `project-${randomUUID()}`;
     const cacheKey = `langfuse:tracing-readiness-settings:${projectId}`;
@@ -926,17 +926,103 @@ describe("trace micro-batch scheduling with Redis", () => {
       const ttl = await connection.ttl(cacheKey);
       expect(ttl).toBeGreaterThan(0);
       expect(ttl).toBeLessThanOrEqual(300);
-
       await shared.saveTracingReadinessSettings(projectId, {
         traceIdleMs: 300_000,
       });
-      expect(await connection.exists(cacheKey)).toBe(0);
+      expect(JSON.parse((await connection.get(cacheKey))!)).toEqual({
+        traceIdleMs: 300_000,
+      });
       await trackTraceBatchActivity(projectId, [event("saved")]);
       const offset =
         Number(await client().zscore(dueKey, member(projectId, "saved"))) -
         Date.now();
       expect(offset).toBeGreaterThan(290_000);
       expect(offset).toBeLessThan(310_000);
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+      await connection.del(cacheKey);
+    }
+  });
+
+  it("does not let an earlier database read overwrite newly saved settings", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    const cacheKey = `langfuse:tracing-readiness-settings:${projectId}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Idle time race org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Idle time race project" },
+    });
+    try {
+      await shared.saveTracingReadinessSettings(projectId, {
+        traceIdleMs: 120_000,
+      });
+      await connection.del(cacheKey);
+
+      let releaseFill!: () => void;
+      const fillHeld = new Promise<void>((resolve) => {
+        releaseFill = resolve;
+      });
+      let signalFill!: () => void;
+      const fillStarted = new Promise<void>((resolve) => {
+        signalFill = resolve;
+      });
+      const actualShared = await vi.importActual<
+        typeof import("@langfuse/shared/src/server")
+      >("@langfuse/shared/src/server");
+      if (!actualShared.redis)
+        throw new Error("Redis is required for this test");
+      const originalSet = actualShared.redis.set.bind(actualShared.redis);
+      vi.spyOn(actualShared.redis, "set").mockImplementationOnce(
+        async (...args) => {
+          signalFill();
+          await fillHeld;
+          return originalSet(...args);
+        },
+      );
+
+      const earlierRead = shared.getTracingReadinessSettings(projectId);
+      await fillStarted;
+      try {
+        await shared.saveTracingReadinessSettings(projectId, {
+          traceIdleMs: 300_000,
+        });
+      } finally {
+        releaseFill();
+      }
+      await earlierRead;
+
+      expect(await shared.getTracingReadinessSettings(projectId)).toEqual({
+        traceIdleMs: 300_000,
+      });
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+      await connection.del(cacheKey);
+    }
+  });
+
+  it("uses and caches the default for an out-of-range stored idle time", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    const cacheKey = `langfuse:tracing-readiness-settings:${projectId}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Invalid idle time org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Invalid idle time project" },
+    });
+    try {
+      await prisma.tracingReadinessSettings.create({
+        data: { projectId, traceIdleMs: 1 },
+      });
+
+      expect(await shared.getTracingReadinessSettings(projectId)).toEqual({
+        traceIdleMs: null,
+      });
+      expect(JSON.parse((await connection.get(cacheKey))!)).toEqual({
+        traceIdleMs: null,
+      });
     } finally {
       await prisma.organization.delete({ where: { id: orgId } });
       await connection.del(cacheKey);
