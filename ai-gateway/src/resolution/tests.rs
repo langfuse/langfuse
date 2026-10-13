@@ -209,7 +209,7 @@ async fn fetches_models_from_the_control_plane() {
 
     let body = web
         .control_plane()
-        .fetch_models(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW, REQUEST_ID)
+        .models(GATEWAY_KEY, ApiFormat::OpenAiResponses, REQUEST_ID)
         .await
         .unwrap();
     assert_eq!(
