@@ -165,8 +165,10 @@ describe("Topics execution store application contract", () => {
     expect(progress.facets.map((facet) => facet.counts.requested)).toEqual([
       2001, 2001,
     ]);
+    expect(progress.costs).toBeUndefined();
     const noisyProgress = {
       ...progress,
+      costs: { summarization: 0.000012, embedding: null },
       status: "running" as const,
       traceErrors: [{ traceId: "failed-trace", error: "Read failed" }],
       facets: progress.facets.map((facet) => ({
@@ -179,7 +181,10 @@ describe("Topics execution store application contract", () => {
       input.projectId,
       execution.id,
     );
-    expect(restored).toMatchObject({ status: "running" });
+    expect(restored).toMatchObject({
+      status: "running",
+      costs: { summarization: 0.000012, embedding: null },
+    });
     expect(restored?.facets[0].counts.complete).toBe(1);
     const database = JSON.stringify([...state.batches.values()]);
     for (const value of [

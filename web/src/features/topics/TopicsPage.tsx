@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { api, type RouterOutputs } from "@/src/utils/api";
+import { costFormatter } from "@/src/utils/numbers";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import {
@@ -68,6 +69,14 @@ const operationLabels: Record<TopicOperation, string> = {
   update: "Update topics",
 };
 const busy = (status: string) => status === "queued" || status === "running";
+function recordedExecutionCost(
+  costs: RouterOutputs["topics"]["execution"]["costs"],
+) {
+  return costs?.summarization != null && costs.embedding != null
+    ? costFormatter(costs.summarization + costs.embedding)
+    : "Unavailable";
+}
+
 const executionLabels: Record<TopicExecutionStatus, string> = {
   queued: "Run queued",
   running: "Run in progress",
@@ -371,7 +380,7 @@ function TopicsWorkspaceView({
                 {executionId ? "Run status" : "Past executions"}
               </SheetTitle>
               <SheetDescription>
-                Review progress, errors, and retry interrupted runs.
+                Review progress, costs, errors, and retry interrupted runs.
               </SheetDescription>
             </SheetHeader>
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
@@ -424,6 +433,12 @@ function TopicsWorkspaceView({
                       </span>
                       <span>{execution.facets.length} facets</span>
                       <Badge text={executionLabels[execution.status]} />
+                      {execution.input.operation === "process" && (
+                        <span className="text-muted-foreground w-full tabular-nums">
+                          Recorded cost:{" "}
+                          {recordedExecutionCost(execution.costs)}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </>
@@ -694,6 +709,35 @@ function ExecutionPanel({
           </p>
         )}
       </div>
+      {!isUpdate && (
+        <section className="flex flex-col gap-2 rounded-md border p-3 text-sm">
+          <h3 className="font-bold">Recorded cost</h3>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <dt className="text-muted-foreground">Summarization</dt>
+            <dd className="text-right tabular-nums">
+              {execution.costs?.summarization != null
+                ? costFormatter(execution.costs.summarization)
+                : "Unavailable"}
+            </dd>
+            <dt className="text-muted-foreground">Embedding</dt>
+            <dd className="text-right tabular-nums">
+              {execution.costs?.embedding != null
+                ? costFormatter(execution.costs.embedding)
+                : "Unavailable"}
+            </dd>
+            <dt className="font-bold">Total</dt>
+            <dd className="text-right font-bold tabular-nums">
+              {recordedExecutionCost(execution.costs)}
+            </dd>
+          </dl>
+          <p className="text-muted-foreground text-xs">
+            USD, based on recorded model usage. Excludes topic naming and calls
+            without recorded usage.
+            {busy(execution.status) && " Updates after each processing batch."}
+            {!execution.costs && " Costs were not recorded for this run."}
+          </p>
+        </section>
+      )}
       {execution.error && <ErrorMessage message={execution.error} />}
       {execution.facets.some((facet) => facet.counts.failed > 0) && (
         <details

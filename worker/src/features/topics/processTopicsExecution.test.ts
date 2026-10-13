@@ -555,6 +555,98 @@ beforeEach(() => {
 });
 
 describe("Topics execution", () => {
+  it("retains recorded costs through embedding failure, resume and summary reuse", async () => {
+    const summarize = state.summarize.getMockImplementation()!;
+    state.summarize.mockImplementation(async (...args) => ({
+      ...(await summarize(...args)),
+      costDetails: {
+        summary_input: 0.00001,
+        summary_output: 0.000002,
+        total: 0.000012,
+      },
+    }));
+    const embed = state.embed.getMockImplementation()!;
+    const pricedEmbedding = async (...args: unknown[]) => ({
+      ...(await embed(...args)),
+      costDetails: { embedding_input: 0.00000012, total: 0.00000012 },
+    });
+    state.embed
+      .mockImplementation(pricedEmbedding)
+      .mockImplementationOnce(pricedEmbedding)
+      .mockRejectedValueOnce(topicProviderError({ statusCode: 503 }));
+    await processSelection("costs", 2);
+    expect(state.executions.get("costs")).toMatchObject({
+      status: "failed",
+      costs: { summarization: 0.000024, embedding: 0.00000012 },
+    });
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "costs",
+    });
+    expect(state.executions.get("costs")).toMatchObject({
+      status: "completed",
+      costs: { summarization: 0.000024, embedding: 0.00000024 },
+    });
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "costs",
+    });
+    expect(state.executions.get("costs")?.costs).toEqual({
+      summarization: 0.000024,
+      embedding: 0.00000024,
+    });
+    await processSelection("reused-costs", 2, undefined, true);
+    expect(state.executions.get("reused-costs")?.costs).toEqual({
+      summarization: 0,
+      embedding: 0,
+    });
+    expect(state.summarize).toHaveBeenCalledTimes(2);
+    expect(state.embed).toHaveBeenCalledTimes(3);
+  });
+
+  it("reports unavailable prices separately from skipped model calls", async () => {
+    await processSelection("unknown-costs", 1);
+    expect(state.executions.get("unknown-costs")?.costs).toEqual({
+      summarization: null,
+      embedding: null,
+    });
+    state.loadTranscript.mockImplementation(async ({ traceId }) => ({
+      ...traceInput(traceId),
+      transcript: null,
+    }));
+    await processSelection("skipped-costs", 1);
+    expect(state.executions.get("skipped-costs")?.costs).toEqual({
+      summarization: 0,
+      embedding: 0,
+    });
+  });
+
+  it("preserves checkpointed embedding costs when staged payloads expire before resume", async () => {
+    const embed = state.embed.getMockImplementation()!;
+    state.embed
+      .mockImplementationOnce(async (...args) => ({
+        ...(await embed(...args)),
+        costDetails: { embedding_input: 0.00000012, total: 0.00000012 },
+      }))
+      .mockRejectedValueOnce(topicProviderError({ statusCode: 503 }));
+    await processSelection("expired-costs", 2);
+    expect(state.executions.get("expired-costs")).toMatchObject({
+      status: "failed",
+      costs: { embedding: 0.00000012 },
+    });
+    state.staged.clear();
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "expired-costs",
+    });
+    expect(state.executions.get("expired-costs")).toMatchObject({
+      status: "failed",
+      error: expect.stringContaining("expired"),
+      costs: { embedding: 0.00000012 },
+    });
+    expect(state.embed).toHaveBeenCalledTimes(2);
+  });
+
   it("records null transcripts as insufficient input without inference", async () => {
     state.loadTranscript.mockResolvedValueOnce(traceInput("trace0", null));
     await processSelection("empty-transcript", 1);

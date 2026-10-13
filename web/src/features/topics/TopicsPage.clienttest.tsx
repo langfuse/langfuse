@@ -2,8 +2,10 @@ import type { ReactNode } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import TopicsPage from "./TopicsPage";
+import { type TopicExecutionSummary } from "@langfuse/shared/topics";
 import { useGlobalDateRangeStore } from "@/src/features/global-time-range/globalDateRangeStore";
 import { rangeToString, type TimeRange } from "@/src/utils/date-range-utils";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 const state = vi.hoisted(() => ({
   status: "failed",
@@ -13,6 +15,8 @@ const state = vi.hoisted(() => ({
   refetchExecution: vi.fn(),
   dateRange: undefined as string | undefined,
   executionId: undefined as string | undefined,
+  costs: undefined as TopicExecutionSummary["costs"],
+  executions: [] as TopicExecutionSummary[],
   setQueryParams: vi.fn(),
   currentTopics: vi.fn(),
   pipeline: vi.fn(),
@@ -45,7 +49,18 @@ vi.mock("next/router", () => ({
   }),
 }));
 vi.mock("@/src/components/layouts/page", () => ({
-  default: ({ children }: { children: ReactNode }) => children,
+  default: ({
+    children,
+    headerProps,
+  }: {
+    children: ReactNode;
+    headerProps: { actionButtonsRight?: ReactNode };
+  }) => (
+    <>
+      {headerProps.actionButtonsRight}
+      {children}
+    </>
+  ),
 }));
 vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
   usePeekNavigation: () => ({}),
@@ -94,7 +109,7 @@ vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
       facets: { useQuery: () => ({ data: [], isLoading: false }) },
-      executions: { useQuery: () => ({ data: [] }) },
+      executions: { useQuery: () => ({ data: state.executions }) },
       initialize: { useMutation: () => ({}) },
       execution: {
         useQuery: () => ({
@@ -109,6 +124,7 @@ vi.mock("@/src/utils/api", () => ({
               embeddingConfig: { embeddingDimensions: 1024 },
             },
             facets: [],
+            costs: state.costs,
             error: null,
           },
           dataUpdatedAt: state.executionUpdatedAt,
@@ -150,6 +166,8 @@ beforeEach(() => {
   state.updatedAt = "2026-09-23T12:00:00Z";
   state.dateRange = undefined;
   state.executionId = undefined;
+  state.costs = undefined;
+  state.executions = [];
   state.setQueryParams.mockImplementation(
     ({ dateRange }: { dateRange: string }) => {
       state.dateRange = dateRange;
@@ -164,6 +182,67 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
+});
+
+it("distinguishes recorded, zero, unpriced, and historical run costs", () => {
+  state.executionId = "execution";
+  state.costs = { summarization: 0.0012, embedding: 0.00003 };
+  const view = render(<TopicsPage />);
+  const status = screen.getByRole("dialog", { name: "Run status" });
+  expect(within(status).getByText("$0.0012")).toBeInTheDocument();
+  expect(within(status).getByText("$0.00003")).toBeInTheDocument();
+  expect(within(status).getByText("$0.00123")).toBeInTheDocument();
+
+  state.costs = { summarization: 0, embedding: 0 };
+  view.rerender(<TopicsPage />);
+  expect(within(status).getAllByText("$0.00")).toHaveLength(3);
+
+  state.costs = { summarization: 0.0012, embedding: null };
+  view.rerender(<TopicsPage />);
+  expect(within(status).getByText("$0.0012")).toBeInTheDocument();
+  expect(within(status).getAllByText("Unavailable")).toHaveLength(2);
+  expect(within(status).queryByText("$0.00")).not.toBeInTheDocument();
+
+  state.costs = undefined;
+  view.rerender(<TopicsPage />);
+  expect(within(status).getAllByText("Unavailable")).toHaveLength(3);
+  expect(
+    within(status).getByText(/Costs were not recorded for this run/),
+  ).toBeInTheDocument();
+});
+
+it("shows the recorded total in history without treating legacy costs as zero", async () => {
+  const execution: TopicExecutionSummary = {
+    id: "recorded",
+    projectId: "project",
+    input: {
+      operation: "process",
+      projectId: "project",
+      requestId: "request",
+      facets: [{ facetId: "facet", version: 1 }],
+      embeddingConfig: { embeddingDimensions: 1024 },
+      processingConfig: { maxInputTokens: 120_000, maxOutputTokens: 512 },
+      reuseExistingSummaries: false,
+    },
+    status: "completed",
+    phase: "completed",
+    createdAt: state.updatedAt,
+    updatedAt: state.updatedAt,
+    facets: [],
+    error: null,
+  };
+  state.executions = [
+    { ...execution, costs: { summarization: 0.12, embedding: 0.03 } },
+    { ...execution, id: "historical" },
+  ];
+  render(<TopicsPage />, { wrapper: LayerProvider });
+  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
+  fireEvent.click(await screen.findByRole("button", { name: "History" }));
+  const history = screen.getByRole("dialog", { name: "Past executions" });
+  expect(within(history).getByText("Recorded cost: $0.15")).toBeInTheDocument();
+  expect(
+    within(history).getByText("Recorded cost: Unavailable"),
+  ).toBeInTheDocument();
 });
 
 it.each([

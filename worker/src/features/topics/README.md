@@ -401,6 +401,14 @@ Provider usage and calculated model costs use the events-style
 `provided_usage_details`, `usage_details`, `provided_cost_details` and `cost_details`
 maps. Summary and embedding keys are prefixed by stage; effective maps include
 combined totals.
+Manual processing executions retain a compact USD cost breakdown in Postgres
+batch metadata for history: summarization and embedding costs from accepted
+staged results. Redis progress replaces each batch's cost snapshot, so polling
+and retries do not count the same result twice. Reused or skipped stages cost
+zero; missing embedding usage or model prices remain unavailable. Older executions
+have no cost snapshot. These recorded costs exclude naming and unsuccessful provider
+calls and are not a complete provider bill. They remain readable after queue
+payloads expire or the current ClickHouse summaries are replaced.
 Global Bedrock text rates per million input/output tokens are $0.20/$1.20 for
 [Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
 and $2/$12 for
