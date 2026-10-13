@@ -26,12 +26,15 @@ export type InAppAgentScreenContextDescription =
   | { type: "datasets-list" };
 
 const CURRENT_URL_CONTEXT_DESCRIPTION = "current_url";
+const PAGE_ASSISTANT_INSTRUCTIONS_CONTEXT_DESCRIPTION =
+  "page_assistant_instructions";
 const MAX_SCREEN_CONTEXT_SEARCH_PARAMS = 30;
 const MAX_CONTEXT_KEY_LENGTH = 80;
 const MAX_CONTEXT_VALUE_LENGTH = 500;
 const MAX_SCREEN_CONTEXT_PATH_LENGTH = 500;
 const MAX_SCREEN_CONTEXT_HASH_LENGTH = 200;
 const MAX_SCREEN_CONTEXT_JSON_LENGTH = 4_000;
+const MAX_PAGE_ASSISTANT_INSTRUCTIONS_LENGTH = 8_000;
 const USER_CONTEXT_DESCRIPTIONS = new Set([
   "user_name",
   "current_timezone",
@@ -196,8 +199,33 @@ export function sanitizeInAppAgentContext(
   }
 
   sanitizedContext.push(...sanitizeUserContext(context));
+  const pageInstructions = context.find(
+    (item) =>
+      item.description === PAGE_ASSISTANT_INSTRUCTIONS_CONTEXT_DESCRIPTION,
+  )?.value;
+  const boundedPageInstructions = pageInstructions?.trim();
+  if (
+    boundedPageInstructions &&
+    boundedPageInstructions.length <= MAX_PAGE_ASSISTANT_INSTRUCTIONS_LENGTH
+  ) {
+    sanitizedContext.push({
+      description: PAGE_ASSISTANT_INSTRUCTIONS_CONTEXT_DESCRIPTION,
+      value: boundedPageInstructions,
+    });
+  }
 
   return sanitizedContext;
+}
+
+export function createInAppAgentPageInstructionsContext(
+  instructions: string,
+): InAppAgentContext {
+  return [
+    {
+      description: PAGE_ASSISTANT_INSTRUCTIONS_CONTEXT_DESCRIPTION,
+      value: instructions,
+    },
+  ];
 }
 
 function sanitizeUserContext(context: InAppAgentContext): InAppAgentContext {

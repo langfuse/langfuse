@@ -59,6 +59,7 @@ import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvalua
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
+import { InAppAgentUpdateHighlight } from "@/src/features/in-app-agent";
 import { cn } from "@/src/utils/tailwind";
 import type { EvaluatorPromptMessage } from "@langfuse/shared";
 
@@ -73,12 +74,18 @@ type PreparedPromptEditorState = ReturnType<typeof preparePromptEditorState>;
 export function PromptEditor({
   projectId,
   store,
+  assistantUpdateId,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
+  assistantUpdateId: string | null;
 }) {
   const sampleObject = useEvaluatorSetupSample({ projectId, store });
-  return <PromptEditorContent store={store} sampleObject={sampleObject} />;
+  return (
+    <InAppAgentUpdateHighlight updateId={assistantUpdateId}>
+      <PromptEditorContent store={store} sampleObject={sampleObject} />
+    </InAppAgentUpdateHighlight>
+  );
 }
 
 /** Presentational prompt editor used by the connected editor and Storybook. */

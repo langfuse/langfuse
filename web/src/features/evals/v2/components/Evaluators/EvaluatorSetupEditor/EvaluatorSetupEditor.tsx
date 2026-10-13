@@ -19,6 +19,8 @@ export function EvaluatorSetupEditor({
   providerAdapters,
   connectionsPending,
   canSetProjectDefault,
+  assistantCodeUpdateId,
+  assistantPromptUpdateId,
   nameAIAssistance,
   descriptionAIAssistance,
   onStepOpenChange,
@@ -34,6 +36,8 @@ export function EvaluatorSetupEditor({
   providerAdapters: Record<string, LLMAdapter>;
   connectionsPending: boolean;
   canSetProjectDefault: boolean;
+  assistantCodeUpdateId: string | null;
+  assistantPromptUpdateId: string | null;
   nameAIAssistance: ComponentProps<typeof AIAssistedInput>["aiAssistance"];
   descriptionAIAssistance: ComponentProps<
     typeof AIAssistedInput
@@ -56,6 +60,8 @@ export function EvaluatorSetupEditor({
         providerAdapters={providerAdapters}
         connectionsPending={connectionsPending}
         canSetProjectDefault={canSetProjectDefault}
+        assistantCodeUpdateId={assistantCodeUpdateId}
+        assistantPromptUpdateId={assistantPromptUpdateId}
         onStepOpenChange={onStepOpenChange}
         onConfigureProviders={onConfigureProviders}
         onSetProjectDefault={onSetProjectDefault}

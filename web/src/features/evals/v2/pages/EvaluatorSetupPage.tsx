@@ -75,6 +75,8 @@ import { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/creat
 import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
 import { isJudgeModelAvailable } from "@/src/features/evals/v2/judgeModel";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
+import { useEvaluatorAssistantContext } from "@/src/features/evals/v2/hooks/useEvaluatorAssistantContext";
+import { useEvaluatorInAppAgentToolSync } from "@/src/features/evals/v2/hooks/useEvaluatorInAppAgentToolSync";
 
 type InitialEvaluator = {
   id: string;
@@ -314,6 +316,21 @@ export function EvaluatorSetupPage(
     null,
   );
   const [rawResultOpen, setRawResultOpen] = useState(false);
+  useEvaluatorAssistantContext({
+    projectId,
+    evaluatorId: initialEvaluator?.id ?? null,
+    mode: props.mode,
+  });
+  const { codeUpdateId, promptUpdateId, testUpdateId } =
+    useEvaluatorInAppAgentToolSync({
+      projectId,
+      evaluatorId: initialEvaluator?.id ?? null,
+      store: evaluatorSetupStore,
+      setTestResult,
+      setHasCompletedTestCall,
+      setLastTestRunCostUsd,
+      setRawResultOpen,
+    });
   const hasRequestedName = useRef(false);
   const saveInFlightRef = useRef(false);
   const hasCreatedRef = useRef(false);
@@ -787,6 +804,8 @@ export function EvaluatorSetupPage(
       providerAdapters={projectDefaultModel.providerAdapters}
       connectionsPending={projectDefaultModel.connectionsPending}
       canSetProjectDefault={projectDefaultModel.canUpdate}
+      assistantCodeUpdateId={codeUpdateId}
+      assistantPromptUpdateId={promptUpdateId}
       onConfigureProviders={() => {
         onboardingAnalytics?.track(
           "eval:onboarding_llm_connection_tab_opened",
@@ -824,7 +843,6 @@ export function EvaluatorSetupPage(
             ? { state: "generating" }
             : {
                 state: "idle",
-                // requestDescriptionSuggestion reports its own failures.
                 onGenerate: () => {
                   onboardingAnalytics?.track(
                     "eval:onboarding_ai_generate_requested",
@@ -858,6 +876,7 @@ export function EvaluatorSetupPage(
         />
       }
       testResult={testResult}
+      assistantUpdateId={testUpdateId}
       testPending={testEvaluator.isPending}
       rawResultOpen={rawResultOpen}
       onRawResultOpenChange={setRawResultOpen}

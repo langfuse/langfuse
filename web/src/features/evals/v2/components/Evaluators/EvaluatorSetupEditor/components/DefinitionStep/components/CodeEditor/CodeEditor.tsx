@@ -7,14 +7,17 @@ import { buildCodeEvalContextSnippet } from "@/src/features/evals/v2/fns/evaluat
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { CodeEvalValidationResult } from "@/src/features/evals/utils/code-eval-template-validation";
+import { InAppAgentUpdateHighlight } from "@/src/features/in-app-agent";
 
 export function CodeEditor({
   projectId,
   store,
+  assistantUpdateId,
   validationResult,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
+  assistantUpdateId: string | null;
   validationResult: CodeEvalValidationResult | null;
 }) {
   const sampleObservation = useEvaluatorSetupSample({ projectId, store });
@@ -38,13 +41,15 @@ export function CodeEditor({
   );
 
   return (
-    <CodeEvalTemplateFormBody
-      sourceCode={state.sourceCode}
-      sourceCodeLanguage={state.sourceCodeLanguage}
-      onSourceCodeChange={state.setSourceCode}
-      editable
-      validationResult={validationResult}
-      ctxSample={ctxSample}
-    />
+    <InAppAgentUpdateHighlight updateId={assistantUpdateId}>
+      <CodeEvalTemplateFormBody
+        sourceCode={state.sourceCode}
+        sourceCodeLanguage={state.sourceCodeLanguage}
+        onSourceCodeChange={state.setSourceCode}
+        editable
+        validationResult={validationResult}
+        ctxSample={ctxSample}
+      />
+    </InAppAgentUpdateHighlight>
   );
 }

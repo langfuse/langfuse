@@ -1030,6 +1030,10 @@ describe("createAgUiStream", () => {
           description: "browser_languages",
           value: "en-GB, en",
         },
+        {
+          description: "page_assistant_instructions",
+          value: "Ask for evaluator requirements before using tools.",
+        },
       ],
       state: {
         type: "existingConversation",
@@ -1317,6 +1321,10 @@ describe("createAgUiStream", () => {
     expect(laterStepText).toContain("<user_context>");
     expect(laterStepText).toContain('"user_name": "Ada Lovelace"');
     expect(laterStepText).toContain("<screen_context>");
+    expect(laterStepText).toContain("<page_workflow_instructions>");
+    expect(laterStepText).toContain(
+      "Ask for evaluator requirements before using tools.",
+    );
     expect(laterStepText).toContain(
       '"current_url": "https://cloud.langfuse.com/project/project-1/traces"',
     );

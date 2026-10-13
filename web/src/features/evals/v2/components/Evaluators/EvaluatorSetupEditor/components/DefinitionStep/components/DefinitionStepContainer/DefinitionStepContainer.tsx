@@ -25,6 +25,8 @@ export function DefinitionStepContainer({
   providerAdapters,
   connectionsPending,
   canSetProjectDefault,
+  assistantCodeUpdateId,
+  assistantPromptUpdateId,
   onStepOpenChange,
   onConfigureProviders,
   onSetProjectDefault,
@@ -38,6 +40,8 @@ export function DefinitionStepContainer({
   providerAdapters: Record<string, LLMAdapter>;
   connectionsPending: boolean;
   canSetProjectDefault: boolean;
+  assistantCodeUpdateId: string | null;
+  assistantPromptUpdateId: string | null;
   onStepOpenChange: (step: number, open: boolean) => void;
   onConfigureProviders: () => void;
   onSetProjectDefault: (model: ProjectDefaultModelConfig) => void;
@@ -89,7 +93,13 @@ export function DefinitionStepContainer({
               onSetProjectDefault={onSetProjectDefault}
             />
           }
-          promptEditor={<PromptEditor projectId={projectId} store={store} />}
+          promptEditor={
+            <PromptEditor
+              projectId={projectId}
+              store={store}
+              assistantUpdateId={assistantPromptUpdateId}
+            />
+          }
           scoreOutputEditor={<ScoreOutputEditor store={store} />}
         />
       );
@@ -103,6 +113,7 @@ export function DefinitionStepContainer({
             <CodeEditor
               projectId={projectId}
               store={store}
+              assistantUpdateId={assistantCodeUpdateId}
               validationResult={codeValidationResult}
             />
           }

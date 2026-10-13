@@ -7,12 +7,14 @@ import {
   selectHasValidModel,
   type EvaluatorSetupStore,
 } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { InAppAgentUpdateHighlight } from "@/src/features/in-app-agent";
 
 export function EvaluatorTestPanelContainer({
   projectId,
   store,
   sampleSelector,
   testResult,
+  assistantUpdateId,
   testPending,
   rawResultOpen,
   onRawResultOpenChange,
@@ -23,6 +25,7 @@ export function EvaluatorTestPanelContainer({
   store: EvaluatorSetupStore;
   sampleSelector: ReactNode;
   testResult: unknown;
+  assistantUpdateId: string | null;
   testPending: boolean;
   rawResultOpen: boolean;
   onRawResultOpenChange: (open: boolean) => void;
@@ -39,17 +42,19 @@ export function EvaluatorTestPanelContainer({
       onOpenChange={actions.setTestPanelOpen}
       sampleSelector={sampleSelector}
       testSection={
-        <TestSectionContainer
-          projectId={projectId}
-          store={store}
-          hasValidModel={hasValidModel}
-          testResult={testResult}
-          testPending={testPending}
-          rawResultOpen={rawResultOpen}
-          onRawResultOpenChange={onRawResultOpenChange}
-          onRunTest={onRunTest}
-          onOpenExecutionTrace={onOpenExecutionTrace}
-        />
+        <InAppAgentUpdateHighlight updateId={assistantUpdateId}>
+          <TestSectionContainer
+            projectId={projectId}
+            store={store}
+            hasValidModel={hasValidModel}
+            testResult={testResult}
+            testPending={testPending}
+            rawResultOpen={rawResultOpen}
+            onRawResultOpenChange={onRawResultOpenChange}
+            onRunTest={onRunTest}
+            onOpenExecutionTrace={onOpenExecutionTrace}
+          />
+        </InAppAgentUpdateHighlight>
       }
     />
   );

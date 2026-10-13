@@ -1,6 +1,10 @@
 // @vitest-environment node
 
-import { getInAppAgentScreenContextDescription } from "./context";
+import {
+  createInAppAgentPageInstructionsContext,
+  getInAppAgentScreenContextDescription,
+  sanitizeInAppAgentContext,
+} from "./context";
 
 describe("getInAppAgentScreenContextDescription", () => {
   it.each([
@@ -129,5 +133,21 @@ describe("getInAppAgentScreenContextDescription", () => {
     },
   ])("describes $name", ({ url, expected }) => {
     expect(getInAppAgentScreenContextDescription(url)).toEqual(expected);
+  });
+});
+
+describe("page Assistant instructions", () => {
+  it("preserves bounded product workflow instructions", () => {
+    const context = createInAppAgentPageInstructionsContext(
+      "Ask for evaluator requirements before using tools.",
+    );
+
+    expect(sanitizeInAppAgentContext(context, "project-1")).toEqual(context);
+  });
+
+  it("drops oversized product workflow instructions", () => {
+    const context = createInAppAgentPageInstructionsContext("x".repeat(8_001));
+
+    expect(sanitizeInAppAgentContext(context, "project-1")).toEqual([]);
   });
 });

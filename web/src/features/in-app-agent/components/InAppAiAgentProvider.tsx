@@ -62,6 +62,7 @@ import { showErrorToast } from "@/src/features/notifications";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { api } from "@/src/utils/api";
 import {
+  createInAppAgentPageInstructionsContext,
   createInAppAgentScreenContext,
   createInAppAgentUserContext,
 } from "@/src/features/in-app-agent/context";
@@ -70,10 +71,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import {
-  getCompletedToolCalls,
-  performToolSideEffectsForCompletedToolCalls,
-} from "@/src/features/in-app-agent/components/utils/side-effects";
+import { performToolSideEffectsForCompletedToolCalls } from "@/src/features/in-app-agent/components/utils/side-effects";
+import { getCompletedInAppAgentToolCalls } from "@/src/features/in-app-agent/fns/getCompletedInAppAgentToolCalls";
+import { publishInAppAgentToolResult } from "@/src/features/in-app-agent/stores/inAppAgentToolResultSubscriptions";
+import { getInAppAgentContextualLanding } from "@/src/features/in-app-agent/stores/inAppAgentContextualLandingStore";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -322,7 +323,9 @@ function InAppAiAgentProviderInner({
   const backgroundSessionRef = useRef<BackgroundExecutionSession | null>(null);
   const [backgroundSession, setBackgroundSession] =
     useState<BackgroundExecutionSession | null>(null);
-  const toolCallNamesRef = useRef(new Map<string, string>());
+  const toolCallsRef = useRef(
+    new Map<string, { toolName: string; toolArguments: string }>(),
+  );
   const handledToolCallIdsRef = useRef(new Set<string>());
   const submitInFlightRef = useRef<string | null>(null);
 
@@ -663,7 +666,7 @@ function InAppAiAgentProviderInner({
     backgroundSessionRef.current?.dispose();
     backgroundSessionRef.current = null;
     setBackgroundSession(null);
-    toolCallNamesRef.current.clear();
+    toolCallsRef.current.clear();
     handledToolCallIdsRef.current.clear();
     clearLoadingEvents();
   }, [clearLoadingEvents]);
@@ -723,8 +726,19 @@ function InAppAiAgentProviderInner({
           }
 
           if (event.type === EventType.TOOL_CALL_START) {
-            toolCallNamesRef.current.set(event.toolCallId, event.toolCallName);
+            toolCallsRef.current.set(event.toolCallId, {
+              toolName: String(event.toolCallName),
+              toolArguments: "",
+            });
             updateLoadingEvent(event.toolCallId, true);
+            return;
+          }
+
+          if (event.type === EventType.TOOL_CALL_ARGS) {
+            const toolCall = toolCallsRef.current.get(event.toolCallId);
+            if (toolCall) {
+              toolCall.toolArguments += String(event.delta);
+            }
             return;
           }
 
@@ -739,22 +753,46 @@ function InAppAiAgentProviderInner({
             event.type === EventType.RUN_FINISHED ||
             event.type === EventType.RUN_ERROR
           ) {
+            toolCallsRef.current.clear();
             clearLoadingEvents();
           }
         },
         onToolCallResultEvent: ({ event }) => {
           const toolCallId = String(event.toolCallId);
-          const toolName = toolCallNamesRef.current.get(toolCallId);
-          toolCallNamesRef.current.delete(toolCallId);
-          if (toolName) {
+          const toolCall = toolCallsRef.current.get(toolCallId);
+          toolCallsRef.current.delete(toolCallId);
+          if (toolCall) {
+            const conversationId = backgroundSessionRef.current?.conversationId;
+            const toolResultContent: unknown = event.content;
+            if (conversationId) {
+              publishInAppAgentToolResult({
+                projectId,
+                conversationId,
+                toolCallId,
+                toolName: toolCall.toolName,
+                toolArguments: toolCall.toolArguments,
+                toolResultContent:
+                  typeof toolResultContent === "string"
+                    ? toolResultContent
+                    : undefined,
+                toolError: event.error,
+              });
+            }
             performToolSideEffectsForCompletedToolCalls({
-              toolCalls: [{ toolCallId, toolName, toolError: event.error }],
+              toolCalls: [
+                {
+                  toolCallId,
+                  toolName: toolCall.toolName,
+                  toolArguments: toolCall.toolArguments,
+                  toolError: event.error,
+                },
+              ],
               handledToolCallIds: handledToolCallIdsRef.current,
               utils,
             }).catch((error: unknown) => {
               console.error(
                 "Failed to invalidate tRPC routes after in-app agent tool call",
-                { error, toolName },
+                { error, toolName: toolCall.toolName },
               );
             });
           }
@@ -763,7 +801,7 @@ function InAppAiAgentProviderInner({
           setError(getInAppAgentError(event));
         },
       }) satisfies AgentSubscriber,
-    [clearLoadingEvents, updateLoadingEvent, utils],
+    [clearLoadingEvents, projectId, updateLoadingEvent, utils],
   );
 
   // Release only the caller's lock; a newer conversation may own it.
@@ -887,7 +925,7 @@ function InAppAiAgentProviderInner({
           }),
         onHydratedSnapshot: ({ messages }) => {
           performToolSideEffectsForCompletedToolCalls({
-            toolCalls: getCompletedToolCalls(messages),
+            toolCalls: getCompletedInAppAgentToolCalls(messages),
             handledToolCallIds: handledToolCallIdsRef.current,
             utils,
           }).catch((error: unknown) => {
@@ -932,11 +970,17 @@ function InAppAiAgentProviderInner({
     ],
   );
 
-  const createRunContext = useCallback(
-    () =>
-      createInAppAgentScreenContext({
-        currentUrl: window.location.href,
-      }).concat(
+  const createRunContext = useCallback(() => {
+    const landing = getInAppAgentContextualLanding(projectId);
+    return createInAppAgentScreenContext({
+      currentUrl: window.location.href,
+    })
+      .concat(
+        landing
+          ? createInAppAgentPageInstructionsContext(landing.instructions)
+          : [],
+      )
+      .concat(
         createInAppAgentUserContext({
           userName: session.data?.user?.name,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -945,9 +989,8 @@ function InAppAiAgentProviderInner({
               ? Array.from(navigator.languages)
               : [navigator.language],
         }),
-      ),
-    [session.data?.user?.name],
-  );
+      );
+  }, [projectId, session.data?.user?.name]);
 
   const selectConversation = useCallback(
     (conversationId: string | null) => {
