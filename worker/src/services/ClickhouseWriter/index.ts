@@ -27,6 +27,20 @@ export { TableName } from "./types";
 
 const MULTI_PROJECT_LOG_COMMENT_PROJECT_ID = "MULTI_PROJECT";
 
+export function isRetryableClickhouseInsertError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const errorMessage = (error as Error).message?.toLowerCase() || "";
+
+  // Socket hang up and client-side request timeouts ("Timeout error." from
+  // @clickhouse/client when request_timeout elapses) are transient: a retry
+  // opens a fresh connection that can land on a healthy replica.
+  return (
+    errorMessage.includes("socket hang up") ||
+    errorMessage.includes("timeout error")
+  );
+}
+
 export class ClickhouseWriter<
   PayloadMap extends WriterPayloadMap = JsonWriterPayloadMap,
 > {
@@ -202,20 +216,6 @@ export class ClickhouseWriter<
     return flush;
   }
 
-  private isRetryableError(error: unknown): boolean {
-    if (!error || typeof error !== "object") return false;
-
-    const errorMessage = (error as Error).message?.toLowerCase() || "";
-
-    // Socket hang up and client-side request timeouts ("Timeout error." from
-    // @clickhouse/client when request_timeout elapses) are transient: a retry
-    // opens a fresh connection that can land on a healthy replica.
-    return (
-      errorMessage.includes("socket hang up") ||
-      errorMessage.includes("timeout error")
-    );
-  }
-
   private isSizeError(error: unknown): boolean {
     if (!error || typeof error !== "object") return false;
 
@@ -344,7 +344,7 @@ export class ClickhouseWriter<
         {
           numOfAttempts: env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS,
           retry: (error: Error, attemptNumber: number) => {
-            const isRetryable = this.isRetryableError(error);
+            const isRetryable = isRetryableClickhouseInsertError(error);
             const isSizeError = this.isSizeError(error);
             const isStringLengthError = this.isStringLengthError(error);
 

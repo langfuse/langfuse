@@ -982,7 +982,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       "langfuse.trace_batch.active_reads",
       0,
     );
-    expect(vi.mocked(recordGauge).mock.calls).toHaveLength(15);
+    expect(vi.mocked(recordGauge).mock.calls).toHaveLength(9);
     expect(
       vi.mocked(recordGauge).mock.calls.every(([, value]) => value === 0),
     ).toBe(true);

@@ -519,18 +519,21 @@ export async function getTopicSummaryCounts(
   }));
 }
 
+/** writeTopicSummaries rejects the whole insert if any row fails this check. */
+export function isValidTopicSummary(row: TopicSummary): boolean {
+  return (
+    topicSourceSchema.safeParse(row).success &&
+    typeof row.environment === "string" &&
+    row.embedding.every(Number.isFinite) &&
+    !(row.state === "complete" && row.embedding.length === 0) &&
+    row.state !== "summarized"
+  );
+}
+
 export async function writeTopicSummaries(rows: TopicSummary[]): Promise<void> {
   if (!rows.length) return;
-  for (const row of rows) {
-    if (
-      !topicSourceSchema.safeParse(row).success ||
-      typeof row.environment !== "string" ||
-      !row.embedding.every(Number.isFinite) ||
-      (row.state === "complete" && !row.embedding.length) ||
-      row.state === "summarized"
-    )
-      throw new Error("Invalid Topics summary result.");
-  }
+  if (!rows.every(isValidTopicSummary))
+    throw new Error("Invalid Topics summary result.");
   await insertTopicRows("topic_facet_summaries", rows, (row) => ({
     project_id: row.projectId,
     facet_id: row.facetId,
