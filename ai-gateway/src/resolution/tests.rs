@@ -175,6 +175,50 @@ async fn signs_the_exact_key_and_sends_api_format_and_model() {
 }
 
 #[tokio::test]
+async fn fetches_models_from_the_control_plane() {
+    let web = FakeWeb::start(|request| async move {
+        assert_eq!(request.method(), "GET");
+        assert_eq!(
+            request.uri(),
+            "/api/internal/ai-gateway/v1/models?api_format=openai.responses"
+        );
+        assert_eq!(
+            request.headers()[header::AUTHORIZATION],
+            "Bearer gw_test_alice"
+        );
+        assert!(
+            request
+                .headers()
+                .contains_key("langfuse-gateway-authorization")
+        );
+        assert_eq!(request.headers()["langfuse-gateway-request-id"], REQUEST_ID);
+        assert!(
+            to_bytes(request.into_body(), 1024)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        response(json!({
+            "data": [{
+                "id": "Primary OpenAI:gpt-4.1",
+                "provider": "OPENAI"
+            }]
+        }))
+    })
+    .await;
+
+    let body = web
+        .control_plane()
+        .fetch_models(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW, REQUEST_ID)
+        .await
+        .unwrap();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&body).unwrap()["data"][0]["id"],
+        "Primary OpenAI:gpt-4.1"
+    );
+}
+
+#[tokio::test]
 async fn denied_and_failed_resolutions_are_classified_without_retries_or_body_leaks() {
     for status in [400, 401, 403, 404, 500, 503] {
         let web = FakeWeb::start(move |_| async move {

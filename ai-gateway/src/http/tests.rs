@@ -443,7 +443,6 @@ async fn resolved_requests_name_their_tenant_and_the_provider_connection_sent_to
             ),
             "anthropic",
         ),
-        (gateway.models().bearer_auth("gateway-openai"), "openai"),
         (
             anthropic(
                 "messages",
@@ -466,7 +465,7 @@ async fn resolved_requests_name_their_tenant_and_the_provider_connection_sent_to
         // The model is an operator-side span and log field only.
         assert_eq!(header("langfuse-model"), None);
     }
-    assert_eq!(provider.calls(), 3);
+    assert_eq!(provider.calls(), 2);
 }
 
 impl Drop for Gateway {
@@ -569,8 +568,20 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
 }
 
 #[tokio::test]
-async fn compact_rewrites_model_and_models_keep_the_existing_provider_route() {
-    let web = FakeServer::start(|_| async { resolution_response("provider-secret") }).await;
+async fn compact_rewrites_model_and_models_come_from_the_control_plane() {
+    let web = FakeServer::start(|request| async move {
+        if request.uri().path() == "/api/internal/ai-gateway/v1/models" {
+            assert_eq!(request.uri().query(), Some("api_format=openai.responses"));
+            return Response::builder()
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"data":[{"id":"Production key:gpt-4.1","provider":"OPENAI"}]}"#,
+                ))
+                .unwrap();
+        }
+        resolution_response("provider-secret")
+    })
+    .await;
     let provider = FakeServer::start(|request| async move {
         let method = request.method().clone();
         let uri = request.uri().to_string();
@@ -585,15 +596,6 @@ async fn compact_rewrites_model_and_models_keep_the_existing_provider_route() {
                     .header("content-type", "application/json")
                     .body(Body::from(
                         r#"{"id":"comp_1","object":"response.compaction","encrypted_content":"opaque-ciphertext"}"#,
-                    ))
-                    .unwrap()
-            }
-            ("GET", "/v1/models") => {
-                assert!(body.is_empty());
-                Response::builder()
-                    .header("content-type", "application/json")
-                    .body(Body::from(
-                        r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#,
                     ))
                     .unwrap()
             }
@@ -626,10 +628,56 @@ async fn compact_rewrites_model_and_models_keep_the_existing_provider_route() {
     assert_eq!(models.status(), StatusCode::OK);
     assert_eq!(
         models.text().await.unwrap(),
-        r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#
+        r#"{"data":[{"id":"Production key:gpt-4.1","provider":"OPENAI"}]}"#
     );
     assert_eq!(web.calls(), 2);
-    assert_eq!(provider.calls(), 2);
+    assert_eq!(provider.calls(), 1);
+}
+
+#[tokio::test]
+async fn model_routes_request_the_matching_control_plane_catalog() {
+    let web = FakeServer::start(|request| async move {
+        assert_eq!(request.uri().path(), "/api/internal/ai-gateway/v1/models");
+        let api_format = request
+            .uri()
+            .query()
+            .unwrap()
+            .strip_prefix("api_format=")
+            .unwrap();
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from(format!(r#"{{"api_format":"{api_format}"}}"#)))
+            .unwrap()
+    })
+    .await;
+    let provider = FakeServer::start(|request| async move {
+        panic!("model catalog must not reach a provider: {}", request.uri())
+    })
+    .await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
+    for (path, credential, expected) in [
+        (
+            "openai/v1/models",
+            ("authorization", "Bearer gateway-openai"),
+            r#"{"api_format":"openai.responses"}"#,
+        ),
+        (
+            "anthropic/v1/models",
+            ("x-api-key", "gateway-anthropic"),
+            r#"{"api_format":"anthropic.messages"}"#,
+        ),
+    ] {
+        let response = reqwest::Client::new()
+            .get(format!("{}/{path}", gateway.url))
+            .header(credential.0, credential.1)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.text().await.unwrap(), expected);
+    }
+    assert_eq!(web.calls(), 2);
+    assert_eq!(provider.calls(), 0);
 }
 
 #[tokio::test]
