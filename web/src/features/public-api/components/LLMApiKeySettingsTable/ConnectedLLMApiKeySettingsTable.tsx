@@ -109,6 +109,32 @@ export function ConnectedLLMApiKeySettingsTable({
     };
   }, [overriddenProviders, tableData]);
 
+  const handleDeleteDismiss = () => {
+    deleteProjectApiKey.reset();
+    deleteOrganizationApiKey.reset();
+  };
+
+  const handleDeleteConfirm = async (apiKey: { id: string }) => {
+    try {
+      if (owner.scope === "project") {
+        await deleteProjectApiKey.mutateAsync({
+          projectId: owner.projectId,
+          id: apiKey.id,
+        });
+        capture("project_settings:llm_api_key_delete");
+      } else {
+        await deleteOrganizationApiKey.mutateAsync({
+          orgId: owner.organizationId,
+          id: apiKey.id,
+        });
+        capture("organization_settings:llm_api_key_delete");
+      }
+    } catch (error) {
+      reportNonTrpcError(error, "llm-api-keys");
+      throw error;
+    }
+  };
+
   return (
     <CreateLLMApiKeyDialogController owner={owner}>
       {({ hasAccess: hasCreateAccess, openDialog: openCreateDialog }) => (
@@ -127,30 +153,8 @@ export function ConnectedLLMApiKeySettingsTable({
                 deleteProjectApiKey.error?.message ??
                 deleteOrganizationApiKey.error?.message
               }
-              onAfterDismiss={() => {
-                deleteProjectApiKey.reset();
-                deleteOrganizationApiKey.reset();
-              }}
-              onConfirm={async (apiKey) => {
-                try {
-                  if (owner.scope === "project") {
-                    await deleteProjectApiKey.mutateAsync({
-                      projectId: owner.projectId,
-                      id: apiKey.id,
-                    });
-                    capture("project_settings:llm_api_key_delete");
-                  } else {
-                    await deleteOrganizationApiKey.mutateAsync({
-                      orgId: owner.organizationId,
-                      id: apiKey.id,
-                    });
-                    capture("organization_settings:llm_api_key_delete");
-                  }
-                } catch (error) {
-                  reportNonTrpcError(error, "llm-api-keys");
-                  throw error;
-                }
-              }}
+              onAfterDismiss={handleDeleteDismiss}
+              onConfirm={handleDeleteConfirm}
             >
               {({ openDialog: openDeleteDialog }) => (
                 <LLMApiKeySettingsTable
