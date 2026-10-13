@@ -39,7 +39,7 @@ const CALLER_CONTEXT_HEADERS: [(&str, &str); 9] = [
 #[test]
 fn model_rewrite_changes_only_the_top_level_model_bytes() {
     let original = Bytes::from_static(
-        br#"{ "z": {"second":2, "first":1}, "model" : "connection:model", "number": 1.0e2, "escaped":"\u00e9" }"#,
+        br#"{ "z": {"second":2, "first":1}, "model" : "connection/model", "number": 1.0e2, "escaped":"\u00e9" }"#,
     );
     let expected = Bytes::from_static(
         br#"{ "z": {"second":2, "first":1}, "model" : "provider-model", "number": 1.0e2, "escaped":"\u00e9" }"#,

@@ -30,18 +30,18 @@ describe("aggregateModels", () => {
     ] as Result[];
 
     expect(aggregateModels(results, [first]).map((model) => model.id)).toEqual([
-      "First:b-model",
-      "First:shared-model",
-      "First:z-model",
+      "First/b-model",
+      "First/shared-model",
+      "First/z-model",
     ]);
     expect(
       aggregateModels(results, [first, second]).map((model) => model.id),
     ).toEqual([
-      "First:b-model",
-      "First:shared-model",
-      "First:z-model",
-      "Second:a-model",
-      "Second:shared-model",
+      "First/b-model",
+      "First/shared-model",
+      "First/z-model",
+      "Second/a-model",
+      "Second/shared-model",
     ]);
   });
 

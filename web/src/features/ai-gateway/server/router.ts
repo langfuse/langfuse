@@ -31,8 +31,8 @@ const connectionNameSchema = z
   .trim()
   .min(1)
   .max(200)
-  .refine((name) => !name.includes(":"), {
-    message: "Connection names cannot contain a colon.",
+  .refine((name) => !name.includes("/"), {
+    message: "Connection names cannot contain a slash.",
   });
 const paginatedOrganizationInput = organizationInput.extend({
   cursor: z.string().optional(),

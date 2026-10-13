@@ -355,7 +355,7 @@ describe("gateway mutation local error handling", () => {
     expect(showErrorToastMock).not.toHaveBeenCalled();
   });
 
-  it("validates colons directly on the connection name field", async () => {
+  it("validates slashes directly on the connection name field", async () => {
     render(
       <ProviderDialogController organizationId="org-1">
         {({ openAddDialog }) => (
@@ -366,7 +366,7 @@ describe("gateway mutation local error handling", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add provider" }));
     fireEvent.change(screen.getByLabelText("Name"), {
-      target: { value: "Production:OpenAI" },
+      target: { value: "Production/OpenAI" },
     });
     fireEvent.change(screen.getByLabelText("Secret key"), {
       target: { value: "sk-test" },
@@ -374,7 +374,7 @@ describe("gateway mutation local error handling", () => {
     fireEvent.click(screen.getByRole("button", { name: "Test and save" }));
 
     expect(
-      await screen.findByText("Connection names cannot contain a colon."),
+      await screen.findByText("Connection names cannot contain a slash."),
     ).toHaveAttribute("role", "alert");
     expect(screen.getByLabelText("Name")).toHaveAttribute(
       "aria-invalid",
