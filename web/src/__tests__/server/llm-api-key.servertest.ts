@@ -188,7 +188,7 @@ describe("llmApiKey.all RPC", () => {
     });
   });
 
-  it("rejects project overrides with a different adapter", async () => {
+  it("allows project overrides with a different adapter", async () => {
     const provider = `override-${randomUUID()}`;
     await prisma.llmApiKeys.create({
       data: {
@@ -200,19 +200,15 @@ describe("llmApiKey.all RPC", () => {
       },
     });
 
-    await expect(
-      caller.llmApiKey.create({
-        projectId,
-        provider,
-        adapter: LLMAdapter.Anthropic,
-        secretKey: "project-secret",
-      }),
-    ).rejects.toThrow(
-      "Project overrides must use the same adapter as the organization connection",
-    );
+    await caller.llmApiKey.create({
+      projectId,
+      provider,
+      adapter: LLMAdapter.Anthropic,
+      secretKey: "project-secret",
+    });
     expect(
       await prisma.llmApiKeys.findFirst({ where: { projectId, provider } }),
-    ).toBeNull();
+    ).toMatchObject({ adapter: LLMAdapter.Anthropic });
   });
 
   it("returns CONFLICT when creating a key for an existing provider", async () => {

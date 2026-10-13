@@ -23,6 +23,7 @@ export default withMiddlewares({
     const query = GetLlmConnectionsV1Query.parse(req.query);
     const result = await new LlmConnectionService().list({
       owner: { type: "organization", organizationId: scope.orgId },
+      includeDecisionModels: true,
       page: query.page,
       limit: query.limit,
     });

@@ -207,7 +207,17 @@ async function loadTopicsModelKeys(
     settings.clustering,
   ].flatMap((slot) => (slot ? [slot.llmApiKeyId] : []));
   const keys = await prisma.llmApiKeys.findMany({
-    where: { projectId, id: { in: ids } },
+    where: {
+      id: { in: ids },
+      OR: [
+        { projectId },
+        {
+          organization: {
+            projects: { some: { id: projectId, deletedAt: null } },
+          },
+        },
+      ],
+    },
   });
   for (const id of ids) {
     if (!keys.some((key) => key.id === id))

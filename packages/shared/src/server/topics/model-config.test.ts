@@ -71,6 +71,35 @@ beforeEach(() => {
 });
 
 describe("prepareTopicsModelSettings", () => {
+  it("accepts an organization connection inherited by the project", async () => {
+    mocks.keys.mockResolvedValue([
+      {
+        ...connection("openai", LLMAdapter.OpenAI),
+        projectId: null,
+        organizationId: "organization",
+      },
+    ]);
+
+    await saveTopicsModelSettings("project", settings);
+
+    expect(mocks.keys).toHaveBeenCalledWith({
+      where: {
+        id: { in: ["openai", "openai", "openai"] },
+        OR: [
+          { projectId: "project" },
+          {
+            organization: {
+              projects: {
+                some: { id: "project", deletedAt: null },
+              },
+            },
+          },
+        ],
+      },
+    });
+    expect(mocks.upsert).toHaveBeenCalledOnce();
+  });
+
   it("saves an Anthropic connection when its test call succeeds", async () => {
     await saveTopicsModelSettings("project", {
       ...settings,

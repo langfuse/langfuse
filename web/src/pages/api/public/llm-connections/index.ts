@@ -24,6 +24,7 @@ export default withMiddlewares({
           projectId: auth.scope.projectId,
           organizationId: auth.scope.orgId,
         },
+        includeDecisionModels: true,
         page: query.page,
         limit: query.limit,
       });

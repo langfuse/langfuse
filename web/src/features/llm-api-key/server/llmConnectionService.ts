@@ -470,33 +470,6 @@ export class LlmConnectionService {
     return Boolean(await this.repository.findByProvider(params));
   }
 
-  private async validateProjectOverrideAdapter(params: {
-    repository: LlmConnectionRepository;
-    owner: LlmConnectionOwner;
-    provider: string;
-    adapter: LLMAdapter;
-  }) {
-    if (params.owner.type !== "project") {
-      return;
-    }
-
-    const organizationConnection = await params.repository.findByProvider({
-      owner: {
-        type: "organization",
-        organizationId: params.owner.organizationId,
-      },
-      provider: params.provider,
-    });
-    if (
-      organizationConnection &&
-      organizationConnection.adapter !== params.adapter
-    ) {
-      throw new InvalidRequestError(
-        "Project overrides must use the same adapter as the organization connection",
-      );
-    }
-  }
-
   async create(params: {
     owner: LlmConnectionOwner;
     input: LlmConnectionWriteInput;
@@ -509,12 +482,6 @@ export class LlmConnectionService {
     try {
       key = await this.db.$transaction(async (tx) => {
         const repository = this.repository.withDb(tx);
-        await this.validateProjectOverrideAdapter({
-          repository,
-          owner: params.owner,
-          provider: params.input.provider,
-          adapter: params.input.adapter,
-        });
         return repository.create({
           owner: params.owner,
           data: {
@@ -579,12 +546,6 @@ export class LlmConnectionService {
         owner: params.owner,
         provider: params.input.provider,
       });
-      await this.validateProjectOverrideAdapter({
-        repository,
-        owner: params.owner,
-        provider: params.input.provider,
-        adapter: params.input.adapter,
-      });
       const connection = await repository.upsert({
         owner: params.owner,
         provider: params.input.provider,
@@ -607,7 +568,9 @@ export class LlmConnectionService {
           baseURL: params.input.baseURL ?? null,
           withDefaultModels: params.input.withDefaultModels,
           customModels: params.input.customModels ?? [],
-          config: params.input.config ?? Prisma.DbNull,
+          ...(params.input.config !== undefined
+            ? { config: params.input.config ?? Prisma.DbNull }
+            : {}),
           extraHeaders: encryptedExtraHeaders ?? null,
           extraHeaderKeys: extraHeaderKeys ?? [],
         },

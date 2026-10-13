@@ -4,7 +4,8 @@ export async function findProjectLlmApiKeyCandidates(params: {
   projectId: string;
   provider?: string;
 }) {
-  const providerWhere = params.provider ? { provider: params.provider } : {};
+  const providerWhere =
+    params.provider !== undefined ? { provider: params.provider } : {};
   const project = await prisma.project.findUnique({
     where: {
       id: params.projectId,
