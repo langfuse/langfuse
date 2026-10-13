@@ -185,6 +185,9 @@ const events = {
     "duplicate_form_submit",
   ],
   session_detail: [
+    "announcement_learn_more_click",
+    "announcement_feedback_click",
+    "announcement_dismiss",
     "publish_button_click",
     "download_button_click",
     "copy_session_id_click",
