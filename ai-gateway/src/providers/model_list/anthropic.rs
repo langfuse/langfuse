@@ -4,6 +4,7 @@ use serde::Serialize;
 use super::CatalogEntry;
 use crate::resolution::ResolutionError;
 
+// API contract: https://platform.claude.com/docs/en/api/models/list
 #[derive(Serialize)]
 struct Response<'a> {
     data: Vec<Model<'a>>,
