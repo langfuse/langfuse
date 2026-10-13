@@ -3,6 +3,7 @@
 import type { FilterState } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 import { astToFilterState } from "@/src/features/search-bar/lib/adapter";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { parse } from "@/src/features/search-bar/lib/langQ";
 import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
@@ -290,6 +291,52 @@ describe("topic search registry", () => {
       ).filters,
     ).toEqual(filters);
   });
+
+  it.each([["retired"], ["billing", "retired"]])(
+    "keeps saved topic selections editable when options disappear: %j",
+    (...values) => {
+      const filters: FilterState = [
+        {
+          column: "topicId",
+          type: "stringOptions",
+          operator: "any of",
+          value: values,
+        },
+      ];
+      const savedRegistry = createTopicTraceRegistry(topics, filters);
+      const query = filterStateToQueryText(filters, {}, savedRegistry);
+      expect(query.skippedFilters).toEqual([]);
+      const committed = planCommit(
+        `${query.text} assignment:"In a topic" invoice`,
+        undefined,
+        savedRegistry,
+      );
+      expect(committed).toMatchObject({
+        status: "committed",
+        filters: filters.concat({
+          column: "assignment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["assigned"],
+        }),
+        searchQuery: "invoice",
+      });
+      expect(query.text).toContain("Unavailable topic (retired)");
+      expect(
+        planCommit('assignment:"In a topic" invoice', undefined, savedRegistry),
+      ).toMatchObject({
+        status: "committed",
+        filters: [
+          {
+            column: "assignment",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["assigned"],
+          },
+        ],
+      });
+    },
+  );
 
   it("rejects operators and fields the local evaluator cannot apply", () => {
     for (const query of ["topic:>billing", "topic:*bill*", "summary:refund"]) {

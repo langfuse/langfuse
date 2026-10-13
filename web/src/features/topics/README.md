@@ -8,20 +8,22 @@ project permissions. Processing additionally requires the project allowlist.
 - `TopicsPage.tsx` owns facet configuration, the execution history drawer,
   the current-results query and facet selection. A compact header keeps the facet
   picker, time range and processing action on one row; configuration, history and
-  refresh live in the overflow menu. `CurrentTopics.tsx` presents the selected
+  refresh live in the overflow menu. `CurrentTopics.tsx` owns the map query, trace
+  navigation and summary inspector; `CurrentTopicsView.tsx` presents the selected
   facet in independently scrolling panels: map and groups on the left, traces on
   the right. Narrow views keep the map above Topics/Traces tabs, with readable
   summary rows on phones and all processing controls in the mobile overflow
   menu. Selecting a group filters traces without changing the active tab.
-  `useTopicTraceFilters.ts` owns URL-backed facet, filter and search state;
-  each project/facet remembers its filters and search in localStorage. Switching
-  facets restores that facet's state, defaulting to unfiltered on first visit.
-  Explicit URL filters/search take precedence over local defaults; cleared URLs
-  retain an empty filter parameter so sharing them preserves the cleared state.
+  `useTopicTraceFilters.ts` owns URL-backed facet selection; filters and search
+  live only in localStorage, scoped to each project/facet. Switching facets
+  restores that facet's state, defaulting to unfiltered on first visit. Filter
+  and search URL parameters are neither read nor written.
   `TopicsTraceToolbar.tsx` uses the shared search bar for topic, assignment, and
   text filtering. `topic-trace-filters.ts` owns its registry and local evaluation:
   literal phrase search across summaries, topic names and trace IDs, OR within
   a selection and AND between fields. Filtering applies before pagination.
+  Saved topic IDs absent from current options remain editable as unavailable
+  topics; their matching semantics are preserved across date-range changes.
   Table results determine matching map IDs without changing saved positions or
   the camera; nonmatching dots remain faint and inspectable. The map reports
   its own matching count because its saved cohort can differ from current rows.
@@ -90,7 +92,8 @@ project permissions. Processing additionally requires the project allowlist.
   open. It uses the same deterministic transcript loader as the worker, does
   not run inference, and explains when the source is unavailable or may differ
   from the original input. Transcript content is marked `ph-no-capture`.
-- `TopicEmbeddingMap.tsx` loads the published map and supplies trace navigation.
+- `TopicEmbeddingMap.tsx` renders the published map's loading, error and ready states
+  from supplied query data and trace-navigation callbacks.
   `EmbeddingMapView.tsx` preserves the controlled selection contract as a drop-in
   adapter to `map/TopicMapExplorer.tsx`. The renderer owns no queries or clustering.
   `map/prepare-topic-map.ts` prepares topic zones, colors, mapped-cohort counts,

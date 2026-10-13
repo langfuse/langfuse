@@ -24,15 +24,9 @@ const assignment: FilterState[number] = {
   operator: "any of",
   value: ["assigned"],
 };
-
-const sharedSearch = `?${new URLSearchParams({
-  topicFacet: "intent",
-  filter: encodeFiltersGeneric([topic, assignment]),
-  search: "refund policy",
-})}`;
 const facets = [{ facetId: "intent" }, { facetId: "sentiment" }];
 
-function setup(initialSearch = sharedSearch, projectId = "project") {
+function setup(initialSearch = "", projectId = "project") {
   let search = initialSearch;
   let navigate: (search: string) => void = () => {};
   const Adapter: QueryParamAdapterComponent = ({ children }) => {
@@ -56,16 +50,21 @@ function setup(initialSearch = sharedSearch, projectId = "project") {
 }
 
 beforeEach(() => {
+  vi.restoreAllMocks();
   sessionStorage.clear();
   localStorage.clear();
 });
 
-describe("Topics filter URL state", () => {
-  it("remembers independent filters and search when switching facets", async () => {
+describe("Topics facet-local filters", () => {
+  it("remembers independent filters and search when switching facets and navigating Back", async () => {
     const { result, getSearch, back } = setup();
-    expect(result.current.selectedFacetId).toBe("intent");
-    expect(result.current.filters).toEqual([topic, assignment]);
-    expect(result.current.searchQuery).toBe("refund policy");
+    act(() => {
+      result.current.setFilters([topic]);
+      result.current.setSearchQuery("invoice");
+    });
+    expect(result.current.filters).toEqual([topic]);
+    expect(result.current.searchQuery).toBe("invoice");
+    expect(getSearch()).toBe("");
 
     act(() => result.current.selectFacet("sentiment"));
     await waitFor(() =>
@@ -73,89 +72,69 @@ describe("Topics filter URL state", () => {
     );
     expect(result.current.filters).toEqual([]);
     expect(result.current.searchQuery).toBeNull();
-
     act(() => {
       result.current.setFilters([assignment]);
       result.current.setSearchQuery("happy customer");
     });
-    await waitFor(() =>
-      expect(result.current.searchQuery).toBe("happy customer"),
+    expect(result.current.filters).toEqual([assignment]);
+    expect(result.current.searchQuery).toBe("happy customer");
+    expect(new URLSearchParams(getSearch()).get("topicFacet")).toBe(
+      "sentiment",
     );
-    act(() => result.current.selectFacet("intent"));
+    expect(new URLSearchParams(getSearch()).has("filter")).toBe(false);
+    expect(new URLSearchParams(getSearch()).has("search")).toBe(false);
+
+    act(back);
     await waitFor(() => expect(result.current.selectedFacetId).toBe("intent"));
-    expect(result.current.filters).toEqual([topic, assignment]);
-    expect(result.current.searchQuery).toBe("refund policy");
+    expect(result.current.filters).toEqual([topic]);
+    expect(result.current.searchQuery).toBe("invoice");
     act(() => result.current.selectFacet("sentiment"));
     await waitFor(() =>
       expect(result.current.selectedFacetId).toBe("sentiment"),
     );
     expect(result.current.filters).toEqual([assignment]);
     expect(result.current.searchQuery).toBe("happy customer");
-    expect(new URLSearchParams(getSearch()).get("filter")).toBe(
-      encodeFiltersGeneric([assignment]),
-    );
-
-    act(back);
-    await waitFor(() => expect(result.current.selectedFacetId).toBe("intent"));
-    expect(result.current.filters).toEqual([topic, assignment]);
   });
 
-  it("applies and clears search and filters together without losing the facet", async () => {
-    const { result, getSearch } = setup();
-    act(() => {
-      result.current.setFilters([topic]);
-      result.current.setSearchQuery("invoice");
-    });
-    await waitFor(() =>
-      expect(new URLSearchParams(getSearch()).get("search")).toBe("invoice"),
-    );
-    expect(result.current.filters).toEqual([topic]);
-    expect(result.current.selectedFacetId).toBe("intent");
-
-    act(() => {
-      result.current.setFilters([]);
-      result.current.setSearchQuery(null);
-    });
-    await waitFor(() => expect(result.current.searchQuery).toBeNull());
-    expect(result.current.filters).toEqual([]);
-    expect(result.current.selectedFacetId).toBe("intent");
-    expect(new URLSearchParams(getSearch()).get("filter")).toBe("");
-  });
-
-  it("restores local state on a fresh visit, isolates projects, and honors explicit URLs", async () => {
-    const first = setup("?");
-    expect(first.result.current.selectedFacetId).toBe("intent");
+  it("restores local state on a fresh visit, isolates projects and ignores URL filters", () => {
+    const first = setup();
     act(() => {
       first.result.current.setFilters([topic]);
       first.result.current.setSearchQuery("invoice");
     });
-    await waitFor(() =>
-      expect(first.result.current.searchQuery).toBe("invoice"),
-    );
     first.unmount();
-
-    const restored = setup("?");
+    const restored = setup();
     expect(restored.result.current.filters).toEqual([topic]);
     expect(restored.result.current.searchQuery).toBe("invoice");
     restored.unmount();
-
-    const otherProject = setup("?", "other-project");
+    const otherProject = setup("", "other-project");
     expect(otherProject.result.current.filters).toEqual([]);
     expect(otherProject.result.current.searchQuery).toBeNull();
     otherProject.unmount();
 
-    const shared = setup();
-    expect(shared.result.current.filters).toEqual([topic, assignment]);
-    expect(shared.result.current.searchQuery).toBe("refund policy");
-    shared.unmount();
-
-    const emptyLink = setup("?topicFacet=intent&filter=");
-    expect(emptyLink.result.current.filters).toEqual([]);
-    expect(emptyLink.result.current.searchQuery).toBeNull();
+    const url = `?${new URLSearchParams({
+      topicFacet: "intent",
+      filter: encodeFiltersGeneric([assignment]),
+      search: "URL search",
+    })}`;
+    const withUrl = setup(url);
+    expect(withUrl.result.current.filters).toEqual([topic]);
+    expect(withUrl.result.current.searchQuery).toBe("invoice");
+    act(() => {
+      withUrl.result.current.setFilters([]);
+      withUrl.result.current.setSearchQuery("local search");
+    });
+    expect(withUrl.getSearch()).toBe(url);
+    expect(withUrl.result.current.filters).toEqual([]);
+    expect(withUrl.result.current.searchQuery).toBe("local search");
   });
 
-  it("persists Clear all without resetting other facets", async () => {
+  it("persists clearing both fields in one event without resetting other facets", async () => {
     const first = setup();
+    act(() => {
+      first.result.current.setFilters([topic]);
+      first.result.current.setSearchQuery("invoice");
+    });
     act(() => first.result.current.selectFacet("sentiment"));
     await waitFor(() =>
       expect(first.result.current.selectedFacetId).toBe("sentiment"),
@@ -164,12 +143,12 @@ describe("Topics filter URL state", () => {
       first.result.current.setFilters([assignment]);
       first.result.current.setSearchQuery("happy");
     });
-    await waitFor(() => expect(first.result.current.searchQuery).toBe("happy"));
     act(() => {
       first.result.current.setFilters([]);
       first.result.current.setSearchQuery(null);
     });
-    await waitFor(() => expect(first.result.current.searchQuery).toBeNull());
+    expect(first.result.current.filters).toEqual([]);
+    expect(first.result.current.searchQuery).toBeNull();
     first.unmount();
 
     const cleared = setup("?topicFacet=sentiment");
@@ -179,23 +158,16 @@ describe("Topics filter URL state", () => {
     await waitFor(() =>
       expect(cleared.result.current.selectedFacetId).toBe("intent"),
     );
-    expect(cleared.result.current.filters).toEqual([topic, assignment]);
-    expect(cleared.result.current.searchQuery).toBe("refund policy");
+    expect(cleared.result.current.filters).toEqual([topic]);
+    expect(cleared.result.current.searchQuery).toBe("invoice");
   });
 
-  it("edits the restored URL after Back instead of reusing a pending edit", async () => {
-    const { result, back } = setup();
-    act(() => result.current.setFilters([]));
-    await waitFor(() => expect(result.current.filters).toEqual([]));
-    act(back);
-    await waitFor(() =>
-      expect(result.current.filters).toEqual([topic, assignment]),
-    );
-    act(() => result.current.setSearchQuery("updated search"));
-    await waitFor(() =>
-      expect(result.current.searchQuery).toBe("updated search"),
-    );
-    expect(result.current.filters).toEqual([topic, assignment]);
+  it("does not write storage or URL for unchanged filters", () => {
+    const { result, getSearch } = setup();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    act(() => result.current.setFilters(result.current.filters));
+    expect(setItem).not.toHaveBeenCalled();
+    expect(getSearch()).toBe("");
   });
 
   it("ignores malformed cached state", () => {
@@ -203,7 +175,7 @@ describe("Topics filter URL state", () => {
       "topics-trace-filters-v1",
       JSON.stringify({ broken: null }),
     );
-    const { result } = setup("?");
+    const { result } = setup();
     expect(result.current.filters).toEqual([]);
     expect(result.current.searchQuery).toBeNull();
   });

@@ -14,6 +14,7 @@ export const TOPIC_ASSIGNMENT_OPTIONS = [
 
 export function createTopicTraceRegistry(
   topics: readonly { id: string; name: string }[],
+  filters: FilterState = [],
 ) {
   const nameCounts = new Map<string, number>();
   for (const topic of topics)
@@ -25,6 +26,20 @@ export function createTopicTraceRegistry(
         ? `${topic.name} (${topic.id})`
         : topic.name,
   }));
+  const topicIds = new Set(topics.map((topic) => topic.id));
+  const labels = new Set(topicOptions.map((option) => option.displayValue));
+  for (const filter of filters) {
+    if (filter.column !== "topicId" || filter.type !== "stringOptions")
+      continue;
+    for (const id of filter.value) {
+      if (topicIds.has(id)) continue;
+      let displayValue = `Unavailable topic (${id})`;
+      while (labels.has(displayValue)) displayValue += ` (${id})`;
+      topicOptions.push({ value: id, displayValue });
+      topicIds.add(id);
+      labels.add(displayValue);
+    }
+  }
   const columns: ColumnDefinition[] = [
     {
       id: "topicId",
@@ -76,16 +91,6 @@ export function createTopicTraceRegistry(
     "assignment",
     TOPIC_ASSIGNMENT_OPTIONS,
   );
-}
-
-export function getTopicAssignment(outcome: string) {
-  if (
-    outcome === "assigned" ||
-    outcome === "outlier" ||
-    outcome === "awaiting_map"
-  )
-    return outcome;
-  return "no_topic";
 }
 
 export function selectTopicTraceFilters(
@@ -148,6 +153,16 @@ export function filterTopicTraces<Row extends TopicTraceRow>(
       return filter.operator === "any of" ? matches : !matches;
     });
   });
+}
+
+export function getTopicAssignment(outcome: string) {
+  if (
+    outcome === "assigned" ||
+    outcome === "outlier" ||
+    outcome === "awaiting_map"
+  )
+    return outcome;
+  return "no_topic";
 }
 
 type TopicTraceRow = {
