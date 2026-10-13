@@ -20,9 +20,10 @@ import {
   isTopicsProjectEnabled,
   listTopicFacets,
   listTopicRules,
+  writeTopicSummaries,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
-import type { TopicFacet } from "@langfuse/shared/topics";
+import type { TopicFacet, TopicSummary } from "@langfuse/shared/topics";
 import { env } from "../env";
 import {
   getDeterministicSamplingValue,
@@ -33,6 +34,7 @@ import {
   pauseForRejectedConnection,
   TopicsProviderUnavailable,
 } from "../features/topics/provider-error";
+import { TopicMetrics } from "../features/topics/metrics";
 import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 
@@ -103,6 +105,7 @@ async function summarizeTraceBatch(
   transcript: Transcript | null,
   topics: TopicsBatchProjects,
   jobEnqueuedAt: Date,
+  summaries: TopicSummary[],
 ): Promise<TraceOutcome> {
   const first = observations[0];
   const traceId = first?.traceId;
@@ -147,6 +150,7 @@ async function summarizeTraceBatch(
         transcript,
         models: project.models,
         facets: project.facets,
+        summaries,
       }),
     };
   } catch (error) {
@@ -161,6 +165,33 @@ async function summarizeTraceBatch(
     });
     return { outcome: "failed", reason };
   }
+}
+
+/** One write per batch; a failed write fails its summarized traces without retrying them. */
+async function writeBatchSummaries(
+  summaries: TopicSummary[],
+  outcomes: TraceOutcome[],
+): Promise<void> {
+  if (!summaries.length) return;
+  try {
+    await new TopicMetrics().measure(
+      "storage",
+      () => writeTopicSummaries(summaries),
+      "storage",
+    );
+  } catch (error) {
+    logger.warn("Topics summary write failed for trace batch", {
+      rowCount: summaries.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    outcomes.forEach((result, index) => {
+      if (result.outcome === "summarized")
+        outcomes[index] = { outcome: "failed", reason: "storage" };
+    });
+    return;
+  }
+  for (const row of summaries)
+    recordIncrement("langfuse.topics.facet_summaries", 1, { state: row.state });
 }
 
 /** Failed traces are counted, not retried. */
@@ -249,6 +280,7 @@ export const traceBatchQueueProcessor: Processor<
     }
     const batch = event.payload;
     const topicsOutcomes: TraceOutcome[] = [];
+    const summaries: TopicSummary[] = [];
     const topics = new TopicsBatchProjects(
       batch.traces.map((trace) => trace.projectId),
     );
@@ -347,6 +379,7 @@ export const traceBatchQueueProcessor: Processor<
                   assembled.transcript,
                   topics,
                   event.timestamp,
+                  summaries,
                 ),
               );
           });
@@ -428,8 +461,9 @@ export const traceBatchQueueProcessor: Processor<
         enqueueSummary(traceObservations, traceBytes);
     } finally {
       try {
-        // Drain accepted summaries even when the stream fails.
+        // Drain and store accepted summaries even when the stream fails, so a retry skips them.
         await Promise.all(pendingSummaries);
+        await writeBatchSummaries(summaries, topicsOutcomes);
       } finally {
         activeReads--;
         recordTraceBatchActiveReads();

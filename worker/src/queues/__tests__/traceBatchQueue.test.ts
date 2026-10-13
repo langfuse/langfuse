@@ -35,9 +35,14 @@ import {
   listTopicFacets,
   listTopicRules,
   pauseTopicsModels,
+  writeTopicSummaries,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
-import type { TopicFacet, TopicRule } from "@langfuse/shared/topics";
+import type {
+  TopicFacet,
+  TopicRule,
+  TopicSummary,
+} from "@langfuse/shared/topics";
 import { recordTraceBatchTranscript } from "../../features/traceBatching/traceBatchTranscript";
 import * as traceBatchTranscript from "../../features/traceBatching/traceBatchTranscript";
 import {
@@ -67,6 +72,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   listTopicFacets: vi.fn(async () => []),
   listTopicRules: vi.fn(async () => []),
   pauseTopicsModels: vi.fn(),
+  writeTopicSummaries: vi.fn(),
 }));
 
 // Exercise real tokenization without starting the compiled worker-thread pool.
@@ -687,7 +693,7 @@ describe("trace batch queue", () => {
       vi.mocked(summarizeAssembledTrace).mockResolvedValue("unchanged");
     }
   });
-  it("finishes the batch past a failed trace, reports outcomes and does not re-enqueue the failure", async () => {
+  it("finishes the batch past a failed trace, writes all rows once and counts a failed write without re-enqueueing", async () => {
     const traces = ["a", "b", "c"];
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
       for (const projectId of traces)
@@ -712,7 +718,9 @@ describe("trace batch queue", () => {
         };
     });
     vi.mocked(summarizeAssembledTrace).mockImplementation(
-      async ({ projectId }) => {
+      async ({ projectId, summaries }) => {
+        // A failed trace still contributes its valid facets.
+        summaries.push({ projectId, state: "complete" } as TopicSummary);
         if (projectId === "b")
           throw new TopicsProviderUnavailable("bad output", "invalid_output");
         return "summarized";
@@ -754,7 +762,29 @@ describe("trace batch queue", () => {
       1,
       { outcome: "failed", reason: "invalid_output" },
     );
+    expect(writeTopicSummaries).toHaveBeenCalledOnce();
+    expect(
+      vi
+        .mocked(writeTopicSummaries)
+        .mock.calls[0][0].map((row) => row.projectId),
+    ).toEqual(traces);
     expect(add).not.toHaveBeenCalled();
+
+    vi.mocked(recordIncrement).mockClear();
+    vi.mocked(writeTopicSummaries).mockRejectedValueOnce(new Error("timeout"));
+    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual(
+      expect.objectContaining({ traceCount: 3 }),
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcomes",
+      2,
+      { outcome: "failed", reason: "storage" },
+    );
+    expect(recordIncrement).not.toHaveBeenCalledWith(
+      "langfuse.topics.facet_summaries",
+      expect.anything(),
+      expect.anything(),
+    );
     vi.mocked(summarizeAssembledTrace).mockImplementation(
       async () => "unchanged",
     );

@@ -4,13 +4,12 @@ import {
   recordIncrement,
   type Transcript,
 } from "@langfuse/shared/src/server";
-import type { TopicFacet } from "@langfuse/shared/topics";
+import type { TopicFacet, TopicSummary } from "@langfuse/shared/topics";
 import type { TopicsModels } from "@langfuse/shared/topics/server";
 
 const state = vi.hoisted(() => ({
   facets: vi.fn(),
   stored: vi.fn(),
-  write: vi.fn(),
   summarize: vi.fn(),
   embed: vi.fn(),
   setAttribute: vi.fn(),
@@ -18,7 +17,6 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@langfuse/shared/topics/server", () => ({
   listTopicSummaries: (...args: unknown[]) => state.stored(...args),
-  writeTopicSummaries: (...args: unknown[]) => state.write(...args),
   TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v3",
 }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
@@ -108,18 +106,19 @@ const usage = {
   },
 };
 
+const summaries: TopicSummary[] = [];
+
 beforeEach(() => {
   vi.mocked(recordDistribution).mockClear();
   vi.mocked(recordIncrement).mockClear();
   state.facets.mockReset();
   state.stored.mockReset();
-  state.write.mockReset();
+  summaries.length = 0;
   state.summarize.mockReset();
   state.embed.mockReset();
   state.setAttribute.mockClear();
   state.facets.mockReturnValue([facet]);
   state.stored.mockResolvedValue([]);
-  state.write.mockResolvedValue(undefined);
   state.summarize.mockResolvedValue({
     output: {
       intent_1: { summary: "Export monthly sales.", status: "applicable" },
@@ -147,12 +146,13 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: [facet],
+      summaries,
     });
     expect(result).toBe("disabled");
     expect(state.stored).not.toHaveBeenCalled();
     expect(state.summarize).not.toHaveBeenCalled();
     expect(state.embed).not.toHaveBeenCalled();
-    expect(state.write).not.toHaveBeenCalled();
+    expect(summaries).toEqual([]);
   });
 
   it("skips a finished job retry but summarizes a later redispatch", async () => {
@@ -166,6 +166,7 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
+      summaries,
     });
     expect(state.summarize).toHaveBeenCalledTimes(1);
     const submitted = state.summarize.mock.calls[0];
@@ -179,7 +180,7 @@ describe("summarizeAssembledTrace", () => {
       source_trace_id: "trace-1",
       source_environment: "default",
     });
-    const written = state.write.mock.calls[0][0][0];
+    const written = summaries[0];
     expect(written).toMatchObject({
       projectId: "project-a",
       traceId: "trace-1",
@@ -214,7 +215,7 @@ describe("summarizeAssembledTrace", () => {
       { ...written, processedAt: "2026-09-22T12:02:00.000Z" },
     ]);
     state.summarize.mockClear();
-    state.write.mockClear();
+    summaries.length = 0;
     await summarizeAssembledTrace({
       projectId: "project-a",
       traceId: "trace-1",
@@ -225,9 +226,10 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
+      summaries,
     });
     expect(state.summarize).not.toHaveBeenCalled();
-    expect(state.write).not.toHaveBeenCalled();
+    expect(summaries).toEqual([]);
     await summarizeAssembledTrace({
       projectId: "project-a",
       traceId: "trace-1",
@@ -238,12 +240,11 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
+      summaries,
     });
     expect(state.summarize).toHaveBeenCalledOnce();
-    expect(state.write).toHaveBeenCalledOnce();
-    expect(state.write.mock.calls[0][0][0].unitStartTime).toBe(
-      written.unitStartTime,
-    );
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0].unitStartTime).toBe(written.unitStartTime);
     expect(state.stored).toHaveBeenCalledTimes(3);
   });
 
@@ -279,9 +280,10 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
+      summaries,
     });
     expect(state.summarize).toHaveBeenCalledOnce();
-    const [intent, issue] = state.write.mock.calls[0][0];
+    const [intent, issue] = summaries;
     expect(intent).toMatchObject({ facetId: "facet-1", state: "complete" });
     expect(intent.usageDetails.summary_input).toBe(20);
     expect(issue).toMatchObject({
@@ -308,8 +310,9 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
+      summaries,
     });
-    const [written] = state.write.mock.calls[0][0];
+    const [written] = summaries;
     expect(written).toMatchObject({ state: "not_applicable" });
     expect(written.summary ?? "").toBe("");
     expect(state.embed).not.toHaveBeenCalled();
@@ -341,11 +344,12 @@ describe("summarizeAssembledTrace", () => {
         transcript,
         models,
         facets: state.facets(),
+        summaries,
       }),
     ).rejects.toThrow(
       "Applicable facet summary must contain a concise summary.",
     );
-    const written = state.write.mock.calls[0][0];
+    const written = summaries;
     expect(written).toHaveLength(1);
     expect(written[0]).toMatchObject({ facetId: "facet-2", state: "complete" });
     // The shared call's usage moves to the first row that is written.
@@ -399,6 +403,7 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
+      summaries,
     });
     expect(state.summarize.mock.calls[0][1]).toEqual([
       { key: "intent_1", facet: facet.versions[0], builtIn: true },
@@ -436,11 +441,11 @@ describe("summarizeAssembledTrace", () => {
         transcript,
         models,
         facets: state.facets(),
+        summaries,
       }),
     ).rejects.toBe(error);
     expect(state.summarize).toHaveBeenCalledOnce();
-    expect(state.write).toHaveBeenCalledOnce();
-    expect(state.write.mock.calls[0][0]).toEqual([
+    expect(summaries).toEqual([
       expect.objectContaining({
         facetId: "facet-2",
         state: "not_applicable",
@@ -479,13 +484,14 @@ describe("summarizeAssembledTrace", () => {
         transcript,
         models,
         facets: state.facets(),
+        summaries,
       }),
     ).rejects.toBe(error);
     expect(state.setAttribute).toHaveBeenCalledWith(
       "langfuse.topics.trace_outcome",
       "failed",
     );
-    expect(state.write).not.toHaveBeenCalled();
+    expect(summaries).toEqual([]);
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.topics.stage_duration_ms",
       expect.any(Number),
@@ -517,10 +523,11 @@ describe("summarizeAssembledTrace", () => {
         transcript,
         models,
         facets: state.facets(),
+        summaries,
       }),
     ).rejects.toMatchObject({ reason: "invalid_output" });
     expect(state.embed).not.toHaveBeenCalled();
-    expect(state.write).not.toHaveBeenCalled();
+    expect(summaries).toEqual([]);
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.topics.stage_duration_ms",
       expect.any(Number),

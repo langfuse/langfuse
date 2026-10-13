@@ -1,7 +1,6 @@
 import {
   listTopicSummaries,
   TOPICS_TRANSCRIPT_VERSION,
-  writeTopicSummaries,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
 import {
@@ -13,7 +12,6 @@ import {
 import {
   instrumentAsync,
   isInternalEvalEnvironment,
-  recordIncrement,
   type Transcript,
 } from "@langfuse/shared/src/server";
 import { prepareAssembledTopicTranscript } from "./assembledTranscript";
@@ -47,12 +45,14 @@ type AssembledTraceInput = {
   transcript: Transcript | null;
   models: TopicsModels;
   facets: TopicFacet[];
+  // Collects rows for the batch's single write, including a failed trace's valid facets.
+  summaries: TopicSummary[];
 };
 
 /**
  * Summarizes one trace from the transcript the batch job already assembled,
  * with one model call for all of its configured facets. Does not load
- * observations again.
+ * observations again or write; the batch job stores the collected rows.
  */
 export async function summarizeAssembledTrace(
   input: AssembledTraceInput,
@@ -232,10 +232,7 @@ async function summarizeEnabledTrace(
         });
     }
   }
-  if (rows.length)
-    await metrics.measure("storage", () => writeTopicSummaries(rows));
-  for (const row of rows)
-    recordIncrement("langfuse.topics.facet_summaries", 1, { state: row.state });
+  input.summaries.push(...rows);
   if (failure) throw failure;
   return "summarized";
 }
