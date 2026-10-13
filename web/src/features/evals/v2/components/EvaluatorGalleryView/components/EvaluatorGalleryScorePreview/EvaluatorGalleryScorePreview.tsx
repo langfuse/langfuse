@@ -41,9 +41,10 @@ export function EvaluatorGalleryScorePreview({
           </span>
         ) : null}
       </div>
-      <div className="bg-foreground/70 text-background absolute inset-0 hidden items-center justify-center gap-1 text-sm font-bold backdrop-blur-sm group-hover/card:flex">
+      <div className="bg-foreground/50 text-background absolute inset-0 hidden items-center justify-center gap-1 text-sm font-bold backdrop-blur-md group-hover/card:flex">
         Use template
-        <ChevronRight className="icon-base" />
+        {/* Same optical nudge as DropdownIndicator for icons beside text. */}
+        <ChevronRight className="icon-base translate-y-px" />
       </div>
     </div>
   );

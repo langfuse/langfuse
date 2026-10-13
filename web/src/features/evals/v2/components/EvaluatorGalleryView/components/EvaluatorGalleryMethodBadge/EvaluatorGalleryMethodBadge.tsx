@@ -7,7 +7,7 @@ const METHOD_BADGES = {
   [EvalTemplateTypeEnum.CODE]: {
     Icon: Code2,
     label: "Code",
-    tileClassName: "bg-light-teal text-dark-teal",
+    tileClassName: "bg-muted-gray text-foreground-secondary",
   },
   [EvalTemplateTypeEnum.LLM_AS_JUDGE]: {
     Icon: Gavel,
