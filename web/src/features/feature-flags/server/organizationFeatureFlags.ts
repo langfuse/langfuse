@@ -343,18 +343,15 @@ export async function setOrganizationFeatureFlagDefault({
         !affectedFlags.some(
           (affectedFlag) =>
             currentFlag === affectedFlag ||
-            currentFlag === getFeaturePreviewOptOutFlag(affectedFlag),
+            (affectedFlag !== "externalMediaStorage" &&
+              currentFlag === getFeaturePreviewOptOutFlag(affectedFlag)),
         ),
     );
     if (enabled) nextStoredDefaults.push(...affectedFlags);
     else {
       nextStoredDefaults.push(
-        ...affectedFlags
-          .filter((flag) =>
-            defaultOnFeaturePreviewFlags.some(
-              (defaultFlag) => defaultFlag === flag,
-            ),
-          )
+        ...defaultOnFeaturePreviewFlags
+          .filter((flag) => affectedFlags.includes(flag))
           .map(getFeaturePreviewOptOutFlag),
       );
     }

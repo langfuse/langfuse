@@ -8,6 +8,7 @@ import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { PopoverContent } from "@/src/components/ui/popover";
 import {
   featurePreviewLabels,
+  defaultOnFeaturePreviewFlags,
   userFeaturePreviewFlags,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
@@ -42,6 +43,11 @@ export function UserFeaturePreviewsControl({
   );
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
+  const organizationDefaults =
+    api.organizations.getFeatureFlagOrgDefaults.useQuery(
+      { orgId },
+      { enabled: management.allowed },
+    );
   const updatePreview = api.members.setUserFeaturePreviewEnabled.useMutation({
     onSuccess: async (_result, variables) => {
       capture("organization_settings:user_feature_flag_toggled", {
@@ -116,37 +122,61 @@ export function UserFeaturePreviewsControl({
               Changes apply to this user in every organization.
             </p>
           </div>
-          {userFeaturePreviewFlags.map((flag) => (
-            <div key={flag} className="flex items-center justify-between gap-4">
-              <span className="text-sm">{featurePreviewLabels[flag]}</span>
-              <Switch
-                size="sm"
-                aria-label={`Toggle ${featurePreviewLabels[flag]} for user`}
-                checked={featurePreviews[flag]}
-                disabled={pendingFlags.has(flag)}
-                onCheckedChange={(enabled) => {
-                  setPendingFlags((current) => new Set(current).add(flag));
-                  updatePreview.mutate(
-                    {
-                      orgId,
-                      userId,
-                      flag,
-                      enabled,
-                    },
-                    {
-                      onSettled: () => {
-                        setPendingFlags((current) => {
-                          const next = new Set(current);
-                          next.delete(flag);
-                          return next;
-                        });
+          {userFeaturePreviewFlags.map((flag) => {
+            const disabledByOrganization =
+              defaultOnFeaturePreviewFlags.some(
+                (defaultFlag) => defaultFlag === flag,
+              ) &&
+              organizationDefaults.data !== undefined &&
+              !organizationDefaults.data.defaults.includes(flag);
+            return (
+              <div
+                key={flag}
+                className="flex items-center justify-between gap-4"
+              >
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm">{featurePreviewLabels[flag]}</span>
+                  {disabledByOrganization ? (
+                    <p className="text-muted-foreground text-xs">
+                      Disabled for this organization. Enable the organization
+                      default before changing this user&apos;s preference.
+                    </p>
+                  ) : null}
+                </div>
+                <Switch
+                  size="sm"
+                  aria-label={`Toggle ${featurePreviewLabels[flag]} for user`}
+                  checked={featurePreviews[flag]}
+                  disabled={
+                    pendingFlags.has(flag) ||
+                    disabledByOrganization ||
+                    organizationDefaults.isPending ||
+                    organizationDefaults.isError
+                  }
+                  onCheckedChange={(enabled) => {
+                    setPendingFlags((current) => new Set(current).add(flag));
+                    updatePreview.mutate(
+                      {
+                        orgId,
+                        userId,
+                        flag,
+                        enabled,
                       },
-                    },
-                  );
-                }}
-              />
-            </div>
-          ))}
+                      {
+                        onSettled: () => {
+                          setPendingFlags((current) => {
+                            const next = new Set(current);
+                            next.delete(flag);
+                            return next;
+                          });
+                        },
+                      },
+                    );
+                  }}
+                />
+              </div>
+            );
+          })}
         </div>
       </PopoverContent>
     ),

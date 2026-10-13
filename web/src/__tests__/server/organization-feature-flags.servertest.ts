@@ -143,9 +143,19 @@ describe("organization feature preview defaults", () => {
         enabled: true,
       }),
     ).resolves.toMatchObject({
-      defaults: ["externalMediaStorage"],
+      defaults: [
+        "externalMediaStorage",
+        "sessionViewV2",
+        "sessionViewV2Timeline",
+      ],
       enabled: true,
     });
+    await expect(
+      prisma.organization.findUniqueOrThrow({
+        where: { id: org.id },
+        select: { featureFlagOrgDefaults: true },
+      }),
+    ).resolves.toEqual({ featureFlagOrgDefaults: ["externalMediaStorage"] });
   });
 
   it("rejects internal flags at the input boundary", async () => {

@@ -8,6 +8,7 @@ export const getOrganizationFeaturePreviewDefaults = (
   storedDefaults: string[],
 ) =>
   featurePreviewFlags.filter((flag) => {
+    if (flag === "externalMediaStorage") return storedDefaults.includes(flag);
     if (storedDefaults.includes(getFeaturePreviewOptOutFlag(flag)))
       return false;
     if (

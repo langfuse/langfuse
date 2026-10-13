@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   invalidate: vi.fn().mockResolvedValue(undefined),
   mutate: vi.fn(),
+  organizationDefaults: ["sessionViewV2", "sessionViewV2Timeline"] as string[],
   mutationOptions: undefined as
     | {
         onSuccess?: (
@@ -91,6 +92,15 @@ vi.mock("@/src/utils/api", () => ({
           return { mutate: mocks.mutate, isPending: false };
         },
       },
+      organizations: {
+        getFeatureFlagOrgDefaults: {
+          useQuery: () => ({
+            data: { defaults: mocks.organizationDefaults },
+            isPending: false,
+            isError: false,
+          }),
+        },
+      },
     },
   },
 }));
@@ -114,8 +124,37 @@ const renderControl = (
 describe("UserFeaturePreviewsControl", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.organizationDefaults = ["sessionViewV2", "sessionViewV2Timeline"];
     mocks.mutate.mockImplementation((variables) => {
       mocks.mutationOptions?.onSuccess?.({}, variables);
+    });
+
+    it("blocks user changes when the organization disables a preview", () => {
+      mocks.organizationDefaults = ["sessionViewV2"];
+      renderControl({
+        orgId: "org-1",
+        userId: "user-1",
+        featurePreviews: {
+          externalMediaStorage: false,
+          sessionViewV2: true,
+          sessionViewV2Timeline: false,
+        },
+        management: { allowed: true },
+      });
+      const timelineSwitch = screen.getByRole("checkbox", {
+        name: "Toggle Session Timeline for user",
+      });
+      expect(timelineSwitch).toBeDisabled();
+      expect(
+        screen.getByText(/disabled for this organization/i),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("checkbox", {
+          name: "Toggle Redesigned Session View for user",
+        }),
+      ).toBeEnabled();
+      fireEvent.click(timelineSwitch);
+      expect(mocks.mutate).not.toHaveBeenCalled();
     });
   });
 
