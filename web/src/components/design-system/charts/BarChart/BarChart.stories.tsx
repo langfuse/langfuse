@@ -1,7 +1,7 @@
 import preview from "../../../../../.storybook/preview";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 
-import { chartColors } from "../constants";
+import { chartColors, toChartFill } from "../constants";
 import { BarChart } from "./BarChart";
 
 const data = [
@@ -139,7 +139,7 @@ export const CategoryColorTooltip = meta.story({
     );
     await expect(tooltip.querySelector("svg rect")).toHaveAttribute(
       "fill",
-      chartColors[0],
+      toChartFill(chartColors[0]),
     );
   },
 });

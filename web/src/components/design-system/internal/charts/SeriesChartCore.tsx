@@ -87,7 +87,7 @@ type NormalizedDatum = LineChartValues & {
 
 const CATEGORY_TICK_GAP = 16;
 const SERIES_HOVER_DISTANCE = 10;
-const MAX_VISIBLE_POINT_RADIUS = 5;
+const MAX_VISIBLE_POINT_RADIUS = 4;
 const defaultValueFormatter = (value: number) => value.toLocaleString();
 
 const getSeriesSummaries = (
@@ -869,8 +869,8 @@ function LineChartContent(
                   strokeOpacity={areaVariant && dimmed ? 0.2 : undefined}
                   strokeWidth={
                     item.emphasis === "emphasized" || proximityEmphasized
-                      ? 3.5
-                      : 2.5
+                      ? 3
+                      : 2
                   }
                   strokeLinejoin="round"
                   strokeLinecap="round"
@@ -894,7 +894,7 @@ function LineChartContent(
                       data-active-data-point={activeForSeries ? "" : undefined}
                       cx={getX(datum)}
                       cy={yScale(value)}
-                      r={activeForSeries ? 5 : 4}
+                      r={activeForSeries ? 4 : 3}
                       fill={item.color}
                       pointerEvents="none"
                     />

@@ -6,6 +6,7 @@ import { ChartContainer } from "@/src/components/design-system/internal/charts/C
 import {
   CHART_TRANSITION_DURATION,
   INACTIVE_CHART_COLOR_STRENGTH,
+  toChartFill,
 } from "@/src/components/design-system/charts/constants";
 import type { BarChartDatum } from "@/src/components/design-system/internal/charts/BarChartCore";
 import { CARTESIAN_CHART_INSETS } from "@/src/components/design-system/internal/charts/CartesianLayout";
@@ -16,14 +17,18 @@ const CHARACTER_WIDTH = 7;
 const MAX_GRIDLINE_TO_VALUE_GAP = 24;
 
 export function HorizontalBarChart({
-  data,
+  data: rawData,
   valueFormatter = (value) => value.toLocaleString(),
-  color = "hsl(var(--chart-1))",
+  color: rawColor = "hsl(var(--chart-1))",
 }: {
   data: BarChartDatum[];
   valueFormatter?: (value: number) => string;
   color?: string;
 }) {
+  const color = toChartFill(rawColor);
+  const data = rawData.map((datum) =>
+    datum.color ? { ...datum, color: toChartFill(datum.color) } : datum,
+  );
   const maxMagnitude = Math.max(
     ...data.map((datum) => Math.abs(datum.value ?? 0)),
     0,
@@ -163,6 +168,12 @@ export function HorizontalBarChart({
                     const inactiveTextColor = inactive
                       ? "color-mix(in srgb, hsl(var(--foreground)) 40%, hsl(var(--background)))"
                       : "hsl(var(--foreground))";
+                    const valueTextColor = inactive
+                      ? "color-mix(in srgb, hsl(var(--muted-foreground)) 40%, hsl(var(--background)))"
+                      : "hsl(var(--muted-foreground))";
+                    let labelTextColor: string | undefined;
+                    if (labelOutside) labelTextColor = valueTextColor;
+                    else if (inactive) labelTextColor = inactiveTextColor;
                     const tooltipData = {
                       type: "primary" as const,
                       anchor: { type: "element" as const },
@@ -264,11 +275,7 @@ export function HorizontalBarChart({
                           y={y + rowHeight / 2}
                           dominantBaseline="central"
                           fontSize={12}
-                          fill={
-                            labelOutside || inactive
-                              ? inactiveTextColor
-                              : undefined
-                          }
+                          fill={labelTextColor}
                           className={
                             labelOutside || inactive
                               ? "pointer-events-none"
@@ -293,7 +300,7 @@ export function HorizontalBarChart({
                           textAnchor="end"
                           dominantBaseline="central"
                           fontSize={12}
-                          fill={inactiveTextColor}
+                          fill={valueTextColor}
                           {...referenceProps}
                         >
                           {formattedValue}

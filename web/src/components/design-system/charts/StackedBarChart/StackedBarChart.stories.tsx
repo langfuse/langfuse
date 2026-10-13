@@ -130,7 +130,7 @@ export const LegendHighlight = meta.story({
     );
     await expect(api).toHaveAttribute(
       "fill",
-      "color-mix(in srgb, hsl(var(--chart-1)) 20%, hsl(var(--background)))",
+      "color-mix(in srgb, hsl(var(--chart-fill-1)) 20%, hsl(var(--background)))",
     );
     await userEvent.click(
       canvas.getByRole("button", { name: "Show all series" }),

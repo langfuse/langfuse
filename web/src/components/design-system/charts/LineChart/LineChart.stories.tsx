@@ -239,7 +239,7 @@ export const BoundaryPoints = meta.story({
   args: { variant: "boundary-points" },
   play: async ({ canvasElement }) => {
     const points = canvasElement.querySelectorAll<SVGCircleElement>(
-      'circle[fill="#3a3dee"][r="4"]',
+      'circle[fill="#3a3dee"][r="3"]',
     );
     await expect(points).toHaveLength(2);
     for (const point of points) {

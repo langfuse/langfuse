@@ -317,7 +317,7 @@ export const OverlappingAreas = meta.story({
       "color-mix(in srgb, #07b9d5 75%, hsl(var(--background)))",
     );
     for (const stroke of canvasElement.querySelectorAll('path[stroke^="#"]')) {
-      await expect(stroke).toHaveAttribute("stroke-width", "2.5");
+      await expect(stroke).toHaveAttribute("stroke-width", "2");
     }
   },
 });
