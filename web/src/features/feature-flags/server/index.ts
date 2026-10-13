@@ -6,7 +6,6 @@ export {
   isAdminOnlyFeaturePreviewFlag,
   isOrganizationOnlyFeaturePreviewFlag,
   INTERNAL_FEATURE_FLAG,
-  filterFeaturePreviewFlags,
 } from "@/src/features/feature-flags/available-flags";
 export {
   EMPTY_ORGANIZATION_FEATURE_PREVIEW_STATES,
