@@ -24,6 +24,7 @@ import {
   SiGithub,
   SiWordpress,
 } from "react-icons/si";
+import { TbBrandAzure, TbBrandOauth } from "react-icons/tb";
 import { signIn, useSession } from "next-auth/react";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
@@ -53,42 +54,6 @@ import {
   type TurnstileWidgetHandle,
 } from "@/src/features/auth/components/TurnstileWidget";
 import { TURNSTILE_ACTIONS } from "@/src/features/auth/constants";
-
-function AzureIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="icon-base mr-3"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M6 7.5l-4 9.5h4l6-15z" />
-      <path d="M22 20L15 5l-3 7 4 5-8 3z" />
-    </svg>
-  );
-}
-
-function OAuthIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="icon-base mr-3"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12.556 6c.65 0 1.235.373 1.508.947l2.839 7.848a1.646 1.646 0 0 1-1.01 2.108 1.673 1.673 0 0 1-2.068-.851l-.46-1.052h-2.73l-.398.905a1.67 1.67 0 0 1-1.977 1.045l-.153-.047a1.647 1.647 0 0 1-1.056-1.956l2.824-7.852a1.664 1.664 0 0 1 1.409-1.087L12.556 6z" />
-    </svg>
-  );
-}
 
 // The shared, intentionally-public demo identity created by the seed script
 // (packages/shared/scripts/seeder/seed-postgres.ts) and posted in every
@@ -282,7 +247,7 @@ export function SSOButtons({
             )}
             {authProviders.azureAd && (
               <AuthProviderButton
-                icon={<AzureIcon />}
+                icon={<TbBrandAzure className="icon-base mr-3" />}
                 label="Azure AD"
                 onClick={() => handleSignIn("azure-ad")}
                 loading={providerSigningIn === "azure-ad"}
@@ -360,7 +325,7 @@ export function SSOButtons({
             )}
             {authProviders.jumpcloud && (
               <AuthProviderButton
-                icon={<OAuthIcon />}
+                icon={<TbBrandOauth className="icon-base mr-3" />}
                 label="JumpCloud"
                 onClick={() => handleSignIn("jumpcloud")}
                 loading={providerSigningIn === "jumpcloud"}
@@ -485,7 +450,7 @@ export function SSOButtons({
             )}
             {authProviders.custom && (
               <AuthProviderButton
-                icon={<OAuthIcon />}
+                icon={<TbBrandOauth className="icon-base mr-3" />}
                 label={authProviders.custom.name}
                 onClick={() => handleSignIn("custom")}
                 loading={providerSigningIn === "custom"}
