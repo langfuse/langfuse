@@ -2,9 +2,9 @@ name: AWS preview build
 
 # Build the PR's web, worker, and AI gateway images and push them to ECR as
 # pr-<n>-<sha>. The Argo CD ApplicationSet in the infrastructure repo deploys
-# the web and worker tags for a labeled PR. The gateway image is pushed for a
-# later deploy and is not referenced by the chart yet, so its job does not
-# gate the preview URL. This workflow posts that URL on the PR — as the
+# all three tags for a labeled PR. This workflow does not wait for the gateway
+# build before posting the preview URL: that URL is the web app, and a gateway
+# failure must not replace it. This workflow posts that URL on the PR — as the
 # marker-tagged status comment, as a native GitHub deployment (the "View
 # deployment" button), and as a machine-managed block pinned atop the PR
 # description. All PR deployments share one GitHub environment; Argo CD still
@@ -273,12 +273,13 @@ jobs:
             "${CONTEXT:-.}"
           docker push "${IMAGE}"
 
-  # The gateway image is not deployed. Its failure must not replace the
-  # preview URL, deployment record, or description pin, and a PR head from
-  # before the crate existed must still publish web and worker. continue-on-error
-  # keeps that failure off the workflow conclusion; the job still reports it
-  # in its own comment. -f is a path from the repo root: Docker resolves a
-  # relative Dockerfile against the working directory, not the context.
+  # Argo deploys this image. This job does not wait for it: a gateway failure
+  # must not replace the preview URL, deployment record, or description pin,
+  # and a PR head from before the crate existed must still publish web and
+  # worker. continue-on-error keeps that failure off the workflow conclusion;
+  # the job still reports it in its own comment. -f is a path from the repo
+  # root: Docker resolves a relative Dockerfile against the working directory,
+  # not the context.
   build-gateway:
     name: Build and push ai-gateway
     needs: meta
