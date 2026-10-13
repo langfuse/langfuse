@@ -335,10 +335,12 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               <Stepper
                 number={2}
                 title="Facets"
-                titleAddon={
-                  <DocPopup description="A facet is one question Topics answers for every trace, such as what the user asked for, how the run ended, or which issues came up. Answers to the same facet are clustered into topics." />
+                description={
+                  <>
+                    Choose which questions you want answered. Five can be on.
+                    <DocPopup description="A facet is one question Topics answers for every trace, such as what the user asked for, how the run ended, or which issues came up. Answers to the same facet are clustered into topics." />
+                  </>
                 }
-                description="Choose which questions you want answered. Five can be on."
                 compactBottomSpacing
               >
                 <FacetPicker

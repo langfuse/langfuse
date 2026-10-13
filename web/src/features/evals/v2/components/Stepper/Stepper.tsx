@@ -13,7 +13,6 @@ import { cn } from "@/src/utils/tailwind";
 export function Stepper({
   number,
   title,
-  titleAddon,
   description,
   compactBottomSpacing = false,
   defaultOpen = true,
@@ -23,8 +22,6 @@ export function Stepper({
 }: {
   number: number;
   title: string;
-  /** Rendered after the title, outside the toggle button (e.g. a help popup). */
-  titleAddon?: ReactNode;
   description?: ReactNode;
   compactBottomSpacing?: boolean;
   defaultOpen?: boolean;
@@ -56,24 +53,21 @@ export function Stepper({
           compactBottomSpacing ? "pb-3" : "pb-8",
         )}
       >
-        <div className="flex items-center">
-          <button
-            type="button"
-            className="flex min-h-7 items-center gap-1.5 text-left"
-            aria-label={`Step ${number}: ${title}`}
-            aria-expanded={expanded}
-            onClick={toggle}
-          >
-            <ChevronDown
-              className={cn(
-                "text-foreground-tertiary icon-base shrink-0 translate-y-px transition-transform",
-                !expanded && "-rotate-90",
-              )}
-            />
-            <span className="text-lg font-bold">{title}</span>
-          </button>
-          {titleAddon}
-        </div>
+        <button
+          type="button"
+          className="flex min-h-7 items-center gap-1.5 text-left"
+          aria-label={`Step ${number}: ${title}`}
+          aria-expanded={expanded}
+          onClick={toggle}
+        >
+          <ChevronDown
+            className={cn(
+              "text-foreground-tertiary icon-base shrink-0 translate-y-px transition-transform",
+              !expanded && "-rotate-90",
+            )}
+          />
+          <span className="text-lg font-bold">{title}</span>
+        </button>
         {expanded && (
           <div className="flex flex-col gap-4 pl-5">
             {description ? (
