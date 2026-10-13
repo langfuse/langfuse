@@ -375,9 +375,11 @@ and worker; every admitted trace receives Topics measurements. Projects where
 `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`, Topics enabled with all three models, and
 an active rule with an unblocked facet) bypass sampling so every trace is
 summarized; a rate of `0` limits the flow to those projects and skips all
-tracking work (no per-trace state, metrics or Redis calls) for the rest. The
-answer is cached in Redis for 5 minutes; if it cannot be read, ingestion falls
-back to the allowlist and increments `topics_gate_failures`.
+per-trace tracking work (no per-trace state or metrics) for the rest. Projects
+outside the allowlist make no Redis or Postgres calls; allowlisted ones read the
+cached gate answer (5 minutes), and a miss queries Postgres with a 2-second
+deadline. If that lookup fails or times out, ingestion falls back to the
+allowlist, caches that answer for 30 seconds and increments `topics_gate_failures`.
 
 Transcript token counts use the existing local worker-thread pool and bundled
 tiktoken WASM, without a network or model API call. The `gpt-4o` configuration

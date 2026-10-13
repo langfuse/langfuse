@@ -82,13 +82,28 @@ describe("isTopicsProcessingActive", () => {
     expect(mocks.redis.set).toHaveBeenCalledWith(key, "0", "EX", 300);
   });
 
-  it("propagates Postgres errors without caching", async () => {
+  it("propagates a Postgres error and caches the allowlist answer briefly", async () => {
     mocks.ruleFind.mockRejectedValue(new Error("postgres down"));
 
     await expect(isTopicsProcessingActive("project-a")).rejects.toThrow(
       "postgres down",
     );
-    expect(mocks.redis.set).not.toHaveBeenCalled();
+    expect(mocks.redis.set).toHaveBeenCalledWith(key, "1", "EX", 30);
+  });
+
+  it("stops waiting on a hung Postgres lookup after the deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.configFind.mockReturnValue(new Promise(() => {}));
+      const lookup = isTopicsProcessingActive("project-a");
+      const assertion = expect(lookup).rejects.toThrow("timed out");
+
+      await vi.advanceTimersByTimeAsync(2_000);
+      await assertion;
+      expect(mocks.redis.set).toHaveBeenCalledWith(key, "1", "EX", 30);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("invalidation deletes the cached answer", async () => {
