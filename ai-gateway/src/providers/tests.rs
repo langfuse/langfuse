@@ -47,6 +47,18 @@ fn model_rewrite_changes_only_the_top_level_model_bytes() {
     assert_eq!(rewrite_model(original, "provider-model"), expected);
 }
 
+#[test]
+fn model_rewrite_preserves_bodies_without_a_valid_top_level_model() {
+    let missing = Bytes::from_static(br#"{"input":{"model":"nested-model"}}"#);
+    assert_eq!(rewrite_model(missing.clone(), "provider-model"), missing);
+
+    let malformed = Bytes::from_static(br#"{"model":"unterminated}"#);
+    assert_eq!(
+        rewrite_model(malformed.clone(), "provider-model"),
+        malformed
+    );
+}
+
 #[tokio::test]
 async fn rewrites_the_model_and_isolates_request_and_response_headers() {
     const REQUEST: &[u8] =

@@ -336,10 +336,17 @@ struct ModelMember<'a> {
 
 fn rewrite_model(body: Bytes, provider_model: &str) -> Bytes {
     let (start, end) = {
+        // Borrow the raw top-level value so its slice still points into `body`.
+        // Re-serializing the full request can reorder nested schema properties and
+        // normalize otherwise untouched caller JSON.
         let Ok(request) = serde_json::from_slice::<ModelMember<'_>>(&body) else {
+            // The HTTP layer validates `model` before forwarding. Preserve the
+            // original bytes if this helper still receives an unexpected body.
             return body;
         };
         let model = request.model.get();
+        // Convert the borrowed value's position into indexes for a surgical
+        // replacement, with bounds checks before slicing the original body.
         let Some(start) = (model.as_ptr() as usize).checked_sub(body.as_ptr() as usize) else {
             return body;
         };
