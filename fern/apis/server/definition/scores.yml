@@ -8,9 +8,9 @@ service:
   endpoints:
     create:
       docs: >
-        Create scores asynchronously. Single score: 200 with ID. Batch: 202 if accepted,
+        Create scores asynchronously from a list of scores. Returns 202 if all scores are accepted,
         or 207 with accepted/rejected counts and error messages. Do not automatically retry a 207 batch.
-        The generated reference shows only 200; batches return 202 or 207.
+        The generated reference shows only 200; the endpoint returns 202 or 207.
       method: POST
       path: /scores
       request: CreateScoresRequest
@@ -127,12 +127,6 @@ service:
 
 types:
   CreateScoresRequest:
-    discriminated: false
-    union:
-      - CreateScoreRequest
-      - CreateScoreBatchRequest
-
-  CreateScoreBatchRequest:
     type: list<CreateScoreRequest>
     examples:
       - value:
@@ -242,7 +236,6 @@ types:
     # also match 207 bodies and hide rejected scores.
     union:
       - CreateScoreBatchResults
-      - CreateScoreResponse
       - CreateScoreBatchResponse
 
   CreateScoreBatchResponse:
@@ -250,11 +243,6 @@ types:
     properties:
       message: literal<"Accepted">
 
-  CreateScoreResponse:
-    properties:
-      id:
-        type: string
-        docs: The id of the created object in Langfuse
   CreateScoreBatchResults:
     docs: Acceptance counts and errors (HTTP 207).
     properties:

@@ -5766,10 +5766,10 @@ paths:
   /api/public/scores:
     post:
       description: >-
-        Create scores asynchronously. Single score: 200 with ID. Batch: 202 if
-        accepted, or 207 with accepted/rejected counts and error messages. Do
-        not automatically retry a 207 batch. The generated reference shows only
-        200; batches return 202 or 207.
+        Create scores asynchronously from a list of scores. Returns 202 if all
+        scores are accepted, or 207 with accepted/rejected counts and error
+        messages. Do not automatically retry a 207 batch. The generated
+        reference shows only 200; the endpoint returns 202 or 207.
       operationId: scores_create
       tags:
         - Scores
@@ -14105,11 +14105,6 @@ components:
             set, or provide additional context on config name or usage
     CreateScoresRequest:
       title: CreateScoresRequest
-      oneOf:
-        - $ref: '#/components/schemas/CreateScoreRequest'
-        - $ref: '#/components/schemas/CreateScoreBatchRequest'
-    CreateScoreBatchRequest:
-      title: CreateScoreBatchRequest
       type: array
       items:
         $ref: '#/components/schemas/CreateScoreRequest'
@@ -14209,7 +14204,6 @@ components:
       title: CreateScoresResponse
       oneOf:
         - $ref: '#/components/schemas/CreateScoreBatchResults'
-        - $ref: '#/components/schemas/CreateScoreResponse'
         - $ref: '#/components/schemas/CreateScoreBatchResponse'
     CreateScoreBatchResponse:
       title: CreateScoreBatchResponse
@@ -14221,15 +14215,6 @@ components:
           const: Accepted
       required:
         - message
-    CreateScoreResponse:
-      title: CreateScoreResponse
-      type: object
-      properties:
-        id:
-          type: string
-          description: The id of the created object in Langfuse
-      required:
-        - id
     CreateScoreBatchResults:
       title: CreateScoreBatchResults
       type: object
