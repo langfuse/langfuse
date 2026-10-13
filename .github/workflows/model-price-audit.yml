@@ -240,7 +240,7 @@ jobs:
             - Set `priceConfirmed` to `yes` only when an official source fetched during this run confirms the exact current prices. Otherwise set it to `no` and explain why in `comments`.
             - Set `tieringCorrect` to `yes` only when all applicable price tiers, thresholds, and tier-specific prices are confirmed. Use `not_applicable` only when the provider has no applicable tiering dimension, otherwise use `no` and explain the gap in `comments`.
             - For every model removed from a selectable model array, add exactly one row with `change` set to `removed`, the provider's own retirement, shutdown, or model-listing URL in `officialSources`, and a comment naming the arrays it was removed from, its retirement status or date, and its successor if one exists. Price, usage-key, and tiering confirmations may be `no` for removed rows. A model ID listed in several arrays gets one row, but every distinct removed ID gets its own row: an alias and its dated snapshot (for example `o1-preview` and `o1-preview-2024-09-12`) are two rows, not one row with the snapshot named in `comments`. Set `model` to the exact string from the selectable array, even when its pricing `modelName` is spelled differently (for example `claude-3-7-sonnet-20250219` in the array versus `claude-3.7-sonnet-20250219` in the pricing file), and set `provider` to `OpenAI`, `Anthropic`, or `Google` to match the array.
-            - Put the official evidence URLs used for each model in that row. Comments should capture price units and conversions, tier thresholds, corrections, uncertainty, or why no change was made.
+            - Put the official evidence URLs used for each model in that row. Comments should capture price units and conversions, tier thresholds, corrections, uncertainty, or why no change was made. For `added`, `updated`, and `removed` rows, start `comments` with the old and new values and the reason for the change, because the pull request body shows only these rows' `pricingChecked`, `comments`, and `officialSources`.
             - Treat every allowed repository edit as a diff, including an audit snapshot written to `model-audit-memory.md` when no model prices changed. If there is no repository diff at all, set `pullRequestTitle` to an empty string, say that no pricing changes were made, and list notable unresolved findings.
             - If there is a diff, set `pullRequestTitle` to a Conventional Commit title starting with `chore(pricing): ` that names the affected model families or the specific audit behavior changed, for example `chore(pricing): remove retired gemini-2.0 models from pickers`. Never use a generic title such as `update default model prices`.
             - If there is a diff, also list every changed model, every workflow or skill-reference improvement, and the validation commands run.
@@ -548,37 +548,14 @@ jobs:
           test -s "$RUNNER_TEMP/model-price-audit.patch"
 
           {
-            echo "Automated default model price audit."
-            echo
             if [ "$DRY_RUN_MODE" != "disabled" ]; then
               echo "**Dry run mode:** \`$DRY_RUN_MODE\`"
               echo
               echo "This artifact was generated to debug post-agent workflow steps. The publish job is skipped for dry runs."
               echo
             fi
-            echo "## Scope"
-            echo
-            echo "- Audits default model pricing data with official provider evidence."
-            echo "- Edits are restricted to pricing JSON, shared selectable model lists, pricing skill reference docs, and this audit workflow."
-            echo "- Selectable models may be added, or removed with official retirement evidence; pricing entries are never removed."
-            echo
-            echo "## Validation"
-            echo
-            echo "- pricing structure and changed-entry usage-key coverage validation"
-            echo "- \`node scripts/agents/sync-agent-shims.mjs --check\`"
-            echo "- \`git diff --check\`"
-            echo "- staged pricing blob validation"
-            echo "- patch artifact generated with \`git format-patch -1\`"
-            echo
-            echo "## Diff Stat"
-            echo
-            echo '```text'
-            git show --stat --oneline HEAD
-            echo '```'
-            echo
-            echo "## Agent Summary"
-            echo
-            cat "$RUNNER_TEMP/claude-model-price-audit.txt"
+            AUDIT_REPORT_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+              node scripts/model-price-audit/render-pull-request-body.mjs
           } > "$RUNNER_TEMP/model-price-audit-pr-body.md"
 
           echo "has_changes=true" >> "$GITHUB_OUTPUT"
