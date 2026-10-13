@@ -119,21 +119,12 @@ describe("DataRetentionProcessingJob", () => {
       data: {
         name: "Assistant retention test",
         retentionDays: 7,
-        org: { create: { name: "Assistant retention test" } },
+        organization: { create: { name: "Assistant retention test" } },
       },
     });
 
     const queryRaw = prisma.$queryRaw.bind(prisma);
     const candidateQuery = vi.spyOn(prisma, "$queryRaw");
-    candidateQuery.mockImplementation((query, ...values) =>
-      queryRaw(Prisma.sql`
-        WITH in_app_agent_conversations AS (
-          SELECT * FROM public.in_app_agent_conversations
-          WHERE project_id = ${projectId}
-        )
-        ${"sql" in query ? query : Prisma.sql(query, values)}
-      `),
-    );
     try {
       const creator = await prisma.user.create({
         data: {
@@ -256,6 +247,17 @@ describe("DataRetentionProcessingJob", () => {
         ],
       });
 
+      // API-key fixture setup also queries projects while assigning its role.
+      candidateQuery.mockClear();
+      candidateQuery.mockImplementation((query, ...values) =>
+        queryRaw(Prisma.sql`
+          WITH in_app_agent_conversations AS (
+            SELECT * FROM public.in_app_agent_conversations
+            WHERE project_id = ${projectId}
+          )
+          ${"sql" in query ? query : Prisma.sql(query, ...values)}
+        `),
+      );
       const cleaner = new InAppAgentRetentionCleaner();
       // The real discovery query advances past the conversation with 101 keys.
       // Its last key can only be cleaned after the cursor resets for a new sweep.
@@ -338,7 +340,7 @@ describe("DataRetentionProcessingJob", () => {
           name: "Assistant retention policy test",
           retentionDays,
           deletedAt,
-          org: { create: { name: "Assistant retention policy test" } },
+          organization: { create: { name: "Assistant retention policy test" } },
         },
       });
       const queryRaw = prisma.$queryRaw.bind(prisma);
@@ -349,7 +351,7 @@ describe("DataRetentionProcessingJob", () => {
             SELECT * FROM public.in_app_agent_conversations
             WHERE project_id = ${projectId}
           )
-          ${"sql" in query ? query : Prisma.sql(query, values)}
+          ${"sql" in query ? query : Prisma.sql(query, ...values)}
         `),
       );
       try {
@@ -383,7 +385,9 @@ describe("DataRetentionProcessingJob", () => {
         data: {
           name: "Assistant retention timezone test",
           retentionDays: 7,
-          org: { create: { name: "Assistant retention timezone test" } },
+          organization: {
+            create: { name: "Assistant retention timezone test" },
+          },
         },
       });
       const expiredId = randomUUID();
@@ -411,7 +415,7 @@ describe("DataRetentionProcessingJob", () => {
                 SELECT * FROM public.in_app_agent_conversations
                 WHERE project_id = ${projectId}
               )
-              ${"sql" in query ? query : Prisma.sql(query, values)}
+              ${"sql" in query ? query : Prisma.sql(query, ...values)}
             `);
           }),
         );
