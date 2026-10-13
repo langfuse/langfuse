@@ -90,6 +90,17 @@ impl ProtocolCapture {
         }
     }
 
+    fn replace_requested_model(&mut self, model: &str) {
+        let model = bounded_string(model);
+        match self {
+            Self::OpenAiResponses(capture) => capture.replace_requested_model(model),
+            Self::OpenAiChatCompletions(capture) => {
+                capture.replace_requested_model(model);
+            }
+            Self::AnthropicMessages(capture) => capture.replace_requested_model(model),
+        }
+    }
+
     fn client_metadata(&self) -> Option<&Map<String, Value>> {
         match self {
             Self::OpenAiResponses(capture) => capture.client_metadata(),
@@ -210,6 +221,12 @@ impl ExecutionCapture {
         self.protocol
             .as_ref()
             .and_then(ProtocolCapture::requested_model)
+    }
+
+    pub fn replace_requested_model(&mut self, model: &str) {
+        if let Some(protocol) = &mut self.protocol {
+            protocol.replace_requested_model(model);
+        }
     }
 
     pub fn record_response(&mut self, status: u16, headers: &HeaderMap) {
