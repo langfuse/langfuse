@@ -11,6 +11,19 @@ export function resolveGatewayModelRoute<
   model: string,
   connections: readonly Connection[],
 ): { connection: Connection | null; providerModel: string } | null {
+  const modelSlug = parseGatewayModelSlug(model);
+  const explicitConnection = modelSlug
+    ? (connections.find(
+        (connection) => connection.name === modelSlug.connectionName,
+      ) ?? null)
+    : null;
+  if (modelSlug && explicitConnection) {
+    return {
+      connection: explicitConnection,
+      providerModel: modelSlug.providerModel,
+    };
+  }
+
   if (model.startsWith("ft:")) {
     return {
       connection:
@@ -20,13 +33,9 @@ export function resolveGatewayModelRoute<
     };
   }
 
-  const modelSlug = parseGatewayModelSlug(model);
   if (modelSlug) {
     return {
-      connection:
-        connections.find(
-          (connection) => connection.name === modelSlug.connectionName,
-        ) ?? null,
+      connection: null,
       providerModel: modelSlug.providerModel,
     };
   }
