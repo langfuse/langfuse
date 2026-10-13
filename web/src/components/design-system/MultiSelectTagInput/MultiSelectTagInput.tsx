@@ -4,9 +4,8 @@ import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Command as CommandPrimitive } from "cmdk";
 import { X } from "lucide-react";
-import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { Tag } from "@/src/components/design-system/Tag/Tag";
+import { Tag, TagShell } from "@/src/components/design-system/Tag/Tag";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
@@ -260,9 +259,7 @@ export function MultiSelectTagInput<V extends string>({
                   className="flex shrink-0"
                   style={{ transform: `translateX(-${trailingHiddenWidth}px)` }}
                 >
-                  <BadgeShell color="filled" font="mono" size="md">
-                    +{hiddenOptionCount}
-                  </BadgeShell>
+                  <TagShell>+{hiddenOptionCount}</TagShell>
                 </span>
               )}
               {value.length === 0 && <DropdownIndicator />}

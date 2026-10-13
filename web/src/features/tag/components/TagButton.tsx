@@ -1,5 +1,4 @@
-import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
-import { Tag } from "@/src/components/design-system/Tag/Tag";
+import { Tag, TagShell } from "@/src/components/design-system/Tag/Tag";
 import { cn } from "@/src/utils/tailwind";
 import { TagIcon } from "lucide-react";
 import React from "react";
@@ -34,7 +33,7 @@ export const TagButton: React.FC<{
   }
 
   return (
-    <BadgeShell asChild color="filled" font="mono" size="md">
+    <TagShell asChild>
       <button
         key={tag}
         type="button"
@@ -43,7 +42,7 @@ export const TagButton: React.FC<{
       >
         {label}
       </button>
-    </BadgeShell>
+    </TagShell>
   );
 });
 TagButton.displayName = "TagButton";
