@@ -17,7 +17,7 @@ export function EvaluatorGalleryScorePreview({
   return (
     <div
       aria-hidden="true"
-      className="bg-muted/40 dot-grid relative flex h-20 items-center justify-center gap-1 overflow-hidden rounded-sm px-3"
+      className="bg-muted-gray/70 dot-grid relative flex h-20 items-center justify-center gap-1 overflow-hidden rounded-sm px-3"
     >
       <div className="flex min-w-0 items-center justify-center gap-1 group-hover/card:blur-xs">
         {visibleScores.map((score) => (
