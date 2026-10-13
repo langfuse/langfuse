@@ -35,7 +35,7 @@ export function EvaluatorGalleryAiBox({
         rows={2}
         aria-label="Describe what you want to check"
         placeholder="Describe what you want to check, e.g. flag replies with medical advice"
-        className="placeholder:text-muted-foreground w-full resize-none bg-transparent text-sm outline-hidden"
+        className="placeholder:text-muted-foreground w-full resize-none border-0 bg-transparent p-0 text-sm shadow-none outline-hidden focus:ring-0"
       />
       <div className="flex justify-end">
         <Button

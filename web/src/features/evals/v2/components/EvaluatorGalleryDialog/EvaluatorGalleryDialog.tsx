@@ -211,6 +211,10 @@ export function EvaluatorGalleryDialog({
       <DialogContent
         className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none flex-col gap-0 rounded-lg p-0 sm:h-[80dvh] sm:max-h-[85vh] sm:w-[70vw]"
         closeOnInteractionOutside
+        onEscapeKeyDown={(event) => {
+          // Radix sees Escape before an open menu does; let the menu close alone.
+          if (document.querySelector('[role="menu"]')) event.preventDefault();
+        }}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           searchInputRef.current?.focus();
