@@ -552,6 +552,7 @@ function facetDrafts(
     return {
       id: existing?.id ?? preset.name,
       name: preset.name,
+      description: existing?.description || preset.description,
       question: existing?.versions[0]?.prompt ?? preset.prompt,
       builtIn: true,
       enabled: enabledIds
@@ -567,6 +568,7 @@ function facetDrafts(
       {
         id: facet.id,
         name: facet.name,
+        description: facet.description,
         question,
         builtIn: false,
         enabled: enabledIds?.has(facet.id) ?? false,

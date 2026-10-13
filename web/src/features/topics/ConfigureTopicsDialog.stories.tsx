@@ -19,6 +19,7 @@ const builtInFacets = [
   {
     id: "intent",
     name: "Intent",
+    description: "What the run was asked to do.",
     question: "What is the user trying to do?",
     builtIn: true,
     enabled: true,
@@ -26,6 +27,7 @@ const builtInFacets = [
   {
     id: "outcome",
     name: "Outcome",
+    description: "Where the run ended and whether that is confirmed.",
     question: "Did the assistant resolve the request?",
     builtIn: true,
     enabled: true,
