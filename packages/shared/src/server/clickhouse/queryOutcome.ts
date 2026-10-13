@@ -16,17 +16,13 @@ export const CLICKHOUSE_QUERY_OUTCOME_METRIC =
   "langfuse.clickhouse.query.outcome";
 
 /**
- * Per-query cost distributions, read from the `x-clickhouse-summary` response
+ * Per-query runtime distribution, read from the `x-clickhouse-summary` response
  * header and emitted unsampled with the outcome metric's tags. APM keeps only a
- * small sample of query spans, so these are the series to track query cost over
- * time per route, table, shape and ClickHouse service.
+ * small sample of query spans, so this is the series to track query runtime
+ * over time per route, table, shape and ClickHouse service.
  */
-export const CLICKHOUSE_QUERY_PERFORMANCE_METRICS = {
-  elapsedMs: "langfuse.clickhouse.query.elapsed_ms",
-  readBytes: "langfuse.clickhouse.query.read_bytes",
-  readRows: "langfuse.clickhouse.query.read_rows",
-  memoryBytes: "langfuse.clickhouse.query.memory_bytes",
-} as const;
+export const CLICKHOUSE_QUERY_ELAPSED_MS_METRIC =
+  "langfuse.clickhouse.query.elapsed_ms";
 
 export type ClickHouseQueryOutcome =
   | "success"
@@ -369,53 +365,24 @@ export function recordClickHouseQueryOutcome(
   });
 }
 
-function summaryNumber(
-  summary: Record<string, unknown>,
-  key: string,
-): number | undefined {
-  if (summary[key] === undefined) return undefined;
-  const value = Number(summary[key]);
-  return Number.isFinite(value) ? value : undefined;
-}
-
 /**
- * Emits the cost distributions from a parsed `x-clickhouse-summary` header.
- * ClickHouse sends the values as numeric strings; keys an older server does not
- * send are skipped.
+ * Emits the runtime distribution from a parsed `x-clickhouse-summary` header.
+ * ClickHouse sends `elapsed_ns` as a numeric string; an older server that does
+ * not send it emits nothing.
  */
-export function recordClickHouseQueryPerformance(
+export function recordClickHouseQueryElapsed(
   summary: Record<string, unknown>,
   tags: NormalizedClickHouseQueryTags,
   table: ClickHouseQueryTable,
   shape: ClickHouseQueryShape,
   clickhouseService: ClickhouseService,
 ): void {
-  const metricTags = clickHouseQueryMetricTags(
-    tags,
-    table,
-    shape,
-    clickhouseService,
+  if (summary.elapsed_ns === undefined) return;
+  const elapsedNs = Number(summary.elapsed_ns);
+  if (!Number.isFinite(elapsedNs)) return;
+  recordDistribution(
+    CLICKHOUSE_QUERY_ELAPSED_MS_METRIC,
+    elapsedNs / 1e6,
+    clickHouseQueryMetricTags(tags, table, shape, clickhouseService),
   );
-  const elapsedNs = summaryNumber(summary, "elapsed_ns");
-  const values: Array<[string, number | undefined]> = [
-    [
-      CLICKHOUSE_QUERY_PERFORMANCE_METRICS.elapsedMs,
-      elapsedNs === undefined ? undefined : elapsedNs / 1e6,
-    ],
-    [
-      CLICKHOUSE_QUERY_PERFORMANCE_METRICS.readBytes,
-      summaryNumber(summary, "read_bytes"),
-    ],
-    [
-      CLICKHOUSE_QUERY_PERFORMANCE_METRICS.readRows,
-      summaryNumber(summary, "read_rows"),
-    ],
-    [
-      CLICKHOUSE_QUERY_PERFORMANCE_METRICS.memoryBytes,
-      summaryNumber(summary, "memory_usage"),
-    ],
-  ];
-  for (const [metric, value] of values) {
-    if (value !== undefined) recordDistribution(metric, value, metricTags);
-  }
 }

@@ -133,11 +133,12 @@ beforeEach(() => {
 });
 
 describe("summarizeAssembledTrace", () => {
-  it("summarizes the assembled transcript once per current facet and skips a finished retry", async () => {
+  it("skips a finished job retry but summarizes a later redispatch", async () => {
     await summarizeAssembledTrace({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "default",
       traceName: "agent-turn",
       transcript,
@@ -183,18 +184,16 @@ describe("summarizeAssembledTrace", () => {
       expect.any(Number),
       { stage: "trace", outcome: "success", unit: "milliseconds" },
     );
-    state.stored.mockImplementation(async (_projectId, _filter, timeRange) =>
-      new Date(written.unitStartTime) >= timeRange.from &&
-      new Date(written.unitStartTime) < timeRange.to
-        ? [written]
-        : [],
-    );
+    state.stored.mockResolvedValue([
+      { ...written, processedAt: "2026-09-22T12:02:00.000Z" },
+    ]);
     state.summarize.mockClear();
     state.write.mockClear();
     await summarizeAssembledTrace({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "default",
       traceName: "agent-turn",
       transcript,
@@ -206,7 +205,8 @@ describe("summarizeAssembledTrace", () => {
     await summarizeAssembledTrace({
       projectId: "project-a",
       traceId: "trace-1",
-      traceTimestamp: "2026-09-22T11:59:00.000Z",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:03:00.000Z"),
       environment: "default",
       traceName: "agent-turn",
       transcript,
@@ -214,9 +214,11 @@ describe("summarizeAssembledTrace", () => {
       facets: state.facets(),
     });
     expect(state.summarize).toHaveBeenCalledOnce();
+    expect(state.write).toHaveBeenCalledOnce();
     expect(state.write.mock.calls[0][0][0].unitStartTime).toBe(
-      "2026-09-22T11:59:00.000Z",
+      written.unitStartTime,
     );
+    expect(state.stored).toHaveBeenCalledTimes(3);
   });
 
   it("summarizes all pending facets in one call and records its usage once", async () => {
@@ -238,6 +240,7 @@ describe("summarizeAssembledTrace", () => {
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "default",
       traceName: "agent-turn",
       transcript,
@@ -266,6 +269,7 @@ describe("summarizeAssembledTrace", () => {
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "default",
       traceName: "agent-turn",
       transcript,
@@ -298,6 +302,7 @@ describe("summarizeAssembledTrace", () => {
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
+        jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
         environment: "default",
         traceName: "agent-turn",
         transcript,
@@ -355,6 +360,7 @@ describe("summarizeAssembledTrace", () => {
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "default",
       traceName: "agent-turn",
       transcript,
@@ -391,6 +397,7 @@ describe("summarizeAssembledTrace", () => {
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
+        jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
         environment: "default",
         traceName: "agent-turn",
         transcript,
@@ -433,6 +440,7 @@ describe("summarizeAssembledTrace", () => {
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
+        jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
         environment: "default",
         traceName: "agent-turn",
         transcript,
@@ -470,6 +478,7 @@ describe("summarizeAssembledTrace", () => {
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
+        jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
         environment: "default",
         traceName: "agent-turn",
         transcript,

@@ -6,7 +6,10 @@ import {
   DeleteLlmConnectionV1Response,
 } from "@/src/features/public-api/types/llm-connections";
 import { auditLog } from "@/src/features/audit-logs/server";
-import { pauseTopicsModelsUsingConnection } from "@langfuse/shared/topics/server";
+import {
+  invalidateTopicsProcessingActive,
+  pauseTopicsModelsUsingConnection,
+} from "@langfuse/shared/topics/server";
 import { EvaluatorBlockReason, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   blockEvaluatorsUsingDefaultModel,
@@ -82,6 +85,7 @@ export default withMiddlewares({
         return { providerBlock, defaultModelBlock };
       });
 
+      await invalidateTopicsProcessingActive(projectId);
       await finalizeEvaluatorBlocks({
         projectId,
         source: EvaluatorBlockSource.LLM_API_KEY_DELETION,

@@ -3,14 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   CLICKHOUSE_QUERY_OUTCOME_METRIC,
-  CLICKHOUSE_QUERY_PERFORMANCE_METRICS,
+  CLICKHOUSE_QUERY_ELAPSED_MS_METRIC,
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
   clickHouseQueryErrorCode,
   clickHouseQueryOutcomeRouteLabel,
   clickHouseQueryShape,
   clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
-  recordClickHouseQueryPerformance,
+  recordClickHouseQueryElapsed,
 } from "./queryOutcome";
 
 const recordIncrement = vi.fn();
@@ -399,8 +399,8 @@ describe("ClickHouse query outcome metric", () => {
     );
   });
 
-  it("emits the summary header as distributions with the outcome tags", () => {
-    recordClickHouseQueryPerformance(
+  it("emits the summary runtime as a distribution with the outcome tags", () => {
+    recordClickHouseQueryElapsed(
       {
         read_rows: "1200",
         read_bytes: "524288",
@@ -419,36 +419,33 @@ describe("ClickHouse query outcome metric", () => {
       "main",
     );
 
-    const tags = {
-      surface: "trpc",
-      route: "scores.allFromEvents",
-      table: "scores",
-      query_shape: "scores_final",
-      clickhouse_service: "main",
-    };
     expect(recordDistribution.mock.calls).toEqual([
-      [CLICKHOUSE_QUERY_PERFORMANCE_METRICS.elapsedMs, 37.5, tags],
-      [CLICKHOUSE_QUERY_PERFORMANCE_METRICS.readBytes, 524288, tags],
-      [CLICKHOUSE_QUERY_PERFORMANCE_METRICS.readRows, 1200, tags],
-      [CLICKHOUSE_QUERY_PERFORMANCE_METRICS.memoryBytes, 8388608, tags],
+      [
+        CLICKHOUSE_QUERY_ELAPSED_MS_METRIC,
+        37.5,
+        {
+          surface: "trpc",
+          route: "scores.allFromEvents",
+          table: "scores",
+          query_shape: "scores_final",
+          clickhouse_service: "main",
+        },
+      ],
     ]);
   });
 
-  it("skips summary keys that are missing or not numeric", () => {
-    recordClickHouseQueryPerformance(
-      { read_rows: "10", read_bytes: "n/a" },
-      { tag_schema_version: "1", surface: "unknown" },
-      "other",
-      "other",
-      "main",
-    );
+  it("skips a missing or non-numeric elapsed_ns", () => {
+    for (const summary of [{ read_rows: "10" }, { elapsed_ns: "n/a" }]) {
+      recordClickHouseQueryElapsed(
+        summary,
+        { tag_schema_version: "1", surface: "unknown" },
+        "other",
+        "other",
+        "main",
+      );
+    }
 
-    expect(recordDistribution).toHaveBeenCalledTimes(1);
-    expect(recordDistribution).toHaveBeenCalledWith(
-      CLICKHOUSE_QUERY_PERFORMANCE_METRICS.readRows,
-      10,
-      expect.any(Object),
-    );
+    expect(recordDistribution).not.toHaveBeenCalled();
   });
 
   it("keeps unknown surfaces and unlabelled routes queryable", () => {

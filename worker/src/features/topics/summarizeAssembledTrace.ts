@@ -40,6 +40,7 @@ type AssembledTraceInput = {
   projectId: string;
   traceId: string;
   traceTimestamp: string;
+  jobEnqueuedAt: Date;
   environment: string;
   traceName: string;
   transcript: Transcript | null;
@@ -49,7 +50,7 @@ type AssembledTraceInput = {
 
 /**
  * Summarizes one trace from the transcript the batch job already assembled,
- * with one model call for all of its pending facets. Does not load
+ * with one model call for all of its configured facets. Does not load
  * observations again.
  */
 export async function summarizeAssembledTrace(
@@ -86,11 +87,6 @@ async function summarizeEnabledTrace(
   const config = topicProcessingConfigSchema.parse({
     summaryModel: models.summary.model,
   });
-  const timestamp = Date.parse(input.traceTimestamp);
-  const timeRange = {
-    from: new Date(timestamp),
-    to: new Date(timestamp + 1),
-  };
   const pending: {
     name: string;
     version: TopicFacetVersion;
@@ -101,6 +97,11 @@ async function summarizeEnabledTrace(
     ...facets.filter((facet) => facet.isBuiltIn),
     ...facets.filter((facet) => !facet.isBuiltIn),
   ];
+  const timestamp = Date.parse(input.traceTimestamp);
+  const timeRange = {
+    from: new Date(timestamp),
+    to: new Date(timestamp + 1),
+  };
   for (const facet of ordered) {
     const version = facet.versions[0];
     if (facet.projectId !== input.projectId || !version) continue;
@@ -113,8 +114,14 @@ async function summarizeEnabledTrace(
       },
       timeRange,
     );
-    if (!stored.length)
-      pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
+    if (
+      stored.some(
+        (summary) =>
+          Date.parse(summary.processedAt) >= input.jobEnqueuedAt.getTime(),
+      )
+    )
+      continue;
+    pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
   }
   if (!pending.length) return "unchanged";
 
