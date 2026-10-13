@@ -1,3 +1,5 @@
+import { TriangleAlert } from "lucide-react";
+
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 
@@ -25,7 +27,13 @@ export function NoCostBadge() {
     >
       {({ getTriggerProps }) => (
         <span {...getTriggerProps()} className="inline-flex" tabIndex={0}>
-          <Badge font="mono" color="ghost" interactive text="no cost" />
+          <Badge
+            font="mono"
+            color="ghost"
+            interactive
+            leadingIcon={TriangleAlert}
+            text="no cost"
+          />
         </span>
       )}
     </CustomTooltip>

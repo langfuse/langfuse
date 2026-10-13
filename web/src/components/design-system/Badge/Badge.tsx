@@ -109,6 +109,7 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
   text: string;
   /** Key shown muted before the value, e.g. `latency` before `0.71s`. */
   label?: string;
+  leadingIcon?: LucideIcon;
   trailingIcon?: LucideIcon;
   /** Link badges tint the arrow and underline the text on hover. */
   trailingIconTone?: "default" | "link";
@@ -121,12 +122,19 @@ export function Badge({
   title,
   interactive,
   shouldWrap,
+  leadingIcon: LeadingIcon,
   trailingIcon: TrailingIcon,
   trailingIconTone = "default",
   ...props
 }: BadgeProps) {
   return (
     <BadgeShell color={color} shouldWrap={shouldWrap} {...props}>
+      {LeadingIcon && (
+        <LeadingIcon
+          aria-hidden
+          className="icon-sm text-foreground-tertiary shrink-0"
+        />
+      )}
       {label && <span className="shrink-0 py-0.5">{label}:</span>}
       <span
         className={cn(
