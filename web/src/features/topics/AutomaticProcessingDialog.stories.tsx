@@ -85,3 +85,19 @@ export const SubmitsSampling = meta.story({
     });
   },
 });
+
+export const TurnsOff = meta.story({
+  name: "(Test) Turning off saves processing as off",
+  args: { initialEnabled: true, initialSampling: 0.25 },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    await userEvent.click(
+      body.getByRole("switch", { name: "Automatic processing" }),
+    );
+    await userEvent.click(body.getByRole("button", { name: "Save" }));
+    await expect(args.onSave).toHaveBeenCalledWith({
+      enabled: false,
+      sampling: 0.25,
+    });
+  },
+});
