@@ -125,8 +125,8 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         externalMediaStorage: false,
-        modernSession: false,
-        sessionTimeline: false,
+        sessionViewV2: false,
+        sessionViewV2Timeline: false,
       },
       management: {
         allowed: false,
@@ -153,8 +153,8 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         externalMediaStorage: false,
-        modernSession: false,
-        sessionTimeline: false,
+        sessionViewV2: false,
+        sessionViewV2Timeline: false,
       },
       management: { allowed: true },
     });
@@ -166,7 +166,7 @@ describe("UserFeaturePreviewsControl", () => {
     ).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "Toggle Compact Session View for user",
+        name: "Toggle Redesigned Session View for user",
       }),
     );
 
@@ -174,7 +174,7 @@ describe("UserFeaturePreviewsControl", () => {
       {
         orgId: "org-1",
         userId: "user-1",
-        flag: "modernSession",
+        flag: "sessionViewV2",
         enabled: true,
       },
       expect.objectContaining({ onSettled: expect.any(Function) }),
@@ -184,7 +184,7 @@ describe("UserFeaturePreviewsControl", () => {
     });
     expect(mocks.capture).toHaveBeenCalledWith(
       "organization_settings:user_feature_flag_toggled",
-      { feature: "modernSession", isEnabled: true },
+      { feature: "sessionViewV2", isEnabled: true },
     );
   });
 
@@ -195,14 +195,14 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         externalMediaStorage: false,
-        modernSession: false,
-        sessionTimeline: false,
+        sessionViewV2: false,
+        sessionViewV2Timeline: false,
       },
       management: { allowed: true },
     });
 
     const sessions = screen.getByRole("checkbox", {
-      name: "Toggle Compact Session View for user",
+      name: "Toggle Redesigned Session View for user",
     });
     fireEvent.click(sessions);
 
@@ -223,15 +223,15 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         externalMediaStorage: false,
-        modernSession: false,
-        sessionTimeline: false,
+        sessionViewV2: false,
+        sessionViewV2Timeline: false,
       },
       management: { allowed: true },
     });
 
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "Toggle Compact Session View for user",
+        name: "Toggle Redesigned Session View for user",
       }),
     );
 

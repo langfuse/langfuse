@@ -21,6 +21,7 @@ export {
   getFeaturePreviewOptOutFlag,
   hasInternalAccess,
 } from "@/src/features/feature-flags/utils";
+export { getOrganizationFeaturePreviewDefaults } from "../fns/getOrganizationFeaturePreviewDefaults";
 export {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
