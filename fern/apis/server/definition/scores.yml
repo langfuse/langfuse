@@ -72,7 +72,7 @@ types:
         docs: The source of the score. Defaults to API. Set to ANNOTATION to prefill scores (e.g. from an LLM) for a human reviewer to verify in an annotation queue. When source is ANNOTATION, a configId is required unless dataType is CORRECTION. EVAL is reserved for internal evaluator outputs and is not accepted on this endpoint.
       timestamp:
         type: optional<datetime>
-        docs: The timestamp of the score, as an ISO 8601 datetime. A datetime without a timezone offset is treated as UTC. Defaults to the time the request is received. To update an existing score, send it again with the same id and timestamp.
+        docs: The timestamp of the score, as an ISO 8601 datetime with a timezone offset. Defaults to the time the request is received. To update an existing score, send it again with the same id and timestamp.
     examples:
       - value:
           name: "novelty"

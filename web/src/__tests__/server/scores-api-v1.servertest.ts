@@ -271,36 +271,30 @@ describe("/api/public/scores API Endpoint", () => {
       });
     });
 
-    it.each([
-      ["without an offset as UTC", "2026-01-15T10:20:30.123", 1768472430123],
-      ["with Z", "2026-01-15T10:20:30.123Z", 1768472430123],
-      ["with a +02:00 offset", "2026-01-15T12:20:30.123+02:00", 1768472430123],
-    ])(
-      "should store a single score timestamp %s",
-      async (_, timestamp, epochMs) => {
-        const { projectId, auth } = await createOrgProjectAndApiKey();
-        const scoreId = v4();
+    it("should use the provided timestamp for a single score", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const scoreId = v4();
+      const timestamp = "2026-01-15T10:20:30.123Z";
 
-        const response = await makeAPICall(
-          "POST",
-          "/api/public/scores",
-          {
-            id: scoreId,
-            traceId: v4(),
-            name: "timestamped-score",
-            value: 1,
-            timestamp,
-          },
-          auth,
-        );
-        expect(response.status).toBe(200);
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          id: scoreId,
+          traceId: v4(),
+          name: "timestamped-score",
+          value: 1,
+          timestamp,
+        },
+        auth,
+      );
+      expect(response.status).toBe(200);
 
-        await waitForExpect(async () => {
-          const score = await getScoreById({ projectId, scoreId });
-          expect(score?.timestamp.getTime()).toBe(epochMs);
-        });
-      },
-    );
+      await waitForExpect(async () => {
+        const score = await getScoreById({ projectId, scoreId });
+        expect(score?.timestamp).toEqual(new Date(timestamp));
+      });
+    });
 
     it("should default the score timestamp to now", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
@@ -343,7 +337,7 @@ describe("/api/public/scores API Endpoint", () => {
     it("should apply per-item timestamps in a batch with mixed timestamps", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const traceId = v4();
-      const [firstId, secondId, utcId, defaultId] = [v4(), v4(), v4(), v4()];
+      const [firstId, secondId, defaultId] = [v4(), v4(), v4()];
       const firstTimestamp = "2026-01-15T10:20:30.123Z";
       const secondTimestamp = "2025-06-01T08:00:00.000+02:00";
       const before = Date.now();
@@ -366,14 +360,7 @@ describe("/api/public/scores API Endpoint", () => {
             value: 2,
             timestamp: secondTimestamp,
           },
-          {
-            id: utcId,
-            traceId,
-            name: "batch-ts",
-            value: 3,
-            timestamp: "2024-03-10T23:59:59",
-          },
-          { id: defaultId, traceId, name: "batch-ts", value: 4 },
+          { id: defaultId, traceId, name: "batch-ts", value: 3 },
         ],
         auth,
       );
@@ -384,7 +371,6 @@ describe("/api/public/scores API Endpoint", () => {
         const scores = await getScoresByIds(projectId, [
           firstId,
           secondId,
-          utcId,
           defaultId,
         ]);
         const timestampById = new Map(
@@ -395,9 +381,6 @@ describe("/api/public/scores API Endpoint", () => {
         );
         expect(timestampById.get(secondId)).toBe(
           new Date(secondTimestamp).getTime(),
-        );
-        expect(timestampById.get(utcId)).toBe(
-          Date.UTC(2024, 2, 10, 23, 59, 59),
         );
         expect(timestampById.get(defaultId)).toBeGreaterThanOrEqual(before);
       });

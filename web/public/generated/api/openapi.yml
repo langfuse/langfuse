@@ -14496,10 +14496,9 @@ components:
           format: date-time
           nullable: true
           description: >-
-            The timestamp of the score, as an ISO 8601 datetime. A datetime
-            without a timezone offset is treated as UTC. Defaults to the time
-            the request is received. To update an existing score, send it again
-            with the same id and timestamp.
+            The timestamp of the score, as an ISO 8601 datetime with a timezone
+            offset. Defaults to the time the request is received. To update an
+            existing score, send it again with the same id and timestamp.
       required:
         - name
         - value
