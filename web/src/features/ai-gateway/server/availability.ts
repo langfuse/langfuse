@@ -4,11 +4,13 @@ import { env } from "@/src/env.mjs";
 
 type GatewayAvailabilityEnvironment = {
   nodeEnv: string | undefined;
+  previewPrUrl?: string;
 };
 
 const getGatewayAvailabilityEnvironment =
   (): GatewayAvailabilityEnvironment => ({
     nodeEnv: env.NODE_ENV,
+    previewPrUrl: env.NEXT_PUBLIC_PREVIEW_PR_URL,
   });
 
 export const isGatewayEnabledForOrganization = (
@@ -18,6 +20,7 @@ export const isGatewayEnabledForOrganization = (
   environment = getGatewayAvailabilityEnvironment(),
 ): boolean =>
   environment.nodeEnv === "development" ||
+  environment.previewPrUrl !== undefined ||
   allowedOrganizationIds.includes(organizationId);
 
 export const requireGatewayEnabledForOrganization = (

@@ -5,3 +5,4 @@ export {
   auditLog,
   type AuditLogActor,
 } from "@/src/features/audit-logs/auditLog";
+export { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";

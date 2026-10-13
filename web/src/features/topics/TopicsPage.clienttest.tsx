@@ -21,6 +21,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("use-query-params", () => ({
   StringParam: {},
+  useQueryParam: () => [undefined, vi.fn()],
   useQueryParams: () => [{ dateRange: state.dateRange }, state.setQueryParams],
 }));
 vi.mock("@/src/components/layouts/page-header-controls-slot", () => ({
@@ -64,10 +65,13 @@ vi.mock("./TopicPipelineForm", () => ({
     state.pipeline(input);
     return {
       primaryAction: null,
-      openConfiguration: vi.fn(),
+      triggerAction: null,
       configuration: null,
     };
   },
+}));
+vi.mock("./TopicModelSettings", () => ({
+  useTopicModelSettings: () => ({ action: null, notice: null }),
 }));
 vi.mock("./CurrentTopics", () => ({
   useCurrentTopics: (input: {

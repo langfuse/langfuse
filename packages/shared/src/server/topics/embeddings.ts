@@ -1,44 +1,63 @@
-import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
-import { embed } from "ai";
+import { embedLLMText } from "../llm/llmText";
+import { LLMAdapter } from "../llm/types";
 import { topicEmbeddingConfigSchema } from "../../topics";
-import {
-  assertValidBedrockRegion,
-  createDefaultBedrockProviderAuth,
-} from "../llm/ai-sdk/providers/bedrock";
+import type { TopicsModel } from "./model-config";
 
-/** Uses the shared AI SDK version for the Topics worker's embedding call. */
-export async function generateTopicEmbedding(params: {
-  model: string;
-  summary: string;
+// The AI SDK validates the whole Bedrock options object, and each family names
+// its size option differently, so only the family's own fields are sent.
+function bedrockEmbeddingOptions(
+  modelId: string,
+  dimensions: number,
+): Record<string, string | number> {
+  if (modelId.includes("nova"))
+    return { embeddingPurpose: "CLUSTERING", embeddingDimension: dimensions };
+  if (modelId.includes("cohere"))
+    return {
+      inputType: "clustering",
+      truncate: "NONE",
+      outputDimension: dimensions,
+    };
+  return { dimensions };
+}
+
+/** Embeds summaries through the project's LLM connection in as few requests as the provider allows. */
+export async function generateTopicEmbeddings(params: {
+  model: TopicsModel;
+  summaries: string[];
   dimensions: number;
-  region: string;
-  profile?: string;
 }) {
-  const config = topicEmbeddingConfigSchema.parse({
-    embeddingModel: params.model,
+  const { embeddingDimensions } = topicEmbeddingConfigSchema.parse({
     embeddingDimensions: params.dimensions,
   });
-  if (!config.embeddingModel)
-    throw new Error("Topics embedding model is not configured.");
-  assertValidBedrockRegion(params.region);
-  const provider = createAmazonBedrock({
-    region: params.region,
-    ...createDefaultBedrockProviderAuth({ profile: params.profile }),
-  });
-  const result = await embed({
-    model: provider.embeddingModel(params.model),
-    value: params.summary,
-    providerOptions: {
-      amazonBedrock: {
-        // Discovery and later centroid assignment must share one vector space.
-        inputType: "clustering",
-        outputDimension: config.embeddingDimensions,
-        truncate: "NONE",
-      },
-    },
-    maxRetries: 0,
+  const result = await embedLLMText({
+    model: { adapter: params.model.adapter, id: params.model.model },
+    connection: params.model.connection,
+    values: params.summaries,
+    // Discovery and later centroid assignment must share one vector space, so
+    // every provider is asked for clustering vectors of the configured size.
+    providerOptions:
+      params.model.adapter === LLMAdapter.Bedrock
+        ? {
+            amazonBedrock: bedrockEmbeddingOptions(
+              params.model.model,
+              embeddingDimensions,
+            ),
+          }
+        : {
+            openai: { dimensions: embeddingDimensions },
+            google: {
+              taskType: "CLUSTERING",
+              outputDimensionality: embeddingDimensions,
+            },
+            vertex: {
+              taskType: "CLUSTERING",
+              outputDimensionality: embeddingDimensions,
+            },
+          },
+    maxRetries: 2,
+    // Single-text models (Bedrock Titan, Nova) split a batch into one request per text.
+    maxParallelCalls: 10,
     abortSignal: AbortSignal.timeout(60_000),
   });
-  // Cohere defaults to float output; the SDK accepts only float vectors.
-  return { embedding: result.embedding, tokens: result.usage.tokens };
+  return { embeddings: result.embeddings, tokens: result.usage.tokens };
 }

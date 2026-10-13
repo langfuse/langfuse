@@ -12,24 +12,36 @@ const mocks = vi.hoisted(() => ({
   staged: vi.fn(),
   update: vi.fn(),
   embed: vi.fn(),
+  pause: vi.fn(),
+  embeddingModel: "eu.cohere.embed-v4:0",
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
+  pauseTopicsModels: mocks.pause,
   writeTopicSummaries: mocks.write,
   readStagedTopicSummary: mocks.staged,
   updateStagedTopicSummary: mocks.update,
+  getTopicsModels: async () => ({
+    projectId: "project",
+    enabled: true,
+    embedding: {
+      slot: "embedding",
+      provider: "bedrock",
+      adapter: "bedrock",
+      model: mocks.embeddingModel,
+      connection: { secretKey: "encrypted" },
+      dimensions: 256,
+    },
+  }),
   TOPIC_EMBEDDING_EXPIRED_ERROR:
     "Topics staged results expired before processing completed. Start a new execution with stored-summary reuse to recover persisted results.",
 }));
 vi.mock("@langfuse/shared/src/server", () => ({
+  logger: { error: vi.fn() },
   recordIncrement: vi.fn(),
   recordDistribution: vi.fn(),
 }));
 vi.mock("./models", () => ({
-  embedTopicSummary: mocks.embed,
-  requireTopicsModelConfig: () => ({
-    summaryModel: "us.openai.gpt-5.6-luna",
-    embeddingModel: "eu.cohere.embed-v4:0",
-  }),
+  embedTopicSummaries: mocks.embed,
 }));
 
 import { processTopicEmbeddingBatch } from "./processTopicEmbeddingBatch";
@@ -77,8 +89,7 @@ const batch = (...rows: TopicSummary[]): TopicEmbeddingBatch => ({
     traceId: row.traceId,
   })),
 });
-const embeddingResult = {
-  embedding: Array(256).fill(0.25),
+const embeddingUsage = {
   providedUsageDetails: { embedding_input: 8, total: 8 },
   usageDetails: { embedding_input: 8, total: 8 },
   providedCostDetails: {},
@@ -104,7 +115,10 @@ beforeEach(() => {
     staged.set(topicSourceKey({ ..._batch, ...ref, sessionId: null }), row);
     return row;
   });
-  mocks.embed.mockResolvedValue(embeddingResult);
+  mocks.embed.mockImplementation(async (_model, summaries: string[]) => ({
+    ...embeddingUsage,
+    embeddings: summaries.map(() => Array(256).fill(0.25)),
+  }));
 });
 
 describe("Topics embedding handoff", () => {
@@ -186,26 +200,58 @@ describe("Topics embedding handoff", () => {
     expect(mocks.write).not.toHaveBeenCalled();
   });
 
-  it("persists completed rows before retrying a later provider failure", async () => {
-    const rows = [summary("first"), summary("second")];
-    for (const row of rows) staged.set(topicSourceKey(row), row);
-    mocks.embed.mockResolvedValueOnce(embeddingResult);
+  it("embeds each trace's facets in one call and keeps finished traces when another fails", async () => {
+    const intent = summary("first");
+    const outcome: TopicSummary = {
+      ...intent,
+      facetId: "outcome",
+      summary: "An outcome of first.",
+    };
+    const other = summary("second");
+    for (const row of [intent, outcome, other])
+      staged.set(topicSourceKey(row), row);
     const failure = new TopicsProviderUnavailable(
       "Topics provider call failed (HTTP 429).",
       "rate_limit",
     );
-    mocks.embed.mockRejectedValueOnce(failure);
-    await expect(processTopicEmbeddingBatch(batch(...rows))).rejects.toBe(
-      failure,
-    );
-    expect(mocks.write.mock.calls[0][0]).toMatchObject([
-      { traceId: "trace-first", state: "complete" },
+    mocks.embed.mockImplementation(async (_model, summaries: string[]) => {
+      if (summaries.includes("A summary of second.")) throw failure;
+      return {
+        ...embeddingUsage,
+        embeddings: summaries.map(() => Array(256).fill(0.25)),
+      };
+    });
+    await expect(
+      processTopicEmbeddingBatch(batch(intent, outcome, other)),
+    ).rejects.toBe(failure);
+    expect(mocks.embed).toHaveBeenCalledTimes(2);
+    expect(mocks.embed.mock.calls.map((call) => call[1])).toContainEqual([
+      "A summary of first.",
+      "An outcome of first.",
     ]);
-    expect(staged.get(topicSourceKey(rows[0]))?.state).toBe("complete");
-    expect(staged.get(topicSourceKey(rows[1]))?.state).toBe("summarized");
-    await processTopicEmbeddingBatch(batch(...rows));
-    expect(mocks.embed).toHaveBeenCalledTimes(3);
-    expect(staged.get(topicSourceKey(rows[1]))?.state).toBe("complete");
+    // The finished trace is stored with the call's usage recorded once.
+    expect(mocks.write.mock.calls[0][0]).toMatchObject([
+      { facetId: "facet", state: "complete", usageDetails: { total: 38 } },
+      { facetId: "outcome", state: "complete", usageDetails: { total: 30 } },
+    ]);
+    expect(staged.get(topicSourceKey(other))?.state).toBe("summarized");
+  });
+
+  it("stops on a permanent failure even when another trace failed retryably", async () => {
+    const rows = [summary("first"), summary("second")];
+    for (const row of rows) staged.set(topicSourceKey(row), row);
+    mocks.embed.mockImplementation(async (_model, summaries: string[]) => {
+      throw summaries.includes("A summary of first.")
+        ? new TopicsProviderUnavailable("Rate limited.", "rate_limit")
+        : new TopicsProviderUnavailable(
+            "Check worker credentials.",
+            "authentication",
+          );
+    });
+    await expect(processTopicEmbeddingBatch(batch(...rows))).rejects.toThrow(
+      UnrecoverableError,
+    );
+    expect(mocks.pause).toHaveBeenCalledOnce();
   });
 
   it("does not retry provider authentication failures", async () => {
@@ -222,6 +268,22 @@ describe("Topics embedding handoff", () => {
     );
     expect(mocks.write).not.toHaveBeenCalled();
     expect(staged.get(topicSourceKey(row))?.state).toBe("summarized");
+    expect(mocks.pause).toHaveBeenCalledExactlyOnceWith("project", {
+      blockReason: "LLM_CONNECTION_AUTH_INVALID",
+      blockMessage: expect.stringContaining("Check worker credentials."),
+    });
+  });
+
+  it("does not pause Topics when the saved embedding model changed", async () => {
+    const row = summary();
+    staged.set(topicSourceKey(row), row);
+    mocks.embeddingModel = "text-embedding-3-small";
+    await expect(processTopicEmbeddingBatch(batch(row))).rejects.toThrow(
+      UnrecoverableError,
+    );
+    mocks.embeddingModel = "eu.cohere.embed-v4:0";
+    expect(mocks.embed).not.toHaveBeenCalled();
+    expect(mocks.pause).not.toHaveBeenCalled();
   });
 
   it("fences an embedding when its Redis payload disappears during the call", async () => {
@@ -229,7 +291,7 @@ describe("Topics embedding handoff", () => {
     staged.set(topicSourceKey(row), row);
     mocks.embed.mockImplementation(async () => {
       staged.delete(topicSourceKey(row));
-      return embeddingResult;
+      return { ...embeddingUsage, embeddings: [Array(256).fill(0.25)] };
     });
     await expect(processTopicEmbeddingBatch(batch(row))).rejects.toThrow(
       UnrecoverableError,

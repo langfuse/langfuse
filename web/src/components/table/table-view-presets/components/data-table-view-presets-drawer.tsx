@@ -104,6 +104,11 @@ const copyPermalinkAndToast = (href: string) => {
       showErrorToast(
         "Failed to copy permalink",
         "Could not write to the clipboard. Please copy the page URL manually.",
+        {
+          operation: "saved_view.permalink_copy",
+          errorOrigin: "frontend",
+          errorCategory: "permission",
+        },
         "WARNING",
       ),
     );
@@ -576,6 +581,11 @@ function TableViewPresetsDrawerContentBody({
       showErrorToast(
         "Failed to generate permalink",
         "Please reach out to langfuse support and report this issue.",
+        {
+          operation: "saved_view.permalink_generate",
+          errorOrigin: "frontend",
+          errorCategory: "internal",
+        },
         "WARNING",
       );
     }

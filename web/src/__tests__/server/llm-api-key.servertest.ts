@@ -215,6 +215,29 @@ describe("llmApiKey.all RPC", () => {
     ).toBeNull();
   });
 
+  it("returns CONFLICT when creating a key for an existing provider", async () => {
+    const provider = `duplicate-provider-${randomUUID()}`;
+    const input = {
+      projectId,
+      secretKey: "test-secret",
+      provider,
+      adapter: LLMAdapter.OpenAI,
+      customModels: [],
+      withDefaultModels: true,
+    };
+
+    await caller.llmApiKey.create(input);
+
+    await expect(caller.llmApiKey.create(input)).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: "There already exists an API key for this provider.",
+    });
+
+    await expect(
+      prisma.llmApiKeys.count({ where: { projectId, provider } }),
+    ).resolves.toBe(1);
+  });
+
   it("should create a Bedrock llm api key with a Bedrock API key", async () => {
     const secret = "bedrock-api-key-1234";
 
@@ -878,6 +901,7 @@ describe("llmApiKey.all RPC", () => {
     const connection = mockGenerateLLMText.mock.calls[0][0].connection;
     expect(connection.baseURL).toBe("https://api.openai.com/v1");
     expect(decrypt(connection.secretKey)).toBe("sk-original");
+    expect(connection.projectId).toBe(existingKey.projectId);
     const encryptedExtraHeaders = connection.extraHeaders;
     expect(encryptedExtraHeaders).toBeTruthy();
     if (!encryptedExtraHeaders) {
@@ -985,6 +1009,7 @@ describe("llmApiKey.all RPC", () => {
     const connection = mockGenerateLLMText.mock.calls[0][0].connection;
     expect(connection.baseURL).toBe("https://example.net/v1");
     expect(decrypt(connection.secretKey)).toBe("sk-rotated");
+    expect(connection.projectId).toBeUndefined();
     expect(connection.extraHeaders).toBeUndefined();
   });
 
@@ -2029,6 +2054,48 @@ describe("llmApiKey.all RPC", () => {
       expect(
         await prisma.defaultLlmModel.findUnique({ where: { projectId } }),
       ).toBeNull();
+    });
+
+    it("turns Topics off and records why when its connection is deleted", async () => {
+      await caller.llmApiKey.create({
+        projectId,
+        secretKey: "test-secret",
+        provider: PROVIDER,
+        adapter: LLMAdapter.OpenAI,
+        customModels: [],
+        withDefaultModels: true,
+      });
+      const connection = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: PROVIDER },
+      });
+      await prisma.topicConfig.create({
+        data: {
+          projectId,
+          enabled: true,
+          summaryLlmApiKeyId: connection.id,
+          summaryModel: "gpt-6-luna",
+          embeddingLlmApiKeyId: connection.id,
+          embeddingModel: "text-embedding-3-small",
+          clusteringLlmApiKeyId: connection.id,
+          clusteringModel: "gpt-5.6-terra",
+        },
+      });
+
+      await caller.llmApiKey.delete({ projectId, id: connection.id });
+
+      expect(
+        await prisma.topicConfig.findUniqueOrThrow({
+          where: { projectId },
+        }),
+      ).toMatchObject({
+        enabled: false,
+        blockReason: "LLM_CONNECTION_MISSING",
+        blockMessage: expect.stringContaining(`"${PROVIDER}" was deleted`),
+        blockedAt: expect.any(Date),
+        summaryLlmApiKeyId: null,
+        embeddingLlmApiKeyId: null,
+        clusteringLlmApiKeyId: null,
+      });
     });
   });
 });

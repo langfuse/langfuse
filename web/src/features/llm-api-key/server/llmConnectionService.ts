@@ -13,6 +13,7 @@ import {
   GCPServiceAccountKeySchema,
   InvalidRequestError,
   isDecisionModelAdapter,
+  LangfuseConflictError,
   LangfuseNotFoundError,
   type LLMConnectionConfig,
   LLMConnectionConfigSchema,
@@ -42,6 +43,10 @@ import {
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { prisma, Prisma, type LlmApiKeys } from "@langfuse/shared/src/db";
+import {
+  invalidateTopicsProcessingActive,
+  pauseTopicsModelsUsingConnection,
+} from "@langfuse/shared/topics/server";
 
 import {
   LlmConnectionRepository,
@@ -92,6 +97,8 @@ type TestLlmConnectionParams = Omit<
   LlmConnectionWriteInput,
   "withDefaultModels"
 > & {
+  /** Set only when reusing a credential from a project-owned database row. */
+  projectId?: string;
   validateBaseUrlBeforeTest?: boolean;
 };
 
@@ -369,6 +376,7 @@ async function testLlmConnection(
         },
         connection: {
           secretKey: encrypt(params.secretKey),
+          projectId: params.projectId,
           extraHeaders: params.extraHeaders
             ? encrypt(JSON.stringify(params.extraHeaders))
             : undefined,
@@ -497,35 +505,47 @@ export class LlmConnectionService {
     await validateBaseUrl(params.input);
     validateSecret(params.input);
 
-    const key = await this.db.$transaction(async (tx) => {
-      const repository = this.repository.withDb(tx);
-      await this.validateProjectOverrideAdapter({
-        repository,
-        owner: params.owner,
-        provider: params.input.provider,
-        adapter: params.input.adapter,
-      });
-      const connection = await repository.create({
-        owner: params.owner,
-        data: {
+    let key: LlmApiKeys;
+    try {
+      key = await this.db.$transaction(async (tx) => {
+        const repository = this.repository.withDb(tx);
+        await this.validateProjectOverrideAdapter({
+          repository,
+          owner: params.owner,
           provider: params.input.provider,
           adapter: params.input.adapter,
-          secretKey: encrypt(params.input.secretKey),
-          displaySecretKey: getDisplaySecretKey(params.input.secretKey),
-          baseURL: params.input.baseURL,
-          withDefaultModels: params.input.withDefaultModels,
-          customModels: params.input.customModels,
-          config: params.input.config,
-          extraHeaders: params.input.extraHeaders
-            ? encrypt(JSON.stringify(params.input.extraHeaders))
-            : undefined,
-          extraHeaderKeys: params.input.extraHeaders
-            ? Object.keys(params.input.extraHeaders)
-            : undefined,
-        },
+        });
+        return repository.create({
+          owner: params.owner,
+          data: {
+            provider: params.input.provider,
+            adapter: params.input.adapter,
+            secretKey: encrypt(params.input.secretKey),
+            displaySecretKey: getDisplaySecretKey(params.input.secretKey),
+            baseURL: params.input.baseURL,
+            withDefaultModels: params.input.withDefaultModels,
+            customModels: params.input.customModels,
+            config: params.input.config,
+            extraHeaders: params.input.extraHeaders
+              ? encrypt(JSON.stringify(params.input.extraHeaders))
+              : undefined,
+            extraHeaderKeys: params.input.extraHeaders
+              ? Object.keys(params.input.extraHeaders)
+              : undefined,
+          },
+        });
       });
-      return connection;
-    });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new LangfuseConflictError(
+          "There already exists an API key for this provider.",
+        );
+      }
+      throw error;
+    }
 
     await auditLog({
       ...params.actor,
@@ -739,6 +759,9 @@ export class LlmConnectionService {
         adapter: params.input.adapter,
         provider: params.input.provider,
         secretKey: params.input.secretKey || decrypt(existingKey.secretKey),
+        projectId: hasNewSecretKey
+          ? undefined
+          : (existingKey.projectId ?? undefined),
         baseURL,
         customModels: params.input.customModels ?? existingKey.customModels,
         extraHeaders,
@@ -805,63 +828,92 @@ export class LlmConnectionService {
     ).map(({ projectId }) => projectId);
     const defaultModelProjectIdSet = new Set(defaultModelProjectIds);
 
-    const blockResults = await this.db.$transaction(async (tx) => {
-      const txRepository = this.repository.withDb(tx);
-      const results: Array<{
-        projectId: string;
-        providerBlock: typeof EMPTY_EVALUATOR_BLOCK;
-        defaultModelBlock: typeof EMPTY_EVALUATOR_BLOCK;
-      }> = [];
+    const { blockResults, topicProjectIds } = await this.db.$transaction(
+      async (tx) => {
+        const txRepository = this.repository.withDb(tx);
+        const results: Array<{
+          projectId: string;
+          providerBlock: typeof EMPTY_EVALUATOR_BLOCK;
+          defaultModelBlock: typeof EMPTY_EVALUATOR_BLOCK;
+        }> = [];
 
-      for (const projectId of providerProjectIds) {
-        const providerBlock = await blockEvaluatorsUsingProvider({
-          tx,
-          projectId,
-          provider: connection.provider,
-        });
-        const defaultModelBlock = defaultModelProjectIdSet.has(projectId)
-          ? await blockEvaluatorsUsingDefaultModel({ tx, projectId })
-          : EMPTY_EVALUATOR_BLOCK;
-        results.push({ projectId, providerBlock, defaultModelBlock });
-      }
-
-      if (defaultModelProjectIds.length > 0) {
-        await tx.defaultLlmModel.deleteMany({
-          where: {
-            projectId: { in: defaultModelProjectIds },
+        for (const projectId of providerProjectIds) {
+          const providerBlock = await blockEvaluatorsUsingProvider({
+            tx,
+            projectId,
             provider: connection.provider,
-          },
-        });
-      }
-
-      try {
-        await txRepository.delete({
-          owner: params.owner,
-          id: params.id,
-        });
-      } catch (error) {
-        if (isPrismaRecordNotFoundError(error)) {
-          throw new LangfuseNotFoundError("LLM connection not found");
+          });
+          const defaultModelBlock = defaultModelProjectIdSet.has(projectId)
+            ? await blockEvaluatorsUsingDefaultModel({ tx, projectId })
+            : EMPTY_EVALUATOR_BLOCK;
+          results.push({ projectId, providerBlock, defaultModelBlock });
         }
-        throw error;
-      }
 
-      await auditLog(
-        {
-          ...params.actor,
-          resourceType: "llmApiKey",
-          resourceId: connection.id,
-          action: "delete",
-          before: toSafeConnection(connection),
-        },
-        tx,
-      );
+        if (defaultModelProjectIds.length > 0) {
+          await tx.defaultLlmModel.deleteMany({
+            where: {
+              projectId: { in: defaultModelProjectIds },
+              provider: connection.provider,
+            },
+          });
+        }
 
-      return results;
-    });
+        const topicConfigs = await tx.topicConfig.findMany({
+          where: {
+            OR: [
+              { summaryLlmApiKeyId: connection.id },
+              { embeddingLlmApiKeyId: connection.id },
+              { clusteringLlmApiKeyId: connection.id },
+            ],
+          },
+          select: { projectId: true },
+        });
+        for (const { projectId } of topicConfigs) {
+          await pauseTopicsModelsUsingConnection(
+            {
+              projectId,
+              llmApiKeyId: connection.id,
+              provider: connection.provider,
+            },
+            tx,
+          );
+        }
 
-    await Promise.all(
-      blockResults.map((result) =>
+        try {
+          await txRepository.delete({
+            owner: params.owner,
+            id: params.id,
+          });
+        } catch (error) {
+          if (isPrismaRecordNotFoundError(error)) {
+            throw new LangfuseNotFoundError("LLM connection not found");
+          }
+          throw error;
+        }
+
+        await auditLog(
+          {
+            ...params.actor,
+            resourceType: "llmApiKey",
+            resourceId: connection.id,
+            action: "delete",
+            before: toSafeConnection(connection),
+          },
+          tx,
+        );
+
+        return {
+          blockResults: results,
+          topicProjectIds: topicConfigs.map(({ projectId }) => projectId),
+        };
+      },
+    );
+
+    await Promise.all([
+      ...topicProjectIds.map((projectId) =>
+        invalidateTopicsProcessingActive(projectId),
+      ),
+      ...blockResults.map((result) =>
         finalizeEvaluatorBlocks({
           projectId: result.projectId,
           source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
@@ -873,6 +925,6 @@ export class LlmConnectionService {
           },
         }),
       ),
-    );
+    ]);
   }
 }

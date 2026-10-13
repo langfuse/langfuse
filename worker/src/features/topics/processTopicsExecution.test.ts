@@ -72,10 +72,25 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
     await importOriginal<typeof import("@langfuse/shared/topics/server")>();
   return {
     isTopicsEnabled: () => true,
-    getTopicsModelConfig: () => ({
-      summaryModel: "gpt-4.1-nano",
-      embeddingModel: "eu.cohere.embed-v4:0",
-    }),
+    getTopicsModels: async () => {
+      const slot = (name: string, model: string) => ({
+        slot: name,
+        provider: "openai",
+        adapter: "openai",
+        model,
+        connection: { secretKey: "encrypted" },
+      });
+      return {
+        projectId: "project",
+        enabled: true,
+        summary: slot("summary", "gpt-4.1-nano"),
+        embedding: {
+          ...slot("embedding", "eu.cohere.embed-v4:0"),
+          dimensions: 256,
+        },
+        clustering: slot("clustering", "gpt-5.6-terra"),
+      };
+    },
     TOPICS_TRANSCRIPT_VERSION,
     TOPIC_EMBEDDING_EXPIRED_ERROR,
     stageTopicSummary: async (
@@ -298,14 +313,20 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   };
 });
 vi.mock("./models", () => ({
-  TOPICS_NAMING_MODEL: "us.openai.gpt-5.6-terra",
-  requireTopicsModelConfig: () => ({
-    summaryModel: "gpt-4.1-nano",
-    embeddingModel: "eu.cohere.embed-v4:0",
-  }),
-  summarizeTopicTrace: (...args: unknown[]) => state.summarize(...args),
-  embedTopicSummary: (...args: unknown[]) => state.embed(...args),
-  nameTopicGroup: (...args: unknown[]) => state.name(...args),
+  summarizeTopicTrace: (_models: unknown, ...args: unknown[]) =>
+    state.summarize(...args),
+  // `state.embed` sees each summary; one failure fails the whole batched call.
+  embedTopicSummaries: async (
+    _model: unknown,
+    summaries: string[],
+    dimensions: number,
+  ) => {
+    const results = [];
+    for (const summary of summaries)
+      results.push(await state.embed(summary, dimensions));
+    return { ...results[0], embeddings: results.map((r) => r.embedding) };
+  },
+  nameTopicGroup: (_models: unknown, ...args: unknown[]) => state.name(...args),
 }));
 vi.mock("./numeric", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./numeric")>()),
@@ -797,9 +818,15 @@ describe("Topics execution", () => {
     const original = state.summarize.getMockImplementation()!;
     state.summarize
       .mockImplementationOnce(original)
-      .mockRejectedValueOnce(topicProviderError({ statusCode: 503 }));
+      .mockRejectedValueOnce(
+        topicProviderError(
+          { statusCode: 503 },
+          { slot: "summary", provider: "openai", model: "gpt-4.1-nano" },
+        ),
+      );
     await processSelection("partial", 3);
-    expect(state.batches.get("partial")?.summaries).toHaveLength(1);
+    // Traces run concurrently, so the third finishes while the second fails.
+    expect(state.batches.get("partial")?.summaries).toHaveLength(2);
     expect(state.executions.get("partial")?.status).toBe("failed");
     const accepted = [...state.staged.values()][0].summary;
     accepted.transcriptVersion = "older-transcript";

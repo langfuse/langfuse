@@ -19,11 +19,13 @@ import { Card } from "@/src/components/ui/card";
 import {
   featurePreviewFlags,
   featurePreviewLabels,
+  defaultOnFeaturePreviewFlags,
   isOrganizationOnlyFeaturePreviewFlag,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 type ProposedChange = {
   flag: FeaturePreviewFlag;
@@ -66,7 +68,11 @@ export function OrganizationFeaturePreviewsSettings({
     },
     onError: (error) => {
       setProposedChange(null);
-      showErrorToast("Failed to update feature preview", error.message);
+      showErrorToast(
+        "Failed to update feature preview",
+        error.message,
+        classifyTrpcToastError(error, "organization_feature_preview.update"),
+      );
     },
   });
 
@@ -123,6 +129,14 @@ export function OrganizationFeaturePreviewsSettings({
             >
               <div className="flex min-w-0 flex-col gap-1">
                 <h3 className="font-bold">{featurePreviewLabels[flag]}</h3>
+                {defaultOnFeaturePreviewFlags.some(
+                  (defaultFlag) => defaultFlag === flag,
+                ) ? (
+                  <p className="text-muted-foreground text-xs">
+                    Enabled by default on the events-backed view. Turn off to
+                    disable it for this organization.
+                  </p>
+                ) : null}
                 {requiresPersonalEnablement ? (
                   <p className="text-destructive text-xs">
                     Enable this preview in your personal Feature Preview

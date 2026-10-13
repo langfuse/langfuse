@@ -170,6 +170,33 @@ describe("SkillService versions", () => {
     };
   }
 
+  it("includes labels from older versions without counting their tags", async () => {
+    const test = setup();
+    test.db.skill.findMany
+      .mockResolvedValueOnce([
+        { ...test.skill, labels: ["latest"], tags: ["support"] },
+      ])
+      .mockResolvedValueOnce([
+        { labels: ["latest"] },
+        { labels: ["staging", "canary"] },
+        { labels: ["production", "staging"] },
+      ]);
+
+    await expect(
+      test.service.filterOptions({ projectId: "project" }),
+    ).resolves.toEqual({
+      names: ["test-skill"],
+      tags: [{ value: "support", count: 1 }],
+      labels: ["canary", "latest", "production", "staging"],
+    });
+    expect(test.db.skill.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { projectId: "project", labels: { isEmpty: false } },
+      }),
+    );
+  });
+
   it.each(["setLabels", "deleteVersion", "deleteSkill"] as const)(
     "checks labels added before the mutation lock during %s",
     async (operation) => {

@@ -1388,9 +1388,9 @@ export function PrettyJsonView(props: {
           title={allRowsExpanded ? "Collapse all rows" : "Expand all rows"}
         >
           {allRowsExpanded ? (
-            <FoldVertical className="icon-sm text-icon-foreground" />
+            <FoldVertical className="icon-base text-icon-foreground" />
           ) : (
-            <UnfoldVertical className="icon-sm text-icon-foreground" />
+            <UnfoldVertical className="icon-base text-icon-foreground" />
           )}
         </Button>
       )}
@@ -1403,9 +1403,9 @@ export function PrettyJsonView(props: {
           title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
         >
           {jsonIsCollapsed ? (
-            <UnfoldVertical className="icon-sm text-icon-foreground" />
+            <UnfoldVertical className="icon-base text-icon-foreground" />
           ) : (
-            <FoldVertical className="icon-sm text-icon-foreground" />
+            <FoldVertical className="icon-base text-icon-foreground" />
           )}
         </Button>
       )}

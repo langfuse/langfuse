@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { encrypt } from "../../../encryption";
 import { env } from "../../../env";
-import { VERTEXAI_USE_DEFAULT_CREDENTIALS } from "../../../interfaces/customLLMProviderConfigSchemas";
+import {
+  BEDROCK_USE_DEFAULT_CREDENTIALS,
+  VERTEXAI_USE_DEFAULT_CREDENTIALS,
+} from "../../../interfaces/customLLMProviderConfigSchemas";
 import {
   type ChatMessage,
   ChatMessageRole,
@@ -754,6 +757,8 @@ describe("AI SDK request shapes", () => {
   // so capture at the global fetch the AI SDK falls back to.
   async function runBedrockCompletion(params?: {
     model?: string;
+    projectId?: string;
+    secretKey?: string;
     output?: ReturnType<typeof createLLMOutput>;
     response?: unknown | ((request: CapturedRequest) => unknown);
   }) {
@@ -776,11 +781,13 @@ describe("AI SDK request shapes", () => {
         messages,
         modelParams,
         connection: {
+          projectId: params?.projectId,
           secretKey: encrypt(
-            JSON.stringify({
-              accessKeyId: "AKIA123",
-              secretAccessKey: "secret",
-            }),
+            params?.secretKey ??
+              JSON.stringify({
+                accessKeyId: "AKIA123",
+                secretAccessKey: "secret",
+              }),
           ),
           config: llmConnectionConfig,
         },
@@ -918,5 +925,44 @@ describe("AI SDK request shapes", () => {
     expect(request.headers.get("authorization")).toContain("AKIA123");
     // No merged server session token (would surface as this SigV4 header).
     expect(request.headers.get("x-amz-security-token")).toBeNull();
+  });
+
+  it("Bedrock: project allowlisting adds Cloud access without restricting self-hosted", async () => {
+    const originalEnv = { ...env };
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "eu",
+      LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS: [
+        "allowed",
+      ],
+    });
+    vi.stubEnv("AWS_PROFILE", undefined);
+    vi.stubEnv("AWS_ACCESS_KEY_ID", "AKIARUNTIME");
+    vi.stubEnv("AWS_SECRET_ACCESS_KEY", "runtime-secret");
+    const call = (projectId?: string) =>
+      runBedrockCompletion({
+        projectId,
+        secretKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+      });
+
+    try {
+      const { request } = await call("allowed");
+      expect(request.headers.get("authorization")).toContain(
+        "Credential=AKIARUNTIME/",
+      );
+      for (const projectId of ["other", "allow", undefined]) {
+        await expect(call(projectId)).rejects.toThrow(
+          "Invalid Bedrock credentials",
+        );
+      }
+      env.LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS =
+        [];
+      await expect(call("allowed")).rejects.toThrow(
+        "Invalid Bedrock credentials",
+      );
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      await call();
+    } finally {
+      Object.assign(env, originalEnv);
+    }
   });
 });

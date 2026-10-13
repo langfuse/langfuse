@@ -58,6 +58,15 @@ export function ChatMessage({
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
 
+  const renderToolResponse = (response: ChatMlMessage) => (
+    <ChatMessage
+      message={response}
+      shouldRenderMarkdown={shouldRenderMarkdown}
+      currentView={currentView}
+      contentMode={contentMode}
+    />
+  );
+
   const title = getMessageTitle(message);
   const toolCalls = parseToolCallsFromMessage(message);
   const hasContent = hasRenderableContent(message);
@@ -158,6 +167,7 @@ export function ChatMessage({
         <ToolCallInvocationsView
           message={message}
           toolCallNumbers={toolCallNumbers}
+          renderResponse={renderToolResponse}
         />
       </div>
     );
@@ -204,6 +214,7 @@ export function ChatMessage({
               <ToolCallInvocationsView
                 message={message}
                 toolCallNumbers={toolCallNumbers}
+                renderResponse={renderToolResponse}
               />
             </div>
           )}
@@ -224,6 +235,7 @@ export function ChatMessage({
               <ToolCallInvocationsView
                 message={message}
                 toolCallNumbers={toolCallNumbers}
+                renderResponse={renderToolResponse}
               />
             </div>
           )}

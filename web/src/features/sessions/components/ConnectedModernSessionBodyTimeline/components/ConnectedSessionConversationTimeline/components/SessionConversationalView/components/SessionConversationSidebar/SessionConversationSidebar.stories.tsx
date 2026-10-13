@@ -126,7 +126,7 @@ export const DarkMode = meta.story({
 export const Empty = meta.story({ args: { ...loadedArgs, traces: [] } });
 
 export const GroupedToolStatuses = meta.story({
-  name: "(Test) Grouped Tool Status Indicators",
+  name: "(Test) Grouped and Individual Tool Status Indicators",
   args: {
     ...loadedArgs,
     traces: [
@@ -177,6 +177,34 @@ export const GroupedToolStatuses = meta.story({
             label: "debug",
             level: "DEBUG",
           },
+          {
+            id: "0:6",
+            observationId: "retry-response",
+            role: "assistant",
+            label: "Retrying the failed search.",
+          },
+          {
+            id: "0:7",
+            observationId: "retry-search",
+            role: "tool",
+            label: "retry_search",
+            level: "ERROR",
+            statusMessage: "Search retry timed out",
+          },
+          {
+            id: "0:8",
+            observationId: "fallback-response",
+            role: "assistant",
+            label: "Checking the cached results instead.",
+          },
+          {
+            id: "0:9",
+            observationId: "cached-search",
+            role: "tool",
+            label: "cached_search",
+            level: "WARNING",
+            statusMessage: "Cached results may be outdated",
+          },
         ],
       },
     ],
@@ -187,6 +215,8 @@ export const GroupedToolStatuses = meta.story({
     const errors = await canvas.findByLabelText("2 tool errors");
     await expect(errors).toBeVisible();
     await expect(canvas.getByLabelText("2 tool warnings")).toBeVisible();
+    await expect(canvas.getByLabelText("Tool status: ERROR")).toBeVisible();
+    await expect(canvas.getByLabelText("Tool status: WARNING")).toBeVisible();
     const button = canvas.getByRole("button", { name: /^Tool:/ });
     await userEvent.hover(button);
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
