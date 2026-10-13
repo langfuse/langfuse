@@ -78,7 +78,6 @@ export const GetScoresQuery = z.object({
 export const PostScoreBody = applyScoreValidation(
   PostScoreBodyFoundationSchema.extend({
     source: PublicApiCreateScoreSourceDomain.default(ScoreSourceEnum.API),
-    /** Score-create event timestamp, stored by ingestion as the score timestamp */
     timestamp: stringDateTime,
   }).and(
     z.discriminatedUnion("dataType", [

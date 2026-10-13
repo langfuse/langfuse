@@ -217,17 +217,14 @@ function determineTraceJoinRequirement(
   return { includeTrace, needsTraceJoin };
 }
 
-/**
- * Wraps a score body in a score-create event whose timestamp is the body's
- * `timestamp` (default now). Unvalidated values are rejected per event by
- * processEventBatch.
- */
 function toScoreCreateEvent(body: unknown) {
   const isRecord =
     typeof body === "object" && body !== null && !Array.isArray(body);
+    
   const { timestamp, ...scoreBody } = isRecord
     ? (body as Record<string, unknown>)
     : {};
+
   return {
     id: randomUUID(),
     type: eventTypes.SCORE_CREATE,
