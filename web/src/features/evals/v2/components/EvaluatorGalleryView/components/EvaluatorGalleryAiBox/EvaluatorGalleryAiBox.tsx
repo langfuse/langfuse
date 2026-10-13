@@ -17,7 +17,7 @@ export function EvaluatorGalleryAiBox({
 
   return (
     <form
-      className="bg-background shadow-prompt focus-within:border-foreground/30 flex flex-col gap-2 rounded-xl border p-4"
+      className="bg-background shadow-prompt focus-within:border-foreground/30 flex flex-col gap-1 rounded-xl border p-3"
       onSubmit={(event) => {
         event.preventDefault();
         submit();
@@ -32,7 +32,7 @@ export function EvaluatorGalleryAiBox({
             submit();
           }
         }}
-        rows={3}
+        rows={2}
         aria-label="Describe what you want to check"
         placeholder="Describe what you want to check, e.g. flag replies with medical advice"
         className="placeholder:text-muted-foreground w-full resize-none border-0 bg-transparent p-0 text-base shadow-none outline-hidden focus:ring-0"
