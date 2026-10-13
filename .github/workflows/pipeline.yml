@@ -634,7 +634,7 @@ jobs:
             health_url: http://localhost:3000/api/public/health
           - image: web-fips
             component: web
-            dockerfile: web/Dockerfile.fips
+            dockerfile: web/src/ee/Dockerfile.fips
             service: langfuse-web
             runner: blacksmith-8vcpu-ubuntu-2404
             health_url: http://localhost:3000/api/public/health
@@ -646,7 +646,7 @@ jobs:
             health_url: http://localhost:3030/api/health
           - image: worker-fips
             component: worker
-            dockerfile: worker/Dockerfile.fips
+            dockerfile: worker/src/ee/Dockerfile.fips
             service: langfuse-worker
             runner: blacksmith-4vcpu-ubuntu-2404
             health_url: http://localhost:3030/api/health
@@ -1088,8 +1088,8 @@ jobs:
 
   tests-fips:
     # Runs the web and worker suites the way a FIPS host would: on the UBI
-    # toolchain from worker/Dockerfile.fips (the -fips image variant) with
-    # OPENSSL_FORCE_FIPS_MODE=1, which puts Red Hat's OpenSSL in FIPS mode
+    # toolchain from worker/src/ee/Dockerfile.fips (the -fips image variant)
+    # with OPENSSL_FORCE_FIPS_MODE=1, which puts Red Hat's OpenSSL in FIPS mode
     # without a FIPS kernel. Code paths that need an algorithm FIPS refuses
     # (md5, ...) fail with ERR_OSSL_EVP_UNSUPPORTED. Databases and migrations
     # run on the runner as in tests-web/tests-worker; install, build, the web
@@ -1170,7 +1170,7 @@ jobs:
         with:
           cache-key: langfuse/test-fips-toolchain
       - name: Build UBI toolchain image
-        run: docker buildx build --load --target toolchain -f worker/Dockerfile.fips -t langfuse-fips-toolchain .
+        run: docker buildx build --load --target toolchain -f worker/src/ee/Dockerfile.fips -t langfuse-fips-toolchain .
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
@@ -1697,8 +1697,8 @@ jobs:
       fail-fast: false
       # Every component ships as the standard image (Iron Bank Alpine,
       # ./<component>/Dockerfile) and as the -fips variant (Iron Bank UBI 9,
-      # ./<component>/Dockerfile.fips), published to the same repository with
-      # a -fips tag suffix.
+      # ./<component>/src/ee/Dockerfile.fips), published to the same repository
+      # with a -fips tag suffix.
       matrix:
         component: [web, worker]
         variant: [standard, fips]
@@ -1709,10 +1709,10 @@ jobs:
           - component: worker
             image_name: langfuse-worker
           - variant: standard
-            dockerfile_suffix: ""
+            dockerfile: Dockerfile
             tag_suffix: ""
           - variant: fips
-            dockerfile_suffix: .fips
+            dockerfile: src/ee/Dockerfile.fips
             tag_suffix: -fips
           - platform_tag: amd64
             platform: linux/amd64
@@ -1815,7 +1815,7 @@ jobs:
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
         with:
           context: .
-          file: ./${{ matrix.component }}/Dockerfile${{ matrix.dockerfile_suffix }}
+          file: ./${{ matrix.component }}/${{ matrix.dockerfile }}
           outputs: type=image,name=ghcr.io/langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ matrix.platform }}
@@ -1827,7 +1827,7 @@ jobs:
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
         with:
           context: .
-          file: ./${{ matrix.component }}/Dockerfile${{ matrix.dockerfile_suffix }}
+          file: ./${{ matrix.component }}/${{ matrix.dockerfile }}
           outputs: type=image,name=langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ matrix.platform }}

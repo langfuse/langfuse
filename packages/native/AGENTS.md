@@ -13,8 +13,8 @@
   them; rebuild and commit the result whenever `src/lib.rs` exports change.
 - Building the worker needs the pinned Rust toolchain: CI runners get it from
   rustup auto-install on first `cargo` use; `worker/Dockerfile` (musl, Alpine)
-  and `worker/Dockerfile.fips` (glibc, UBI 9) install the same version from the
-  checksum-pinned standalone installer. Bump `rust-toolchain.toml` together
+  and `worker/src/ee/Dockerfile.fips` (glibc, UBI 9) install the same version
+  from the checksum-pinned standalone installer. Bump `rust-toolchain.toml` together
   with that version and the per-arch sha256 values in both Dockerfiles
   (`https://static.rust-lang.org/dist/rust-<version>-<triple>.tar.gz.sha256`).
   The pin starts equal to `ai-gateway/rust-toolchain.toml` but the files are
@@ -44,5 +44,5 @@
   Compare grouping and final classifier assignments, not raw 2D coordinates,
   when changing the numerical backend.
 - When touching the build pipeline, build both worker images
-  (`docker build -f worker/Dockerfile .` and `-f worker/Dockerfile.fips`) and
-  check `/api/health` on them.
+  (`docker build -f worker/Dockerfile .` and `-f worker/src/ee/Dockerfile.fips`)
+  and check `/api/health` on them.

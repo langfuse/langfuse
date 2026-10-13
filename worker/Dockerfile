@@ -1,7 +1,7 @@
 # Standard image: Alpine with the distribution's nodejs package, built on Iron
 # Bank's hardened Alpine for releases and Langfuse Cloud. It does not support
-# FIPS mode: the -fips image variant (Dockerfile.fips, UBI 9) is the one that
-# runs on RHEL's CMVP-validated OpenSSL module.
+# FIPS mode: the -fips image variant (worker/src/ee/Dockerfile.fips, UBI 9)
+# is the one that runs on RHEL's CMVP-validated OpenSSL module.
 # The default is the public Alpine image, so the build needs no credentials.
 # Iron Bank serves Alpine from an authenticated registry with DoD provenance
 # and scan attestations. Release builds opt in after `docker login
@@ -76,9 +76,9 @@ RUN apk add --no-cache gcc musl-dev bash curl patch
 ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=cc CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=cc
 
 # Pinned standalone Rust installer, the exact channel from
-# packages/native/rust-toolchain.toml (bump it together with Dockerfile.fips),
-# checksum-verified. Only rustc, cargo and the target's std are needed to
-# build; clippy and rustfmt run outside Docker.
+# packages/native/rust-toolchain.toml (bump it together with
+# worker/src/ee/Dockerfile.fips), checksum-verified. Only rustc, cargo and the
+# target's std are needed to build; clippy and rustfmt run outside Docker.
 RUN set -eux; \
     case "${TARGETARCH:-amd64}" in \
     amd64) triple=x86_64-unknown-linux-musl; toolchain_sha256=b2cf07e41d4747ddf3b20962ca9de2a08da00646f55ab4c1b51cef99895bae0a ;; \
