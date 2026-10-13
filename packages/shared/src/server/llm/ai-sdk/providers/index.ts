@@ -144,6 +144,7 @@ export async function buildAiSdkModel(params: {
  * TypeSafe have no embeddings API.
  */
 export async function buildAiSdkEmbeddingModel(params: {
+  projectId?: string;
   model: { adapter: LLMAdapter; id: string };
   apiKey: string;
   baseURL?: string | null;
@@ -178,6 +179,7 @@ export async function buildAiSdkEmbeddingModel(params: {
 
     case LLMAdapter.Bedrock:
       return buildBedrockEmbeddingModel({
+        projectId: params.projectId,
         modelId: model.id,
         apiKey,
         config,

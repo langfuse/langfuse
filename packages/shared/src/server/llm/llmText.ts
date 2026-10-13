@@ -397,6 +397,7 @@ export async function embedLLMText(options: {
   );
   const embeddingModel = await buildAiSdkEmbeddingModel({
     model: options.model,
+    projectId: options.connection.projectId,
     apiKey,
     baseURL: options.connection.baseURL,
     extraHeaders,

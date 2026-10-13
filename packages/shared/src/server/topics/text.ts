@@ -3,10 +3,10 @@ import { SignatureV4 } from "@smithy/signature-v4";
 import { Output } from "ai";
 import { z } from "zod";
 import { decrypt } from "../../encryption";
-import { env } from "../../env";
 import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSchemas";
 import {
   assertValidBedrockRegion,
+  canUseBedrockDefaultCredentials,
   resolveBedrockProviderAuth,
 } from "../llm/ai-sdk/providers/bedrock";
 import { generateLLMText } from "../llm/llmText";
@@ -125,7 +125,9 @@ async function bedrockRequestHeaders(
   };
   const auth = resolveBedrockProviderAuth({
     secretKey: decrypt(model.connection.secretKey),
-    allowDefaultCredentials: !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    allowDefaultCredentials: canUseBedrockDefaultCredentials(
+      model.connection.projectId,
+    ),
   });
   if (auth.apiKey)
     return { ...headers, authorization: `Bearer ${auth.apiKey}` };

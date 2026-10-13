@@ -1,6 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { encrypt } from "../../encryption";
+import { env } from "../../env";
+import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "../../interfaces/customLLMProviderConfigSchemas";
 import { LLMAdapter } from "../llm/types";
 import { generateTopicEmbedding } from "./embeddings";
 import type { TopicsModel } from "./model-config";
@@ -265,5 +267,95 @@ describe("generateTopicEmbedding", () => {
       dimensions: 768,
     });
     expect(result.embedding).toHaveLength(768);
+  });
+});
+
+describe("allowlisted Cloud Bedrock runtime credentials", () => {
+  const originalEnv = {
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS:
+      env.LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS,
+  };
+
+  beforeEach(() => {
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "eu";
+    env.LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS =
+      ["allowed"];
+    vi.stubEnv("AWS_PROFILE", undefined);
+    vi.stubEnv("AWS_ACCESS_KEY_ID", "AKIARUNTIME");
+    vi.stubEnv("AWS_SECRET_ACCESS_KEY", "runtime-secret");
+  });
+
+  afterEach(() => Object.assign(env, originalEnv));
+
+  const runtimeModel = (slot: TopicsModel["slot"], projectId: string) => {
+    const model = bedrockModel(
+      slot,
+      slot === "embedding" ? "eu.cohere.embed-v4:0" : "us.openai.gpt-6-luna",
+    );
+    model.connection = {
+      ...model.connection,
+      projectId,
+      secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
+    };
+    return model;
+  };
+
+  it("uses the existing project allowlist for cached text", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: { content: JSON.stringify({ summary: "Account access" }) },
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 3, total_tokens: 13 },
+      }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const input = {
+      system: [{ text: "Summarize.", cache: true }],
+      input: "I cannot sign in.",
+      schema: z.object({ summary: z.string() }),
+      maxOutputTokens: 256,
+    };
+
+    await generateTopicText({
+      ...input,
+      model: runtimeModel("summary", "allowed"),
+    });
+    expect(
+      new Request(...fetch.mock.calls[0]).headers.get("authorization"),
+    ).toContain("Credential=AKIARUNTIME/");
+    await expect(
+      generateTopicText({ ...input, model: runtimeModel("summary", "other") }),
+    ).rejects.toThrow("Invalid Bedrock credentials");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the existing project allowlist for embeddings", async () => {
+    const vector = Array.from({ length: 512 }, () => 0.1);
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json(
+        { embeddings: { float: [vector] }, texts: ["Account access"] },
+        { headers: { "x-amzn-bedrock-input-token-count": "3" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const input = { summary: "Account access", dimensions: 512 };
+
+    await generateTopicEmbedding({
+      ...input,
+      model: runtimeModel("embedding", "allowed"),
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await expect(
+      generateTopicEmbedding({
+        ...input,
+        model: runtimeModel("embedding", "other"),
+      }),
+    ).rejects.toThrow("Invalid Bedrock credentials");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

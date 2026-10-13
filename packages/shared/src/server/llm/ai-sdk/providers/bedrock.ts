@@ -118,11 +118,19 @@ export function createDefaultBedrockProviderAuth(params?: {
   };
 }
 
-/**
- * Resolves the persisted Bedrock credential contract: the decrypted secret is
- * either an authorized default-credentials sentinel, AWS access key JSON, or a Bedrock API key
- * used as a bearer token.
- */
+/** Cloud uses the existing project allowlist for runtime credentials. */
+export function canUseBedrockDefaultCredentials(projectId?: string): boolean {
+  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return true;
+  const allowedProjects =
+    env.LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS;
+  return Boolean(
+    projectId &&
+    Array.isArray(allowedProjects) &&
+    allowedProjects.includes(projectId),
+  );
+}
+
+/** Resolves a default-credential sentinel, AWS access key JSON, or Bedrock API key. */
 export function resolveBedrockProviderAuth(params: {
   secretKey: string;
   allowDefaultCredentials: boolean;
@@ -186,17 +194,11 @@ function createBedrockProvider(params: {
     : BedrockConfigSchema.parse(config);
   assertValidBedrockRegion(region);
 
-  const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-  const allowedProjects =
-    env.LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS;
   const auth = resolveBedrockProviderAuth({
     secretKey: apiKey,
     allowDefaultCredentials:
-      isSelfHosted ||
       shouldUseLangfuseAPIKey ||
-      (!!params.projectId &&
-        Array.isArray(allowedProjects) &&
-        allowedProjects.includes(params.projectId)),
+      canUseBedrockDefaultCredentials(params.projectId),
     profile: shouldUseLangfuseAPIKey ? getLangfuseAIAwsProfile() : undefined,
   });
 

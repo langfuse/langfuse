@@ -138,7 +138,10 @@ describe("prepareTopicsModelSettings", () => {
 
 describe("getEnabledTopicsModels", () => {
   it("returns only enabled projects whose three connections are usable", async () => {
-    const openai = connection("openai", LLMAdapter.OpenAI);
+    const openai = {
+      ...connection("openai", LLMAdapter.OpenAI),
+      projectId: "complete",
+    };
     const row = {
       projectId: "complete",
       enabled: true,
@@ -171,6 +174,7 @@ describe("getEnabledTopicsModels", () => {
       adapter: LLMAdapter.OpenAI,
       model: "text-embedding-3-small",
       dimensions: 512,
+      connection: { projectId: "complete" },
     });
   });
 });
