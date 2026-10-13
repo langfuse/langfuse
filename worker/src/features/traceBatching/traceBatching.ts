@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { xxh32 } from "@node-rs/xxhash";
 import {
+  getTracingReadinessSettings,
   logger,
   QueueJobs,
   redis,
@@ -808,7 +809,7 @@ export async function trackTraceBatchActivity(
     startTimeISO: string;
     serializedEventBytes: number;
   }[],
-  idleMs: number = env.LANGFUSE_TRACE_BATCH_IDLE_MS,
+  idleMs?: number,
 ): Promise<void> {
   if (
     !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
@@ -845,7 +846,8 @@ export async function trackTraceBatchActivity(
   if (bounds.size === 0) return;
 
   try {
-    if (!Number.isSafeInteger(idleMs) || idleMs <= 0)
+    const effectiveIdleMs = idleMs ?? (await resolveTraceIdleMs(projectId));
+    if (!Number.isSafeInteger(effectiveIdleMs) || effectiveIdleMs <= 0)
       throw new Error("Trace batch idle time must be a positive integer");
     recordTrackingVolume("eligible", bounds);
     const admitAll = samplingRate === 1 || topicsProject;
@@ -908,7 +910,7 @@ export async function trackTraceBatchActivity(
         ) {
           const chunk = group.slice(start, start + REDIS_CHUNK_SIZE);
           const args = [
-            idleMs,
+            effectiveIdleMs,
             env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
             env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
             first.width,
@@ -972,6 +974,25 @@ export async function trackTraceBatchActivity(
     recordIncrement("langfuse.trace_batch.tracking_errors", 1);
     logger.error("Failed to track trace batch activity", { error });
   }
+}
+
+async function resolveTraceIdleMs(projectId: string): Promise<number> {
+  let traceIdleMs: number | null = null;
+  try {
+    ({ traceIdleMs } = await getTracingReadinessSettings(projectId));
+  } catch (error) {
+    recordIncrement("langfuse.trace_batch.idle_time_read_failures", 1);
+    logger.warn("Failed to read trace idle time, using the default", {
+      projectId,
+      error,
+    });
+  }
+  if (traceIdleMs === null) return env.LANGFUSE_TRACE_BATCH_IDLE_MS;
+  // A due time past the pending TTL would expire the trace before dispatch.
+  const cap =
+    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS -
+    env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
+  return cap > 0 ? Math.min(traceIdleMs, cap) : traceIdleMs;
 }
 
 export class TraceBatchDispatcher extends PeriodicExclusiveRunner {

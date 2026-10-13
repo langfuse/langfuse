@@ -58,7 +58,7 @@ struct ScanState {
 }
 
 /// Discover media in an already-validated source using an explicit stack.
-pub(super) fn discover(input: &[u8]) -> Result<MediaManifest, EarlyMediaError> {
+pub(super) fn discover(input: &str) -> Result<MediaManifest, EarlyMediaError> {
     discover_inner(
         input,
         0,
@@ -69,7 +69,7 @@ pub(super) fn discover(input: &[u8]) -> Result<MediaManifest, EarlyMediaError> {
 
 #[cfg(test)]
 pub(super) fn discover_measured(
-    input: &[u8],
+    input: &str,
 ) -> Result<(MediaManifest, usize, usize, usize), EarlyMediaError> {
     let mut state = ScanState::default();
     let mut stats = WalkStats::default();
@@ -83,24 +83,24 @@ pub(super) fn discover_measured(
 }
 
 fn discover_inner(
-    input: &[u8],
+    input: &str,
     embedded_depth: usize,
     state: &mut ScanState,
     stats: &mut WalkStats,
 ) -> Result<MediaManifest, EarlyMediaError> {
     // Most payloads have no media markers. Avoid allocating the structural walk
     // for those documents.
-    if std::str::from_utf8(input).is_ok_and(|text| !may_contain_media_candidate(text)) {
+    if !may_contain_media_candidate(input) {
         stats.add_bytes(input.len());
         return Ok(MediaManifest {
             entries: Vec::new(),
         });
     }
 
-    let candidates = super::structural_walk::scan(input, embedded_depth == 0, stats)?;
+    let candidates = super::structural_walk::scan(input.as_bytes(), embedded_depth == 0, stats)?;
     let mut entries = Vec::new();
     let mut discovery = MediaDiscovery {
-        input,
+        input: input.as_bytes(),
         state,
         stats,
         embedded_depth,
@@ -188,12 +188,7 @@ impl MediaDiscovery<'_, '_, '_> {
             return Ok(false);
         }
 
-        let mut nested = discover_inner(
-            value.as_bytes(),
-            self.embedded_depth + 1,
-            self.state,
-            self.stats,
-        )?;
+        let mut nested = discover_inner(value, self.embedded_depth + 1, self.state, self.stats)?;
         self.translate_nested_entries(value, token_range, &mut nested.entries)?;
         self.entries.extend(nested.entries);
         Ok(true)
@@ -423,16 +418,19 @@ impl MediaDiscovery<'_, '_, '_> {
                     return Err(invalid(raw_cursor, "invalid string boundary"));
                 }
                 if self.input[raw_cursor] == b'\\' {
-                    let character = decoded
-                        .get(decoded_cursor..)
-                        .and_then(|text| text.chars().next())
-                        .ok_or_else(|| invalid(raw_cursor, "invalid decoded string boundary"))?;
-                    raw_cursor += if self.input.get(raw_cursor + 1) == Some(&b'u') {
-                        6 * character.len_utf16()
+                    if self.input.get(raw_cursor + 1) == Some(&b'u') {
+                        let character = decoded
+                            .get(decoded_cursor..)
+                            .and_then(|text| text.chars().next())
+                            .ok_or_else(|| {
+                                invalid(raw_cursor, "invalid decoded string boundary")
+                            })?;
+                        raw_cursor += 6 * character.len_utf16();
+                        decoded_cursor += character.len_utf8();
                     } else {
-                        2
-                    };
-                    decoded_cursor += character.len_utf8();
+                        raw_cursor += 2;
+                        decoded_cursor += 1;
+                    }
                 } else {
                     let run_end = *plain_run_end.get_or_insert_with(|| {
                         memchr::memchr(b'\\', &self.input[raw_cursor..content_end])

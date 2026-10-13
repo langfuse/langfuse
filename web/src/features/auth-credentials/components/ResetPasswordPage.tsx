@@ -85,6 +85,9 @@ export function ResetPasswordPage({
   const effectiveEmail = session.data?.user?.email ?? email;
   const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const [turnstileToken, setTurnstileToken] = useState<string>();
+  const [turnstileAction, setTurnstileAction] = useState<
+    typeof TURNSTILE_ACTIONS.login | typeof TURNSTILE_ACTIONS.passwordReset
+  >(TURNSTILE_ACTIONS.login);
   const turnstileRef = useRef<TurnstileWidgetHandle>(null);
 
   const form = useForm({
@@ -300,7 +303,7 @@ export function ResetPasswordPage({
                       <TurnstileWidget
                         ref={turnstileRef}
                         siteKey={turnstileSiteKey}
-                        action={TURNSTILE_ACTIONS.login}
+                        action={turnstileAction}
                         onTokenChange={setTurnstileToken}
                       />
                     ) : null}
@@ -310,7 +313,9 @@ export function ResetPasswordPage({
                         className="w-full"
                         disabled={
                           mutResetPassword.isPending ||
-                          (Boolean(turnstileSiteKey) && !turnstileToken)
+                          (Boolean(turnstileSiteKey) &&
+                            (turnstileAction !== TURNSTILE_ACTIONS.login ||
+                              !turnstileToken))
                         }
                         loading={mutResetPassword.isPending}
                       >
@@ -320,8 +325,29 @@ export function ResetPasswordPage({
                     <RequestResetPasswordEmailButton
                       email={effectiveEmail}
                       callbackUrl={isSetMode ? setupPasswordPath : undefined}
-                      onEmailSent={() => setCodeRequested(true)}
+                      onEmailSent={() => {
+                        setCodeRequested(true);
+                        setTurnstileToken(undefined);
+                        setTurnstileAction(TURNSTILE_ACTIONS.login);
+                      }}
                       label="Send another code"
+                      sharedTurnstile={
+                        turnstileSiteKey
+                          ? {
+                              token: turnstileToken,
+                              action: turnstileAction,
+                              onPreparePasswordReset: () => {
+                                setTurnstileToken(undefined);
+                                setTurnstileAction(
+                                  TURNSTILE_ACTIONS.passwordReset,
+                                );
+                              },
+                              onRejectToken: () => {
+                                turnstileRef.current?.reset();
+                              },
+                            }
+                          : undefined
+                      }
                     />
                   </>
                 ) : (

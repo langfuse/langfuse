@@ -26,6 +26,7 @@ import {
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import * as shared from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 import { TraceBatchMetricsRunner } from "../features/traceBatching/TraceBatchMetricsRunner";
 import {
@@ -43,10 +44,10 @@ import {
 import { otelIngestionQueueProcessorBuilder } from "../queues/otelIngestionQueue";
 import { traceBatchQueueProcessor } from "../queues/traceBatchQueue";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
-import { prisma } from "@langfuse/shared/src/db";
 import {
   ensureDefaultTopicFacets,
   listTopicSummaries,
+  type TopicsModels,
 } from "@langfuse/shared/topics/server";
 import {
   summarizeTopicTraceFacets,
@@ -65,6 +66,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     recordGauge: vi.fn(),
     recordIncrement: vi.fn(),
     getS3EventStorageClient: vi.fn(),
+    getTracingReadinessSettings: vi.fn(original.getTracingReadinessSettings),
   };
 });
 
@@ -72,10 +74,36 @@ const topicsProjects = vi.hoisted(() => new Set<string>());
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
   isTopicsProjectEnabled: (projectId: string) => topicsProjects.has(projectId),
-  getTopicsModelConfig: () => ({
-    summaryModel: "us.openai.gpt-5.6-luna",
-    embeddingModel: "eu.cohere.embed-v4:0",
-  }),
+  getEnabledTopicsModels: async (projectIds: string[]) =>
+    new Map(
+      projectIds
+        .filter((id) => topicsProjects.has(id))
+        .map((projectId) => {
+          const slot = (
+            name: "summary" | "embedding" | "clustering",
+            model: string,
+          ) => ({
+            slot: name,
+            provider: "bedrock",
+            adapter: "bedrock",
+            model,
+            connection: { secretKey: "encrypted" },
+          });
+          return [
+            projectId,
+            {
+              projectId,
+              enabled: true,
+              summary: slot("summary", "us.openai.gpt-5.6-luna"),
+              embedding: {
+                ...slot("embedding", "eu.cohere.embed-v4:0"),
+                dimensions: 1024,
+              },
+              clustering: slot("clustering", "us.openai.gpt-5.6-terra"),
+            } as TopicsModels,
+          ] as const;
+        }),
+    ),
 }));
 
 vi.mock("../features/topics/models", () => ({
@@ -1129,6 +1157,182 @@ describe("trace micro-batch scheduling with Redis", () => {
     );
   });
 
+  it("sets the due time from the project's trace idle time, capped below the pending TTL", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Idle time org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Idle time project" },
+    });
+    try {
+      await shared.saveTracingReadinessSettings(projectId, {
+        traceIdleMs: 3_600_000,
+      });
+      const now = Date.now();
+      // The Lua script reads Redis time, so allow for clock skew.
+      const dueOffset = async (traceId: string) =>
+        Number(await client().zscore(dueKey, member(projectId, traceId))) - now;
+
+      await trackTraceBatchActivity(projectId, [event("custom")]);
+      await trackTraceBatchActivity("project", [event("default")]);
+      expect(await dueOffset("custom")).toBeGreaterThan(3_590_000);
+      expect(await dueOffset("custom")).toBeLessThan(3_610_000);
+      expect(
+        Number(await client().zscore(dueKey, member("project", "default"))) -
+          now,
+      ).toBeLessThan(610_000);
+
+      env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 1_800_000;
+      await trackTraceBatchActivity(projectId, [event("capped")]);
+      expect(await dueOffset("capped")).toBeLessThan(1_780_000);
+      expect(await dueOffset("capped")).toBeGreaterThan(1_760_000);
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+    }
+  });
+
+  it("caches the project's settings in Redis with an expiry and replaces them on save", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    const cacheKey = `langfuse:tracing-readiness-settings:${projectId}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Idle time cache org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Idle time cache project" },
+    });
+    try {
+      await trackTraceBatchActivity(projectId, [event("uncached")]);
+      expect(JSON.parse((await connection.get(cacheKey))!)).toEqual({
+        traceIdleMs: null,
+      });
+      const ttl = await connection.ttl(cacheKey);
+      expect(ttl).toBeGreaterThan(0);
+      expect(ttl).toBeLessThanOrEqual(300);
+      await shared.saveTracingReadinessSettings(projectId, {
+        traceIdleMs: 300_000,
+      });
+      expect(JSON.parse((await connection.get(cacheKey))!)).toEqual({
+        traceIdleMs: 300_000,
+      });
+      await trackTraceBatchActivity(projectId, [event("saved")]);
+      const offset =
+        Number(await client().zscore(dueKey, member(projectId, "saved"))) -
+        Date.now();
+      expect(offset).toBeGreaterThan(290_000);
+      expect(offset).toBeLessThan(310_000);
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+      await connection.del(cacheKey);
+    }
+  });
+
+  it("does not let an earlier database read overwrite newly saved settings", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    const cacheKey = `langfuse:tracing-readiness-settings:${projectId}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Idle time race org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Idle time race project" },
+    });
+    try {
+      await shared.saveTracingReadinessSettings(projectId, {
+        traceIdleMs: 120_000,
+      });
+      await connection.del(cacheKey);
+
+      let releaseFill!: () => void;
+      const fillHeld = new Promise<void>((resolve) => {
+        releaseFill = resolve;
+      });
+      let signalFill!: () => void;
+      const fillStarted = new Promise<void>((resolve) => {
+        signalFill = resolve;
+      });
+      const actualShared = await vi.importActual<
+        typeof import("@langfuse/shared/src/server")
+      >("@langfuse/shared/src/server");
+      if (!actualShared.redis)
+        throw new Error("Redis is required for this test");
+      const originalSet = actualShared.redis.set.bind(actualShared.redis);
+      vi.spyOn(actualShared.redis, "set").mockImplementationOnce(
+        async (...args) => {
+          signalFill();
+          await fillHeld;
+          return originalSet(...args);
+        },
+      );
+
+      const earlierRead = shared.getTracingReadinessSettings(projectId);
+      await fillStarted;
+      try {
+        await shared.saveTracingReadinessSettings(projectId, {
+          traceIdleMs: 300_000,
+        });
+      } finally {
+        releaseFill();
+      }
+      await earlierRead;
+
+      expect(await shared.getTracingReadinessSettings(projectId)).toEqual({
+        traceIdleMs: 300_000,
+      });
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+      await connection.del(cacheKey);
+    }
+  });
+
+  it("uses and caches the default for an out-of-range stored idle time", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    const cacheKey = `langfuse:tracing-readiness-settings:${projectId}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Invalid idle time org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Invalid idle time project" },
+    });
+    try {
+      await prisma.tracingReadinessSettings.create({
+        data: { projectId, traceIdleMs: 1 },
+      });
+
+      expect(await shared.getTracingReadinessSettings(projectId)).toEqual({
+        traceIdleMs: null,
+      });
+      expect(JSON.parse((await connection.get(cacheKey))!)).toEqual({
+        traceIdleMs: null,
+      });
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+      await connection.del(cacheKey);
+    }
+  });
+
+  it("uses the default when the idle time read fails", async () => {
+    const projectId = `project-${randomUUID()}`;
+    vi.mocked(shared.getTracingReadinessSettings).mockRejectedValueOnce(
+      new Error("Postgres unavailable"),
+    );
+
+    await trackTraceBatchActivity(projectId, [event("failed")]);
+
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.idle_time_read_failures",
+      1,
+    );
+    const offset =
+      Number(await client().zscore(dueKey, member(projectId, "failed"))) -
+      Date.now();
+    expect(offset).toBeGreaterThan(590_000);
+    expect(offset).toBeLessThan(610_000);
+  });
+
   it("does not track or dispatch on self-hosted deployments even with experiment flags enabled", async () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     const evaluate = vi.spyOn(client(), "eval");
@@ -1162,21 +1366,23 @@ describe("trace micro-batch scheduling with Redis", () => {
       providedCostDetails: {},
       costDetails: {},
     };
-    vi.mocked(summarizeTopicTraceFacets).mockImplementation(async (facets) => ({
-      output: Object.fromEntries(
-        facets.map(({ key }) => [
-          key,
-          {
-            notes: "The complete trace was read.",
-            summary: `summary-${vi.mocked(summarizeTopicTraceFacets).mock.calls.length}`,
-            status: "applicable" as const,
-          },
-        ]),
-      ),
-      ...usage,
-    }));
+    vi.mocked(summarizeTopicTraceFacets).mockImplementation(
+      async (_models, facets) => ({
+        output: Object.fromEntries(
+          facets.map(({ key }) => [
+            key,
+            {
+              notes: "The complete trace was read.",
+              summary: `summary-${vi.mocked(summarizeTopicTraceFacets).mock.calls.length}`,
+              status: "applicable" as const,
+            },
+          ]),
+        ),
+        ...usage,
+      }),
+    );
     vi.mocked(embedTopicSummary).mockImplementation(
-      async (_text, dimensions) => ({
+      async (_model, _text, dimensions) => ({
         embedding: Array.from({ length: dimensions }, () => 0.1),
         ...usage,
       }),
@@ -1354,6 +1560,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       }
       expect(excludedObservations).toBe(2);
       topicsProjects.add(projectId);
+      const facets = await ensureDefaultTopicFacets(projectId);
       env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
       env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0;
       await waitUntilRedisTime(renewedDue);
@@ -1385,7 +1592,6 @@ describe("trace micro-batch scheduling with Redis", () => {
       await dispatcher.processBatch();
       expect(await queue.getCompletedCount()).toBe(1);
       expect(summarizeTopicTraceFacets).toHaveBeenCalledTimes(2);
-      const facets = await ensureDefaultTopicFacets(projectId);
       const summaries = async () =>
         (
           await Promise.all(

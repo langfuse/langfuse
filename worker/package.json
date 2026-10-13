@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "4.56.0",
+  "version": "4.58.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -19,7 +19,6 @@
     "start": "dotenv -e ../.env -- node dist/index.js",
     "build": "tsc",
     "build:test": "tsc",
-    "build:check": "tsc",
     "typecheck": "dotenv -e ../.env -- tsc --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "dotenv -e ../.env -- tsx watch --clear-screen=false --include '../packages/shared/dist/*'  src/index.ts",
     "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0 --concurrency 2",

@@ -267,7 +267,8 @@ export const promptRouter = createTRPCRouter({
       z
         .object({
           projectId: z.string(),
-          promptNames: z.array(z.string()),
+          // Allow longer legacy names when fetching metrics; new names are limited to 255 characters.
+          promptNames: z.array(z.string().max(1500)).max(50),
           ...promptMetricsTimeWindow,
         })
         .refine(isValidPromptMetricsTimeWindow, {

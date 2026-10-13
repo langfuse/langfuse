@@ -1,12 +1,11 @@
 import {
-  ensureDefaultTopicFacets,
-  isTopicsProjectEnabled,
   TOPICS_TRANSCRIPT_VERSION,
   writeTopicSummaries,
+  type TopicsModels,
 } from "@langfuse/shared/topics/server";
 import {
-  topicEmbeddingConfigSchema,
   topicProcessingConfigSchema,
+  type TopicFacet,
   type TopicFacetVersion,
   type TopicSummary,
 } from "@langfuse/shared/topics";
@@ -24,7 +23,6 @@ import {
   topicSummaryOutputError,
   type TopicModelUsage,
 } from "./summaryResult";
-import { getTopicsModelConfig } from "@langfuse/shared/topics/server";
 
 type FacetOutput = {
   summary: string;
@@ -44,6 +42,8 @@ type AssembledTraceInput = {
   environment: string;
   traceName: string;
   transcript: Transcript | null;
+  models: TopicsModels;
+  facets: TopicFacet[];
 };
 
 /**
@@ -53,8 +53,7 @@ type AssembledTraceInput = {
  */
 export async function summarizeAssembledTrace(
   input: AssembledTraceInput,
-): Promise<"disabled" | "unchanged" | "summarized"> {
-  if (!isTopicsProjectEnabled(input.projectId)) return "disabled";
+): Promise<"unchanged" | "summarized"> {
   return instrumentAsync(
     { name: "topics-trace-summary", traceScope: "topics" },
     async (span) => {
@@ -81,19 +80,10 @@ async function summarizeEnabledTrace(
   input: AssembledTraceInput,
   metrics: TopicMetrics,
 ): Promise<"unchanged" | "summarized"> {
-  const models = getTopicsModelConfig();
-  if (!models.summaryModel || !models.embeddingModel)
-    throw new TopicsProviderUnavailable(
-      "Configure LANGFUSE_TOPICS_SUMMARY_MODEL and LANGFUSE_TOPICS_EMBEDDING_MODEL before processing Topics traces.",
-      "authentication",
-    );
-  const { embeddingModel } = models;
-  const facets = await ensureDefaultTopicFacets(input.projectId);
+  const { models, facets } = input;
+  const embeddingModel = models.embedding.model;
   const config = topicProcessingConfigSchema.parse({
-    summaryModel: models.summaryModel,
-  });
-  const embeddingConfig = topicEmbeddingConfigSchema.parse({
-    embeddingModel,
+    summaryModel: models.summary.model,
   });
   const pending: {
     name: string;
@@ -131,6 +121,7 @@ async function summarizeEnabledTrace(
     const result = await metrics
       .measure("summary", async () => {
         generated = await summarizeTopicTraceFacets(
+          models,
           keyed,
           prepared.text,
           config,
@@ -175,8 +166,7 @@ async function summarizeEnabledTrace(
             outputs[key],
             // One call serves every facet of the trace; record its usage once.
             rows.length ? NO_USAGE : usage,
-            embeddingConfig.embeddingDimensions,
-            embeddingModel,
+            models,
             metrics,
           ),
         );
@@ -232,8 +222,7 @@ async function finalizeSummary(
   base: TopicSummary,
   output: FacetOutput,
   usage: TopicModelUsage,
-  dimensions: number,
-  embeddingModel: string,
+  models: TopicsModels,
   metrics: TopicMetrics,
 ): Promise<TopicSummary> {
   if (output.status !== "applicable")
@@ -247,7 +236,7 @@ async function finalizeSummary(
     };
   const summary = output.summary.trim();
   const embedded = await metrics.measure("embedding", () =>
-    embedTopicSummary(summary, dimensions, embeddingModel),
+    embedTopicSummary(models.embedding, summary, models.embedding.dimensions),
   );
   return {
     ...base,

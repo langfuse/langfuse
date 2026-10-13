@@ -11,7 +11,8 @@ fn validate_measured(
     input: Vec<u8>,
 ) -> Result<(super::ValidatedPayload, usize, usize, usize, usize), EarlyMediaError> {
     let validated = validate(input.clone())?;
-    let (manifest, visited, index_bytes, unique) = discover_measured(&input)?;
+    let (manifest, visited, index_bytes, unique) =
+        discover_measured(std::str::from_utf8(&input).unwrap())?;
     let retained_bytes = validated.retained_bytes() + manifest.retained_bytes();
     Ok((validated, visited, index_bytes, unique, retained_bytes))
 }
@@ -84,7 +85,7 @@ fn leaves_small_data_uris_for_the_later_media_pass() {
 
     assert_eq!(result.media.len(), 1);
     assert_eq!(result.media[0].decode().unwrap(), large_body);
-    let compact = String::from_utf8(result.compact_json).unwrap();
+    let compact = result.compact_json;
     assert!(compact.contains(&small));
     assert!(compact.contains(&result.media[0].reference()));
 }
@@ -100,7 +101,7 @@ fn early_extraction_uses_encoded_size_for_uri_and_provider_candidates() {
         let result = extract_media(input.as_bytes()).unwrap();
         assert_eq!(result.media.len(), if size < 1024 { 0 } else { 2 });
         if size < 1024 {
-            assert_eq!(result.compact_json, input.as_bytes());
+            assert_eq!(result.compact_json, input);
         }
     }
 }
@@ -112,7 +113,8 @@ fn validates_and_extracts_data_uri_without_parsing_a_value_tree() {
     let result = extract_media(input.as_bytes()).expect("valid JSON");
 
     assert_eq!(result.media.len(), 1);
-    assert!(String::from_utf8_lossy(&result.compact_json)
+    assert!(result
+        .compact_json
         .contains("@@@langfuseMedia:type=image/png|id="));
     assert_eq!(result.media[0].decode().unwrap(), body);
     assert_eq!(result.media[0].original_value().unwrap(), uri);
@@ -128,11 +130,53 @@ fn nested_otlp_map_keys_stay_structural() {
     let input = json!({"resourceSpans": [{"resource": {"attributes": attributes}}]});
     let result = extract_media(&serde_json::to_vec(&input).unwrap()).unwrap();
     assert_eq!(result.media.len(), 1);
-    let compact: Value = serde_json::from_slice(&result.compact_json).unwrap();
+    let compact: Value = serde_json::from_str(&result.compact_json).unwrap();
     let entry = &compact["resourceSpans"][0]["resource"]["attributes"][0]["value"]["arrayValue"]
         ["values"][0]["kvlistValue"]["values"][0];
     assert_eq!(entry["key"], uri);
     assert_eq!(entry["value"]["stringValue"], result.media[0].reference());
+}
+
+#[test]
+fn tag_attribute_values_stay_inline_only_on_spans() {
+    let (uri, _) = large_data_uri(b"tag");
+    let value = format!(r#""value":{{"stringValue":"{uri}"}}"#);
+    for key in [
+        "langfuse.trace.tags",
+        "langfuse.tags",
+        "langfuse.observation.metadata.langfuse_tags",
+        "langfuse.trace.metadata.langfuse_tags",
+        "ai.telemetry.metadata.tags",
+        "tag.tags",
+    ] {
+        let tag_key = format!(r#""key":"{key}""#);
+        for (fields, is_tag) in [
+            (format!("{tag_key},{value}"), true),
+            (format!("{value},{tag_key}"), true),
+            (format!(r#""key":"input",{value},{tag_key}"#), true),
+            (format!(r#"{tag_key},{value},"key":"input""#), false),
+            (format!(r#"{tag_key},{value},"key":null"#), false),
+        ] {
+            let attribute = format!("{{{fields}}}");
+            let input = format!(
+                r#"[{{
+                "resource":{{"attributes":[{attribute}]}},
+                "scopeSpans":[{{
+                    "scope":{{"attributes":[{attribute}]}},
+                    "spans":[{{"attributes":[{attribute},
+                        {{"key":"input","value":{{"kvlistValue":{{"values":[{attribute}]}}}}}}
+                    ]}}]
+                }}]
+            }},{attribute}]"#
+            );
+            let result = extract_media(input.as_bytes()).unwrap();
+            assert_eq!(result.media.len(), if is_tag { 4 } else { 5 }, "{key}");
+            let compact: Value = serde_json::from_str(&result.compact_json).unwrap();
+            let value =
+                &compact[0]["scopeSpans"][0]["spans"][0]["attributes"][0]["value"]["stringValue"];
+            assert_eq!(value == &uri, is_tag);
+        }
+    }
 }
 
 #[test]
@@ -191,7 +235,7 @@ fn deep_structural_scan_keeps_provider_objects_inline_but_finds_uri_text() {
     let result = extract_media(input.as_bytes()).expect("deep JSON remains valid");
     assert_eq!(result.media.len(), 1);
     assert_eq!(result.media[0].decode().unwrap(), body);
-    let compact: Value = serde_json::from_slice(&result.compact_json).unwrap();
+    let compact: Value = serde_json::from_str(&result.compact_json).unwrap();
     let compact_embedded = compact["text"].as_str().unwrap();
     assert!(compact_embedded.contains(r#""type":"base64""#));
     assert!(compact_embedded.contains(&provider_data));
@@ -227,7 +271,7 @@ fn bounded_text_scan_leaves_escaped_uri_spelling_inline() {
             assert_eq!(result.media.len(), 1);
             assert_eq!(result.media[0].decode().unwrap(), plain_body);
             let expected = input.replacen(&plain_uri, &result.media[0].reference(), 1);
-            assert_eq!(result.compact_json, expected.as_bytes());
+            assert_eq!(result.compact_json, expected);
         }
     }
 }
@@ -244,7 +288,7 @@ fn preserves_json_escaping_and_scans_nested_stringified_json() {
     let result = extract_media(input.as_bytes()).expect("valid JSON");
 
     assert_eq!(result.media.len(), 1);
-    let compact = String::from_utf8(result.compact_json).unwrap();
+    let compact = result.compact_json;
     assert!(compact.contains("@@@langfuseMedia:type=image/png|id="));
     assert_eq!(result.media[0].kind, MediaPayloadKind::Anthropic);
     assert_eq!(result.media[0].original_value().unwrap(), encoded);
@@ -297,7 +341,7 @@ fn scans_sdk_json_string_wrappers_within_the_embedded_json_budget() {
     expected = expected.replacen(&uri, &result.media[0].reference(), 1);
     expected = expected.replacen(&uri, &result.media[1].reference(), 1);
     expected = expected.replace(&provider_data, &result.media[2].reference());
-    assert_eq!(String::from_utf8(result.compact_json).unwrap(), expected);
+    assert_eq!(result.compact_json, expected);
 }
 
 #[test]
@@ -340,7 +384,7 @@ fn limits_embedded_documents_without_losing_uri_text_or_siblings() {
         for media in &result.media {
             expected = expected.replacen(&media.original_value().unwrap(), &media.reference(), 1);
         }
-        assert_eq!(String::from_utf8(result.compact_json).unwrap(), expected);
+        assert_eq!(result.compact_json, expected);
     }
 }
 
@@ -487,7 +531,7 @@ fn nested_provider_source_spelling_survives_two_stringified_layers() {
         Err(super::payload::MediaDecodeError::JsonLayerLimit)
     ));
 
-    let compact: Value = serde_json::from_slice(&result.compact_json).unwrap();
+    let compact: Value = serde_json::from_str(&result.compact_json).unwrap();
     let compact_first_layer = compact["text"].as_str().unwrap();
     let reference = media.reference();
     assert_eq!(
@@ -538,7 +582,7 @@ fn classifies_each_root_array_object_before_discovery() {
     assert_eq!(result.media.len(), 2);
     assert_eq!(result.media[0].decode().unwrap(), provider_body);
     assert_eq!(result.media[1].decode().unwrap(), envelope_body);
-    let compact: Value = serde_json::from_slice(&result.compact_json).unwrap();
+    let compact: Value = serde_json::from_str(&result.compact_json).unwrap();
     assert_eq!(compact[1]["scopeSpans"][0]["scope"]["name"], structural_uri);
     assert_eq!(
         compact[1]["scopeSpans"][0]["spans"][0]["attributes"][0]["key"],
@@ -659,7 +703,7 @@ fn existing_references_and_tiny_candidates_stay_inline_with_bounded_retention() 
         );
         let result = validated.compact().unwrap();
         assert!(result.media.is_empty());
-        assert_eq!(result.compact_json, input.as_bytes());
+        assert_eq!(result.compact_json, input);
     }
 }
 
@@ -711,7 +755,7 @@ fn validates_large_numbers_without_converting_them_to_floats_or_integers() {
 
     let result = extract_media(input.as_bytes()).expect("valid JSON number lexemes");
     assert!(result.media.is_empty());
-    assert_eq!(result.compact_json, input.as_bytes());
+    assert_eq!(result.compact_json, input);
 }
 
 #[test]
@@ -720,7 +764,7 @@ fn structured_data_uri_must_occupy_the_entire_provider_field() {
     let input = format!(r#"{{"type":"file","mediaType":"image/png","data":"{uri} trailing"}}"#);
     let result = extract_media(input.as_bytes()).expect("valid JSON");
     assert!(result.media.is_empty());
-    assert_eq!(result.compact_json, input.as_bytes());
+    assert_eq!(result.compact_json, input);
 }
 
 #[test]
@@ -737,7 +781,7 @@ fn matches_data_uri_parameter_validation() {
     );
     let result = extract_media(invalid.as_bytes()).expect("valid JSON");
     assert!(result.media.is_empty());
-    assert_eq!(result.compact_json, invalid.as_bytes());
+    assert_eq!(result.compact_json, invalid);
 }
 
 #[test]
@@ -755,7 +799,7 @@ fn leaves_invalid_python_bytes_literals_inline_like_typescript() {
             .replace("abc", &"abc".repeat(MIN_EARLY_MEDIA_BYTES));
         let result = extract_media(input.as_bytes()).expect("valid JSON");
         assert!(result.media.is_empty(), "invalid literal extracted");
-        assert_eq!(result.compact_json, input.as_bytes());
+        assert_eq!(result.compact_json, input);
     }
 }
 
@@ -768,7 +812,7 @@ fn leaves_invalid_and_unsupported_candidates_inline() {
     );
     let result = extract_media(input.as_bytes()).expect("valid JSON");
     assert_eq!(result.media.len(), 1);
-    let compact = String::from_utf8(result.compact_json).unwrap();
+    let compact = result.compact_json;
     assert!(compact.contains("not#base64"));
     assert!(compact.contains("AAAA==="));
     assert!(compact.contains("application/x-unknown"));
@@ -780,7 +824,7 @@ fn never_rewrites_media_like_object_keys() {
     let input = format!(r#"{{"{uri}":"ordinary value"}}"#);
     let result = extract_media(input.as_bytes()).expect("valid JSON");
     assert!(result.media.is_empty());
-    assert_eq!(result.compact_json, input.as_bytes());
+    assert_eq!(result.compact_json, input);
 }
 
 #[test]
@@ -796,7 +840,7 @@ fn extracts_user_payload_values_named_name_or_key() {
     });
     let source = serde_json::to_vec(&input).expect("serialize payload");
     let result = extract_media(&source).expect("valid JSON");
-    let compact: Value = serde_json::from_slice(&result.compact_json).expect("compact JSON");
+    let compact: Value = serde_json::from_str(&result.compact_json).expect("compact JSON");
 
     assert_eq!(result.media.len(), 3);
     assert!(compact["name"]
@@ -833,7 +877,7 @@ fn does_not_extract_structural_otlp_strings_or_attribute_keys() {
     let result = extract_media(&source).expect("valid JSON");
 
     assert_eq!(result.media.len(), 1);
-    let compact: Value = serde_json::from_slice(&result.compact_json).expect("compact JSON");
+    let compact: Value = serde_json::from_str(&result.compact_json).expect("compact JSON");
     assert_eq!(
         compact["resourceSpans"][0]["scopeSpans"][0]["scope"]["name"],
         uri
@@ -879,7 +923,7 @@ fn recognizes_a_top_level_resource_span_array_as_an_otlp_envelope() {
     }]);
     let source = serde_json::to_vec(&input).expect("serialize OTLP envelope");
     let result = extract_media(&source).expect("valid JSON");
-    let compact: Value = serde_json::from_slice(&result.compact_json).expect("compact JSON");
+    let compact: Value = serde_json::from_str(&result.compact_json).expect("compact JSON");
 
     assert_eq!(result.media.len(), 1);
     assert_eq!(compact[0]["scopeSpans"][0]["scope"]["name"], uri);
@@ -903,12 +947,10 @@ fn leaves_lone_surrogate_strings_inline_and_extracts_siblings() {
         let result = extract_media(input.as_bytes()).expect("raw surrogate escape is valid JSON");
         assert_eq!(result.media.len(), 1);
         assert_eq!(result.media[0].decode().unwrap(), body);
-        assert!(String::from_utf8(result.compact_json)
-            .unwrap()
-            .contains(text));
+        assert!(result.compact_json.contains(text));
     }
     let input = br#"{"value":"\ud83d\ude80"}"#;
-    assert_eq!(extract_media(input).unwrap().compact_json, input);
+    assert_eq!(extract_media(input).unwrap().compact_json.as_bytes(), input);
     for input in [br#"{"x":"\q"}"#.as_slice(), br#"{"x":"\ud800\uZZZZ"}"#] {
         assert!(matches!(
             extract_media(input),
@@ -924,7 +966,7 @@ fn malformed_utf8_is_replaced_before_discovery() {
     input.extend([0xff, 0xe2, 0x82]);
     input.extend_from_slice(format!(r#"","image":"{uri}"}}"#).as_bytes());
     let result = extract_media(&input).unwrap();
-    let compact: Value = serde_json::from_slice(&result.compact_json).unwrap();
+    let compact: Value = serde_json::from_str(&result.compact_json).unwrap();
     assert_eq!(compact["note"], "��");
     assert_eq!(result.media[0].decode().unwrap(), body);
     assert_eq!(result.media[0].original_value().unwrap(), uri);
@@ -939,7 +981,7 @@ fn embedded_json_keeps_surrogate_strings_and_extracts_sibling_fields() {
     assert_eq!(result.media.len(), 1);
     assert_eq!(result.media[0].decode().unwrap(), body);
     let expected = input.replace(&uri, &result.media[0].reference());
-    assert_eq!(String::from_utf8(result.compact_json).unwrap(), expected);
+    assert_eq!(result.compact_json, expected);
 }
 
 #[test]
@@ -952,7 +994,7 @@ fn undecodable_keys_leave_their_values_inline_including_shadowed_values() {
         let result = extract_media(input.as_bytes()).unwrap();
         assert_eq!(result.media.len(), 1);
         assert_eq!(result.media[0].decode().unwrap(), body);
-        let restored = String::from_utf8(result.compact_json).unwrap().replace(
+        let restored = result.compact_json.replace(
             &result.media[0].reference(),
             &result.media[0].original_value().unwrap(),
         );
@@ -1052,8 +1094,8 @@ fn existing_public_references_are_preserved_beside_new_occurrences() {
         assert_eq!(result.media.len(), 1);
         let pending = result.media[0].reference();
         assert_ne!(pending, expected_reference);
-        let restored = String::from_utf8(result.compact_json)
-            .unwrap()
+        let restored = result
+            .compact_json
             .replace(&pending, &result.media[0].original_value().unwrap());
         assert_eq!(restored, input);
     }
@@ -1096,7 +1138,7 @@ proptest! {
             let expected = input
                 .replacen(first, &first_reference, 1)
                 .replacen(second, &second_reference, 1);
-            prop_assert_eq!(String::from_utf8(result.compact_json).unwrap(), expected);
+            prop_assert_eq!(result.compact_json, expected);
         }
     }
 
@@ -1131,7 +1173,7 @@ proptest! {
         let result = validated.compact().unwrap();
         prop_assert_eq!(result.media.len(), if should_extract { width } else { 0 });
         if !should_extract {
-            prop_assert_eq!(result.compact_json, input.as_bytes());
+            prop_assert_eq!(result.compact_json, input);
             return Ok(());
         }
         for media in result.media { let decoded = media.decode().unwrap();
@@ -1161,7 +1203,7 @@ proptest! {
     ) {
         let mut source = serde_json::to_vec(&value).expect("serialize generated JSON");
         let validated = validate(source.clone()).expect("generated JSON validates");
-        prop_assert_eq!(validated.into_source(), source.as_slice());
+        prop_assert_eq!(validated.into_source().into_bytes(), source.as_slice());
         source.push(b'x');
         let mut directed = br#"{"traceId":{"type":"Buffer","data":[1,2,3]},"text":"plain"}"#.to_vec();
         directed.push(b'x');

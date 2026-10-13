@@ -9,8 +9,8 @@ templates. The local dev template sets the idle time below.
 
 ## Readiness requirements
 
-- Every admitted event refreshes the trace's idle deadline. Tracking accepts an
-  effective project idle interval; ingestion currently uses the deployment default.
+- Every admitted event refreshes the trace's idle deadline. Tracking uses the
+  project's configured idle interval, or the deployment default when unset.
 - Keep pending scheduling state separate from retained historical bounds. Enqueue
   acknowledgement clears pending state; history survives to support later arrivals.
 - A late arrival within history retention opens a new pending window and reads the
@@ -51,7 +51,7 @@ templates. The local dev template sets the idle time below.
 | `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE`             | unset       | Optional positive `max_block_size` hint; unset inherits the server profile.                                                                                                       |
 | `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID`              | unset       | Optional 1–64 character attempt/query label: letters, digits, `.`, `_`, `-`; first character alphanumeric.                                                                        |
 | `LANGFUSE_TRACE_BATCH_CONCURRENCY`                | `2`         | Concurrent batch jobs per worker process.                                                                                                                                         |
-| `LANGFUSE_TRACE_BATCH_IDLE_MS`                    | `600000`    | Idle time before a trace is ready. Unset and `DEV` uses `120000` (2 minutes); every other region uses 10 minutes.                                                                 |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS`                    | `600000`    | Default idle time before a trace is ready. Unset and `DEV` uses `120000` (2 minutes); every other region uses 10 minutes. A project's `tracing_readiness_settings.trace_idle_ms` (60 seconds to 60 minutes) overrides it, capped at the pending TTL minus the dispatch interval. The project value is cached in Redis for 5 minutes; saving replaces it, and a failed read uses the default without caching. |
 | `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`             | `7200000`   | Recovery grace after a trace becomes due (2 hours). Pending keys expire no earlier than the latest required due-plus-grace deadline.                                              |
 | `LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS`          | `86400000`  | Historical event-start bounds and size estimates retained after activity or dispatch (24 hours; at most 48 hours). Internal and cloud-gated.                                      |
 | `LANGFUSE_TRACE_BATCH_SHARD_COUNT`                | `auto`      | 64 on Redis Cluster; 1 on standalone/Sentinel. Override with 1–256. Fixed across Redis resizing; drain before changing.                                                           |
@@ -104,10 +104,9 @@ due = last admitted activity + effective project idle
 pending expiry = due + recovery grace
 ```
 
-Tracking accepts an effective idle duration; existing ingestion uses the deployment
-default until project configuration is persisted. The default is 600 seconds
-outside DEV and 120 seconds in DEV, with the existing environment override.
-No project idle setting is persisted or looked up from the database here.
+Tracking uses the project's configured idle duration when available. The default
+is 600 seconds outside DEV and 120 seconds in DEV, with the existing environment
+override.
 
 Both pending keys receive a whole-key `PEXPIREAT` covering the required expiry,
 preserving any existing later deadline with `PEXPIRETIME` (Redis 7+). During

@@ -64,10 +64,13 @@ vi.mock("./TopicPipelineForm", () => ({
     state.pipeline(input);
     return {
       primaryAction: null,
-      openConfiguration: vi.fn(),
+      triggerAction: null,
       configuration: null,
     };
   },
+}));
+vi.mock("./TopicModelSettings", () => ({
+  useTopicModelSettings: () => ({ action: null, notice: null }),
 }));
 vi.mock("./CurrentTopics", () => ({
   useCurrentTopics: (input: {

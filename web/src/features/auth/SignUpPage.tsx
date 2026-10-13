@@ -40,13 +40,18 @@ import {
   TurnstileWidget,
   type TurnstileWidgetHandle,
 } from "@/src/features/auth/components/TurnstileWidget";
-import { TURNSTILE_ACTIONS } from "@/src/features/auth/constants";
+import {
+  TURNSTILE_ACTIONS,
+  TURNSTILE_FAILED_MESSAGE,
+} from "@/src/features/auth/constants";
 
 type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
 
 const LOGIN_CAPTCHA_WAIT_MS = 20_000;
 const ACCOUNT_CREATED_MESSAGE =
   "Your account was created. Complete the captcha, then sign in.";
+const VERIFICATION_CODE_PENDING_MESSAGE =
+  "Your account was created. Complete the captcha to receive the verification code.";
 
 function waitForLoginToken(
   pending: Promise<string | undefined> | undefined,
@@ -65,6 +70,16 @@ function waitForLoginToken(
       },
     );
   });
+}
+
+function verifiedSignupSignInError(error: string): string {
+  if (error === "AccessDenied") {
+    return "Unable to send verification email. Please try again.";
+  }
+  if (error.includes(TURNSTILE_FAILED_MESSAGE)) {
+    return TURNSTILE_FAILED_MESSAGE;
+  }
+  return error;
 }
 
 // Schema for the verified signup flow (email + name only, no password)
@@ -435,6 +450,14 @@ function VerifiedSignupFlow({
   const [formError, setFormError] = useState<string | null>(null);
   const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const [turnstileToken, setTurnstileToken] = useState<string>();
+  // Account creation spends a `signup_verify` token. The setup-code email
+  // is a separate siteverify check, so the widget switches to
+  // `password_reset` once the account exists.
+  const [turnstileAction, setTurnstileAction] = useState<
+    | typeof TURNSTILE_ACTIONS.signupVerify
+    | typeof TURNSTILE_ACTIONS.passwordReset
+  >(TURNSTILE_ACTIONS.signupVerify);
+  const [accountCreated, setAccountCreated] = useState(false);
   const turnstileRef = useRef<TurnstileWidgetHandle>(null);
   const [lastUsedAuthMethod, setLastUsedAuthMethod] =
     useLocalStorage<NextAuthProvider | null>(
@@ -450,13 +473,43 @@ function VerifiedSignupFlow({
     },
   });
 
+  async function sendSetupCode(
+    values: z.infer<typeof signupVerifyFormSchema>,
+    passwordResetToken: string | undefined,
+  ) {
+    const signInRes = await signIn("email", {
+      email: values.email,
+      callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${setupPasswordPath}`,
+      redirect: false,
+      ...(passwordResetToken ? { turnstileToken: passwordResetToken } : {}),
+    });
+
+    if (signInRes?.error) {
+      turnstileRef.current?.reset();
+      setFormError(verifiedSignupSignInError(signInRes.error));
+      return;
+    }
+
+    capture("sign_up:button_click", { provider: "email_verification" });
+    sessionStorage.setItem(
+      PASSWORD_SETUP_EMAIL_STORAGE_KEY,
+      values.email.toLowerCase(),
+    );
+    await router.push(setupPasswordPath);
+  }
+
   async function onVerifiedSubmit(
     values: z.infer<typeof signupVerifyFormSchema>,
   ) {
+    let created = accountCreated;
     try {
       setFormError(null);
 
-      // Call signup-verify to create passwordless user
+      if (created) {
+        await sendSetupCode(values, turnstileToken);
+        return;
+      }
+
       const res = await fetch(
         `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/signup-verify`,
         {
@@ -469,39 +522,39 @@ function VerifiedSignupFlow({
           }),
         },
       );
-      turnstileRef.current?.reset();
 
       if (!res.ok) {
+        turnstileRef.current?.reset();
         const payload = (await res.json()) as { message: string };
         setFormError(payload.message);
         return;
       }
 
-      // Send OTP email via NextAuth email provider
-      const signInRes = await signIn("email", {
-        email: values.email,
-        callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${setupPasswordPath}`,
-        redirect: false,
-      });
+      created = true;
+      setAccountCreated(true);
 
-      if (signInRes?.error) {
-        setFormError(
-          signInRes.error === "AccessDenied"
-            ? "Unable to send verification email. Please try again."
-            : signInRes.error,
-        );
+      // The signup request redeemed its token. The setup-code email needs
+      // a fresh token issued for `password_reset`.
+      let passwordResetToken: string | undefined;
+      if (turnstileSiteKey) {
+        const pendingToken = turnstileRef.current?.nextToken();
+        setTurnstileToken(undefined);
+        setTurnstileAction(TURNSTILE_ACTIONS.passwordReset);
+        passwordResetToken = await waitForLoginToken(pendingToken);
+      }
+      if (turnstileSiteKey && !passwordResetToken) {
+        setFormError(VERIFICATION_CODE_PENDING_MESSAGE);
         return;
       }
 
-      capture("sign_up:button_click", { provider: "email_verification" });
-      sessionStorage.setItem(
-        PASSWORD_SETUP_EMAIL_STORAGE_KEY,
-        values.email.toLowerCase(),
-      );
-      await router.push(setupPasswordPath);
+      await sendSetupCode(values, passwordResetToken);
     } catch {
       turnstileRef.current?.reset();
-      setFormError("An error occurred. Please try again.");
+      setFormError(
+        created
+          ? VERIFICATION_CODE_PENDING_MESSAGE
+          : "An error occurred. Please try again.",
+      );
     }
   }
 
@@ -547,7 +600,7 @@ function VerifiedSignupFlow({
             <TurnstileWidget
               ref={turnstileRef}
               siteKey={turnstileSiteKey}
-              action={TURNSTILE_ACTIONS.signupVerify}
+              action={turnstileAction}
               onTokenChange={setTurnstileToken}
             />
           )}
@@ -558,7 +611,7 @@ function VerifiedSignupFlow({
             disabled={Boolean(turnstileSiteKey) && !turnstileToken}
             data-testid="submit-email-password-sign-up-form"
           >
-            Continue
+            {accountCreated ? "Send verification code" : "Continue"}
           </Button>
           {formError ? (
             <div className="text-destructive text-center text-sm font-bold">
