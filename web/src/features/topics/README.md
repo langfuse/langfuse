@@ -23,16 +23,19 @@ project permissions. Processing additionally requires the project allowlist.
   in-flight poll cannot satisfy completion. The query retains the tRPC prefix
   for mutation and manual invalidation.
   The polling/completion race is covered directly by a frontend hook test.
-  Configure topics opens a centered dialog; Process traces or Update topics
-  submits the retained configuration. Overlay owners stay outside the responsive
-  header menu. Facet versions contain only prompts; processing settings and
-  embedding dimensions are frozen on executions. Built-in facets are read-only;
-  custom facets can be revised by creating a new prompt version.
-- `useTopicPipelineForm` owns the configuration dialog, operation, facet versions
-  and submission. The workspace renders its header actions and dialog separately;
-  configuration changes preserve the current results and selection. Its state
-  stays mounted when the dialog closes. Preview trace clicks close
-  configuration before opening the trace peek in the panel layer.
+  Configure Topics opens a side sheet for models, facets, and which traces to run.
+  Saving it stores the models, creates the four built-in facets as evaluators
+  with a first version, and saves one rule for the filter, idle time, and
+  sampling rate. A project can have only one Topics rule.
+  Process traces or Update topics opens its own run dialog. Overlay owners stay
+  outside the responsive header menu. Facet versions contain only prompts;
+  processing settings and embedding dimensions are frozen on executions.
+  Built-in facets are read-only; custom facets are added on their own page.
+- `useTopicPipelineForm` owns the run dialog, operation, facet versions and
+  submission. The workspace renders its header action and dialog separately;
+  closing the dialog preserves the current results and selection. Its state
+  stays mounted when the dialog closes. Preview trace clicks close the run
+  dialog before opening the trace peek in the panel layer.
   Every available facet starts selected. Process traces is the default operation:
   it summarizes, embeds, and assigns only the selected batch to current topics.
   Without a compatible map, summaries wait for an explicit Update topics run.
@@ -44,17 +47,14 @@ project permissions. Processing additionally requires the project allowlist.
   IDs, and per-trace errors, using aggregate counts for progress.
   Expanding Trace errors loads failed trace IDs and reasons on demand from
   retained queue state. When it expires, the UI says so; permanent counts remain.
-  Saved topic rules hold reusable filters and stable facet IDs. Selecting a rule
-  loads its filters and each facet's latest prompt version; editing filters or
-  facets becomes an ad hoc run until explicitly saved. Sampling and its limit stay
-  specific to each execution and are retained when switching saved rules. Rules
-  do not create separate maps or invalidate summaries and embeddings.
-  These local PoC operations and rule saving add no product analytics event.
+  The run dialog chooses facets and traces for one run. It does not save that
+  choice. Sampling and its limit stay specific to each execution.
+  These local PoC operations add no product analytics event.
 - `useTopicTraceSelector` reuses the eval filter builder and query editor, with
   a time range, all matching traces selected by default, and optional random/latest
-  sampling with a user-chosen size. Selecting a rule or changing the operation
-  resets the trace-selection draft while retaining sampling settings; dates stay
-  specific to each execution.
+  sampling with a user-chosen size. Changing the operation resets the
+  trace-selection draft while retaining sampling settings; dates stay specific
+  to each execution.
   The hook supplies selection, criteria and controls so the dialog can unmount
   without losing the reviewed cohort. Explicit preview counts the cohort;
   changing criteria invalidates it. Rows can be excluded across preview pages.
@@ -139,7 +139,7 @@ project permissions. Processing additionally requires the project allowlist.
   discovery cohort and coordinates while summary text reflects the latest stored
   result. These reads survive transient job state expiry.
   Resume requeues retained job inputs; if they have expired, start a new run.
-  Facet prompt edits create versions independently of saved selection rules.
+  Facet prompt edits are a separate page from this setup.
 - `parse-trace-input.ts` validates pasted trace IDs and links without fetching.
   Trace IDs are opaque data; URL path segments are decoded once, while internal
   execution identifiers retain the restricted ID format.

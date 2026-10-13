@@ -44,9 +44,6 @@ const EnvSchema = z.object({
   NEXTAUTH_URL: z.url().optional(),
   // Internal Topics PoC controls; not a supported self-hosting configuration.
   LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
-  // Unset model IDs make Topics model processing unavailable.
-  LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
-  LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
   LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
     .string()
     .default("")
