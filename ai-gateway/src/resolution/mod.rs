@@ -7,10 +7,10 @@ pub use contracts::{
     ProviderCredential, RequestAttribution, ResolvedRequestContext,
 };
 use reqwest::{
-    Client, Url,
+    Client, Method, Url,
     header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue},
 };
-use reqwest_middleware::ClientWithMiddleware;
+use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
 use std::{
     fmt,
     net::IpAddr,
@@ -146,18 +146,21 @@ impl ControlPlaneClient {
         api_format: ApiFormat,
         request_id: &str,
     ) -> Result<Vec<u8>, ResolutionError> {
-        if gateway_key.len() > 8192 || !valid_token(gateway_key) {
-            return Err(ResolutionError::InvalidCredential);
-        }
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| ResolutionError::Unavailable)?;
-        tokio::time::timeout(
-            self.config.limits.timeout,
-            self.fetch_models(gateway_key, api_format, timestamp.as_secs(), request_id),
-        )
-        .await
-        .map_err(|_| ResolutionError::Timeout)?
+        let mut endpoint = self.config.endpoint(MODELS_PATH);
+        endpoint
+            .query_pairs_mut()
+            .append_pair("api_format", api_format.as_str());
+        let request = self.authenticated_request(
+            Method::GET,
+            endpoint,
+            gateway_key,
+            timestamp.as_secs(),
+            request_id,
+        )?;
+        self.execute(request).await
     }
 
     async fn resolve_at(
@@ -168,47 +171,7 @@ impl ControlPlaneClient {
         timestamp: Duration,
         request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
-        if gateway_key.len() > 8192 || !valid_token(gateway_key) {
-            return Err(ResolutionError::InvalidCredential);
-        }
         let started = Instant::now();
-        let body = tokio::time::timeout(
-            self.config.limits.timeout,
-            self.fetch(
-                gateway_key,
-                api_format,
-                model,
-                timestamp.as_secs(),
-                request_id,
-            ),
-        )
-        .await
-        .map_err(|_| ResolutionError::Timeout)??;
-        contracts::decode(
-            &body,
-            api_format,
-            timestamp.saturating_add(started.elapsed()).as_secs(),
-        )
-    }
-
-    async fn fetch(
-        &self,
-        gateway_key: &str,
-        api_format: ApiFormat,
-        model: Option<&str>,
-        timestamp: u64,
-        request_id: &str,
-    ) -> Result<Vec<u8>, ResolutionError> {
-        let mut credential = HeaderValue::from_str(&format!("Bearer {gateway_key}"))
-            .map_err(|_| ResolutionError::InvalidCredential)?;
-        credential.set_sensitive(true);
-        let mut signature = HeaderValue::from_str(&signing::authorization(
-            &self.config.service_key,
-            gateway_key,
-            timestamp,
-        ))
-        .map_err(|_| ResolutionError::Configuration)?;
-        signature.set_sensitive(true);
         let body = match model {
             Some(model) => serde_json::to_vec(&serde_json::json!({
                 "apiFormat": api_format,
@@ -217,27 +180,35 @@ impl ControlPlaneClient {
             None => serde_json::to_vec(&serde_json::json!({ "apiFormat": api_format })),
         }
         .map_err(|_| ResolutionError::Configuration)?;
-        let response = self
-            .client
-            .post(self.config.endpoint(RESOLVE_PATH))
-            .header(AUTHORIZATION, credential)
-            .header("langfuse-gateway-authorization", signature)
-            .header(REQUEST_ID_HEADER, request_id)
+        let request = self
+            .authenticated_request(
+                Method::POST,
+                self.config.endpoint(RESOLVE_PATH),
+                gateway_key,
+                timestamp.as_secs(),
+                request_id,
+            )?
             .header(CONTENT_TYPE, "application/json")
-            .body(body)
-            .send()
-            .await
-            .map_err(|_| ResolutionError::Transport)?;
-        read_response(response, self.config.limits.max_response_bytes).await
+            .body(body);
+        let body = self.execute(request).await?;
+        contracts::decode(
+            &body,
+            api_format,
+            timestamp.saturating_add(started.elapsed()).as_secs(),
+        )
     }
 
-    async fn fetch_models(
+    fn authenticated_request(
         &self,
+        method: Method,
+        endpoint: Url,
         gateway_key: &str,
-        api_format: ApiFormat,
         timestamp: u64,
         request_id: &str,
-    ) -> Result<Vec<u8>, ResolutionError> {
+    ) -> Result<RequestBuilder, ResolutionError> {
+        if gateway_key.len() > 8192 || !valid_token(gateway_key) {
+            return Err(ResolutionError::InvalidCredential);
+        }
         let mut credential = HeaderValue::from_str(&format!("Bearer {gateway_key}"))
             .map_err(|_| ResolutionError::InvalidCredential)?;
         credential.set_sensitive(true);
@@ -248,20 +219,24 @@ impl ControlPlaneClient {
         ))
         .map_err(|_| ResolutionError::Configuration)?;
         signature.set_sensitive(true);
-        let mut endpoint = self.config.endpoint(MODELS_PATH);
-        endpoint
-            .query_pairs_mut()
-            .append_pair("api_format", api_format.as_str());
-        let response = self
+        Ok(self
             .client
-            .get(endpoint)
+            .request(method, endpoint)
             .header(AUTHORIZATION, credential)
             .header("langfuse-gateway-authorization", signature)
-            .header(REQUEST_ID_HEADER, request_id)
-            .send()
-            .await
-            .map_err(|_| ResolutionError::Transport)?;
-        read_response(response, self.config.limits.max_response_bytes).await
+            .header(REQUEST_ID_HEADER, request_id))
+    }
+
+    async fn execute(&self, request: RequestBuilder) -> Result<Vec<u8>, ResolutionError> {
+        tokio::time::timeout(self.config.limits.timeout, async {
+            let response = request
+                .send()
+                .await
+                .map_err(|_| ResolutionError::Transport)?;
+            read_response(response, self.config.limits.max_response_bytes).await
+        })
+        .await
+        .map_err(|_| ResolutionError::Timeout)?
     }
 }
 
