@@ -563,14 +563,14 @@ describe("AI gateway control plane", () => {
     const result = await authenticateRequest({
       fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
       apiFormat,
-      model: "OpenAI second:gpt-4o",
+      model: "OpenAI second/openai/gpt-4o",
     });
 
     expect(result.connection).toEqual({
       id: openAiSecondary.id,
       name: "OpenAI second",
       provider: "openai",
-      provider_model: "gpt-4o",
+      provider_model: "openai/gpt-4o",
       api_format: apiFormat,
       base_url: "https://api.openai.com/v1",
       auth: { type: "Bearer", token: "sk-test-openai-secondary" },
@@ -631,7 +631,7 @@ describe("AI gateway control plane", () => {
       authenticateRequest({ ...params, model: "gpt-4o" }),
     ).rejects.toMatchObject({ status: 400 });
     await expect(
-      authenticateRequest({ ...params, model: "Unknown:gpt-4o" }),
+      authenticateRequest({ ...params, model: "Unknown/gpt-4o" }),
     ).rejects.toMatchObject({ status: 404 });
   });
 
@@ -640,11 +640,11 @@ describe("AI gateway control plane", () => {
     await expect(
       caller.aiGateway.createConnection({
         orgId: org.id,
-        name: "Production:Primary",
+        name: "Production/Primary",
         provider: "OPENAI",
         credential: "sk-openai",
       }),
-    ).rejects.toThrow("Connection names cannot contain a colon.");
+    ).rejects.toThrow("Connection names cannot contain a slash.");
 
     await caller.aiGateway.createConnection({
       orgId: org.id,
@@ -880,7 +880,7 @@ describe("AI gateway control plane", () => {
     const resolveParams = {
       fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
       apiFormat: "openai.responses" as const,
-      model: "OpenAI:gpt-4o",
+      model: "OpenAI/gpt-4o",
     };
     const lookup = vi.spyOn(prisma.gatewayApiKeyAssociation, "findFirst");
 
@@ -892,7 +892,7 @@ describe("AI gateway control plane", () => {
     await expect(
       authenticateRequest({
         ...resolveParams,
-        model: "OpenAI backup:gpt-4o",
+        model: "OpenAI backup/gpt-4o",
       }),
     ).resolves.toMatchObject({
       connection: { auth: { type: "Bearer", token: "sk-test-backup" } },
@@ -914,7 +914,7 @@ describe("AI gateway control plane", () => {
     await expect(
       authenticateRequest({
         ...resolveParams,
-        model: "OpenAI renamed:gpt-4o",
+        model: "OpenAI renamed/gpt-4o",
       }),
     ).resolves.toMatchObject({
       connection: { name: "OpenAI renamed" },
@@ -1075,28 +1075,28 @@ describe("AI gateway control plane", () => {
     expect(result).toEqual({
       data: [
         {
-          id: "OpenAI backup:a-model",
+          id: "OpenAI backup/a-model",
           provider: "OPENAI",
           canonicalSlug: "a-model",
           displayName: "a-model",
           createdAt: "1970-01-01T00:00:10.000Z",
         },
         {
-          id: "OpenAI backup:shared-model",
+          id: "OpenAI backup/shared-model",
           provider: "OPENAI",
           canonicalSlug: "shared-model",
           displayName: "shared-model",
           createdAt: "1970-01-01T00:00:15.000Z",
         },
         {
-          id: "OpenAI primary:a-model",
+          id: "OpenAI primary/a-model",
           provider: "OPENAI",
           canonicalSlug: "a-model",
           displayName: "a-model",
           createdAt: "1970-01-01T00:00:10.000Z",
         },
         {
-          id: "OpenAI primary:shared-model",
+          id: "OpenAI primary/shared-model",
           provider: "OPENAI",
           canonicalSlug: "shared-model",
           displayName: "shared-model",
@@ -1117,14 +1117,14 @@ describe("AI gateway control plane", () => {
     expect(anthropicResult).toEqual({
       data: [
         {
-          id: "Anthropic:claude-a",
+          id: "Anthropic/claude-a",
           provider: "ANTHROPIC",
           canonicalSlug: "claude-a",
           displayName: "Claude A",
           createdAt: "2026-01-01T00:00:00.000Z",
         },
         {
-          id: "Anthropic:claude-b",
+          id: "Anthropic/claude-b",
           provider: "ANTHROPIC",
           canonicalSlug: "claude-b",
           displayName: "Claude B",
