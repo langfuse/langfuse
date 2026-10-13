@@ -864,7 +864,10 @@ if (env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_ENABLED === "true") {
 // Moves staged audit events from Postgres into ClickHouse audit_logs
 export let auditLogRelay: AuditLogRelay | null = null;
 
-if (env.LANGFUSE_AUDIT_LOG_RELAY_ENABLED === "true") {
+if (
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && // Only in cloud deployments
+  env.LANGFUSE_AUDIT_LOG_RELAY_ENABLED === "true"
+) {
   auditLogRelay = new AuditLogRelay();
   auditLogRelay.start();
 }
