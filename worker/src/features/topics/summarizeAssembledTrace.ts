@@ -12,6 +12,7 @@ import {
 } from "@langfuse/shared/topics";
 import {
   instrumentAsync,
+  isInternalEvalEnvironment,
   recordIncrement,
   type Transcript,
 } from "@langfuse/shared/src/server";
@@ -55,7 +56,8 @@ type AssembledTraceInput = {
  */
 export async function summarizeAssembledTrace(
   input: AssembledTraceInput,
-): Promise<"unchanged" | "summarized"> {
+): Promise<"disabled" | "unchanged" | "summarized"> {
+  if (isInternalEvalEnvironment(input.environment)) return "disabled";
   return instrumentAsync(
     { name: "topics-trace-summary", traceScope: "topics" },
     async (span) => {
@@ -148,6 +150,10 @@ async function summarizeEnabledTrace(
           keyed,
           prepared.text,
           config,
+          {
+            source_trace_id: input.traceId,
+            source_environment: input.environment,
+          },
         );
         const outputs = generated.output as Record<string, FacetOutput>;
         for (const { key } of keyed) {

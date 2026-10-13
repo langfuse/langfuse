@@ -920,17 +920,17 @@ describe("trace batch queue", () => {
     );
   });
 
-  it("assembles each tenant's trace at the boundary and EOF", async () => {
+  it("assembles each tenant's trace with its latest environment at the boundary and EOF", async () => {
     const userMessage = { role: "user", content: "first question" };
     const answer = { role: "assistant", content: "first answer" };
     const row = {
       project_id: "a",
       trace_id: "shared-trace",
-      environment: "production",
+      environment: "langfuse-topics",
       span_id: "first",
       parent_span_id: null,
       start_time: "2026-09-11 00:00:00.000000",
-      event_ts: "2026-09-11 00:00:00.000000",
+      event_ts: "2026-09-11 00:00:00.000002",
       type: "GENERATION",
       name: "generation",
       input: JSON.stringify([userMessage]),
@@ -947,6 +947,8 @@ describe("trace batch queue", () => {
       yield {
         ...row,
         span_id: "second",
+        environment: "production",
+        event_ts: "2026-09-11 00:00:00.000001",
         start_time: "2026-09-11 00:01:00.000000",
         input: JSON.stringify([
           userMessage,
@@ -955,18 +957,19 @@ describe("trace batch queue", () => {
         ]),
         output: JSON.stringify({ role: "assistant", content: "second answer" }),
       };
+      // The newer internal event has an earlier start time and smaller span ID.
       yield row;
       expect(tokenCountAsync).not.toHaveBeenCalled();
       yield {
         ...row,
         project_id: "b",
-        environment: "staging",
+        environment: "langfuse-topics",
         type: "SPAN",
       };
       yield {
         ...row,
         project_id: "b",
-        environment: "staging",
+        environment: "production",
         type: "SPAN",
         span_id: "second",
       };
@@ -994,8 +997,8 @@ describe("trace batch queue", () => {
         environment: input.environment,
       })),
     ).toEqual([
-      { projectId: "a", environment: "production" },
-      { projectId: "b", environment: "staging" },
+      { projectId: "a", environment: "langfuse-topics" },
+      { projectId: "b", environment: "production" },
     ]);
     const estimates = vi.mocked(tokenCountAsync).mock.calls;
     expect(estimates).toHaveLength(5);

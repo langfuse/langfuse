@@ -1,4 +1,5 @@
 import { UnrecoverableError } from "bullmq";
+import { isInternalEvalEnvironment } from "@langfuse/shared/src/server";
 import pLimit from "p-limit";
 import type { TopicSummary } from "@langfuse/shared/topics";
 import {
@@ -20,7 +21,7 @@ import {
   TopicsProviderUnavailable,
 } from "./provider-error";
 
-/** Acknowledging a batch means every result is durably stored in ClickHouse. */
+/** Acknowledging a batch means every eligible result is durably stored in ClickHouse. */
 export async function processTopicEmbeddingBatch(
   batch: TopicEmbeddingBatch,
 ): Promise<void> {
@@ -42,6 +43,7 @@ export async function processTopicEmbeddingBatch(
     for (const ref of batch.summaries) {
       const staged = await readStagedTopicSummary(batch, ref);
       if (!staged) throw new UnrecoverableError(TOPIC_EMBEDDING_EXPIRED_ERROR);
+      if (isInternalEvalEnvironment(staged.summary.environment)) continue;
       if (staged.embeddingConfig.embeddingModel !== models.embedding.model)
         throw new TopicsProviderUnavailable(
           "The project's embedding model changed after this batch was created. Start a new Topics execution.",
