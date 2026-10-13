@@ -74,10 +74,6 @@ impl Route {
         )
     }
 
-    pub(crate) fn uses_control_plane_models(self) -> bool {
-        matches!(self, Self::OpenAiModels | Self::AnthropicModels)
-    }
-
     fn path(self) -> &'static str {
         match self {
             Self::OpenAiResponses => "/responses",
