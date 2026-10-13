@@ -9,12 +9,12 @@ export const EVALUATOR_START_OPTIONS = [
   {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
     title: "LLM-as-a-judge",
-    description: "Explains each score. Best for long or nuanced inputs.",
+    description: "Explains each score. For nuanced inputs.",
   },
   {
     type: EvalTemplateTypeEnum.DECISION_MODEL,
     title: "Decision model",
-    description: "Fast and cheap at high volume, for simple questions.",
+    description: "Fast and cheap for simple questions.",
   },
   {
     type: EvalTemplateTypeEnum.CODE,

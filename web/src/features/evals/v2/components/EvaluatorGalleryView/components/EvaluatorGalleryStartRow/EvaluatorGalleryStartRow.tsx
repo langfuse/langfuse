@@ -20,12 +20,15 @@ export function EvaluatorGalleryStartRow({
             key={option.type}
             type="button"
             onClick={() => onCreateFromScratch(option.type)}
-            className="bg-background hover:shadow-card-hover flex cursor-pointer items-start gap-3 rounded-md border p-3 text-left"
+            className="bg-background hover:shadow-card-hover flex cursor-pointer items-center gap-3 rounded-md border p-3 text-left"
           >
             <EvaluatorMethodTile type={option.type} size="lg" />
             <span className="flex min-w-0 flex-col">
               <span className="text-xs font-bold">{option.title}</span>
-              <span className="text-muted-foreground text-xs">
+              <span
+                className="text-muted-foreground truncate text-xs"
+                title={option.description}
+              >
                 {option.description}
               </span>
             </span>
