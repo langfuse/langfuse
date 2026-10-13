@@ -35,18 +35,6 @@ vi.mock("next/router", () => ({
   }),
 }));
 
-vi.mock("@/src/components/layouts/container-page", () => ({
-  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
-vi.mock("@/src/components/PagedSettingsContainer", () => ({
-  PagedSettingsContainer: ({
-    pages,
-  }: {
-    pages: { content?: React.ReactNode }[];
-  }) => <>{pages[0]?.content}</>,
-}));
-
 vi.mock("@/src/features/auth/lib/signOut", () => ({
   signOutCleanly: signOutCleanlyMock,
 }));
@@ -91,11 +79,12 @@ vi.mock("@/src/utils/api", () => ({
   reportNonTrpcError: reportNonTrpcErrorMock,
 }));
 
-vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
-  useV4UpgradeUiFlag: () => false,
-}));
+import { useAccountSettingsPages } from "@/src/features/account";
 
-import AccountSettingsPage from "@/src/features/account/AccountSettingsPage";
+function AccountSettingsPage() {
+  const [general] = useAccountSettingsPages();
+  return <>{general && "content" in general ? general.content : null}</>;
+}
 
 describe("SignOutAllSessionsButton", () => {
   beforeEach(() => {
