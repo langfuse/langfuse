@@ -1003,14 +1003,17 @@ export const SessionEventsPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
-  const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
+  const isModernSessionEnabled = useIsFeatureEnabled("sessionViewV2", {
     enableForAdmins: false,
     projectId,
   });
-  const isSessionTimelineEnabled = useIsFeatureEnabled("sessionTimeline", {
-    enableForAdmins: false,
-    projectId,
-  });
+  const isSessionTimelineEnabled = useIsFeatureEnabled(
+    "sessionViewV2Timeline",
+    {
+      enableForAdmins: false,
+      projectId,
+    },
+  );
   const session = api.sessions.byIdWithScoresFromEvents.useQuery(
     {
       sessionId,
@@ -1159,14 +1162,17 @@ const LoadedSessionEventsPage: React.FC<{
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
   const capture = usePostHogClientCapture();
-  const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
+  const isModernSessionEnabled = useIsFeatureEnabled("sessionViewV2", {
     enableForAdmins: false,
     projectId,
   });
-  const isSessionTimelineEnabled = useIsFeatureEnabled("sessionTimeline", {
-    enableForAdmins: false,
-    projectId,
-  });
+  const isSessionTimelineEnabled = useIsFeatureEnabled(
+    "sessionViewV2Timeline",
+    {
+      enableForAdmins: false,
+      projectId,
+    },
+  );
   const isMobile = useIsMobile();
   const openAnnotateRef = useRef<(payload: SessionAnnotatePayload) => void>(
     () => {},
