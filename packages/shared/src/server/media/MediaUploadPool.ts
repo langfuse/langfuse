@@ -67,8 +67,8 @@ export class MediaUploadPool {
     }
   }
 
-  // Each call admits at most one waiter per free slot. Index maintenance can
-  // still scan the waitlist when it is compacted.
+  // Each call wakes at most the number of slots free when it begins. Waitlist
+  // compaction can still scan the full backlog.
   private admitFittingWaiters(): void {
     while (this.active < this.concurrency && this.waiting.length > 0) {
       const available =
