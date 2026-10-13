@@ -37,7 +37,6 @@ import {
   UsageBadge,
   hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
-import { NoCostBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/NoCostBadge/NoCostBadge";
 import {
   isGenerationMissingCost,
   resolveObservationCostSource,
@@ -187,7 +186,8 @@ export const ObservationDetailViewHeader = memo(
         : undefined;
 
     const renderCostBadge = () => {
-      if (showsNoCost) return <NoCostBadge projectId={projectId} />;
+      if (showsNoCost)
+        return <CostBadge variant="missing" projectId={projectId} />;
       if (displayedTotalCost == null || !displayedCostDetails) return null;
       return (
         <CostBadge
