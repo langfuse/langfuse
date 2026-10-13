@@ -117,7 +117,7 @@ describe("topic trace filtering", () => {
     ).toEqual(billing);
   });
 
-  it("combines fields with AND and values within a field with OR before pagination", () => {
+  it("combines fields with AND and values within a field with OR", () => {
     const filters: FilterState = [
       {
         column: "topicId",

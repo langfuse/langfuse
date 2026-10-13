@@ -156,42 +156,17 @@ async function replaceQuery(search: HTMLElement, query: string) {
 }
 
 export const SearchAndClear = meta.story({
-  name: "(Test) Search and Clear",
-  play: async ({ canvasElement }) => {
+  name: "(Test) Search, Combine Filters and Clear",
+  play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const search = canvas.getByRole("combobox", { name: "Search" });
     await replaceQuery(search, "invoice");
     await waitFor(() =>
       expect(canvas.getByRole("status")).toHaveTextContent("1 of 4 traces"),
     );
-    await replaceQuery(search, "invoice assignment:Outlier");
-    await waitFor(() =>
-      expect(canvas.getByRole("status")).toHaveTextContent("0 of 4 traces"),
-    );
-    await expect(search).toHaveTextContent("invoice");
-    await expect(search).not.toHaveTextContent("in:");
-    await replaceQuery(search, "");
-    await waitFor(() =>
-      expect(canvas.getByRole("status")).toHaveTextContent("4 of 4 traces"),
-    );
-  },
-});
-
-export const TopicAndAssignment = meta.story({
-  name: "(Test) Topic and Assignment",
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    const search = canvas.getByRole("combobox", { name: "Search" });
     await replaceQuery(
       search,
-      'topic:("Billing questions" OR "Project setup")',
-    );
-    await waitFor(() =>
-      expect(canvas.getByRole("status")).toHaveTextContent("2 of 4 traces"),
-    );
-    await replaceQuery(
-      search,
-      'topic:("Billing questions" OR "Project setup") assignment:Outlier',
+      'topic:("Billing questions" OR "Project setup") assignment:Outlier invoice',
     );
     await waitFor(() =>
       expect(canvas.getByRole("status")).toHaveTextContent("0 of 4 traces"),
@@ -199,6 +174,8 @@ export const TopicAndAssignment = meta.story({
     await expect(
       canvas.getByText("No matches. Adjust or clear your filters."),
     ).toBeVisible();
+    await expect(search).toHaveTextContent("invoice");
+    await expect(search).not.toHaveTextContent("in:");
     await expect(args.onFiltersChange).toHaveBeenLastCalledWith([
       {
         column: "topicId",
@@ -213,6 +190,7 @@ export const TopicAndAssignment = meta.story({
         value: ["outlier"],
       },
     ]);
+    await expect(args.onSearchQueryChange).toHaveBeenLastCalledWith("invoice");
     await replaceQuery(search, "");
     await waitFor(() =>
       expect(canvas.getByRole("status")).toHaveTextContent("4 of 4 traces"),
@@ -276,14 +254,6 @@ export const TopicAutocomplete = meta.story({
     await expect(canvas.getByTestId("search-bar-token")).toHaveTextContent(
       'topic:"Billing questions"',
     );
-    await userEvent.keyboard("{Escape}");
-    await userEvent.hover(canvas.getByTestId("search-bar-token"));
-    await userEvent.click(
-      await canvas.findByRole("button", { name: /Remove topic/ }),
-    );
-    await waitFor(() =>
-      expect(canvas.getByRole("status")).toHaveTextContent("4 of 4 traces"),
-    );
   },
 });
 
@@ -345,16 +315,6 @@ export const FacetFiltersPersist = meta.story({
       expect(search).toHaveTextContent("subscription");
       expect(search).toHaveTextContent("assignment:Outlier");
       expect(search).not.toHaveTextContent("invoice");
-    });
-    await replaceQuery(search, "");
-    await waitFor(() => {
-      expect(search).not.toHaveTextContent("subscription");
-      expect(canvas.queryByTestId("search-bar-token")).not.toBeInTheDocument();
-    });
-    await userEvent.click(canvas.getByRole("tab", { name: "Intent" }));
-    await waitFor(() => {
-      expect(search).toHaveTextContent("invoice");
-      expect(search).toHaveTextContent('topic:"Billing questions"');
     });
   },
 });

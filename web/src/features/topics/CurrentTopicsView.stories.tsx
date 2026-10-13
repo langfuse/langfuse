@@ -58,8 +58,6 @@ const defaultArgs: ComponentProps<typeof CurrentTopicsView> = {
     setFilters: fn(),
     searchQuery: null,
     setSearchQuery: fn(),
-    selectedFacetId: "intent",
-    selectFacet: fn(),
   },
   onOpenTrace: fn(),
   onInspectTranscript: fn(),
@@ -245,7 +243,6 @@ function ControlledTopics(args: ControlledTopicsProps) {
           setSearchQuery,
         }}
       />
-      <output aria-label="Result revision">{revision}</output>
     </div>
   );
 }

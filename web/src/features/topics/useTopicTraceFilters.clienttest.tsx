@@ -8,10 +8,6 @@ import {
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
 
-vi.mock("@/src/features/posthog-analytics", () => ({
-  usePostHogClientCapture: () => vi.fn(),
-}));
-
 const topic: FilterState[number] = {
   column: "topicId",
   type: "stringOptions",
@@ -51,7 +47,6 @@ function setup(initialSearch = "", projectId = "project") {
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  sessionStorage.clear();
   localStorage.clear();
 });
 

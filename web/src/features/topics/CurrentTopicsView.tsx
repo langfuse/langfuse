@@ -1,4 +1,4 @@
-import { computeSelectedValues } from "@langfuse/shared";
+import { computeSelectedValues, type FilterState } from "@langfuse/shared";
 import { useMemo, useState, type ComponentProps, type MouseEvent } from "react";
 import { useMediaQuery } from "react-responsive";
 import { cn } from "@/src/utils/tailwind";
@@ -20,7 +20,6 @@ import {
   selectTopicTraceFilters,
 } from "./topic-trace-filters";
 import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
-import type { useTopicTraceFilters } from "./useTopicTraceFilters";
 
 export function CurrentTopicsView({
   projectId,
@@ -247,14 +246,7 @@ function CurrentTraceTable({
     setPageIndex(next.pageIndex);
     onPageSizeChange(next.pageSize);
   };
-  const columns = (
-    openInspector: (
-      source: Pick<
-        Facet["rows"][number],
-        "traceId" | "facetVersion" | "unitStartTime"
-      >,
-    ) => void,
-  ): LangfuseColumnDef<Facet["rows"][number]>[] => [
+  const columns: LangfuseColumnDef<Facet["rows"][number]>[] = [
     {
       accessorKey: "traceId",
       header: "Trace ID",
@@ -298,7 +290,7 @@ function CurrentTraceTable({
         }
         function inspectTranscript(event: MouseEvent) {
           event.stopPropagation();
-          openInspector({
+          onInspectTranscript({
             traceId: row.original.traceId,
             facetVersion: row.original.facetVersion,
             unitStartTime: row.original.unitStartTime,
@@ -340,7 +332,7 @@ function CurrentTraceTable({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <DataTable
         tableName="topics-current-traces"
-        columns={columns(onInspectTranscript)}
+        columns={columns}
         columnVisibility={{ traceId: !isMobile, topicName: !isMobile }}
         data={{
           isLoading: false,
@@ -386,7 +378,12 @@ type CurrentTopicsViewProps = {
   facet: Facet;
   mapResult: ComponentProps<typeof TopicEmbeddingMap>["query"];
   tracePanelRef?: (element: HTMLElement | null) => void;
-  traceFilters: ReturnType<typeof useTopicTraceFilters>;
+  traceFilters: {
+    filters: FilterState;
+    setFilters: (filters: FilterState) => void;
+    searchQuery: string | null;
+    setSearchQuery: (query: string | null) => void;
+  };
   onOpenTrace: (traceId: string) => void;
   onInspectTranscript: (source: SummarySource) => void;
   peekView: DataTablePeekViewProps;

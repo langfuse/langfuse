@@ -60,7 +60,10 @@ function CurrentFacet({
   tracePanelRef,
   traceFilters,
 }: CurrentFacetProps) {
-  const mapResult = useCurrentTopicMap(projectId, facet, timeRange);
+  const mapResult = api.topics.map.useQuery(
+    { projectId, runId: facet.map?.runId ?? "", timeRange },
+    { enabled: Boolean(facet.map) },
+  );
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
@@ -99,17 +102,6 @@ function CurrentFacet({
         />
       )}
     </DialogController>
-  );
-}
-
-function useCurrentTopicMap(
-  projectId: string,
-  facet: Facet,
-  timeRange: TopicTimeRange,
-) {
-  return api.topics.map.useQuery(
-    { projectId, runId: facet.map?.runId ?? "", timeRange },
-    { enabled: Boolean(facet.map) },
   );
 }
 
