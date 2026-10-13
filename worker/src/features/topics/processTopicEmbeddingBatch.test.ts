@@ -35,11 +35,16 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   TOPIC_EMBEDDING_EXPIRED_ERROR:
     "Topics staged results expired before processing completed. Start a new execution with stored-summary reuse to recover persisted results.",
 }));
-vi.mock("@langfuse/shared/src/server", () => ({
-  logger: { error: vi.fn() },
-  recordIncrement: vi.fn(),
-  recordDistribution: vi.fn(),
-}));
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const { isInternalEvalEnvironment } =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  return {
+    isInternalEvalEnvironment,
+    logger: { error: vi.fn() },
+    recordIncrement: vi.fn(),
+    recordDistribution: vi.fn(),
+  };
+});
 vi.mock("./models", () => ({
   embedTopicSummaries: mocks.embed,
 }));
@@ -122,6 +127,36 @@ beforeEach(() => {
 });
 
 describe("Topics embedding handoff", () => {
+  it.each(["summarized", "complete"] as const)(
+    "skips internal staged summaries in a mixed batch (%s)",
+    async (state) => {
+      const row: TopicSummary = {
+        ...summary(),
+        state,
+        environment: "langfuse-topics",
+        embedding: state === "complete" ? Array(256).fill(0.25) : [],
+      };
+      const allowed = summary("allowed");
+      staged.set(topicSourceKey(row), row);
+      staged.set(topicSourceKey(allowed), allowed);
+
+      await processTopicEmbeddingBatch(batch(row, allowed));
+
+      expect(mocks.embed).toHaveBeenCalledExactlyOnceWith(
+        expect.anything(),
+        [allowed.summary],
+        256,
+      );
+      expect(mocks.update).toHaveBeenCalledTimes(1);
+      expect(mocks.write).toHaveBeenCalledExactlyOnceWith([
+        expect.objectContaining({
+          traceId: allowed.traceId,
+          state: "complete",
+        }),
+      ]);
+    },
+  );
+
   it("retries combined results from Redis after a failed ClickHouse write", async () => {
     const applicable = summary();
     const nonApplicable: TopicSummary = {
