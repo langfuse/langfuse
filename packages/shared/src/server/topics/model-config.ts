@@ -167,12 +167,15 @@ export async function pauseTopicsModelsUsingConnection(
       enabled: false,
       blockedAt: new Date(),
       blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-      blockMessage: `The LLM connection "${provider}" was deleted. Choose another connection and turn Topics on again.`,
+      blockMessage: `The LLM connection "${provider}" was deleted. Choose another connection, then turn on "Process new traces automatically" in Configure Topics.`,
     },
   });
 }
 
-/** Settings shown in the Topics page; never includes secrets. */
+/**
+ * Settings shown in the Topics page; never includes secrets. `enabled` is null
+ * until the project saves Topics for the first time.
+ */
 export async function readTopicsModelSettings(projectId: string) {
   const row = await prisma.topicConfig.findUnique({
     where: { projectId },
@@ -190,7 +193,7 @@ export async function readTopicsModelSettings(projectId: string) {
       row?.clusteringLlmApiKeyId ?? null,
       row?.clusteringModel ?? null,
     ),
-    enabled: row?.enabled ?? false,
+    enabled: row ? row.enabled : null,
     blockedAt: row?.blockedAt ?? null,
     blockReason: row?.blockReason ?? null,
     blockMessage: row?.blockMessage ?? null,
@@ -258,7 +261,8 @@ export async function prepareTopicsModelSettings(
       "The embedding model and dimensions cannot change after summaries were embedded; existing vectors could no longer be clustered together.",
     );
 
-  await testTopicsModels(settings, keys);
+  // Turning automatic processing off must work even when a connection is broken.
+  if (settings.enabled) await testTopicsModels(settings, keys);
 
   const data = {
     enabled: settings.enabled,
