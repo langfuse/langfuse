@@ -1,4 +1,4 @@
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { z } from "zod";
 import {
   getObservationsV2FromEventsTableForPublicApi,
@@ -15,8 +15,14 @@ import {
   projectObservation,
 } from "../schema";
 
+const OBSERVATION_MAX_RANGE_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
+const MCP_OBSERVATIONS_MAX_EXECUTION_TIME_SECONDS = 25;
+
 const GetObservationBaseSchema = z.object({
   observationId: z.string().min(1),
+  traceId: z.string().min(1).optional(),
+  fromStartTime: z.iso.datetime({ offset: true }),
+  toStartTime: z.iso.datetime({ offset: true }),
   fields: ObservationFieldsSchema,
   expandMetadataKeys: ExpandMetadataKeysSchema,
 });
@@ -26,6 +32,7 @@ export const [getObservationTool, handleGetObservation] = defineTool({
   description: [
     "Get the details for a single observation in the current Langfuse project by observation ID.",
     "Use this when you already know the observation ID and want to inspect its timing, model, status, payload, metadata, usage, cost, or prompt fields.",
+    "Requires explicit fromStartTime and toStartTime with a positive range of at most 90 days. Reuse the observation startTime and traceId from earlier results to narrow the lookup; traceId does not replace time bounds.",
     "",
     'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
@@ -39,6 +46,15 @@ export const [getObservationTool, handleGetObservation] = defineTool({
       context,
       attributes: { "mcp.observation_id": input.observationId },
       fn: async (span) => {
+        const rangeMs =
+          new Date(input.toStartTime).getTime() -
+          new Date(input.fromStartTime).getTime();
+        if (rangeMs <= 0 || rangeMs > OBSERVATION_MAX_RANGE_MS) {
+          throw new InvalidRequestError(
+            "getObservation requires fromStartTime before toStartTime with a maximum range of 90 days.",
+          );
+        }
+
         const projectionFields = getProjectionFields(input.fields);
         const fieldGroups = getProjectionFieldGroups(projectionFields);
 
@@ -47,31 +63,41 @@ export const [getObservationTool, handleGetObservation] = defineTool({
           "mcp.field_groups": fieldGroups.join(","),
         });
 
-        const items = await getObservationsV2FromEventsTableForPublicApi({
-          projectId: context.projectId,
-          page: 0,
-          limit: 1,
-          fields: fieldGroups,
-          advancedFilters: [
-            {
-              type: "stringOptions",
-              column: "id",
-              operator: "any of",
-              value: [input.observationId],
+        const items = await getObservationsV2FromEventsTableForPublicApi(
+          {
+            projectId: context.projectId,
+            traceId: input.traceId,
+            fromStartTime: input.fromStartTime,
+            toStartTime: input.toStartTime,
+            page: 0,
+            limit: 1,
+            fields: fieldGroups,
+            advancedFilters: [
+              {
+                type: "stringOptions",
+                column: "id",
+                operator: "any of",
+                value: [input.observationId],
+              },
+            ],
+            expandMetadataKeys: getMetadataExpansionForProjection(
+              projectionFields,
+              input.expandMetadataKeys,
+            ),
+          },
+          {
+            clickhouseSettings: {
+              max_execution_time: MCP_OBSERVATIONS_MAX_EXECUTION_TIME_SECONDS,
             },
-          ],
-          expandMetadataKeys: getMetadataExpansionForProjection(
-            projectionFields,
-            input.expandMetadataKeys,
-          ),
-        });
+          },
+        );
 
         const observation = items.find(
           (item) => item.id === input.observationId,
         );
         if (!observation) {
           throw new LangfuseNotFoundError(
-            `Observation ${input.observationId} not found`,
+            `Observation ${input.observationId} not found within the supplied period (${input.fromStartTime} to ${input.toStartTime}).`,
           );
         }
 
