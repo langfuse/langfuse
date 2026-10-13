@@ -65,4 +65,22 @@ describe("resolveGatewayModelRoute", () => {
       providerModel: "claude-sonnet-4-5",
     });
   });
+
+  it("prefers an explicit ft connection over the OpenAI fine-tune fallback", () => {
+    const ftConnection = {
+      id: "ft-connection",
+      name: "ft",
+      provider: "ANTHROPIC",
+    } as const;
+
+    expect(
+      resolveGatewayModelRoute("ft:claude-sonnet-4-5", [
+        ...connections,
+        ftConnection,
+      ]),
+    ).toEqual({
+      connection: ftConnection,
+      providerModel: "claude-sonnet-4-5",
+    });
+  });
 });
