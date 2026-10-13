@@ -1,8 +1,11 @@
 /**
- * Bounds active uploads and decoded bytes. Fitting work may bypass the oldest
- * waiter up to `concurrency` times; then new work waits until it starts.
- * The upload must reject on timeout itself. This pool keeps its reservation
- * until work actually settles; timing out only the waiter would free it too soon.
+ * Bounds active uploads and their decoded bytes. Waiting `run()` calls pause
+ * until admitted; admission reserves capacity before waking them. Each settled
+ * upload admits more work, so progress requires active uploads to settle.
+ * Oversized uploads run alone.
+ *
+ * A fitting upload may bypass the oldest waiter up to `concurrency` times.
+ * Work must enforce its own timeout; its reservation lasts until it settles.
  */
 export class MediaUploadPool {
   private waiting: Array<PendingUpload | undefined> = [];
@@ -42,7 +45,7 @@ export class MediaUploadPool {
         (this.active === 0 || bytes <= this.maxBytes - this.reservedBytes)
       ) {
         this.bypasses = 0;
-        this.start(upload);
+        this.admit(upload);
         return;
       }
       this.waiting.push(upload);
@@ -52,7 +55,7 @@ export class MediaUploadPool {
       } else {
         this.setSize(this.waiting.length - 1, bytes);
       }
-      this.startWaiting();
+      this.admitFittingWaiters();
     });
 
     try {
@@ -60,11 +63,13 @@ export class MediaUploadPool {
     } finally {
       this.active -= 1;
       this.reservedBytes -= bytes;
-      this.startWaiting();
+      this.admitFittingWaiters();
     }
   }
 
-  private startWaiting(): void {
+  // Each call admits at most one waiter per free slot. Index maintenance can
+  // still scan the waitlist when it is compacted.
+  private admitFittingWaiters(): void {
     while (this.active < this.concurrency && this.waiting.length > 0) {
       const available =
         this.active === 0
@@ -78,7 +83,7 @@ export class MediaUploadPool {
       const upload = this.waiting[index]!;
       this.removeWaiting(index);
       this.bypasses = bypass ? this.bypasses + 1 : 0;
-      this.start(upload);
+      this.admit(upload);
     }
   }
 
@@ -138,7 +143,7 @@ export class MediaUploadPool {
     }
   }
 
-  private start(upload: PendingUpload): void {
+  private admit(upload: PendingUpload): void {
     this.active += 1;
     this.reservedBytes += upload.bytes;
     upload.ready();
