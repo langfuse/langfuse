@@ -108,10 +108,7 @@ const keyboardShortcutVariants = cva(
   },
 );
 
-// Modifier and arrow glyphs draw small and high in the mono face, so they are
-// rendered one font step up. A `text-*` utility brings its own line-height, and
-// `leading-none` holds that taller label inside the chip's fixed height so it
-// stays centred on the labels and words beside it.
+/** Draws symbol labels one font step up, with their line box pinned to the chip's height. */
 const symbolSizeClass = {
   default: "text-lg leading-none",
   sm: "text-sm leading-none",

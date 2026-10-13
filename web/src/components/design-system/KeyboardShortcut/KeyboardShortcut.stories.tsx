@@ -43,9 +43,7 @@ export const VariantMatrix = meta.story({
   ),
 });
 
-// The chips almost never stand on their own in the product: they label the
-// word, icon or button they sit next to, so their vertical rhythm is only
-// visible with that neighbour in the frame.
+/** Shows the chips beside the words, icons and button labels they line up with. */
 export const BesideTextAndIcons = meta.story({
   render: () => (
     <div className="flex flex-col items-start gap-4">
@@ -89,11 +87,10 @@ export const BesideTextAndIcons = meta.story({
   ),
 });
 
-// Every key label is sized on its own — symbols are bumped one font step up so
-// they do not draw small in the mono face — and a Tailwind `text-*` utility
-// carries a line-height with it. That makes the chip's own box the only thing
-// holding the labels on one line, so the guard is geometric: each label stays
-// inside its chip and centred in it, at every size and in every variant.
+/**
+ * Guards that each key label stays inside its chip and centred in it, at every
+ * size and variant.
+ */
 export const TestGlyphsStayCentredInTheChip = meta.story({
   name: "(Test) Glyphs Stay Centred In The Chip",
   render: () => (
@@ -102,6 +99,8 @@ export const TestGlyphsStayCentredInTheChip = meta.story({
         <KeyboardShortcut keys={["ArrowRight"]} />
         <KeyboardShortcut keys={["Mod", "Enter"]} />
         <KeyboardShortcut keys={["K"]} />
+        <KeyboardShortcut variant="subtle" keys={["ArrowUp"]} />
+        <KeyboardShortcut variant="inverse" keys={["1"]} />
         <KeyboardShortcut variant="keycap" keys={["Mod", "Enter"]} />
       </div>
       <div className="flex items-center gap-2">
@@ -117,7 +116,7 @@ export const TestGlyphsStayCentredInTheChip = meta.story({
   ),
   play: async ({ canvasElement }) => {
     const chips = Array.from(canvasElement.querySelectorAll("kbd"));
-    await expect(chips).toHaveLength(9);
+    await expect(chips).toHaveLength(11);
 
     const round = (value: number) => Math.round(value * 10) / 10;
     const misaligned = chips.flatMap((chip) => {
