@@ -2648,44 +2648,6 @@ export class OtelIngestionProcessor {
     };
   }
 
-  // Structured-metadata SDK majors JSON-encode per-key metadata values, so the
-  // langfuse_* compat keys read from metadata are decoded like the metadata.
-  private readAttribute(
-    attributes: Record<string, unknown>,
-    key: string,
-    decodeMetadataValues: boolean,
-  ): unknown {
-    const value = attributes[key];
-    if (
-      !decodeMetadataValues ||
-      typeof value !== "string" ||
-      !(
-        key.startsWith(`${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.`) ||
-        key.startsWith(`${LangfuseOtelSpanAttributes.TRACE_METADATA}.`)
-      )
-    ) {
-      return value;
-    }
-    try {
-      return JSON.parse(value);
-    } catch {
-      return value;
-    }
-  }
-
-  private extractStringAttribute(
-    attributes: Record<string, unknown>,
-    keys: string[],
-    decodeMetadataValues: boolean,
-  ): string | undefined {
-    for (const key of keys) {
-      const value = this.readAttribute(attributes, key, decodeMetadataValues);
-      if (value) {
-        return typeof value === "string" ? value : JSON.stringify(value);
-      }
-    }
-  }
-
   private extractUserId(
     attributes: Record<string, unknown>,
     decodeMetadataValues: boolean,
@@ -2719,6 +2681,51 @@ export class OtelIngestionProcessor {
       ],
       decodeMetadataValues,
     );
+  }
+
+  /**
+   * readAttribute decodes the langfuse_* compat keys read from metadata, which
+   * structured-metadata SDK majors JSON-encode like every per-key value.
+   */
+  private readAttribute(
+    attributes: Record<string, unknown>,
+    key: string,
+    decodeMetadataValues: boolean,
+  ): unknown {
+    const value = attributes[key];
+    if (
+      !decodeMetadataValues ||
+      typeof value !== "string" ||
+      !(
+        key.startsWith(`${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.`) ||
+        key.startsWith(`${LangfuseOtelSpanAttributes.TRACE_METADATA}.`)
+      )
+    ) {
+      return value;
+    }
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+
+  /**
+   * extractStringAttribute keeps a decoded value only when it is a string, so
+   * an encoded number keeps its exact digits instead of a lossy JS number.
+   */
+  private extractStringAttribute(
+    attributes: Record<string, unknown>,
+    keys: string[],
+    decodeMetadataValues: boolean,
+  ): string | undefined {
+    for (const key of keys) {
+      const decoded = this.readAttribute(attributes, key, decodeMetadataValues);
+      const value = typeof decoded === "string" ? decoded : attributes[key];
+      if (value) {
+        return typeof value === "string" ? value : JSON.stringify(value);
+      }
+    }
   }
 
   private extractModelParameters(

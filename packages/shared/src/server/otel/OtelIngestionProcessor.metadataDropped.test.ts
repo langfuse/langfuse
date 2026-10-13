@@ -603,7 +603,7 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
       Object.entries({
         langfuse_user_id: "u1",
         langfuse_session_id: "s1",
-        langfuse_tags: ["a", "b"],
+        langfuse_tags: "a",
       }).map(([key, value]) => ({
         key: `langfuse.${domain}.metadata.${key}`,
         value: {
@@ -659,9 +659,23 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
             compatAttributes(domain, true),
             "5.0.0",
           ),
-        ).toEqual({ userId: "u1", sessionId: "s1", tags: ["a", "b"] });
+        ).toEqual({ userId: "u1", sessionId: "s1", tags: ["a"] });
       },
     );
+
+    it("keeps the exact digits of a numeric ID beyond 2^53", async () => {
+      const result = await processTraceAttributes(
+        "v4",
+        [
+          {
+            key: "langfuse.observation.metadata.langfuse_user_id",
+            value: { stringValue: "1234567890123456789" },
+          },
+        ],
+        "5.0.0",
+      );
+      expect(result.userId).toBe("1234567890123456789");
+    });
 
     it("keeps raw string values from the current major", async () => {
       expect(
@@ -670,7 +684,7 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
           compatAttributes("observation", false),
           "4.15.6",
         ),
-      ).toEqual({ userId: "u1", sessionId: "s1", tags: ["a", "b"] });
+      ).toEqual({ userId: "u1", sessionId: "s1", tags: ["a"] });
     });
   });
 
