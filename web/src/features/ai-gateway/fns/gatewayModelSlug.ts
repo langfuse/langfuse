@@ -5,31 +5,21 @@ export function formatGatewayModelSlug(
   return `${connectionName}:${providerModel}`;
 }
 
-function parseGatewayModelSlug(model: string) {
-  const separatorIndex = model.indexOf(":");
-  if (separatorIndex <= 0) {
-    return null;
-  }
-  const providerModel = model.slice(separatorIndex + 1);
-  if (!providerModel.trim()) return null;
-
-  return {
-    connectionName: model.slice(0, separatorIndex),
-    providerModel,
-  };
-}
-
-type GatewayRouteConnection = {
-  name: string;
-  provider: string;
-};
-
 export function resolveGatewayModelRoute<
   Connection extends GatewayRouteConnection,
 >(
   model: string,
   connections: readonly Connection[],
 ): { connection: Connection | null; providerModel: string } | null {
+  if (model.startsWith("ft:")) {
+    return {
+      connection:
+        connections.find((connection) => connection.provider === "OPENAI") ??
+        null,
+      providerModel: model,
+    };
+  }
+
   const modelSlug = parseGatewayModelSlug(model);
   if (modelSlug) {
     return {
@@ -55,3 +45,22 @@ export function resolveGatewayModelRoute<
     providerModel: model,
   };
 }
+
+function parseGatewayModelSlug(model: string) {
+  const separatorIndex = model.indexOf(":");
+  if (separatorIndex <= 0) {
+    return null;
+  }
+  const providerModel = model.slice(separatorIndex + 1);
+  if (!providerModel.trim()) return null;
+
+  return {
+    connectionName: model.slice(0, separatorIndex),
+    providerModel,
+  };
+}
+
+type GatewayRouteConnection = {
+  name: string;
+  provider: string;
+};

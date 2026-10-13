@@ -20,21 +20,6 @@ import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-
 import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
 
-type CredentialValidator = (params: {
-  provider: GatewayProviderName;
-  credential: string;
-}) => Promise<void>;
-
-function rethrowConnectionMutationError(error: unknown): never {
-  if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002"
-  ) {
-    throw new InvalidRequestError(DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR);
-  }
-  throw error;
-}
-
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
   private readonly modelCatalogService: GatewayModelCatalogService;
@@ -244,6 +229,16 @@ export class GatewayProviderService {
   }
 }
 
+function rethrowConnectionMutationError(error: unknown): never {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  ) {
+    throw new InvalidRequestError(DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR);
+  }
+  throw error;
+}
+
 async function validateGatewayCredential(params: {
   provider: GatewayProviderName;
   credential: string;
@@ -279,3 +274,8 @@ async function validateGatewayCredential(params: {
     throw new InvalidRequestError("Provider credential validation failed");
   }
 }
+
+type CredentialValidator = (params: {
+  provider: GatewayProviderName;
+  credential: string;
+}) => Promise<void>;
