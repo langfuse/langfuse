@@ -69,6 +69,7 @@ type ButtonProps = {
       disabled?: boolean;
       form?: string;
       icon?: LucideIcon;
+      /** Shows a spinner over the hidden label, so the width never changes. */
       loading?: boolean;
       onClick?: MouseEventHandler<HTMLButtonElement>;
       type?: "button" | "submit";
@@ -128,7 +129,7 @@ export function Button(props: ButtonProps) {
 
   return (
     <button
-      className={className}
+      className={cn(className, "relative")}
       ref={props.ref}
       type={props.type ?? "button"}
       form={props.form}
@@ -137,15 +138,21 @@ export function Button(props: ButtonProps) {
       aria-busy={props.loading}
       aria-label={props.text}
     >
-      {props.loading ? (
-        <span className="flex h-1/2 items-center justify-center">
-          <Spinner size="full" />
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5",
+          props.loading && "invisible",
+        )}
+      >
+        {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
+        {props.text}
+      </span>
+      {props.loading && (
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span className="flex h-1/2 items-center justify-center">
+            <Spinner size="full" />
+          </span>
         </span>
-      ) : (
-        <>
-          {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
-          {props.text}
-        </>
       )}
     </button>
   );
