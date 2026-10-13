@@ -596,8 +596,7 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "jobConfigurations",
-      // Keep this stable for downstream consumers while evaluator v2 exports
-      // are adopted independently.
+      /** Omits the customer-authored job-configuration filter. */
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.jobConfiguration.findMany({
           take,
@@ -612,7 +611,6 @@ export const coreDataTableExports: Array<
             blockReason: true,
             evalTemplateId: true,
             scoreName: true,
-            filter: true,
             targetObject: true,
             variableMapping: true,
             sampling: true,
@@ -653,7 +651,7 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "evaluatorVersions",
-      /** Exports evaluator version metadata without customer-authored definitions. */
+      /** Exports version metadata, vars, and variableMapping, and omits prompt, code, and model params. */
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.evaluatorVersion.findMany({
           take,
@@ -667,6 +665,8 @@ export const coreDataTableExports: Array<
             partner: true,
             model: true,
             provider: true,
+            vars: true,
+            variableMapping: true,
             sourceCodeLanguage: true,
             createdAt: true,
           },
@@ -702,7 +702,6 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "evaluationRuleEvaluatorAssignments",
-      /** Omits customer-authored evaluator variable mappings. */
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.evaluationRuleEvaluatorAssignment.findMany({
           take,
@@ -713,6 +712,7 @@ export const coreDataTableExports: Array<
             projectId: true,
             evaluationRuleId: true,
             evaluatorId: true,
+            variableMapping: true,
             createdAt: true,
             updatedAt: true,
           },

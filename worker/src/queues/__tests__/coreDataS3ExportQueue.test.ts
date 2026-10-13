@@ -173,20 +173,26 @@ describe("coreDataTableExports", () => {
     const evaluatorVersionSelect = selectFor(
       vi.mocked(prisma.evaluatorVersion.findMany),
     );
-    expect(evaluatorVersionSelect).not.toHaveProperty("variableMapping");
-    expect(evaluatorVersionSelect).not.toHaveProperty("vars");
     expect(evaluatorVersionSelect).toMatchObject({
       id: true,
       evaluatorId: true,
       version: true,
+      vars: true,
+      variableMapping: true,
     });
 
+    expect(
+      selectFor(vi.mocked(prisma.jobConfiguration.findMany)),
+    ).not.toHaveProperty("filter");
+    expect(
+      selectFor(vi.mocked(prisma.jobConfiguration.findMany)),
+    ).toMatchObject({ variableMapping: true });
     expect(
       selectFor(vi.mocked(prisma.evaluationRule.findMany)),
     ).not.toHaveProperty("filter");
     expect(
       selectFor(vi.mocked(prisma.evaluationRuleEvaluatorAssignment.findMany)),
-    ).not.toHaveProperty("variableMapping");
+    ).toMatchObject({ variableMapping: true });
 
     const widgetSelect = selectFor(vi.mocked(prisma.dashboardWidget.findMany));
     expect(widgetSelect).not.toHaveProperty("filters");
