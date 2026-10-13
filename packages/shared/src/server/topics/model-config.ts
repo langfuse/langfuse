@@ -12,6 +12,7 @@ import {
 } from "../llm/llmText";
 import { testModelCall } from "../llm/testModelCall";
 import { LLMAdapter, type LLMApiKeySchema } from "../llm/types";
+import { findCompatibleLlmApiKeysForProjects } from "../services/LLMApiKeys";
 import {
   TOPICS_MODEL_SLOT_DETAILS,
   TOPICS_MODEL_SLOTS,
@@ -195,17 +196,8 @@ export async function handleTopicsLlmApiKeyDeletion(params: {
   llmApiKeyId: string;
   provider: string;
   adapter: string;
-  replacementLlmApiKeyId?: string;
-  projectReplacementProvider?: string;
 }): Promise<string[]> {
-  const {
-    tx,
-    llmApiKeyId,
-    provider,
-    adapter,
-    replacementLlmApiKeyId,
-    projectReplacementProvider,
-  } = params;
+  const { tx, llmApiKeyId, provider, adapter } = params;
   const configs = await tx.topicConfig.findMany({
     where: {
       OR: [
@@ -223,27 +215,16 @@ export async function handleTopicsLlmApiKeyDeletion(params: {
     },
   });
 
-  const projectReplacements = projectReplacementProvider
-    ? await tx.llmApiKeys.findMany({
-        where: {
-          projectId: { in: configs.map(({ projectId }) => projectId) },
-          provider: projectReplacementProvider,
-          adapter,
-          id: { not: llmApiKeyId },
-        },
-        select: { id: true, projectId: true },
-      })
-    : [];
-  const projectReplacementByProjectId = new Map(
-    projectReplacements.flatMap(({ id, projectId }) =>
-      projectId ? [[projectId, id] as const] : [],
-    ),
-  );
+  const replacements = await findCompatibleLlmApiKeysForProjects({
+    tx,
+    projectIds: configs.map(({ projectId }) => projectId),
+    provider,
+    adapter,
+    excludedLlmApiKeyId: llmApiKeyId,
+  });
 
   for (const config of configs) {
-    const replacement =
-      replacementLlmApiKeyId ??
-      projectReplacementByProjectId.get(config.projectId);
+    const replacement = replacements.get(config.projectId)?.id;
     const slotUpdates = {
       ...(config.summaryLlmApiKeyId === llmApiKeyId
         ? { summaryLlmApiKeyId: replacement ?? null }
@@ -301,26 +282,25 @@ export async function reconcileTopicsConnectionsForProject(
     );
     if (inaccessibleKeys.length === 0) return false;
 
-    const replacements = await tx.llmApiKeys.findMany({
-      where: {
-        provider: {
-          in: inaccessibleKeys.flatMap((key) => (key ? [key.provider] : [])),
-        },
-        OR: [{ projectId }, { organizationId: config.project.orgId }],
-      },
-    });
-    const replacementByProviderAndAdapter = new Map(
-      replacements
-        .filter(({ organizationId }) => organizationId)
-        .map((key) => [`${key.provider}:${key.adapter}`, key]),
+    const uniqueInaccessibleKeys = [
+      ...new Map(
+        inaccessibleKeys.flatMap((key) => (key ? [[key.id, key]] : [])),
+      ).values(),
+    ];
+    const replacementByLlmApiKeyId = new Map(
+      await Promise.all(
+        uniqueInaccessibleKeys.map(async (key) => {
+          const replacements = await findCompatibleLlmApiKeysForProjects({
+            tx,
+            projectIds: [projectId],
+            provider: key.provider,
+            adapter: key.adapter,
+            excludedLlmApiKeyId: key.id,
+          });
+          return [key.id, replacements.get(projectId)?.id] as const;
+        }),
+      ),
     );
-    for (const key of replacements) {
-      if (key.projectId === projectId)
-        replacementByProviderAndAdapter.set(
-          `${key.provider}:${key.adapter}`,
-          key,
-        );
-    }
 
     const resolveKeyId = (key: LlmApiKeys | null) => {
       if (!key) return null;
@@ -329,10 +309,7 @@ export async function reconcileTopicsConnectionsForProject(
         key.organizationId === config.project.orgId
       )
         return key.id;
-      return (
-        replacementByProviderAndAdapter.get(`${key.provider}:${key.adapter}`)
-          ?.id ?? null
-      );
+      return replacementByLlmApiKeyId.get(key.id) ?? null;
     };
     const summaryLlmApiKeyId = resolveKeyId(config.summaryLlmApiKey);
     const embeddingLlmApiKeyId = resolveKeyId(config.embeddingLlmApiKey);

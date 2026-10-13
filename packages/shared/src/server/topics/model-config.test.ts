@@ -9,6 +9,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   keys: vi.fn(),
+  projects: vi.fn(),
   configs: vi.fn(),
   current: vi.fn(),
   update: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock("./processing-gate", () => ({
 vi.mock("../../db", () => {
   const tx = {
     llmApiKeys: { findMany: mocks.keys },
+    project: { findMany: mocks.projects },
     topicConfig: {
       findMany: mocks.configs,
       findUnique: mocks.current,
@@ -79,6 +81,7 @@ beforeEach(() => {
     connection("anthropic", LLMAdapter.Anthropic),
   ]);
   mocks.current.mockResolvedValue(null);
+  mocks.projects.mockResolvedValue([{ id: "project", orgId: "target-org" }]);
   mocks.hasEmbeddings.mockResolvedValue(false);
   mocks.testCall.mockResolvedValue(undefined);
   mocks.embed.mockImplementation(async ({ summaries, dimensions }) => ({
@@ -264,7 +267,7 @@ describe("reconcileTopicsConnectionsForProject", () => {
       embeddingLlmApiKey: sourceConnection,
       clusteringLlmApiKey: sourceConnection,
     });
-    mocks.keys.mockResolvedValue([targetConnection]);
+    mocks.keys.mockResolvedValue([]);
 
     await reconcileTopicsConnectionsForProject("project");
 

@@ -5,7 +5,10 @@ import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
 import { getClientInitiatedNonStreamingLlmTimeoutMs } from "../../llm/llmText";
 import { LLMAdapter, LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
 import { testModelCall } from "../../llm/testModelCall";
-import { resolveLlmApiKey } from "../LLMApiKeys";
+import {
+  findCompatibleLlmApiKeysForProjects,
+  resolveLlmApiKey,
+} from "../LLMApiKeys";
 import {
   blockEvaluatorsUsingDefaultModel,
   EvaluatorBlockSource,
@@ -99,19 +102,12 @@ export class DefaultEvalModelService {
   public static async handleLlmApiKeyDeletion(params: {
     tx: Prisma.TransactionClient;
     llmApiKeyId: string;
+    provider: string;
     adapter: string;
-    replacementLlmApiKeyId?: string;
-    projectReplacementProvider?: string;
   }): Promise<
     Array<{ projectId: string; defaultModelBlock: EvaluatorBlockResult }>
   > {
-    const {
-      tx,
-      llmApiKeyId,
-      adapter,
-      replacementLlmApiKeyId,
-      projectReplacementProvider,
-    } = params;
+    const { tx, llmApiKeyId, provider, adapter } = params;
     const defaultModels = await tx.defaultLlmModel.findMany({
       where: { llmApiKeyId },
       select: { id: true, projectId: true },
@@ -121,41 +117,20 @@ export class DefaultEvalModelService {
       return [];
     }
 
-    if (replacementLlmApiKeyId) {
-      await tx.defaultLlmModel.updateMany({
-        where: { llmApiKeyId },
-        data: { llmApiKeyId: replacementLlmApiKeyId },
-      });
-      return [];
-    }
-
-    const projectReplacements = projectReplacementProvider
-      ? await tx.llmApiKeys.findMany({
-          where: {
-            projectId: {
-              in: defaultModels.map(({ projectId }) => projectId),
-            },
-            provider: projectReplacementProvider,
-            adapter,
-            id: { not: llmApiKeyId },
-          },
-          select: { id: true, projectId: true },
-        })
-      : [];
-    const projectReplacementByProjectId = new Map(
-      projectReplacements.flatMap(({ id, projectId }) =>
-        projectId ? [[projectId, id] as const] : [],
-      ),
-    );
+    const replacements = await findCompatibleLlmApiKeysForProjects({
+      tx,
+      projectIds: defaultModels.map(({ projectId }) => projectId),
+      provider,
+      adapter,
+      excludedLlmApiKeyId: llmApiKeyId,
+    });
     const modelsWithoutReplacement = [];
     for (const defaultModel of defaultModels) {
-      const projectReplacement = projectReplacementByProjectId.get(
-        defaultModel.projectId,
-      );
-      if (projectReplacement) {
+      const replacement = replacements.get(defaultModel.projectId);
+      if (replacement) {
         await tx.defaultLlmModel.update({
           where: { id: defaultModel.id },
-          data: { llmApiKeyId: projectReplacement },
+          data: { llmApiKeyId: replacement.id },
         });
       } else {
         modelsWithoutReplacement.push(defaultModel);
@@ -208,18 +183,14 @@ export class DefaultEvalModelService {
         defaultModel.LlmApiKey.organizationId === defaultModel.Project.orgId;
       if (connectionIsAccessible) return null;
 
-      const replacements = await tx.llmApiKeys.findMany({
-        where: {
-          provider: defaultModel.provider,
-          adapter: defaultModel.adapter,
-          OR: [{ projectId }, { organizationId: defaultModel.Project.orgId }],
-        },
+      const replacements = await findCompatibleLlmApiKeysForProjects({
+        tx,
+        projectIds: [projectId],
+        provider: defaultModel.provider,
+        adapter: defaultModel.adapter,
+        excludedLlmApiKeyId: defaultModel.llmApiKeyId,
       });
-      const replacement =
-        replacements.find((key) => key.projectId === projectId) ??
-        replacements.find(
-          (key) => key.organizationId === defaultModel.Project.orgId,
-        );
+      const replacement = replacements.get(projectId);
       if (replacement) {
         await tx.defaultLlmModel.update({
           where: { id: defaultModel.id },
