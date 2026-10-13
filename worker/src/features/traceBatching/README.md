@@ -29,7 +29,7 @@ templates. The local dev template sets the idle time below.
 | `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE` | unset | Optional positive `max_block_size` hint; unset inherits the server profile. |
 | `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID` | unset | Optional 1–64 character attempt/query label: letters, digits, `.`, `_`, `-`; first character alphanumeric. |
 | `LANGFUSE_TRACE_BATCH_CONCURRENCY` | `2` | Concurrent batch jobs per worker process. |
-| `LANGFUSE_TRACE_BATCH_IDLE_MS` | `600000` | Idle time before a trace is ready. Unset and `DEV` uses `120000` (2 minutes); every other region uses 10 minutes. |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS` | `600000` | Default idle time before a trace is ready. Unset and `DEV` uses `120000` (2 minutes); every other region uses 10 minutes. A project's `tracing_readiness_settings.trace_idle_ms` (60 s to 60 min) overrides it, capped at the pending TTL minus the dispatch interval. The project value is cached in Redis for 5 minutes; saving replaces it, so the next activity reads the new value. A failed read uses the default and is not cached. |
 | `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS` | `7200000` | Pending retention and inactivity expiry (2 hours). |
 | `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS` | `30000` | Dispatcher cadence (30 seconds). |
 
