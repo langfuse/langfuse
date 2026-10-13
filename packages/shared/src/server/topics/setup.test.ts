@@ -48,13 +48,11 @@ const setup = {
   embedding: { llmApiKeyId: "key", model: "embed" },
   embeddingDimensions: 1024,
   clustering: { llmApiKeyId: "key", model: "cluster" },
-  enabled: true,
   facets: facets.map((facet) => ({
     name: facet.name,
     enabled: facet.enabled,
   })),
   filter: [{ column: "name", type: "string", operator: "=", value: "billing" }],
-  sampling: 0.25,
   traceIdleMs: 120_000,
 } satisfies Parameters<typeof saveTopicsSetup>[1];
 
@@ -63,7 +61,7 @@ describe("Topics setup", () => {
     vi.resetAllMocks();
     mocks.ensureFacets.mockResolvedValue(facets);
     mocks.saveRule.mockResolvedValue({ id: "rule-a" });
-    mocks.prepareModels.mockResolvedValue({ enabled: true });
+    mocks.prepareModels.mockResolvedValue({ summaryModel: "gpt" });
   });
 
   it("creates the built-in facets and one rule for the enabled ones", async () => {
@@ -74,19 +72,17 @@ describe("Topics setup", () => {
       embedding: setup.embedding,
       embeddingDimensions: 1024,
       clustering: setup.clustering,
-      enabled: true,
     });
     expect(mocks.ensureFacets).toHaveBeenCalledWith(projectId);
     expect(mocks.saveRule).toHaveBeenCalledWith("tx", {
       projectId,
       filter: setup.filter,
-      sampling: 0.25,
       facetIds: facets.flatMap((facet) => (facet.enabled ? [facet.id] : [])),
       userId: "user-a",
     });
     expect(mocks.writeModels).toHaveBeenCalledWith(
       projectId,
-      { enabled: true },
+      { summaryModel: "gpt" },
       { userId: "user-a", tx: "tx" },
     );
     expect(mocks.writeReadiness).toHaveBeenCalledWith(

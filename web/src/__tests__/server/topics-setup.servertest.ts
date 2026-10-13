@@ -1,13 +1,13 @@
 import { randomUUID } from "crypto";
 import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
 import { EvaluatorBlockReason, prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { createOrgProjectAndApiKey, redis } from "@langfuse/shared/src/server";
 import { LLMAdapter } from "@langfuse/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   testModelCall: vi.fn(),
-  generateTopicEmbedding: vi.fn(),
+  generateTopicEmbeddings: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server/llm/testModelCall", () => ({
   testModelCall: mocks.testModelCall,
@@ -16,16 +16,28 @@ vi.mock(
   "@langfuse/shared/src/server/topics/embeddings",
   async (importOriginal) => ({
     ...(await importOriginal<Record<string, unknown>>()),
-    generateTopicEmbedding: mocks.generateTopicEmbedding,
+    generateTopicEmbeddings: mocks.generateTopicEmbeddings,
   }),
 );
 
 import {
+  listTopicRules,
   pauseTopicsModelsUsingConnection,
   saveTopicsSetup,
+  setTopicsAutomaticProcessing,
 } from "@langfuse/shared/topics/server";
 
-async function pausedProject() {
+const pause = {
+  blockedAt: new Date(),
+  blockReason: EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID,
+  blockMessage: "The provider rejected the API key.",
+};
+const clearedBlock = { blockedAt: null, blockReason: null, blockMessage: null };
+
+/** A project with stored models; `stored` sets the automatic-processing state. */
+async function topicsProject(
+  stored: { enabled: boolean } & Partial<typeof pause> = { enabled: false },
+) {
   const { projectId } = await createOrgProjectAndApiKey();
   const connection = await prisma.llmApiKeys.create({
     data: {
@@ -40,10 +52,7 @@ async function pausedProject() {
   await prisma.topicConfig.create({
     data: {
       projectId,
-      enabled: false,
-      blockedAt: new Date(),
-      blockReason: EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID,
-      blockMessage: "The provider rejected the API key.",
+      ...stored,
       summaryLlmApiKeyId: connection.id,
       summaryModel: "gpt-6-luna",
       embeddingLlmApiKeyId: connection.id,
@@ -63,54 +72,82 @@ async function pausedProject() {
       enabled: true,
     })),
     filter: [],
-    sampling: 1,
     traceIdleMs: 600_000,
   };
-  return { projectId, setup };
+  return { projectId, connection, setup };
 }
 
-const clearedBlock = { blockedAt: null, blockReason: null, blockMessage: null };
+const storedConfig = (projectId: string) =>
+  prisma.topicConfig.findUniqueOrThrow({ where: { projectId } });
 
-describe("saveTopicsSetup automatic processing", () => {
-  beforeEach(() => {
-    mocks.testModelCall.mockReset();
-    mocks.generateTopicEmbedding.mockReset();
+const modelsWork = () => {
+  mocks.testModelCall.mockResolvedValue(undefined);
+  mocks.generateTopicEmbeddings.mockImplementation(
+    async ({ summaries, dimensions }) => ({
+      embeddings: summaries.map(() => Array(dimensions).fill(0.1)),
+    }),
+  );
+};
+const modelsFail = () => {
+  mocks.testModelCall.mockRejectedValue(new Error("Invalid API key."));
+  mocks.generateTopicEmbeddings.mockRejectedValue(
+    new Error("Invalid API key."),
+  );
+};
+
+beforeEach(() => {
+  mocks.testModelCall.mockReset();
+  mocks.generateTopicEmbeddings.mockReset();
+});
+
+describe("saveTopicsSetup", () => {
+  it("starts with automatic processing off on the first save", async () => {
+    const { projectId, setup } = await topicsProject();
+    await prisma.topicConfig.delete({ where: { projectId } });
+    modelsWork();
+
+    await saveTopicsSetup(projectId, setup);
+
+    expect(await storedConfig(projectId)).toMatchObject({
+      enabled: false,
+      ...clearedBlock,
+    });
   });
 
-  it("saves with automatic processing off without testing the models", async () => {
-    mocks.testModelCall.mockRejectedValue(new Error("Invalid API key."));
-    mocks.generateTopicEmbedding.mockRejectedValue(
-      new Error("Invalid API key."),
-    );
-    const { projectId, setup } = await pausedProject();
+  it("keeps automatic processing on and tests every model", async () => {
+    modelsWork();
+    const { projectId, setup } = await topicsProject({ enabled: true });
 
-    await saveTopicsSetup(projectId, { ...setup, enabled: false });
-
-    expect(mocks.testModelCall).not.toHaveBeenCalled();
-    expect(mocks.generateTopicEmbedding).not.toHaveBeenCalled();
-    expect(
-      await prisma.topicConfig.findUniqueOrThrow({ where: { projectId } }),
-    ).toMatchObject({ enabled: false, ...clearedBlock });
-  });
-
-  it("tests the models and clears the pause when turned on", async () => {
-    mocks.testModelCall.mockResolvedValue(undefined);
-    mocks.generateTopicEmbedding.mockImplementation(async ({ dimensions }) => ({
-      embedding: Array(dimensions).fill(0.1),
-    }));
-    const { projectId, setup } = await pausedProject();
-
-    await saveTopicsSetup(projectId, { ...setup, enabled: true });
+    await saveTopicsSetup(projectId, setup);
 
     expect(mocks.testModelCall).toHaveBeenCalledTimes(2);
-    expect(mocks.generateTopicEmbedding).toHaveBeenCalledOnce();
-    expect(
-      await prisma.topicConfig.findUniqueOrThrow({ where: { projectId } }),
-    ).toMatchObject({ enabled: true, ...clearedBlock });
+    expect(mocks.generateTopicEmbeddings).toHaveBeenCalledOnce();
+    expect(await storedConfig(projectId)).toMatchObject({ enabled: true });
   });
 
-  it("keeps the stored models of empty slots when saved off", async () => {
-    const { projectId, setup } = await pausedProject();
+  it("keeps a pause and its reason without testing unchanged models", async () => {
+    modelsFail();
+    const { projectId, setup } = await topicsProject({
+      enabled: false,
+      ...pause,
+    });
+
+    await saveTopicsSetup(projectId, setup);
+
+    expect(mocks.testModelCall).not.toHaveBeenCalled();
+    expect(mocks.generateTopicEmbeddings).not.toHaveBeenCalled();
+    expect(await storedConfig(projectId)).toMatchObject({
+      enabled: false,
+      blockReason: pause.blockReason,
+      blockMessage: pause.blockMessage,
+    });
+  });
+
+  it("keeps the stored models of empty slots while off", async () => {
+    const { projectId, setup } = await topicsProject({
+      enabled: false,
+      ...pause,
+    });
 
     await saveTopicsSetup(projectId, {
       ...setup,
@@ -118,14 +155,9 @@ describe("saveTopicsSetup automatic processing", () => {
       embedding: null,
       embeddingDimensions: 512,
       clustering: null,
-      enabled: false,
     });
 
-    expect(
-      await prisma.topicConfig.findUniqueOrThrow({ where: { projectId } }),
-    ).toMatchObject({
-      enabled: false,
-      ...clearedBlock,
+    expect(await storedConfig(projectId)).toMatchObject({
       summaryModel: "gpt-6-luna",
       embeddingModel: "text-embedding-3-small",
       embeddingDimensions: 1024,
@@ -133,34 +165,139 @@ describe("saveTopicsSetup automatic processing", () => {
     });
   });
 
-  it("tests only the changed models when saved off", async () => {
+  it("tests only the changed models while off", async () => {
     mocks.testModelCall.mockRejectedValue(new Error("Unknown model."));
-    const { projectId, setup } = await pausedProject();
-    const changed = {
-      ...setup,
-      clustering: { ...setup.clustering, model: "gpt-unknown" },
-      enabled: false,
-    };
+    const { projectId, setup } = await topicsProject();
 
-    await expect(saveTopicsSetup(projectId, changed)).rejects.toThrow(
-      "Unknown model.",
-    );
+    await expect(
+      saveTopicsSetup(projectId, {
+        ...setup,
+        clustering: { ...setup.clustering, model: "gpt-unknown" },
+      }),
+    ).rejects.toThrow("Unknown model.");
     expect(mocks.testModelCall).toHaveBeenCalledOnce();
-    expect(mocks.generateTopicEmbedding).not.toHaveBeenCalled();
+    expect(mocks.generateTopicEmbeddings).not.toHaveBeenCalled();
   });
 
-  it("does not mark a switched-off config paused when its connection is deleted", async () => {
-    const { projectId, setup } = await pausedProject();
-    await saveTopicsSetup(projectId, { ...setup, enabled: false });
+  it("keeps the rule's sampling rate", async () => {
+    const { projectId, setup } = await topicsProject();
+    const { id: ruleId } = await saveTopicsSetup(projectId, setup);
+    await setTopicsAutomaticProcessing(projectId, {
+      enabled: false,
+      sampling: 0.25,
+    });
+
+    await saveTopicsSetup(projectId, { ...setup, ruleId });
+
+    const [rule] = await listTopicRules(projectId);
+    expect(rule?.sampling).toBe(0.25);
+  });
+});
+
+describe("setTopicsAutomaticProcessing", () => {
+  it("tests the models, clears the pause and saves sampling when turned on", async () => {
+    const { projectId, setup } = await topicsProject({
+      enabled: false,
+      ...pause,
+    });
+    await saveTopicsSetup(projectId, setup);
+    modelsWork();
+    const cacheKey = `langfuse:topics:processing-active:${projectId}`;
+    await redis?.set(cacheKey, "0");
+
+    const { ruleBefore, ruleAfter } = await setTopicsAutomaticProcessing(
+      projectId,
+      { enabled: true, sampling: 0.5 },
+    );
+
+    expect(mocks.testModelCall).toHaveBeenCalledTimes(2);
+    expect(mocks.generateTopicEmbeddings).toHaveBeenCalledOnce();
+    expect(await storedConfig(projectId)).toMatchObject({
+      enabled: true,
+      ...clearedBlock,
+    });
+    expect([ruleBefore.sampling, ruleAfter.sampling]).toEqual([1, 0.5]);
+    expect(await redis?.get(cacheKey)).toBeNull();
+  });
+
+  it("stays paused when a model test fails", async () => {
+    const { projectId, setup } = await topicsProject({
+      enabled: false,
+      ...pause,
+    });
+    await saveTopicsSetup(projectId, setup);
+    modelsFail();
+
+    await expect(
+      setTopicsAutomaticProcessing(projectId, { enabled: true }),
+    ).rejects.toThrow("Invalid API key.");
+    expect(await storedConfig(projectId)).toMatchObject({
+      enabled: false,
+      blockReason: pause.blockReason,
+    });
+  });
+
+  it("refuses to turn on while a connection is deleted", async () => {
+    modelsWork();
+    const { projectId, connection, setup } = await topicsProject({
+      enabled: true,
+    });
+    await saveTopicsSetup(projectId, setup);
+    await pauseTopicsModelsUsingConnection({
+      projectId,
+      llmApiKeyId: connection.id,
+      provider: connection.provider,
+    });
+    await prisma.llmApiKeys.delete({ where: { id: connection.id } });
+
+    await expect(
+      setTopicsAutomaticProcessing(projectId, { enabled: true }),
+    ).rejects.toThrow("before turning on automatic processing");
+    expect(await storedConfig(projectId)).toMatchObject({
+      enabled: false,
+      blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+    });
+  });
+
+  it("turns off and clears a pause without testing the models", async () => {
+    modelsFail();
+    const { projectId, setup } = await topicsProject({
+      enabled: false,
+      ...pause,
+    });
+    await saveTopicsSetup(projectId, setup);
+
+    await setTopicsAutomaticProcessing(projectId, { enabled: false });
+
+    expect(mocks.testModelCall).not.toHaveBeenCalled();
+    expect(await storedConfig(projectId)).toMatchObject({
+      enabled: false,
+      ...clearedBlock,
+    });
+  });
+
+  it("refuses before the setup was saved", async () => {
+    const { projectId } = await topicsProject();
+
+    await expect(
+      setTopicsAutomaticProcessing(projectId, { enabled: true }),
+    ).rejects.toThrow("Save the Topics setup");
+  });
+});
+
+describe("pauseTopicsModelsUsingConnection", () => {
+  it("does not mark a switched-off config paused", async () => {
+    const { projectId, connection } = await topicsProject();
 
     await pauseTopicsModelsUsingConnection({
       projectId,
-      llmApiKeyId: setup.summary.llmApiKeyId,
+      llmApiKeyId: connection.id,
       provider: "openai",
     });
 
-    expect(
-      await prisma.topicConfig.findUniqueOrThrow({ where: { projectId } }),
-    ).toMatchObject({ enabled: false, ...clearedBlock });
+    expect(await storedConfig(projectId)).toMatchObject({
+      enabled: false,
+      ...clearedBlock,
+    });
   });
 });

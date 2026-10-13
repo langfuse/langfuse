@@ -137,10 +137,6 @@ describe("Topics eval-backed configuration", () => {
           facetIds: [facets[0].id],
         },
         {
-          enabled: true,
-          blockedAt: null,
-          blockReason: null,
-          blockMessage: null,
           // No such connection: the foreign key rejects the model write.
           summaryLlmApiKeyId: "missing-connection",
           summaryModel: "gpt-6-luna",
@@ -165,10 +161,6 @@ describe("Topics eval-backed configuration", () => {
   it("records who created and last updated the Topics configuration", async () => {
     const facets = await ensureDefaultTopicFacets(auditProjectId);
     const models = {
-      enabled: false,
-      blockedAt: null,
-      blockReason: null,
-      blockMessage: null,
       summaryLlmApiKeyId: null,
       summaryModel: null,
       embeddingLlmApiKeyId: null,

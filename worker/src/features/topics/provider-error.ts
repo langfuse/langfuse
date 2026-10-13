@@ -88,7 +88,7 @@ export function isRejectedConnection(
 function rejectedConnectionBlock(error: TopicsProviderUnavailable) {
   return {
     blockReason: EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID,
-    blockMessage: `${error.message} Topics was turned off. Fix the connection, then turn on "Process new traces automatically" in Configure Topics.`,
+    blockMessage: `${error.message} Automatic processing was paused. Fix the connection, then turn automatic processing back on.`,
   };
 }
 

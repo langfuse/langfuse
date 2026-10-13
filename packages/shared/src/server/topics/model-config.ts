@@ -168,7 +168,7 @@ export async function pauseTopicsModelsUsingConnection(
       enabled: false,
       blockedAt: new Date(),
       blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-      blockMessage: `The LLM connection "${provider}" was deleted. Choose another connection, then turn on "Process new traces automatically" in Configure Topics.`,
+      blockMessage: `The LLM connection "${provider}" was deleted. Choose another connection in Configure Topics, then turn automatic processing back on.`,
     },
   });
 }
@@ -235,24 +235,26 @@ export async function checkTopicsModelSettings(
 
 /**
  * Validates and tests the settings without writing them, so callers can save
- * related configuration first and commit the models last.
+ * related configuration first and commit the models last. Saving keeps the
+ * stored automatic-processing state and pause; a first save starts off.
  */
 export async function prepareTopicsModelSettings(
   projectId: string,
   settings: TopicsModelSettings,
 ) {
   const keys = await loadTopicsModelKeys(projectId, settings);
-  if (
-    settings.enabled &&
-    (!settings.summary || !settings.embedding || !settings.clustering)
-  )
-    throw new InvalidRequestError(
-      "Choose a summary, embedding, and clustering model before turning Topics on.",
-    );
-
   const current = await prisma.topicConfig.findUnique({
     where: { projectId },
   });
+  const running = current?.enabled ?? false;
+  if (
+    running &&
+    (!settings.summary || !settings.embedding || !settings.clustering)
+  )
+    throw new InvalidRequestError(
+      "Choose a summary, embedding, and clustering model while automatic processing is on, or turn it off first.",
+    );
+
   const slots = resolveSavedSlots(settings, current);
   const embeddingChanged =
     current?.embeddingModel &&
@@ -264,18 +266,13 @@ export async function prepareTopicsModelSettings(
     );
 
   // With automatic processing off, only models the user changed are tested, so
-  // a broken stored connection never blocks turning Topics off.
+  // a broken stored connection never blocks saving the rest of the setup.
   await testTopicsModels(
-    settings.enabled ? settings : changedSlots(settings, current),
+    running ? settings : changedSlots(settings, current),
     keys,
   );
 
   const data = {
-    enabled: settings.enabled,
-    // Saving the settings acknowledges the last pause.
-    blockedAt: null,
-    blockReason: null,
-    blockMessage: null,
     summaryLlmApiKeyId: slots.summary.llmApiKeyId,
     summaryModel: slots.summary.model,
     embeddingLlmApiKeyId: slots.embedding.llmApiKeyId,
@@ -294,13 +291,13 @@ type StoredTopicConfig = Awaited<
 /**
  * The slots to store. Saving with automatic processing off keeps the stored
  * model of every slot that arrives empty, for example after its connection was
- * deleted, so turning Topics off never discards a model.
+ * deleted, so saving never discards a model.
  */
 function resolveSavedSlots(
   settings: TopicsModelSettings,
   current: StoredTopicConfig,
 ) {
-  const keep = !settings.enabled && current;
+  const keep = current && !current.enabled ? current : null;
   const slot = (
     name: TopicsModelSlotName,
     stored: { llmApiKeyId: string | null; model: string | null },
@@ -362,6 +359,31 @@ function changedSlots(
       current?.clusteringModel,
     ),
   };
+}
+
+/**
+ * Tests every stored model with a real call before automatic processing is
+ * turned on. A slot whose connection was deleted fails without a call.
+ */
+export async function testStoredTopicsModels(
+  config: NonNullable<StoredTopicConfig>,
+): Promise<void> {
+  const slot = (llmApiKeyId: string | null, model: string | null) =>
+    llmApiKeyId && model ? { llmApiKeyId, model } : null;
+  const settings = {
+    summary: slot(config.summaryLlmApiKeyId, config.summaryModel),
+    embedding: slot(config.embeddingLlmApiKeyId, config.embeddingModel),
+    embeddingDimensions: config.embeddingDimensions,
+    clustering: slot(config.clusteringLlmApiKeyId, config.clusteringModel),
+  };
+  if (!settings.summary || !settings.embedding || !settings.clustering)
+    throw new InvalidRequestError(
+      "Choose a summary, embedding, and clustering model in Configure Topics before turning on automatic processing.",
+    );
+  await testTopicsModels(
+    settings,
+    await loadTopicsModelKeys(config.projectId, settings),
+  );
 }
 
 export async function writeTopicsModelSettings(
