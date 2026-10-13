@@ -211,9 +211,10 @@ export class AuditLogRelay extends PeriodicExclusiveRunner {
 }
 
 /**
- * Inserts synchronously, outside ClickhouseWriter. The client waits for the
- * async insert to be flushed, so a resolved promise means ClickHouse has
- * stored the rows.
+ * Writes the batch as one synchronous insert, outside ClickhouseWriter, so a
+ * resolved promise means ClickHouse has stored the rows. The relay already
+ * batches, so an async insert would only hold the claimed rows until the
+ * server-side buffer flushes.
  */
 export async function insertAuditLogRecords(
   records: AuditLogRecordInsertType[],
@@ -224,6 +225,7 @@ export async function insertAuditLogRecords(
     values: records,
     format: "JSONEachRow",
     abort_signal: abortSignal,
+    clickhouse_settings: { async_insert: 0 },
   });
 }
 
