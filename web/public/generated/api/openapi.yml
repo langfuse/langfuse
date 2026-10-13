@@ -2615,48 +2615,6 @@ paths:
               required:
                 - batch
       deprecated: true
-  /api/public/scores/{scoreId}:
-    delete:
-      description: Delete a score (supports both trace and session scores)
-      operationId: legacy_scoreV1_delete
-      tags:
-        - LegacyScoreV1
-      parameters:
-        - name: scoreId
-          in: path
-          description: The unique langfuse identifier of a score
-          required: true
-          schema:
-            type: string
-      responses:
-        '204':
-          description: ''
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security: *ref_0
   /api/public/llm-connections:
     get:
       description: Get all LLM connections in a project
@@ -6099,6 +6057,48 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateScoresRequest'
+  /api/public/scores/{scoreId}:
+    delete:
+      description: Delete a score (supports both trace and session scores)
+      operationId: scores_delete
+      tags:
+        - Scores
+      parameters:
+        - name: scoreId
+          in: path
+          description: The unique langfuse identifier of a score
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: ''
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/traces/{traceId}:
     delete:
       description: Delete a specific trace
@@ -14491,6 +14491,14 @@ components:
             an annotation queue. When source is ANNOTATION, a configId is
             required unless dataType is CORRECTION. EVAL is reserved for
             internal evaluator outputs and is not accepted on this endpoint.
+        timestamp:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            The timestamp of the score, as an ISO 8601 datetime with a timezone
+            offset. Defaults to the time the request is received. To update an
+            existing score, send it again with the same id and timestamp.
       required:
         - name
         - value

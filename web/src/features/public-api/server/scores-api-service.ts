@@ -217,6 +217,22 @@ function determineTraceJoinRequirement(
   return { includeTrace, needsTraceJoin };
 }
 
+function toScoreCreateEvent(body: unknown) {
+  const isRecord =
+    typeof body === "object" && body !== null && !Array.isArray(body);
+
+  const { timestamp, ...scoreBody } = isRecord
+    ? (body as Record<string, unknown>)
+    : {};
+
+  return {
+    id: randomUUID(),
+    type: eventTypes.SCORE_CREATE,
+    timestamp: timestamp ?? new Date().toISOString(),
+    body: isRecord ? scoreBody : body,
+  };
+}
+
 export class ScoresApiService {
   constructor(private readonly apiVersion: "v1" | "v2") {}
 
@@ -246,14 +262,7 @@ export class ScoresApiService {
       : undefined;
 
     const result = await processEventBatch(
-      [
-        {
-          id: randomUUID(),
-          type: eventTypes.SCORE_CREATE,
-          timestamp: new Date().toISOString(),
-          body: { ...body, id: scoreId },
-        },
-      ],
+      [toScoreCreateEvent({ ...body, id: scoreId })],
       auth,
       { attribution },
     );
@@ -289,14 +298,11 @@ export class ScoresApiService {
     auth: AuthHeaderValidVerificationResultIngestion;
     attribution: IngestionAttribution;
   }) {
-    const events = bodies.map((body) => ({
-      id: randomUUID(),
-      type: eventTypes.SCORE_CREATE,
-      timestamp: new Date().toISOString(),
-      body,
-    }));
-
-    const result = await processEventBatch(events, auth, { attribution });
+    const result = await processEventBatch(
+      bodies.map((body) => toScoreCreateEvent(body)),
+      auth,
+      { attribution },
+    );
 
     return { result };
   }
