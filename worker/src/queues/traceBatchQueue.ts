@@ -14,9 +14,9 @@ import {
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import {
-  ensureDefaultTopicFacets,
   getEnabledTopicsModels,
   isTopicsProjectEnabled,
+  listTopicFacets,
   listTopicRules,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
@@ -82,7 +82,7 @@ class TopicsBatchProjects {
 /** The saved rule's facets and sampling; without a rule, every facet runs. */
 async function loadProjectRule(projectId: string) {
   const [facets, rules] = await Promise.all([
-    ensureDefaultTopicFacets(projectId),
+    listTopicFacets(projectId),
     listTopicRules(projectId),
   ]);
   const rule = rules[0];

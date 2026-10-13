@@ -31,8 +31,8 @@ import { tokenCount } from "../../features/tokenisation/usage";
 import { TopicsProviderUnavailable } from "../../features/topics/provider-error";
 import { summarizeAssembledTrace } from "../../features/topics/summarizeAssembledTrace";
 import {
-  ensureDefaultTopicFacets,
   getEnabledTopicsModels,
+  listTopicFacets,
   listTopicRules,
   pauseTopicsModels,
   type TopicsModels,
@@ -64,7 +64,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
     async (projectIds: string[]) =>
       new Map(projectIds.map((projectId) => [projectId, { projectId }])),
   ),
-  ensureDefaultTopicFacets: vi.fn(async () => []),
+  listTopicFacets: vi.fn(async () => []),
   listTopicRules: vi.fn(async () => []),
   pauseTopicsModels: vi.fn(),
 }));
@@ -783,7 +783,7 @@ describe("trace batch queue", () => {
         };
     });
     const facet = (id: string) => ({ id }) as TopicFacet;
-    vi.mocked(ensureDefaultTopicFacets).mockResolvedValue([
+    vi.mocked(listTopicFacets).mockResolvedValue([
       facet("intent"),
       facet("issues"),
     ]);
@@ -820,7 +820,7 @@ describe("trace batch queue", () => {
           input.facets.map(({ id }) => id),
         ]),
     ).toEqual([["picked", ["issues"]]]);
-    vi.mocked(ensureDefaultTopicFacets).mockResolvedValue([]);
+    vi.mocked(listTopicFacets).mockResolvedValue([]);
     vi.mocked(listTopicRules).mockResolvedValue([]);
   });
 
@@ -892,7 +892,7 @@ describe("trace batch queue", () => {
       "off",
       "on",
     ]);
-    expect(ensureDefaultTopicFacets).toHaveBeenCalledExactlyOnceWith("on");
+    expect(listTopicFacets).toHaveBeenCalledExactlyOnceWith("on");
     expect(
       vi
         .mocked(summarizeAssembledTrace)
