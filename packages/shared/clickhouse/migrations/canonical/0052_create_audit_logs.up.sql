@@ -4,8 +4,6 @@
 -- ends the sorting key. `project_id = ''` marks organisation-level events.
 -- `resource_refs` holds typed refs such as 'trace:<id>', so that
 -- has(resource_refs, 'trace:<id>') finds every event that touched a resource.
--- Note for authors: golang-migrate splits this file on semicolons, so comments
--- must not contain one.
 CREATE TABLE IF NOT EXISTS audit_logs {CLICKHOUSE_CLUSTER_CLAUSE}
 (
     id                String,
