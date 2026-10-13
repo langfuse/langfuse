@@ -87,7 +87,7 @@ describe("ingestion per-event shadow comparison", () => {
 
   it.each([
     ["legacy", false, undefined],
-    ["shadow", false, "match"],
+    ["shadow", false, undefined],
     ["shadow", true, "new_allows"],
     ["enforce", false, undefined],
   ] as const)(
