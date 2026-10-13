@@ -563,7 +563,7 @@ describe("AI gateway control plane", () => {
     const result = await authenticateRequest({
       fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
       apiFormat,
-      model: "OpenAI second/openai/gpt-4o",
+      model: "OpenAI second:openai/gpt-4o",
     });
 
     expect(result.connection).toEqual({
@@ -598,18 +598,30 @@ describe("AI gateway control plane", () => {
     expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
   });
 
-  it("rejects unprefixed and unknown connection model slugs", async () => {
+  it("routes unprefixed models by provider and rejects unknown models", async () => {
     const { caller, org, project } = await prepare();
     await caller.aiGateway.updateConfig({
       orgId: org.id,
       defaultIngestionProjectId: project.id,
       ingestionMode: "FULL",
     });
-    await caller.aiGateway.createConnection({
+    const openAiPrimary = await caller.aiGateway.createConnection({
       orgId: org.id,
-      name: "OpenAI",
+      name: "OpenAI primary",
       provider: "OPENAI",
-      credential: "sk-test-openai",
+      credential: "sk-test-openai-primary",
+    });
+    const openAiSecondary = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI secondary",
+      provider: "OPENAI",
+      credential: "sk-test-openai-secondary",
+    });
+    const anthropic = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "Anthropic",
+      provider: "ANTHROPIC",
+      credential: "sk-test-anthropic",
     });
     const gatewayKey = await caller.aiGateway.createApiKey({
       orgId: org.id,
@@ -629,9 +641,41 @@ describe("AI gateway control plane", () => {
 
     await expect(
       authenticateRequest({ ...params, model: "gpt-4o" }),
+    ).resolves.toMatchObject({
+      connection: {
+        id: openAiPrimary.id,
+        provider: "openai",
+      },
+    });
+    await expect(
+      authenticateRequest({
+        ...params,
+        apiFormat: "anthropic.messages",
+        model: "claude-haiku-4-5-20251001",
+      }),
+    ).resolves.toMatchObject({
+      connection: {
+        id: anthropic.id,
+        provider: "anthropic",
+      },
+    });
+    await expect(
+      authenticateRequest({
+        ...params,
+        model: "OpenAI secondary:gpt-4o",
+      }),
+    ).resolves.toMatchObject({
+      connection: {
+        id: openAiSecondary.id,
+        provider: "openai",
+        provider_model: "gpt-4o",
+      },
+    });
+    await expect(
+      authenticateRequest({ ...params, model: "random-model" }),
     ).rejects.toMatchObject({ status: 400 });
     await expect(
-      authenticateRequest({ ...params, model: "Unknown/gpt-4o" }),
+      authenticateRequest({ ...params, model: "Unknown:gpt-4o" }),
     ).rejects.toMatchObject({ status: 404 });
   });
 
@@ -640,11 +684,11 @@ describe("AI gateway control plane", () => {
     await expect(
       caller.aiGateway.createConnection({
         orgId: org.id,
-        name: "Production/Primary",
+        name: "Production:Primary",
         provider: "OPENAI",
         credential: "sk-openai",
       }),
-    ).rejects.toThrow("Connection names cannot contain a slash.");
+    ).rejects.toThrow("Connection names cannot contain a colon.");
 
     await caller.aiGateway.createConnection({
       orgId: org.id,
@@ -1117,14 +1161,14 @@ describe("AI gateway control plane", () => {
     expect(anthropicResult).toEqual({
       data: [
         {
-          id: "Anthropic/claude-a",
+          id: "Anthropic:claude-a",
           provider: "ANTHROPIC",
           canonicalSlug: "claude-a",
           displayName: "Claude A",
           createdAt: "2026-01-01T00:00:00.000Z",
         },
         {
-          id: "Anthropic/claude-b",
+          id: "Anthropic:claude-b",
           provider: "ANTHROPIC",
           canonicalSlug: "claude-b",
           displayName: "Claude B",

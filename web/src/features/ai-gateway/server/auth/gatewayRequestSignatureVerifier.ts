@@ -8,7 +8,7 @@ import { env } from "@/src/env.mjs";
 import { verifyHmacSha256 } from "@/src/server/utils/hmac";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import { parseGatewayModelSlug } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
+import { resolveGatewayModelRoute } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
 import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 
@@ -21,7 +21,7 @@ const resolveBodySchema = z
     apiFormat: GatewayApiFormatSchema,
     model: z
       .string()
-      .refine((model) => parseGatewayModelSlug(model) !== null)
+      .refine((model) => resolveGatewayModelRoute(model, []) !== null)
       .optional(),
   })
   .strict();
