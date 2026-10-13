@@ -109,11 +109,11 @@ export function useRegenerateTopics({
     ),
     hasTimeRange: timeRange !== null,
     facetCount: candidates.length,
-    summaries: summaryCounts.isPending
-      ? "loading"
-      : summaryCounts.error
-        ? { error: summaryCounts.error.message }
-        : regenerateFacets.reduce((sum, facet) => sum + facet.summaries, 0),
+    summaries: {
+      isPending: summaryCounts.isPending,
+      error: summaryCounts.error?.message ?? null,
+      total: regenerateFacets.reduce((sum, facet) => sum + facet.summaries, 0),
+    },
   });
   const lastRun =
     executions?.find((execution) => execution.input.operation === "update") ??
@@ -184,7 +184,7 @@ function regenerateDisabledReason({
   runInProgress: boolean;
   hasTimeRange: boolean;
   facetCount: number;
-  summaries: "loading" | { error: string } | number;
+  summaries: { isPending: boolean; error: string | null; total: number };
 }): string | null {
   if (!canWrite)
     return "You need permission to manage Topics in this project to regenerate topics.";
@@ -200,10 +200,10 @@ function regenerateDisabledReason({
   if (!hasTimeRange) return "Select a time range of at most 90 days.";
   if (facetCount === 0)
     return "Turn on at least one facet in Configure Topics.";
-  if (summaries === "loading") return "Counting stored summaries…";
-  if (typeof summaries === "object")
+  if (summaries.isPending) return "Counting stored summaries…";
+  if (summaries.error !== null)
     return `Could not count stored summaries: ${summaries.error}`;
-  if (summaries === 0)
+  if (summaries.total === 0)
     return "No trace summaries in the selected time range yet. Summarize traces first, then regenerate.";
   return null;
 }
@@ -382,7 +382,7 @@ function RegenerateTopicsDialog({
                 key={facet.id}
                 className="bg-muted/30 flex items-center justify-between gap-3 rounded-md p-3"
               >
-                <span className="flex min-w-0 items-center gap-2 font-medium">
+                <span className="flex min-w-0 items-center gap-2">
                   <Checkbox
                     aria-label={facet.name}
                     disabled={summaries === 0}
