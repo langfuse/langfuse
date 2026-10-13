@@ -350,11 +350,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               <Stepper
                 number={3}
                 title="Run settings"
-                description={
-                  sampleScope
-                    ? "Choose which traces to include, and how long to wait after the last observation before considering the trace done and summarizing it."
-                    : "Choose how long to wait after the last observation before considering the trace done and summarizing it, and which traces to include when you process them."
-                }
+                description="Choose which traces to include and set the idle time."
                 compactBottomSpacing
               >
                 <div className="flex items-center gap-2">
@@ -370,8 +366,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                   </div>
                   <p className="text-muted-foreground text-sm">
                     seconds to wait after the last observation before
-                    considering the trace done and summarizing it (60–3,600
-                    seconds).
+                    considering the trace done and summarizing it.
                   </p>
                 </div>
                 {sampleScope ? (
