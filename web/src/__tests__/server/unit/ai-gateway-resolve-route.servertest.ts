@@ -82,9 +82,9 @@ describe("POST /api/internal/ai-gateway/v1/resolve", () => {
     },
   );
 
-  it("accepts a missing model for existing model-list resolution", async () => {
+  it("rejects a missing model before authorization", async () => {
     expect((await post({ apiFormat: "openai.responses" })).statusCode).toBe(
-      401,
+      400,
     );
   });
 

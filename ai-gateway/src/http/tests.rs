@@ -904,6 +904,28 @@ async fn compressed_request_bodies_are_explicitly_rejected() {
 }
 
 #[tokio::test]
+async fn requests_without_a_model_are_rejected_before_resolution() {
+    let web = FakeServer::start(|_| async { resolution_response("provider-secret") }).await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
+
+    let response = gateway
+        .post()
+        .bearer_auth("valid-key")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(r#"{"prompt":{"id":"pmpt_123"}}"#)
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = serde_json::from_slice(&response.bytes().await.unwrap()).unwrap();
+    assert_eq!(body["error"]["code"], "invalid_body");
+    assert_eq!(web.calls(), 0);
+    assert_eq!(provider.calls(), 0);
+}
+
+#[tokio::test]
 async fn resolution_failures_are_sanitized_and_never_call_provider() {
     let web = FakeServer::start(|request| async move {
         let key = request.headers()[header::AUTHORIZATION].to_str().unwrap();

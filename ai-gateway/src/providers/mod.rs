@@ -209,6 +209,10 @@ impl ProviderTransport {
         let api_format = route.api_format();
         let (credential_name, mut credential) = provider_credential(&context)?;
         credential.set_sensitive(true);
+        let provider_model = context.connection().provider_model();
+        if route.requires_model_rewrite() && provider_model.is_none() {
+            return Err(ProviderError::Configuration);
+        }
         let mut capture = if route.captures_generation() {
             let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
             if let Some(telemetry) = &self.telemetry {
@@ -218,9 +222,9 @@ impl ProviderTransport {
         } else {
             ExecutionCapture::unobserved()
         };
-        let provider_model = context.connection().provider_model();
-        let body = if route.requires_model_rewrite() {
-            let provider_model = provider_model.ok_or(ProviderError::Configuration)?;
+        let body = if let (true, Some(provider_model)) =
+            (route.requires_model_rewrite(), provider_model)
+        {
             capture.replace_requested_model(provider_model);
             rewrite_model(body, provider_model)
         } else {

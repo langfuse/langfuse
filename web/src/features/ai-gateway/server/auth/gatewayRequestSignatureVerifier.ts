@@ -21,8 +21,7 @@ const resolveBodySchema = z
     apiFormat: GatewayApiFormatSchema,
     model: z
       .string()
-      .refine((model) => resolveGatewayModelRoute(model, []) !== null)
-      .optional(),
+      .refine((model) => resolveGatewayModelRoute(model, []) !== null),
   })
   .strict();
 const modelsQuerySchema = z
@@ -42,7 +41,7 @@ type GatewayControlPlaneHandlerParams = {
 type GatewayResolveHandler = (
   params: GatewayControlPlaneHandlerParams & {
     apiFormat: GatewayApiFormat;
-    model?: string;
+    model: string;
   },
 ) => Promise<unknown>;
 

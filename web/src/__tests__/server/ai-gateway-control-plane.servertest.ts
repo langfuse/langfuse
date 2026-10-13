@@ -646,6 +646,7 @@ describe("AI gateway control plane", () => {
       connection: {
         id: openAiPrimary.id,
         provider: "openai",
+        provider_model: "gpt-4o",
       },
     });
     await expect(
@@ -658,6 +659,7 @@ describe("AI gateway control plane", () => {
       connection: {
         id: anthropic.id,
         provider: "anthropic",
+        provider_model: "claude-haiku-4-5-20251001",
       },
     });
     await expect(
@@ -1031,6 +1033,7 @@ describe("AI gateway control plane", () => {
       authenticateRequest({
         fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
         apiFormat,
+        model: "OpenAI:gpt-4o",
       }),
     ).rejects.toEqual(
       expect.objectContaining<Partial<GatewayResolveError>>({ status: 403 }),
@@ -1108,7 +1111,7 @@ describe("AI gateway control plane", () => {
     const fastHashedSecretKey = createShaHash(key.secretKey, env.SALT);
     const openAiContext = await new GatewayApiKeyAuthenticator(
       prisma,
-    ).authenticateRequest({
+    ).authenticateModelsRequest({
       fastHashedSecretKey,
       apiFormat: "openai.responses",
     });
@@ -1151,7 +1154,7 @@ describe("AI gateway control plane", () => {
     });
     const anthropicContext = await new GatewayApiKeyAuthenticator(
       prisma,
-    ).authenticateRequest({
+    ).authenticateModelsRequest({
       fastHashedSecretKey,
       apiFormat: "anthropic.messages",
     });
@@ -1209,7 +1212,7 @@ describe("AI gateway control plane", () => {
 
     const context = await new GatewayApiKeyAuthenticator(
       prisma,
-    ).authenticateRequest({
+    ).authenticateModelsRequest({
       fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
       apiFormat: "openai.chat-completions",
     });

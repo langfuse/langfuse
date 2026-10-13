@@ -27,16 +27,9 @@ type GatewayRouteConnection = {
 export function resolveGatewayModelRoute<
   Connection extends GatewayRouteConnection,
 >(
-  model: string | undefined,
+  model: string,
   connections: readonly Connection[],
-): { connection: Connection | null; providerModel: string | null } | null {
-  if (model === undefined) {
-    return {
-      connection: connections[0] ?? null,
-      providerModel: null,
-    };
-  }
-
+): { connection: Connection | null; providerModel: string } | null {
   const modelSlug = parseGatewayModelSlug(model);
   if (modelSlug) {
     return {
@@ -59,6 +52,6 @@ export function resolveGatewayModelRoute<
     connection:
       connections.find((connection) => connection.provider === provider) ??
       null,
-    providerModel: null,
+    providerModel: model,
   };
 }
