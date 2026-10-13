@@ -7,7 +7,7 @@ import {
   type SlackChannel,
 } from "@/src/features/slack/components/ChannelSelector";
 import { SlackTestMessageButton } from "@/src/features/slack/components/SlackTestMessageButton";
-import { api } from "@/src/utils/api";
+import { useSlackIntegration } from "@/src/features/slack/useSlackIntegration";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import { Badge } from "@/src/components/ui/badge";
@@ -64,21 +64,8 @@ export default function SlackIntegrationPage() {
     }
   }, [router.query]);
 
-  const { data: integrationStatus, isLoading } =
-    api.slack.getIntegrationStatus.useQuery(
-      { projectId },
-      { enabled: !!projectId },
-    );
-
-  const status = (() => {
-    if (isLoading) {
-      return undefined;
-    }
-    if (integrationStatus?.isConnected) {
-      return "active";
-    }
-    return "inactive";
-  })();
+  const { query, status } = useSlackIntegration(projectId);
+  const integrationStatus = query.data;
 
   const [selectedChannel, setSelectedChannel] = useState<SlackChannel | null>(
     null,
