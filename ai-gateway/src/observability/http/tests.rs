@@ -430,7 +430,7 @@ fn assert_attribute(span: &SpanData, key: &str, expected: impl Into<opentelemetr
     assert_eq!(actual.value, expected.into(), "{} {key}", span.name);
 }
 
-const GENERATION_REQUEST: &str = r#"{"model":"Production key/test-model"}"#;
+const GENERATION_REQUEST: &str = r#"{"model":"Production key:test-model"}"#;
 const PROVIDER_RESPONSE: &str = r#"{"id":"resp_1","output":[]}"#;
 
 fn generation_request() -> HttpRequest<Body> {

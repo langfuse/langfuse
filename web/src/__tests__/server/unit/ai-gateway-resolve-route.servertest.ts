@@ -72,6 +72,16 @@ describe("POST /api/internal/ai-gateway/v1/resolve", () => {
     ).toBe(401);
   });
 
+  it.each([
+    { model: "gpt-4o-mini", apiFormat: "openai.responses" },
+    { model: "claude-haiku-4-5-20251001", apiFormat: "anthropic.messages" },
+  ])(
+    "accepts inferred provider model $model and advances to authorization",
+    async ({ model, apiFormat }) => {
+      expect((await post({ apiFormat, model })).statusCode).toBe(401);
+    },
+  );
+
   it("accepts a missing model for existing model-list resolution", async () => {
     expect((await post({ apiFormat: "openai.responses" })).statusCode).toBe(
       401,
@@ -80,8 +90,8 @@ describe("POST /api/internal/ai-gateway/v1/resolve", () => {
 
   it.each([
     {
-      case: "unprefixed model",
-      body: { apiFormat: "openai.responses", model: "gpt-4o-mini" },
+      case: "unknown unprefixed model",
+      body: { apiFormat: "openai.responses", model: "random-model" },
     },
     {
       case: "empty connection name",

@@ -44,7 +44,7 @@ async fn control_plane_rejections_do_not_consume_provider_capacity() {
             gateway.app.clone().oneshot(
                 Request::post("/openai/v1/responses")
                     .header(header::AUTHORIZATION, "Bearer invalid-key")
-                    .body(Body::from(r#"{"model":"Production key/test"}"#))
+                    .body(Body::from(r#"{"model":"Production key:test"}"#))
                     .unwrap(),
             ),
         )
@@ -96,7 +96,7 @@ async fn resolution_capacity_is_bounded_and_released_on_cancellation_and_failure
     let request = |key| {
         Request::post("/openai/v1/responses")
             .header(header::AUTHORIZATION, key)
-            .body(Body::from(r#"{"model":"Production key/test"}"#))
+            .body(Body::from(r#"{"model":"Production key:test"}"#))
             .unwrap()
     };
     let mut stalled = Box::pin(gateway.app.clone().oneshot(request("Bearer stalled")));
@@ -112,7 +112,7 @@ async fn resolution_capacity_is_bounded_and_released_on_cancellation_and_failure
     let observed = body_polled.clone();
     let body = Body::from_stream(stream::once(async move {
         observed.store(true, Ordering::SeqCst);
-        Ok::<_, Infallible>(Bytes::from_static(br#"{"model":"Production key/test"}"#))
+        Ok::<_, Infallible>(Bytes::from_static(br#"{"model":"Production key:test"}"#))
     }));
     let busy = tokio::time::timeout(
         Duration::from_secs(2),
@@ -154,7 +154,7 @@ async fn slow_body_reads_do_not_consume_resolution_capacity() {
     let web = FakeServer::start(|request| async move {
         if request.uri().path() == "/api/internal/ai-gateway/v1/models" {
             return Response::new(Body::from(
-                r#"{"data":[{"id":"Production key/gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"1970-01-01T00:00:10.000Z"}]}"#,
+                r#"{"data":[{"id":"Production key:gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"1970-01-01T00:00:10.000Z"}]}"#,
             ));
         }
         resolution_response("provider-secret")
@@ -193,7 +193,7 @@ async fn slow_body_reads_do_not_consume_resolution_capacity() {
     let observed = body_polled.clone();
     let body = Body::from_stream(stream::once(async move {
         observed.store(true, Ordering::SeqCst);
-        Ok::<_, Infallible>(Bytes::from_static(br#"{"model":"connection/model"}"#))
+        Ok::<_, Infallible>(Bytes::from_static(br#"{"model":"connection:model"}"#))
     }));
     let busy = gateway
         .app
@@ -229,7 +229,7 @@ async fn slow_body_reads_do_not_consume_resolution_capacity() {
         .oneshot(
             Request::post("/openai/v1/responses")
                 .header(header::AUTHORIZATION, "Bearer released")
-                .body(Body::from(r#"{"model":"connection/model"}"#))
+                .body(Body::from(r#"{"model":"connection:model"}"#))
                 .unwrap(),
         )
         .await
@@ -284,7 +284,7 @@ async fn slow_model_catalogs_do_not_consume_resolution_capacity() {
         .oneshot(
             Request::post("/openai/v1/responses")
                 .header(header::AUTHORIZATION, "Bearer inference")
-                .body(Body::from(r#"{"model":"connection/model"}"#))
+                .body(Body::from(r#"{"model":"connection:model"}"#))
                 .unwrap(),
         )
         .await
@@ -454,7 +454,7 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
             configured
                 .chat_completions()
                 .bearer_auth("rejected")
-                .body(r#"{"model":"Production key/test"}"#),
+                .body(r#"{"model":"Production key:test"}"#),
             StatusCode::UNAUTHORIZED,
             false,
             false,
@@ -472,7 +472,7 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
             configured
                 .post()
                 .bearer_auth("rejected")
-                .body(r#"{"model":"Production key/test"}"#),
+                .body(r#"{"model":"Production key:test"}"#),
             StatusCode::UNAUTHORIZED,
             false,
             false,
@@ -481,7 +481,7 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
             configured
                 .messages()
                 .header("x-api-key", "rejected")
-                .body(r#"{"model":"Production key/test"}"#),
+                .body(r#"{"model":"Production key:test"}"#),
             StatusCode::UNAUTHORIZED,
             true,
             false,
@@ -550,14 +550,14 @@ async fn resolved_requests_name_their_tenant_and_the_provider_connection_sent_to
         (
             anthropic(
                 "messages/count_tokens",
-                r#"{"messages":[],"model":"Production key/claude-opus-4-1"}"#,
+                r#"{"messages":[],"model":"Production key:claude-opus-4-1"}"#,
             ),
             "anthropic",
         ),
         (
             anthropic(
                 "messages",
-                r#"{"model":"Production key/claude-opus-4-1","messages":[]}"#,
+                r#"{"model":"Production key:claude-opus-4-1","messages":[]}"#,
             ),
             "anthropic",
         ),
@@ -611,7 +611,7 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
         assert_eq!(body["apiFormat"], "openai.responses");
         assert!(matches!(
             body["model"].as_str(),
-            Some("Production key/unchanged" | "Production key/anything")
+            Some("Production key:unchanged" | "Production key:anything")
         ));
         resolution_response(if key == "Bearer gateway-json" {
             "provider-json"
@@ -657,12 +657,12 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
         .post()
         .bearer_auth("gateway-json")
         .header("x-langfuse-project-id", "attacker-project")
-        .body("{ \"model\":\"Production key/unchanged\", \"unknown\":true }")
+        .body("{ \"model\":\"Production key:unchanged\", \"unknown\":true }")
         .send();
     let sse = gateway
         .post()
         .bearer_auth("gateway-sse")
-        .body(r#"{"model":"Production key/anything","stream":true}"#)
+        .body(r#"{"model":"Production key:anything","stream":true}"#)
         .send();
     let (json, sse) = tokio::join!(json, sse);
     let json = json.unwrap();
@@ -686,7 +686,7 @@ async fn compact_rewrites_model_and_models_come_from_the_control_plane() {
             return Response::builder()
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    r#"{"data":[{"id":"Production key/gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"1970-01-01T00:00:10.000Z"}]}"#,
+                    r#"{"data":[{"id":"Production key:gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"1970-01-01T00:00:10.000Z"}]}"#,
                 ))
                 .unwrap();
         }
@@ -718,7 +718,7 @@ async fn compact_rewrites_model_and_models_come_from_the_control_plane() {
     let compact = gateway
         .compact()
         .bearer_auth("gateway-key")
-        .body(r#"{"model":"Production key/gpt-4.1","encrypted_content":"opaque-ciphertext"}"#)
+        .body(r#"{"model":"Production key:gpt-4.1","encrypted_content":"opaque-ciphertext"}"#)
         .send()
         .await
         .unwrap();
@@ -739,7 +739,7 @@ async fn compact_rewrites_model_and_models_come_from_the_control_plane() {
     assert_eq!(models.status(), StatusCode::OK);
     assert_eq!(
         models.text().await.unwrap(),
-        r#"{"object":"list","data":[{"id":"Production key/gpt-4.1","object":"model","created":10,"owned_by":"openai"}]}"#
+        r#"{"object":"list","data":[{"id":"Production key:gpt-4.1","object":"model","created":10,"owned_by":"openai"}]}"#
     );
     assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 1);
@@ -757,10 +757,10 @@ async fn model_routes_request_the_matching_control_plane_catalog() {
             .unwrap();
         let body = match api_format {
             "openai.responses" => {
-                r#"{"data":[{"id":"Production key/gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"1970-01-01T00:00:10.000Z"}]}"#
+                r#"{"data":[{"id":"Production key:gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"1970-01-01T00:00:10.000Z"}]}"#
             }
             "anthropic.messages" => {
-                r#"{"data":[{"id":"Production key/claude-sonnet-4-5","provider":"ANTHROPIC","canonicalSlug":"claude-sonnet-4-5","displayName":"Claude Sonnet 4.5","createdAt":"2026-01-01T00:00:00.000Z"}]}"#
+                r#"{"data":[{"id":"Production key:claude-sonnet-4-5","provider":"ANTHROPIC","canonicalSlug":"claude-sonnet-4-5","displayName":"Claude Sonnet 4.5","createdAt":"2026-01-01T00:00:00.000Z"}]}"#
             }
             other => panic!("unexpected API format {other}"),
         };
@@ -779,12 +779,12 @@ async fn model_routes_request_the_matching_control_plane_catalog() {
         (
             "openai/v1/models",
             ("authorization", "Bearer gateway-openai"),
-            r#"{"object":"list","data":[{"id":"Production key/gpt-4.1","object":"model","created":10,"owned_by":"openai"}]}"#,
+            r#"{"object":"list","data":[{"id":"Production key:gpt-4.1","object":"model","created":10,"owned_by":"openai"}]}"#,
         ),
         (
             "anthropic/v1/models",
             ("x-api-key", "gateway-anthropic"),
-            r#"{"data":[{"type":"model","id":"Production key/claude-sonnet-4-5","display_name":"Claude Sonnet 4.5","created_at":"2026-01-01T00:00:00.000Z"}],"has_more":false,"first_id":"Production key/claude-sonnet-4-5","last_id":"Production key/claude-sonnet-4-5"}"#,
+            r#"{"data":[{"type":"model","id":"Production key:claude-sonnet-4-5","display_name":"Claude Sonnet 4.5","created_at":"2026-01-01T00:00:00.000Z"}],"has_more":false,"first_id":"Production key:claude-sonnet-4-5","last_id":"Production key:claude-sonnet-4-5"}"#,
         ),
     ] {
         let response = reqwest::Client::new()
@@ -860,7 +860,7 @@ async fn malformed_credentials_skip_resolution_and_oversized_body_releases_capac
     let next = gateway
         .post()
         .bearer_auth("valid-key")
-        .body(r#"{"model":"Production key/test"}"#)
+        .body(r#"{"model":"Production key:test"}"#)
         .send()
         .await
         .unwrap();
@@ -876,7 +876,7 @@ async fn compressed_request_bodies_are_explicitly_rejected() {
     let gateway = Gateway::start(Some(inference(&web, &provider))).await;
     let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
     encoder
-        .write_all(br#"{"model":"connection/model","input":"hello"}"#)
+        .write_all(br#"{"model":"connection:model","input":"hello"}"#)
         .unwrap();
     for (encoding, body) in [
         ("gzip", encoder.finish().unwrap()),
@@ -941,7 +941,7 @@ async fn resolution_failures_are_sanitized_and_never_call_provider() {
         let response = gateway
             .post()
             .bearer_auth(key)
-            .body(r#"{"model":"Production key/test"}"#)
+            .body(r#"{"model":"Production key:test"}"#)
             .send()
             .await
             .unwrap();
@@ -968,7 +968,7 @@ async fn slow_resolution_has_a_bounded_wait() {
         gateway
             .post()
             .bearer_auth("slow-resolution")
-            .body(r#"{"model":"Production key/test"}"#)
+            .body(r#"{"model":"Production key:test"}"#)
             .send(),
     )
     .await
@@ -1256,7 +1256,7 @@ async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
     let mut response = gateway
         .post()
         .bearer_auth("key")
-        .body(r#"{"model":"Production key/test"}"#)
+        .body(r#"{"model":"Production key:test"}"#)
         .send()
         .await
         .unwrap();
@@ -1267,7 +1267,7 @@ async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
         gateway
             .post()
             .bearer_auth("key")
-            .body(r#"{"model":"Production key/test"}"#)
+            .body(r#"{"model":"Production key:test"}"#)
             .send()
             .await
             .unwrap()
@@ -1314,7 +1314,7 @@ async fn client_disconnect_releases_capacity_for_the_next_request() {
     let mut first = gateway
         .post()
         .bearer_auth("key")
-        .body(r#"{"model":"Production key/test"}"#)
+        .body(r#"{"model":"Production key:test"}"#)
         .send()
         .await
         .unwrap();
@@ -1325,7 +1325,7 @@ async fn client_disconnect_releases_capacity_for_the_next_request() {
             let response = gateway
                 .post()
                 .bearer_auth("key")
-                .body(r#"{"model":"Production key/test"}"#)
+                .body(r#"{"model":"Production key:test"}"#)
                 .send()
                 .await
                 .unwrap();
@@ -1357,7 +1357,7 @@ async fn anthropic_messages_accept_either_credential_header_and_relay_native_sse
         let key = anthropic_gateway_key(&request).unwrap();
         assert_eq!(
             to_bytes(request.into_body(), 1024).await.unwrap(),
-            r#"{"apiFormat":"anthropic.messages","model":"Production key/claude-sonnet-4-5"}"#
+            r#"{"apiFormat":"anthropic.messages","model":"Production key:claude-sonnet-4-5"}"#
         );
         if key == "gateway-anthropic" {
             resolution_response_for(ApiFormat::AnthropicMessages, "provider-anthropic")
@@ -1405,7 +1405,7 @@ async fn anthropic_messages_accept_either_credential_header_and_relay_native_sse
             .post(format!("{}/anthropic/v1/messages?beta=true", gateway.url))
             .header("anthropic-version", "2023-06-01")
             .header("content-type", "application/json")
-            .body(r#"{"model":"Production key/claude-sonnet-4-5","stream":true,"messages":[]}"#);
+            .body(r#"{"model":"Production key:claude-sonnet-4-5","stream":true,"messages":[]}"#);
         for (name, value) in credential_headers {
             request = request.header(name, value);
         }
@@ -1483,7 +1483,7 @@ async fn anthropic_credential_conflicts_and_failures_use_the_native_error_envelo
     for (credential_headers, status, kind, message) in cases {
         let mut request = client
             .post(format!("{}/anthropic/v1/messages", gateway.url))
-            .body(r#"{"model":"Production key/test"}"#);
+            .body(r#"{"model":"Production key:test"}"#);
         for (name, value) in credential_headers {
             request = request.header(*name, *value);
         }
@@ -1528,7 +1528,7 @@ async fn anthropic_capacity_rejections_use_the_native_envelope() {
     let response = reqwest::Client::new()
         .post(format!("{}/anthropic/v1/messages", gateway.url))
         .header("x-api-key", "gateway-anthropic")
-        .body(r#"{"model":"Production key/test"}"#)
+        .body(r#"{"model":"Production key:test"}"#)
         .send()
         .await
         .unwrap();
@@ -1573,7 +1573,7 @@ async fn chat_completions_resolve_their_own_format_and_relay_native_json_and_err
         assert_eq!(request["apiFormat"], "openai.chat-completions");
         let provider_model = request["model"]
             .as_str()
-            .and_then(|model| model.split_once('/'))
+            .and_then(|model| model.split_once(':'))
             .map(|(_, provider_model)| provider_model)
             .unwrap();
         let bytes = to_bytes(
@@ -1614,12 +1614,12 @@ async fn chat_completions_resolve_their_own_format_and_relay_native_json_and_err
     let gateway = Gateway::start(Some(inference(&web, &provider))).await;
     for (body, status, expected) in [
         (
-            r#"{ "model":"Production key/gpt-4.1-mini", "messages":[] }"#,
+            r#"{ "model":"Production key:gpt-4.1-mini", "messages":[] }"#,
             StatusCode::OK,
             r#"{"id":"chatcmpl-1","choices":[]}"#,
         ),
         (
-            r#"{"model":"Production key/unknown-model","messages":[]}"#,
+            r#"{"model":"Production key:unknown-model","messages":[]}"#,
             StatusCode::NOT_FOUND,
             r#"{"error":{"code":"model_not_found"}}"#,
         ),
@@ -1653,7 +1653,7 @@ async fn anthropic_routes_share_the_request_body_limit() {
     let client = reqwest::Client::new();
     for path in ["messages", "messages/count_tokens"] {
         let send = |size| {
-            let prefix = r#"{"model":"Production key/test","padding":""#;
+            let prefix = r#"{"model":"Production key:test","padding":""#;
             let suffix = r#""}"#;
             let padding = "x".repeat(size - prefix.len() - suffix.len());
             client

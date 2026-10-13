@@ -9,7 +9,7 @@ import {
   gatewayProviders,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
-import { parseGatewayModelSlug } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
+import { resolveGatewayModelRoute } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
 import {
   type CachedResolveContext,
   GATEWAY_RESOLVE_KEY_NON_EXISTENT,
@@ -46,10 +46,6 @@ export class GatewayApiKeyAuthenticator {
     apiFormat: GatewayApiFormat;
     model?: string;
   }): Promise<GatewayApiKeyAuthContext> {
-    const modelSlug = params.model ? parseGatewayModelSlug(params.model) : null;
-    if (params.model && !modelSlug) {
-      throw new GatewayControlPlaneError("Invalid gateway model slug", 400);
-    }
     const cacheParams = {
       fastHashedSecretKey: params.fastHashedSecretKey,
       apiFormat: params.apiFormat,
@@ -69,15 +65,15 @@ export class GatewayApiKeyAuthenticator {
         403,
       );
     }
+    const route = resolveGatewayModelRoute(params.model, context.connections);
+    if (!route) {
+      throw new GatewayControlPlaneError("Invalid gateway model", 400);
+    }
+
     return {
       ...context,
-      providerModel: modelSlug?.providerModel ?? null,
-      connection:
-        (modelSlug
-          ? context.connections.find(
-              (connection) => connection.name === modelSlug.connectionName,
-            )
-          : context.connections[0]) ?? null,
+      providerModel: route.providerModel,
+      connection: route.connection,
     };
   }
 

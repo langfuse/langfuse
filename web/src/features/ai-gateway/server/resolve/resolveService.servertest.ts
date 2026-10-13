@@ -44,7 +44,7 @@ const serviceWith = (findFirst: () => Promise<unknown>) => {
     }) => {
       const context = await contextResolver.authenticateRequest({
         ...params,
-        model: "Production OpenAI/gpt-4o",
+        model: "Production OpenAI:gpt-4o",
       });
       return service.resolve({ context, apiFormat: params.apiFormat });
     },

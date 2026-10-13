@@ -28,7 +28,7 @@ import {
 } from "@/src/utils/api";
 
 const INVALID_CONNECTION_NAME_ERROR =
-  "Connection names cannot contain a slash.";
+  "Connection names cannot contain a colon.";
 
 export function ProviderDialogController({
   organizationId,
@@ -103,7 +103,7 @@ export function ProviderDialogController({
     selectedConnection: GatewayConnection | null,
     closeDialog: () => void,
   ) => {
-    if (name.includes("/")) {
+    if (name.includes(":")) {
       setNameError(INVALID_CONNECTION_NAME_ERROR);
       return;
     }
