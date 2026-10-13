@@ -293,35 +293,50 @@ export const CLICKHOUSE_NETWORK_ERROR_PATTERNS = [
   "econnrefused",
 ] as const;
 
-const CLICKHOUSE_ERROR_TYPE_PATTERN = /^[A-Z][A-Z0-9_]{2,63}$/;
+/**
+ * ClickHouse error codes that get their own `error_code` label, keyed by the
+ * numeric code. Together they cover >99.9% of failed Langfuse reads; the rest is
+ * a long tail reported as `other` and recoverable from `system.query_log`.
+ * Matching on the number rather than the name keeps the label set closed: the
+ * name is parsed from the message text, which can echo caller input.
+ */
+const LABELLED_CLICKHOUSE_ERROR_CODES: Record<string, string> = {
+  "60": "unknown_table",
+  "159": "timeout_exceeded",
+  "202": "too_many_simultaneous_queries",
+  "209": "socket_timeout",
+  "210": "network_error",
+  "241": "memory_limit_exceeded",
+  "734": "cannot_write_after_buffer_canceled",
+  "735": "query_was_cancelled_by_client",
+};
+
+const OTHER_ERROR_CODE_LABEL = "other";
 
 /**
  * Bounded cause of a failed query, so `error` outcomes are not opaque and a
  * server-side `TIMEOUT_EXCEEDED` can be told from a client request timeout.
  *
- * - The ClickHouse exception name, lowercased (`unknown_table`,
- *   `timeout_exceeded`, `too_many_simultaneous_queries`). Taken from a thrown
- *   `ClickHouseError` or parsed from an exception row's `Code: N. … (NAME)`
- *   message. The names are a fixed server-side enum.
+ * - A labelled ClickHouse error code (`timeout_exceeded`, `unknown_table`, …),
+ *   from a thrown `ClickHouseError` or an exception row's `Code: N.` prefix.
+ *   Any other ClickHouse code is `other`.
  * - `network` for a transport failure that outlived the retries.
  * - `client_timeout` for the client's own request timeout, which carries no
  *   ClickHouse code.
- * - `unknown` for anything else.
+ * - `other` for anything else.
  */
 export function clickHouseQueryErrorCode(error: unknown): string {
   const root =
     error instanceof Error && error.cause instanceof Error
       ? error.cause
       : error;
-  if (!(root instanceof Error)) return "unknown";
+  if (!(root instanceof Error)) return OTHER_ERROR_CODE_LABEL;
 
   const parsed = root instanceof ClickHouseError ? root : parseError(root);
-  if (
-    parsed instanceof ClickHouseError &&
-    parsed.type &&
-    CLICKHOUSE_ERROR_TYPE_PATTERN.test(parsed.type)
-  ) {
-    return parsed.type.toLowerCase();
+  if (parsed instanceof ClickHouseError) {
+    return (
+      LABELLED_CLICKHOUSE_ERROR_CODES[parsed.code] ?? OTHER_ERROR_CODE_LABEL
+    );
   }
 
   const message = (root.message ?? "").toLowerCase();
@@ -331,7 +346,7 @@ export function clickHouseQueryErrorCode(error: unknown): string {
   if (message.includes("timeout") || message.includes("timed out")) {
     return "client_timeout";
   }
-  return "unknown";
+  return OTHER_ERROR_CODE_LABEL;
 }
 
 /**

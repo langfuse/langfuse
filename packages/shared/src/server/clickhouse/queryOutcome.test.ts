@@ -95,7 +95,7 @@ describe("ClickHouse query outcome metric", () => {
   });
 
   describe("error codes", () => {
-    it("uses the exception name of a thrown ClickHouseError", () => {
+    it("labels a thrown ClickHouseError by its code", () => {
       const error = new ClickHouseError({
         message: "Unknown table expression identifier 'topic_assignments'",
         code: "60",
@@ -104,7 +104,7 @@ describe("ClickHouse query outcome metric", () => {
       expect(clickHouseQueryErrorCode(error)).toBe("unknown_table");
     });
 
-    it("parses the exception name from an exception row message", () => {
+    it("parses the code from an exception row message", () => {
       const error = new Error(
         "Code: 159. DB::Exception: Timeout exceeded: elapsed 30.1 seconds, maximum: 30. (TIMEOUT_EXCEEDED) (version 26.4.1.1)",
       );
@@ -122,17 +122,26 @@ describe("ClickHouse query outcome metric", () => {
       ).toBe("memory_limit_exceeded");
     });
 
+    // The exception name is parsed from message text that can echo caller
+    // input, so only the numeric code decides the label.
+    it("reports an unlabelled code as other, ignoring names in the message", () => {
+      const error = new Error(
+        "Code: 6. DB::Exception: Cannot parse string 'a (CALLER_CHOSEN) b' as Int64. (CANNOT_PARSE_TEXT) (version 26.4.1.1)",
+      );
+      expect(clickHouseQueryErrorCode(error)).toBe("other");
+    });
+
     it.each([
       ["socket hang up", "network"],
       ["read ECONNRESET", "network"],
       ["Timeout error.", "client_timeout"],
-      ["Unexpected end of JSON input", "unknown"],
+      ["Unexpected end of JSON input", "other"],
     ])("classifies a client-side %s as %s", (message, expected) => {
       expect(clickHouseQueryErrorCode(new Error(message))).toBe(expected);
     });
 
-    it("labels a non-Error throw as unknown", () => {
-      expect(clickHouseQueryErrorCode("boom")).toBe("unknown");
+    it("labels a non-Error throw as other", () => {
+      expect(clickHouseQueryErrorCode("boom")).toBe("other");
     });
   });
 
