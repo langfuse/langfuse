@@ -237,6 +237,23 @@ describe("Topics embedding handoff", () => {
     expect(staged.get(topicSourceKey(other))?.state).toBe("summarized");
   });
 
+  it("stops on a permanent failure even when another trace failed retryably", async () => {
+    const rows = [summary("first"), summary("second")];
+    for (const row of rows) staged.set(topicSourceKey(row), row);
+    mocks.embed.mockImplementation(async (_model, summaries: string[]) => {
+      throw summaries.includes("A summary of first.")
+        ? new TopicsProviderUnavailable("Rate limited.", "rate_limit")
+        : new TopicsProviderUnavailable(
+            "Check worker credentials.",
+            "authentication",
+          );
+    });
+    await expect(processTopicEmbeddingBatch(batch(...rows))).rejects.toThrow(
+      UnrecoverableError,
+    );
+    expect(mocks.pause).toHaveBeenCalledOnce();
+  });
+
   it("does not retry provider authentication failures", async () => {
     const row = summary();
     staged.set(topicSourceKey(row), row);

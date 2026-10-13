@@ -101,20 +101,17 @@ export async function processTopicEmbeddingBatch(
           }),
       ),
     );
-    const failure = results.find((result) => result.status === "rejected");
-    if (failure) throw failure.reason;
+    const failures = results.flatMap((result) =>
+      result.status === "rejected" ? [result.reason] : [],
+    );
+    // A permanent failure must stop the job and pause Topics even if another
+    // trace failed with a retryable error first.
+    if (failures.length > 0)
+      throw failures.find(isPermanentFailure) ?? failures[0];
   } catch (error) {
     if (isRejectedConnection(error))
       await pauseForRejectedConnection(batch.projectId, error);
-    if (
-      error instanceof TopicsProviderUnavailable &&
-      [
-        "authentication",
-        "configuration",
-        "invalid_input",
-        "invalid_output",
-      ].includes(error.reason)
-    )
+    if (error instanceof TopicsProviderUnavailable && isPermanentFailure(error))
       throw new UnrecoverableError(error.message);
     throw error;
   } finally {
@@ -130,4 +127,17 @@ export async function processTopicEmbeddingBatch(
     // The processing job retains Redis results until assignment is acknowledged.
     // Retrying a partial insert reuses these vectors and their processing time.
   }
+}
+
+function isPermanentFailure(error: unknown): boolean {
+  return (
+    error instanceof UnrecoverableError ||
+    (error instanceof TopicsProviderUnavailable &&
+      [
+        "authentication",
+        "configuration",
+        "invalid_input",
+        "invalid_output",
+      ].includes(error.reason))
+  );
 }
