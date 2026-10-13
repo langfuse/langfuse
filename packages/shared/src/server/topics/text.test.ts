@@ -268,6 +268,44 @@ describe("generateTopicEmbedding", () => {
     });
     expect(result.embedding).toHaveLength(768);
   });
+
+  it("retries without the size option when a fixed-size model rejects it", async () => {
+    const vector = Array.from({ length: 1536 }, () => 0.5);
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_url, init) =>
+      JSON.parse(String(init?.body)).dimensions
+        ? Response.json(
+            {
+              error: {
+                message: "This model does not support specifying dimensions.",
+              },
+            },
+            { status: 400 },
+          )
+        : Response.json({
+            data: [{ embedding: vector, index: 0 }],
+            usage: { prompt_tokens: 3 },
+          }),
+    );
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await generateTopicEmbedding({
+      model: {
+        slot: "embedding",
+        provider: "openai-topics",
+        adapter: LLMAdapter.OpenAI,
+        model: "text-embedding-ada-002",
+        connection: { secretKey: encrypt("sk-test") },
+      },
+      summary: "Account access",
+      dimensions: 1536,
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(await new Request(...fetch.mock.calls[1]).json()).not.toHaveProperty(
+      "dimensions",
+    );
+    expect(result.embedding).toHaveLength(1536);
+  });
 });
 
 describe("allowlisted Cloud Bedrock runtime credentials", () => {
