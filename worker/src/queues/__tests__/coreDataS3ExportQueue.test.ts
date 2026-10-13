@@ -200,7 +200,7 @@ describe("coreDataTableExports", () => {
 });
 
 describe("mapDashboardWidgetToCoreDataRow", () => {
-  it("allowlists dimensions and metrics and drops filters and chart type", () => {
+  it("allowlists dimensions, metrics, and chart type and drops filters", () => {
     const row = mapDashboardWidgetToCoreDataRow({
       id: "widget-1",
       projectId: "project-1",
@@ -246,6 +246,7 @@ describe("mapDashboardWidgetToCoreDataRow", () => {
       { measure: "__invalid__", agg: "__invalid__" },
     ]);
     expect(row.chartConfig).toStrictEqual({
+      type: "PIVOT_TABLE",
       row_limit: 20,
       bins: 8,
     });
@@ -257,8 +258,23 @@ describe("mapDashboardWidgetToCoreDataRow", () => {
     expect(serialized).not.toContain("customer-secret-key");
     expect(serialized).not.toContain("customer-value");
     expect(serialized).not.toContain("userId");
-    expect(serialized).not.toContain("PIVOT_TABLE");
     expect(serialized).not.toContain("stringOptions");
+  });
+
+  it("replaces an unknown chartConfig.type with the invalid sentinel", () => {
+    const row = mapDashboardWidgetToCoreDataRow({
+      id: "widget-3",
+      dimensions: [],
+      metrics: [],
+      chartConfig: { type: "customer free text chart", row_limit: 5 },
+    });
+
+    expect(row.chartConfig).toStrictEqual({
+      type: "__invalid__",
+      row_limit: 5,
+      bins: null,
+    });
+    expect(JSON.stringify(row)).not.toContain("customer free text chart");
   });
 
   it("normalizes missing dimensions, metrics, and chart config without a filters field", () => {
@@ -274,6 +290,7 @@ describe("mapDashboardWidgetToCoreDataRow", () => {
     expect(row.dimensions).toStrictEqual([]);
     expect(row.metrics).toStrictEqual([]);
     expect(row.chartConfig).toStrictEqual({
+      type: null,
       row_limit: null,
       bins: null,
     });

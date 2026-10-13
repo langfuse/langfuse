@@ -1,5 +1,6 @@
 import { Processor } from "bullmq";
 import { Readable } from "node:stream";
+import { DashboardWidgetChartType } from "@prisma/client";
 import pLimit from "p-limit";
 import {
   logger,
@@ -100,6 +101,9 @@ const KNOWN_WIDGET_DIMENSIONS = new Set(
   ),
 );
 const KNOWN_WIDGET_AGGREGATIONS = new Set<string>(metricAggregations.options);
+const KNOWN_WIDGET_CHART_TYPES = new Set<string>(
+  Object.values(DashboardWidgetChartType),
+);
 const INVALID_SENTINEL = "__invalid__";
 
 const allowlisted = (value: unknown, allowlist: Set<string>): string | null => {
@@ -116,15 +120,11 @@ type DashboardWidgetCoreDataInput = {
   dimensions: unknown;
   metrics: unknown;
   chartConfig: unknown;
-  // Accepted so a caller that still has the column cannot leak it through
-  // the rest spread. The export select does not load this column.
+  /** Drops a supplied filters column so it cannot leak through the rest spread. */
   filters?: unknown;
 } & Record<string, unknown>;
 
-// Widget filters and chartConfig.type are customer-authored and are not
-// exported. Dimensions and metrics are allowlisted against the query model.
-// chartConfig keeps only numeric row_limit and bins; other keys, including
-// defaultSort, stay out.
+/** Allowlists widget dimensions, metrics, and chart type, and keeps numeric chartConfig limits. */
 export const mapDashboardWidgetToCoreDataRow = ({
   dimensions,
   metrics,
@@ -147,6 +147,7 @@ export const mapDashboardWidgetToCoreDataRow = ({
         }))
       : [],
     chartConfig: {
+      type: allowlisted(config.type, KNOWN_WIDGET_CHART_TYPES),
       row_limit: typeof config.row_limit === "number" ? config.row_limit : null,
       bins: typeof config.bins === "number" ? config.bins : null,
     },
@@ -652,9 +653,7 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "evaluatorVersions",
-      // Evaluator definitions (prompt, code, model params, output
-      // definitions, variable names, and variable mappings) may contain
-      // customer data. Export version metadata only.
+      /** Exports evaluator version metadata without customer-authored definitions. */
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.evaluatorVersion.findMany({
           take,
@@ -677,7 +676,7 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "evaluationRules",
-      // The filter JSON holds customer-authored values and is excluded.
+      /** Omits the customer-authored evaluation-rule filter. */
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.evaluationRule.findMany({
           take,
@@ -703,7 +702,7 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "evaluationRuleEvaluatorAssignments",
-      // variableMapping holds customer-authored template paths and is excluded.
+      /** Omits customer-authored evaluator variable mappings. */
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.evaluationRuleEvaluatorAssignment.findMany({
           take,
@@ -746,10 +745,7 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "dashboardWidgets",
-      // Customer-authored name, description, and filters are excluded.
-      // Dimensions and metrics are allowlisted in the mapper. chartConfig
-      // keeps numeric row_limit and bins only; chartType is the enum column.
-      // projectId NULL marks Langfuse-owned template widgets.
+      /** Allowlists widget dimensions, metrics, and chart type, and omits customer-authored filters. */
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.dashboardWidget.findMany({
           take,
