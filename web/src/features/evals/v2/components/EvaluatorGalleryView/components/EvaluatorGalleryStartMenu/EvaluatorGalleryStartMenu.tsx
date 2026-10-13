@@ -3,7 +3,7 @@ import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
-import { getEvaluatorMethodIcon } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
+import { EvaluatorMethodTile } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
 
 const START_OPTIONS = [
   {
@@ -37,7 +37,7 @@ export function EvaluatorGalleryStartMenu({
         id: option.type,
         title: option.title,
         description: option.description,
-        icon: getEvaluatorMethodIcon(option.type),
+        leadingVisual: <EvaluatorMethodTile type={option.type} />,
         onClick: () => onCreateFromScratch(option.type),
       }))}
     >

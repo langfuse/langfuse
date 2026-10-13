@@ -29,8 +29,20 @@ const METHOD_BADGES = {
   { Icon: unknown; label: string; tileClassName: string }
 >;
 
-export function getEvaluatorMethodIcon(type: EvalTemplateType) {
-  return METHOD_BADGES[type].Icon;
+/** The type icon on its pastel tile. */
+export function EvaluatorMethodTile({ type }: { type: EvalTemplateType }) {
+  const { Icon, tileClassName } = METHOD_BADGES[type];
+
+  return (
+    <span
+      className={cn(
+        "inline-flex size-5 shrink-0 items-center justify-center rounded-sm",
+        tileClassName,
+      )}
+    >
+      <Icon className="icon-sm" aria-hidden="true" />
+    </span>
+  );
 }
 
 export function EvaluatorGalleryMethodBadge({
@@ -38,18 +50,11 @@ export function EvaluatorGalleryMethodBadge({
 }: {
   type: EvalTemplateType;
 }) {
-  const { Icon, label, tileClassName } = METHOD_BADGES[type];
+  const { label } = METHOD_BADGES[type];
 
   return (
     <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap">
-      <span
-        className={cn(
-          "inline-flex size-5 shrink-0 items-center justify-center rounded-sm",
-          tileClassName,
-        )}
-      >
-        <Icon className="icon-sm" aria-hidden="true" />
-      </span>
+      <EvaluatorMethodTile type={type} />
       {label}
     </span>
   );

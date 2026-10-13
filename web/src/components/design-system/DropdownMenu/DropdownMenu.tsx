@@ -96,7 +96,16 @@ const menuItemVariants = cva(
 );
 
 const primaryActionVariants = cva(
-  "flex min-w-0 flex-1 cursor-pointer items-center px-2 py-1.5",
+  "flex min-w-0 flex-1 cursor-pointer px-2 py-1.5",
+  {
+    variants: {
+      hasDescription: {
+        true: "items-start",
+        false: "items-center",
+      },
+    },
+    defaultVariants: { hasDescription: false },
+  },
 );
 
 const secondaryActionVariants = cva(
@@ -171,6 +180,8 @@ type DropdownMenuItem = {
   title: string;
   /** Second line under the title, e.g. when to pick this option. */
   description?: string;
+  /** Replaces `icon` when the item needs a richer mark, e.g. a tinted tile. */
+  leadingVisual?: React.ReactNode;
   tooltip?: string;
   badge?: React.ReactNode;
   icon?: LucideIcon;
@@ -702,7 +713,9 @@ function DropdownMenuNode({
                           }
                           aria-disabled={item.disabled ? "true" : undefined}
                           tabIndex={item.disabled ? -1 : undefined}
-                          className={primaryActionVariants()}
+                          className={primaryActionVariants({
+                            hasDescription: Boolean(item.description),
+                          })}
                           onClick={(event) => {
                             if (item.disabled) {
                               event.preventDefault();
@@ -715,7 +728,12 @@ function DropdownMenuNode({
                             if (event.button === 1) item.onAfterNavigate?.();
                           }}
                         >
-                          {ItemIcon ? (
+                          {item.leadingVisual ? (
+                            <span className="mr-1.5 flex shrink-0">
+                              {item.leadingVisual}
+                            </span>
+                          ) : null}
+                          {!item.leadingVisual && ItemIcon ? (
                             <ItemIcon
                               className={menuItemIconVariants({
                                 variant: item.variant,
@@ -736,13 +754,20 @@ function DropdownMenuNode({
                           type="button"
                           disabled={Boolean(item.disabled)}
                           data-primary-action=""
-                          className={primaryActionVariants()}
+                          className={primaryActionVariants({
+                            hasDescription: Boolean(item.description),
+                          })}
                           onClick={() => {
                             tree?.events.emit("click");
                             item.onClick?.();
                           }}
                         >
-                          {ItemIcon ? (
+                          {item.leadingVisual ? (
+                            <span className="mr-1.5 flex shrink-0">
+                              {item.leadingVisual}
+                            </span>
+                          ) : null}
+                          {!item.leadingVisual && ItemIcon ? (
                             <ItemIcon
                               className={menuItemIconVariants({
                                 variant: item.variant,
