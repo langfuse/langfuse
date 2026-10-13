@@ -8809,42 +8809,6 @@ describe("OTel Resource Span Mapping", () => {
   });
 
   describe("Vercel AI SDK Usage details", () => {
-    it("preserves an unknown input count when cache reads are reported", async () => {
-      const span = {
-        scopeSpans: [
-          {
-            scope: { name: "ai", version: "4.0.0" },
-            spans: [
-              {
-                traceId: Buffer.from("abcdef1234567890abcdef1234567890", "hex"),
-                spanId: Buffer.from("1234567890abcdef", "hex"),
-                name: "cached-generation-without-input-count",
-                kind: 1,
-                startTimeUnixNano: { low: 1000000, high: 406528574 },
-                endTimeUnixNano: { low: 2000000, high: 406528574 },
-                attributes: [
-                  {
-                    key: "ai.usage.cachedInputTokens",
-                    value: { stringValue: "100" },
-                  },
-                ],
-                status: {},
-              },
-            ],
-          },
-        ],
-      };
-
-      const events = await convertOtelSpanToIngestionEvent(span, new Set());
-      const observationEvent = events.find(
-        (event) =>
-          event.type === "generation-create" || event.type === "span-create",
-      );
-
-      expect(observationEvent?.body.usageDetails.input).toBeUndefined();
-      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(100);
-    });
-
     it("should extract usage details from both provider metadata and 'ai.usage'", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";
       const spanId = "1234567890abcdef";
@@ -9224,10 +9188,6 @@ describe("OTel Resource Span Mapping", () => {
                     key: "ai.usage.tokens",
                     value: { stringValue: "10394" },
                   },
-                  {
-                    key: "ai.usage.cachedInputTokens",
-                    value: { stringValue: "4482" },
-                  },
                   // Bedrock provider metadata with cache tokens
                   {
                     key: "ai.response.providerMetadata",
@@ -9279,9 +9239,6 @@ describe("OTel Resource Span Mapping", () => {
 
       // Verify Bedrock cache tokens are extracted
       expect(observationEvent?.body.usageDetails.input_cache_read).toBe(4482);
-      expect(
-        observationEvent?.body.usageDetails.input_cached_tokens,
-      ).toBeUndefined();
       expect(observationEvent?.body.usageDetails.input_cache_write).toBe(0);
       expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
         100,

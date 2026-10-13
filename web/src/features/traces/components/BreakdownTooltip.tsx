@@ -87,12 +87,7 @@ export const BreakdownTooltip = ({
       : usdFormatter(value, costFractionDigits, costFractionDigits);
   };
   const waterfallSegments = createWaterfallSegments(contributionEntries);
-  const cacheHitRate = isCost
-    ? null
-    : getCacheHitRate(
-        inputEntries,
-        Array.isArray(details) ? details : [details],
-      );
+  const cacheHitRate = isCost ? null : getCacheHitRate(inputEntries);
   const displayedTotal =
     aggregatedDetails.total ??
     (isCost ? sumEntries(contributionEntries) : new Decimal(0));
@@ -402,31 +397,21 @@ function isInputUsageKey(key: string) {
   );
 }
 
-function getCacheHitRate(
-  entries: [string, number | undefined][],
-  details: Details[],
-) {
-  /** Two read fields in one report may describe the same tokens. */
-  if (
-    details.some(
-      (detail) =>
-        (detail.input_cached_tokens ?? 0) > 0 &&
-        (detail.input_cache_read ?? 0) > 0,
-    )
-  ) {
-    return null;
-  }
+function getCacheHitRate(entries: [string, number | undefined][]) {
   if (!entries.some(([key]) => /cache/i.test(key))) return null;
   if (!entries.some(([key]) => key === "input")) return null;
   if (entries.some(([, value]) => !isUsableTokenCount(value))) return null;
 
   const total = sumEntries(entries);
-  if (total.lte(0)) return null;
+  // A zero or negative total cannot be a denominator.
+  if (!total.isFinite() || total.lte(0)) return null;
 
   const cacheRead = sumEntries(entries.filter(([key]) => isCacheReadKey(key)));
-  if (cacheRead.isNeg()) return null;
+  if (!cacheRead.isFinite() || cacheRead.isNeg()) return null;
 
   const rate = cacheRead.div(total);
+  if (!rate.isFinite()) return null;
+
   return rate.toNumber();
 }
 

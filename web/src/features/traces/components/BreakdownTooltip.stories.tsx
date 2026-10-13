@@ -369,34 +369,12 @@ export const TestZeroCacheHitRate = meta.story({
   },
 });
 
-export const TestAggregatedCacheHitRate = meta.story({
-  name: "(Test) Counts different cache-read keys across generations",
-  args: {
-    details: [
-      { input: 50, input_cached_tokens: 50, total: 100 },
-      { input: 50, input_cache_read: 50, total: 100 },
-    ],
-    children: <span>200 tokens across generations</span>,
-  },
-  play: async ({ canvasElement }) => {
-    const { content } = await openBreakdownTooltip(
-      canvasElement,
-      "200 tokens across generations",
-    );
-    await expect(content.getByText("50.0%")).toBeInTheDocument();
-  },
-});
-
 const hiddenCacheUsage = [
   ["no cache tokens", { input: 100, output: 20, total: 120 }],
   ["zero input", { cache_read_input_tokens: 0, input: 0, output: 1, total: 1 }],
   [
     "cache tokens without input",
     { input_cached_tokens: 100, output: 20, total: 120 },
-  ],
-  [
-    "duplicate cache reads",
-    { input: 0, input_cached_tokens: 900, input_cache_read: 900, output: 20 },
   ],
 ] as const;
 
