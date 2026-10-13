@@ -23,7 +23,16 @@ service:
         scoreId:
           type: string
           docs: The unique langfuse identifier of a score
+      response:
+        status-code: 202
+        type: DeleteScoreResponse
 types:
+  DeleteScoreResponse:
+    docs: Score deletion queued (HTTP 202).
+    properties:
+      message: string
+
+
   CreateScoresRequest:
     discriminated: false
     union:

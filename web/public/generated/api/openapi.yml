@@ -6071,8 +6071,12 @@ paths:
           schema:
             type: string
       responses:
-        '204':
+        '202':
           description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteScoreResponse'
         '400':
           description: ''
           content:
@@ -14410,6 +14414,15 @@ components:
       required:
         - data
         - meta
+    DeleteScoreResponse:
+      title: DeleteScoreResponse
+      type: object
+      description: Score deletion queued (HTTP 202).
+      properties:
+        message:
+          type: string
+      required:
+        - message
     CreateScoresRequest:
       title: CreateScoresRequest
       oneOf:
