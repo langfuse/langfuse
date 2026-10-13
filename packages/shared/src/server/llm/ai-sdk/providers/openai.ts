@@ -28,7 +28,6 @@ export function buildOpenAIModel(params: {
     apiMode === "chat-completions" &&
     isOpenAICompatibleEndpoint(processedBaseURL)
   ) {
-    const hostname = new URL(processedBaseURL).hostname.replace(/\.$/, "");
     const provider = createOpenAICompatible({
       name: "openai",
       apiKey,
@@ -36,10 +35,6 @@ export function buildOpenAIModel(params: {
       headers: extraHeaders,
       fetch: params.fetch,
       supportsStructuredOutputs: true,
-      transformRequestBody:
-        hostname === "api.openai.com" || hostname.endsWith(".api.openai.com")
-          ? normalizeOpenAICompletionTokens
-          : undefined,
     });
 
     return provider.languageModel(modelId);
@@ -58,28 +53,6 @@ export function buildOpenAIModel(params: {
   return apiMode === "responses"
     ? provider.responses(modelId)
     : provider.chat(modelId);
-}
-
-/** OpenAI reasoning models use completion token limits with either SDK adapter. */
-function normalizeOpenAICompletionTokens(
-  body: Record<string, unknown>,
-): Record<string, unknown> {
-  if (typeof body.model !== "string") return body;
-
-  /** Match the native OpenAI SDK's model families, including its chat aliases. */
-  const gpt = /^gpt-(\d+)(?:\.(\d+))?(?:-(.+))?$/.exec(body.model);
-  const isReasoningModel =
-    /^o\d+(?:-|$)/.test(body.model) ||
-    (gpt &&
-      Number(gpt[1]) >= 5 &&
-      !(gpt[2] === undefined && gpt[3]?.startsWith("chat")));
-  if (!isReasoningModel) return body;
-
-  const { max_tokens, ...rest } = body;
-  return {
-    ...rest,
-    max_completion_tokens: body.max_completion_tokens ?? max_tokens,
-  };
 }
 
 export function buildOpenAIEmbeddingModel(params: {
@@ -123,8 +96,10 @@ export function isOpenAICompatibleEndpoint(
       return false;
     }
 
-    const hostname = url.hostname;
-    return hostname !== "api.openai.com";
+    const hostname = url.hostname.replace(/\.$/, "");
+    return (
+      hostname !== "api.openai.com" && !hostname.endsWith(".api.openai.com")
+    );
   } catch {
     return false;
   }
@@ -168,6 +143,7 @@ const OPENAI_PROVIDER_OPTION_KEY_MAP: Record<string, string> = {
   verbosity: "textVerbosity",
   store: "store",
   user: "user",
+  metadata: "metadata",
   // camelCase (already AI SDK-shaped)
   reasoningEffort: "reasoningEffort",
   serviceTier: "serviceTier",

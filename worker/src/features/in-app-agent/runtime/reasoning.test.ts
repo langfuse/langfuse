@@ -147,6 +147,7 @@ describe("OpenAI Responses request shape", () => {
       modelId: "gpt-5.6-sol",
       titleModelId: "gpt-5.6-luna",
       apiKey: "sk-test",
+      baseURL: "https://eu.api.openai.com/v1",
     };
     const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
     vi.stubGlobal("fetch", fetch);
@@ -158,7 +159,7 @@ describe("OpenAI Responses request shape", () => {
     });
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.url).toBe("https://api.openai.com/v1/responses");
+    expect(calls[0]?.url).toBe("https://eu.api.openai.com/v1/responses");
     expect(calls[0]?.headers.get("authorization")).toBe("Bearer sk-test");
     expect(calls[0]?.body.reasoning).toEqual({ summary: "auto" });
     expect(calls[0]?.body).not.toHaveProperty("reasoning_effort");

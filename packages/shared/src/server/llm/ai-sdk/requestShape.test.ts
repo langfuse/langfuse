@@ -276,13 +276,15 @@ describe("AI SDK request shapes", () => {
     ["eu.api.openai.com.example.com", "gpt-6-luna", false],
     ["eu.api.openai.com", "gpt-4o", false],
     ["eu.api.openai.com", "gpt-5-chat-latest", false],
-  ])("OpenAI token limits: %s / %s", async (host, model, completionTokens) => {
+  ])("OpenAI parameters: %s / %s", async (host, model, completionTokens) => {
     const { request } = await runCompletion({
       modelParams: {
         provider: "openai",
         adapter: LLMAdapter.OpenAI,
         model,
         max_tokens: 128,
+        temperature: 0.2,
+        top_p: 0.9,
         providerOptions: { metadata: { purpose: "evaluation" } },
       },
       apiKey: "sk-test",
@@ -293,6 +295,8 @@ describe("AI SDK request shapes", () => {
       completionTokens ? 128 : undefined,
     );
     expect(request.body.max_tokens).toBe(completionTokens ? undefined : 128);
+    expect(request.body.temperature).toBe(completionTokens ? undefined : 0.2);
+    expect(request.body.top_p).toBe(completionTokens ? undefined : 0.9);
     expect(request.body.metadata).toEqual({ purpose: "evaluation" });
   });
 
@@ -324,6 +328,7 @@ describe("AI SDK request shapes", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].body).toMatchObject({
       stream: true,
+      stream_options: { include_usage: true },
       max_completion_tokens: 512,
     });
     expect(calls[0].body.max_tokens).toBeUndefined();
@@ -343,7 +348,7 @@ describe("AI SDK request shapes", () => {
       LANGFUSE_AI_MODEL: "gpt-5.6-sol",
       LANGFUSE_AI_SMALL_MODEL: "gpt-5.6-luna",
       LANGFUSE_AI_API_KEY: "sk-test",
-      LANGFUSE_AI_BASE_URL: undefined,
+      LANGFUSE_AI_BASE_URL: "https://eu.api.openai.com/v1",
       LANGFUSE_AI_USE_RESPONSES_API: undefined,
     });
 
@@ -358,7 +363,7 @@ describe("AI SDK request shapes", () => {
 
       expect(text).toBe("ok");
       expect(calls).toHaveLength(1);
-      expect(calls[0]?.url).toBe("https://api.openai.com/v1/responses");
+      expect(calls[0]?.url).toBe("https://eu.api.openai.com/v1/responses");
       expect(calls[0]?.headers.get("authorization")).toBe("Bearer sk-test");
       expect(calls[0]?.body.model).toBe("gpt-5.6-sol");
     } finally {
