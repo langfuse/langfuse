@@ -16,6 +16,16 @@ import { ScoresApiService } from "@/src/features/public-api/server/scores-api-se
 import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 import { randomUUID } from "crypto";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+
+// Matches /api/public/ingestion; SDKs batch scores up to 1 MB plus JSON overhead.
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "4.5mb",
+    },
+  },
+};
+
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Score",
