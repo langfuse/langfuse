@@ -20,6 +20,8 @@ import { MediaAssociationOrigin } from "@langfuse/shared";
 
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
+export type OtelMediaPresence = "present" | "absent" | "unknown";
+
 /**
  * Worker integration point for media in normalized OTEL payloads selected for
  * persistence by the ingestion queue.
@@ -52,6 +54,7 @@ export async function processOtelEventMedia(params: {
   mediaBucket?: string;
   mediaPrefix: string;
   inputByteLength?: number;
+  onMediaPresence?: (presence: OtelMediaPresence) => void;
   processMedia?: typeof processOtelMedia;
 }): Promise<void> {
   const {
@@ -81,7 +84,7 @@ export async function processOtelEventMedia(params: {
       { name: "langfuse.ingestion.otel.media.process" },
       async (span) => {
         const startedAt = Date.now();
-        let mediaPresence: "present" | "absent" | "unknown" = "unknown";
+        let mediaPresence: OtelMediaPresence = "unknown";
         span.setAttributes({
           "langfuse.ingestion.otel.media_path": mediaPath,
         });
@@ -161,6 +164,7 @@ export async function processOtelEventMedia(params: {
             { write_path: writePath, media_path: mediaPath },
           );
         } finally {
+          params.onMediaPresence?.(mediaPresence);
           recordMediaStageMetrics({
             durationMs: Date.now() - startedAt,
             writePath,
@@ -193,7 +197,7 @@ function recordMediaStageMetrics(params: {
   durationMs: number;
   writePath: OtelMediaWritePath;
   mediaPath: "early" | "reference";
-  mediaPresence: "present" | "absent" | "unknown";
+  mediaPresence: OtelMediaPresence;
   inputByteLength?: number;
 }): void {
   const tags = {

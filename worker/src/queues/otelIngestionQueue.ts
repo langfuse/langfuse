@@ -44,6 +44,7 @@ import { ForbiddenError } from "@langfuse/shared";
 import {
   createLegacyOtelMediaTargets,
   processOtelEventMedia,
+  type OtelMediaPresence,
 } from "../features/otel-media/processOtelMedia";
 import { restoreInlineMedia } from "../features/otel-media/resolveExtractedMedia";
 import { processOtelEvents } from "../features/otel-ingestion/processOtelEvents";
@@ -443,6 +444,14 @@ export const otelIngestionQueueProcessorBuilder = (
     job: Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>,
   ): Promise<void> => {
     let earlyBatch: EarlyOtelBatch | undefined;
+    const processingStartedAt = performance.now();
+    let mediaPath: "early" | "reference" | undefined;
+    let writePathForMetric: OtelWritePath | undefined;
+    let mediaPresence: OtelMediaPresence | undefined;
+    let completed = false;
+    const onMediaPresence = (presence: OtelMediaPresence) => {
+      mediaPresence = combineOtelMediaPresence(mediaPresence, presence);
+    };
     try {
       const projectId = job.data.payload.authCheck.scope.projectId;
       const publicKey = job.data.payload.data.publicKey ?? "";
@@ -504,7 +513,7 @@ export const otelIngestionQueueProcessorBuilder = (
           env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS.includes(
             projectId,
           ));
-      const mediaPath = earlyMediaEnabled ? "early" : "reference";
+      mediaPath = earlyMediaEnabled ? "early" : "reference";
       span?.setAttribute("langfuse.ingestion.otel.media_path", mediaPath);
       // Count selection once per queue attempt, including jobs that later fail.
       recordIncrement("langfuse.ingestion.otel.media_path", 1, {
@@ -758,6 +767,7 @@ export const otelIngestionQueueProcessorBuilder = (
         orgCutoffForcesDirect,
         langfuseSdkTraffic,
       });
+      writePathForMetric = writePath;
 
       span?.setAttribute("langfuse.ingestion.otel.write_path", writePath);
       recordIncrement("langfuse.ingestion.otel.write_path", 1, {
@@ -795,6 +805,7 @@ export const otelIngestionQueueProcessorBuilder = (
             earlyBatch,
             mediaPath,
             inputByteLength,
+            onMediaPresence,
             projectId,
             fileKey,
             mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
@@ -847,7 +858,9 @@ export const otelIngestionQueueProcessorBuilder = (
         earlyBatch,
         mediaPath,
         inputByteLength,
+        onMediaPresence,
       });
+      completed = true;
     } catch (e) {
       const fileKey = job.data.payload.data.fileKey;
       if (e instanceof ForbiddenError) {
@@ -873,6 +886,52 @@ export const otelIngestionQueueProcessorBuilder = (
       throw e;
     } finally {
       await earlyBatch?.dispose();
+      recordOtelQueuePathDuration({
+        completed,
+        processingStartedAt,
+        mediaPath,
+        mediaPresence,
+        writePath: writePathForMetric,
+      });
     }
   };
 };
+
+function combineOtelMediaPresence(
+  current: OtelMediaPresence | undefined,
+  next: OtelMediaPresence,
+): OtelMediaPresence {
+  if (current === "present" || next === "present") return "present";
+  if (current === "unknown" || next === "unknown") return "unknown";
+  return "absent";
+}
+
+function recordOtelQueuePathDuration(params: {
+  completed: boolean;
+  processingStartedAt: number;
+  mediaPath?: "early" | "reference";
+  mediaPresence?: OtelMediaPresence;
+  writePath?: OtelWritePath;
+}): void {
+  if (
+    !params.completed ||
+    !params.mediaPath ||
+    !params.writePath ||
+    !params.mediaPresence ||
+    params.mediaPresence === "unknown"
+  ) {
+    return;
+  }
+
+  // One sample per completed queue attempt, including preparation, parsing,
+  // normalization, media work, and downstream writes.
+  recordDistribution(
+    "langfuse.ingestion.otel.queue_processing_duration_ms",
+    performance.now() - params.processingStartedAt,
+    {
+      media_path: params.mediaPath,
+      media_presence: params.mediaPresence,
+      write_path: params.writePath,
+    },
+  );
+}

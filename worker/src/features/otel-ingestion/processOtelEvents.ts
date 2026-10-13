@@ -17,6 +17,7 @@ import { trackTraceBatchActivity } from "../traceBatching/traceBatching";
 import {
   createDirectOtelMediaTargets,
   processOtelEventMedia,
+  type OtelMediaPresence,
 } from "../otel-media/processOtelMedia";
 import type { IngestionService } from "../../services/IngestionService";
 
@@ -30,6 +31,7 @@ type ProcessOtelEventsParams = {
   earlyBatch?: EarlyOtelBatch;
   mediaPath?: "early" | "reference";
   inputByteLength?: number;
+  onMediaPresence?: (presence: OtelMediaPresence) => void;
 };
 
 /**
@@ -51,6 +53,7 @@ export async function processOtelEvents({
   earlyBatch,
   mediaPath,
   inputByteLength,
+  onMediaPresence,
 }: ProcessOtelEventsParams): Promise<void> {
   // Process events for observation evals and direct event writes
   // This phase handles two independent concerns:
@@ -100,6 +103,7 @@ export async function processOtelEvents({
       earlyBatch,
       mediaPath,
       inputByteLength,
+      onMediaPresence,
       projectId,
       fileKey,
       mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
