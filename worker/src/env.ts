@@ -679,11 +679,13 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(1_000),
+  // Tasks without the lease check it every half TTL, and a batch must finish
+  // within half of it.
   LANGFUSE_AUDIT_LOG_RELAY_LOCK_TTL_SECONDS: z.coerce
     .number()
     .int()
     .positive()
-    .default(60), // A batch must finish within half of it
+    .default(60),
 
   // Media Retention Cleaner configuration (S3/PostgreSQL)
   LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT: z.coerce
