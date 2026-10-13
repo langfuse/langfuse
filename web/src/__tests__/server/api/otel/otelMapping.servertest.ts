@@ -5714,7 +5714,7 @@ describe("OTel Resource Span Mapping", () => {
         { type: "text", text: "Example file contents." },
         { type: "text", text: "Second content block." },
       ]);
-      const resourceSpan = {
+      const resourceSpan: ResourceSpan = {
         resource: {
           attributes: [
             {
@@ -5729,6 +5729,8 @@ describe("OTel Resource Span Mapping", () => {
             spans: [
               {
                 ...defaultSpanProps,
+                traceId: Buffer.from(defaultSpanProps.traceId.data),
+                spanId: Buffer.from(defaultSpanProps.spanId.data),
                 name: "read",
                 attributes: [
                   {
