@@ -71,3 +71,10 @@ pub(crate) struct ProviderFacts {
     pub output_complete: bool,
     pub capture_complete: bool,
 }
+
+impl ProviderFacts {
+    pub(crate) fn replace_requested_model(&mut self, model: Option<String>) {
+        self.model.clone_from(&model);
+        self.requested_model = model;
+    }
+}
