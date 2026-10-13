@@ -50,6 +50,7 @@ export function DetailViewHeaderTitleRow({
   // A folded cluster has no element to measure, so its last natural width is
   // kept here and goes on feeding the planner until it is back on screen.
   const actionsWidthRef = useRef<number | undefined>(undefined);
+  const followFocusRef = useRef(false);
   const [placement, setPlacement] =
     useState<DetailViewHeaderActionsPlacement>("beside");
 
@@ -83,8 +84,28 @@ export function DetailViewHeaderTitleRow({
       minTitleWidth: MIN_TITLE_PX,
       gap: TITLE_ACTIONS_GAP_PX,
     });
+    // Folding unmounts the cluster. If the keyboard was in it, follow it to the
+    // menu that now holds the same actions rather than dropping to <body>.
+    if (
+      next === "folded" &&
+      placement !== "folded" &&
+      actionsRef.current?.contains(document.activeElement)
+    ) {
+      followFocusRef.current = true;
+    }
     setPlacement((previous) => (previous === next ? previous : next));
   }, [actions, alwaysFold, placement, rowRef, rowSize?.width]);
+
+  useLayoutEffect(() => {
+    if (!followFocusRef.current) return;
+    followFocusRef.current = false;
+    // The folded presentation ends in the overflow-menu trigger, so the row's
+    // last focusable element is it.
+    const focusable = rowRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+    );
+    focusable?.[focusable.length - 1]?.focus({ preventScroll: true });
+  }, [placement, rowRef]);
 
   const actionsFolded = alwaysFold || placement === "folded";
   const actionsBeside = !actionsFolded && placement === "beside";
