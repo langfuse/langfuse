@@ -44,8 +44,8 @@ import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsFilters } from "./TopicsFilters";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
-import { resolveTopicFacetId } from "./topic-facet-selection";
 import { isValidTopicTimeRange } from "./time-range";
+import { useTopicTraceFilters } from "./useTopicTraceFilters";
 
 const maxTimeRangeMs = TIME_RANGES.last90Days.minutes * 60_000;
 const sharedTimeRangePresets = [
@@ -134,7 +134,6 @@ function TopicsWorkspaceView({
     fallback: "last7Days",
   });
   const [refreshedAt, setRefreshedAt] = useState(Date.now);
-  const [selectedFacetId, setSelectedFacetId] = useState<string>();
   const [tracePanel, setTracePanel] = useState<HTMLElement | null>(null);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
@@ -221,10 +220,8 @@ function TopicsWorkspaceView({
     refreshAfter: completedAt,
     timeRange: currentTimeRange,
   });
-  const selectedFacet = resolveTopicFacetId(
-    results.data ?? [],
-    selectedFacetId,
-  );
+  const traceFilters = useTopicTraceFilters(projectId, results.data ?? []);
+  const { selectedFacetId } = traceFilters;
   const refreshResults = () => {
     setRefreshedAt(Date.now());
     utils.topics.currentResults.invalidate({ projectId });
@@ -423,13 +420,14 @@ function TopicsWorkspaceView({
             <TopicsFilters
               facets={results.data ?? []}
               selectedFacetId={selectedFacetId}
-              onSelectFacet={setSelectedFacetId}
+              onSelectFacet={traceFilters.selectFacet}
             >
               <CurrentTopics
                 projectId={projectId}
                 timeRange={currentTimeRange}
                 result={results}
-                selectedFacetId={selectedFacet}
+                selectedFacetId={selectedFacetId}
+                traceFilters={traceFilters}
                 tracePanelRef={setTracePanel}
               />
             </TopicsFilters>

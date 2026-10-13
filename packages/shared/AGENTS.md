@@ -30,6 +30,8 @@
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
+  `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server
+  barrel; hash the unit identity when a project can dominate traffic.
 - Internal trace-batch queue: `src/server/redis/traceBatch.ts` (cloud-gated);
   payloads in `src/server/queues.ts` accept persisted single-project jobs.
   Full-event streaming reads live in `src/server/repositories/trace-batch.ts`;
@@ -100,6 +102,12 @@
     exist. `setup.ts` tests the models, then commits the single Topics rule,
     models, and per-project trace idle time together. Refresh the Redis readiness
     setting only after that transaction commits.
+  - `processing-gate.ts`: `isTopicsProcessingActive`, the ingestion gate for
+    trace batching (allowlisted, enabled with all three models, and an active
+    rule with an unblocked facet), cached in Redis both ways. Any write to a
+    project's Topics config, Topics rule or facet evaluators calls
+    `invalidateTopicsProcessingActive` after it commits;
+    `invalidateProjectEvalConfigCaches` already does.
   - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
     Returns the shared `Transcript | null`, capped at 10,000 serialized characters.
     Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results

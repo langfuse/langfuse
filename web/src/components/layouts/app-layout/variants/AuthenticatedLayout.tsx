@@ -55,6 +55,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useSession } from "next-auth/react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import {
   PaymentBannerView,
@@ -136,6 +137,7 @@ export function AuthenticatedLayout({
   // Account-level entry: use the raw flag (same as account settings tabs), not
   // project-scoped force-v3 suppression.
   const showV4Migration = useV4UpgradeUiFlag();
+  const { organization: currentOrganization } = useQueryProjectOrOrganization();
 
   const regionMenuItems = getAvailableCloudRegionOptions(currentRegion).map(
     (region) => ({
@@ -191,8 +193,8 @@ export function AuthenticatedLayout({
       : []),
     {
       type: "link" as const,
-      name: "Account Settings",
-      href: "/account/settings",
+      name: "Settings",
+      href: accountSettingsPath(currentOrganization?.id),
     },
     ...(showV4Migration
       ? [
