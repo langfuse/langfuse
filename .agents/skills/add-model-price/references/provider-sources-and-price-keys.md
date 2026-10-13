@@ -1176,6 +1176,53 @@ json_literal    = "<price_per_mtok>e-6"
   `types.ts` is not one of the selectable arrays the audit may edit; report a
   newly released Jev version that should become selectable as unresolved.
 
+- **Claude Sonnet 5.5 cache-read price corrected to 0.05x (found October 13 2026)** —
+  Anthropic's pricing page cache-hits footnote changed from listing only Claude Opus 5.5
+  (and separately Fable 5.1/Mythos 5.1) at a non-standard multiplier to now also including
+  Claude Sonnet 5.5: "Cache hits and refreshes on Claude Opus 5.5 and Claude Sonnet 5.5 are
+  priced at 0.05x the base input price." This lowers `claude-sonnet-5-5`'s cache-read price
+  from $0.20/MTok (the standard 0.1x multiplier it launched with on 2026-09-28, see the
+  September 29 2026 entry above) to $0.10/MTok. Input ($2/MTok), output ($10/MTok), and both
+  cache-write rates (5m $2.50/MTok, 1h $4/MTok) are unchanged. AWS Bedrock's pricing page
+  independently corroborates this with its own footnote: "Starting October 7, 2026, cache
+  read pricing for Claude Sonnet 5.5 is reduced by 50% from the prior rate" — consistent
+  with $0.20 to $0.10 — but a WebFetch of the Bedrock page could not extract the actual
+  numeric pricing row for this or any other Claude model on this run (see the next entry);
+  the correction was applied from the direct Anthropic pricing page alone, which is
+  authoritative for all Anthropic-operated and partner platforms using the same model ID.
+  Updated `cache_read_input_tokens`/`input_cached_tokens`/`input_cache_read` only; no other
+  fields changed. Official sources: `https://platform.claude.com/docs/en/about-claude/pricing`.
+- **AWS Bedrock pricing page: WebFetch cannot reliably extract per-model numeric rows
+  (confirmed October 13 2026)** — Multiple independently-worded WebFetch requests against
+  `https://aws.amazon.com/bedrock/pricing/` this run, including ones asking only for a single
+  named model's input/output/cache prices, all returned prose acknowledging that a pricing
+  section exists but stating the actual numeric table rows were "not included in the provided
+  excerpt" or "not fully displayed." This is a harder failure than the Gemini free/paid
+  column-collapse issue (that one still returns numbers, just sometimes the wrong column);
+  here no numbers come through for Claude models at all, even though the page's surrounding
+  prose (e.g. a cache-read-price-change footnote) is readable. Treat any Bedrock pricing claim
+  that lacks an actual quoted number as unconfirmed; do not use it alone to change a price,
+  but a qualitative claim (e.g. "price X changed by Y%") can still corroborate a figure
+  obtained from another official source, as happened with the Claude Sonnet 5.5 correction
+  above. Re-attempt a full tabular fetch in a future audit if a Bedrock-only price (such as
+  the Public Extended Access SKU) needs independent reconfirmation.
+- **Gemini 3.x pricing-page single-model fetch gap for gemini-3.5-flash and
+  gemini-3.7-flash (found October 13 2026)** — Targeted WebFetch requests against
+  `https://ai.google.dev/gemini-api/docs/pricing` asking only about `gemini-3.5-flash` (the
+  non-Lite sibling) or `gemini-3.7-flash` each returned "model not found on this page," even
+  though broader fetches of the same page in the same run returned data for
+  `gemini-3.8-flash`, `gemini-3.6-flash`, and `gemini-3.5-flash-lite`, and the Gemini models
+  catalog (`ai.google.dev/gemini-api/docs/models`) lists both as active (not labeled "Shut
+  down") in the same run. This is a different failure mode from the known free/paid
+  column-collapse issue: the row appears to be silently dropped rather than
+  misattributed. Do not treat a "model not found" result for these two IDs as evidence of
+  removal — cross-check the models catalog's shutdown labels first, and prefer a fetch that
+  asks for every row on the page at once (risking column-collapse, correctable with a
+  Free/Paid-explicit follow-up) over a single-model-targeted fetch on this specific page
+  (risking the row being dropped entirely). `gemini-3.5-flash` and `gemini-3.7-flash` prices
+  were left unchanged this run, carried forward from their last confirmed values
+  ($1.50/$9.00/$0.15 and $0.75/$3.75/$0.075 respectively).
+
 ## Provider Usage Keys
 
 Use [provider-usage-key-matrix.md](provider-usage-key-matrix.md) as the single

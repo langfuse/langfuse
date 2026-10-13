@@ -15,6 +15,7 @@ import {
   writeTopicRule,
   type TopicRuleInput,
 } from "./postgres";
+import { invalidateTopicsProcessingActive } from "./processing-gate";
 
 /** One Topics setup: models, the four built-in facets, and a single rule. */
 export async function saveTopicsSetup(
@@ -85,5 +86,6 @@ export async function saveTopicRuleAndModels(
     return saved;
   });
   await cacheTracingReadinessSettings(rule.projectId, { traceIdleMs });
+  await invalidateTopicsProcessingActive(rule.projectId);
   return saved;
 }

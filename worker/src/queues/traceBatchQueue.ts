@@ -97,6 +97,7 @@ async function loadProjectRule(projectId: string) {
 async function summarizeTraceBatch(
   observations: Observation[],
   topics: TopicsBatchProjects,
+  jobEnqueuedAt: Date,
 ): Promise<TraceOutcome> {
   const first = observations[0];
   const traceId = first?.traceId;
@@ -130,6 +131,7 @@ async function summarizeTraceBatch(
           projectId: first.projectId,
           traceId,
           traceTimestamp,
+          jobEnqueuedAt,
           environment: first.environment,
           traceName: first.name ?? "",
           transcript,
@@ -316,7 +318,7 @@ export const traceBatchQueueProcessor: Processor<
           );
           if (!summaryFailed)
             topicsOutcomes.push(
-              await summarizeTraceBatch(observations, topics),
+              await summarizeTraceBatch(observations, topics, event.timestamp),
             );
         })
         .catch((error: unknown) => {

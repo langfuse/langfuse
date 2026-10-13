@@ -100,7 +100,9 @@ jobs:
             uv add --no-sync "typing-extensions>=4.12.2,<5"
           fi
           uv sync --all-extras --frozen
-          uv run python scripts/patch_generated_score_compat.py
+          if [ -f scripts/patch_generated_score_compat.py ]; then
+            uv run python scripts/patch_generated_score_compat.py
+          fi
           uv run ruff format langfuse/api
 
           # Check for changes and show diff for debugging
@@ -146,8 +148,11 @@ jobs:
           # Copy generated TypeScript SDK files
           cp -r ../langfuse/generated/typescript/* packages/core/src/api/
 
-          # Preserve backwards-compatible score creation aliases
-          node scripts/patch-generated-score-create-alias.mjs
+          # Preserve backwards-compatible score creation aliases on SDK
+          # branches that still ship the alias patch script
+          if [ -f scripts/patch-generated-score-create-alias.mjs ]; then
+            node scripts/patch-generated-score-create-alias.mjs
+          fi
 
           # Patch compilation error inducing output
           # Without this patch, the JS SDK will not build due to
@@ -320,6 +325,5 @@ jobs:
       - name: Notify Slack
         uses: ./.github/actions/notify-slack-failure
         with:
-          title: "❌ SDK API Spec Generation Failed"
           message: "❌ SDK API spec generation failed on ${{ github.ref_name }}"
           webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}

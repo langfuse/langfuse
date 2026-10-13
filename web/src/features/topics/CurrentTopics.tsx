@@ -1,29 +1,16 @@
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { useState, type MouseEvent } from "react";
-import { useMediaQuery } from "react-responsive";
 import { cn } from "@/src/utils/tailwind";
-import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
-import { DataTable } from "@/src/components/table/data-table";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { useIsMobile } from "@/src/hooks/use-mobile";
-import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
-import { TopicGroupCard } from "./TopicGroupCard";
-import { topicBadgeColor, topicColor } from "./topic-map-colors";
-import { TopicBadge } from "./TopicBadge";
 import { SummaryInspector } from "./SummaryInspector";
 import { isValidTopicTimeRange } from "./time-range";
-
-type Facet = RouterOutputs["topics"]["currentResults"][number];
+import { CurrentTopicsView } from "./CurrentTopicsView";
+import type { useTopicTraceFilters } from "./useTopicTraceFilters";
 
 export function CurrentTopics({
   projectId,
@@ -31,13 +18,8 @@ export function CurrentTopics({
   result,
   selectedFacetId,
   tracePanelRef,
-}: {
-  projectId: string;
-  timeRange: TopicTimeRange;
-  result: ReturnType<typeof useCurrentTopics>;
-  selectedFacetId: string | undefined;
-  tracePanelRef?: (element: HTMLElement | null) => void;
-}) {
+  traceFilters,
+}: CurrentTopicsProps) {
   const selectedFacet = result.data?.find(
     (facet) => facet.facetId === selectedFacetId,
   );
@@ -64,6 +46,7 @@ export function CurrentTopics({
           facet={selectedFacet}
           timeRange={timeRange}
           tracePanelRef={tracePanelRef}
+          traceFilters={traceFilters}
         />
       )}
     </section>
@@ -75,348 +58,17 @@ function CurrentFacet({
   facet,
   timeRange,
   tracePanelRef,
-}: {
-  projectId: string;
-  facet: Facet;
-  timeRange: TopicTimeRange;
-  tracePanelRef?: (element: HTMLElement | null) => void;
-}) {
-  const [selection, setSelection] = useState<string | null>(null);
-  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
-  const isNarrow = useMediaQuery({ query: "(max-width: 1023px)" });
-  const [mobilePanel, setMobilePanel] = useState("traces");
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 20,
-  });
-  function selectTopic(topicId: string | null) {
-    setSelection(topicId);
-    setSelectedTraceId(null);
-    setPagination((current) => ({ ...current, pageIndex: 0 }));
-  }
-  function selectAllTraces() {
-    selectTopic(null);
-  }
-  function selectOutliers() {
-    selectTopic("outliers");
-  }
-  function selectNoTopic() {
-    selectTopic("no_topic");
-  }
-  function selectAwaitingMap() {
-    selectTopic("awaiting_map");
-  }
-  const selected =
-    selection === "outliers" ||
-    selection === "no_topic" ||
-    selection === "awaiting_map" ||
-    facet.topics.some((topic) => topic.id === selection) ||
-    facet.map?.topics.some((topic) => topic.id === selection)
-      ? selection
-      : null;
-  const visible = facet.rows.filter((row) => {
-    if (selected === null) return true;
-    if (selected === "outliers") return row.outcome === "outlier";
-    if (selected === "no_topic")
-      return (
-        row.outcome === "not_applicable" || row.outcome === "insufficient_input"
-      );
-    if (selected === "awaiting_map") return row.outcome === "awaiting_map";
-    return row.topicId === selected;
-  });
-  const outliers = facet.rows.filter((row) => row.outcome === "outlier").length;
-  const noTopic = facet.rows.filter(
-    (row) =>
-      row.outcome === "not_applicable" || row.outcome === "insufficient_input",
-  ).length;
-  const topics = facet.map
-    ? [
-        ...facet.map.topics,
-        ...facet.topics.filter(
-          (topic) =>
-            !facet.map!.topics.some((mapped) => mapped.id === topic.id),
-        ),
-      ]
-    : facet.topics;
-  const counts = (
-    <p className="text-muted-foreground text-xs">
-      {facet.rows.length.toLocaleString()} traces · {facet.topics.length} topics
-      {facet.awaitingCount > 0 &&
-        ` · ${facet.awaitingCount.toLocaleString()} awaiting a map or updated assignment`}
-    </p>
-  );
-  const mapPanel = (
-    <section
-      aria-label="Topic map"
-      className="flex min-h-0 min-w-0 flex-col overflow-hidden"
-    >
-      {facet.map ? (
-        <TopicEmbeddingMap
-          timeRange={timeRange}
-          projectId={projectId}
-          runId={facet.map.runId}
-          topics={facet.map.topics}
-          selectedTopic={selected}
-          onSelectTopic={selectTopic}
-          onSelectTrace={setSelectedTraceId}
-          selectedTraceId={selectedTraceId}
-          fillContainer
-        />
-      ) : (
-        <div className="flex flex-col gap-1 rounded-md border p-2">
-          {counts}
-          <p className="text-muted-foreground text-xs">
-            {facet.usableCount.toLocaleString()} usable summaries collected for
-            v{facet.facetVersion ?? 1}. Run Update topics to cluster stored
-            summaries. You can configure the minimum there.
-          </p>
-        </div>
-      )}
-    </section>
-  );
-  const groupsPanel = (
-    <section
-      aria-label="Topic groups"
-      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border"
-    >
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-          {facet.topics.map((topic) => (
-            <TopicGroupCard
-              key={topic.id}
-              topic={topic}
-              isSelected={selected === topic.id}
-              color={topicColor(
-                topics.findIndex((item) => item.id === topic.id),
-              )}
-              onSelect={selectTopic}
-            />
-          ))}
-        </div>
-        {facet.topics.length === 0 && (
-          <p className="text-muted-foreground text-xs">
-            No topics yet. Inspect the collected summaries or update topics to
-            find recurring groups.
-          </p>
-        )}
-      </div>
-    </section>
-  );
-  const tracesPanel = (
-    <section
-      aria-label="Topic traces"
-      ref={isNarrow ? undefined : tracePanelRef}
-      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border lg:col-start-2 lg:row-span-2 lg:row-start-1"
-    >
-      <div className="flex shrink-0 flex-wrap items-center gap-1 px-2 py-1.5">
-        <Button
-          text={`All traces (${facet.rows.length.toLocaleString()})`}
-          size="sm"
-          variant={selected === null ? "secondary" : "ghost"}
-          onClick={selectAllTraces}
-        />
-        {outliers > 0 && (
-          <Button
-            text={`Outliers (${outliers.toLocaleString()})`}
-            size="sm"
-            variant={selected === "outliers" ? "secondary" : "ghost"}
-            onClick={selectOutliers}
-          />
-        )}
-        {noTopic > 0 && (
-          <Button
-            text={`No topic (${noTopic.toLocaleString()})`}
-            size="sm"
-            variant={selected === "no_topic" ? "secondary" : "ghost"}
-            onClick={selectNoTopic}
-          />
-        )}
-        {facet.awaitingCount > 0 && (
-          <Button
-            text={`Awaiting update (${facet.awaitingCount.toLocaleString()})`}
-            size="sm"
-            variant={selected === "awaiting_map" ? "secondary" : "ghost"}
-            onClick={selectAwaitingMap}
-          />
-        )}
-      </div>
-      <CurrentTraceTable
-        projectId={projectId}
-        facetId={facet.facetId}
-        rows={visible}
-        topics={topics}
-        pagination={pagination}
-        onPaginationChange={setPagination}
-      />
-    </section>
-  );
-  return (
-    <div
-      className={cn(
-        "grid min-h-0 min-w-0 flex-1 gap-2 overflow-hidden lg:grid-cols-2",
-        facet.map
-          ? "grid-rows-[minmax(0,9fr)_minmax(0,11fr)] lg:grid-rows-[minmax(0,3fr)_minmax(0,2fr)]"
-          : "grid-rows-[auto_minmax(0,1fr)]",
-      )}
-    >
-      {mapPanel}
-      {isNarrow ? (
-        <Tabs
-          value={mobilePanel}
-          onValueChange={setMobilePanel}
-          layout="fill"
-          ref={tracePanelRef}
-        >
-          <div className="mb-2 shrink-0">
-            <Tabs.List
-              variant="inset"
-              size="sm"
-              layout="full"
-              aria-label="Topics panels"
-            >
-              <Tabs.Trigger value="topics" label="Topics" />
-              <Tabs.Trigger value="traces" label="Traces" />
-            </Tabs.List>
-          </div>
-          <Tabs.Content value="topics" layout="fill">
-            {groupsPanel}
-          </Tabs.Content>
-          <Tabs.Content value="traces" layout="fill">
-            {tracesPanel}
-          </Tabs.Content>
-        </Tabs>
-      ) : (
-        <>
-          {groupsPanel}
-          {tracesPanel}
-        </>
-      )}
-    </div>
-  );
-}
-
-function CurrentTraceTable({
-  projectId,
-  facetId,
-  rows,
-  topics,
-  pagination,
-  onPaginationChange,
-}: {
-  projectId: string;
-  facetId: string;
-  rows: Facet["rows"];
-  topics: { id: string }[];
-  pagination: PaginationState;
-  onPaginationChange: OnChangeFn<PaginationState>;
-}) {
-  const isMobile = useIsMobile();
+  traceFilters,
+}: CurrentFacetProps) {
+  const mapResult = useCurrentTopicMap(projectId, facet.map?.runId, timeRange);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
     queryParams: ["observation", "display", "timestamp", "traceId"],
   });
-  const peekConfig = { itemType: "TRACE" as const, ...peekNavigation };
-  const topicColors = new Map(
-    topics.map((topic, index) => [topic.id, topicBadgeColor(index)]),
-  );
-  const pageIndex = Math.min(
-    pagination.pageIndex,
-    Math.max(0, Math.ceil(rows.length / pagination.pageSize) - 1),
-  );
-  const columns = (
-    openInspector: (
-      source: Pick<
-        Facet["rows"][number],
-        "traceId" | "facetVersion" | "unitStartTime"
-      >,
-    ) => void,
-  ): LangfuseColumnDef<Facet["rows"][number]>[] => [
-    {
-      accessorKey: "traceId",
-      header: "Trace ID",
-      size: 132,
-      minSize: 100,
-      cell: ({ row }) => {
-        function openTrace() {
-          peekNavigation.openPeek(row.original.traceId);
-        }
-        return (
-          <TextLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(row.original.traceId)}`}
-            value={row.original.traceId}
-            onClick={openTrace}
-          />
-        );
-      },
-    },
-    {
-      accessorKey: "topicName",
-      header: "Topic",
-      size: 148,
-      minSize: 100,
-      cell: ({ row }) => (
-        <TopicBadge
-          row={row.original}
-          color={topicColors.get(row.original.topicId ?? "")}
-          size="default"
-        />
-      ),
-    },
-    {
-      accessorKey: "summary",
-      header: "Summary",
-      size: 300,
-      minSize: 180,
-      isFlexWidth: true,
-      cell: ({ row }) => {
-        function openTrace() {
-          peekNavigation.openPeek(row.original.traceId);
-        }
-        function inspectTranscript(event: MouseEvent) {
-          event.stopPropagation();
-          openInspector({
-            traceId: row.original.traceId,
-            facetVersion: row.original.facetVersion,
-            unitStartTime: row.original.unitStartTime,
-          });
-        }
-        return (
-          <div className="flex flex-col items-start gap-1 py-1">
-            {isMobile && (
-              <div className="flex w-full min-w-0 items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <TopicBadge
-                    row={row.original}
-                    color={topicColors.get(row.original.topicId ?? "")}
-                    size="sm"
-                  />
-                </div>
-                <TextLink
-                  path={`/project/${projectId}/traces/${encodeURIComponent(row.original.traceId)}`}
-                  value="Open trace"
-                  onClick={openTrace}
-                />
-              </div>
-            )}
-            <p className="break-words whitespace-pre-wrap">
-              {row.original.summary || "No applicable summary."}
-            </p>
-            <Button
-              text="Debug transcript"
-              variant="secondary"
-              size="sm"
-              onClick={inspectTranscript}
-            />
-          </div>
-        );
-      },
-    },
-  ];
+  const peekView = { itemType: "TRACE" as const, ...peekNavigation };
   return (
-    <DialogController<
-      Pick<Facet["rows"][number], "traceId" | "facetVersion" | "unitStartTime">
-    >
+    <DialogController<SummarySource>
       renderDialog={({ state }) => (
         <Dialog title="Summary source" size="lg" closeOnInteractionOutside>
           <Dialog.Body>
@@ -426,7 +78,7 @@ function CurrentTraceTable({
               </p>
               <SummaryInspector
                 projectId={projectId}
-                facetId={facetId}
+                facetId={facet.facetId}
                 {...state}
               />
             </div>
@@ -435,34 +87,16 @@ function CurrentTraceTable({
       )}
     >
       {({ openDialog }) => (
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <DataTable
-            tableName="topics-current-traces"
-            columns={columns(openDialog)}
-            columnVisibility={{ traceId: !isMobile, topicName: !isMobile }}
-            data={{
-              isLoading: false,
-              isError: false,
-              data: rows
-                .slice(
-                  pageIndex * pagination.pageSize,
-                  (pageIndex + 1) * pagination.pageSize,
-                )
-                .map((row) => ({ ...row, id: row.traceId })),
-            }}
-            pagination={{
-              totalCount: rows.length,
-              state: { ...pagination, pageIndex },
-              onChange: onPaginationChange,
-              options: [20, 50, 100],
-            }}
-            topAlignCells
-            className="min-h-0 overscroll-contain"
-            cellPadding="compact"
-            noResultsMessage="No traces in this selection."
-            peekView={peekConfig}
-          />
-        </div>
+        <CurrentTopicsView
+          projectId={projectId}
+          facet={facet}
+          mapResult={mapResult}
+          tracePanelRef={tracePanelRef}
+          traceFilters={traceFilters}
+          onOpenTrace={peekNavigation.openPeek}
+          onInspectTranscript={openDialog}
+          peekView={peekView}
+        />
       )}
     </DialogController>
   );
@@ -498,5 +132,42 @@ export function useCurrentTopics({
     meta: { toastOperation: "topics.load" },
   });
 }
+
+function useCurrentTopicMap(
+  projectId: string,
+  runId: string | undefined,
+  timeRange: TopicTimeRange,
+) {
+  return api.topics.map.useQuery(
+    { projectId, runId: runId ?? "", timeRange },
+    { enabled: Boolean(runId) },
+  );
+}
+
+type CurrentTopicsProps = {
+  projectId: string;
+  timeRange: TopicTimeRange;
+  result: Pick<
+    ReturnType<typeof useCurrentTopics>,
+    "data" | "isLoading" | "error"
+  >;
+  selectedFacetId: string | undefined;
+  tracePanelRef?: (element: HTMLElement | null) => void;
+  traceFilters: ReturnType<typeof useTopicTraceFilters>;
+};
+
+type CurrentFacetProps = {
+  projectId: string;
+  facet: Facet;
+  timeRange: TopicTimeRange;
+  tracePanelRef?: (element: HTMLElement | null) => void;
+  traceFilters: ReturnType<typeof useTopicTraceFilters>;
+};
+
+type Facet = RouterOutputs["topics"]["currentResults"][number];
+type SummarySource = Pick<
+  Facet["rows"][number],
+  "traceId" | "facetVersion" | "unitStartTime"
+>;
 
 export const __test = { useCurrentTopics };
