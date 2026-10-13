@@ -145,9 +145,9 @@ export async function pauseTopicsModels(
 }
 
 /**
- * Pauses Topics in every config that uses a connection about to be deleted.
- * Callers that pass a transaction call `invalidateTopicsProcessingActive`
- * after it commits.
+ * Pauses Topics in every running config that uses a connection about to be
+ * deleted. Callers that pass a transaction call
+ * `invalidateTopicsProcessingActive` after it commits.
  */
 export async function pauseTopicsModelsUsingConnection(
   params: { projectId: string; llmApiKeyId: string; provider: string },
@@ -157,6 +157,7 @@ export async function pauseTopicsModelsUsingConnection(
   await tx.topicConfig.updateMany({
     where: {
       projectId,
+      enabled: true,
       OR: [
         { summaryLlmApiKeyId: llmApiKeyId },
         { embeddingLlmApiKeyId: llmApiKeyId },
@@ -252,17 +253,22 @@ export async function prepareTopicsModelSettings(
   const current = await prisma.topicConfig.findUnique({
     where: { projectId },
   });
+  const slots = resolveSavedSlots(settings, current);
   const embeddingChanged =
     current?.embeddingModel &&
-    (settings.embedding?.model !== current.embeddingModel ||
-      settings.embeddingDimensions !== current.embeddingDimensions);
+    (slots.embedding.model !== current.embeddingModel ||
+      slots.embeddingDimensions !== current.embeddingDimensions);
   if (embeddingChanged && (await hasTopicEmbeddings(projectId)))
     throw new InvalidRequestError(
       "The embedding model and dimensions cannot change after summaries were embedded; existing vectors could no longer be clustered together.",
     );
 
-  // Turning automatic processing off must work even when a connection is broken.
-  if (settings.enabled) await testTopicsModels(settings, keys);
+  // With automatic processing off, only models the user changed are tested, so
+  // a broken stored connection never blocks turning Topics off.
+  await testTopicsModels(
+    settings.enabled ? settings : changedSlots(settings, current),
+    keys,
+  );
 
   const data = {
     enabled: settings.enabled,
@@ -270,15 +276,92 @@ export async function prepareTopicsModelSettings(
     blockedAt: null,
     blockReason: null,
     blockMessage: null,
-    summaryLlmApiKeyId: settings.summary?.llmApiKeyId ?? null,
-    summaryModel: settings.summary?.model ?? null,
-    embeddingLlmApiKeyId: settings.embedding?.llmApiKeyId ?? null,
-    embeddingModel: settings.embedding?.model ?? null,
-    embeddingDimensions: settings.embeddingDimensions,
-    clusteringLlmApiKeyId: settings.clustering?.llmApiKeyId ?? null,
-    clusteringModel: settings.clustering?.model ?? null,
+    summaryLlmApiKeyId: slots.summary.llmApiKeyId,
+    summaryModel: slots.summary.model,
+    embeddingLlmApiKeyId: slots.embedding.llmApiKeyId,
+    embeddingModel: slots.embedding.model,
+    embeddingDimensions: slots.embeddingDimensions,
+    clusteringLlmApiKeyId: slots.clustering.llmApiKeyId,
+    clusteringModel: slots.clustering.model,
   };
   return data;
+}
+
+type StoredTopicConfig = Awaited<
+  ReturnType<typeof prisma.topicConfig.findUnique>
+>;
+
+/**
+ * The slots to store. Saving with automatic processing off keeps the stored
+ * model of every slot that arrives empty, for example after its connection was
+ * deleted, so turning Topics off never discards a model.
+ */
+function resolveSavedSlots(
+  settings: TopicsModelSettings,
+  current: StoredTopicConfig,
+) {
+  const keep = !settings.enabled && current;
+  const slot = (
+    name: TopicsModelSlotName,
+    stored: { llmApiKeyId: string | null; model: string | null },
+  ) => {
+    const requested = settings[name];
+    if (requested) return requested;
+    return keep ? stored : { llmApiKeyId: null, model: null };
+  };
+  return {
+    summary: slot("summary", {
+      llmApiKeyId: current?.summaryLlmApiKeyId ?? null,
+      model: current?.summaryModel ?? null,
+    }),
+    embedding: slot("embedding", {
+      llmApiKeyId: current?.embeddingLlmApiKeyId ?? null,
+      model: current?.embeddingModel ?? null,
+    }),
+    embeddingDimensions:
+      keep && !settings.embedding
+        ? keep.embeddingDimensions
+        : settings.embeddingDimensions,
+    clustering: slot("clustering", {
+      llmApiKeyId: current?.clusteringLlmApiKeyId ?? null,
+      model: current?.clusteringModel ?? null,
+    }),
+  };
+}
+
+function changedSlots(
+  settings: TopicsModelSettings,
+  current: StoredTopicConfig,
+): TopicsModelSettings {
+  const changed = (
+    slot: TopicsModelSettings[TopicsModelSlotName],
+    llmApiKeyId: string | null | undefined,
+    model: string | null | undefined,
+    extraChange = false,
+  ) =>
+    slot &&
+    (extraChange || slot.llmApiKeyId !== llmApiKeyId || slot.model !== model)
+      ? slot
+      : null;
+  return {
+    ...settings,
+    summary: changed(
+      settings.summary,
+      current?.summaryLlmApiKeyId,
+      current?.summaryModel,
+    ),
+    embedding: changed(
+      settings.embedding,
+      current?.embeddingLlmApiKeyId,
+      current?.embeddingModel,
+      settings.embeddingDimensions !== current?.embeddingDimensions,
+    ),
+    clustering: changed(
+      settings.clustering,
+      current?.clusteringLlmApiKeyId,
+      current?.clusteringModel,
+    ),
+  };
 }
 
 export async function writeTopicsModelSettings(

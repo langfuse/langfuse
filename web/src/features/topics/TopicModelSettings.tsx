@@ -130,18 +130,6 @@ export function useTopicModelSettings({
   return { action, notice, status };
 }
 
-function topicsStatus({
-  enabled,
-  paused,
-}: {
-  enabled: boolean;
-  paused: boolean;
-}) {
-  if (paused) return { text: "Paused", color: "yellow" } as const;
-  if (enabled) return { text: "On", color: "green" } as const;
-  return { text: "Off", color: "primary" } as const;
-}
-
 function TopicsStatusBadge({
   enabled,
   paused,
@@ -388,6 +376,18 @@ function ConfigureTopicsSettings({
         : { notice: "none" as const })}
     />
   );
+}
+
+function topicsStatus({
+  enabled,
+  paused,
+}: {
+  enabled: boolean;
+  paused: boolean;
+}) {
+  if (paused) return { text: "Paused", color: "yellow" } as const;
+  if (enabled) return { text: "On", color: "green" } as const;
+  return { text: "Off", color: "primary" } as const;
 }
 
 function configured(stored: StoredSettings) {

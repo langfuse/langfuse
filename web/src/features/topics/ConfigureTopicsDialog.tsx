@@ -192,9 +192,21 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
       (slot) => slotChecks[slot]?.status === "ok",
     );
   const modelsPass = modelsReady && testsReady;
-  // Saving with automatic processing off skips the model tests on the server.
+  const selected = { summary, embedding, clustering };
+  // With automatic processing off the server tests only changed slots.
+  const changedSlotsPass = (["summary", "embedding", "clustering"] as const)
+    .filter(
+      (slot) =>
+        selected[slot] &&
+        (!sameModel(selected[slot], draft[slot]) ||
+          (slot === "embedding" && dimensions !== draft.embeddingDimensions)),
+    )
+    .every((slot) => !slotChecks || slotChecks[slot]?.status === "ok");
   const canSave =
-    canWrite && !saving && enabledFacets.length > 0 && (!enabled || modelsPass);
+    canWrite &&
+    !saving &&
+    enabledFacets.length > 0 &&
+    (enabled ? modelsPass : changedSlotsPass);
   const browsed = facets.find((facet) => facet.id === browsing) ?? null;
   const atFacetCap = enabledFacets.length >= MAX_ENABLED_FACETS;
   const commitSlot = (
@@ -378,7 +390,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               <Stepper
                 number={4}
                 title="Automatic processing"
-                description="Summarize new traces once they are idle. Manual runs work either way."
+                description="Summarize new traces once they are idle. Manual runs are not affected."
                 compactBottomSpacing
               >
                 <AutomaticProcessing
@@ -1048,25 +1060,6 @@ function TraceScopeFrame({
   );
 }
 
-function automaticProcessingHint({
-  enabled,
-  modelsPass,
-  paused,
-}: {
-  enabled: boolean;
-  modelsPass: boolean;
-  paused: boolean;
-}) {
-  if (enabled && !modelsPass)
-    return "Choose three models that pass their test to save with this on.";
-  if (enabled && paused)
-    return "Saving tests the models again and clears the pause.";
-  if (enabled) return "New traces are summarized once they are idle.";
-  if (paused)
-    return "Fix the connection, turn this on, and save to resume. Saving with it off keeps Topics off and clears the pause.";
-  return "New traces are not processed. Saving with this off does not test the models.";
-}
-
 function AutomaticProcessing({
   disabled,
   enabled,
@@ -1148,4 +1141,27 @@ function PausedNotice({
       </div>
     </section>
   );
+}
+
+function sameModel(a: JudgeModel | null, b: JudgeModel | null) {
+  return a?.provider === b?.provider && a?.model === b?.model;
+}
+
+function automaticProcessingHint({
+  enabled,
+  modelsPass,
+  paused,
+}: {
+  enabled: boolean;
+  modelsPass: boolean;
+  paused: boolean;
+}) {
+  if (enabled && !modelsPass)
+    return "Choose three models that pass their test to save with this on.";
+  if (enabled && paused)
+    return "Saving tests the models again and clears the pause.";
+  if (enabled) return "New traces are summarized once they are idle.";
+  if (paused)
+    return "Fix the connection, turn this on, and save to resume. Saving with it off keeps Topics off, keeps the saved models, and clears the pause.";
+  return "New traces are not processed. Saving with this off tests only the models you changed.";
 }

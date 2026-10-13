@@ -20,7 +20,10 @@ vi.mock(
   }),
 );
 
-import { saveTopicsSetup } from "@langfuse/shared/topics/server";
+import {
+  pauseTopicsModelsUsingConnection,
+  saveTopicsSetup,
+} from "@langfuse/shared/topics/server";
 
 async function pausedProject() {
   const { projectId } = await createOrgProjectAndApiKey();
@@ -104,5 +107,60 @@ describe("saveTopicsSetup automatic processing", () => {
     expect(
       await prisma.topicConfig.findUniqueOrThrow({ where: { projectId } }),
     ).toMatchObject({ enabled: true, ...clearedBlock });
+  });
+
+  it("keeps the stored models of empty slots when saved off", async () => {
+    const { projectId, setup } = await pausedProject();
+
+    await saveTopicsSetup(projectId, {
+      ...setup,
+      summary: null,
+      embedding: null,
+      embeddingDimensions: 512,
+      clustering: null,
+      enabled: false,
+    });
+
+    expect(
+      await prisma.topicConfig.findUniqueOrThrow({ where: { projectId } }),
+    ).toMatchObject({
+      enabled: false,
+      ...clearedBlock,
+      summaryModel: "gpt-6-luna",
+      embeddingModel: "text-embedding-3-small",
+      embeddingDimensions: 1024,
+      clusteringModel: "gpt-5.6-terra",
+    });
+  });
+
+  it("tests only the changed models when saved off", async () => {
+    mocks.testModelCall.mockRejectedValue(new Error("Unknown model."));
+    const { projectId, setup } = await pausedProject();
+    const changed = {
+      ...setup,
+      clustering: { ...setup.clustering, model: "gpt-unknown" },
+      enabled: false,
+    };
+
+    await expect(saveTopicsSetup(projectId, changed)).rejects.toThrow(
+      "Unknown model.",
+    );
+    expect(mocks.testModelCall).toHaveBeenCalledOnce();
+    expect(mocks.generateTopicEmbedding).not.toHaveBeenCalled();
+  });
+
+  it("does not mark a switched-off config paused when its connection is deleted", async () => {
+    const { projectId, setup } = await pausedProject();
+    await saveTopicsSetup(projectId, { ...setup, enabled: false });
+
+    await pauseTopicsModelsUsingConnection({
+      projectId,
+      llmApiKeyId: setup.summary.llmApiKeyId,
+      provider: "openai",
+    });
+
+    expect(
+      await prisma.topicConfig.findUniqueOrThrow({ where: { projectId } }),
+    ).toMatchObject({ enabled: false, ...clearedBlock });
   });
 });
