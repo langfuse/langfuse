@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveGatewayModelRoute } from "./gatewayModelSlug";
+import { resolveGatewayModelRoute } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
 
 const connections = [
   { id: "openai-primary", name: "OpenAI primary", provider: "OPENAI" },
