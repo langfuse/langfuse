@@ -23,7 +23,7 @@ import {
 import { ExternalLink, ListTree, Play, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
-import { toast } from "sonner";
+import { showToast } from "@/src/features/notifications";
 
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
 
@@ -96,7 +96,15 @@ export function CodeEvalTestRunCard({
         return;
       }
 
-      toast.error(result.error.message);
+      showToast({
+        type: "ERROR",
+        title: result.error.message,
+        analytics: {
+          operation: "evaluator.test",
+          errorOrigin: "backend",
+          errorCategory: getCodeEvalErrorCategory(result.error.code),
+        },
+      });
     },
   });
 
@@ -336,4 +344,32 @@ function toUserFacingCodeEvalScore(
   };
 
   return userFacingScore;
+}
+
+function getCodeEvalErrorCategory(
+  code: string,
+): "resource_limit" | "rate_limit" | "user_input" | "internal" {
+  if (
+    [
+      "PAYLOAD_TOO_LARGE",
+      "RESULT_TOO_LARGE",
+      "SOURCE_TOO_LARGE",
+      "TIMEOUT",
+      "OUT_OF_MEMORY",
+    ].includes(code)
+  ) {
+    return "resource_limit";
+  }
+  if (code === "LAMBDA_CONCURRENCY_LIMIT") return "rate_limit";
+  if (
+    [
+      "INVALID_RESULT",
+      "INVALID_SOURCE",
+      "UNSUPPORTED_RUNTIME",
+      "USER_CODE_ERROR",
+    ].includes(code)
+  ) {
+    return "user_input";
+  }
+  return "internal";
 }

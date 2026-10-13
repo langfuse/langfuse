@@ -12,24 +12,36 @@ const mocks = vi.hoisted(() => ({
   staged: vi.fn(),
   update: vi.fn(),
   embed: vi.fn(),
+  pause: vi.fn(),
+  embeddingModel: "eu.cohere.embed-v4:0",
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
+  pauseTopicsModels: mocks.pause,
   writeTopicSummaries: mocks.write,
   readStagedTopicSummary: mocks.staged,
   updateStagedTopicSummary: mocks.update,
+  getTopicsModels: async () => ({
+    projectId: "project",
+    enabled: true,
+    embedding: {
+      slot: "embedding",
+      provider: "bedrock",
+      adapter: "bedrock",
+      model: mocks.embeddingModel,
+      connection: { secretKey: "encrypted" },
+      dimensions: 256,
+    },
+  }),
   TOPIC_EMBEDDING_EXPIRED_ERROR:
     "Topics staged results expired before processing completed. Start a new execution with stored-summary reuse to recover persisted results.",
 }));
 vi.mock("@langfuse/shared/src/server", () => ({
+  logger: { error: vi.fn() },
   recordIncrement: vi.fn(),
   recordDistribution: vi.fn(),
 }));
 vi.mock("./models", () => ({
   embedTopicSummary: mocks.embed,
-  requireTopicsModelConfig: () => ({
-    summaryModel: "us.openai.gpt-5.6-luna",
-    embeddingModel: "eu.cohere.embed-v4:0",
-  }),
 }));
 
 import { processTopicEmbeddingBatch } from "./processTopicEmbeddingBatch";
@@ -222,6 +234,22 @@ describe("Topics embedding handoff", () => {
     );
     expect(mocks.write).not.toHaveBeenCalled();
     expect(staged.get(topicSourceKey(row))?.state).toBe("summarized");
+    expect(mocks.pause).toHaveBeenCalledExactlyOnceWith("project", {
+      blockReason: "LLM_CONNECTION_AUTH_INVALID",
+      blockMessage: expect.stringContaining("Check worker credentials."),
+    });
+  });
+
+  it("does not pause Topics when the saved embedding model changed", async () => {
+    const row = summary();
+    staged.set(topicSourceKey(row), row);
+    mocks.embeddingModel = "text-embedding-3-small";
+    await expect(processTopicEmbeddingBatch(batch(row))).rejects.toThrow(
+      UnrecoverableError,
+    );
+    mocks.embeddingModel = "eu.cohere.embed-v4:0";
+    expect(mocks.embed).not.toHaveBeenCalled();
+    expect(mocks.pause).not.toHaveBeenCalled();
   });
 
   it("fences an embedding when its Redis payload disappears during the call", async () => {

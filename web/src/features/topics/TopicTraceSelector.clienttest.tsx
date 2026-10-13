@@ -42,7 +42,7 @@ vi.mock("@/src/features/events/hooks/useEventsFilterOptions", () => ({
 vi.mock("@/src/features/search-bar", () => ({
   TableSearchBar: () => <div>Query editor</div>,
   toObservedOptions: () => ({}),
-  fieldRegistryFromColumns: () => ({ fields: [] }),
+  fieldRegistryFromColumns: () => ({ fields: [], columns: [] }),
 }));
 vi.mock(
   "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder",

@@ -1310,6 +1310,7 @@ export async function executeLLMAsJudgeEvaluation(
     traceId: params.job.jobInputTraceId,
     observationId: params.job.jobInputObservationId,
     environment: params.environment,
+    executionType: EvalTemplateType.LLM_AS_JUDGE,
     deps,
     result,
   });

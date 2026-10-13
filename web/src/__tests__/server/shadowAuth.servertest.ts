@@ -149,9 +149,11 @@ const createOrgApiKey = async (targetOrgId: string) => {
   await prisma.roleAssignment.create({
     data: {
       orgId: targetOrgId,
-      principalApiKeyId: apiKeyRowId,
+      apiKeyId: apiKeyRowId,
+      principalId: `apiKey/${apiKeyRowId}`,
       systemRole: "LEGACY_ORGANIZATION_API_KEY",
-      ownerOrgId: targetOrgId,
+      roleId: "system/LEGACY_ORGANIZATION_API_KEY",
+      ownerId: `organization/${targetOrgId}`,
     },
   });
   return createBasicAuthHeader(publicKey, secretKey);
@@ -178,6 +180,23 @@ const ownedProjectIds = (context: AuthorizationContext): string[] =>
   context.principal.kind === "apiKey"
     ? context.principal.organizations.flatMap((o) => o.projectIds)
     : [];
+
+const createUnassignedApiKey = async (scope: "PROJECT" | "ORGANIZATION") => {
+  const publicKey = `pk-lf-${randomUUID()}`;
+  const secretKey = `sk-lf-${randomUUID()}`;
+  const apiKey = await prisma.apiKey.create({
+    data: {
+      scope,
+      projectId: scope === "PROJECT" ? projectId : null,
+      orgId: scope === "ORGANIZATION" ? orgId : null,
+      publicKey,
+      hashedSecretKey: `unused-fast-hash-${randomUUID()}`,
+      fastHashedSecretKey: createShaHash(secretKey, env.SALT),
+      displaySecretKey: getDisplaySecretKey(secretKey),
+    },
+  });
+  return { apiKey, authorization: createBasicAuthHeader(publicKey, secretKey) };
+};
 
 describe("shadowAuth maps principals to legacy-identical scopes", () => {
   beforeAll(async () => {
@@ -211,6 +230,180 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
     (env as any).API_AUTH_MIGRATION = originalMigration;
     (env as any).ADMIN_API_KEY = originalAdminApiKey;
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+  });
+
+  describe("backfills verified keys without role assignments", () => {
+    it.each(["PROJECT", "ORGANIZATION"] as const)(
+      "repairs a %s key on first use and authorizes that request",
+      async (scope) => {
+        const { apiKey, authorization } = await createUnassignedApiKey(scope);
+        setMode("enforce");
+        const result = await shadowAuth({
+          req: reqWith({ authorization }),
+          action: scope === "PROJECT" ? "project:read" : "projects:read",
+          allowedAccessLevels: [
+            scope === "PROJECT" ? "project" : "organization",
+          ],
+        });
+        expect(result.success).toBe(true);
+        expect(
+          await prisma.roleAssignment.findMany({
+            where: { apiKeyId: apiKey.id },
+          }),
+        ).toMatchObject([
+          {
+            orgId,
+            ownerId:
+              scope === "PROJECT"
+                ? `project/${projectId}`
+                : `organization/${orgId}`,
+            systemRole:
+              scope === "PROJECT"
+                ? "LEGACY_PROJECT_API_KEY"
+                : "LEGACY_ORGANIZATION_API_KEY",
+          },
+        ]);
+      },
+    );
+
+    it("preserves a narrow assignment instead of restoring a legacy grant", async () => {
+      const { apiKey, authorization } = await createUnassignedApiKey("PROJECT");
+      const assignment = await prisma.roleAssignment.create({
+        data: {
+          orgId,
+          projectId,
+          apiKeyId: apiKey.id,
+          ownerId: `project/${projectId}`,
+          principalId: `apiKey/${apiKey.id}`,
+          roleId: "system/INGEST",
+          systemRole: "INGEST",
+        },
+      });
+      setMode("enforce");
+      const result = await shadowAuth({
+        req: reqWith({ authorization }),
+        action: "project:read",
+        allowedAccessLevels: ["project"],
+      });
+      expect(result).toMatchObject({
+        success: false,
+        error: { httpCode: 403 },
+      });
+      expect(
+        await prisma.roleAssignment.findMany({
+          where: { apiKeyId: apiKey.id },
+        }),
+      ).toEqual([assignment]);
+    });
+
+    it.each(["invalid", "expired"] as const)(
+      "does not repair an %s credential",
+      async (kind) => {
+        const { apiKey, authorization } =
+          await createUnassignedApiKey("PROJECT");
+        if (kind === "expired") {
+          await prisma.apiKey.update({
+            where: { id: apiKey.id },
+            data: { expiresAt: new Date(0) },
+          });
+        }
+        setMode("enforce");
+        const result = await shadowAuth({
+          req: reqWith({
+            authorization:
+              kind === "invalid"
+                ? createBasicAuthHeader(
+                    apiKey.publicKey,
+                    `sk-lf-${randomUUID()}`,
+                  )
+                : authorization,
+          }),
+          action: "project:read",
+          allowedAccessLevels: ["project"],
+        });
+        expect(result).toMatchObject({
+          success: false,
+          error: { httpCode: 401 },
+        });
+        expect(
+          await prisma.roleAssignment.count({ where: { apiKeyId: apiKey.id } }),
+        ).toBe(0);
+      },
+    );
+
+    it("repairs a transferred project's key in its current tenant", async () => {
+      const fixture = await createOrgProjectAndApiKey();
+      const key = await prisma.apiKey.findUniqueOrThrow({
+        where: { publicKey: fixture.publicKey },
+      });
+      await prisma.roleAssignment.deleteMany({ where: { apiKeyId: key.id } });
+      await prisma.project.update({
+        where: { id: fixture.projectId },
+        data: { orgId: foreignOrgId },
+      });
+      const context = await contextFor(fixture.auth);
+      expect(
+        authorize(
+          context,
+          OrganizationId(foreignOrgId),
+          "project:read",
+          ProjectId(fixture.projectId),
+        ).success,
+      ).toBe(true);
+      expect(
+        authorize(
+          context,
+          OrganizationId(fixture.orgId),
+          "project:read",
+          ProjectId(fixture.projectId),
+        ).success,
+      ).toBe(false);
+      expect(
+        await prisma.roleAssignment.findMany({ where: { apiKeyId: key.id } }),
+      ).toMatchObject([{ orgId: foreignOrgId }]);
+    });
+
+    it("creates one assignment across concurrent first-use repairs", async () => {
+      const { apiKey, authorization } = await createUnassignedApiKey("PROJECT");
+      setMode("enforce");
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          shadowAuth({
+            req: reqWith({ authorization }),
+            action: "project:read",
+            allowedAccessLevels: ["project"],
+          }),
+        ),
+      );
+      expect(results.every((result) => result.success)).toBe(true);
+      expect(
+        await prisma.roleAssignment.count({ where: { apiKeyId: apiKey.id } }),
+      ).toBe(1);
+    });
+
+    it("keeps a repaired public bearer restricted to scores", async () => {
+      const { apiKey } = await createUnassignedApiKey("PROJECT");
+      const context = await contextFor(`Bearer ${apiKey.publicKey}`);
+      expect(
+        authorize(
+          context,
+          OrganizationId(orgId),
+          "scores:save",
+          ProjectId(projectId),
+        ).success,
+      ).toBe(true);
+      expect(
+        authorize(
+          context,
+          OrganizationId(orgId),
+          "project:read",
+          ProjectId(projectId),
+        ).success,
+      ).toBe(false);
+      expect(
+        await prisma.roleAssignment.count({ where: { apiKeyId: apiKey.id } }),
+      ).toBe(1);
+    });
   });
 
   it("an organization key on an org route yields a legacy-identical org scope", async () => {

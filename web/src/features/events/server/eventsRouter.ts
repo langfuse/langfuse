@@ -445,7 +445,6 @@ export const eventsRouter = createTRPCRouter({
         projectId: zodSchema.string(),
         traceId: zodSchema.string(),
         timestamp: zodSchema.date().optional(),
-        pairTextToolResponses: zodSchema.boolean().default(false),
         fallbackToRootIO: zodSchema.boolean().default(false),
       }),
     )
@@ -494,7 +493,6 @@ export const eventsRouter = createTRPCRouter({
             projectId: input.projectId,
             traceId: input.traceId,
             timestamp,
-            pairTextToolResponses: input.pairTextToolResponses,
             fallbackToRootIO: input.fallbackToRootIO,
           });
         },

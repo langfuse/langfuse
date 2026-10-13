@@ -30,7 +30,6 @@ export function useSessionTraceTranscripts({
         projectId,
         traceId: trace.id,
         timestamp: trace.timestamp,
-        pairTextToolResponses: true,
         fallbackToRootIO: true,
       };
       return {

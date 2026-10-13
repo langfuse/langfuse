@@ -13,6 +13,7 @@ import { Button } from "@/src/components/ui/button";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import type { DashboardPlacement } from "@/src/features/widgets";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 /**
  * Clone-first flow for Langfuse-managed (read-only) dashboards: any edit
@@ -148,7 +149,11 @@ function CloneFirstDialogContent({
     },
     onError: (e) => {
       onPendingChange(false);
-      showErrorToast("Failed to create copy", e.message);
+      showErrorToast(
+        "Failed to create copy",
+        e.message,
+        classifyTrpcToastError(e, "dashboard.clone"),
+      );
     },
   });
 

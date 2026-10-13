@@ -21,21 +21,18 @@ import { Label } from "@/src/components/ui/label";
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/src/components/ui/select";
+import {
+  ApiKeyExpirationInput,
+  type ApiKeyExpirationPreset,
+  resolveApiKeyExpiration,
+} from "@/src/features/apiKey";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
-import {
-  expiryPresetOptions,
-  localDateInputValue,
-  resolveExpiresAt,
-  type ExpiryPreset,
-} from "@/src/features/public-api/components/apiKeyFormOptions";
 
 type ApiKeyScope = "project" | "organization";
 
@@ -105,7 +102,8 @@ function ApiKeyCreateForm({
 
   const [name, setName] = useState("");
   const [role, setRole] = useState<SystemRole>(DEFAULT_ROLE);
-  const [expiryPreset, setExpiryPreset] = useState<ExpiryPreset>("never");
+  const [expiryPreset, setExpiryPreset] =
+    useState<ApiKeyExpirationPreset>("never");
   const [customExpiry, setCustomExpiry] = useState("");
   const [roleSelectOpen, setRoleSelectOpen] = useState(false);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
@@ -113,7 +111,7 @@ function ApiKeyCreateForm({
     null,
   );
 
-  const expiresAt = resolveExpiresAt(expiryPreset, customExpiry);
+  const expiresAt = resolveApiKeyExpiration(expiryPreset, customExpiry);
   const submitDisabled = name.trim() === "" || expiresAt === undefined;
 
   const openPermissions = (target: SystemRole) => {
@@ -154,37 +152,13 @@ function ApiKeyCreateForm({
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="apiKeyExpiry">Expiration</Label>
-            <div className={expiryPreset === "custom" ? "flex gap-2" : ""}>
-              <Select
-                value={expiryPreset}
-                onValueChange={(value) =>
-                  setExpiryPreset(value as ExpiryPreset)
-                }
-              >
-                <SelectTrigger id="apiKeyExpiry" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {expiryPresetOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {expiryPreset === "custom" && (
-                <Input
-                  type="date"
-                  aria-label="Custom expiration date"
-                  min={localDateInputValue(new Date())}
-                  value={customExpiry}
-                  onChange={(e) => setCustomExpiry(e.target.value)}
-                />
-              )}
-            </div>
-          </div>
+          <ApiKeyExpirationInput
+            id="apiKeyExpiry"
+            expiryPreset={expiryPreset}
+            customExpiry={customExpiry}
+            onExpiryPresetChange={setExpiryPreset}
+            onCustomExpiryChange={setCustomExpiry}
+          />
 
           {roleSelectionEnabled && (
             <div className="flex flex-col gap-1.5">

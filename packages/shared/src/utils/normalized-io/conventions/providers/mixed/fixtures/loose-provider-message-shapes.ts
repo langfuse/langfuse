@@ -80,7 +80,7 @@ export const looseProviderMessageShapesFixture = {
           {
             type: "tool-result",
             toolCallId: null,
-            output: "Sunny, 22 degrees",
+            output: { type: "text", value: "Sunny, 22 degrees" },
           },
         ],
         source: "input",

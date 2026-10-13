@@ -7,9 +7,9 @@ const meta = preview.meta({ component: Stepper });
 
 export const Default = meta.story({
   args: {
-    number: 1,
-    title: "Choose evaluator type",
-    description: "Select how this evaluator should produce a score.",
+    number: 2,
+    title: "Attach evaluators",
+    description: "Choose which evaluators should run on matching observations.",
     children: (
       <div className="rounded-md border p-3 text-sm">LLM as a judge</div>
     ),

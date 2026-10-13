@@ -145,6 +145,7 @@ export async function currentTopicResults(
               topics: run.topics.map((topic) => ({
                 id: topic.topicId,
                 name: topic.name,
+                description: topic.description,
               })),
             }
           : null,
