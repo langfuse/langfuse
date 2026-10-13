@@ -27,6 +27,9 @@ import {
   DEFAULT_TRACE_ENVIRONMENT,
   LangfuseInternalTraceEnvironment,
   sanitizeSdkMetricTagValue,
+  normalizeIngestionSdkName,
+  isStructuredMetadataSdkVersion,
+  type IngestionSdkCanonicalName,
 } from "../";
 
 import {
@@ -39,6 +42,7 @@ import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
+import { defineOwnValue } from "../../utils/objects";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
@@ -106,6 +110,16 @@ interface MetadataDropContext {
   attributeKey: string;
   dropScope: object;
 }
+
+// OTel `telemetry.sdk.language` values emitted by the Langfuse SDK runtimes.
+const OTEL_SDK_LANGUAGE_TO_SDK_NAME = new Map<
+  string,
+  IngestionSdkCanonicalName
+>([
+  ["python", "python"],
+  ["nodejs", "javascript"],
+  ["webjs", "javascript"],
+]);
 
 const DANGEROUS_OTEL_PATH_SEGMENTS = new Set([
   "__proto__",
@@ -179,6 +193,7 @@ interface CreateTraceEventParams {
   scopeSpan: any;
   scopeAttributes: Record<string, unknown>;
   isLangfuseSDKSpans: boolean;
+  decodeMetadataValues: boolean;
   isRootSpan: boolean;
   hasTraceUpdates: boolean;
   parentObservationId: string | null;
@@ -415,16 +430,23 @@ export class OtelIngestionProcessor {
                 const isLangfuseSDKSpans =
                   scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
 
+                const decodeMetadataValues = this.shouldDecodeMetadataValues(
+                  scopeSpan,
+                  resourceAttributes,
+                );
+
                 // Extract metadata from different sources
                 const spanMetadata = this.extractMetadata(
                   spanAttributes,
                   "observation",
                   span,
+                  decodeMetadataValues,
                 );
                 const traceMetadata = this.extractMetadata(
                   spanAttributes,
                   "trace",
                   span,
+                  decodeMetadataValues,
                 );
 
                 const { input, output, filteredAttributes } =
@@ -976,10 +998,15 @@ export class OtelIngestionProcessor {
       ? this.parseId(span.parentSpanId?.data ?? span.parentSpanId)
       : null;
 
+    const decodeMetadataValues = this.shouldDecodeMetadataValues(
+      scopeSpan,
+      resourceAttributes,
+    );
     const spanAttributeMetadata = this.extractMetadata(
       attributes,
       "observation",
       span,
+      decodeMetadataValues,
     );
     const resourceAttributeMetadata = this.extractMetadata(
       resourceAttributes,
@@ -1010,6 +1037,7 @@ export class OtelIngestionProcessor {
         scopeSpan,
         scopeAttributes,
         isLangfuseSDKSpans,
+        decodeMetadataValues,
         isRootSpan,
         hasTraceUpdates,
         parentObservationId,
@@ -1052,6 +1080,7 @@ export class OtelIngestionProcessor {
       scopeSpan,
       scopeAttributes,
       isLangfuseSDKSpans,
+      decodeMetadataValues,
       isRootSpan,
       hasTraceUpdates,
       span,
@@ -1083,7 +1112,12 @@ export class OtelIngestionProcessor {
           this.extractName(span.name, attributes),
         metadata: {
           ...resourceAttributeMetadata,
-          ...this.extractMetadata(attributes, "trace", span),
+          ...this.extractMetadata(
+            attributes,
+            "trace",
+            span,
+            decodeMetadataValues,
+          ),
           ...spanAttributeMetadata,
           ...(isLangfuseSDKSpans ? {} : { attributes: filteredAttributes }),
           resourceAttributes,
@@ -1116,7 +1150,12 @@ export class OtelIngestionProcessor {
         name: attributes[LangfuseOtelSpanAttributes.TRACE_NAME] as string,
         metadata: {
           ...resourceAttributeMetadata,
-          ...this.extractMetadata(attributes, "trace", span),
+          ...this.extractMetadata(
+            attributes,
+            "trace",
+            span,
+            decodeMetadataValues,
+          ),
           // removed to not remove trace metadata->attributes through subsequent observations
           // ...(isLangfuseSDKSpans
           //   ? {}
@@ -1704,19 +1743,6 @@ export class OtelIngestionProcessor {
       );
     };
 
-    const defineOwn = (
-      container: ReconstructedContainer,
-      key: string,
-      value: unknown,
-    ): void => {
-      Object.defineProperty(container, key, {
-        configurable: true,
-        enumerable: true,
-        value,
-        writable: true,
-      });
-    };
-
     const applyPath = (
       root: ReconstructedContainer,
       path: readonly string[],
@@ -1735,7 +1761,7 @@ export class OtelIngestionProcessor {
               ? []
               : Object.create(null);
           createdContainers.add(child);
-          defineOwn(current, key, child);
+          defineOwnValue(current, key, child);
           current = child;
           continue;
         }
@@ -1762,7 +1788,7 @@ export class OtelIngestionProcessor {
           return false;
         }
       }
-      if (commit) defineOwn(current, finalKey, value);
+      if (commit) defineOwnValue(current, finalKey, value);
       return true;
     };
 
@@ -2566,6 +2592,7 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>,
     domain: "trace" | "observation",
     dropScope: object,
+    decodeValues = false,
   ): Record<string, unknown> {
     const metadataKeyPrefix =
       domain === "observation"
@@ -2606,6 +2633,7 @@ export class OtelIngestionProcessor {
         "ai.telemetry.metadata.tags",
         "ai.telemetry.metadata.langfusePrompt",
       ]),
+      decodeValues,
     });
 
     return {
@@ -3466,8 +3494,15 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>;
     prefixes: string[];
     excludedKeys?: Set<string>;
+    // Set for structured-metadata SDKs, which JSON-encode every value.
+    decodeValues?: boolean;
   }): Record<string, unknown> {
-    const { attributes, prefixes, excludedKeys = new Set<string>() } = params;
+    const {
+      attributes,
+      prefixes,
+      excludedKeys = new Set<string>(),
+      decodeValues,
+    } = params;
     const metadata: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(attributes)) {
       for (const prefix of prefixes) {
@@ -3480,11 +3515,48 @@ export class OtelIngestionProcessor {
           continue;
         }
 
-        metadata[metadataKey] = value;
+        if (!decodeValues || typeof value !== "string") {
+          metadata[metadataKey] = value;
+          continue;
+        }
+
+        // Decoded values match what a metadata blob holds for the key. An
+        // undecodable value (e.g. cut by an attribute length limit) is kept as
+        // sent so its content is not lost.
+        try {
+          metadata[metadataKey] = JSON.parse(value);
+        } catch {
+          metadata[metadataKey] = value;
+          recordIncrement("langfuse.ingestion.metadata_undecoded", 1, {
+            kind: this.classifyParseFailure(value),
+          });
+        }
       }
     }
 
     return metadata;
+  }
+
+  // Langfuse SDK spans from a major that opts into decoded per-key metadata.
+  // The language comes from the request header, falling back to the OTel
+  // resource for exports relayed without Langfuse headers.
+  private shouldDecodeMetadataValues(
+    scopeSpan: any,
+    resourceAttributes: Record<string, unknown>,
+  ): boolean {
+    if (!scopeSpan?.scope?.name?.startsWith("langfuse-sdk")) {
+      return false;
+    }
+    const sdkName =
+      normalizeIngestionSdkName(this.sdkName) ??
+      OTEL_SDK_LANGUAGE_TO_SDK_NAME.get(
+        String(resourceAttributes["telemetry.sdk.language"]),
+      ) ??
+      null;
+    return isStructuredMetadataSdkVersion({
+      sdkName,
+      sdkVersion: scopeSpan.scope.version,
+    });
   }
 
   private extractMetadataFromPrefix(params: {

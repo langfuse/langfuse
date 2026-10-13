@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { type RouterInputs, api } from "@/src/utils/api";
 import { showErrorToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { MAX_FILE_SIZE_BYTES } from "@/src/features/datasets/components/UploadDatasetCsv";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 import chunk from "lodash/chunk";
@@ -85,7 +86,11 @@ export function useCsvImport(options: UseCsvImportOptions) {
 
     if (!csvFile) return false;
     if (csvFile.size > MAX_FILE_SIZE_BYTES) {
-      showErrorToast("File too large", "Maximum file size is 10MB");
+      showErrorToast("File too large", "Maximum file size is 10MB", {
+        operation: "dataset_items.import",
+        errorOrigin: "frontend",
+        errorCategory: "resource_limit",
+      });
       return false;
     }
 
@@ -128,6 +133,7 @@ export function useCsvImport(options: UseCsvImportOptions) {
 
     const metadataColumns = metadata.map((c) => c.name);
 
+    let hasStartedUpload = false;
     try {
       await parseCsvClient(csvFile, {
         processor: {
@@ -202,6 +208,7 @@ export function useCsvImport(options: UseCsvImportOptions) {
       const chunks = chunk(items, optimalChunkSize);
 
       for (const [index, chunkItems] of chunks.entries()) {
+        hasStartedUpload = true;
         const result = await mutCreateManyDatasetItems.mutateAsync({
           projectId,
           items: chunkItems,
@@ -241,11 +248,22 @@ export function useCsvImport(options: UseCsvImportOptions) {
         status: "not-started",
       });
       if (error instanceof Error && processedCount === 0) {
-        showErrorToast("Failed to import all dataset items", error.message);
+        showErrorToast(
+          "Failed to import all dataset items",
+          error.message,
+          hasStartedUpload
+            ? classifyTrpcToastError(error, "dataset_items.import")
+            : {
+                operation: "dataset_items.import",
+                errorOrigin: "frontend",
+                errorCategory: "user_input",
+              },
+        );
       } else {
         showErrorToast(
           "Failed to import all dataset items",
           `Please try again starting from row ${processedCount + 1}.`,
+          classifyTrpcToastError(error, "dataset_items.import"),
         );
       }
       return false;

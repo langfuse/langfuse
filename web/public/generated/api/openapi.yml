@@ -15935,6 +15935,9 @@ components:
       properties:
         name:
           type: string
+          description: >-
+            The full prompt name, including any folder path, with at most 255
+            characters.
         prompt:
           type: array
           items:
@@ -15969,6 +15972,9 @@ components:
       properties:
         name:
           type: string
+          description: >-
+            The full prompt name, including any folder path, with at most 255
+            characters.
         prompt:
           type: string
         config:
@@ -16938,9 +16944,9 @@ components:
     CreateScoresResponse:
       title: CreateScoresResponse
       oneOf:
+        - $ref: '#/components/schemas/CreateScoreBatchResults'
         - $ref: '#/components/schemas/CreateScoreResponse'
         - $ref: '#/components/schemas/CreateScoreBatchResponse'
-        - $ref: '#/components/schemas/CreateScoreBatchResults'
     CreateScoreBatchResponse:
       title: CreateScoreBatchResponse
       type: object

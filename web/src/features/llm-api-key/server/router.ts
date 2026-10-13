@@ -51,6 +51,7 @@ import {
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { pauseTopicsModelsUsingConnection } from "@langfuse/shared/topics/server";
 import { TRPCError } from "@trpc/server";
 
 export function getDisplaySecretKey(secretKey: string) {
@@ -103,6 +104,8 @@ type TestLLMConnectionParams = {
   adapter: LLMAdapter;
   provider: string;
   secretKey: string;
+  /** Set only when reusing a credential from the scoped database row. */
+  projectId?: string;
   baseURL?: string | null;
   customModels?: string[];
   extraHeaders?: Record<string, string>;
@@ -204,6 +207,7 @@ async function testLLMConnection(
         },
         connection: {
           secretKey: encrypt(params.secretKey),
+          projectId: params.projectId,
           extraHeaders:
             params.extraHeaders && encrypt(JSON.stringify(params.extraHeaders)),
           baseURL: params.baseURL || undefined,
@@ -453,6 +457,15 @@ export const llmApiKeyRouter = createTRPCRouter({
                 })
               : EMPTY_EVALUATOR_BLOCK;
 
+          await pauseTopicsModelsUsingConnection(
+            {
+              projectId: input.projectId,
+              llmApiKeyId: llmApiKey.id,
+              provider: llmApiKey.provider,
+            },
+            tx,
+          );
+
           await tx.llmApiKeys.delete({
             where: {
               id: input.id,
@@ -650,6 +663,7 @@ export const llmApiKeyRouter = createTRPCRouter({
           adapter,
           provider,
           secretKey,
+          projectId: hasNewSecretKey ? undefined : existingKey.projectId,
           baseURL,
           customModels,
           extraHeaders,

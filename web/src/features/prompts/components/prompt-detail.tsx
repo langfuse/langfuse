@@ -14,7 +14,8 @@ import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { IO_SECTIONS_FLUSH_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailViewHeaderShell";
-import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
@@ -734,16 +735,14 @@ export const PromptDetail = ({
                   ) : typeof prompt.prompt === "string" ? (
                     resolutionMode === "resolved" &&
                     promptGraph.data?.resolvedPrompt ? (
-                      <CodeView
-                        content={String(promptGraph.data.resolvedPrompt)}
+                      <CodeSection
                         title="Text Prompt (resolved)"
+                        content={String(promptGraph.data.resolvedPrompt)}
                       />
                     ) : (
-                      <CodeView
-                        content={renderRichPromptContent(prompt.prompt)}
-                        originalContent={prompt.prompt}
-                        title="Text Prompt"
-                      />
+                      <CodeSection title="Text Prompt" content={prompt.prompt}>
+                        {renderRichPromptContent(prompt.prompt)}
+                      </CodeSection>
                     )
                   ) : (
                     <JSONView json={prompt.prompt} title="Prompt" />
@@ -765,8 +764,10 @@ export const PromptDetail = ({
             </Tabs.Content>
             <Tabs.Content value="use-prompt" layout="fill">
               <div className="flex h-full min-h-0 w-full flex-col gap-3 overflow-y-auto px-4 pt-3 pb-4">
-                {pythonCode && <CodeView content={pythonCode} title="Python" />}
-                {jsCode && <CodeView content={jsCode} title="JS/TS" />}
+                {pythonCode && (
+                  <CodeSection title="Python" content={pythonCode} />
+                )}
+                {jsCode && <CodeSection title="JS/TS" content={jsCode} />}
                 <p className="text-muted-foreground text-xs">
                   See{" "}
                   <a

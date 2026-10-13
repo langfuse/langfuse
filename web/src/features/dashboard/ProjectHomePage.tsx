@@ -43,6 +43,7 @@ import {
 import Link from "next/link";
 import { LockIcon, PencilIcon } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Button } from "@/src/components/ui/button";
@@ -237,7 +238,11 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
       setPeekId(null);
     },
     onError: (e) => {
-      showErrorToast("Failed to set the default Home dashboard", e.message);
+      showErrorToast(
+        "Failed to set the default Home dashboard",
+        e.message,
+        classifyTrpcToastError(e, "dashboard_home.update"),
+      );
     },
   });
 

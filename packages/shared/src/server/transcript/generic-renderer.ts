@@ -2,6 +2,7 @@ import type { Observation } from "../../domain";
 import type {
   NormalizedMessage,
   NormalizedMessagePart,
+  ToolResultContentPart,
 } from "../../utils/normalized-io";
 import { normalizeIO } from "../normalized-io";
 import {
@@ -10,14 +11,36 @@ import {
 } from "./topics-renderer-config";
 import type { Transcript } from "./types";
 
+function json(value: unknown): string {
+  return typeof value === "string" ? value : (JSON.stringify(value) ?? "");
+}
+
+function partContent(
+  part: ToolResultContentPart,
+  includeReasoning: boolean,
+): string {
+  switch (part.type) {
+    case "text":
+      return part.text;
+    case "data":
+      return json(part.value);
+    case "custom":
+      return json({ [part.kind]: part.value });
+    case "file":
+      return part.reasoning ? "" : `[${part.mediaType ?? "file"} omitted]`;
+    case "reasoning":
+      return includeReasoning && part.content.kind === "text"
+        ? part.content.text
+        : "";
+  }
+}
+
 /** Preserve the original plain-text layout as a measurement baseline. */
 export function renderGenericTranscript(
   transcript: Transcript | null,
   observations: Observation[],
 ): string {
   const config = transcriptRenderConfigSchema.parse(topicsTranscriptConfig);
-  const json = (value: unknown) =>
-    typeof value === "string" ? value : (JSON.stringify(value) ?? "");
   const labeled = (label: string, raw: string, maxChars: number) => {
     if (maxChars === 0) return `[${label}]`;
     let content = raw.replace(
@@ -47,13 +70,17 @@ export function renderGenericTranscript(
     switch (part.type) {
       case "text":
         return role.include
-          ? labeled(roleLabel, part.text, role.maxChars)
+          ? labeled(
+              roleLabel,
+              partContent(part, config.reasoning.include),
+              role.maxChars,
+            )
           : null;
       case "reasoning":
         return config.reasoning.include && part.content.kind === "text"
           ? labeled(
               `${roleLabel} · reasoning`,
-              part.content.text,
+              partContent(part, config.reasoning.include),
               config.reasoning.maxChars,
             )
           : null;
@@ -72,22 +99,27 @@ export function renderGenericTranscript(
                 "  ",
                 " ",
               ),
-              json(part.output),
+              part.output.type === "content"
+                ? part.output.value
+                    .map((content) =>
+                      partContent(content, config.reasoning.include),
+                    )
+                    .filter(Boolean)
+                    .join("\n")
+                : json(part.output.value),
               config.toolResults.maxChars,
             )
           : null;
       case "file":
         return role.include && !part.reasoning
-          ? `[${roleLabel}] [${part.mediaType ?? "file"} omitted]`
+          ? `[${roleLabel}] ${partContent(part, config.reasoning.include)}`
           : null;
       case "data":
       case "custom":
         return role.include
           ? labeled(
               roleLabel,
-              json(
-                part.type === "data" ? part.value : { [part.kind]: part.value },
-              ),
+              partContent(part, config.reasoning.include),
               role.maxChars,
             )
           : null;

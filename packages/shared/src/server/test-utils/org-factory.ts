@@ -8,7 +8,7 @@ import {
   SystemRoleId,
 } from "../../features/rbac/types";
 import { CloudConfigSchema } from "../../interfaces/cloudConfigSchema";
-import { assignRole } from "../../features/rbac/roleAssignmentRepository";
+import { assignRole } from "../../features/rbac/roleAssignmentService";
 import { createShaHash, getDisplaySecretKey } from "../auth/apiKeys";
 
 export function createBasicAuthHeader(

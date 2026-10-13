@@ -1,14 +1,12 @@
 import { type RouterOutputs } from "@/src/utils/api";
 import { useRef, useEffect } from "react";
 import { PromptVersionDiffDialogContent } from "./PromptVersionDiffDialog";
-import {
-  Timeline,
-  TimelineItem,
-} from "@/src/features/prompts/components/timeline";
+import { Timeline } from "@/src/components/design-system/Timeline/Timeline";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { TruncatedLabels } from "@/src/components/TruncatedLabels";
+import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
+import { toPromptLabelListItems } from "@/src/features/prompts/utils";
 import { CommandItem } from "@/src/components/ui/command";
 import { DialogController } from "@/src/components/ui/dialog";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
@@ -59,7 +57,7 @@ const PromptHistoryTraceNode = (props: {
         cursor: "pointer",
       }}
     >
-      <TimelineItem
+      <Timeline.Item
         key={prompt.id}
         isActive={props.currentPromptVersion === prompt.version}
         onClick={(e) => {
@@ -97,10 +95,10 @@ const PromptHistoryTraceNode = (props: {
                 # {prompt.version}
               </BadgeShell>
               {prompt.labels.length > 0 && (
-                <TruncatedLabels
-                  labels={prompt.labels}
-                  maxVisibleLabels={8}
-                  className="contents"
+                <LabelList
+                  labels={toPromptLabelListItems(prompt.labels)}
+                  layout="inline"
+                  maxVisible={8}
                 />
               )}
               {commentCount ? (
@@ -171,7 +169,7 @@ const PromptHistoryTraceNode = (props: {
             </DialogController>
           ) : null}
         </div>
-      </TimelineItem>
+      </Timeline.Item>
     </CommandItem>
   );
 };

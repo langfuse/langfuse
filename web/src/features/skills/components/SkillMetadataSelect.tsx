@@ -1,7 +1,8 @@
 import { useId, useMemo, useState } from "react";
 import { CircleCheckIcon, CircleIcon, Plus, TagIcon, X } from "lucide-react";
 import { PromptLabelSchema, SKILL_LATEST_LABEL } from "@langfuse/shared";
-import { TruncatedLabels } from "@/src/components/TruncatedLabels";
+import { toPromptLabelListItems } from "@/src/features/prompts/utils";
+import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -165,7 +166,7 @@ export function SkillLabelsSelect({
               disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
             )}
           >
-            <TruncatedLabels labels={value} maxVisibleLabels={5} />
+            <LabelList labels={toPromptLabelListItems(value)} maxVisible={5} />
             <Button
               type="button"
               variant="outline"

@@ -4,7 +4,10 @@ import { randomInt } from "node:crypto";
 import fc, { type Arbitrary } from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { ResourceSpan } from "@langfuse/shared/src/server";
-import { runOtelReplay } from "./helpers/otelReplayHarness";
+import {
+  expectRawOtelReplayParity,
+  runOtelReplayComparison,
+} from "./helpers/otelReplayHarness";
 import {
   type Json,
   jsonKeyArbitrary,
@@ -146,15 +149,26 @@ function expectedMetadata(seed: SpanSeed): Record<string, unknown> {
 }
 
 // Test-side contract oracle for the persisted flattened metadata. Arrays stay
-// leaves; returning pairs preserves duplicate flattened paths.
+// leaves; a path produced twice (literal-dot/nested collision) is persisted
+// once with its first value.
 function expectedMetadataPairs(
+  metadata: Record<string, unknown>,
+): Array<[string, string]> {
+  const firstValueByPath = new Map<string, string>();
+  for (const [path, value] of flattenedMetadataPairs(metadata)) {
+    if (!firstValueByPath.has(path)) firstValueByPath.set(path, value);
+  }
+  return [...firstValueByPath];
+}
+
+function flattenedMetadataPairs(
   metadata: Record<string, unknown>,
   prefix = "",
 ): Array<[string, string]> {
   return Object.entries(metadata).flatMap(([key, value]) => {
     const path = prefix ? `${prefix}.${key}` : key;
     if (value !== null && typeof value === "object" && !Array.isArray(value)) {
-      return expectedMetadataPairs(value as Record<string, unknown>, path);
+      return flattenedMetadataPairs(value as Record<string, unknown>, path);
     }
     const persistedValue =
       value === null || value === undefined
@@ -641,31 +655,37 @@ const directedCases: ReplayCase[] = [
 
 async function assertReplayPersists(params: ReplayCase): Promise<void> {
   const replay = buildReplayCase(params);
-  const { storedRows } = await runOtelReplay({
+  const comparison = await runOtelReplayComparison({
     bytes: Buffer.from(JSON.stringify(replay.resourceSpans)),
     projectId: replay.projectId,
     fileKey: FILE_KEY,
     mediaUploadEnabled: true,
   });
 
-  expect(storedRows).toHaveLength(replay.expectedRows.length);
-  const rowsBySpanId = new Map(
-    storedRows.map((row) => [String(row.span_id), row]),
-  );
-  expect([...rowsBySpanId.keys()].sort()).toEqual(
-    replay.expectedRows.map((row) => row.span_id).sort(),
-  );
+  for (const result of [comparison.originalTs, comparison.earlyTs]) {
+    expect(result.storedRows, result.mode).toHaveLength(
+      replay.expectedRows.length,
+    );
+    const rowsBySpanId = new Map(
+      result.storedRows.map((row) => [String(row.span_id), row]),
+    );
+    expect([...rowsBySpanId.keys()].sort(), result.mode).toEqual(
+      replay.expectedRows.map((row) => row.span_id).sort(),
+    );
 
-  for (const expected of replay.expectedRows) {
-    const row = rowsBySpanId.get(expected.span_id)!;
-    // Compare every contracted field exactly, including both metadata arrays:
-    // objectContaining permits unrelated stored columns, not extra array elements.
-    expect({
-      ...row,
-      start_time: persistedMillis(row.start_time),
-      end_time: persistedMillis(row.end_time),
-    }).toEqual(expect.objectContaining(expected));
+    for (const expected of replay.expectedRows) {
+      const row = rowsBySpanId.get(expected.span_id)!;
+      // Compare every contracted field exactly, including both metadata arrays:
+      // objectContaining permits unrelated stored columns, not extra array elements.
+      expect({
+        ...row,
+        start_time: persistedMillis(row.start_time),
+        end_time: persistedMillis(row.end_time),
+      }).toEqual(expect.objectContaining(expected));
+    }
   }
+
+  expectRawOtelReplayParity(comparison);
 }
 
 // The replay writer retries internally; Vitest retries could overlap an

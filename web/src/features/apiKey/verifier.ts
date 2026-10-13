@@ -52,6 +52,7 @@ export class Verifier {
     const byPrivateKey = await this.verifyPrivateKey(secretKey);
     if (byPrivateKey) return rejectExpired(byPrivateKey);
 
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
     const bySlowHash = await this.backfillSlowHash(publicKey, secretKey);
     if (bySlowHash) return rejectExpired(bySlowHash);
 
@@ -63,6 +64,7 @@ export class Verifier {
     const admin = this.verifyAdminKey(token);
     if (admin) return admin;
 
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
     const byPublicKey = await this.verifyPublicKey(token);
     if (byPublicKey) return rejectExpired(byPublicKey);
 
@@ -84,7 +86,10 @@ export class Verifier {
     return null;
   }
 
-  /** backfillSlowHash bcrypt-verifies keys without a fast hash and backfills matching secrets. */
+  /**
+   * backfillSlowHash bcrypt-verifies keys without a fast hash and backfills matching secrets.
+   * @deprecated Slow-hash backfill will be removed in the next major version.
+   */
   private async backfillSlowHash(
     publicKey: string,
     secretKey: string,
@@ -115,7 +120,10 @@ export class Verifier {
       : null;
   }
 
-  /** verifyPublicKey resolves a public-key token to its scores-only presentation, or null when it is not a public key or is unknown. */
+  /**
+   * verifyPublicKey resolves a public-key token to its scores-only presentation, or null when it is not a public key or is unknown.
+   * @deprecated Public bearer authentication will be removed in the next major version.
+   */
   private async verifyPublicKey(
     token: string,
   ): Promise<VerifyApiKeyResult | null> {
