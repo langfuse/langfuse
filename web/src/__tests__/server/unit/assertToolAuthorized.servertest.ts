@@ -143,6 +143,11 @@ describe("assertToolAuthorized", () => {
         { success: false, error: expect.any(ForbiddenError) },
         { success: true, scope: { accessLevel: "project" } },
         "prompts:CUD",
+        {
+          apiKeyId: "key_1",
+          publicKey: "pk-lf-1",
+          resource: "unknown",
+        },
       );
     });
 
@@ -155,6 +160,11 @@ describe("assertToolAuthorized", () => {
         { success: true },
         { success: true, scope: { accessLevel: "project" } },
         "prompts:read",
+        {
+          apiKeyId: "key_1",
+          publicKey: "pk-lf-1",
+          resource: "unknown",
+        },
       );
     });
   });

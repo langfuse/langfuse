@@ -1,4 +1,3 @@
-import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
@@ -7,14 +6,10 @@ import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
 import { DeleteOrganizationDialogController } from "@/src/features/organizations/components/DeleteOrganizationDialogController";
-import { useQueryOrganization } from "@/src/features/organizations/hooks";
-import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
 import { OrganizationUsageBreakdown } from "@/src/features/organization-usage";
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
-import ContainerPage from "@/src/components/layouts/container-page";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { SSOSettings } from "@/src/ee/features/sso-settings";
 import { type CloudConfigSchema, isCloudPlan } from "@langfuse/shared";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
@@ -94,7 +89,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   });
 }
 
-export const getOrganizationSettingsPages = ({
+const getOrganizationSettingsPages = ({
   organization,
   showBillingSettings,
   showUsageSettings,
@@ -308,43 +303,6 @@ export const getOrganizationSettingsPages = ({
     show: showAiGateway,
   },
 ];
-
-const OrganizationSettingsPage = () => {
-  const organization = useQueryOrganization();
-  const router = useRouter();
-  const { page } = router.query;
-  const pages = useOrganizationSettingsPages();
-
-  if (!organization) {
-    return (
-      <ContainerPage
-        headerProps={{
-          title: "Organization Settings",
-        }}
-      >
-        <NoDataOrLoading isLoading />
-      </ContainerPage>
-    );
-  }
-
-  return (
-    <ContainerPage
-      headerProps={{
-        title: "Organization Settings",
-      }}
-      extendRight={router.query.page === "ai-gateway-models"}
-      fullHeight={router.query.page === "ai-gateway-models"}
-    >
-      <PagedSettingsContainer
-        activeSlug={page as string | undefined}
-        pages={pages}
-        fullHeight={router.query.page === "ai-gateway-models"}
-      />
-    </ContainerPage>
-  );
-};
-
-export default OrganizationSettingsPage;
 
 function OrganizationMembersSettings({ orgId }: { orgId: string }) {
   const [invitesPagination, setInvitesPagination] = useSessionStorage(

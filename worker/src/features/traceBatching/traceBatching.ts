@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { xxh32 } from "@node-rs/xxhash";
 import {
+  getTracingReadinessSettings,
   logger,
   QueueJobs,
   redis,
@@ -758,6 +759,7 @@ export async function trackTraceBatchActivity(
     );
     if (entries.length === 0) return;
     if (!redis) throw new Error("Trace batching requires Redis");
+    const idleMs = await resolveTraceIdleMs(projectId);
     // Bounded scripts keep ingestion from monopolizing the global Redis slot.
     for (let offset = 0; offset < entries.length; offset += CHUNK_SIZE) {
       const chunk = entries.slice(offset, offset + CHUNK_SIZE);
@@ -767,7 +769,7 @@ export async function trackTraceBatchActivity(
           2,
           DUE_KEY,
           STATE_KEY,
-          env.LANGFUSE_TRACE_BATCH_IDLE_MS,
+          idleMs,
           env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
           ...chunk.flatMap(([traceId, state]) => [
             JSON.stringify([projectId, traceId]),
@@ -792,6 +794,25 @@ export async function trackTraceBatchActivity(
     recordIncrement("langfuse.trace_batch.tracking_errors", 1);
     logger.error("Failed to track trace batch activity", { error });
   }
+}
+
+async function resolveTraceIdleMs(projectId: string): Promise<number> {
+  let traceIdleMs: number | null = null;
+  try {
+    ({ traceIdleMs } = await getTracingReadinessSettings(projectId));
+  } catch (error) {
+    recordIncrement("langfuse.trace_batch.idle_time_read_failures", 1);
+    logger.warn("Failed to read trace idle time, using the default", {
+      projectId,
+      error,
+    });
+  }
+  if (traceIdleMs === null) return env.LANGFUSE_TRACE_BATCH_IDLE_MS;
+  // A due time past the pending TTL would expire the trace before dispatch.
+  const cap =
+    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS -
+    env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
+  return cap > 0 ? Math.min(traceIdleMs, cap) : traceIdleMs;
 }
 
 export class TraceBatchDispatcher extends PeriodicExclusiveRunner {

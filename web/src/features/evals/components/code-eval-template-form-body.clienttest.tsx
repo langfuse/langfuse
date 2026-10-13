@@ -149,6 +149,11 @@ describe("CodeEvalTemplateFormBody", () => {
       expect(mocks.showErrorToast).toHaveBeenCalledWith(
         "Formatting failed",
         "Invalid syntax",
+        {
+          operation: "evaluator_code.format",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
       );
     });
   });

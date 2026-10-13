@@ -1,5 +1,5 @@
 import { FileIcon, Wrench } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { assertUnreachable } from "@langfuse/shared";
 import {
@@ -23,22 +23,38 @@ import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 export function SessionTimelinePart({
   part,
   trailingContent,
+  mediaVariant,
 }: {
   part: NormalizedMessage["parts"][number];
   trailingContent?: ReactNode;
+  mediaVariant?: "tool-output";
 }) {
   if (part.type === "text") {
-    return (
-      <div className="flex flex-col gap-1">
-        {part.refusal ? (
-          <span className="text-dark-red text-[11px] font-bold">Refusal</span>
-        ) : null}
-        <div data-session-search-content>
-          <MarkdownView
-            markdown={decodeUnicodeEscapesOnly(part.text, true)}
-            className="px-0 py-0"
-          />
+    if (part.refusal) {
+      return (
+        <div
+          role="alert"
+          className="bg-foreground/10 dark:bg-muted flex flex-col gap-0.5 rounded-md px-3 py-2"
+        >
+          <h5 className="text-sm font-bold">Refusal</h5>
+          <div className="text-xs">
+            <div data-session-search-content>
+              <MarkdownView
+                markdown={decodeUnicodeEscapesOnly(part.text, true)}
+                className="px-0 py-0"
+              />
+            </div>
+          </div>
         </div>
+      );
+    }
+
+    return (
+      <div data-session-search-content>
+        <MarkdownView
+          markdown={decodeUnicodeEscapesOnly(part.text, true)}
+          className="px-0 py-0"
+        />
       </div>
     );
   }
@@ -50,7 +66,7 @@ export function SessionTimelinePart({
   }
 
   if (part.type === "file") {
-    return <SessionTimelineFile part={part} />;
+    return <SessionTimelineFile part={part} variant={mediaVariant} />;
   }
 
   if (part.type === "tool-call" || part.type === "tool-result") {
@@ -156,24 +172,45 @@ function SessionTimelineReasoning({
   return assertUnreachable(content);
 }
 
-function SessionTimelineFile({ part }: { part: FilePart }) {
+function SessionTimelineFile({
+  part,
+  variant,
+}: {
+  part: FilePart;
+  variant?: ComponentProps<typeof SessionTimelinePart>["mediaVariant"];
+}) {
   const content = getSessionTimelineFileContent(part);
+  const body = (
+    <SessionTimelineFileBody
+      content={content}
+      filename={part.filename ?? "Embedded image"}
+    />
+  );
 
   return (
     <div
       className={cn(
-        "border-border/70 bg-background flex max-w-full flex-col gap-2 rounded-md border p-3",
-        content.kind === "fallback" ? "w-full" : "w-fit",
+        variant === "tool-output"
+          ? "bg-muted/30 flex w-full min-w-0 flex-col overflow-hidden rounded-md border"
+          : "border-border/70 bg-background flex max-w-full flex-col gap-2 rounded-md border p-3",
+        variant !== "tool-output" &&
+          (content.kind === "fallback" ? "w-full" : "w-fit"),
       )}
     >
-      <div className="text-muted-foreground flex items-center gap-2 text-xs font-bold">
+      <div
+        className={cn(
+          "text-muted-foreground flex items-center gap-2 text-xs",
+          variant === "tool-output" ? "border-b px-2 py-1" : "font-bold",
+        )}
+      >
         <FileIcon className="icon-base" />
         {part.filename ?? part.mediaType ?? "File"}
       </div>
-      <SessionTimelineFileBody
-        content={content}
-        filename={part.filename ?? "Embedded image"}
-      />
+      {variant === "tool-output" ? (
+        <div className="min-w-0 p-3">{body}</div>
+      ) : (
+        body
+      )}
     </div>
   );
 }

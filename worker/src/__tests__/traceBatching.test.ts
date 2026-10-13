@@ -26,6 +26,7 @@ import {
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import * as shared from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 import { TraceBatchMetricsRunner } from "../features/traceBatching/TraceBatchMetricsRunner";
 import {
@@ -51,6 +52,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     recordGauge: vi.fn(),
     recordIncrement: vi.fn(),
     getS3EventStorageClient: vi.fn(),
+    getTracingReadinessSettings: vi.fn(original.getTracingReadinessSettings),
   };
 });
 
@@ -868,6 +870,182 @@ describe("trace micro-batch scheduling with Redis", () => {
       "langfuse.trace_batch.reactivated_traces",
       1,
     );
+  });
+
+  it("sets the due time from the project's trace idle time, capped below the pending TTL", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Idle time org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Idle time project" },
+    });
+    try {
+      await shared.saveTracingReadinessSettings(projectId, {
+        traceIdleMs: 3_600_000,
+      });
+      const now = Date.now();
+      // The Lua script reads Redis time, so allow for clock skew.
+      const dueOffset = async (traceId: string) =>
+        Number(await client().zscore(dueKey, member(projectId, traceId))) - now;
+
+      await trackTraceBatchActivity(projectId, [event("custom")]);
+      await trackTraceBatchActivity("project", [event("default")]);
+      expect(await dueOffset("custom")).toBeGreaterThan(3_590_000);
+      expect(await dueOffset("custom")).toBeLessThan(3_610_000);
+      expect(
+        Number(await client().zscore(dueKey, member("project", "default"))) -
+          now,
+      ).toBeLessThan(610_000);
+
+      env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 1_800_000;
+      await trackTraceBatchActivity(projectId, [event("capped")]);
+      expect(await dueOffset("capped")).toBeLessThan(1_780_000);
+      expect(await dueOffset("capped")).toBeGreaterThan(1_760_000);
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+    }
+  });
+
+  it("caches the project's settings in Redis with an expiry and replaces them on save", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    const cacheKey = `langfuse:tracing-readiness-settings:${projectId}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Idle time cache org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Idle time cache project" },
+    });
+    try {
+      await trackTraceBatchActivity(projectId, [event("uncached")]);
+      expect(JSON.parse((await connection.get(cacheKey))!)).toEqual({
+        traceIdleMs: null,
+      });
+      const ttl = await connection.ttl(cacheKey);
+      expect(ttl).toBeGreaterThan(0);
+      expect(ttl).toBeLessThanOrEqual(300);
+      await shared.saveTracingReadinessSettings(projectId, {
+        traceIdleMs: 300_000,
+      });
+      expect(JSON.parse((await connection.get(cacheKey))!)).toEqual({
+        traceIdleMs: 300_000,
+      });
+      await trackTraceBatchActivity(projectId, [event("saved")]);
+      const offset =
+        Number(await client().zscore(dueKey, member(projectId, "saved"))) -
+        Date.now();
+      expect(offset).toBeGreaterThan(290_000);
+      expect(offset).toBeLessThan(310_000);
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+      await connection.del(cacheKey);
+    }
+  });
+
+  it("does not let an earlier database read overwrite newly saved settings", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    const cacheKey = `langfuse:tracing-readiness-settings:${projectId}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Idle time race org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Idle time race project" },
+    });
+    try {
+      await shared.saveTracingReadinessSettings(projectId, {
+        traceIdleMs: 120_000,
+      });
+      await connection.del(cacheKey);
+
+      let releaseFill!: () => void;
+      const fillHeld = new Promise<void>((resolve) => {
+        releaseFill = resolve;
+      });
+      let signalFill!: () => void;
+      const fillStarted = new Promise<void>((resolve) => {
+        signalFill = resolve;
+      });
+      const actualShared = await vi.importActual<
+        typeof import("@langfuse/shared/src/server")
+      >("@langfuse/shared/src/server");
+      if (!actualShared.redis)
+        throw new Error("Redis is required for this test");
+      const originalSet = actualShared.redis.set.bind(actualShared.redis);
+      vi.spyOn(actualShared.redis, "set").mockImplementationOnce(
+        async (...args) => {
+          signalFill();
+          await fillHeld;
+          return originalSet(...args);
+        },
+      );
+
+      const earlierRead = shared.getTracingReadinessSettings(projectId);
+      await fillStarted;
+      try {
+        await shared.saveTracingReadinessSettings(projectId, {
+          traceIdleMs: 300_000,
+        });
+      } finally {
+        releaseFill();
+      }
+      await earlierRead;
+
+      expect(await shared.getTracingReadinessSettings(projectId)).toEqual({
+        traceIdleMs: 300_000,
+      });
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+      await connection.del(cacheKey);
+    }
+  });
+
+  it("uses and caches the default for an out-of-range stored idle time", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    const cacheKey = `langfuse:tracing-readiness-settings:${projectId}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Invalid idle time org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Invalid idle time project" },
+    });
+    try {
+      await prisma.tracingReadinessSettings.create({
+        data: { projectId, traceIdleMs: 1 },
+      });
+
+      expect(await shared.getTracingReadinessSettings(projectId)).toEqual({
+        traceIdleMs: null,
+      });
+      expect(JSON.parse((await connection.get(cacheKey))!)).toEqual({
+        traceIdleMs: null,
+      });
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+      await connection.del(cacheKey);
+    }
+  });
+
+  it("uses the default when the idle time read fails", async () => {
+    const projectId = `project-${randomUUID()}`;
+    vi.mocked(shared.getTracingReadinessSettings).mockRejectedValueOnce(
+      new Error("Postgres unavailable"),
+    );
+
+    await trackTraceBatchActivity(projectId, [event("failed")]);
+
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.idle_time_read_failures",
+      1,
+    );
+    const offset =
+      Number(await client().zscore(dueKey, member(projectId, "failed"))) -
+      Date.now();
+    expect(offset).toBeGreaterThan(590_000);
+    expect(offset).toBeLessThan(610_000);
   });
 
   it("does not track or dispatch on self-hosted deployments even with experiment flags enabled", async () => {
