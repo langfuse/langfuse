@@ -670,6 +670,20 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"), // Use ON CLUSTER and clusterAllReplicas for cleaner operations
 
+  // Audit log relay: moves audit_log_staging rows into ClickHouse audit_logs.
+  // Audit events depend on it, so it is on by default.
+  LANGFUSE_AUDIT_LOG_RELAY_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_AUDIT_LOG_RELAY_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(1_000),
+  LANGFUSE_AUDIT_LOG_RELAY_LOCK_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60), // A batch must finish within half of it
+
   // Media Retention Cleaner configuration (S3/PostgreSQL)
   LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT: z.coerce
     .number()
