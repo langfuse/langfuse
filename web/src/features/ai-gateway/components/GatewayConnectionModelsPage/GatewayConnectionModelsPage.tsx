@@ -6,6 +6,7 @@ import { ConnectionModelsLoadError } from "@/src/features/ai-gateway/components/
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton";
 import { GatewayConnectionModelsTable } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsTable";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { updateGatewayAllowedModels } from "@/src/features/ai-gateway/fns/updateGatewayAllowedModels";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
 export function GatewayConnectionModelsPage({
@@ -60,21 +61,33 @@ export function GatewayConnectionModelsPage({
     isGatewayModelAllowed(connection.allowedModels, model),
   ).length;
 
-  const saveAllowedModels = (allowedModels: string[] | null) => {
-    updateModels.mutate({
-      orgId: organizationId,
-      id: connectionId,
-      allowedModels,
-    });
+  const saveAllowedModels = (
+    allowedModels: string[] | null,
+    onSuccess?: () => void,
+  ) => {
+    updateModels.mutate(
+      {
+        orgId: organizationId,
+        id: connectionId,
+        allowedModels,
+      },
+      { onSuccess },
+    );
   };
-  const toggleModel = (model: string, enabled: boolean) => {
-    const current =
-      connection.allowedModels ??
-      models.filter((availableModel) => availableModel !== model);
-    const next = enabled
-      ? [...new Set([...current, model])]
-      : current.filter((allowedModel) => allowedModel !== model);
-    saveAllowedModels(next);
+  const setModelsEnabled = (
+    targetModels: string[],
+    enabled: boolean,
+    onSuccess?: () => void,
+  ) => {
+    saveAllowedModels(
+      updateGatewayAllowedModels({
+        allowedModels: connection.allowedModels,
+        availableModels: models,
+        targetModels,
+        enabled,
+      }),
+      onSuccess,
+    );
   };
   const enableAll = () => saveAllowedModels(null);
   const disableAll = () => saveAllowedModels([]);
@@ -100,9 +113,9 @@ export function GatewayConnectionModelsPage({
           models={models}
           allowedModels={connection.allowedModels}
           isSaving={updateModels.isPending}
-          onToggle={toggleModel}
           onEnableAll={enableAll}
           onDisableAll={disableAll}
+          onSetEnabled={setModelsEnabled}
         />
       ) : (
         <Alert variant="destructive">
