@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  flushMetricsToCloudWatch: vi.fn(),
   getFailed: vi.fn(),
   getJobCounts: vi.fn(),
   recordGauge: vi.fn(),
+  redisSet: vi.fn(),
   updateActiveIngestFailureProjectsMetric: vi.fn(),
   emitV4LegacyApiUsageFreshnessMetrics: vi.fn(),
 }));
@@ -14,6 +16,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   },
   convertQueueNameToMetricName: (queueName: string) =>
     `langfuse.queue.${queueName.replace(/-/g, "_").replace(/_queue$/, "")}`,
+  flushMetricsToCloudWatch: mocks.flushMetricsToCloudWatch,
   instrumentAsync: vi.fn(),
   logger: {
     debug: vi.fn(),
@@ -24,6 +27,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   recordDistribution: vi.fn(),
   recordGauge: mocks.recordGauge,
   recordIncrement: vi.fn(),
+  redis: { set: mocks.redisSet },
   traceException: vi.fn(),
   updateActiveIngestFailureProjectsMetric:
     mocks.updateActiveIngestFailureProjectsMetric,
@@ -61,6 +65,7 @@ vi.mock("../v4/v4LegacyApiUsageMetrics", () => ({
 }));
 
 import { QueueMetricsRunner } from ".";
+import { WorkerManager } from "../../queues/workerManager";
 
 class TestQueueMetricsRunner extends QueueMetricsRunner {
   public executeOnce(): Promise<void> {
@@ -71,6 +76,7 @@ class TestQueueMetricsRunner extends QueueMetricsRunner {
 describe("QueueMetricsRunner", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.redisSet.mockResolvedValue("OK");
     mocks.getFailed.mockResolvedValue([]);
     mocks.getJobCounts.mockResolvedValue({
       active: 2,
@@ -123,5 +129,44 @@ describe("QueueMetricsRunner", () => {
         .map(([metricName]) => metricName)
         .filter((metricName) => legacyMetricNames.has(metricName)),
     ).toEqual([]);
+    expect(mocks.flushMetricsToCloudWatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("polls nothing when another worker already claimed the interval", async () => {
+    mocks.redisSet.mockResolvedValue(null);
+
+    await new TestQueueMetricsRunner().executeOnce();
+
+    expect(mocks.redisSet).toHaveBeenCalledWith(
+      expect.stringMatching(/^langfuse:queue-metrics-runner:claim:/),
+      expect.any(String),
+      "PX",
+      900,
+      "NX",
+    );
+    expect(mocks.getJobCounts).not.toHaveBeenCalled();
+    expect(mocks.getFailed).not.toHaveBeenCalled();
+    expect(
+      mocks.updateActiveIngestFailureProjectsMetric,
+    ).not.toHaveBeenCalled();
+    expect(mocks.recordGauge).not.toHaveBeenCalled();
+    expect(mocks.flushMetricsToCloudWatch).not.toHaveBeenCalled();
+  });
+
+  it("claims separately for workers that consume different queues", async () => {
+    vi.mocked(WorkerManager.getRegisteredQueueNames)
+      .mockReturnValueOnce(["trace-delete"])
+      .mockReturnValueOnce(["score-delete", "trace-delete"])
+      .mockReturnValueOnce(["trace-delete", "score-delete"]);
+
+    for (let i = 0; i < 3; i++) {
+      await new TestQueueMetricsRunner().executeOnce();
+    }
+
+    const [single, pair, samePairReordered] = mocks.redisSet.mock.calls.map(
+      ([key]) => key,
+    );
+    expect(pair).not.toEqual(single);
+    expect(samePairReordered).toEqual(pair);
   });
 });

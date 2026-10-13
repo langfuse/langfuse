@@ -1,9 +1,12 @@
+import { createHash, randomUUID } from "crypto";
 import { Queue } from "bullmq";
 
 import {
   QueueName,
   convertQueueNameToMetricName,
+  flushMetricsToCloudWatch,
   recordGauge,
+  redis,
   updateActiveIngestFailureProjectsMetric,
   logger,
 } from "@langfuse/shared/src/server";
@@ -20,6 +23,7 @@ import { emitV4LegacyApiUsageFreshnessMetrics } from "../v4/v4LegacyApiUsageMetr
 import { emitTopicStagingMetrics } from "@langfuse/shared/topics/server";
 
 type DepthType = "waiting" | "failed" | "active" | "delayed";
+const INTERVAL_CLAIM_KEY_PREFIX = "langfuse:queue-metrics-runner:claim";
 const TOPICS_QUEUES = new Set([
   QueueName.Topics,
   QueueName.TopicsUpdate,
@@ -87,6 +91,8 @@ function emitDepth(
 }
 
 export class QueueMetricsRunner extends PeriodicRunner {
+  private readonly instanceId = randomUUID();
+
   constructor() {
     super("queue_metrics_runner");
   }
@@ -105,6 +111,11 @@ export class QueueMetricsRunner extends PeriodicRunner {
     // create unnecessary Redis connections and can trigger side effects
     // (e.g. CloudUsageMeteringQueue.getInstance() enqueues cron jobs).
     const registeredNames = new Set(WorkerManager.getRegisteredQueueNames());
+    if (!(await this.claimInterval(registeredNames))) {
+      this.markRunSkipped();
+      return;
+    }
+
     const promises: Promise<void>[] = [];
 
     if (registeredNames.has(QueueName.Topics)) {
@@ -319,5 +330,40 @@ export class QueueMetricsRunner extends PeriodicRunner {
     }
 
     await Promise.allSettled(promises);
+
+    // The next interval usually runs on another worker, so publish now rather
+    // than when this process next records a metric.
+    flushMetricsToCloudWatch();
+  }
+
+  /**
+   * Queue depth and DLQ age read the same from every worker, so workers that
+   * consume the same queues share one poll per interval. The claim is never
+   * released: it expires, and the next worker whose timer fires polls. Workers
+   * that consume different queues hold separate claims.
+   */
+  private async claimInterval(registeredNames: Set<string>): Promise<boolean> {
+    if (!redis) return true;
+
+    const queueSetHash = createHash("sha256")
+      .update([...registeredNames].sort().join(","))
+      .digest("hex")
+      .slice(0, 16);
+
+    try {
+      const result = await redis.set(
+        `${INTERVAL_CLAIM_KEY_PREFIX}:${queueSetHash}`,
+        this.instanceId,
+        "PX",
+        // Shorter than the interval so a single worker never skips its own tick.
+        Math.floor(this.defaultIntervalMs * 0.9),
+        "NX",
+      );
+      return result === "OK";
+    } catch (err) {
+      this.markRunFailed(err);
+      logger.error("Queue metrics: failed to claim the polling interval", err);
+      return false;
+    }
   }
 }
