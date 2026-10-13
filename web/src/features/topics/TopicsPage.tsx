@@ -39,6 +39,7 @@ import {
   type TopicOperation,
 } from "@langfuse/shared/topics";
 import { useTopicPipelineForm } from "./TopicPipelineForm";
+import { useRegenerateTopics } from "./RegenerateTopicsDialog";
 import { useTopicModelSettings } from "./TopicModelSettings";
 import { AutomaticProcessingControl } from "./AutomaticProcessingControl";
 import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
@@ -306,6 +307,14 @@ function TopicsWorkspaceContent({
     onTriggered: openExecution,
     timeRange: validTimeRange ? currentTimeRange : null,
   });
+  const regenerate = useRegenerateTopics({
+    projectId,
+    facets: facets.data ?? [],
+    canWrite,
+    timeRange: validTimeRange ? currentTimeRange : null,
+    executions: executions.data,
+    onTriggered: openExecution,
+  });
   const automaticProcessing = modelSettings.automaticProcessing;
   function openAutomaticProcessingFromHeader() {
     openAutomaticProcessing(automaticProcessing.state.status === "on");
@@ -327,6 +336,7 @@ function TopicsWorkspaceContent({
         disabled={!modelSettings.configure.settings}
         onClick={openConfigure}
       />
+      {regenerate.action}
       {primaryAction}
       <DropdownMenu
         ariaLabel="Topics actions"
@@ -372,7 +382,9 @@ function TopicsWorkspaceContent({
             closeMenu={closeMenu}
             onOpenHistory={openHistory}
             onRefresh={refreshResults}
-          />
+          >
+            {regenerate.menuRow(closeMenu)}
+          </TopicsActionsMenu>
         ),
       }}
     >
@@ -407,6 +419,7 @@ function TopicsWorkspaceContent({
           onTurnBackOn={turnAutomaticProcessingBackOn}
         />
         {configuration}
+        {regenerate.dialog}
         <Sheet
           open={historyOpen || executionId !== null}
           onOpenChange={showExecutionList}
