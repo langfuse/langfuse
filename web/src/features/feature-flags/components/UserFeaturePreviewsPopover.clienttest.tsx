@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 import type { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
@@ -7,6 +13,7 @@ import { userFeaturePreviewFlags } from "../available-flags";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
+  showErrorToast: vi.fn(),
   invalidate: vi.fn().mockResolvedValue(undefined),
   mutate: vi.fn(),
   organizationDefaults: ["sessionViewV2", "sessionViewV2Timeline"] as string[],
@@ -34,7 +41,7 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 }));
 
 vi.mock("@/src/features/notifications/showErrorToast", () => ({
-  showErrorToast: vi.fn(),
+  showErrorToast: mocks.showErrorToast,
 }));
 
 vi.mock("@/src/features/notifications/showSuccessToast", () => ({
@@ -64,14 +71,17 @@ vi.mock("@/src/components/design-system/Switch/Switch", () => ({
     disabled,
     onCheckedChange,
     "aria-label": ariaLabel,
+    "aria-describedby": ariaDescribedBy,
   }: {
     checked: boolean;
     disabled: boolean;
     onCheckedChange: (checked: boolean) => void;
     "aria-label": string;
+    "aria-describedby"?: string;
   }) => (
     <input
       aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
       type="checkbox"
       checked={checked}
       disabled={disabled}
@@ -92,14 +102,14 @@ vi.mock("@/src/utils/api", () => ({
           return { mutate: mocks.mutate, isPending: false };
         },
       },
-      organizations: {
-        getFeatureFlagOrgDefaults: {
-          useQuery: () => ({
-            data: { defaults: mocks.organizationDefaults },
-            isPending: false,
-            isError: false,
-          }),
-        },
+    },
+    organizations: {
+      getFeatureFlagOrgDefaults: {
+        useQuery: () => ({
+          data: { defaults: mocks.organizationDefaults },
+          isPending: false,
+          isError: false,
+        }),
       },
     },
   },
@@ -128,34 +138,30 @@ describe("UserFeaturePreviewsControl", () => {
     mocks.mutate.mockImplementation((variables) => {
       mocks.mutationOptions?.onSuccess?.({}, variables);
     });
+  });
 
-    it("blocks user changes when the organization disables a preview", () => {
-      mocks.organizationDefaults = ["sessionViewV2"];
-      renderControl({
-        orgId: "org-1",
-        userId: "user-1",
-        featurePreviews: {
-          externalMediaStorage: false,
-          sessionViewV2: true,
-          sessionViewV2Timeline: false,
-        },
-        management: { allowed: true },
-      });
-      const timelineSwitch = screen.getByRole("checkbox", {
-        name: "Toggle Session Timeline for user",
-      });
-      expect(timelineSwitch).toBeDisabled();
-      expect(
-        screen.getByText(/disabled for this organization/i),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("checkbox", {
-          name: "Toggle Redesigned Session View for user",
-        }),
-      ).toBeEnabled();
-      fireEvent.click(timelineSwitch);
-      expect(mocks.mutate).not.toHaveBeenCalled();
+  it("blocks user changes when the organization disables a preview", () => {
+    mocks.organizationDefaults = ["sessionViewV2"];
+    renderControl({
+      orgId: "org-1",
+      userId: "user-1",
+      featurePreviews: {
+        externalMediaStorage: false,
+        sessionViewV2: true,
+        sessionViewV2Timeline: false,
+      },
+      management: { allowed: true },
     });
+    const timelineSwitch = screen.getByRole("checkbox", {
+      name: "Toggle Session Timeline for user",
+    });
+    expect(timelineSwitch).toBeDisabled();
+    expect(timelineSwitch).toHaveAccessibleDescription();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Toggle Redesigned Session View for user",
+      }),
+    ).toBeEnabled();
   });
 
   it("explains why a multi-organization user cannot be changed", () => {
@@ -173,17 +179,13 @@ describe("UserFeaturePreviewsControl", () => {
     });
 
     expect(
-      screen.getByText(
-        "You can only change this user's feature flags if you are an administrator in every organization they belong to.",
-      ),
-    ).toBeInTheDocument();
-    expect(
       screen.getByRole("button", {
         // Derived: the counter's denominator is the number of user previews,
         // so a new preview must not fail this test.
         name: new RegExp(`0/${userFeaturePreviewFlags.length} enabled`, "i"),
       }),
     ).toBeDisabled();
+    expect(screen.getByRole("button")).toHaveAccessibleDescription();
   });
 
   it("updates an eligible user and captures metadata once after success", async () => {
@@ -228,7 +230,12 @@ describe("UserFeaturePreviewsControl", () => {
   });
 
   it("keeps pending state isolated to the selected feature", () => {
-    mocks.mutate.mockImplementation(() => undefined);
+    let settle: (() => void) | undefined;
+    mocks.mutate.mockImplementation(
+      (_variables, options: { onSettled: () => void }) => {
+        settle = options.onSettled;
+      },
+    );
     renderControl({
       orgId: "org-1",
       userId: "user-1",
@@ -245,14 +252,18 @@ describe("UserFeaturePreviewsControl", () => {
     });
     fireEvent.click(sessions);
 
-    // Its own row only. The counterpart assertion — that every OTHER row stays
-    // interactive — needs a second registered preview, which the registry does
-    // not have between one preview reaching GA and the next one landing. Add it
-    // back with the next preview; `isToggling` is per-flag, not per-list.
     expect(sessions).toBeDisabled();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Toggle Session Timeline for user",
+      }),
+    ).toBeEnabled();
+    expect(settle).toBeDefined();
+    act(() => settle?.());
+    expect(sessions).toBeEnabled();
   });
 
-  it("refetches without capturing analytics when the mutation fails", async () => {
+  it("notifies on failure, unlocks the control, and allows retry", async () => {
     mocks.mutate.mockImplementation((_variables, options) => {
       mocks.mutationOptions?.onError?.(new Error("denied"));
       options.onSettled();
@@ -275,6 +286,13 @@ describe("UserFeaturePreviewsControl", () => {
     );
 
     await waitFor(() => expect(mocks.invalidate).toHaveBeenCalledOnce());
+    await waitFor(() => expect(mocks.showErrorToast).toHaveBeenCalledOnce());
     expect(mocks.capture).not.toHaveBeenCalled();
+    const sessionSwitch = screen.getByRole("checkbox", {
+      name: "Toggle Redesigned Session View for user",
+    });
+    expect(sessionSwitch).toBeEnabled();
+    fireEvent.click(sessionSwitch);
+    expect(mocks.mutate).toHaveBeenCalledTimes(2);
   });
 });

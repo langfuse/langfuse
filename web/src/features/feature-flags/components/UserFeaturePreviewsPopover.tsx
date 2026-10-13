@@ -1,5 +1,5 @@
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -38,6 +38,7 @@ export function UserFeaturePreviewsControl({
   }) => ReactNode;
 }) {
   const session = useSession();
+  const descriptionId = useId();
   const [pendingFlags, setPendingFlags] = useState<Set<FeaturePreviewFlag>>(
     new Set(),
   );
@@ -88,7 +89,7 @@ export function UserFeaturePreviewsControl({
         placement="left"
         content={
           <div className="w-64 p-3">
-            <p className="text-xs">
+            <p id={descriptionId} className="text-xs">
               You can only change this user&apos;s feature flags if you are an
               administrator in every organization they belong to.
             </p>
@@ -101,7 +102,12 @@ export function UserFeaturePreviewsControl({
             tabIndex={0}
             {...getTriggerProps()}
           >
-            <Button variant="outline" size="sm" disabled>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              aria-describedby={descriptionId}
+            >
               {enabledCount}/{totalCount} enabled
             </Button>
           </span>
@@ -137,7 +143,10 @@ export function UserFeaturePreviewsControl({
                 <div className="flex flex-col gap-1">
                   <span className="text-sm">{featurePreviewLabels[flag]}</span>
                   {disabledByOrganization ? (
-                    <p className="text-muted-foreground text-xs">
+                    <p
+                      id={`${descriptionId}-${flag}`}
+                      className="text-muted-foreground text-xs"
+                    >
                       Disabled for this organization. Enable the organization
                       default before changing this user&apos;s preference.
                     </p>
@@ -146,6 +155,11 @@ export function UserFeaturePreviewsControl({
                 <Switch
                   size="sm"
                   aria-label={`Toggle ${featurePreviewLabels[flag]} for user`}
+                  aria-describedby={
+                    disabledByOrganization
+                      ? `${descriptionId}-${flag}`
+                      : undefined
+                  }
                   checked={featurePreviews[flag]}
                   disabled={
                     pendingFlags.has(flag) ||

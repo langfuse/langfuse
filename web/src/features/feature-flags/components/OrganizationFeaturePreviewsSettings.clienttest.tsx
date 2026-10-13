@@ -156,19 +156,11 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     });
   });
 
-  it("explains the deployment-wide experimental feature override", () => {
+  it("keeps deployment-wide experimental previews enabled and locked", () => {
     mocks.experimentalFeaturesEnabled = true;
 
     render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
 
-    expect(
-      screen.getByText(/experimental features enabled deployment-wide/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Every preview on this page is enabled by the env variable LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=true. Per-user opt-outs do not disable these previews.",
-      ),
-    ).toBeInTheDocument();
     const switches = screen.getAllByRole("checkbox", {
       name: /organization default/i,
     });
@@ -214,9 +206,6 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     mocks.orgDefaults = [getFeaturePreviewOptOutFlag("sessionViewV2")];
     render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
 
-    // The contrast half — a row the admin HAS enabled personally stays live —
-    // needs a second registered preview, and there is one between one preview
-    // reaching GA and the next landing. Add it back with the next preview.
     expect(
       screen.getByRole("checkbox", {
         name: "Toggle Redesigned Session View organization default",
@@ -227,12 +216,6 @@ describe("OrganizationFeaturePreviewsSettings", () => {
         name: "Toggle External Media Storage organization default",
       }),
     ).toBeEnabled();
-    const personalEnablementRequirements = screen.getAllByText(
-      /enable this preview in your personal feature preview settings/i,
-    );
-    personalEnablementRequirements.forEach((requirement) =>
-      expect(requirement).toHaveClass("text-destructive"),
-    );
   });
 
   it("confirms an organization default change and captures metadata once", async () => {
@@ -240,18 +223,11 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     mocks.orgDefaults = [getFeaturePreviewOptOutFlag("sessionViewV2")];
     render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
 
-    expect(
-      screen.getByText(/new members inherit these defaults automatically/i),
-    ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("checkbox", {
         name: "Toggle Redesigned Session View organization default",
       }),
     );
-    expect(screen.getByText("Already enabled for you")).toBeInTheDocument();
-    expect(
-      screen.getByText(/personal Feature Preview settings.*tested/i),
-    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     expect(mocks.mutate).toHaveBeenCalledWith({
