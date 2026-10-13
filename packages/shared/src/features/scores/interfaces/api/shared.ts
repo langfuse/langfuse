@@ -3,7 +3,10 @@ import {
   commaSeparatedEnumArray,
   publicApiPaginationZod,
 } from "../../../../utils/zod";
-import { stringDateTime } from "../../../../utils/typeChecks";
+import {
+  stringDateTime,
+  utcDefaultStringDateTime,
+} from "../../../../utils/typeChecks";
 import { applyScoreValidation } from "../../../../utils/scores";
 import { PostScoreBodyFoundationSchema } from "../shared";
 import {
@@ -78,7 +81,7 @@ export const GetScoresQuery = z.object({
 export const PostScoreBody = applyScoreValidation(
   PostScoreBodyFoundationSchema.extend({
     source: PublicApiCreateScoreSourceDomain.default(ScoreSourceEnum.API),
-    timestamp: stringDateTime,
+    timestamp: utcDefaultStringDateTime,
   }).and(
     z.discriminatedUnion("dataType", [
       z.object({

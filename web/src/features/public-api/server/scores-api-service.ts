@@ -14,6 +14,7 @@ import {
   type PostScoreBodyV1,
   scoresTableCols,
   type ScoreDataTypeType,
+  withUtcOffsetIfMissing,
 } from "@langfuse/shared";
 import {
   _handleGetScoreById,
@@ -228,7 +229,10 @@ function toScoreCreateEvent(body: unknown) {
   return {
     id: randomUUID(),
     type: eventTypes.SCORE_CREATE,
-    timestamp: timestamp ?? new Date().toISOString(),
+    timestamp:
+      typeof timestamp === "string"
+        ? withUtcOffsetIfMissing(timestamp)
+        : (timestamp ?? new Date().toISOString()),
     body: isRecord ? scoreBody : body,
   };
 }
