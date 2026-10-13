@@ -89,9 +89,9 @@ export function createMediaReferenceRewriter(
     const uploadResults: Array<string | undefined> = [];
     if (resolve) {
       let index = 0;
-      // Re-scan to bound match records to one render batch; uploadResults is
-      // still O(references). Materializing helps mainly at roughly 10k+ refs
-      // but retains one additional record per reference.
+      // Scan references twice: this pass starts uploads, and the other replaces
+      // them in order. Keeping every match saves little time below roughly 10k
+      // references, but holds an extra object for each one.
       await forEachMedia(
         knownMediaReferenceMatches(value, media),
         async ({ entry }) => {
