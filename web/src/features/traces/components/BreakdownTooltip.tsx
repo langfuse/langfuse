@@ -59,7 +59,7 @@ export const BreakdownTooltip = ({
 
   const entries = Object.entries(aggregatedDetails);
   const inputEntries = sortEntriesByValue(
-    entries.filter(([key]) => key.includes("input")),
+    entries.filter(([key]) => isInputUsageKey(key)),
   );
   const outputEntries = sortEntriesByValue(
     entries.filter(([key]) => key.includes("output")),
@@ -67,7 +67,7 @@ export const BreakdownTooltip = ({
   const otherEntries = entries
     .filter(
       ([key]) =>
-        !key.includes("input") && !key.includes("output") && key !== "total",
+        !isInputUsageKey(key) && !key.includes("output") && key !== "total",
     )
     .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
   const otherTotal = otherEntries.reduce((acc, [, value]) => {
@@ -162,7 +162,7 @@ export const BreakdownTooltip = ({
               entries={inputEntries}
               formatValue={formatValue}
               waterfallSegments={waterfallSegments}
-              leading={
+              firstRow={
                 cacheHitRate === null ? null : (
                   <CacheHitRateRow rate={cacheHitRate} />
                 )
@@ -308,8 +308,7 @@ interface SectionProps {
   entries: [string, number | undefined][];
   formatValue: (value: number | Decimal) => string;
   waterfallSegments: Map<string, WaterfallSegment>;
-  /** Sits immediately above the section title, closer to it than to the breakdown header. */
-  leading?: React.ReactNode;
+  firstRow?: React.ReactNode;
 }
 
 const Section = ({
@@ -317,7 +316,7 @@ const Section = ({
   entries,
   formatValue,
   waterfallSegments,
-  leading,
+  firstRow,
 }: SectionProps) => {
   const sectionTotal = sumEntries(entries);
   const titleRow = (
@@ -330,14 +329,8 @@ const Section = ({
 
   return (
     <div className="col-span-3 grid min-w-0 grid-cols-subgrid gap-y-2">
-      {leading ? (
-        <div className="col-span-3 flex flex-col gap-1">
-          {leading}
-          {titleRow}
-        </div>
-      ) : (
-        titleRow
-      )}
+      {titleRow}
+      {firstRow}
       {entries.map(([key, value]) => (
         <BreakdownRow
           key={key}
@@ -353,7 +346,7 @@ const Section = ({
 
 function CacheHitRateRow({ rate }: { rate: number }) {
   return (
-    <div className="text-muted-foreground flex items-center justify-between gap-3 text-xs">
+    <div className="text-muted-foreground col-span-3 flex items-center justify-between gap-3 text-xs">
       <span className="inline-flex items-center gap-1">
         Cache hit rate
         <CacheHitRateInfo />
@@ -392,6 +385,14 @@ function CacheHitRateInfo() {
         />
       )}
     </CustomTooltip>
+  );
+}
+
+function isInputUsageKey(key: string) {
+  return (
+    key.includes("input") ||
+    key === "cached_content_token_count" ||
+    key === "cache_write_tokens"
   );
 }
 
