@@ -153,6 +153,10 @@ checklist is only the spine. Every run ends the same way: exactly one issue.
       day for daily medians) and compare against history; investigate any
       sustained intra-week shift in this same run ("Metric definitions",
       "Judging and acting").
+- [ ] Analyse **every** failed merge-queue run in the window — attribute
+      each to the job that failed and, where that job ran tests, to the test
+      that failed ("Merge-queue failure analysis"). This is the primary flake
+      signal; do not skip it because the timing numbers look quiet.
 - [ ] Parse vitest logs; update week-over-week flaky-test tracking, and
       mine the slowest tests for optimization candidates even when nothing
       regressed ("Vitest output analysis", "Judging and acting").
@@ -250,26 +254,43 @@ Population rules:
 - **Timing statistics** (perceived/wall, execution, runner wait, segment
   medians) come exclusively from successful `merge_group` runs — they carry
   the code changes into main and are directly comparable. Do not mix
-  `pull_request` or `push` timings into these aggregates.
-- **Everything else** (vitest output analysis, slowest tests,
-  retried/flaky tests) draws on all successful runs of the week regardless
-  of event, EXCEPT runs on `main` (`push` events) — i.e. `merge_group` plus
-  `pull_request` runs.
-- Exclude failed and cancelled runs from every analysis; count them
-  separately as context only.
+  `pull_request` or `push` timings into these aggregates, and do not mix in a
+  failed run: it stopped early, so its durations measure nothing.
+- **Slowest tests and files** draw on all successful runs of the week
+  regardless of event, EXCEPT runs on `main` (`push` events) — i.e.
+  `merge_group` plus `pull_request` runs.
+- **Failure and flake tracking takes the opposite population**: the week's
+  **failed `merge_group` runs**, analysed in full rather than counted
+  ("Merge-queue failure analysis"). Each one ejected a PR from the queue and
+  names both the job and the test that did it, which makes it a sharper flake
+  signal than a sample of green runs that happened to survive their retries.
+  Retried-test data from the successful sample is a secondary input, not the
+  source of truth.
+- Cancelled runs are excluded from every analysis — a cancellation carries no
+  verdict about the code. Count them separately as context only.
 
 ## Vitest output analysis
+
+This section describes the reporter output. It is read from two populations:
+the successful sample below (for slow tests), and every failed merge-queue run
+("Merge-queue failure analysis", for failures and flakes).
 
 For a sample of successful runs spread across the week — `merge_group` and
 `pull_request` events, never `push`/main runs (at least 5 runs, or all runs
 if fewer), for each sampled run read the log of the `run tests` step of the
-`tests-web (…)` matrix jobs and of the `tests-worker (…)` matrix jobs
-directly ("Extracting bulk data without bloating your own context"). The
-blocks below sit at the very end of the step, so pass `get_job_logs` a
-`tail_lines` just large enough to cover them (~150; the default is 500) rather
-than pulling the whole log. Our
-CI reporter (`scripts/vitest/ci-reporter.ts`) prints up to three blocks at
-the end of every run:
+`tests-web (…)` matrix jobs, the `tests-worker (…)` matrix jobs and
+`tests-storybook` directly ("Extracting bulk data without bloating your own
+context"). The blocks below sit at the very end of the step, so pass
+`get_job_logs` a `tail_lines` just large enough to cover them (~250; the
+default is 500) rather than pulling the whole log.
+
+Every job that runs the `web` or `worker` vitest config emits these blocks —
+`tests-web (…)`, `tests-web-client`, `tests-worker (…)`, `tests-storybook`,
+`e2e-server-tests`, `tests-fips (…)`, `test-worker-llm-connections`. Jobs with
+their own config do NOT (`tests-shared`, `tests-eslint-plugin`,
+`tests-in-app-agent-sandbox-runtime`), and neither does `e2e-tests`, which is
+Playwright. Our CI reporter (`scripts/vitest/ci-reporter.ts`) prints up to
+four blocks at the end of every run:
 
 - `Slowest tests (top 10):` — ranked list with durations; a test that
   needed vitest retries additionally carries ` [retries=N]` and possibly
@@ -281,22 +302,34 @@ the end of every run:
   `1. retries=2 <file> > <name> [flaky]` — note: no brackets around
   `retries=` here). This block is printed ONLY when at least one test
   retried, so its absence means zero retries in that run. Use this block,
-  not the slowest-tests markers, as the source of truth for flaky
-  tracking — a flaky test that isn't among the 10 slowest appears only
-  here.
+  not the slowest-tests markers, as the source of truth for *retries* — a
+  flaky test that isn't among the 10 slowest appears only here.
+- `Failed tests (N):` — the authoritative, complete list of every test that
+  ended the run in a failed state, same line shape minus the suffixes
+  (`1. retries=0 <file> > <name>`). Printed only when something failed, so
+  it is absent from every green run. ⚠️ **This, not `Retried tests`, is the
+  source of truth for what broke a failed run.** A suite can opt out of
+  retries with `describe(..., { retry: 0 })`, and such a test fails with
+  `retries=0` — so it appears in no retried block at all, and in the
+  slowest-tests block only if it happens to rank in the top ten by duration.
+  Read `retries` to tell the two cases apart: a count equal to the config's
+  CI retry setting (3 for both `web` and `worker`) is a flake that exhausted
+  its retries; `retries=0` is either a deterministic failure or a
+  retry-opted-out suite, so check the file before calling it deterministic.
 
 Extract and keep only the parsed blocks for each run, never the raw log text:
 
 ```json
-{"runId": 123, "event": "merge_group",
+{"runId": 123, "event": "merge_group", "conclusion": "success",
  "slowest": [{"file": "web/src/x.test.ts", "test": "name", "ms": 4210}],
  "slowestFiles": [{"file": "web/src/x.test.ts", "ms": 9100}],
  "retried": [{"file": "web/src/y.test.ts", "test": "name", "retries": 2,
-              "flaky": true}]}
+              "flaky": true}],
+ "failed": [{"file": "web/src/z.test.ts", "test": "name", "retries": 3}]}
 ```
 
-An empty `retried` array means the `Retried tests` block was absent, i.e. zero
-retries — not that you failed to find it.
+An empty `retried` or `failed` array means that block was absent, i.e. zero
+retries / zero failures — not that you failed to find it.
 
 Aggregate across the sampled runs:
 
@@ -305,6 +338,83 @@ Aggregate across the sampled runs:
 - **Retried/flaky tests**: every test that shows `[retries=N]` or `[flaky]`,
   with occurrence counts. Track these week over week in memory — a test that
   is flaky two weeks in a row deserves a callout.
+
+## Merge-queue failure analysis
+
+A failed `merge_group` run is the sharpest CI signal this repository
+produces: it ejected a PR from the merge queue, the jobs API names the job
+that did it, and that job's log names the test. Unlike the timing work, this
+is **not sampled** — analyse every failed merge-queue run in the window.
+
+Steps 1–3 are pure API work and cost almost nothing, so they cover **every**
+failed run in the window. Only step 4 reads logs, and only that step is
+capped.
+
+1. From the same `created=<from>..<to>` run list, take every run with
+   `event == "merge_group"` and a `conclusion` of `failure` or `timed_out`.
+2. For each, `GET /repos/{owner}/{repo}/actions/runs/{id}/jobs?per_page=100`
+   and keep the jobs whose `conclusion` is `failure`.
+   **Discard `all-ci-passed`.** It is the aggregating gate, so it fails
+   whenever anything upstream of it fails and attributes nothing; left in, it
+   would top every table in this section with no information in it.
+3. Classify each remaining job from **the failing step's name**, which is
+   already in the `steps` array of the payload you just fetched — no log read
+   needed:
+   - **test failure** — the failing step is the one that runs tests
+     (`run tests`, `Run e2e tests`, `run Storybook tests`,
+     `Run <suite> tests under forced FIPS`, …). Only these feed flake
+     tracking.
+   - **infrastructure failure** — the job died before reaching a verdict
+     about the code: `install dependencies`, a checkout, a docker login or
+     pull, `Run + migrate`, a compose health check, a playwright or
+     golang-migrate download. Registry and supply-chain errors
+     (`ERR_PNPM_META_FETCH_FAIL`, a failed lockfile policy check) and apt or
+     mirror outages land here, as does a lost runner. Count and report these
+     **separately**: a registry having a bad day is not a flaky week, and
+     folding the two together is how a week gets misdiagnosed.
+   - If the step name is ambiguous, read the tail and look — but note
+     `ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL` classifies nothing by itself, it is
+     pnpm relaying a child's exit code, so read the lines above it.
+4. For test failures, read the tail of the failing step and parse it
+   ("Extracting bulk data without bloating your own context"):
+   - vitest-backed jobs — the blocks in "Vitest output analysis";
+     `Failed tests (N):` is the complete list.
+   - `e2e-tests` — Playwright run with `--reporter=line`, which prints none
+     of those blocks. Its failures are the numbered
+     `N) [project] › <file>:<line> › <test>` entries and the `N failed`
+     summary line near the end of the step.
+   Budget: **one log tail per failed run** (sibling matrix legs almost always
+   carry the same failing test, so take the first failing test job and skip
+   the rest), and **at most 25 log tails for this section**. If the window
+   holds more failed runs than that, spend the budget on the most recent ones
+   and on jobs not already represented, and say in the report how many runs
+   went un-inspected. Those runs still count in the rate and in the
+   by-job table from step 3 — only their test-level detail is missing.
+
+Keep one small record per failed run, never the raw log:
+
+```json
+{"runId": 123, "conclusion": "failure", "createdAt": "2026-10-13T15:57:55Z",
+ "failedJobs": [{"name": "tests-worker (node24, pg15, mode-redis-cluster)",
+                 "kind": "test",
+                 "failed": [{"file": "worker/src/__tests__/x.test.ts",
+                             "test": "name", "retries": 0}]}]}
+```
+
+Aggregate across the week:
+
+- **Merge-queue failure rate** — failed ÷ (failed + successful) merge-group
+  runs, with the infrastructure share broken out so the test-attributable
+  rate is readable on its own. This denominator is the only place a failed
+  run touches a statistic about the pipeline's speed; keep it out of the
+  timing medians.
+- **Failures by job**, most damaging first.
+- **A test-level ledger** — for each test, the number of merge-queue runs it
+  failed. This is the week's flake ranking.
+
+Carry all three into memory and into the report, and track them week over
+week exactly like the flaky list: a test that ejects PRs from the merge queue
+in two consecutive weeks is a callout and a suggested-diff candidate.
 
 ## Memory (repo memory at `/tmp/gh-aw/repo-memory/default/`, branch `memory/ci-runtime-analysis`)
 
@@ -315,7 +425,12 @@ this layout:
   merge-group timing aggregates (run count, p50/p90 perceived, p50/p90
   execution, p50/p90 runner wait, daily and weekly medians for the Build
   step, `run tests` step, and e2e-tests job), plus the week's slowest and
-  flaky tests (from merge-group + pull-request runs).
+  flaky tests (from merge-group + pull-request runs), plus the three
+  merge-queue failure aggregates from "Merge-queue failure analysis"
+  (`failureRate` with its test and infrastructure shares, `failuresByJob`,
+  and the `failuresByTest` ledger). The failure aggregates are what makes
+  "this test broke the queue again this week" answerable next run, so never
+  omit them, even on a week with no failures — record the zeroes.
 - `issues.json` — ledger of every issue this workflow has opened, oldest
   first, entries: `{number, url, openedAt, title, suggestedDiff: bool,
   expectedImpact: {metric, baseline, expected} | null, baselineStats: {..},
@@ -352,7 +467,17 @@ this layout:
    trend, runner-wait share, Build / `run tests` step drift, new or
    persistent flaky tests. Call out regressions larger than ~10% on medians
    with links to the first run(s) exhibiting them.
-2. **Sustained intra-week shifts are actionable on their own** — a step
+2. **A test that ejects PRs from the merge queue outranks a slow one.** Work
+   the `failuresByTest` ledger from "Merge-queue failure analysis" before the
+   slowest-tests list: a test responsible for two or more merge-queue
+   failures in the window, or one that appears in the ledger two weeks
+   running, is this week's first suggested-diff candidate — a flake that
+   survives its retries costs seconds, one that exhausts them costs a PR its
+   place in the queue. Say in the report how many queue failures each
+   candidate caused. If the week's failures are dominated by the
+   infrastructure class instead, say that plainly and do not dress it up as
+   a flaky week.
+3. **Sustained intra-week shifts are actionable on their own** — a step
    median moving ≥50% across three or more consecutive days (e.g.
    `run tests` doubling within the week) must be investigated in the same
    run, not parked as "noisy" or deferred for lack of week-over-week
@@ -361,14 +486,14 @@ this layout:
    slowest-tests output from runs before vs after, and name the suspect
    tests/PRs in the report. If the culprit is an in-surface test or config,
    that is a suggested-diff candidate for this week's issue.
-3. **You are not only a regression watchdog.** Every week, also mine the
+4. **You are not only a regression watchdog.** Every week, also mine the
    vitest slowest-tests/files output for optimization potential: serial
    awaits that could run concurrently, expensive setup repeated per-test
    that could be hoisted, oversized fixtures, unnecessary sleeps/timeouts,
    redundant DB round-trips. A quiet week with no regressions is the best
    time to land one such improvement. Missing baseline history blocks
    regression *claims* — it never blocks optimizing a measurably slow test.
-4. Only when you have a concrete improvement whose expected effect you can
+5. Only when you have a concrete improvement whose expected effect you can
    justify from the measured data — and that passed the verification
    described below — include it in this run's issue as a suggested diff.
    You never edit repository files as part of this workflow's own change
@@ -381,7 +506,7 @@ this layout:
    - `.github/workflows/pipeline.yml` itself — do NOT edit it, but a
      suggested diff against it is fine to include in the issue like any
      other candidate.
-5. Write every suggested diff as a fenced `diff` code block in the issue,
+6. Write every suggested diff as a fenced `diff` code block in the issue,
    with the concrete `expectedImpact` metric and baseline it should be
    judged against (record the same in `issues.json`) and the verification
    you ran ("Verify changes before recommending a fix"). If nothing passed
@@ -506,15 +631,26 @@ the history does not cover are computed fresh from the API in this run.
 The report always contains, in order:
 
 1. The **weekly chart** with its values table (template below).
-2. A markdown table of the top slow tests and the retried/flaky tests.
-3. Any suggested diff(s), each as a fenced `diff` code block with a short
+2. A **merge-queue failures** section from "Merge-queue failure analysis":
+   the failure rate with its test and infrastructure shares, a table of
+   failures by job, and a table of the `failuresByTest` ledger (test, file,
+   runs failed, retry counts seen), most damaging first, each row linking the
+   failed run(s). Say how many failed runs were swept and how many went
+   un-inspected because the log-tail budget bound. A week with no merge-queue
+   failures still gets the section, saying so.
+
+   | Test | File | Queue failures | Retries seen |
+   |---|---|---|---|
+   | … | … | … | … |
+3. A markdown table of the top slow tests and the retried/flaky tests.
+4. Any suggested diff(s), each as a fenced `diff` code block with a short
    "what changed and why" note, the `expectedImpact` metric and baseline,
    and the exact verification you ran (command + quoted summary line),
    separately noting what could not be verified in this sandbox.
-4. An **`## Outcome` section — mandatory, always present**: whether a
+5. An **`## Outcome` section — mandatory, always present**: whether a
    suggested diff was included, and if not, a numbered list of the
    concrete reasons why not.
-5. A "Previously opened issues" section from `issues.json`, oldest first:
+6. A "Previously opened issues" section from `issues.json`, oldest first:
    whether each suggested diff was applied on `main`, and whether the
    change moved the following week's numbers.
 
@@ -582,11 +718,12 @@ three series in one chart, and never move the legend into the chart title
 string you are about to submit and confirm, mechanically, that it contains
 AT LEAST two ` ```mermaid ` fenced code blocks (Chart 1 and Chart 2, filled
 in — not the bare template) — FOUR once `history/*.json` holds 2+ weeks and
-the weekly charts below are also required — plus the values table and an
-`## Outcome` section. A report missing any of these is incomplete and must
-not be submitted as-is — go back and add the missing piece(s) first.
-"Nothing was actionable" changes the Outcome section's content, never
-whether the charts are present or whether the issue gets filed.
+the weekly charts below are also required — plus the values table, a
+merge-queue failures section, and an `## Outcome` section. A report missing
+any of these is incomplete and must not be submitted as-is — go back and add
+the missing piece(s) first. "Nothing was actionable" and "no merge-queue
+failures this week" change those sections' content, never whether they are
+present or whether the issue gets filed.
 
 Additionally, render the same weekly data as a standalone SVG chart
 (hand-write the SVG: time on x, seconds on y, one polyline per series with

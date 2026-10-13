@@ -166,5 +166,31 @@ export class VitestCiReporter {
           );
         });
     }
+
+    // Retries are not a complete record of what broke a run: a suite can opt
+    // out with `describe(..., { retry: 0 })`, so a test can fail with
+    // retryCount 0 and appear in no block above unless it also happens to
+    // rank in the slowest ten. This block is the complete list, and `retries`
+    // separates a flake that exhausted its retries from a deterministic
+    // failure. Printed last so it survives a short `tail` of a failed job's
+    // log, and absent entirely on a green run.
+    const failedTests = completedTests.filter(
+      (test) => test.state !== "passed",
+    );
+
+    if (failedTests.length > 0) {
+      const failedRankWidth = String(failedTests.length).length;
+
+      console.log(`\nFailed tests (${failedTests.length}):`);
+      failedTests
+        .sort((left, right) => right.retryCount - left.retryCount)
+        .forEach((test, index) => {
+          const rank = String(index + 1).padStart(failedRankWidth, " ");
+
+          console.log(
+            `${rank}. retries=${test.retryCount} ${test.file} > ${test.name}`,
+          );
+        });
+    }
   }
 }

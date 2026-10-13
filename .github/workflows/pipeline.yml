@@ -270,6 +270,8 @@ jobs:
         run: node --test scripts/github/label-cursor-prs.test.mjs
       - name: merge-queue retry helper tests
         run: bash scripts/ci/retry-on-merge-queue.test.sh
+      - name: vitest CI reporter tests
+        run: node --test scripts/vitest/ci-reporter.test.mjs
       - name: Load default env
         run: |
           cp .env.dev.example .env
