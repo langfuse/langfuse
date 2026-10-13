@@ -53,6 +53,7 @@ export function EvaluatorGalleryView({
   onLoadMoreProjectTemplates,
   errorMessage,
   onBuildWithAi,
+  aiInputRef,
 }: {
   search: string;
   onSearchChange: (search: string) => void;
@@ -73,6 +74,7 @@ export function EvaluatorGalleryView({
   errorMessage?: string;
   /** Omitted when the in-app assistant is unavailable. */
   onBuildWithAi?: (prompt: string) => void;
+  aiInputRef?: RefObject<HTMLTextAreaElement | null>;
 }) {
   const sidebarItems = gallerySidebarItems(navigationItems, sections);
   const resolvedSection =
@@ -144,7 +146,10 @@ export function EvaluatorGalleryView({
           >
             <div className="flex flex-col gap-10 px-4 py-4">
               {onBuildWithAi ? (
-                <EvaluatorGalleryAiBox onSubmit={onBuildWithAi} />
+                <EvaluatorGalleryAiBox
+                  onSubmit={onBuildWithAi}
+                  textareaRef={aiInputRef}
+                />
               ) : null}
               {!isSingleSection && !search.trim() ? (
                 <EvaluatorGalleryStartRow

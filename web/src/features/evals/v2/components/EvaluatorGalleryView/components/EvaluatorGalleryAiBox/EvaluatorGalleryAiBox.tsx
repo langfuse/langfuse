@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -6,8 +6,10 @@ import { Button } from "@/src/components/design-system/Button/Button";
 /** Free-text starting point that hands the description to the assistant. */
 export function EvaluatorGalleryAiBox({
   onSubmit,
+  textareaRef,
 }: {
   onSubmit: (prompt: string) => void;
+  textareaRef?: RefObject<HTMLTextAreaElement | null>;
 }) {
   const [prompt, setPrompt] = useState("");
   const submit = () => {
@@ -24,6 +26,7 @@ export function EvaluatorGalleryAiBox({
       }}
     >
       <textarea
+        ref={textareaRef}
         value={prompt}
         onChange={(event) => setPrompt(event.target.value)}
         onKeyDown={(event) => {

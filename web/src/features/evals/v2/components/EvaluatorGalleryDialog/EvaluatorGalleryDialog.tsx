@@ -51,6 +51,7 @@ export function EvaluatorGalleryDialog({
     new Set(),
   );
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const aiInputRef = useRef<HTMLTextAreaElement | null>(null);
   const pendingSearchCapture = useRef<{
     timeout: ReturnType<typeof setTimeout>;
     queryLength: number;
@@ -207,7 +208,7 @@ export function EvaluatorGalleryDialog({
         closeOnInteractionOutside
         onOpenAutoFocus={(event) => {
           event.preventDefault();
-          searchInputRef.current?.focus();
+          (aiInputRef.current ?? searchInputRef.current)?.focus();
         }}
       >
         <DialogHeader className="p-3 sm:p-4 [&>div]:items-start [&>div]:text-left [&>div>button]:-mt-1 [&>div>button]:-mr-2 [&>div>button]:flex [&>div>button]:size-8 [&>div>button]:items-center [&>div>button]:justify-center">
@@ -244,6 +245,7 @@ export function EvaluatorGalleryDialog({
               ? projectEvaluators.error.message
               : undefined
           }
+          aiInputRef={aiInputRef}
           onBuildWithAi={
             isAssistantLauncherVisible ? handleBuildWithAi : undefined
           }
