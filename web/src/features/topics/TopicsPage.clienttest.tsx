@@ -21,6 +21,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("use-query-params", () => ({
   StringParam: {},
+  useQueryParam: () => [undefined, vi.fn()],
   useQueryParams: () => [{ dateRange: state.dateRange }, state.setQueryParams],
 }));
 vi.mock("@/src/components/layouts/page-header-controls-slot", () => ({
