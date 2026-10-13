@@ -1,6 +1,6 @@
 export {
-  completeCloudSignupOnboarding,
-  getCloudSignupOnboardingStatus,
+  completeSignupOnboarding,
+  getSignupOnboardingStatus,
   provisionStarterOrganizationForNewUser,
   resolveOnboardingRedirectTarget,
   type RealOrganizationMembership,

@@ -17,8 +17,15 @@ import {
 import { projectRoleAccessRights } from "@langfuse/shared";
 import { createProjectRoute } from "@/src/features/setup";
 import { type BuildIntentId } from "@/src/features/onboarding/lib/buildIntent";
+import { getFallbackRedirectPath } from "@/src/features/onboarding/lib/fallbackRedirect";
+import {
+  type NewsletterList,
+  type NewsletterOutcome,
+} from "@/src/features/onboarding/lib/newsletterSignup";
 
 const DEFAULT_STARTER_PROJECT_NAME = "My Project";
+const INSTALLER_NEWSLETTER_LISTS: NewsletterList[] = ["product", "oss"];
+const INVITED_NEWSLETTER_LISTS: NewsletterList[] = ["product"];
 const STARTER_ORGANIZATION_METADATA = {
   langfuseOnboarding: {
     starterOrganization: true,
@@ -149,12 +156,14 @@ export const resolveOnboardingRedirectTarget = async ({
 }: {
   prisma: Pick<PrismaClient, "organizationMembership">;
   userId: string;
-}): Promise<OnboardingRedirectTarget | null> => {
-  const organizationMemberships = await getRealOrganizationMemberships({
-    prisma,
-    userId,
-  });
+}): Promise<OnboardingRedirectTarget | null> =>
+  getRedirectTargetForMemberships(
+    await getRealOrganizationMemberships({ prisma, userId }),
+  );
 
+const getRedirectTargetForMemberships = (
+  organizationMemberships: RealOrganizationMembership[],
+): OnboardingRedirectTarget | null => {
   const starterOrganizationMembership = organizationMemberships.find(
     (membership) =>
       membership.role === Role.OWNER &&
@@ -223,11 +232,17 @@ const resolveOnboardingRedirectTargetWithFallback = async ({
   userId: string;
   canCreateOrganizations: boolean;
 }): Promise<OnboardingRedirectTarget> =>
-  (await resolveOnboardingRedirectTarget({ prisma, userId })) ?? {
-    redirectTo: canCreateOrganizations ? "/setup" : "/",
-  };
+  (await resolveOnboardingRedirectTarget({ prisma, userId })) ??
+  getFallbackRedirectTarget(canCreateOrganizations);
 
-export const getCloudSignupOnboardingStatus = async ({
+/**
+ * Off when `LANGFUSE_DISABLE_SIGNUP_ONBOARDING=true`: status reports the step as
+ * completed and completion writes nothing.
+ */
+const isSignupOnboardingEnabled = () =>
+  env.LANGFUSE_DISABLE_SIGNUP_ONBOARDING !== "true";
+
+export const getSignupOnboardingStatus = async ({
   prisma,
   userId,
   canCreateOrganizations,
@@ -236,7 +251,46 @@ export const getCloudSignupOnboardingStatus = async ({
   userId: string;
   canCreateOrganizations: boolean;
 }) => {
-  const completedSurvey = await prisma.survey.findFirst({
+  const organizationMemberships = await getRealOrganizationMemberships({
+    prisma,
+    userId,
+  });
+  const redirectTarget =
+    getRedirectTargetForMemberships(organizationMemberships) ??
+    getFallbackRedirectTarget(canCreateOrganizations);
+
+  if (
+    !isSignupOnboardingEnabled() ||
+    (await hasCompletedOnboardingSurvey({ prisma, userId }))
+  ) {
+    return {
+      completed: true as const,
+      redirectTo: redirectTarget.redirectTo,
+    };
+  }
+
+  return {
+    completed: false as const,
+    canConfigureAiFeatures: redirectTarget.canConfigureAiFeatures === true,
+    ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      ? {}
+      : {
+          newsletterLists: getNewsletterLists({
+            organizationMemberships,
+            canCreateOrganizations,
+          }),
+        }),
+  };
+};
+
+const hasCompletedOnboardingSurvey = async ({
+  prisma,
+  userId,
+}: {
+  prisma: Pick<PrismaClient, "survey">;
+  userId: string;
+}) =>
+  (await prisma.survey.findFirst({
     where: {
       userId,
       surveyName: SurveyName.USER_ONBOARDING,
@@ -244,34 +298,29 @@ export const getCloudSignupOnboardingStatus = async ({
     select: {
       id: true,
     },
-  });
+  })) !== null;
 
-  if (!completedSurvey) {
-    const redirectTarget = await resolveOnboardingRedirectTargetWithFallback({
-      prisma,
-      userId,
-      canCreateOrganizations,
-    });
+/** Installers (no membership yet, free to create an org) and org owners/admins also get the self-hosting list. */
+const getNewsletterLists = ({
+  organizationMemberships,
+  canCreateOrganizations,
+}: {
+  organizationMemberships: RealOrganizationMembership[];
+  canCreateOrganizations: boolean;
+}) => {
+  const isInstaller =
+    organizationMemberships.length === 0 && canCreateOrganizations;
+  const isOrganizationAdmin = organizationMemberships.some(
+    (membership) =>
+      membership.role === Role.OWNER || membership.role === Role.ADMIN,
+  );
 
-    return {
-      completed: false as const,
-      canConfigureAiFeatures: redirectTarget.canConfigureAiFeatures === true,
-    };
-  }
-
-  const redirectTarget = await resolveOnboardingRedirectTargetWithFallback({
-    prisma,
-    userId,
-    canCreateOrganizations,
-  });
-
-  return {
-    completed: true as const,
-    redirectTo: redirectTarget.redirectTo,
-  };
+  return isInstaller || isOrganizationAdmin
+    ? INSTALLER_NEWSLETTER_LISTS
+    : INVITED_NEWSLETTER_LISTS;
 };
 
-export const completeCloudSignupOnboarding = async ({
+export const completeSignupOnboarding = async ({
   prisma,
   userId,
   userEmail,
@@ -281,6 +330,7 @@ export const completeCloudSignupOnboarding = async ({
   buildIntents,
   buildIntentPositions,
   buildIntentOther,
+  newsletter,
 }: {
   prisma: PrismaClient;
   userId: string;
@@ -291,8 +341,19 @@ export const completeCloudSignupOnboarding = async ({
   buildIntents?: BuildIntentId[];
   buildIntentPositions?: number[];
   buildIntentOther?: string;
-}) =>
-  prisma.$transaction(async (tx) => {
+  newsletter?: { outcome: NewsletterOutcome };
+}) => {
+  if (!isSignupOnboardingEnabled()) {
+    const redirectTarget = await resolveOnboardingRedirectTargetWithFallback({
+      prisma,
+      userId,
+      canCreateOrganizations,
+    });
+
+    return { redirectTo: redirectTarget.redirectTo, surveyCreated: false };
+  }
+
+  return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`
       SELECT id
       FROM users
@@ -300,23 +361,19 @@ export const completeCloudSignupOnboarding = async ({
       FOR UPDATE
     `;
 
-    const existingSurvey = await tx.survey.findFirst({
-      where: {
-        userId,
-        surveyName: SurveyName.USER_ONBOARDING,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    const redirectTarget = await resolveOnboardingRedirectTargetWithFallback({
+    const hasCompletedSurvey = await hasCompletedOnboardingSurvey({
       prisma: tx,
       userId,
-      canCreateOrganizations,
     });
+    const organizationMemberships = await getRealOrganizationMemberships({
+      prisma: tx,
+      userId,
+    });
+    const redirectTarget =
+      getRedirectTargetForMemberships(organizationMemberships) ??
+      getFallbackRedirectTarget(canCreateOrganizations);
 
-    if (!existingSurvey) {
+    if (!hasCompletedSurvey) {
       const normalizedReferralSource = referralSource?.trim();
 
       if (
@@ -344,6 +401,17 @@ export const completeCloudSignupOnboarding = async ({
                   ...(buildIntentOther ? { buildIntentOther } : {}),
                 }
               : {}),
+            ...(newsletter && !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+              ? {
+                  newsletter: {
+                    lists: getNewsletterLists({
+                      organizationMemberships,
+                      canCreateOrganizations,
+                    }),
+                    outcome: newsletter.outcome,
+                  },
+                }
+              : {}),
           },
           userId,
           userEmail: userEmail ?? undefined,
@@ -354,9 +422,10 @@ export const completeCloudSignupOnboarding = async ({
 
     return {
       redirectTo: redirectTarget.redirectTo,
-      surveyCreated: !existingSurvey,
+      surveyCreated: !hasCompletedSurvey,
     };
   });
+};
 
 export const provisionStarterOrganizationForNewUser = async ({
   prisma,
@@ -456,3 +525,13 @@ export const provisionStarterOrganizationForNewUser = async ({
 
   return createdResources;
 };
+
+/** Only reached without real memberships: any membership has its own target in getRedirectTargetForMemberships. */
+const getFallbackRedirectTarget = (
+  canCreateOrganizations: boolean,
+): OnboardingRedirectTarget => ({
+  redirectTo: getFallbackRedirectPath({
+    hasOrganizations: false,
+    canCreateOrganizations,
+  }),
+});
