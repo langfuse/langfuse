@@ -34,6 +34,7 @@ import {
   getEnabledTopicsModels,
   listTopicFacets,
   listTopicRules,
+  isValidTopicSummary,
   pauseTopicsModels,
   writeTopicSummaries,
   type TopicsModels,
@@ -76,6 +77,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   listTopicRules: vi.fn(async () => []),
   pauseTopicsModels: vi.fn(),
   writeTopicSummaries: vi.fn(),
+  isValidTopicSummary: vi.fn(() => true),
 }));
 
 // Exercise real tokenization without starting the compiled worker-thread pool.
@@ -782,14 +784,14 @@ describe("trace batch queue", () => {
     ).toEqual(traces);
     expect(add).not.toHaveBeenCalled();
 
-    // A transient error retries the batch; c's bad row is then split out and dropped alone.
+    // c's invalid row is dropped before the insert; a transient error retries the rest.
     vi.mocked(recordIncrement).mockClear();
-    vi.mocked(writeTopicSummaries)
-      .mockRejectedValueOnce(new Error("Timeout error."))
-      .mockImplementation(async (rows) => {
-        if (rows.some((row) => row.projectId === "c"))
-          throw new Error("Cannot parse input");
-      });
+    vi.mocked(isValidTopicSummary).mockImplementation(
+      (row) => row.projectId !== "c",
+    );
+    vi.mocked(writeTopicSummaries).mockRejectedValueOnce(
+      new Error("Timeout error."),
+    );
     await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual(
       expect.objectContaining({ traceCount: 3 }),
     );
@@ -812,6 +814,26 @@ describe("trace batch queue", () => {
       ]),
     );
     expect(outcomeCalls).toHaveLength(3);
+    expect(writeTopicSummaries).toHaveBeenCalledTimes(3);
+    expect(
+      vi
+        .mocked(writeTopicSummaries)
+        .mock.lastCall![0].map((row) => row.projectId),
+    ).toEqual(["a", "b"]);
+
+    // Like ClickhouseWriter, an outage drops the insert once instead of splitting it.
+    vi.mocked(recordIncrement).mockClear();
+    vi.mocked(isValidTopicSummary).mockImplementation(() => true);
+    vi.mocked(writeTopicSummaries)
+      .mockReset()
+      .mockRejectedValue(new Error("connect ECONNREFUSED"));
+    await traceBatchQueueProcessor(job, undefined);
+    expect(writeTopicSummaries).toHaveBeenCalledOnce();
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcomes",
+      2,
+      { outcome: "failed", reason: "storage" },
+    );
     vi.mocked(writeTopicSummaries).mockReset();
     vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
       outcome: "unchanged",

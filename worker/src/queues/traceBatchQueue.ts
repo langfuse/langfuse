@@ -19,6 +19,7 @@ import {
 import {
   getEnabledTopicsModels,
   isTopicsProjectEnabled,
+  isValidTopicSummary,
   listTopicFacets,
   listTopicRules,
   writeTopicSummaries,
@@ -172,42 +173,40 @@ async function summarizeTraceBatch(
 }
 
 /**
- * Writes the batch's rows in as few inserts as possible and returns the rows it dropped.
- * Transient errors are retried like ClickhouseWriter does; any other error halves the
- * rows until only the rows that fail on their own are dropped.
+ * Writes the batch's rows in one insert and returns the rows it dropped. Invalid rows are
+ * dropped up front so they cannot fail the others; like ClickhouseWriter, transient errors
+ * are retried and any other error drops the insert once.
  */
 async function writeBatchSummaries(
   rows: TopicSummary[],
 ): Promise<TopicSummary[]> {
-  if (rows.length === 0) return [];
+  const valid = rows.filter(isValidTopicSummary);
+  const invalid = rows.filter((row) => !isValidTopicSummary(row));
+  if (invalid.length > 0)
+    logger.warn("Topics summary rows failed validation", {
+      rowCount: invalid.length,
+    });
+  if (valid.length === 0) return invalid;
   try {
     await new TopicMetrics().measure(
       "storage",
       () =>
-        backOff(() => writeTopicSummaries(rows), {
+        backOff(() => writeTopicSummaries(valid), {
           numOfAttempts: env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS,
           retry: isRetryableClickhouseInsertError,
         }),
       "storage",
     );
   } catch (error) {
-    // Splitting cannot fix an outage or a single bad row.
-    if (rows.length === 1 || isRetryableClickhouseInsertError(error)) {
-      logger.warn("Topics summary write failed for trace batch", {
-        rowCount: rows.length,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return rows;
-    }
-    const half = Math.ceil(rows.length / 2);
-    return [
-      ...(await writeBatchSummaries(rows.slice(0, half))),
-      ...(await writeBatchSummaries(rows.slice(half))),
-    ];
+    logger.warn("Topics summary write failed for trace batch", {
+      rowCount: valid.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return rows;
   }
-  for (const row of rows)
+  for (const row of valid)
     recordIncrement("langfuse.topics.facet_summaries", 1, { state: row.state });
-  return [];
+  return invalid;
 }
 
 /** Failed traces are counted, not retried. */
