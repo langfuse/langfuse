@@ -420,7 +420,6 @@ export class OtelIngestionProcessor {
                 const parentSpanId = span?.parentSpanId
                   ? this.parseId(span.parentSpanId)
                   : null;
-                const name = this.extractName(span.name, spanAttributes);
                 const { startTimeISO, endTimeISO } =
                   OtelIngestionProcessor.resolveSpanTimestamps({
                     startTimeUnixNano: span.startTimeUnixNano,
@@ -579,7 +578,12 @@ export class OtelIngestionProcessor {
                   spanId,
                   parentSpanId,
 
-                  name,
+                  name: this.extractName(
+                    span.name,
+                    spanAttributes,
+                    observationType,
+                    scopeSpan.scope?.name,
+                  ),
                   type: observationType,
                   environment: this.extractEnvironment(
                     spanAttributes,
@@ -1280,7 +1284,12 @@ export class OtelIngestionProcessor {
       id: this.parseId(span.spanId?.data ?? span.spanId),
       traceId,
       parentObservationId,
-      name: this.extractName(span.name, attributes),
+      name: this.extractName(
+        span.name,
+        attributes,
+        mappedObservationType,
+        instrumentationScopeName,
+      ),
       startTime: startTimeISO,
       endTime: endTimeISO,
       environment: this.extractEnvironment(attributes, resourceAttributes),
@@ -2550,6 +2559,8 @@ export class OtelIngestionProcessor {
   private extractName(
     spanName: string,
     attributes: Record<string, unknown>,
+    observationType?: ObservationType,
+    instrumentationScopeName?: string,
   ): string {
     // GenAI tool name (standard OTel GenAI attribute)
     if ("gen_ai.tool.name" in attributes && attributes["gen_ai.tool.name"]) {
@@ -2587,6 +2598,23 @@ export class OtelIngestionProcessor {
         : "";
 
       return prefix + attributes[operationIdAttribute];
+    }
+
+    const sessionId = attributes["anthropic.session.id"];
+    const isClaudeManagedAgent =
+      observationType === ObservationType.AGENT &&
+      instrumentationScopeName === "com.anthropic.claude-platform" &&
+      attributes["gen_ai.operation.name"] === "invoke_agent" &&
+      typeof sessionId === "string" &&
+      sessionId.trim().length > 0;
+
+    const agentName = attributes["gen_ai.agent.name"];
+    if (
+      isClaudeManagedAgent &&
+      typeof agentName === "string" &&
+      agentName.trim().length > 0
+    ) {
+      return agentName;
     }
 
     return spanName;
