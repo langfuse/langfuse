@@ -173,7 +173,7 @@ types:
         docs: The usage details of the observation. Key is the name of the usage metric, value is the number of units consumed. The total key is the sum of all (non-total) usage metrics or the total value ingested.
       costDetails:
         type: map<string, double>
-        docs: The cost details of the observation. Key is the name of the cost metric, value is the cost in USD. The total key is the sum of all (non-total) cost metrics or the total value ingested.
+        docs: The cost details of the observation. Key is the name of the cost metric, value is the cost in USD. The total key holds the total cost, which is the ingested total (`total`, `totalCost` or `total_cost`) if provided, otherwise the sum of all other cost metrics.
       environment:
         type: string
         docs: The environment from which this observation originated. Can be any lowercase alphanumeric string with hyphens and underscores that does not start with 'langfuse'.
@@ -329,7 +329,7 @@ types:
         docs: The usage details of the observation. Key is the usage metric name, value is the number of units consumed.
       costDetails:
         type: optional<map<string, double>>
-        docs: The cost details of the observation. Key is the cost metric name, value is the cost in USD.
+        docs: The cost details of the observation. Key is the cost metric name, value is the cost in USD. The total key holds the total cost, which is also returned as totalCost.
       totalCost:
         type: optional<nullable<double>>
         docs: The total cost of the observation in USD

@@ -216,7 +216,9 @@ types:
       modelParameters: optional<map<string, commons.MapValue>>
       usage: optional<IngestionUsage>
       usageDetails: optional<UsageDetails>
-      costDetails: optional<map<string, double>>
+      costDetails:
+        type: optional<map<string, double>>
+        docs: Cost in USD per cost metric. Provide the total cost under `total`; `totalCost` and `total_cost` are accepted as aliases, in that order of precedence, and are stored as `total`. Without a total, the total is the sum of all other cost metrics, so metrics must not overlap. Non-numeric and negative values are ignored. If any cost is provided, Langfuse does not infer cost from model prices.
       promptName: optional<string>
       promptVersion: optional<integer>
 
@@ -229,7 +231,9 @@ types:
       usage: optional<IngestionUsage>
       promptName: optional<string>
       usageDetails: optional<UsageDetails>
-      costDetails: optional<map<string, double>>
+      costDetails:
+        type: optional<map<string, double>>
+        docs: Cost in USD per cost metric. Provide the total cost under `total`; `totalCost` and `total_cost` are accepted as aliases, in that order of precedence, and are stored as `total`. Without a total, the total is the sum of all other cost metrics, so metrics must not overlap. Non-numeric and negative values are ignored. If any cost is provided, Langfuse does not infer cost from model prices.
       promptVersion: optional<integer>
 
   ObservationBody:

@@ -10102,8 +10102,10 @@ components:
             format: double
           description: >-
             The cost details of the observation. Key is the name of the cost
-            metric, value is the cost in USD. The total key is the sum of all
-            (non-total) cost metrics or the total value ingested.
+            metric, value is the cost in USD. The total key holds the total
+            cost, which is the ingested total (`total`, `totalCost` or
+            `total_cost`) if provided, otherwise the sum of all other cost
+            metrics.
         environment:
           type: string
           description: >-
@@ -10352,7 +10354,8 @@ components:
           nullable: true
           description: >-
             The cost details of the observation. Key is the cost metric name,
-            value is the cost in USD.
+            value is the cost in USD. The total key holds the total cost, which
+            is also returned as totalCost.
         totalCost:
           type: number
           format: double
@@ -14306,6 +14309,13 @@ components:
             type: number
             format: double
           nullable: true
+          description: >-
+            Cost in USD per cost metric. Provide the total cost under `total`;
+            `totalCost` and `total_cost` are accepted as aliases, in that order
+            of precedence, and are stored as `total`. Without a total, the total
+            is the sum of all other cost metrics, so metrics must not overlap.
+            Non-numeric and negative values are ignored. If any cost is
+            provided, Langfuse does not infer cost from model prices.
         promptName:
           type: string
           nullable: true
@@ -14345,6 +14355,13 @@ components:
             type: number
             format: double
           nullable: true
+          description: >-
+            Cost in USD per cost metric. Provide the total cost under `total`;
+            `totalCost` and `total_cost` are accepted as aliases, in that order
+            of precedence, and are stored as `total`. Without a total, the total
+            is the sum of all other cost metrics, so metrics must not overlap.
+            Non-numeric and negative values are ignored. If any cost is
+            provided, Langfuse does not infer cost from model prices.
         promptVersion:
           type: integer
           nullable: true
