@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-exotic-operators */
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Queue, QueueEvents, Worker } from "bullmq";
 import {
   afterAll,
@@ -880,6 +880,63 @@ describe("trace micro-batch scheduling with Redis", () => {
         expect(await client().zcard(due)).toBe(0);
         expect(await client().hlen(state)).toBe(0);
       }
+    },
+  );
+
+  it.each(["project", "locality"] as const)(
+    "expands a backfill job into the batches the dispatcher sends with %s",
+    async (strategy) => {
+      env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
+      env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 4;
+      const traces = Array.from({ length: 11 }, (_, index) => ({
+        projectId: index % 3 === 0 ? "project-b" : "project-a",
+        traceId: `backfill-${index}`,
+        start: 1_000_000 + (index % 4) * 3_600_000,
+      }));
+      for (const projectId of ["project-a", "project-b"])
+        await trackTraceBatchActivity(
+          projectId,
+          traces
+            .filter((trace) => trace.projectId === projectId)
+            .map((trace) => event(trace.traceId, trace.start)),
+        );
+      const due = Date.now() - 1_000;
+      await client().zadd(
+        dueKey,
+        ...traces.flatMap((trace) => [
+          due,
+          member(trace.projectId, trace.traceId),
+        ]),
+      );
+      const add = vi.spyOn(queue, "add");
+      await runner().processBatch();
+      const dispatched = add.mock.calls.map(([, job]) => job.payload.traces);
+      expect(dispatched.length).toBeGreaterThan(2);
+      add.mockClear();
+
+      const result = await traceBatchQueueProcessor({
+        name: QueueJobs.TraceBatchBackfill,
+        data: {
+          id: randomUUID(),
+          timestamp: new Date(),
+          name: QueueJobs.TraceBatchBackfill,
+          payload: { traces: dispatched.flat().toReversed() },
+        },
+      } as never);
+
+      expect(result).toEqual({ jobCount: dispatched.length });
+      expect(add.mock.calls.map(([name]) => name)).toEqual(
+        dispatched.map(() => QueueJobs.TraceBatch),
+      );
+      expect(add.mock.calls.map(([, job]) => job.payload.traces)).toEqual(
+        dispatched,
+      );
+      for (const [, job, options] of add.mock.calls)
+        expect(options?.jobId).toBe(
+          createHash("sha256")
+            .update(JSON.stringify(job.payload.traces))
+            .digest("hex"),
+        );
     },
   );
 

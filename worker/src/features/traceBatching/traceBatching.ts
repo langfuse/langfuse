@@ -569,6 +569,49 @@ export function prepareLocalityPartials(
   return { dispatch, carry };
 }
 
+const getBatchWeightLimits = (): TraceBatchWeightLimits => ({
+  maxEventUpdates: toLimit(env.LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES),
+  maxSerializedEventBytes: toLimit(
+    env.LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES,
+  ),
+});
+
+/**
+ * Packs one cohort that bypasses the readiness map, such as a backfill, the
+ * way the dispatcher packs a single hydrated window: project-then-due order,
+ * the configured strategy, size and batch budgets, and locality coalescing.
+ */
+export function selectCohortTraceBatches(
+  cohort: readonly PendingTrace[],
+): PendingTrace[][] {
+  const strategy = env.LANGFUSE_TRACE_BATCH_STRATEGY;
+  const maxBatchSize = env.LANGFUSE_TRACE_BATCH_MAX_SIZE;
+  const weightLimits = getBatchWeightLimits();
+  const ordered = cohort.toSorted(
+    (a, b) =>
+      compareStrings(a.trace.projectId, b.trace.projectId) ||
+      compareNumbers(a.due, b.due) ||
+      compareStrings(a.member, b.member),
+  );
+  const selected = selectTraceBatches(
+    ordered,
+    maxBatchSize,
+    strategy,
+    weightLimits,
+  );
+  if (strategy === "project") return selected;
+  const prepared = prepareLocalityPartials(
+    selected.filter((batch) => batch.length < maxBatchSize),
+    maxBatchSize,
+    weightLimits,
+  );
+  return [
+    ...selected.filter((batch) => batch.length === maxBatchSize),
+    ...prepared.dispatch,
+    ...prepared.carry.toSorted(compareBatchesByOldestDue),
+  ];
+}
+
 // Retain traces for a bounded time after readiness. Reuse the due index so
 // cleanup needs no full hash scan. Whole-key expiry is an inactivity backstop.
 const EXPIRE_PENDING_SCRIPT = `
@@ -1160,14 +1203,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         compareNumbers(a.due, b.due) ||
         compareStrings(a.member, b.member),
     );
-    const batchWeightLimits: TraceBatchWeightLimits = {
-      maxEventUpdates: toLimit(
-        env.LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES,
-      ),
-      maxSerializedEventBytes: toLimit(
-        env.LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES,
-      ),
-    };
+    const batchWeightLimits = getBatchWeightLimits();
     const traceWeightLimits: TraceBatchWeightLimits = {
       maxEventUpdates: toLimit(
         env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES,
