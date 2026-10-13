@@ -123,6 +123,89 @@ SELECT
     byteSize(*) AS total_size
 FROM traces;
 
+-- Billing ledger: one row per billable unit (observation, trace, score) each
+-- time it is ingested. A unit is billed in a 15-minute window of ingested_at
+-- when its id appears there and not in the 24 hours before the window starts
+-- (getBillableUnitCountsByProjectInWindow).
+--
+-- The table is append-only: no TTL, and no delete path (trace or project
+-- deletion, retention, batch cleaners) touches it, so deleting data never
+-- reduces billed usage.
+--
+-- PROD ROLLOUT: Cloud-only and not migration-managed. Apply the table and its
+-- three MVs manually in every cloud region (eu, us, hipaa, jp) and record them
+-- in the migrations doc
+-- (https://docs.google.com/document/d/1bvz3FUFn3T4rfJ_U1qIh36FcJGfUVQwdAIOAHa3wPnA).
+-- Never run this script against Cloud: the seed block below truncates
+-- events_full and events_core. The sort key cannot change once rolled out.
+-- Add columns with ALTER TABLE ... ADD COLUMN and change an MV with
+-- ALTER TABLE ... MODIFY QUERY; dropping and recreating an MV loses the rows
+-- inserted in between.
+CREATE TABLE IF NOT EXISTS billable_events (
+    ingested_at DateTime('UTC') DEFAULT now(),
+    project_id String,
+    event_type LowCardinality(String),
+    event_id String,
+    event_time DateTime64(3),
+    event_bytes UInt64
+) ENGINE = MergeTree
+PARTITION BY toYYYYMM(ingested_at)
+ORDER BY (toStartOfFifteenMinutes(ingested_at), project_id, event_type, event_id);
+
+-- The billing MVs only take rows created in the last 48 hours, so re-inserts
+-- of historic rows that keep their created_at (v4 backfills, updates) are not
+-- new usage. Rows with is_deleted = 1 are tombstones, not usage.
+
+-- MV: events_full -> billable_events (observations). Dual-write trace spans
+-- (span_id 't-<trace_id>') only count as a trace.
+CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_observations_mv
+TO billable_events AS
+SELECT
+    now() AS ingested_at,
+    project_id,
+    'observation' AS event_type,
+    span_id AS event_id,
+    start_time AS event_time,
+    event_bytes
+FROM events_full
+WHERE is_deleted = 0
+  AND span_id != concat('t-', trace_id)
+  AND created_at >= now() - INTERVAL 48 HOUR;
+
+-- MV: events_full -> billable_events (traces), one row per trace per insert
+-- block. event_bytes carries the dual-write trace span, which has no
+-- observation row, so event_bytes over all rows adds up to events_full.
+CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_traces_mv
+TO billable_events AS
+SELECT
+    now() AS ingested_at,
+    project_id,
+    'trace' AS event_type,
+    trace_id AS event_id,
+    min(start_time) AS event_time,
+    sumIf(event_bytes, span_id = concat('t-', trace_id)) AS event_bytes
+FROM events_full
+WHERE is_deleted = 0
+  AND trace_id != ''
+  AND created_at >= now() - INTERVAL 48 HOUR
+GROUP BY project_id, trace_id;
+
+-- MV: scores -> billable_events. Only the billed score data types
+-- (LISTABLE_SCORE_TYPES).
+CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_scores_mv
+TO billable_events AS
+SELECT
+    now() AS ingested_at,
+    project_id,
+    'score' AS event_type,
+    id AS event_id,
+    timestamp AS event_time,
+    byteSize(*) AS event_bytes
+FROM scores
+WHERE is_deleted = 0
+  AND data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT')
+  AND created_at >= now() - INTERVAL 48 HOUR;
+
 -- PROD ROLLOUT: unlike analytics_scores (managed via numbered migrations),
 -- this view is NOT migration-managed because it is a Cloud-only diagnostic
 -- over events_core. Any change here must be applied manually as DROP VIEW IF
@@ -183,6 +266,8 @@ clickhouse client \
   SET type_json_skip_duplicated_paths = 1;
   TRUNCATE events_core;
   TRUNCATE events_full;
+  -- The inserts below fire the billing MVs, so reset their target as well.
+  TRUNCATE billable_events;
 
   -- Insert observations into events_full (experiment metadata included when dataset_run_items match)
   INSERT INTO events_full (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
