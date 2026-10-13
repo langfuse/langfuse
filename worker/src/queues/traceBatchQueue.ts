@@ -179,7 +179,7 @@ async function summarizeTraceBatch(
 async function writeBatchSummaries(
   rows: TopicSummary[],
 ): Promise<TopicSummary[]> {
-  if (!rows.length) return [];
+  if (rows.length === 0) return [];
   try {
     await new TopicMetrics().measure(
       "storage",

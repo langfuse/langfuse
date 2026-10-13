@@ -135,7 +135,7 @@ async function summarizeEnabledTrace(
       continue;
     pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
   }
-  if (!pending.length) return { outcome: "unchanged", rows: [] };
+  if (pending.length === 0) return { outcome: "unchanged", rows: [] };
 
   const prepared = prepareAssembledTopicTranscript(input.transcript);
   const bases = pending.map(({ version }) =>
