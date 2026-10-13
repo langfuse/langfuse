@@ -63,7 +63,7 @@ impl Route {
         }
     }
 
-    fn rewrites_model(self) -> bool {
+    pub(crate) fn has_model_body(self) -> bool {
         matches!(
             self,
             Self::OpenAiResponses
@@ -238,7 +238,7 @@ impl ProviderTransport {
             ExecutionCapture::unobserved()
         };
         let provider_model = context.connection().provider_model();
-        let body = if route.rewrites_model() {
+        let body = if route.has_model_body() {
             rewrite_model(body, provider_model.ok_or(ProviderError::Configuration)?)
         } else {
             body
@@ -261,7 +261,7 @@ impl ProviderTransport {
             .headers(transport::request_headers(headers, api_format))
             .header(header::ACCEPT_ENCODING, "identity")
             .header(credential_name, credential);
-        if route.method() != Method::GET {
+        if route.has_model_body() {
             upstream = upstream.body(body);
         }
         let response = tokio::time::timeout_at(
