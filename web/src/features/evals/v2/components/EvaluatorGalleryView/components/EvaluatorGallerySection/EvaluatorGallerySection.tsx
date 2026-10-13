@@ -69,7 +69,6 @@ export function EvaluatorGallerySection({
                 </InfoTooltip>
               ) : null}
             </div>
-            <div className="border-t" />
           </div>
           {isProject ? (
             <div className="bg-background flex flex-col overflow-hidden rounded-md border">

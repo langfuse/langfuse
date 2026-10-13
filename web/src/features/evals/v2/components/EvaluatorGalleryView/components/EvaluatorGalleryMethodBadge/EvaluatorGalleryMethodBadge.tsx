@@ -41,7 +41,7 @@ export function EvaluatorGalleryMethodBadge({
   const { Icon, label, tileClassName } = METHOD_BADGES[type];
 
   return (
-    <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1.5 text-sm whitespace-nowrap">
+    <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap">
       <span
         className={cn(
           "inline-flex size-5 shrink-0 items-center justify-center rounded-sm",

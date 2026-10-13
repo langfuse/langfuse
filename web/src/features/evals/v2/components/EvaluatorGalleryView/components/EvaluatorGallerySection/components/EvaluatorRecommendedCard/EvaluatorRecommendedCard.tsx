@@ -35,18 +35,18 @@ export function EvaluatorRecommendedCardContent({
   return (
     <>
       <div className="px-3 pt-3">{preview}</div>
-      <div className="flex flex-1 flex-col px-3 pt-3 pb-4">
-        <span className="line-clamp-2 text-base font-bold" title={title}>
+      <div className="flex flex-1 flex-col px-3 pt-3 pb-3">
+        <span className="line-clamp-2 text-sm font-bold" title={title}>
           {title}
         </span>
         <p
-          className="text-muted-foreground mt-1 line-clamp-2 text-sm leading-relaxed"
+          className="text-muted-foreground mt-1 line-clamp-2 text-xs"
           title={description}
         >
           {description}
         </p>
       </div>
-      <div className="flex items-center border-t px-3 py-2">{footer}</div>
+      <div className="flex items-center px-3 pb-3">{footer}</div>
     </>
   );
 }

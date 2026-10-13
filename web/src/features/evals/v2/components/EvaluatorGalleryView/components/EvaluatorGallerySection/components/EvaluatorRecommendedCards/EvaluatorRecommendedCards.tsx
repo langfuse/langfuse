@@ -22,7 +22,6 @@ export function EvaluatorRecommendedCards({
             </span>
           ) : null}
         </div>
-        <div className="border-t" />
       </div>
       <div className="grid grid-cols-1 gap-3 @2xl:grid-cols-3">{children}</div>
     </div>
