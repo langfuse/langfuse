@@ -1,4 +1,6 @@
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
+import type { ReactNode } from "react";
+import type { ChatMlMessage } from "../hooks/useChatMLParser";
 import { Wrench } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
@@ -9,6 +11,7 @@ interface ToolCallInvocationsViewProps {
   message: z.infer<typeof ChatMlMessageSchema>;
   toolCallNumbers?: number[];
   className?: string;
+  renderResponse: (message: ChatMlMessage) => ReactNode;
 }
 
 /**
@@ -22,7 +25,11 @@ type ToolCallEntry = NonNullable<
   z.infer<typeof ChatMlMessageSchema>["tool_calls"]
 >[number] & {
   arguments: unknown;
-  response?: { output: unknown; isError?: boolean } | null;
+  response?: {
+    output: unknown;
+    isError?: boolean;
+    message?: ChatMlMessage;
+  } | null;
 };
 
 /** Tool outputs are frequently JSON serialized as a string; show the
@@ -40,6 +47,7 @@ export function ToolCallInvocationsView({
   message,
   toolCallNumbers,
   className,
+  renderResponse,
 }: ToolCallInvocationsViewProps) {
   const toolCalls = message.tool_calls as ToolCallEntry[] | undefined;
 
@@ -123,11 +131,14 @@ export function ToolCallInvocationsView({
                     <span className="text-dark-red ml-1">(error)</span>
                   )}
                 </div>
-                <PrettyJsonView
-                  json={parseIfJsonString(response.output)}
-                  currentView="pretty"
-                  codeClassName="text-xs"
-                />
+                {response.message && renderResponse(response.message)}
+                {!response.message && (
+                  <PrettyJsonView
+                    json={parseIfJsonString(response.output)}
+                    currentView="pretty"
+                    codeClassName="text-xs"
+                  />
+                )}
               </div>
             )}
           </div>

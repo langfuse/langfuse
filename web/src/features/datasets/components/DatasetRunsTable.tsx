@@ -22,7 +22,11 @@ import {
 } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { Columns3, Trash } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -182,9 +186,14 @@ function DatasetRunsTableInternal(
     props.projectId,
   );
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "datasetRuns",
     "s",
+  );
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
   );
 
   // Add panel size state with default size of 30%
@@ -487,7 +496,7 @@ function DatasetRunsTableInternal(
       size: 200,
       enableHiding: true,
       getCell: (value) => value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     createDropdownTableColumn<DatasetRunRowData, DatasetRunRowData["id"]>({
       id: "actions",
@@ -662,6 +671,7 @@ function DatasetRunsTableInternal(
               setColumnOrder={setColumnOrder}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              customRowHeight={customRowHeightMenu(rowHeights)}
               actionButtons={[
                 Object.keys(selectedRows).filter((runId) =>
                   runs.data?.runs.map((run) => run.id).includes(runId),
@@ -709,6 +719,9 @@ function DatasetRunsTableInternal(
               columnOrder={columnOrder}
               onColumnOrderChange={setColumnOrder}
               rowHeight={rowHeight}
+              customRowHeightPx={rowHeights.activeHeightPx}
+              onCustomRowHeightChange={rowHeights.setCustomPx}
+              onSelectRowHeight={setRowHeight}
               rowSelection={selectedRows}
               setRowSelection={setSelectedRows}
             />
@@ -728,6 +741,7 @@ function DatasetRunsTableInternal(
             setColumnOrder={setColumnOrder}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
+            customRowHeight={customRowHeightMenu(rowHeights)}
             actionButtons={[
               Object.keys(selectedRows).filter((runId) =>
                 runs.data?.runs.map((run) => run.id).includes(runId),
@@ -774,6 +788,9 @@ function DatasetRunsTableInternal(
             columnOrder={columnOrder}
             onColumnOrderChange={setColumnOrder}
             rowHeight={rowHeight}
+            customRowHeightPx={rowHeights.activeHeightPx}
+            onCustomRowHeightChange={rowHeights.setCustomPx}
+            onSelectRowHeight={setRowHeight}
             rowSelection={selectedRows}
             setRowSelection={setSelectedRows}
           />

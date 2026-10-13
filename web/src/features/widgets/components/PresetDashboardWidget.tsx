@@ -213,7 +213,11 @@ export function PresetDashboardWidget({
         description: "Paste it on any dashboard with Cmd/Ctrl+V.",
       });
     } catch {
-      showErrorToast("Copy failed", "Could not write to the clipboard.");
+      showErrorToast("Copy failed", "Could not write to the clipboard.", {
+        operation: "dashboard_card.copy",
+        errorOrigin: "frontend",
+        errorCategory: "permission",
+      });
     }
   };
 

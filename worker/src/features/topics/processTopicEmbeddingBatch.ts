@@ -1,16 +1,19 @@
 import { UnrecoverableError } from "bullmq";
 import type { TopicSummary } from "@langfuse/shared/topics";
 import {
+  getTopicsModels,
   readStagedTopicSummary,
   TOPIC_EMBEDDING_EXPIRED_ERROR,
   updateStagedTopicSummary,
   writeTopicSummaries,
   type TopicEmbeddingBatch,
 } from "@langfuse/shared/topics/server";
-import { embedTopicSummary, requireTopicsModelConfig } from "./models";
+import { embedTopicSummary } from "./models";
 import { TopicMetrics } from "./metrics";
 import { mergeTopicModelUsage } from "./summaryResult";
 import {
+  isRejectedConnection,
+  pauseForRejectedConnection,
   topicProviderError,
   TopicsProviderUnavailable,
 } from "./provider-error";
@@ -22,28 +25,33 @@ export async function processTopicEmbeddingBatch(
   const metrics = new TopicMetrics();
   const pending: TopicSummary[] = [];
   try {
-    const models = requireTopicsModelConfig();
+    const models = await getTopicsModels(batch.projectId);
+    if (!models)
+      throw new TopicsProviderUnavailable(
+        "Choose Topics models for this project, then start a new Topics execution.",
+        "configuration",
+      );
     for (const ref of batch.summaries) {
       const staged = await readStagedTopicSummary(batch, ref);
       if (!staged) throw new UnrecoverableError(TOPIC_EMBEDDING_EXPIRED_ERROR);
-      if (staged.embeddingConfig.embeddingModel !== models.embeddingModel)
+      if (staged.embeddingConfig.embeddingModel !== models.embedding.model)
         throw new TopicsProviderUnavailable(
-          "LANGFUSE_TOPICS_EMBEDDING_MODEL changed after this batch was created. Start a new Topics execution.",
-          "authentication",
+          "The project's embedding model changed after this batch was created. Start a new Topics execution.",
+          "configuration",
         );
       let { summary } = staged;
       if (summary.state === "summarized") {
         const result = await metrics.measure("embedding", async () => {
           try {
             return await embedTopicSummary(
+              models.embedding,
               summary.summary,
               staged.embeddingConfig.embeddingDimensions,
-              staged.embeddingConfig.embeddingModel!,
             );
           } catch (error) {
             throw error instanceof TopicsProviderUnavailable
               ? error
-              : topicProviderError(error);
+              : topicProviderError(error, models.embedding);
           }
         });
         summary = {
@@ -65,11 +73,16 @@ export async function processTopicEmbeddingBatch(
       }
     }
   } catch (error) {
+    if (isRejectedConnection(error))
+      await pauseForRejectedConnection(batch.projectId, error);
     if (
       error instanceof TopicsProviderUnavailable &&
-      ["authentication", "invalid_input", "invalid_output"].includes(
-        error.reason,
-      )
+      [
+        "authentication",
+        "configuration",
+        "invalid_input",
+        "invalid_output",
+      ].includes(error.reason)
     )
       throw new UnrecoverableError(error.message);
     throw error;

@@ -11,6 +11,58 @@ const meta = preview.meta({
 
 export default meta;
 
+export const ReasoningActions = meta.story({
+  name: "(Test) Reasoning Actions At Every Position",
+  args: {
+    role: "assistant",
+    onOpenObservation: fn(),
+    parts: [
+      { type: "reasoning", content: { kind: "text", text: "Before content" } },
+      {
+        type: "reasoning",
+        content: { kind: "encrypted", data: "encrypted-before" },
+      },
+      { type: "text", text: "The answer" },
+      { type: "reasoning", content: { kind: "text", text: "After content" } },
+      {
+        type: "reasoning",
+        content: { kind: "encrypted", data: "encrypted-after" },
+      },
+    ],
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const rows = canvasElement.querySelectorAll("section");
+    await expect(rows).toHaveLength(4);
+    for (const row of rows) {
+      const header = row.firstElementChild!;
+      const action = within(row).getByText("Open generation", {
+        selector: "button",
+      });
+      const divider = header.querySelector(
+        '[aria-hidden="true"].border-dashed',
+      )!;
+      await expect(divider).toBeInTheDocument();
+      await expect(action).toHaveClass("group-hover/collapsible-row:visible");
+      const trigger = within(row).queryByRole("button", { name: "Reasoning" });
+      if (trigger) {
+        await userEvent.click(trigger);
+        await expect(trigger).toHaveFocus();
+        await expect(trigger).toHaveAttribute("aria-expanded", "true");
+        await expect(action).toBeVisible();
+        await expect(divider).toBeVisible();
+      }
+      await userEvent.click(action);
+    }
+    await expect(args.onOpenObservation).toHaveBeenCalledTimes(4);
+    await expect(
+      canvas.queryByRole("button", { name: "Expand Encrypted reasoning" }),
+    ).not.toBeInTheDocument();
+    await expect(canvas.getByText("Before content")).toBeVisible();
+    await expect(canvas.getByText("After content")).toBeVisible();
+  },
+});
+
 export const AccessibleCollapsedPreview = meta.story({
   name: "(Test) Accessible Collapsed Preview",
   args: {
@@ -374,4 +426,45 @@ export const RejectUnsafeFileUrl = meta.story({
     await expect(canvas.queryByRole("link")).not.toBeInTheDocument();
     await expect(canvasElement).toHaveTextContent("javascript:alert(1)");
   },
+});
+
+const s3ImageUri = "s3://customer-bucket/media/photo.jpeg";
+
+export const S3ImageFile = meta.story({
+  name: "S3 image file",
+  parameters: { a11y: { test: "off" } },
+  args: {
+    role: "user",
+    parts: [
+      { type: "text", text: "Show this S3 image." },
+      {
+        type: "file",
+        mediaType: "image/jpeg",
+        content: { kind: "url", url: s3ImageUri },
+      },
+    ],
+  },
+});
+
+export const NarrowUnresolvedImageLayout = meta.story({
+  name: "Narrow unresolved image layout",
+  parameters: { a11y: { test: "off" } },
+  args: {
+    role: "user",
+    parts: [
+      { type: "text", text: "Show this unresolved image." },
+      {
+        type: "file",
+        mediaType: "image/*",
+        content: { kind: "base64", data: "A".repeat(800) },
+      },
+    ],
+    timestamp: new Date("2026-10-09T11:45:47.000Z"),
+    onOpenObservation: fn(),
+  },
+  render: (args) => (
+    <div className="w-[241px]">
+      <SessionTimelineContentMessage {...args} />
+    </div>
+  ),
 });

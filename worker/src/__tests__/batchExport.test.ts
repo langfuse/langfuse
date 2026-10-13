@@ -1026,7 +1026,7 @@ describe("batch export test suite", () => {
 
     await createObservationsCh(observations);
 
-    // Create scores with different names and values
+    // Distinct timestamps keep the expected order independent of random score IDs.
     const scores = [
       createTraceScore({
         project_id: projectId,
@@ -1042,7 +1042,7 @@ describe("batch export test suite", () => {
         observation_id: observations[0].id,
         name: "relevance",
         value: 0.75,
-        timestamp: new Date("2024-01-01").getTime(),
+        timestamp: new Date("2024-01-01T01:00:00Z").getTime(),
       }),
       createTraceScore({
         project_id: projectId,

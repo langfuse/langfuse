@@ -11,4 +11,25 @@ describe("costFormatter", () => {
     expect(costFormatter(0.015427)).toBe("$0.02");
     expect(costFormatter(0)).toBe("$0.00");
   });
+
+  it("keeps sub-cent costs visible instead of rounding them to $0.00", () => {
+    expect(costFormatter(0.000601)).toBe("$0.000601");
+  });
+
+  it("uses cent precision from one cent up", () => {
+    expect(costFormatter(0.01)).toBe("$0.01");
+    // Three significant digits can still round up to a full cent.
+    expect(costFormatter(0.009999)).toBe("$0.01");
+  });
+
+  it("stops widening at ten fraction digits", () => {
+    expect(costFormatter(0.0000000001)).toBe("$0.0000000001");
+    expect(costFormatter(0.00000000001)).toBe("$0.00");
+  });
+
+  it("formats missing and negative costs", () => {
+    expect(costFormatter(undefined)).toBe("$0.00");
+    expect(costFormatter(-0.000601)).toBe("-$0.000601");
+    expect(costFormatter(-4.402973)).toBe("-$4.40");
+  });
 });

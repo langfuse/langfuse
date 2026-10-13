@@ -1,6 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { formatDistanceToNow } from "date-fns";
 import {
   type EvalTemplate,
@@ -65,7 +66,11 @@ export function EvaluatorPausedCallout({
       });
     },
     onError: (error) => {
-      showErrorToast("Reactivation failed", error.message);
+      showErrorToast(
+        "Reactivation failed",
+        error.message,
+        classifyTrpcToastError(error, "evaluator.reactivate"),
+      );
     },
   });
 

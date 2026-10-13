@@ -1,6 +1,7 @@
 import { type ComponentProps } from "react";
 import { SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type SessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
+import styles from "./SessionConversationTimeline.module.css";
 
 export function SessionConversationTimeline({
   traces,
@@ -15,7 +16,7 @@ export function SessionConversationTimeline({
     <div
       ref={feedRef}
       aria-label="Session conversation timeline"
-      className="h-full min-h-0 overflow-y-auto [overflow-anchor:none]"
+      className={`${styles.timeline} h-full min-h-0 overflow-y-auto [overflow-anchor:none]`}
     >
       <div
         style={{

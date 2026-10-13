@@ -2,6 +2,7 @@ import { type ZodType } from "zod";
 
 import {
   Output,
+  embed,
   generateText,
   jsonSchema,
   streamText,
@@ -10,6 +11,7 @@ import {
   type GenerateTextOnAbortCallback,
   type GenerateTextOnEndCallback,
   type GenerateTextResult,
+  type EmbedResult,
   type Experimental_DownloadFunction,
   type JSONValue,
   type LanguageModelCallOptions,
@@ -26,7 +28,7 @@ import type { LLMConnectionConfig } from "../../interfaces/customLLMProviderConf
 import { LLMValidationError } from "./errors";
 import { resolveEvaluatorMediaTransport } from "./mediaMessages";
 import { mapChatMessagesToModelMessages } from "./ai-sdk/messages";
-import { buildAiSdkModel } from "./ai-sdk/providers";
+import { buildAiSdkEmbeddingModel, buildAiSdkModel } from "./ai-sdk/providers";
 import { translateAnthropicProviderOptions } from "./ai-sdk/providers/anthropic";
 import { translateBedrockProviderOptions } from "./ai-sdk/providers/bedrock";
 import { translateGoogleProviderOptions } from "./ai-sdk/providers/google";
@@ -77,6 +79,8 @@ export type LLMModelRef = {
 };
 
 export type LLMConnection = {
+  /** Project from the stored credential's DB row, never from a raw credential request. */
+  projectId?: string;
   /** Encrypted credential. It is decrypted only inside the execution boundary. */
   secretKey: string;
   /** Encrypted JSON object of additional headers. */
@@ -305,24 +309,9 @@ async function prepareLLMTextCall<
     trace: options.trace,
   });
 
-  const apiKey = decrypt(options.connection.secretKey);
-  const extraHeaders = decryptAndParseExtraHeaders(
-    options.connection.extraHeaders,
+  const { apiKey, extraHeaders, createFetch } = openLLMConnection(
+    options.connection,
   );
-
-  const createFetch = (
-    logContext: string,
-    additionalSensitiveHeaders?: string[],
-  ) =>
-    createSecureLlmFetch({
-      logContext,
-      // Connection-specific headers are encrypted at rest and can contain
-      // gateway credentials. Keep them on same-origin redirects, but strip
-      // them alongside provider auth headers when the origin changes.
-      additionalSensitiveHeaders: (additionalSensitiveHeaders ?? []).concat(
-        Object.keys(extraHeaders ?? {}),
-      ),
-    });
 
   const languageModel = await buildAiSdkModel({
     model: options.model,
@@ -331,6 +320,7 @@ async function prepareLLMTextCall<
     baseURL: options.connection.baseURL,
     extraHeaders,
     config: options.connection.config,
+    projectId: options.connection.projectId,
     credentialSource,
     createFetch,
   });
@@ -366,6 +356,62 @@ async function prepareLLMTextCall<
       ...(capture ? { telemetry: capture.telemetry } : {}),
     },
   };
+}
+
+function openLLMConnection(connection: LLMConnection) {
+  const apiKey = decrypt(connection.secretKey);
+  const extraHeaders = decryptAndParseExtraHeaders(connection.extraHeaders);
+  const createFetch = (
+    logContext: string,
+    additionalSensitiveHeaders?: string[],
+  ) =>
+    createSecureLlmFetch({
+      logContext,
+      // Connection-specific headers are encrypted at rest and can contain
+      // gateway credentials. Keep them on same-origin redirects, but strip
+      // them alongside provider auth headers when the origin changes.
+      additionalSensitiveHeaders: (additionalSensitiveHeaders ?? []).concat(
+        Object.keys(extraHeaders ?? {}),
+      ),
+    });
+  return { apiKey, extraHeaders, createFetch };
+}
+
+/** Embeds one value with a persisted connection; calls are not traced. */
+export async function embedLLMText(options: {
+  model: LLMModelRef;
+  connection: LLMConnection;
+  value: string;
+  providerOptions?: ProviderOptions;
+  maxRetries?: number;
+  abortSignal?: AbortSignal;
+}): Promise<EmbedResult> {
+  resolveAiSdkModelConfig({
+    model: options.model,
+    connectionConfig: options.connection.config,
+    baseURL: options.connection.baseURL,
+    credentialSource: "user",
+  });
+  const { apiKey, extraHeaders, createFetch } = openLLMConnection(
+    options.connection,
+  );
+  const embeddingModel = await buildAiSdkEmbeddingModel({
+    model: options.model,
+    projectId: options.connection.projectId,
+    apiKey,
+    baseURL: options.connection.baseURL,
+    extraHeaders,
+    config: options.connection.config,
+    credentialSource: "user",
+    createFetch,
+  });
+  return embed({
+    model: embeddingModel,
+    value: options.value,
+    providerOptions: options.providerOptions,
+    maxRetries: options.maxRetries,
+    abortSignal: options.abortSignal,
+  });
 }
 
 function addOpenRouterInternalTraceProvenance(params: {

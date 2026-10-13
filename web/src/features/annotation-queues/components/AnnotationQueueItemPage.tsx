@@ -149,6 +149,7 @@ function AnnotationQueueRunLoader({
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    meta: { toastOperation: "annotation_queue.load" },
   });
   if (bootstrap.isPending) return <Skeleton className="h-full w-full" />;
   if (bootstrap.isError) {

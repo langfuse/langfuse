@@ -657,6 +657,158 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(loggerMock.error).toHaveBeenCalled();
   });
+
+  describe("member re-link for orgs that predate the live sync", () => {
+    const PRE_SYNC_SIGNUP_AT = new Date("2026-05-02T10:00:00.000Z");
+    const sentBodies = () =>
+      fetchMock.mock.calls.map(
+        ([, init]) =>
+          JSON.parse(init.body as string) as Record<string, unknown>,
+      );
+
+    beforeEach(() => {
+      fetchMock.mockImplementation(async () => emptyOkResponse());
+    });
+    afterEach(() => {
+      fetchMock.mockReset();
+    });
+
+    // The re-link runs in the background; its summary line marks the end.
+    const relinkFinished = (summary: Record<string, unknown>) =>
+      vi.waitFor(() =>
+        expect(loggerMock.info).toHaveBeenCalledWith(
+          "[SFDC] linked existing members after plan change",
+          expect.objectContaining(summary),
+        ),
+      );
+    const preSyncOwner = {
+      userId: "owner-old",
+      role: "OWNER",
+      user: {
+        email: "owner@old.test",
+        name: "Old Owner",
+        createdAt: PRE_SYNC_SIGNUP_AT,
+      },
+    };
+
+    it("links every member on the Hobby→paid upgrade, upserting Leads only for pre-sync signups", async () => {
+      prismaMock.organizationMembership.findMany.mockResolvedValueOnce([
+        preSyncOwner,
+        {
+          userId: "member-new",
+          role: "MEMBER",
+          user: {
+            email: "member@new.test",
+            name: "New Member",
+            createdAt: SIGNUP_AT,
+          },
+        },
+      ]);
+      // Lead-source heuristic: the owner's earliest membership was as OWNER.
+      prismaMock.organizationMembership.findFirst.mockResolvedValueOnce({
+        role: "OWNER",
+      });
+
+      await syncOrgPlanChangeToSfdc({
+        orgBeforeUpdate: orgBefore(null),
+        updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+        billingCycleAnchor: CONVERTED_AT,
+      });
+
+      await relinkFinished({ orgId: "org-1", members: 2, linked: 2 });
+
+      // Account first, then each member's Lead before its bridge. The
+      // post-sync member got its Lead at signup — only the bridge is sent.
+      expect(sentBodies()).toEqual([
+        expect.objectContaining({ type: "updateOrg", plan: "Pro" }),
+        expect.objectContaining({
+          userId: "owner-old",
+          email: "owner@old.test",
+          leadSource: "Langfuse Cloud Signup",
+        }),
+        expect.objectContaining({
+          type: "setUserRole",
+          orgId: "org-1",
+          userId: "owner-old",
+          role: "ADMIN",
+        }),
+        expect.objectContaining({
+          type: "setUserRole",
+          orgId: "org-1",
+          userId: "member-new",
+          role: "DEVELOPER",
+        }),
+      ]);
+    });
+
+    it("sends no bridge for a member whose Lead was not delivered", async () => {
+      fetchMock.mockImplementation(async (url: string) =>
+        url === "https://mulesoft.test/manage-user"
+          ? nonOkResponse(500)
+          : emptyOkResponse(),
+      );
+      prismaMock.organizationMembership.findMany.mockResolvedValueOnce([
+        preSyncOwner,
+      ]);
+
+      await syncOrgPlanChangeToSfdc({
+        orgBeforeUpdate: orgBefore(null),
+        updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+        billingCycleAnchor: CONVERTED_AT,
+      });
+      await relinkFinished({ members: 1, linked: 0 });
+
+      expect(sentBodies().map((body) => body.type ?? "upsertUser")).toEqual([
+        "updateOrg",
+        "upsertUser",
+      ]);
+    });
+
+    it("keeps a member query failure inside the re-link", async () => {
+      prismaMock.organizationMembership.findMany.mockRejectedValueOnce(
+        new Error("db down"),
+      );
+
+      await expect(
+        syncOrgPlanChangeToSfdc({
+          orgBeforeUpdate: orgBefore(null),
+          updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+          billingCycleAnchor: CONVERTED_AT,
+        }),
+      ).resolves.toBeUndefined();
+      await vi.waitFor(() =>
+        expect(loggerMock.error).toHaveBeenCalledWith(
+          "[SFDC] failed to link existing members after plan change",
+          { orgId: "org-1", error: "db down" },
+        ),
+      );
+      expect(fetchMock).toHaveBeenCalledOnce();
+    });
+
+    it("does not re-link members of orgs created after the live sync started", async () => {
+      await syncOrgPlanChangeToSfdc({
+        orgBeforeUpdate: {
+          ...orgBefore(null),
+          createdAt: new Date("2026-08-01T00:00:00.000Z"),
+        },
+        updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+        billingCycleAnchor: CONVERTED_AT,
+      });
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(prismaMock.organizationMembership.findMany).not.toHaveBeenCalled();
+    });
+
+    it("does not link members when the account push fails", async () => {
+      fetchMock.mockImplementation(async () => nonOkResponse(500));
+      await syncOrgPlanChangeToSfdc({
+        orgBeforeUpdate: orgBefore(null),
+        updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+        billingCycleAnchor: CONVERTED_AT,
+      });
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(prismaMock.organizationMembership.findMany).not.toHaveBeenCalled();
+    });
+  });
 });
 
 // ---- Call sites ----

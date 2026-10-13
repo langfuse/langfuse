@@ -65,7 +65,7 @@ export function DecisionModelStatePreview({
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        <span className="flex items-center gap-2">
+        <span className="flex items-baseline gap-2">
           <span className="font-bold">{title}</span>
           {statePreview ? (
             <span

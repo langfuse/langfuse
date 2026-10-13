@@ -14,7 +14,8 @@ import {
   DialogTrigger,
   DialogBody,
 } from "@/src/components/ui/dialog";
-import { toast } from "sonner";
+import { showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 // planLabels used inside StripeSwitchPlanButton
 import {
@@ -55,10 +56,14 @@ export const BillingSwitchPlanDialog = ({
         setProcessingPlanId(null);
         setOpId(null);
       },
-      onError: () => {
+      onError: (error) => {
         setProcessingPlanId(null);
         setOpId(null);
-        toast.error("Failed to start checkout session");
+        showToast({
+          type: "ERROR",
+          title: "Failed to start checkout session",
+          analytics: classifyTrpcToastError(error, "billing_checkout.start"),
+        });
       },
     });
 

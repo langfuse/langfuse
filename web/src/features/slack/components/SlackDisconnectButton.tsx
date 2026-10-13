@@ -14,6 +14,7 @@ import {
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 /**
  * Props for the SlackDisconnectButton component
@@ -103,7 +104,11 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
 
       const errorMessage = error.message || "Failed to disconnect from Slack";
 
-      showErrorToast("Disconnection Failed", errorMessage);
+      showErrorToast(
+        "Disconnection Failed",
+        errorMessage,
+        classifyTrpcToastError(error, "slack.disconnect"),
+      );
 
       onError?.(new Error(errorMessage));
     },
