@@ -4,6 +4,7 @@ import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EvaluatorGalleryAiBox } from "./components/EvaluatorGalleryAiBox/EvaluatorGalleryAiBox";
+import { EvaluatorGalleryStartRow } from "./components/EvaluatorGalleryStartRow/EvaluatorGalleryStartRow";
 import { EvaluatorGalleryDecisionModelBanner } from "./components/EvaluatorGalleryDecisionModelBanner/EvaluatorGalleryDecisionModelBanner";
 import { EvaluatorGallerySection } from "./components/EvaluatorGallerySection/EvaluatorGallerySection";
 import { EvaluatorGallerySidebar } from "./components/EvaluatorGallerySidebar/EvaluatorGallerySidebar";
@@ -161,6 +162,11 @@ export function EvaluatorGalleryView({
                     />
                   ) : null}
                 </div>
+              ) : null}
+              {!isSingleSection && !search.trim() ? (
+                <EvaluatorGalleryStartRow
+                  onCreateFromScratch={onCreateFromScratch}
+                />
               ) : null}
               {isLoading ? <GallerySkeleton /> : null}
               {errorMessage ? (

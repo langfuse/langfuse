@@ -5,7 +5,7 @@ import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/Dropdo
 import { Button } from "@/src/components/ui/button";
 import { EvaluatorMethodTile } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
 
-const START_OPTIONS = [
+export const EVALUATOR_START_OPTIONS = [
   {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
     title: "LLM-as-a-judge",
@@ -32,7 +32,7 @@ export function EvaluatorGalleryStartMenu({
     <DropdownMenu
       ariaLabel="Start from scratch"
       placement="bottom-end"
-      items={START_OPTIONS.map((option) => ({
+      items={EVALUATOR_START_OPTIONS.map((option) => ({
         type: "item",
         id: option.type,
         title: option.title,
