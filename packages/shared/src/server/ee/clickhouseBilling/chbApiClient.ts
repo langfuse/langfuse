@@ -137,7 +137,7 @@ const ChbPortalSessionSchema = z.object({
   portalUrl: z.string(),
 });
 
-const REQUEST_TIMEOUT_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 25_000;
 
 type ChbRequestOptions = {
   /**
