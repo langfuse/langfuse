@@ -6,6 +6,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 import {
   ExpandMetadataKeysSchema,
   getMetadataExpansionForProjection,
@@ -55,6 +56,19 @@ export const [getObservationTool, handleGetObservation] = defineTool({
           );
         }
 
+        const dataAccessWindow = clampToDataAccessDays({
+          plan: context.plan,
+          fromTimestamp: input.fromStartTime,
+        });
+        if (
+          dataAccessWindow.accessFloor &&
+          dataAccessWindow.accessFloor >= new Date(input.toStartTime)
+        ) {
+          throw new LangfuseNotFoundError(
+            `Observation ${input.observationId} not found within the supplied period (${input.fromStartTime} to ${input.toStartTime}).`,
+          );
+        }
+
         const projectionFields = getProjectionFields(input.fields);
         const fieldGroups = getProjectionFieldGroups(projectionFields);
 
@@ -67,7 +81,8 @@ export const [getObservationTool, handleGetObservation] = defineTool({
           {
             projectId: context.projectId,
             traceId: input.traceId,
-            fromStartTime: input.fromStartTime,
+            fromStartTime:
+              dataAccessWindow.effectiveFromTimestamp?.toISOString(),
             toStartTime: input.toStartTime,
             page: 0,
             limit: 1,

@@ -35,10 +35,6 @@ vi.mock(
 );
 
 import { nanoid } from "nanoid";
-const observationWindow = {
-  fromStartTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  toStartTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-};
 import { createHash, randomUUID } from "crypto";
 import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
@@ -201,6 +197,11 @@ import {
   GetDatasetRunsMcpInput,
   GetDatasetsMcpInput,
 } from "@/src/features/mcp/server/datasets/schema";
+
+const observationWindow = {
+  fromStartTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+  toStartTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+};
 
 const maybeEventsTable =
   env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
@@ -995,6 +996,7 @@ describe("MCP Read Tools", () => {
       expect(result.columns.output.operators).toEqual(["=", "matches"]);
       expect(result.columns.version.operators).not.toContain("matches");
       expect(result.columns.traceTags).toBeUndefined();
+      expect(result.columns.startTime).toBeUndefined();
       expect(result.columns.comments).toBeUndefined();
       expect(result.columns.scores).toBeUndefined();
       expect(result.columns.name.operators).toContain("any of");
@@ -1067,6 +1069,30 @@ describe("MCP Read Tools", () => {
     ).rejects.toThrow();
   });
   describe("observation time bounds", () => {
+    it.each([true, false])(
+      "should reject startTime filters with explicit type: %s",
+      async (includeType) => {
+        await expect(
+          handleListObservations(
+            {
+              ...observationWindow,
+              fields: ["id"],
+              limit: 1,
+              filter: [
+                {
+                  column: "startTime",
+                  operator: ">=",
+                  value: "2020-01-01T00:00:00Z",
+                  ...(includeType ? { type: "datetime" } : {}),
+                },
+              ],
+            },
+            mockServerContext(),
+          ),
+        ).rejects.toThrow('Invalid observation filter column "startTime"');
+      },
+    );
+
     it.each(["fromStartTime", "toStartTime"] as const)(
       "should require %s for both tools even with compact fields",
       async (missingBound) => {
@@ -2673,6 +2699,56 @@ describe("MCP Read Tools", () => {
           ),
         ).rejects.toThrow(/not found within the supplied period/i);
       }
+    });
+
+    it("should enforce the plan data-access window for single observations", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const now = Date.now();
+      const oldObservation = createObservationEvent({
+        projectId,
+        startTime: new Date(now - 40 * 24 * 60 * 60 * 1000),
+      });
+      const recentObservation = createObservationEvent({ projectId });
+      await createEventsCh([oldObservation, recentObservation]);
+
+      const period = {
+        fromStartTime: new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString(),
+        toStartTime: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
+        fields: ["id"],
+      };
+      const limitedContext = { ...context, plan: "cloud:hobby" as const };
+
+      await expect(
+        handleGetObservation(
+          { ...period, observationId: oldObservation.id },
+          limitedContext,
+        ),
+      ).rejects.toThrow(/not found within the supplied period/i);
+
+      await expect(
+        handleGetObservation(
+          { ...period, observationId: recentObservation.id },
+          limitedContext,
+        ),
+      ).resolves.toMatchObject({ id: recentObservation.id });
+
+      await expect(
+        handleGetObservation(
+          { ...period, observationId: oldObservation.id },
+          { ...context, plan: "oss" },
+        ),
+      ).resolves.toMatchObject({ id: oldObservation.id });
+
+      await expect(
+        handleGetObservation(
+          {
+            ...period,
+            observationId: oldObservation.id,
+            toStartTime: new Date(now - 35 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          limitedContext,
+        ),
+      ).rejects.toThrow(/not found within the supplied period/i);
     });
 
     it("should fetch an observation with an in-app agent context", async () => {
