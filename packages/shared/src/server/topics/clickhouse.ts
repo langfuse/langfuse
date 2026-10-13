@@ -354,17 +354,33 @@ export async function listTopicSummaries(
   rows.sort((a, b) => Number(b.processedAtMs) - Number(a.processedAtMs));
   return rows.map(summaryResult);
 }
-/** Without a version filter, use each source's newest processed facet version. */
+/** Display fields only. Without a version filter, use each source's newest processed facet version. */
 export async function getLatestFacetSummaries(
   projectId: string,
   facetId: string,
   facetVersion: number | undefined,
   timeRange: TopicTimeRange,
-): Promise<TopicSummary[]> {
+) {
   const scopeSql = `facet_id = {facetId:String}
     ${facetVersion ? "AND facet_version = {facetVersion:UInt32}" : ""}`;
-  const rows = await queryClickhouse<SummaryRow>({
-    query: `SELECT ${summaryColumns} FROM topic_facet_summaries
+  const rows = await queryClickhouse<
+    Pick<
+      TopicSummary,
+      | "projectId"
+      | "facetId"
+      | "facetVersion"
+      | "traceId"
+      | "sessionId"
+      | "state"
+      | "summary"
+    > & { unitStartTimeMs: string; processedAtMs: string }
+  >({
+    query: `SELECT project_id AS projectId, facet_id AS facetId,
+      facet_version AS facetVersion, trace_id AS traceId, session_id AS sessionId,
+      processing_state AS state, summary,
+      toUnixTimestamp64Milli(unit_start_time) AS unitStartTimeMs,
+      toUnixTimestamp64Milli(processed_at) AS processedAtMs
+      FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
         AND ${latestSummaryFilterSql(scopeSql, facetVersion ? sourceKeySql : summarySourceKeySql)}
       ORDER BY ${facetVersion ? "" : "facet_version DESC, "}processed_at DESC
@@ -377,7 +393,15 @@ export async function getLatestFacetSummaries(
     },
     tags: { route: "topics-latest-summaries", projectId },
   });
-  return rows.map(summaryResult);
+  return rows.map(({ unitStartTimeMs, processedAtMs, ...row }) => ({
+    ...row,
+    ...topicSourceSchema.parse({
+      traceId: row.traceId || null,
+      sessionId: row.sessionId || null,
+    }),
+    unitStartTime: new Date(Number(unitStartTimeMs)).toISOString(),
+    processedAt: new Date(Number(processedAtMs)).toISOString(),
+  }));
 }
 
 export async function getTopicClusteringSummaries(
