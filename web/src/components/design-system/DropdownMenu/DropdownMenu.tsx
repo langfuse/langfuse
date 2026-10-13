@@ -31,6 +31,7 @@ import * as React from "react";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 
 const menuVariants = cva(
@@ -75,7 +76,7 @@ const menuItemIconVariants = cva("", {
 });
 
 const menuItemVariants = cva(
-  "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
+  "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex h-8 w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
   {
     variants: {
       variant: {
@@ -83,60 +84,20 @@ const menuItemVariants = cva(
         destructive:
           "text-destructive focus:bg-destructive/10 data-[active]:bg-destructive/10",
       },
-      hasDescription: {
-        true: "hover:bg-accent",
-        false: "h-8",
-      },
     },
     defaultVariants: {
       variant: "default",
-      hasDescription: false,
     },
   },
 );
 
 const primaryActionVariants = cva(
-  "flex min-w-0 flex-1 cursor-pointer px-2 py-1.5",
-  {
-    variants: {
-      hasDescription: {
-        true: "items-center gap-1",
-        false: "items-center",
-      },
-    },
-    defaultVariants: { hasDescription: false },
-  },
+  "flex min-w-0 flex-1 cursor-pointer items-center px-2 py-1.5",
 );
 
 const secondaryActionVariants = cva(
   "hover:bg-border dark:hover:bg-white/10 mr-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded",
 );
-
-function MenuItemLabel({
-  title,
-  description,
-}: {
-  title: string;
-  description?: string;
-}) {
-  if (!description) {
-    return (
-      <span
-        className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
-        title={title}
-      >
-        {title}
-      </span>
-    );
-  }
-
-  return (
-    <span className="flex min-w-0 flex-1 flex-col text-left">
-      <span className="font-bold">{title}</span>
-      <span className="text-muted-foreground text-xs">{description}</span>
-    </span>
-  );
-}
 
 function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
   return (value: T | null) => {
@@ -178,10 +139,6 @@ type DropdownMenuItem = {
   disabled?: { reason: string };
   id: string;
   title: string;
-  /** Second line under the title, e.g. when to pick this option. */
-  description?: string;
-  /** Replaces `icon` when the item needs a richer mark, e.g. a tinted tile. */
-  leadingVisual?: React.ReactNode;
   tooltip?: string;
   badge?: React.ReactNode;
   icon?: LucideIcon;
@@ -237,6 +194,8 @@ type DropdownMenuProps = {
   placement?: Placement;
   search?: { placeholder: string };
   title?: string;
+  /** Marks an internal-only menu with the Internal badge in the header. */
+  internal?: boolean;
   description?: string;
 };
 
@@ -260,12 +219,14 @@ function DropdownMenuNode({
   children,
   description,
   disabled = false,
+  internal = false,
   items,
   maxHeight = "15rem",
   placement = "bottom-start",
   search,
   title,
 }: DropdownMenuProps) {
+  const hasHeader = Boolean(title) || internal;
   const [isOpen, setIsOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -394,9 +355,16 @@ function DropdownMenuNode({
                   }
                 : {})}
             >
-              {title ? (
+              {hasHeader ? (
                 <div className="border-border bg-popover sticky top-0 z-1 border-b px-3 py-2.5 text-sm font-bold">
-                  {title}
+                  {internal ? (
+                    <div className="flex items-center gap-2">
+                      {title}
+                      <Badge text="Internal" color="yellow" size="sm" />
+                    </div>
+                  ) : (
+                    title
+                  )}
                   {description && (
                     <p className="text-muted-foreground mt-1 text-xs font-normal">
                       {description}
@@ -443,7 +411,7 @@ function DropdownMenuNode({
               ) : null}
               <div
                 className={menuBodyVariants({
-                  hasTitle: Boolean(title || search),
+                  hasTitle: hasHeader || Boolean(search),
                   showBottomGradient: bottom,
                   showTopGradient: top,
                 })}
@@ -676,10 +644,7 @@ function DropdownMenuNode({
                       }}
                       data-active={activeIndex === index ? "" : undefined}
                       data-disabled={item.disabled ? "" : undefined}
-                      className={menuItemVariants({
-                        variant: item.variant,
-                        hasDescription: Boolean(item.description),
-                      })}
+                      className={menuItemVariants({ variant: item.variant })}
                       {...getItemProps({
                         onClick: (event) => {
                           if (item.disabled) return;
@@ -713,9 +678,7 @@ function DropdownMenuNode({
                           }
                           aria-disabled={item.disabled ? "true" : undefined}
                           tabIndex={item.disabled ? -1 : undefined}
-                          className={primaryActionVariants({
-                            hasDescription: Boolean(item.description),
-                          })}
+                          className={primaryActionVariants()}
                           onClick={(event) => {
                             if (item.disabled) {
                               event.preventDefault();
@@ -728,12 +691,7 @@ function DropdownMenuNode({
                             if (event.button === 1) item.onAfterNavigate?.();
                           }}
                         >
-                          {item.leadingVisual ? (
-                            <span className="mr-1.5 flex shrink-0">
-                              {item.leadingVisual}
-                            </span>
-                          ) : null}
-                          {!item.leadingVisual && ItemIcon ? (
+                          {ItemIcon ? (
                             <ItemIcon
                               className={menuItemIconVariants({
                                 variant: item.variant,
@@ -741,10 +699,12 @@ function DropdownMenuNode({
                               aria-hidden="true"
                             />
                           ) : null}
-                          <MenuItemLabel
+                          <span
+                            className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
                             title={item.title}
-                            description={item.description}
-                          />
+                          >
+                            {item.title}
+                          </span>
                           {item.badge ? (
                             <span className="ml-2 shrink-0">{item.badge}</span>
                           ) : null}
@@ -754,20 +714,13 @@ function DropdownMenuNode({
                           type="button"
                           disabled={Boolean(item.disabled)}
                           data-primary-action=""
-                          className={primaryActionVariants({
-                            hasDescription: Boolean(item.description),
-                          })}
+                          className={primaryActionVariants()}
                           onClick={() => {
                             tree?.events.emit("click");
                             item.onClick?.();
                           }}
                         >
-                          {item.leadingVisual ? (
-                            <span className="mr-1.5 flex shrink-0">
-                              {item.leadingVisual}
-                            </span>
-                          ) : null}
-                          {!item.leadingVisual && ItemIcon ? (
+                          {ItemIcon ? (
                             <ItemIcon
                               className={menuItemIconVariants({
                                 variant: item.variant,
@@ -775,10 +728,12 @@ function DropdownMenuNode({
                               aria-hidden="true"
                             />
                           ) : null}
-                          <MenuItemLabel
+                          <span
+                            className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
                             title={item.title}
-                            description={item.description}
-                          />
+                          >
+                            {item.title}
+                          </span>
                           {item.badge ? (
                             <span className="ml-2 shrink-0">{item.badge}</span>
                           ) : null}

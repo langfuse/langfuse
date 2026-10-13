@@ -23,7 +23,6 @@ import {
   useInAppAiAgent,
   useIsInAppAgentLauncherVisible,
 } from "@/src/features/in-app-agent";
-import { EvaluatorGalleryStartMenu } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryStartMenu/EvaluatorGalleryStartMenu";
 
 // Search reports once the user pauses typing, so one query is one event.
 const SEARCH_CAPTURE_DELAY_MS = 1000;
@@ -206,10 +205,6 @@ export function EvaluatorGalleryDialog({
       <DialogContent
         className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none flex-col gap-0 rounded-lg p-0 sm:h-[80dvh] sm:max-h-[85vh] sm:w-[70vw]"
         closeOnInteractionOutside
-        onEscapeKeyDown={(event) => {
-          // Radix sees Escape before an open menu does; let the menu close alone.
-          if (document.querySelector('[role="menu"]')) event.preventDefault();
-        }}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           searchInputRef.current?.focus();
@@ -225,9 +220,6 @@ export function EvaluatorGalleryDialog({
                 Pick a template or start from scratch.
               </DialogDescription>
             </div>
-            <EvaluatorGalleryStartMenu
-              onCreateFromScratch={handleCreateFromScratch}
-            />
           </div>
         </DialogHeader>
         <EvaluatorGalleryView

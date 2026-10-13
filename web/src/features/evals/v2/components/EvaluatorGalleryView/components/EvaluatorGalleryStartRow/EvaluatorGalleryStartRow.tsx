@@ -1,10 +1,31 @@
-import type { EvalTemplateType } from "@langfuse/shared";
+import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
+
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 import { EvaluatorMethodTile } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
-import {
-  EVALUATOR_START_OPTIONS,
-  EvaluatorNewBadge,
-} from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryStartMenu/EvaluatorGalleryStartMenu";
+
+const EVALUATOR_START_OPTIONS = [
+  {
+    type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
+    title: "LLM-as-a-judge",
+    description: "Explains each score. For nuanced inputs.",
+  },
+  {
+    type: EvalTemplateTypeEnum.DECISION_MODEL,
+    title: "Decision model",
+    isNew: true,
+    description: "Fast and cheap for simple questions.",
+  },
+  {
+    type: EvalTemplateTypeEnum.CODE,
+    title: "Code",
+    description: "Exact rules, no model call.",
+  },
+] as const;
+
+function EvaluatorNewBadge() {
+  return <Badge text="NEW" color="green" font="mono" size="sm" />;
+}
 
 /** The three blank evaluator types, always visible above the templates. */
 export function EvaluatorGalleryStartRow({
