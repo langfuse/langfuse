@@ -27,12 +27,20 @@ const TITLE_ACTIONS_GAP_PX = 8;
 export function DetailViewHeaderTitleRow({
   renderTitle,
   actions,
+  actionsKey,
   alwaysFold,
 }: {
   /** Title slot; told whether the actions folded, so it can host the menu. */
   renderTitle: (layout: { actionsFolded: boolean }) => ReactNode;
   /** The inline action cluster. Mounted only while it is not folded. */
   actions: ReactNode;
+  /**
+   * Changes whenever the cluster's content changes width — a comment count, a
+   * hidden Annotate, a different entity. A folded cluster is unmounted and so
+   * cannot be measured, so this is the only way the row learns that a narrower
+   * cluster now deserves a second look.
+   */
+  actionsKey: string;
   /** Fold whatever the width — the handheld presentation. */
   alwaysFold: boolean;
 }) {
@@ -44,6 +52,16 @@ export function DetailViewHeaderTitleRow({
   const actionsWidthRef = useRef<number | undefined>(undefined);
   const [placement, setPlacement] =
     useState<DetailViewHeaderActionsPlacement>("beside");
+
+  // New content, so the cached width is about the old content: show the cluster
+  // again, which both re-mounts it for measurement and settles on the right
+  // placement in the same pre-paint pass.
+  const [measuredKey, setMeasuredKey] = useState(actionsKey);
+  if (measuredKey !== actionsKey) {
+    setMeasuredKey(actionsKey);
+    actionsWidthRef.current = undefined;
+    setPlacement("beside");
+  }
 
   // Measure and plan before paint: `useElementSize`'s state lands after it,
   // which would show the un-adapted header for a frame. `actions` is a

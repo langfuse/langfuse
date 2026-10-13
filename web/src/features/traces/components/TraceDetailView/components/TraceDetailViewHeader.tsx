@@ -97,10 +97,13 @@ function TraceDetailViewHeaderLoading() {
             )}
           </>
         )}
+        actionsKey="loading"
         actions={
+          // Sized to the loaded cluster (Add to · Annotate · Comment), so the
+          // header does not change its row count when the data lands.
           <>
-            <Skeleton className="h-6 w-20 rounded-md" />
             <Skeleton className="h-6 w-24 rounded-md" />
+            <Skeleton className="h-6 w-28 rounded-md" />
             <Skeleton className="h-6 w-24 rounded-md" />
           </>
         }
@@ -158,6 +161,7 @@ function LoadedTraceDetailViewHeader({
     <DetailViewHeaderShell>
       <DetailViewHeaderTitleRow
         alwaysFold={isMobile}
+        actionsKey={`${trace.id}|${commentCount ?? 0}|${commentDrawerControl.disabled}|${isAnnotationMode}`}
         renderTitle={({ actionsFolded }) => (
           <>
             <EntityTitle

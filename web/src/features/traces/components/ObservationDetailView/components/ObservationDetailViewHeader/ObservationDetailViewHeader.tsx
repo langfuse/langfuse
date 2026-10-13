@@ -226,6 +226,7 @@ export const ObservationDetailViewHeader = memo(
       <DetailViewHeaderShell>
         <DetailViewHeaderTitleRow
           alwaysFold={isMobile}
+          actionsKey={`${observation.id}|${commentCount ?? 0}|${commentDrawerControl.disabled}|${isAnnotationMode}|${Boolean(observationWithIO)}`}
           renderTitle={({ actionsFolded }) => (
             <>
               <EntityTitle
