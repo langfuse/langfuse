@@ -161,35 +161,13 @@ export async function processOtelEventMedia(params: {
             { write_path: writePath, media_path: mediaPath },
           );
         } finally {
-          const durationMs = Date.now() - startedAt;
-          const tags = {
-            write_path: writePath,
-            media_path: mediaPath,
-            media_presence: mediaPresence,
-          };
-          recordDistribution(
-            "langfuse.ingestion.otel.media.processing_duration_ms",
-            durationMs,
-            tags,
-          );
-          recordIncrement(
-            "langfuse.ingestion.otel.media.processing_sample",
-            1,
-            tags,
-          );
-          recordIncrement(
-            "langfuse.ingestion.otel.media.processing_duration_total_ms",
-            durationMs,
-            tags,
-          );
-          if (params.inputByteLength && params.inputByteLength > 0) {
-            // Dual writes contribute both their input bytes and stage time.
-            recordIncrement(
-              "langfuse.ingestion.otel.media.input_bytes_total",
-              params.inputByteLength,
-              tags,
-            );
-          }
+          recordMediaStageMetrics({
+            durationMs: Date.now() - startedAt,
+            writePath,
+            mediaPath,
+            mediaPresence,
+            inputByteLength: params.inputByteLength,
+          });
         }
       },
     );
@@ -207,6 +185,39 @@ export async function processOtelEventMedia(params: {
     logger.warn(
       "OTEL media processing failed; continuing ingestion with original span values",
       { projectId, fileKey, error },
+    );
+  }
+}
+
+function recordMediaStageMetrics(params: {
+  durationMs: number;
+  writePath: OtelMediaWritePath;
+  mediaPath: "early" | "reference";
+  mediaPresence: "present" | "absent" | "unknown";
+  inputByteLength?: number;
+}): void {
+  const tags = {
+    write_path: params.writePath,
+    media_path: params.mediaPath,
+    media_presence: params.mediaPresence,
+  };
+  recordDistribution(
+    "langfuse.ingestion.otel.media.processing_duration_ms",
+    params.durationMs,
+    tags,
+  );
+  recordIncrement("langfuse.ingestion.otel.media.processing_sample", 1, tags);
+  recordIncrement(
+    "langfuse.ingestion.otel.media.processing_duration_total_ms",
+    params.durationMs,
+    tags,
+  );
+  if (params.inputByteLength && params.inputByteLength > 0) {
+    // Dual writes contribute both their input bytes and stage time.
+    recordIncrement(
+      "langfuse.ingestion.otel.media.input_bytes_total",
+      params.inputByteLength,
+      tags,
     );
   }
 }
