@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 import Link from "next/link";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   type Status,
   StatusBadge,
@@ -85,11 +85,21 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
           </div>
           {props.status && <StatusBadge type={props.status} />}
           {props.labelBadge && (
-            <Badge variant="secondary">{props.labelBadge}</Badge>
+            <Badge
+              color="filled"
+              font="mono"
+              size="sm"
+              text={props.labelBadge}
+            />
           )}
           {props.label && (
-            <Link href={props.label.href}>
-              <StatusBadge type={props.label.text} />
+            <Link href={props.label.href} className="flex">
+              <Badge
+                color="filled"
+                font="mono"
+                size="sm"
+                text={props.label.text}
+              />
             </Link>
           )}
         </div>
