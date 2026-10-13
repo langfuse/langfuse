@@ -69,6 +69,19 @@ impl InferenceService {
         Ok(ResolutionPermit { _permit: permit })
     }
 
+    pub(crate) async fn models(
+        &self,
+        _resolution_permit: ResolutionPermit<'_>,
+        gateway_key: &str,
+        api_format: ApiFormat,
+        correlation: &RequestCorrelation,
+    ) -> Result<Vec<u8>, ResolutionError> {
+        let _active = crate::observability::Active::new("resolution");
+        self.control_plane
+            .models(gateway_key, api_format, correlation.id())
+            .await
+    }
+
     /// Authenticate with the permit reserved before the request body was buffered, then reserve
     /// execution capacity. The API format comes from the public route, so Web selects a compatible
     /// connection. A successful resolution is recorded even if execution admission then fails.
