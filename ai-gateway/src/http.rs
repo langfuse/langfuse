@@ -53,56 +53,113 @@ pub fn router(inference: Option<InferenceService>, lifecycle: GatewayLifecycleSt
 }
 
 async fn handle_responses(State(state): State<InferenceRouteState>, request: Request) -> Response {
-    handle(state, request, Route::OpenAiResponses).await
+    handle_inference(state, request, Route::OpenAiResponses).await
 }
 
 async fn handle_responses_compact(
     State(state): State<InferenceRouteState>,
     request: Request,
 ) -> Response {
-    handle(state, request, Route::OpenAiResponsesCompact).await
+    handle_inference(state, request, Route::OpenAiResponsesCompact).await
 }
 
 async fn handle_chat_completions(
     State(state): State<InferenceRouteState>,
     request: Request,
 ) -> Response {
-    handle(state, request, Route::OpenAiChatCompletions).await
+    handle_inference(state, request, Route::OpenAiChatCompletions).await
 }
 
 async fn handle_openai_models(
     State(state): State<InferenceRouteState>,
     request: Request,
 ) -> Response {
-    handle(state, request, Route::OpenAiModels).await
+    handle_models(state, request, ApiFormat::OpenAiResponses).await
 }
 
 async fn handle_messages(State(state): State<InferenceRouteState>, request: Request) -> Response {
-    handle(state, request, Route::AnthropicMessages).await
+    handle_inference(state, request, Route::AnthropicMessages).await
 }
 
 async fn handle_count_tokens(
     State(state): State<InferenceRouteState>,
     request: Request,
 ) -> Response {
-    handle(state, request, Route::AnthropicCountTokens).await
+    handle_inference(state, request, Route::AnthropicCountTokens).await
 }
 
 async fn handle_anthropic_models(
     State(state): State<InferenceRouteState>,
     request: Request,
 ) -> Response {
-    handle(state, request, Route::AnthropicModels).await
+    handle_models(state, request, ApiFormat::AnthropicMessages).await
 }
 
-async fn handle(state: InferenceRouteState, mut request: Request, route: Route) -> Response {
+async fn handle_inference(
+    state: InferenceRouteState,
+    mut request: Request,
+    route: Route,
+) -> Response {
     let mut correlation = request
         .extensions_mut()
         .remove::<RequestCorrelation>()
         .unwrap_or_default();
-    let mut response = match relay(state, request, route, &mut correlation).await {
+    let result = match prepare_request(&state, request.headers(), route.api_format()) {
+        Ok((inference, gateway_key)) => {
+            relay(&inference, &gateway_key, request, route, &mut correlation).await
+        }
+        Err(error) => Err(error),
+    };
+    finish_response(result, route.api_format(), &correlation)
+}
+
+async fn handle_models(
+    state: InferenceRouteState,
+    mut request: Request,
+    api_format: ApiFormat,
+) -> Response {
+    let correlation = request
+        .extensions_mut()
+        .remove::<RequestCorrelation>()
+        .unwrap_or_default();
+    let result = async {
+        let (inference, gateway_key) = prepare_request(&state, request.headers(), api_format)?;
+        let resolution_permit = inference
+            .try_reserve_resolution()
+            .map_err(InferenceHttpError::from)?;
+        let body = inference
+            .models(resolution_permit, &gateway_key, api_format, &correlation)
+            .await
+            .map_err(InferenceHttpError::Resolution)?;
+        Ok(([(header::CONTENT_TYPE, "application/json")], body).into_response())
+    }
+    .await;
+    finish_response(result, api_format, &correlation)
+}
+
+fn prepare_request(
+    state: &InferenceRouteState,
+    headers: &HeaderMap,
+    api_format: ApiFormat,
+) -> Result<(Arc<InferenceService>, String), InferenceHttpError> {
+    let inference = state
+        .inference
+        .as_ref()
+        .filter(|_| state.lifecycle.is_ready())
+        .cloned()
+        .ok_or(InferenceHttpError::Unavailable)?;
+    let gateway_key = gateway_key(headers, api_format)?.to_owned();
+    Ok((inference, gateway_key))
+}
+
+fn finish_response(
+    result: Result<Response, InferenceHttpError>,
+    api_format: ApiFormat,
+    correlation: &RequestCorrelation,
+) -> Response {
+    let mut response = match result {
         Ok(response) => response,
-        Err(error) => error.into_native_response(route.api_format(), correlation.id()),
+        Err(error) => error.into_native_response(api_format, correlation.id()),
     };
     correlation.apply_generation_headers(response.headers_mut());
     correlation.apply_resolution_headers(response.headers_mut());
@@ -110,17 +167,12 @@ async fn handle(state: InferenceRouteState, mut request: Request, route: Route) 
 }
 
 async fn relay(
-    state: InferenceRouteState,
+    inference: &InferenceService,
+    gateway_key: &str,
     request: Request,
     route: Route,
     correlation: &mut RequestCorrelation,
 ) -> Result<Response, InferenceHttpError> {
-    let inference = state
-        .inference
-        .as_ref()
-        .filter(|_| state.lifecycle.is_ready())
-        .ok_or(InferenceHttpError::Unavailable)?;
-    let gateway_key = gateway_key(request.headers(), route.api_format())?.to_owned();
     // Model extraction and upstream rewriting require an uncompressed JSON body.
     if route.requires_model_rewrite() && !crate::transport::identity_encoding(request.headers()) {
         return Err(InferenceHttpError::UnsupportedEncoding);
@@ -128,25 +180,13 @@ async fn relay(
     let resolution_permit = inference
         .try_reserve_resolution()
         .map_err(InferenceHttpError::from)?;
-    if route.uses_control_plane_models() {
-        let body = inference
-            .models(
-                resolution_permit,
-                &gateway_key,
-                route.api_format(),
-                correlation,
-            )
-            .await
-            .map_err(InferenceHttpError::Resolution)?;
-        return Ok(([(header::CONTENT_TYPE, "application/json")], body).into_response());
-    }
     let query = forwarded_query(route, request.uri().query());
     let (parts, body) = request.into_parts();
     let (bytes, model) = request_body_and_model(route, body).await?;
     let (permit, context) = inference
         .resolve_and_admit(
             resolution_permit,
-            &gateway_key,
+            gateway_key,
             route.api_format(),
             model.as_deref(),
             correlation,
