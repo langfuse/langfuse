@@ -167,7 +167,7 @@ async fn models(
     correlation: &RequestCorrelation,
 ) -> Result<Response, InferenceHttpError> {
     let body = inference
-        .model_catalog(gateway_key, api_format, correlation)
+        .fetch_model_catalog(gateway_key, api_format, correlation)
         .await
         .map_err(InferenceHttpError::Resolution)?;
     Ok(([(header::CONTENT_TYPE, "application/json")], body).into_response())
@@ -191,7 +191,6 @@ async fn relay(
         .map_err(InferenceHttpError::from)?;
     let (parts, body) = request.into_parts();
     let (bytes, model) = request_body_and_model(route, body).await?;
-    drop(body_permit);
     let resolution_permit = inference
         .try_reserve_resolution()
         .map_err(InferenceHttpError::Resolution)?;
@@ -205,6 +204,7 @@ async fn relay(
         )
         .await
         .map_err(InferenceHttpError::from)?;
+    drop(body_permit);
     inference
         .forward(
             permit,
