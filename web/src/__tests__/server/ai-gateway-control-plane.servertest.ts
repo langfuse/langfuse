@@ -599,6 +599,7 @@ describe("AI gateway control plane", () => {
   });
 
   it("routes unprefixed models by provider and rejects unknown models", async () => {
+    configureGatewayJwtSigning();
     const { caller, org, project } = await prepare();
     await caller.aiGateway.updateConfig({
       orgId: org.id,
@@ -924,7 +925,7 @@ describe("AI gateway control plane", () => {
     const resolveParams = {
       fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
       apiFormat: "openai.responses" as const,
-      model: "OpenAI/gpt-4o",
+      model: "OpenAI:gpt-4o",
     };
     const lookup = vi.spyOn(prisma.gatewayApiKeyAssociation, "findFirst");
 
@@ -936,7 +937,7 @@ describe("AI gateway control plane", () => {
     await expect(
       authenticateRequest({
         ...resolveParams,
-        model: "OpenAI backup/gpt-4o",
+        model: "OpenAI backup:gpt-4o",
       }),
     ).resolves.toMatchObject({
       connection: { auth: { type: "Bearer", token: "sk-test-backup" } },
@@ -958,7 +959,7 @@ describe("AI gateway control plane", () => {
     await expect(
       authenticateRequest({
         ...resolveParams,
-        model: "OpenAI renamed/gpt-4o",
+        model: "OpenAI renamed:gpt-4o",
       }),
     ).resolves.toMatchObject({
       connection: { name: "OpenAI renamed" },
@@ -1119,28 +1120,28 @@ describe("AI gateway control plane", () => {
     expect(result).toEqual({
       data: [
         {
-          id: "OpenAI backup/a-model",
+          id: "OpenAI backup:a-model",
           provider: "OPENAI",
           canonicalSlug: "a-model",
           displayName: "a-model",
           createdAt: "1970-01-01T00:00:10.000Z",
         },
         {
-          id: "OpenAI backup/shared-model",
+          id: "OpenAI backup:shared-model",
           provider: "OPENAI",
           canonicalSlug: "shared-model",
           displayName: "shared-model",
           createdAt: "1970-01-01T00:00:15.000Z",
         },
         {
-          id: "OpenAI primary/a-model",
+          id: "OpenAI primary:a-model",
           provider: "OPENAI",
           canonicalSlug: "a-model",
           displayName: "a-model",
           createdAt: "1970-01-01T00:00:10.000Z",
         },
         {
-          id: "OpenAI primary/shared-model",
+          id: "OpenAI primary:shared-model",
           provider: "OPENAI",
           canonicalSlug: "shared-model",
           displayName: "shared-model",
