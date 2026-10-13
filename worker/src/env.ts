@@ -43,6 +43,17 @@ const EnvSchema = z.object({
     .date()
     .optional()
     .transform((date) => (date ? new Date(date) : null)),
+  // Comma-separated Langfuse organization ids routed to CHB regardless of the
+  // cutoff; keep in sync with web/src/env.mjs.
+  LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
 
   // CHB REST credentials, mirroring web/src/env.mjs. The worker needs them for
   // one read: the spend-alert job asks for the open period's accrued usage.
