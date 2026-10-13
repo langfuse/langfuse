@@ -678,7 +678,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(1_000),
+    .default(10_000),
   // Tasks without the lease check it every half TTL, and a batch must finish
   // within half of it.
   LANGFUSE_AUDIT_LOG_RELAY_LOCK_TTL_SECONDS: z.coerce
