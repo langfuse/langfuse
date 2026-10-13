@@ -32,6 +32,7 @@ export default withMiddlewares({
     bodySchema: PostScoresBodyV1,
     responseSchema: PostScoresResponseV1,
     allowedAccessLevels: ["project", "scores"],
+    rateLimitResource: "ingestion",
     fn: async ({ body, auth, req, res }) => {
       if (auth.scope.isIngestionSuspended) {
         throw new ForbiddenError(
