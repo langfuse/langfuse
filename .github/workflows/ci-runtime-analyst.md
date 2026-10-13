@@ -312,10 +312,16 @@ four blocks at the end of every run:
   retries with `describe(..., { retry: 0 })`, and such a test fails with
   `retries=0` — so it appears in no retried block at all, and in the
   slowest-tests block only if it happens to rank in the top ten by duration.
-  Read `retries` to tell the two cases apart: a count equal to the config's
-  CI retry setting (3 for both `web` and `worker`) is a flake that exhausted
-  its retries; `retries=0` is either a deterministic failure or a
-  retry-opted-out suite, so check the file before calling it deterministic.
+  ⚠️ `retries` says how many attempts the test was **given**, not why it
+  failed. A count equal to the config's CI retry setting (3 for both `web`
+  and `worker`) means it had retries and used them all — which a
+  deterministic regression does exactly as readily as a flake. `retries=0`
+  means it was given none: a suite with `{ retry: 0 }`, or a failure outside
+  the retry loop. **So never infer flakiness from the retry count.** A test
+  earns the word *flaky* only when something shows it also passes — a
+  `[flaky]` marker in another run, the same test green in a sibling matrix
+  leg of the same run, or a green run on the same commit. Absent that, call
+  it a failure and say the flakiness is unestablished.
 
 Extract and keep only the parsed blocks for each run, never the raw log text:
 
@@ -329,7 +335,19 @@ Extract and keep only the parsed blocks for each run, never the raw log text:
 ```
 
 An empty `retried` or `failed` array means that block was absent, i.e. zero
-retries / zero failures — not that you failed to find it.
+retries / zero failures — not that you failed to find it. **Two exceptions,
+both recorded as `unknown` rather than zero:**
+
+- **A run that predates the `Failed tests` block.** It landed in October
+  2026, so the first windows straddling it contain runs that could not have
+  printed it. A *failed* run reporting zero failed tests is a contradiction —
+  treat that combination as the tell, not as a quiet zero.
+- **A truncated tail.** The block is complete and uncapped, so a run with
+  hundreds of failures can be longer than your `tail_lines`. Confirm you
+  actually saw the `Failed tests (N):` header and that you parsed N entries.
+  If the header is missing or the count disagrees, widen the tail once; if it
+  still disagrees, record `unknown` and say so. A truncated block must never
+  read as a short one.
 
 Aggregate across the sampled runs:
 
@@ -353,7 +371,10 @@ capped.
 1. From the same `created=<from>..<to>` run list, take every run with
    `event == "merge_group"` and a `conclusion` of `failure` or `timed_out`.
 2. For each, `GET /repos/{owner}/{repo}/actions/runs/{id}/jobs?per_page=100`
-   and keep the jobs whose `conclusion` is `failure`.
+   and keep the jobs whose `conclusion` is `failure` **or `timed_out`**. A
+   job that hits its `timeout-minutes` (10 for `tests-storybook`, 15 for
+   `tests-shared`) concludes `timed_out`, not `failure`, so filtering on
+   `failure` alone silently drops the job that ejected the PR.
    **Discard `all-ci-passed`.** It is the aggregating gate, so it fails
    whenever anything upstream of it fails and attributes nothing; left in, it
    would top every table in this section with no information in it.
@@ -372,6 +393,11 @@ capped.
      mirror outages land here, as does a lost runner. Count and report these
      **separately**: a registry having a bad day is not a flaky week, and
      folding the two together is how a week gets misdiagnosed.
+   - **timed out** — the job hit its `timeout-minutes`. Record the time
+     limit as the cause, and classify it by its running step where that is
+     legible. Its test-level detail is `unknown`, never zero: a job killed
+     mid-run never reached the end of the step, so it printed none of the
+     reporter's blocks.
    - If the step name is ambiguous, read the tail and look — but note
      `ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL` classifies nothing by itself, it is
      pnpm relaying a child's exit code, so read the lines above it.
@@ -410,7 +436,9 @@ Aggregate across the week:
   timing medians.
 - **Failures by job**, most damaging first.
 - **A test-level ledger** — for each test, the number of merge-queue runs it
-  failed. This is the week's flake ranking.
+  failed. This is a *failure* ranking; which entries are flakes rather than
+  regressions is a separate judgement, made on the evidence named under
+  `Failed tests (N):` and not on the retry count.
 
 Carry all three into memory and into the report, and track them week over
 week exactly like the flaky list: a test that ejects PRs from the merge queue
@@ -474,9 +502,11 @@ this layout:
    running, is this week's first suggested-diff candidate — a flake that
    survives its retries costs seconds, one that exhausts them costs a PR its
    place in the queue. Say in the report how many queue failures each
-   candidate caused. If the week's failures are dominated by the
-   infrastructure class instead, say that plainly and do not dress it up as
-   a flaky week.
+   candidate caused, and say whether it is a flake or a regression on the
+   evidence rather than on the retry count: a regression wants a fix or a
+   revert, a flake wants the test stabilised. If the week's failures are
+   dominated by the infrastructure class instead, say that plainly and do
+   not dress it up as a flaky week.
 3. **Sustained intra-week shifts are actionable on their own** — a step
    median moving ≥50% across three or more consecutive days (e.g.
    `run tests` doubling within the week) must be investigated in the same
