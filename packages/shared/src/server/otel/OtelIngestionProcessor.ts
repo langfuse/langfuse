@@ -1913,6 +1913,8 @@ export class OtelIngestionProcessor {
       "gen_ai.output.messages",
       "gen_ai.tool.call.arguments",
       "gen_ai.tool.call.result",
+      // Claude Managed Agents
+      "anthropic.tool_result.content",
       // Genkit
       "genkit:input",
       "genkit:output",
@@ -2422,7 +2424,9 @@ export class OtelIngestionProcessor {
 
     // OpenTelemetry tools (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
     input = attributes["gen_ai.tool.call.arguments"];
-    output = attributes["gen_ai.tool.call.result"];
+    output =
+      attributes["gen_ai.tool.call.result"] ??
+      attributes["anthropic.tool_result.content"];
 
     if (input || output) {
       return { input, output };
