@@ -18,6 +18,7 @@ pub struct InferenceService {
     control_plane: ControlPlaneClient,
     provider: ProviderTransport,
     request_body_capacity: Semaphore,
+    model_catalog_capacity: Semaphore,
     resolution_capacity: Semaphore,
     telemetry: Option<crate::telemetry::Telemetry>,
 }
@@ -56,6 +57,7 @@ impl InferenceService {
                 .map_err(|_| ResolutionError::Configuration)?
                 .with_telemetry(telemetry.clone()),
             request_body_capacity: Semaphore::new(max_concurrent_resolutions),
+            model_catalog_capacity: Semaphore::new(max_concurrent_resolutions),
             resolution_capacity: Semaphore::new(max_concurrent_resolutions),
             telemetry: Some(telemetry),
         })
@@ -83,14 +85,17 @@ impl InferenceService {
         Ok(RequestBodyPermit { _permit: permit })
     }
 
-    pub(crate) async fn model_catalog(
+    pub(crate) async fn fetch_model_catalog(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
         correlation: &RequestCorrelation,
     ) -> Result<Vec<u8>, ResolutionError> {
-        let _resolution_permit = self.try_reserve_resolution()?;
-        let _active = crate::observability::Active::new("resolution");
+        let _permit = self.model_catalog_capacity.try_acquire().map_err(|_| {
+            crate::observability::rejected("model_catalog");
+            ResolutionError::Unavailable
+        })?;
+        let _active = crate::observability::Active::new("model_catalog");
         let body = self
             .control_plane
             .models(gateway_key, api_format, correlation.id())
@@ -191,6 +196,7 @@ impl InferenceService {
             control_plane,
             provider,
             request_body_capacity: Semaphore::new(resolutions),
+            model_catalog_capacity: Semaphore::new(resolutions),
             resolution_capacity: Semaphore::new(resolutions),
             telemetry: None,
         }

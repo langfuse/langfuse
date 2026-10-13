@@ -108,14 +108,26 @@ async fn resolution_capacity_is_bounded_and_released_on_cancellation_and_failure
     })
     .await
     .unwrap();
+    let body_polled = Arc::new(AtomicBool::new(false));
+    let observed = body_polled.clone();
+    let body = Body::from_stream(stream::once(async move {
+        observed.store(true, Ordering::SeqCst);
+        Ok::<_, Infallible>(Bytes::from_static(br#"{"model":"Production key:test"}"#))
+    }));
     let busy = tokio::time::timeout(
         Duration::from_secs(2),
-        gateway.app.clone().oneshot(request("Bearer valid")),
+        gateway.app.clone().oneshot(
+            Request::post("/openai/v1/responses")
+                .header(header::AUTHORIZATION, "Bearer valid")
+                .body(body)
+                .unwrap(),
+        ),
     )
     .await
     .unwrap()
     .unwrap();
     assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert!(!body_polled.load(Ordering::SeqCst));
     assert_eq!(web.calls(), 1);
     assert_eq!(provider.calls(), 0);
 
@@ -225,6 +237,74 @@ async fn slow_body_reads_do_not_consume_resolution_capacity() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 1);
+}
+
+#[tokio::test]
+async fn slow_model_catalogs_do_not_consume_resolution_capacity() {
+    let entered = Arc::new(tokio::sync::Notify::new());
+    let started = entered.clone();
+    let web = FakeServer::start(move |request| {
+        let started = started.clone();
+        async move {
+            if request.uri().path() == "/api/internal/ai-gateway/v1/models" {
+                started.notify_one();
+                return std::future::pending().await;
+            }
+            resolution_response("provider-secret")
+        }
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let gateway = Gateway::start(Some(InferenceService::for_test(
+        web.control_plane(),
+        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+        1,
+    )))
+    .await;
+    let mut held = Box::pin(
+        gateway.app.clone().oneshot(
+            Request::get("/openai/v1/models")
+                .header(header::AUTHORIZATION, "Bearer models-held")
+                .body(Body::empty())
+                .unwrap(),
+        ),
+    );
+    tokio::time::timeout(Duration::from_secs(2), async {
+        tokio::select! {
+            () = entered.notified() => {},
+            _ = &mut held => panic!("model catalog should remain pending"),
+        }
+    })
+    .await
+    .unwrap();
+
+    let inference = gateway
+        .app
+        .clone()
+        .oneshot(
+            Request::post("/openai/v1/responses")
+                .header(header::AUTHORIZATION, "Bearer inference")
+                .body(Body::from(r#"{"model":"connection:model"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(inference.status(), StatusCode::OK);
+    let busy = gateway
+        .app
+        .clone()
+        .oneshot(
+            Request::get("/openai/v1/models")
+                .header(header::AUTHORIZATION, "Bearer models-busy")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(web.calls(), 2);
+    assert_eq!(provider.calls(), 1);
+    drop(held);
 }
 
 impl Gateway {
