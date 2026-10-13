@@ -985,6 +985,7 @@
     transparent 1px
   );
   background-size: calc(var(--spacing) * 3.5) calc(var(--spacing) * 3.5);
+  background-position: center;
 }
 
 @utility scrollbar-visible {
