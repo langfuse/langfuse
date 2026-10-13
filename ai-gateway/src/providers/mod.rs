@@ -4,7 +4,7 @@ use std::{sync::Arc, time::Duration};
 
 use axum::{
     body::{Body, Bytes},
-    http::{HeaderMap, HeaderName, HeaderValue, Method, Response, header},
+    http::{HeaderMap, HeaderName, HeaderValue, Response, header},
 };
 use reqwest::Client;
 use reqwest_middleware::ClientWithMiddleware;
@@ -27,22 +27,17 @@ pub(crate) enum Route {
     OpenAiResponses,
     OpenAiResponsesCompact,
     OpenAiChatCompletions,
-    OpenAiModels,
     AnthropicMessages,
     AnthropicCountTokens,
-    AnthropicModels,
 }
 
 impl Route {
     pub(crate) fn provider(self) -> Provider {
         match self {
-            Self::OpenAiResponses
-            | Self::OpenAiResponsesCompact
-            | Self::OpenAiChatCompletions
-            | Self::OpenAiModels => Provider::OpenAi,
-            Self::AnthropicMessages | Self::AnthropicCountTokens | Self::AnthropicModels => {
-                Provider::Anthropic
+            Self::OpenAiResponses | Self::OpenAiResponsesCompact | Self::OpenAiChatCompletions => {
+                Provider::OpenAi
             }
+            Self::AnthropicMessages | Self::AnthropicCountTokens => Provider::Anthropic,
         }
     }
 
@@ -53,13 +48,6 @@ impl Route {
                 Provider::OpenAi => ApiFormat::OpenAiResponses,
                 Provider::Anthropic => ApiFormat::AnthropicMessages,
             },
-        }
-    }
-
-    pub(crate) fn method(self) -> Method {
-        match self {
-            Self::OpenAiModels | Self::AnthropicModels => Method::GET,
-            _ => Method::POST,
         }
     }
 
@@ -79,7 +67,6 @@ impl Route {
             Self::OpenAiResponses => "/responses",
             Self::OpenAiResponsesCompact => "/responses/compact",
             Self::OpenAiChatCompletions => "/chat/completions",
-            Self::OpenAiModels | Self::AnthropicModels => "/models",
             Self::AnthropicMessages => "/messages",
             Self::AnthropicCountTokens => "/messages/count_tokens",
         }
@@ -93,13 +80,6 @@ impl Route {
                 | Self::OpenAiChatCompletions
                 | Self::AnthropicMessages
         )
-    }
-
-    pub(crate) fn forwarded_query_parameters(self) -> &'static [&'static str] {
-        match self {
-            Self::AnthropicModels => &["limit", "after_id", "before_id"],
-            _ => &[],
-        }
     }
 }
 
@@ -256,7 +236,7 @@ impl ProviderTransport {
         correlation.record_upstream(UpstreamTarget::for_connection(context.connection(), model));
         let mut upstream = self
             .client
-            .request(route.method(), self.request_url(route, query))
+            .post(self.request_url(route, query))
             .with_extension(DisableOtelPropagation)
             .headers(transport::request_headers(headers, api_format))
             .header(header::ACCEPT_ENCODING, "identity")
@@ -375,19 +355,6 @@ fn provider_credential(
     };
     let value = HeaderValue::from_str(&value).map_err(|_| ProviderError::Configuration)?;
     Ok((name, value))
-}
-
-pub(crate) fn forwarded_query(route: Route, query: Option<&str>) -> Option<String> {
-    let allowed = route.forwarded_query_parameters();
-    let query = query?;
-    let kept: Vec<&str> = query
-        .split('&')
-        .filter(|pair| {
-            let key = pair.split('=').next().unwrap_or("");
-            allowed.contains(&key)
-        })
-        .collect();
-    (!kept.is_empty()).then(|| kept.join("&"))
 }
 
 #[cfg(test)]

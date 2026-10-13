@@ -583,7 +583,7 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
 }
 
 #[tokio::test]
-async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
+async fn compact_posts_compact_path_and_captures_ingestion() {
     use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
 
     const COMPACT: &[u8] =
@@ -592,8 +592,6 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
         br#"{"model":"provider-model","input":[{"encrypted_content":"opaque-ciphertext"}]}"#;
     const COMPACT_RESPONSE: &str =
         r#"{"id":"comp_1","output":[{"encrypted_content":"opaque-ciphertext"}]}"#;
-    const MODELS: &str = r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#;
-
     let (sent, mut received) = tokio::sync::mpsc::channel(2);
     let sink = FakeServer::start(move |request| {
         let sent = sent.clone();
@@ -609,26 +607,14 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
     let telemetry =
         Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
     let upstream = FakeServer::start(|request| async move {
-        let uri = request.uri().to_string();
-        let method = request.method().clone();
+        assert_eq!(request.uri(), "/v1/responses/compact");
+        assert_eq!(request.method(), "POST");
         let body = to_bytes(request.into_body(), 4096).await.unwrap();
-        match (method.as_str(), uri.as_str()) {
-            ("POST", "/v1/responses/compact") => {
-                assert_eq!(body, UPSTREAM_COMPACT);
-                Response::builder()
-                    .header("content-type", "application/json")
-                    .body(Body::from(COMPACT_RESPONSE))
-                    .unwrap()
-            }
-            ("GET", "/v1/models") => {
-                assert!(body.is_empty());
-                Response::builder()
-                    .header("content-type", "application/json")
-                    .body(Body::from(MODELS))
-                    .unwrap()
-            }
-            other => panic!("unexpected provider request {other:?}"),
-        }
+        assert_eq!(body, UPSTREAM_COMPACT);
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from(COMPACT_RESPONSE))
+            .unwrap()
     })
     .await;
     let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
@@ -656,26 +642,12 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
         payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["name"],
         "openai.responses"
     );
-    let models = relay
-        .forward_route(
-            relay.try_admit().unwrap(),
-            resolved_request_context("provider-secret").await,
-            &HeaderMap::new(),
-            Bytes::new(),
-            Route::OpenAiModels,
-            None,
-            &mut crate::correlation::RequestCorrelation::default(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(to_bytes(models.into_body(), 4096).await.unwrap(), MODELS);
-    tokio::time::sleep(Duration::from_millis(50)).await;
     assert!(received.try_recv().is_err());
     telemetry
         .shutdown(Instant::now() + Duration::from_secs(1))
         .await;
     assert_eq!(sink.calls(), 1);
-    assert_eq!(upstream.calls(), 2);
+    assert_eq!(upstream.calls(), 1);
 }
 
 fn assert_completed_upload(payload: &serde_json::Value, streaming: bool) {
@@ -887,96 +859,42 @@ async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_f
 }
 
 #[tokio::test]
-async fn count_tokens_relays_the_body_and_models_forwards_only_pagination() {
+async fn count_tokens_relays_the_body() {
     let upstream = FakeServer::start(|request| async move {
-        let path = request.uri().path().to_owned();
-        let query = request.uri().query().map(str::to_owned);
-        match path.as_str() {
-            "/v1/messages/count_tokens" => {
-                assert_eq!(request.method(), "POST");
-                assert_eq!(query, None);
-                assert_eq!(
-                    to_bytes(request.into_body(), 1024).await.unwrap(),
-                    r#"{"model":"provider-model","messages":[]}"#
-                );
-                Response::builder()
-                    .header("content-type", "application/json")
-                    .body(Body::from(r#"{"input_tokens":42}"#))
-                    .unwrap()
-            }
-            "/v1/models" => {
-                assert_eq!(request.method(), "GET");
-                assert_eq!(query.as_deref(), Some("limit=1000&after_id=model_x"));
-                assert!(request.headers().get(header::CONTENT_LENGTH).is_none());
-                Response::builder()
-                    .header("content-type", "application/json")
-                    .body(Body::from(r#"{"data":[{"id":"claude-sonnet-4-5"}]}"#))
-                    .unwrap()
-            }
-            other => panic!("unexpected upstream path {other}"),
-        }
+        assert_eq!(request.uri(), "/v1/messages/count_tokens");
+        assert_eq!(request.method(), "POST");
+        assert_eq!(
+            to_bytes(request.into_body(), 1024).await.unwrap(),
+            r#"{"model":"provider-model","messages":[]}"#
+        );
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"input_tokens":42}"#))
+            .unwrap()
     })
     .await;
     let relay = transport(&upstream);
-    for (route, query, body, expected) in [
-        (
+    let context =
+        resolved_request_context_for(ApiFormat::AnthropicMessages, "provider-secret", "usage")
+            .await;
+    let response = relay
+        .forward_route(
+            relay.try_admit().unwrap(),
+            context,
+            &headers(&[("content-type", "application/json")]),
+            Bytes::from_static(br#"{"model":"claude-sonnet-4-5","messages":[]}"#),
             Route::AnthropicCountTokens,
-            Some("beta=true"),
-            r#"{"model":"claude-sonnet-4-5","messages":[]}"#,
-            r#"{"input_tokens":42}"#,
-        ),
-        (
-            Route::AnthropicModels,
-            Some("limit=1000&evil=1&after_id=model_x"),
-            "",
-            r#"{"data":[{"id":"claude-sonnet-4-5"}]}"#,
-        ),
-    ] {
-        let context =
-            resolved_request_context_for(ApiFormat::AnthropicMessages, "provider-secret", "usage")
-                .await;
-        let query = forwarded_query(route, query);
-        let response = relay
-            .forward_route(
-                relay.try_admit().unwrap(),
-                context,
-                &headers(&[("content-type", "application/json")]),
-                Bytes::from(body),
-                route,
-                query.as_deref(),
-                &mut crate::correlation::RequestCorrelation::default(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(
-            to_bytes(response.into_body(), 1024).await.unwrap(),
-            expected
-        );
-    }
-    assert_eq!(upstream.calls(), 2);
-}
-
-#[test]
-fn only_inference_routes_capture_generations_and_only_models_forwards_query() {
-    assert!(Route::AnthropicMessages.captures_generation());
-    assert!(!Route::AnthropicCountTokens.captures_generation());
-    assert!(!Route::AnthropicModels.captures_generation());
+            None,
+            &mut crate::correlation::RequestCorrelation::default(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
-        forwarded_query(Route::AnthropicMessages, Some("beta=true&limit=5")),
-        None
+        to_bytes(response.into_body(), 1024).await.unwrap(),
+        r#"{"input_tokens":42}"#
     );
-    assert_eq!(
-        forwarded_query(
-            Route::AnthropicModels,
-            Some("before_id=a&limit=&evil&after_id=b%20c")
-        ),
-        Some("before_id=a&limit=&after_id=b%20c".to_owned())
-    );
-    assert_eq!(
-        forwarded_query(Route::AnthropicModels, Some("evil=1")),
-        None
-    );
+    assert_eq!(upstream.calls(), 1);
 }
 
 #[test]
