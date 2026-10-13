@@ -60,6 +60,7 @@ export default function AIFeatureSwitch() {
       await updateSession();
       // Admins resolve org context from this query, not the session
       utils.organizations.byId.invalidate();
+      utils.inAppAgent.telemetryProject.invalidate();
     },
     onError: () => {
       setIsAITelemetrySwitchEnabled(aiTelemetryEnabled ?? true);
