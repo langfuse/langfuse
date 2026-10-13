@@ -39,10 +39,9 @@ const emptyDraft = {
   clustering: null,
   facets: builtInFacets,
   filters: [],
-  sampling: 1,
   idleSeconds: "600",
   embeddingLocked: false,
-  enabled: true,
+  automaticProcessing: false,
 } satisfies ConfigureTopicsDraft;
 
 const filledDraft = {
@@ -64,9 +63,8 @@ const filledDraft = {
   filters: [
     { column: "name", type: "string", operator: "=", value: "billing" },
   ],
-  sampling: 0.4,
   embeddingLocked: true,
-  enabled: true,
+  automaticProcessing: true,
 } satisfies ConfigureTopicsDraft;
 
 const meta = preview.meta({
@@ -98,7 +96,7 @@ export const Configured = meta.story({
 });
 
 export const SavesTheSheet = meta.story({
-  name: "(Test) Save sends facets, filter, idle time, and sampling",
+  name: "(Test) Save sends facets, filter, and idle time",
   args: {
     draft: filledDraft,
     defaultOpen: true,
@@ -118,7 +116,6 @@ export const SavesTheSheet = meta.story({
     await expect(args.onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         idleSeconds: "90",
-        sampling: 0.4,
         filters: filledDraft.filters,
         facets: expect.arrayContaining([
           expect.objectContaining({ name: "Intent", enabled: true }),
@@ -131,21 +128,21 @@ export const SavesTheSheet = meta.story({
 
 export const Paused = meta.story({
   args: {
-    draft: { ...filledDraft, enabled: false },
+    draft: { ...filledDraft, automaticProcessing: false },
     defaultOpen: true,
     notice: "paused",
     shortLabel: "LLM connection missing",
     pausedAgo: "3 days ago",
     message:
-      'The LLM connection "Amazon Bedrock" was deleted. Choose another connection, then turn on "Process new traces automatically" in Configure Topics.',
+      'The LLM connection "Amazon Bedrock" was deleted. Choose another connection in Configure Topics, then turn automatic processing back on.',
     triggerVariant: "primary",
   },
 });
 
 export const SavesTurnedOffWithoutModelTests = meta.story({
-  name: "(Test) Save with automatic processing off ignores failing model tests",
+  name: "(Test) Save with automatic processing off ignores failing unchanged models",
   args: {
-    draft: filledDraft,
+    draft: { ...filledDraft, automaticProcessing: false },
     defaultOpen: true,
     notice: "none",
     triggerVariant: "secondary",
@@ -158,14 +155,27 @@ export const SavesTurnedOffWithoutModelTests = meta.story({
   play: async ({ args }) => {
     const body = within(document.body);
     const save = body.getByRole("button", { name: "Save" });
-    await expect(save).toBeDisabled();
-    await userEvent.click(
-      body.getByRole("switch", { name: "Process new traces automatically" }),
-    );
     await expect(save).toBeEnabled();
     await userEvent.click(save);
-    await expect(args.onSave).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: false }),
-    );
+    await expect(args.onSave).toHaveBeenCalledOnce();
+  },
+});
+
+export const BlocksSaveWhileRunningWithFailingModel = meta.story({
+  name: "(Test) Save with automatic processing on needs every model to pass",
+  args: {
+    draft: filledDraft,
+    defaultOpen: true,
+    notice: "none",
+    triggerVariant: "secondary",
+    slotChecks: {
+      summary: { status: "ok" },
+      embedding: { status: "ok" },
+      clustering: { status: "error", message: "Invalid API key." },
+    },
+  },
+  play: async () => {
+    const body = within(document.body);
+    await expect(body.getByRole("button", { name: "Save" })).toBeDisabled();
   },
 });

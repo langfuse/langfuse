@@ -12,7 +12,6 @@ export function topicsSetupPayload(
 ): TopicsSetup {
   const parsed = topicsSetupSchema.safeParse({
     ...slots,
-    enabled: value.enabled,
     facets: value.facets
       .filter((facet) => facet.builtIn)
       .map((facet) => ({ name: facet.name, enabled: facet.enabled })),
@@ -20,7 +19,6 @@ export function topicsSetupPayload(
       .filter((facet) => !facet.builtIn && facet.enabled)
       .map((facet) => facet.id),
     filter: value.filters,
-    sampling: value.sampling,
     traceIdleMs: Number(value.idleSeconds) * 1000,
   });
   if (!parsed.success)

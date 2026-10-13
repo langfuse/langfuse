@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -23,6 +23,7 @@ import {
   type TopicSlotCheck,
 } from "./ConfigureTopicsDialog";
 import { topicsSetupPayload } from "./topics-setup";
+import { useAutomaticProcessing } from "./useAutomaticProcessing";
 
 type StoredSettings = RouterOutputs["topics"]["modelSettings"];
 type Connection = RouterOutputs["llmApiKey"]["all"]["data"][number];
@@ -51,6 +52,14 @@ export function useTopicModelSettings({
     settings.data.embedding &&
     settings.data.clustering,
   );
+  const rule = rules.data?.length === 1 ? rules.data[0] : null;
+  const automaticProcessing = useAutomaticProcessing({
+    canWrite,
+    projectId,
+    rule,
+    stored: settings.data,
+    traceIdleMs: readinessSettings.data?.traceIdleMs ?? null,
+  });
 
   let notice = null;
   if (settings.data?.blockMessage)
@@ -59,6 +68,15 @@ export function useTopicModelSettings({
         <Alert.Title>Automatic Topics processing is paused</Alert.Title>
         <Alert.Description>
           <p className="break-words">{settings.data.blockMessage}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button
+              text="Turn back on"
+              variant="secondary"
+              size="sm"
+              disabled={!canWrite}
+              onClick={automaticProcessing.openEnable}
+            />
+          </div>
         </Alert.Description>
       </Alert>
     );
@@ -83,7 +101,6 @@ export function useTopicModelSettings({
     rules.isSuccess &&
     facetsReady,
   );
-  const rule = rules.data?.length === 1 ? rules.data[0] : null;
   const action = ready ? (
     <ConfigureTopicsSettings
       key={`${settings.dataUpdatedAt}-${rules.dataUpdatedAt}-${readinessSettings.dataUpdatedAt}`}
@@ -106,10 +123,9 @@ export function useTopicModelSettings({
         clustering: null,
         facets: [],
         filters: [],
-        sampling: 1,
         idleSeconds: "600",
         embeddingLocked: false,
-        enabled: true,
+        automaticProcessing: false,
       }}
       defaultOpen={false}
       onConfigureProviders={() => undefined}
@@ -120,33 +136,7 @@ export function useTopicModelSettings({
     />
   );
 
-  const status = settings.data ? (
-    <TopicsStatusBadge
-      enabled={settings.data.enabled ?? false}
-      paused={Boolean(settings.data.blockMessage)}
-    />
-  ) : null;
-
-  return { action, notice, status };
-}
-
-function TopicsStatusBadge({
-  enabled,
-  paused,
-}: {
-  enabled: boolean;
-  paused: boolean;
-}) {
-  const { text, color } = topicsStatus({ enabled, paused });
-  return (
-    <Badge
-      label="Topics"
-      text={text}
-      color={color}
-      size="md"
-      title={`Automatic processing of new traces is ${text.toLowerCase()}`}
-    />
-  );
+  return { action, notice, automaticProcessing: automaticProcessing.control };
 }
 
 function ConfigureTopicsSettings({
@@ -206,10 +196,9 @@ function ConfigureTopicsSettings({
     clustering: judgeModel(stored.clustering, connections),
     facets: facetDrafts(facets, rule ? new Set(rule.facetIds) : null),
     filters: [],
-    sampling: rule?.sampling ?? 1,
     idleSeconds: String((traceIdleMs ?? 600_000) / 1000),
     embeddingLocked: false,
-    enabled: stored.enabled ?? true,
+    automaticProcessing: stored.enabled ?? false,
   };
   const paused = stored.blockMessage
     ? {
@@ -276,7 +265,6 @@ function ConfigureTopicsSettings({
           ? parsedDimensions.data
           : stored.embeddingDimensions,
         clustering: slot === "clustering" ? value : null,
-        enabled: false,
       })
       .then((errors) => {
         if (requests.current[slot] !== request) return;
@@ -329,7 +317,7 @@ function ConfigureTopicsSettings({
       stored.clustering?.llmApiKeyId,
       "chat",
     );
-    if (value.enabled && (!summary || !embedding || !clustering))
+    if (stored.enabled && (!summary || !embedding || !clustering))
       throw new Error("Choose a model from a connection in this project.");
     try {
       await save.mutateAsync({
@@ -376,18 +364,6 @@ function ConfigureTopicsSettings({
         : { notice: "none" as const })}
     />
   );
-}
-
-function topicsStatus({
-  enabled,
-  paused,
-}: {
-  enabled: boolean;
-  paused: boolean;
-}) {
-  if (paused) return { text: "Paused", color: "yellow" } as const;
-  if (enabled) return { text: "On", color: "green" } as const;
-  return { text: "Off", color: "primary" } as const;
 }
 
 function configured(stored: StoredSettings) {

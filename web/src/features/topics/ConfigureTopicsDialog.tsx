@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, ExternalLinkIcon, Info } from "lucide-react";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { AlertTriangle, ExternalLinkIcon } from "lucide-react";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -29,9 +28,6 @@ import {
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { RuleSamplingSection } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleSamplingSection";
-import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
-import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import {
@@ -75,9 +71,7 @@ export type ConfigureTopicsSaveDraft = {
   clustering: JudgeModel | null;
   facets: FacetDraft[];
   filters: FilterState;
-  sampling: number;
   idleSeconds: string;
-  enabled: boolean;
 };
 
 export type ConfigureTopicsDraft = {
@@ -87,11 +81,13 @@ export type ConfigureTopicsDraft = {
   clustering: JudgeModel | null;
   facets: FacetDraft[];
   filters: FilterState;
-  sampling: number;
   idleSeconds: string;
   embeddingLocked: boolean;
-  /** Automatic processing of new traces (`topic_configs.enabled`). */
-  enabled: boolean;
+  /**
+   * Automatic processing of new traces is on, so Save tests every model.
+   * Otherwise Save tests only the models that changed.
+   */
+  automaticProcessing: boolean;
 };
 
 type ConfigureTopicsDialogProps = {
@@ -175,15 +171,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
   const [browsing, setBrowsing] = useState(facets[0]?.id ?? ADD_FACET_TAB);
   const [idleSeconds, setIdleSeconds] = useState(draft.idleSeconds);
   const [filters, setFilters] = useState(draft.filters);
-  const [enabled, setEnabled] = useState(draft.enabled);
-  const [samplingStore] = useState(() =>
-    createRuleSetupStore({
-      name: "",
-      filter: [],
-      sampling: draft.sampling,
-      assignments: [],
-    }),
-  );
   const modelsReady = Boolean(summary && embedding && clustering);
   const enabledFacets = facets.filter((facet) => facet.enabled);
   const testsReady =
@@ -206,7 +193,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
     canWrite &&
     !saving &&
     enabledFacets.length > 0 &&
-    (enabled ? modelsPass : changedSlotsPass);
+    (draft.automaticProcessing ? modelsPass : changedSlotsPass);
   const browsed = facets.find((facet) => facet.id === browsing) ?? null;
   const atFacetCap = enabledFacets.length >= MAX_ENABLED_FACETS;
   const commitSlot = (
@@ -264,9 +251,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                   clustering,
                   facets,
                   filters,
-                  sampling: samplingStore.getState().sampling,
                   idleSeconds,
-                  enabled,
                 }),
               )
                 .then(() => setOpen(false))
@@ -274,12 +259,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
             }}
           >
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 pb-4">
-              <Alert variant="info" icon={Info}>
-                <Alert.Description>
-                  Incoming traces are processed automatically only when
-                  ingestion is v4-ready. Legacy ingestion is not included.
-                </Alert.Description>
-              </Alert>
               {paused ? (
                 <PausedNotice
                   shortLabel={paused.shortLabel}
@@ -383,23 +362,8 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                     projectId={projectId}
                     filters={filters}
                     onFiltersChange={setFilters}
-                    samplingStore={samplingStore}
                   />
                 ) : null}
-              </Stepper>
-              <Stepper
-                number={4}
-                title="Automatic processing"
-                description="Summarize new traces once they are idle. Manual runs are not affected."
-                compactBottomSpacing
-              >
-                <AutomaticProcessing
-                  enabled={enabled}
-                  disabled={!canWrite}
-                  modelsPass={modelsPass}
-                  pausedLabel={paused?.shortLabel ?? null}
-                  onEnabledChange={setEnabled}
-                />
               </Stepper>
             </div>
             {saveError ? (
@@ -678,27 +642,20 @@ function RuleScope({
   projectId,
   filters,
   onFiltersChange,
-  samplingStore,
 }: {
   projectId?: string;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
-  samplingStore: RuleSetupStore;
 }) {
   if (!projectId)
     return (
-      <SampleTraceScope
-        filters={filters}
-        onFiltersChange={onFiltersChange}
-        samplingStore={samplingStore}
-      />
+      <SampleTraceScope filters={filters} onFiltersChange={onFiltersChange} />
     );
   return (
     <ProjectTraceScope
       projectId={projectId}
       filters={filters}
       onFiltersChange={onFiltersChange}
-      samplingStore={samplingStore}
     />
   );
 }
@@ -706,18 +663,15 @@ function RuleScope({
 function SampleTraceScope({
   filters,
   onFiltersChange,
-  samplingStore,
 }: {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
-  samplingStore: RuleSetupStore;
 }) {
   return (
     <TraceScopeFrame
       projectId={undefined}
       filters={filters}
       onFiltersChange={onFiltersChange}
-      samplingStore={samplingStore}
       countLabel="Sample"
       rows={SAMPLE_TRACES_IN_SCOPE}
     />
@@ -728,12 +682,10 @@ function ProjectTraceScope({
   projectId,
   filters,
   onFiltersChange,
-  samplingStore,
 }: {
   projectId: string;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
-  samplingStore: RuleSetupStore;
 }) {
   const [range] = useState(() => relativeTopicTimeRange(7));
   const [mode, setMode] = useState<EvaluatorFilterExperience>("query");
@@ -865,7 +817,6 @@ function ProjectTraceScope({
       searchType={searchType}
       onModeChange={setMode}
       onFiltersChange={onFiltersChange}
-      samplingStore={samplingStore}
       onSearchQueryChange={setSearchQuery}
       onSearchTypeChange={setSearchType}
     />
@@ -887,7 +838,6 @@ function TraceScopeFrame({
   tooltip,
   rows,
   status,
-  samplingStore,
   onModeChange,
   onFiltersChange,
   onSearchQueryChange,
@@ -913,7 +863,6 @@ function TraceScopeFrame({
     input: string;
   }>;
   status?: string | null;
-  samplingStore: RuleSetupStore;
   onModeChange?: (mode: EvaluatorFilterExperience) => void;
   onFiltersChange?: (filters: FilterState) => void;
   onSearchQueryChange?: (query: string | null) => void;
@@ -1051,51 +1000,6 @@ function TraceScopeFrame({
           </table>
         </div>
       </section>
-      <RuleSamplingSection
-        store={samplingStore}
-        description="Set the percentage of matching traces Topics processes."
-        tooltip="Topics processes this share of the traces that match the filter. A lower rate processes fewer traces."
-      />
-    </div>
-  );
-}
-
-function AutomaticProcessing({
-  disabled,
-  enabled,
-  modelsPass,
-  onEnabledChange,
-  pausedLabel,
-}: {
-  disabled: boolean;
-  enabled: boolean;
-  modelsPass: boolean;
-  onEnabledChange: (enabled: boolean) => void;
-  pausedLabel: string | null;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="flex items-center gap-2 text-sm font-bold">
-          <Switch
-            checked={enabled}
-            disabled={disabled}
-            aria-label="Process new traces automatically"
-            onCheckedChange={onEnabledChange}
-          />
-          Process new traces automatically
-        </label>
-        {pausedLabel && !enabled ? (
-          <Badge text={`Paused: ${pausedLabel}`} color="yellow" size="sm" />
-        ) : null}
-      </div>
-      <p className="text-muted-foreground text-xs">
-        {automaticProcessingHint({
-          enabled,
-          modelsPass,
-          paused: pausedLabel !== null,
-        })}
-      </p>
     </div>
   );
 }
@@ -1126,6 +1030,10 @@ function PausedNotice({
             <span>Paused {pausedAgo}</span>
           </div>
           <p className="text-muted-foreground mt-2 text-sm">{message}</p>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Saving here keeps automatic processing paused. Turn it back on from
+            the Topics page once the models work.
+          </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <LegacyButton
               type="button"
@@ -1145,23 +1053,4 @@ function PausedNotice({
 
 function sameModel(a: JudgeModel | null, b: JudgeModel | null) {
   return a?.provider === b?.provider && a?.model === b?.model;
-}
-
-function automaticProcessingHint({
-  enabled,
-  modelsPass,
-  paused,
-}: {
-  enabled: boolean;
-  modelsPass: boolean;
-  paused: boolean;
-}) {
-  if (enabled && !modelsPass)
-    return "Choose three models that pass their test to save with this on.";
-  if (enabled && paused)
-    return "Saving tests the models again and clears the pause.";
-  if (enabled) return "New traces are summarized once they are idle.";
-  if (paused)
-    return "Fix the connection, turn this on, and save to resume. Saving with it off keeps Topics off, keeps the saved models, and clears the pause.";
-  return "New traces are not processed. Saving with this off tests only the models you changed.";
 }
