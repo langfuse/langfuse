@@ -147,18 +147,6 @@ const viewFilterDefinitions: Record<
       }),
     ),
     defineField(
-      "loadedSkillResourceIds",
-      sourceSpec("Skill Version Resources (Loaded)", {
-        uiTableId: "loadedSkillResourceIds",
-      }),
-    ),
-    defineField(
-      "loadedSkillResources",
-      sourceSpec("Skill Resources (Loaded)", {
-        uiTableId: "loadedSkillResources",
-      }),
-    ),
-    defineField(
       "toolNames",
       sourceSpec("Tool Names (Available)", { uiTableId: "toolNames" }),
       sourceSpec("Tool Names (Available)", {
