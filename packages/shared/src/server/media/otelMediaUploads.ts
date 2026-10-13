@@ -1,4 +1,5 @@
 import { env } from "../../env";
+import { logger } from "../logger";
 import { MediaUploadPool } from "./MediaUploadPool";
 
 // Shared by early-media ingestion jobs in this worker process.
@@ -14,7 +15,7 @@ export function mediaDispatchConcurrency(): number {
   return Math.min(5, Number(env.LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY ?? 100));
 }
 
-/** Iterate lazily; drain active work before propagating an error. */
+/** Iterate lazily; finish active work, log later failures, then rethrow the first. */
 export async function forEachMedia<T>(
   values: Iterable<T>,
   process: (value: T) => Promise<unknown>,
@@ -34,7 +35,11 @@ export async function forEachMedia<T>(
           await process(next.value);
         }
       } catch (error) {
-        if (!failure) failure = { error };
+        if (!failure) {
+          failure = { error };
+        } else {
+          logger.error("Additional OTEL media processing failure", { error });
+        }
       }
     }),
   );
