@@ -1,5 +1,6 @@
 import {
   EvaluatorBlockReason,
+  type LlmApiKeys,
   type Prisma,
   type TopicConfig,
 } from "@prisma/client";
@@ -11,7 +12,11 @@ import {
 } from "../llm/llmText";
 import { testModelCall } from "../llm/testModelCall";
 import { LLMAdapter, type LLMApiKey, type LLMApiKeySchema } from "../llm/types";
-import { listEffectiveLlmApiKeys } from "../services/LLMApiKeys";
+import {
+  listEffectiveLlmApiKeys,
+  toProjectLlmApiKey,
+} from "../services/LLMApiKeys";
+import { logger } from "../logger";
 import {
   TOPICS_MODEL_SLOT_DETAILS,
   TOPICS_MODEL_SLOTS,
@@ -94,12 +99,45 @@ function resolveModels(
 
 async function resolveConfig(row: TopicConfig): Promise<TopicsModels | null> {
   const effective = await listEffectiveLlmApiKeys(row.projectId);
-  return resolveModels(
+  return resolveConfigWithConnections(
     row,
     new Map(
       effective.map(({ connection }) => [connection.provider, connection]),
     ),
   );
+}
+
+async function resolveConfigWithConnections(
+  row: TopicConfig,
+  connections: Map<string, LLMApiKey>,
+) {
+  const resolved = resolveModels(row, connections);
+  if (!resolved && row.enabled)
+    await pauseTopicsModels(row.projectId, {
+      blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+      blockMessage:
+        "A configured LLM connection is no longer available. Choose another connection and turn Topics on again.",
+    });
+  return resolved;
+}
+
+function effectiveConnectionMap(
+  projectId: string,
+  projectConnections: LlmApiKeys[],
+  organizationConnections: LlmApiKeys[],
+) {
+  const byProvider = new Map(
+    organizationConnections.map((connection) => [
+      connection.provider,
+      toProjectLlmApiKey(connection, projectId),
+    ]),
+  );
+  for (const connection of projectConnections)
+    byProvider.set(
+      connection.provider,
+      toProjectLlmApiKey(connection, projectId),
+    );
+  return byProvider;
 }
 
 /** Returns the configured models of a project, or null while any slot is missing. */
@@ -119,12 +157,36 @@ export async function getEnabledTopicsModels(
   if (!projectIds.length) return new Map();
   const rows = await prisma.topicConfig.findMany({
     where: { projectId: { in: projectIds }, enabled: true },
+    include: {
+      project: {
+        select: {
+          LlmApiKeys: true,
+          organization: {
+            select: { organizationLlmApiKeys: true },
+          },
+        },
+      },
+    },
   });
   const models = new Map<string, TopicsModels>();
   await Promise.all(
     rows.map(async (row) => {
-      const resolved = await resolveConfig(row);
-      if (resolved) models.set(row.projectId, resolved);
+      try {
+        const resolved = await resolveConfigWithConnections(
+          row,
+          effectiveConnectionMap(
+            row.projectId,
+            row.project.LlmApiKeys,
+            row.project.organization.organizationLlmApiKeys,
+          ),
+        );
+        if (resolved) models.set(row.projectId, resolved);
+      } catch (error) {
+        logger.error("Failed to resolve Topics models for trace batch", {
+          projectId: row.projectId,
+          error,
+        });
+      }
     }),
   );
   return models;

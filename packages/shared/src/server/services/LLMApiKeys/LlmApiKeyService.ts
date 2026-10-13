@@ -9,7 +9,7 @@ export type EffectiveLlmApiKey = {
   organizationConnectionId?: string;
 };
 
-const toProjectConnection = (
+export const toProjectLlmApiKey = (
   connection: LlmApiKeys,
   projectId: string,
 ): LLMApiKey => {
@@ -33,7 +33,7 @@ export async function resolveLlmApiKey(params: {
   const connection =
     candidates.projectConnections[0] ?? candidates.organizationConnections[0];
 
-  return connection ? toProjectConnection(connection, params.projectId) : null;
+  return connection ? toProjectLlmApiKey(connection, params.projectId) : null;
 }
 
 export async function listEffectiveLlmApiKeys(
@@ -72,7 +72,7 @@ export async function listEffectiveLlmApiKeys(
     }
 
     return {
-      connection: toProjectConnection(connection, projectId),
+      connection: toProjectLlmApiKey(connection, projectId),
       scope: projectConnection ? "project" : "organization",
       ...(projectConnection && organizationConnection
         ? { organizationConnectionId: organizationConnection.id }
