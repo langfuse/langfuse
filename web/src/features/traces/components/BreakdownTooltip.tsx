@@ -87,7 +87,7 @@ export const BreakdownTooltip = ({
       : usdFormatter(value, costFractionDigits, costFractionDigits);
   };
   const waterfallSegments = createWaterfallSegments(contributionEntries);
-  const cacheHitRate = isCost ? null : getCacheHitRate(inputEntries);
+  const cacheHitRate = isCost ? null : getCacheHitRate(inputEntries, details);
   const displayedTotal =
     aggregatedDetails.total ??
     (isCost ? sumEntries(contributionEntries) : new Decimal(0));
@@ -397,21 +397,39 @@ function isInputUsageKey(key: string) {
   );
 }
 
-function getCacheHitRate(entries: [string, number | undefined][]) {
+function getCacheHitRate(
+  entries: [string, number | undefined][],
+  details: Details | Details[],
+) {
+  /** Generic read totals may overlap with each other or with modality counts. */
+  const hasOverlappingCacheReads = (
+    Array.isArray(details) ? details : [details]
+  ).some((detail) => {
+    const readKeys = Object.entries(detail)
+      .filter(
+        ([key, value]) =>
+          isInputUsageKey(key) && isCacheReadKey(key) && (value ?? 0) > 0,
+      )
+      .map(([key]) => key);
+    return (
+      readKeys.length > 1 &&
+      readKeys.some(
+        (key) => !/^input_cached_(text|audio|image)_tokens$/.test(key),
+      )
+    );
+  });
+  if (hasOverlappingCacheReads) return null;
   if (!entries.some(([key]) => /cache/i.test(key))) return null;
   if (!entries.some(([key]) => key === "input")) return null;
   if (entries.some(([, value]) => !isUsableTokenCount(value))) return null;
 
   const total = sumEntries(entries);
-  // A zero or negative total cannot be a denominator.
-  if (!total.isFinite() || total.lte(0)) return null;
+  if (total.lte(0)) return null;
 
   const cacheRead = sumEntries(entries.filter(([key]) => isCacheReadKey(key)));
-  if (!cacheRead.isFinite() || cacheRead.isNeg()) return null;
+  if (cacheRead.isNeg()) return null;
 
   const rate = cacheRead.div(total);
-  if (!rate.isFinite()) return null;
-
   return rate.toNumber();
 }
 

@@ -369,6 +369,75 @@ export const TestZeroCacheHitRate = meta.story({
   },
 });
 
+export const TestCacheReadAliases = meta.story({
+  name: "(Test) Distinguishes cache-read aliases from separate counts",
+  render: () => (
+    <div className="flex flex-col gap-2">
+      <BreakdownTooltip
+        details={{ input: 0, input_cached_tokens: 900, input_cache_read: 900 }}
+      >
+        <span>Bedrock usage with duplicate cache reads</span>
+      </BreakdownTooltip>
+      <BreakdownTooltip
+        details={{
+          input: 100,
+          input_cached_tokens: 100,
+          input_cached_text_tokens: 60,
+          input_cached_audio_tokens: 40,
+        }}
+      >
+        <span>Cached total with text and audio breakdown</span>
+      </BreakdownTooltip>
+      <BreakdownTooltip
+        details={[
+          { input: 50, input_cached_tokens: 50 },
+          { input: 50, input_cache_read: 50 },
+        ]}
+      >
+        <span>Different read keys across generations</span>
+      </BreakdownTooltip>
+      <BreakdownTooltip
+        details={{
+          input: 100,
+          input_cached_text_tokens: 30,
+          input_cached_audio_tokens: 70,
+        }}
+      >
+        <span>Cached text and audio</span>
+      </BreakdownTooltip>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const ambiguous = await openBreakdownTooltip(
+      canvasElement,
+      "Bedrock usage with duplicate cache reads",
+    );
+    await expect(
+      ambiguous.content.queryByText("Cache hit rate"),
+    ).not.toBeInTheDocument();
+
+    const totalAndBreakdown = await openBreakdownTooltip(
+      canvasElement,
+      "Cached total with text and audio breakdown",
+    );
+    await expect(
+      totalAndBreakdown.content.queryByText("Cache hit rate"),
+    ).not.toBeInTheDocument();
+
+    const aggregated = await openBreakdownTooltip(
+      canvasElement,
+      "Different read keys across generations",
+    );
+    await expect(aggregated.content.getByText("50.0%")).toBeInTheDocument();
+
+    const modalities = await openBreakdownTooltip(
+      canvasElement,
+      "Cached text and audio",
+    );
+    await expect(modalities.content.getByText("50.0%")).toBeInTheDocument();
+  },
+});
+
 const hiddenCacheUsage = [
   ["no cache tokens", { input: 100, output: 20, total: 120 }],
   ["zero input", { cache_read_input_tokens: 0, input: 0, output: 1, total: 1 }],
