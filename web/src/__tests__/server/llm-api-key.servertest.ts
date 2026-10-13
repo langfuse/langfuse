@@ -2164,7 +2164,7 @@ describe("llmApiKey.all RPC", () => {
       ).toBeNull();
     });
 
-    it("rebinds an organization-backed default model to an existing project override", async () => {
+    it("does not rebind organization-backed configuration to an incompatible project override", async () => {
       const organizationConnection = await prisma.llmApiKeys.create({
         data: {
           organizationId: orgId,
@@ -2174,7 +2174,7 @@ describe("llmApiKey.all RPC", () => {
           adapter: LLMAdapter.OpenAI,
         },
       });
-      const projectConnection = await prisma.llmApiKeys.create({
+      await prisma.llmApiKeys.create({
         data: {
           projectId,
           secretKey: encrypt("project-secret"),
@@ -2210,13 +2210,11 @@ describe("llmApiKey.all RPC", () => {
         id: organizationConnection.id,
       });
 
-      expect(mockFinalizeEvaluatorBlocks).not.toHaveBeenCalled();
       expect(
-        await prisma.defaultLlmModel.findUniqueOrThrow({
+        await prisma.defaultLlmModel.findUnique({
           where: { projectId },
-          select: { llmApiKeyId: true },
         }),
-      ).toEqual({ llmApiKeyId: projectConnection.id });
+      ).toBeNull();
       expect(
         await prisma.topicConfig.findUniqueOrThrow({
           where: { projectId },
@@ -2228,10 +2226,10 @@ describe("llmApiKey.all RPC", () => {
           },
         }),
       ).toEqual({
-        enabled: true,
-        summaryLlmApiKeyId: projectConnection.id,
-        embeddingLlmApiKeyId: projectConnection.id,
-        clusteringLlmApiKeyId: projectConnection.id,
+        enabled: false,
+        summaryLlmApiKeyId: null,
+        embeddingLlmApiKeyId: null,
+        clusteringLlmApiKeyId: null,
       });
     });
 

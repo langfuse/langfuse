@@ -809,6 +809,7 @@ export class LlmConnectionService {
           await DefaultEvalModelService.handleLlmApiKeyDeletion({
             tx,
             llmApiKeyId: connection.id,
+            adapter: connection.adapter,
             replacementLlmApiKeyId: hasCompatibleOrganizationFallback
               ? organizationFallback?.id
               : undefined,
@@ -852,6 +853,7 @@ export class LlmConnectionService {
           tx,
           llmApiKeyId: connection.id,
           provider: connection.provider,
+          adapter: connection.adapter,
           replacementLlmApiKeyId: hasCompatibleOrganizationFallback
             ? organizationFallback?.id
             : undefined,

@@ -218,6 +218,42 @@ describe("reconcileTopicsConnectionsForProject", () => {
     });
     expect(mocks.invalidate).toHaveBeenCalledWith("project");
   });
+
+  it("pauses Topics rather than rebinding to an incompatible adapter", async () => {
+    const sourceConnection = {
+      ...connection("source", LLMAdapter.OpenAI),
+      provider: "shared-provider",
+      projectId: null,
+      organizationId: "source-org",
+    };
+    const targetConnection = {
+      ...connection("target", LLMAdapter.Anthropic),
+      provider: "shared-provider",
+      projectId: null,
+      organizationId: "target-org",
+    };
+    mocks.current.mockResolvedValue({
+      id: "config",
+      projectId: "project",
+      project: { orgId: "target-org" },
+      summaryLlmApiKey: sourceConnection,
+      embeddingLlmApiKey: sourceConnection,
+      clusteringLlmApiKey: sourceConnection,
+    });
+    mocks.keys.mockResolvedValue([targetConnection]);
+
+    await reconcileTopicsConnectionsForProject("project");
+
+    expect(mocks.update).toHaveBeenCalledWith({
+      where: { id: "config" },
+      data: expect.objectContaining({
+        summaryLlmApiKeyId: null,
+        embeddingLlmApiKeyId: null,
+        clusteringLlmApiKeyId: null,
+        enabled: false,
+      }),
+    });
+  });
 });
 
 describe("getEnabledTopicsModels", () => {

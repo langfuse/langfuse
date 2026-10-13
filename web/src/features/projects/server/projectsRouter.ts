@@ -17,6 +17,7 @@ import {
   QueueJobs,
   redis,
   ProjectDeleteQueue,
+  DefaultEvalModelService,
   getEnvironmentsForProject,
   invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
@@ -373,7 +374,10 @@ export const projectsRouter = createTRPCRouter({
         projectId: input.projectId,
       });
 
-      await reconcileTopicsConnectionsForProject(input.projectId);
+      await Promise.all([
+        DefaultEvalModelService.reconcileConnectionForProject(input.projectId),
+        reconcileTopicsConnectionsForProject(input.projectId),
+      ]);
     }),
 
   environmentFilterOptions: protectedProjectProcedure

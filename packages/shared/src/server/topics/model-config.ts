@@ -165,6 +165,7 @@ export async function handleTopicsLlmApiKeyDeletion(params: {
   tx: Prisma.TransactionClient;
   llmApiKeyId: string;
   provider: string;
+  adapter: string;
   replacementLlmApiKeyId?: string;
   projectReplacementProvider?: string;
 }): Promise<string[]> {
@@ -172,6 +173,7 @@ export async function handleTopicsLlmApiKeyDeletion(params: {
     tx,
     llmApiKeyId,
     provider,
+    adapter,
     replacementLlmApiKeyId,
     projectReplacementProvider,
   } = params;
@@ -197,6 +199,7 @@ export async function handleTopicsLlmApiKeyDeletion(params: {
         where: {
           projectId: { in: configs.map(({ projectId }) => projectId) },
           provider: projectReplacementProvider,
+          adapter,
           id: { not: llmApiKeyId },
         },
         select: { id: true, projectId: true },
@@ -277,14 +280,17 @@ export async function reconcileTopicsConnectionsForProject(
         OR: [{ projectId }, { organizationId: config.project.orgId }],
       },
     });
-    const replacementByProvider = new Map(
+    const replacementByProviderAndAdapter = new Map(
       replacements
         .filter(({ organizationId }) => organizationId)
-        .map((key) => [key.provider, key]),
+        .map((key) => [`${key.provider}:${key.adapter}`, key]),
     );
     for (const key of replacements) {
       if (key.projectId === projectId)
-        replacementByProvider.set(key.provider, key);
+        replacementByProviderAndAdapter.set(
+          `${key.provider}:${key.adapter}`,
+          key,
+        );
     }
 
     const resolveKeyId = (key: LlmApiKeys | null) => {
@@ -294,7 +300,10 @@ export async function reconcileTopicsConnectionsForProject(
         key.organizationId === config.project.orgId
       )
         return key.id;
-      return replacementByProvider.get(key.provider)?.id ?? null;
+      return (
+        replacementByProviderAndAdapter.get(`${key.provider}:${key.adapter}`)
+          ?.id ?? null
+      );
     };
     const summaryLlmApiKeyId = resolveKeyId(config.summaryLlmApiKey);
     const embeddingLlmApiKeyId = resolveKeyId(config.embeddingLlmApiKey);

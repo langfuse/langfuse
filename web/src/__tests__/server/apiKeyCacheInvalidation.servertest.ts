@@ -1,5 +1,5 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import { type Plan, Role } from "@langfuse/shared";
+import { LLMAdapter, type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createApiKeyCacheKey,
@@ -243,6 +243,98 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     await caller.projects.transfer({ projectId, targetOrgId });
 
     expect(await survivingKeys([...sourceKeys, ...targetKeys])).toEqual([]);
+  });
+
+  it("projects.transfer rebinds the default eval model to the destination organization", async () => {
+    const sourceOrgId = await createOrg();
+    const targetOrgId = await createOrg();
+    const projectId = await createProject(sourceOrgId);
+    const user = await createUserInOrgs([sourceOrgId, targetOrgId]);
+    const provider = `transfer-provider-${uuidv4()}`;
+    const sourceConnection = await prisma.llmApiKeys.create({
+      data: {
+        organizationId: sourceOrgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        displaySecretKey: "source",
+        secretKey: "source",
+      },
+    });
+    const targetConnection = await prisma.llmApiKeys.create({
+      data: {
+        organizationId: targetOrgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        displaySecretKey: "target",
+        secretKey: "target",
+      },
+    });
+    await prisma.defaultLlmModel.create({
+      data: {
+        projectId,
+        llmApiKeyId: sourceConnection.id,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-4o-mini",
+      },
+    });
+
+    const caller = makeCaller({
+      userId: user.id,
+      orgIds: [sourceOrgId, targetOrgId],
+      projectId,
+    });
+    await caller.projects.transfer({ projectId, targetOrgId });
+
+    await expect(
+      prisma.defaultLlmModel.findUnique({ where: { projectId } }),
+    ).resolves.toMatchObject({ llmApiKeyId: targetConnection.id });
+  });
+
+  it("projects.transfer removes the default eval model when no compatible connection exists", async () => {
+    const sourceOrgId = await createOrg();
+    const targetOrgId = await createOrg();
+    const projectId = await createProject(sourceOrgId);
+    const user = await createUserInOrgs([sourceOrgId, targetOrgId]);
+    const provider = `transfer-provider-${uuidv4()}`;
+    const sourceConnection = await prisma.llmApiKeys.create({
+      data: {
+        organizationId: sourceOrgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        displaySecretKey: "source",
+        secretKey: "source",
+      },
+    });
+    await prisma.llmApiKeys.create({
+      data: {
+        organizationId: targetOrgId,
+        provider,
+        adapter: LLMAdapter.Anthropic,
+        displaySecretKey: "target",
+        secretKey: "target",
+      },
+    });
+    await prisma.defaultLlmModel.create({
+      data: {
+        projectId,
+        llmApiKeyId: sourceConnection.id,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-4o-mini",
+      },
+    });
+
+    const caller = makeCaller({
+      userId: user.id,
+      orgIds: [sourceOrgId, targetOrgId],
+      projectId,
+    });
+    await caller.projects.transfer({ projectId, targetOrgId });
+
+    await expect(
+      prisma.defaultLlmModel.findUnique({ where: { projectId } }),
+    ).resolves.toBeNull();
   });
 
   it("projects.transfer still evicts cached keys when Topics refresh fails", async () => {

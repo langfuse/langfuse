@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { EvaluatorBlockReason, Prisma } from "@prisma/client";
 import z from "zod";
 import { prisma } from "../../../db";
 import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
@@ -8,6 +8,8 @@ import { testModelCall } from "../../llm/testModelCall";
 import { resolveLlmApiKey } from "../LLMApiKeys";
 import {
   blockEvaluatorsUsingDefaultModel,
+  EvaluatorBlockSource,
+  finalizeEvaluatorBlocks,
   type EvaluatorBlockResult,
 } from "../blockEvaluators";
 
@@ -97,6 +99,7 @@ export class DefaultEvalModelService {
   public static async handleLlmApiKeyDeletion(params: {
     tx: Prisma.TransactionClient;
     llmApiKeyId: string;
+    adapter: string;
     replacementLlmApiKeyId?: string;
     projectReplacementProvider?: string;
   }): Promise<
@@ -105,6 +108,7 @@ export class DefaultEvalModelService {
     const {
       tx,
       llmApiKeyId,
+      adapter,
       replacementLlmApiKeyId,
       projectReplacementProvider,
     } = params;
@@ -132,6 +136,7 @@ export class DefaultEvalModelService {
               in: defaultModels.map(({ projectId }) => projectId),
             },
             provider: projectReplacementProvider,
+            adapter,
             id: { not: llmApiKeyId },
           },
           select: { id: true, projectId: true },
@@ -178,6 +183,66 @@ export class DefaultEvalModelService {
     });
 
     return blockResults;
+  }
+
+  /**
+   * Keeps the default-model connection valid after a project changes organization.
+   */
+  public static async reconcileConnectionForProject(
+    projectId: string,
+  ): Promise<void> {
+    const defaultModelBlock = await prisma.$transaction(async (tx) => {
+      const defaultModel = await tx.defaultLlmModel.findUnique({
+        where: { projectId },
+        include: {
+          Project: { select: { orgId: true } },
+          LlmApiKey: {
+            select: { projectId: true, organizationId: true },
+          },
+        },
+      });
+      if (!defaultModel) return null;
+
+      const connectionIsAccessible =
+        defaultModel.LlmApiKey.projectId === projectId ||
+        defaultModel.LlmApiKey.organizationId === defaultModel.Project.orgId;
+      if (connectionIsAccessible) return null;
+
+      const replacements = await tx.llmApiKeys.findMany({
+        where: {
+          provider: defaultModel.provider,
+          adapter: defaultModel.adapter,
+          OR: [{ projectId }, { organizationId: defaultModel.Project.orgId }],
+        },
+      });
+      const replacement =
+        replacements.find((key) => key.projectId === projectId) ??
+        replacements.find(
+          (key) => key.organizationId === defaultModel.Project.orgId,
+        );
+      if (replacement) {
+        await tx.defaultLlmModel.update({
+          where: { id: defaultModel.id },
+          data: { llmApiKeyId: replacement.id },
+        });
+        return null;
+      }
+
+      const block = await blockEvaluatorsUsingDefaultModel({ tx, projectId });
+      await tx.defaultLlmModel.delete({ where: { id: defaultModel.id } });
+      return block;
+    });
+
+    if (defaultModelBlock) {
+      await finalizeEvaluatorBlocks({
+        projectId,
+        source: EvaluatorBlockSource.DEFAULT_EVAL_MODEL_DELETION,
+        evaluatorIdsByReason: {
+          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
+            defaultModelBlock.blockedEvaluatorIds,
+        },
+      });
+    }
   }
 
   /**
