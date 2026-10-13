@@ -14,7 +14,7 @@ use tracing::Instrument;
 use crate::{
     correlation::{RequestCorrelation, assign_request_id},
     inference::{InferenceService, RequestPreparationError},
-    providers::{ProviderError, Route, forwarded_query},
+    providers::{ProviderError, Route},
     resolution::{ApiFormat, ResolutionError},
     server::GatewayLifecycleState,
 };
@@ -190,7 +190,6 @@ async fn relay(
     let resolution_permit = inference
         .try_reserve_resolution()
         .map_err(InferenceHttpError::from)?;
-    let query = forwarded_query(route, request.uri().query());
     let (parts, body) = request.into_parts();
     let (bytes, model) = request_body_and_model(route, body).await?;
     let (permit, context) = inference
@@ -210,7 +209,7 @@ async fn relay(
             &parts.headers,
             bytes,
             route,
-            query.as_deref(),
+            None,
             correlation,
         )
         .await
