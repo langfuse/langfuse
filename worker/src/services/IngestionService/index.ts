@@ -172,6 +172,22 @@ const AGGREGATE_CACHE_CREATION_USAGE_TYPES = [
   "input_cache_creation",
 ];
 
+// Keys accepted as the provided total cost, in precedence order. The value is
+// stored under `total`, which is what every read path aggregates.
+const PROVIDED_TOTAL_COST_KEYS = ["total", "totalCost", "total_cost"];
+
+// Mirrors the ingestion API schema, which drops non-numeric and negative
+// costs; OTel cost maps reach ingestion unvalidated.
+const isValidProvidedCost = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0;
+
+const getValidProvidedCostEntries = (
+  providedCostDetails: Record<string, unknown> | null | undefined,
+): [string, number][] =>
+  Object.entries(providedCostDetails ?? {}).filter(
+    (entry): entry is [string, number] => isValidProvidedCost(entry[1]),
+  );
+
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
   [TableName.Scores]: (keyof ScoreRecordInsertType)[];
@@ -1479,9 +1495,9 @@ export class IngestionService {
     // usage once any cost point is provided, so tokenised counts could never
     // affect costs — leave usage_details blank instead of paying for
     // tokenisation.
-    const hasProvidedCostDetails = Object.values(
-      observationRecord.provided_cost_details ?? {},
-    ).some((value) => value != null);
+    const hasProvidedCostDetails =
+      getValidProvidedCostEntries(observationRecord.provided_cost_details)
+        .length > 0;
 
     // The AI gateway forwards provider-reported usage whenever the provider
     // returns it. Without it (failed or cancelled upstream calls), the true
@@ -1704,29 +1720,28 @@ export class IngestionService {
     >,
     usageUnits: UsageCostType,
   ): Pick<ObservationRecordInsertType, "cost_details" | "total_cost"> {
-    const { provided_cost_details } = observationRecord;
-
-    const providedCostKeys = Object.entries(provided_cost_details ?? {})
-      .filter(([_, value]) => value != null)
-      .map(([key]) => key);
+    const providedCostEntries = getValidProvidedCostEntries(
+      observationRecord.provided_cost_details,
+    );
 
     // If user has provided any cost point, do not calculate any other cost points
-    if (providedCostKeys.length) {
-      const cost_details = { ...provided_cost_details };
+    if (providedCostEntries.length) {
+      const providedCosts = Object.fromEntries(providedCostEntries);
+      const cost_details = Object.fromEntries(
+        providedCostEntries.filter(
+          ([key]) => !PROVIDED_TOTAL_COST_KEYS.includes(key),
+        ),
+      );
+      const providedTotalKey = PROVIDED_TOTAL_COST_KEYS.find(
+        (key) => key in providedCosts,
+      );
+      // A provided total wins even if it disagrees with the other cost points.
       const finalTotalCost =
-        (provided_cost_details ?? {})["total"] ??
-        // Use provided input and output cost if available, but only if no other cost points are provided
-        (providedCostKeys.every((key) => ["input", "output"].includes(key))
-          ? ((provided_cost_details ?? {})["input"] ?? 0) +
-            ((provided_cost_details ?? {})["output"] ?? 0)
-          : undefined);
+        providedTotalKey !== undefined
+          ? providedCosts[providedTotalKey]
+          : Object.values(cost_details).reduce((sum, cost) => sum + cost, 0);
 
-      if (
-        !Object.prototype.hasOwnProperty.call(cost_details, "total") &&
-        finalTotalCost != null
-      ) {
-        cost_details.total = finalTotalCost;
-      }
+      cost_details.total = finalTotalCost;
 
       return {
         cost_details,
