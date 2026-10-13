@@ -90,8 +90,16 @@
     payloads through assignment and save terminal job state before cleanup.
     Summary references carry facet/version/source fields within project and
     execution scope; exact storage reads also require facet/version scope.
-  - `text.ts` and `embeddings.ts`: Bedrock model transport using the shared AI SDK;
-    worker model calls own usage, cost and vector validation.
+  - `text.ts` and `embeddings.ts`: model transport through the project's LLM
+    connections (`generateLLMText` / `embedLLMText`); worker model calls own
+    usage, cost and vector validation.
+  - `model-config.ts`: per-project `topic_configs` (three connection +
+    model slots and the automatic-processing switch). Saving tests every slot
+    with a real call; Anthropic works for summaries and clustering but fails the
+    embedding test. The embedding model and dimensions are locked once embeddings
+    exist. `setup.ts` tests the models, then commits the single Topics rule,
+    models, and per-project trace idle time together. Refresh the Redis readiness
+    setting only after that transaction commits.
   - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
     Returns the shared `Transcript | null`, capped at 10,000 serialized characters.
     Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results
@@ -100,9 +108,6 @@
     including cleanup. Processing also requires
     `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` (empty by default); reads/configuration
     remain feature-flag/RBAC controlled.
-    The internal Topics PoC model IDs come from the default-free
-    `LANGFUSE_TOPICS_SUMMARY_MODEL` and `LANGFUSE_TOPICS_EMBEDDING_MODEL` env vars;
-    keep them out of the production env template.
 
 - `src/server/transcript`: order minimal `TranscriptObservation` inputs with
   `orderObservations`, then pass the enriched result and optional
@@ -120,12 +125,16 @@
 - `@langfuse/shared/src/server` via `src/server/index.ts`: server-only barrel
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,
-  AI SDK-native LLM execution helpers (`generateLLMText` and
-  `streamLLMText`), Bedrock default-credential provider auth
+  AI SDK-native LLM execution helpers (`generateLLMText`, `streamLLMText`, and
+  `embedLLMText`), Bedrock default-credential provider auth
   (`createDefaultBedrockProviderAuth`), and server test utilities. Langfuse AI
   callers select their local profile through `getLangfuseAIAwsProfile`;
   generic Bedrock auth only uses an explicitly supplied profile or the normal
   AWS credential chain.
+  Persisted `LLMConnection` projections must retain the credential row's
+  `projectId`: Cloud Bedrock runtime auth checks it against
+  `LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS`. Raw credential
+  tests omit this identity; only operator-provisioned stored secrets qualify.
 - `@langfuse/shared/src/server/clickhouse` via `src/server/clickhouse/index.ts`:
   ClickHouse clients and helpers without loading the full server barrel. Use this
   entry point for test cleanup so built and source-aliased clients retain the same
