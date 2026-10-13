@@ -113,6 +113,9 @@ describe("createApiKey assignment rows", () => {
     const tx = {
       $queryRaw: vi.fn(async () => [{ id: "proj_1" }]),
       apiKey: {
+        findUnique: vi
+          .fn<() => Promise<{ createdByUserId: string | null }>>()
+          .mockResolvedValue({ createdByUserId: null }),
         create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
           apiKeyData = data;
           return {
@@ -171,35 +174,39 @@ describe("createApiKey assignment rows", () => {
     expect(data.createdByApiKeyId).toBeUndefined();
   });
 
-  it("writes exactly one role@organization row for an ORGANIZATION-owner key", async () => {
-    const { tx, assignments, getApiKeyData } = makeTx();
+  it.each(["user_1", null])(
+    "preserves the parent key's creator %j and organization role assignment",
+    async (createdByUserId) => {
+      const { tx, assignments, getApiKeyData } = makeTx();
+      tx.apiKey.findUnique.mockResolvedValue({ createdByUserId });
 
-    await createApiKey(asTx(tx), {
-      owner: OrganizationId(ORG_ID),
-      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
-      createdBy: ApiKeyId("key_creator"),
-      name: "org key",
-    });
+      await createApiKey(asTx(tx), {
+        owner: OrganizationId(ORG_ID),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: ApiKeyId("key_creator"),
+        name: "org key",
+      });
 
-    expect(assignments).toEqual([
-      {
-        orgId: ORG_ID,
-        apiKeyId: KEY_ID,
-        principalId: ApiKeyId(KEY_ID),
-        ownerId: OrganizationId(ORG_ID),
-        roleId: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
-        projectId: null,
-        systemRole: "LEGACY_ORGANIZATION_API_KEY",
-      },
-    ]);
-    const data = getApiKeyData();
-    expect(data.orgId).toBe(ORG_ID);
-    expect(data.projectId).toBeUndefined();
-    expect(data.createdByApiKeyId).toBe("key_creator");
-    expect(data.createdByUserId).toBeUndefined();
-    // An organization owner resolves to itself; no project lookup is needed.
-    expect(tx.project.findFirstOrThrow).not.toHaveBeenCalled();
-  });
+      expect(assignments).toEqual([
+        {
+          orgId: ORG_ID,
+          apiKeyId: KEY_ID,
+          principalId: ApiKeyId(KEY_ID),
+          ownerId: OrganizationId(ORG_ID),
+          roleId: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+          projectId: null,
+          systemRole: "LEGACY_ORGANIZATION_API_KEY",
+        },
+      ]);
+      const data = getApiKeyData();
+      expect(data.orgId).toBe(ORG_ID);
+      expect(data.projectId).toBeUndefined();
+      expect(data.createdByApiKeyId).toBe("key_creator");
+      expect(data.createdByUserId).toBe(createdByUserId ?? undefined);
+      // An organization owner resolves to itself; no project lookup is needed.
+      expect(tx.project.findFirstOrThrow).not.toHaveBeenCalled();
+    },
+  );
 
   it("stores the secret only as a fast hash, with a placeholder no bcrypt check accepts", async () => {
     const { tx, getApiKeyData } = makeTx();

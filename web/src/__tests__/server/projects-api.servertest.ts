@@ -1134,7 +1134,8 @@ describe("Projects API", () => {
         where: { publicKey: orgApiKey },
       });
       expect(apiKey?.createdByApiKeyId).toBe(orgKeyRecord?.id);
-      expect(apiKey?.createdByUserId).toBeNull();
+      expect(orgKeyRecord?.createdByUserId).toEqual(expect.any(String));
+      expect(apiKey?.createdByUserId).toBe(orgKeyRecord?.createdByUserId);
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
