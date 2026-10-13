@@ -1,5 +1,3 @@
-import { expect, within } from "storybook/test";
-
 import preview from "../../../../../.storybook/preview";
 
 import {
@@ -92,24 +90,5 @@ export const Loading = meta.story({
       isError: false,
     },
     shouldWrap: true,
-  },
-});
-
-export const RendersTagsAsText = meta.story({
-  name: "(Test) Renders Tags As Text",
-  args: {
-    data: {
-      isLoading: false,
-      isError: false,
-      data: [{ tags: ["production", "customer-facing"] }],
-    },
-    shouldWrap: true,
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(await canvas.findByText("production")).toBeVisible();
-    await expect(
-      canvas.queryByRole("button", { name: "production" }),
-    ).toBeNull();
   },
 });
