@@ -5788,6 +5788,13 @@ describe("OTel Resource Span Mapping", () => {
         expectedName: "support-agent",
       },
       {
+        scenario: "preserves custom agent span names",
+        spanName: "custom-agent-run",
+        operation: "invoke_agent",
+        expectedType: "AGENT",
+        expectedName: "custom-agent-run",
+      },
+      {
         scenario: "keeps generation names generic",
         operation: "chat",
         expectedType: "GENERATION",
@@ -5816,10 +5823,11 @@ describe("OTel Resource Span Mapping", () => {
       },
       {
         scenario: "requires an invoke_agent operation",
+        spanName: "anthropic.session.turn",
         operation: "chat",
         explicitType: "agent",
         expectedType: "AGENT",
-        expectedName: "anthropic.model_request",
+        expectedName: "anthropic.session.turn",
       },
     ])(
       "Claude Managed Agents naming: $scenario",
@@ -5827,14 +5835,13 @@ describe("OTel Resource Span Mapping", () => {
         scopeName = "com.anthropic.claude-platform",
         sessionId = "session-example",
         operation,
+        spanName = operation === "chat"
+          ? "anthropic.model_request"
+          : "anthropic.session.turn",
         explicitType,
         expectedType,
         expectedName,
       }) => {
-        const spanName =
-          operation === "chat"
-            ? "anthropic.model_request"
-            : "anthropic.session.turn";
         const attributes: Array<{ key: string; value: unknown }> = [
           { key: "gen_ai.operation.name", value: { stringValue: operation } },
           {
