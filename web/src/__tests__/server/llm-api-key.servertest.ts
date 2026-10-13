@@ -908,6 +908,44 @@ describe("llmApiKey.all RPC", () => {
     );
   });
 
+  it("should test an operator-provisioned Bedrock connection without revalidating its stored secret", async () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "eu";
+
+    try {
+      const existingKey = await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          provider: "bedrock-runtime",
+          adapter: LLMAdapter.Bedrock,
+          secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
+          displaySecretKey: "Default AWS credentials",
+          customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+          withDefaultModels: false,
+          config: { region: "us-east-1" },
+        },
+      });
+
+      const result = await caller.llmApiKey.testUpdate({
+        id: existingKey.id,
+        projectId,
+        provider: existingKey.provider,
+        adapter: LLMAdapter.Bedrock,
+        customModels: existingKey.customModels,
+        config: { region: "us-east-1" },
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(mockGenerateLLMText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connection: expect.objectContaining({ projectId }),
+        }),
+      );
+    } finally {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+    }
+  });
+
   it("should fill masked header values from the stored headers in testUpdate", async () => {
     await caller.llmApiKey.create({
       projectId,

@@ -100,6 +100,7 @@ type TestLlmConnectionParams = Omit<
   /** Set only when reusing a credential from a project-owned database row. */
   projectId?: string;
   validateBaseUrlBeforeTest?: boolean;
+  validateSecretBeforeTest?: boolean;
 };
 
 const toSafeConnection = (connection: LlmApiKeys): SafeLlmConnection => {
@@ -318,7 +319,9 @@ async function testLlmConnection(
     if (params.validateBaseUrlBeforeTest !== false) {
       await validateBaseUrl(params);
     }
-    validateSecret({ adapter: params.adapter, secretKey: params.secretKey });
+    if (params.validateSecretBeforeTest !== false) {
+      validateSecret({ adapter: params.adapter, secretKey: params.secretKey });
+    }
 
     const model = params.customModels?.length
       ? params.customModels[0]
@@ -733,6 +736,7 @@ export class LlmConnectionService {
           LLMConnectionConfigSchema.nullable().parse(existingKey.config) ??
           undefined,
         validateBaseUrlBeforeTest: isBaseURLChanged,
+        validateSecretBeforeTest: hasNewSecretKey,
       });
     } catch (error) {
       logger.error(error);
