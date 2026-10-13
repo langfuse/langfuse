@@ -164,7 +164,7 @@ On the v4 trace page this 404 does not reach the dedicated not-found screen. `us
 - `throwIfNoOrganizationAccess` / `throwIfNoProjectAccess` (`web/src/features/rbac/utils/checkOrganizationAccess.ts`) throw `"Forbidden, user does not have access to this resource or action"`. That string is accurate when the member lacks the scope.
 - `organizations.delete` uses `FORBIDDEN` for two states that are not "you lack permission" (`web/src/features/organizations/server/organizationRouter.ts`): `"Please delete or transfer all projects before deleting the organization."` and `"Deletion of your projects is still being processed, please try deleting the organization later"`. The second is our async project delete still running. The delete control is already disabled for members without `organization:delete`, so the people who see this toast are owners.
 - `members.updateOrgMembership` uses `FORBIDDEN` / `"Cannot remove the last owner of an organization. Assign new owner or delete organization."` (`web/src/features/rbac/server/membersRouter.ts`). That is a product rule. A missing membership row is `NOT_FOUND` with no message.
-- `assertInAppAgentAvailable` (`web/src/features/in-app-agent/server/availability.ts`) throws `ForbiddenError` `"Unauthorized, user does not have access to entitlement: in-app-agent"` or `"In-app agent is not enabled for this organization"`. The instance-off case is HTTP 412, `"In-app agent is not enabled on this instance."`, which becomes `PRECONDITION_FAILED`, not `FORBIDDEN`. The client polls `listConversations` on an interval with window-focus refetch and no silent codes, so a mounted assistant toasts "Forbidden" without a send action.
+- `assertInAppAgentAvailable` (`web/src/features/in-app-agent/server/availability.ts`) throws `ForbiddenError` `"Unauthorized, user does not have access to entitlement: in-app-agent"` or `"In-app agent is not enabled for this organization"`. The instance-off case is HTTP 412, `"In-app agent is not enabled on this instance."`, which becomes `PRECONDITION_FAILED`, not `FORBIDDEN`. `useInAppAgentActivity` polls `listConversations` on an interval with window-focus refetch and no silent codes, so the nav badge toasts "Forbidden" with no send action. Opening the assistant adds a second card: `InAppAiAgentProvider` watches `conversationListQuery.error` and calls `showErrorToast("Failed to load conversations", ..., operation: "in_app_agent_conversations.load")` with the default type `ERROR`. The 30 PostHog events are the global WARNING (`inAppAgent.listConversations`). The red card is a different operation.
 
 **`UNAUTHORIZED` → title "Unauthorized".**
 
@@ -209,7 +209,7 @@ These fire because the page mounted, not because the user confirmed an action:
 | `traces.hasTracingConfigured` | Traces, observations, events, project home, setup. Polls every 10s while the project has no `hasTraces` flag. |
 | `v4Transition.forceV3Experience` | Project navigation, any project page. |
 | `cloudBilling.getSubscriptionInfo` | Billing settings and the plan/invoice widgets on that page. Enabled when an org id exists. |
-| `inAppAgent.listConversations` | Assistant activity poll. |
+| `inAppAgent.listConversations` | Activity poll in `useInAppAgentActivity` (always, while the project layout is mounted) and the assistant list (`InAppAiAgentProvider`, only while the panel is open). The open panel also emits `in_app_agent_conversations.load`. |
 | `prompts.metrics` | Prompts table, when the page has prompt names. |
 | `projects.environmentFilterOptions` | Filter bars (scores, observations, users, and the shared cache hook). |
 | `scores.filterOptionsFromEvents`, `events.filterOptions`, `sessions.metrics` | Table filter option / metrics queries. |
@@ -328,7 +328,7 @@ Seed `pnpm run seed -- outlier-traffic --days 90` or `pnpm run seed -- many-trac
 
 - `events.filterOptions` (34 events): events table filter options, same time-range stress.
 - `sessions.metrics` (28 events): sessions table metrics query (v3 path; v4 uses `metricsFromEvents`). Open `/project/<id>/sessions` with the wide range. The table's default range is short; widen it past the seeded days.
-- `dashboard.executeQuery` WARNING 422 (26 events) and ERROR 500 (16 events): open a dashboard whose widgets query the wide window. Preset widgets count. Some chart components pass `silentHttpCodes: [412, 422]`; the scheduler query in `useDashboardQueryScheduler.tsx` toasts unless that meta is passed through. Record whether the widget shows an inline error, a toast, or both. The 16 ERROR events are HTTP 5xx (`backend` / `internal`), a server failure during the same query, not the advice string.
+- `dashboard.executeQuery` WARNING 422 (26 events) and ERROR 500 (16 events): open a dashboard whose widgets query the wide window. Preset widgets count. Some chart components pass `silentHttpCodes: [412, 422]`. The scheduler in `useDashboardQueryScheduler.tsx` sets `meta.toastOperation` to `dashboard.query`, but `resolveToastOperation` prefers the linked procedure path, so the event `operation` is `dashboard.executeQuery` and the toast still fires unless the caller also passes a silencing `meta`. Record whether the widget shows an inline error (`ChartLoadingState`), a toast, or both. The 16 ERROR events are HTTP 5xx (`backend` / `internal`), a server failure during the same query, not the advice string.
 
 ### `traces.getAgentGraphData` — WARNING, `UNPROCESSABLE_CONTENT` 422 (50 events, 27 users)
 
@@ -344,7 +344,12 @@ Message `"Dashboard not found"`. Open `/project/<projectId>/dashboards/<missing-
 
 `assertInAppAgentAvailable`. Production code is `FORBIDDEN`, so it is the entitlement or the org AI-features flag, not the instance-off 412.
 
-Leave a project page open where the assistant UI is mounted and `organization.aiFeaturesEnabled` is false, or the user lacks the `in-app-agent` entitlement. The poll repeats; 8 users and 73% repeat fits a small cohort, not everyone. Local instance-off (`isInAppAgentInstanceEnabled()` false) returns 412 `"In-app agent is not enabled on this instance."`, title "Precondition Failed". Record that if it is what local does, and label it as the 412 path, not the production 403 row.
+Two clients share the procedure:
+
+1. `useInAppAgentActivity` polls with `refetchInterval` and `refetchOnWindowFocus: true`, no silent codes, and no local toast. A project page with the activity hook mounted produces only the global WARNING: title "Forbidden", operation `inAppAgent.listConversations`. Debounce is one card per 20 seconds. This matches the 30 events.
+2. `InAppAiAgentProvider` runs `listConversations.useInfiniteQuery` only while the panel is `open`. `QueryCache.onError` still toasts the global WARNING, and a `useEffect` on `conversationListQuery.error` calls `showErrorToast("Failed to load conversations", errorMessage, classifyTrpcToastError(..., "in_app_agent_conversations.load"))`. That second card is an ERROR (default type) under a different operation. `fetchNextPage().catch` shows the same ERROR again when loading another page. Record both cards, and label only the WARNING as this PostHog row.
+
+Leave a project page open where `organization.aiFeaturesEnabled` is false, or the user lacks the `in-app-agent` entitlement. 8 users and 73% repeat fits the activity poll, not a send action. Local instance-off (`isInAppAgentInstanceEnabled()` false) returns 412 `"In-app agent is not enabled on this instance."`, global title "Precondition Failed", plus the ERROR "Failed to load conversations" if the panel is open. Record that as the 412 path, not the production 403 row.
 
 ### `evalsV2.update` — WARNING, `PRECONDITION_FAILED` 412 (30 events, 8 users, 73% repeat)
 
