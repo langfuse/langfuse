@@ -34,10 +34,10 @@ import {
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
 import {
   CostBadge,
-  NoCostBadge,
   UsageBadge,
   hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { NoCostBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/NoCostBadge/NoCostBadge";
 import {
   isGenerationMissingCost,
   resolveObservationCostSource,
@@ -185,6 +185,19 @@ export const ObservationDetailViewHeader = memo(
             pricingTierName: observation.usagePricingTierName,
           }
         : undefined;
+
+    const renderCostBadge = () => {
+      if (showsNoCost) return <NoCostBadge />;
+      if (displayedTotalCost == null || !displayedCostDetails) return null;
+      return (
+        <CostBadge
+          totalCost={displayedTotalCost}
+          costDetails={displayedCostDetails}
+          costSource={costSource}
+          priceSource={priceSource}
+        />
+      );
+    };
 
     const timestampBadge = preparedDate && (
       <Badge
@@ -504,19 +517,7 @@ export const ObservationDetailViewHeader = memo(
                   projectId={projectId}
                 />
               )}
-            {showsNoCost ? (
-              <NoCostBadge />
-            ) : (
-              displayedTotalCost != null &&
-              displayedCostDetails && (
-                <CostBadge
-                  totalCost={displayedTotalCost}
-                  costDetails={displayedCostDetails}
-                  costSource={costSource}
-                  priceSource={priceSource}
-                />
-              )
-            )}
+            {renderCostBadge()}
             {subtreeMetrics
               ? subtreeMetrics.hasGenerationLike &&
                 subtreeMetrics.totalUsage > 0 &&

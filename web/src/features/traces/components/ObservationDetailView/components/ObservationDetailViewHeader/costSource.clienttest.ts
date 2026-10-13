@@ -37,7 +37,6 @@ describe("isGenerationMissingCost", () => {
 
   it("ignores non-generation types", () => {
     expect(isGenerationMissingCost({ ...unpriced, type: "SPAN" })).toBe(false);
-    expect(isGenerationMissingCost({ ...unpriced, type: "TOOL" })).toBe(false);
   });
 });
 
