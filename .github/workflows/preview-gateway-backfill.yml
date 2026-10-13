@@ -1,0 +1,93 @@
+name: Backfill preview AI gateway images
+
+# One-shot. Previews that were already deployed when the AI gateway chart
+# landed ask for langfuse-preview-ai-gateway:pr-<n>-<sha>, but that tag was
+# never built. Gateway sources have not changed since those commits, so this
+# copies one image that is already running onto those tags.
+#
+# The ECR push role only trusts pull_request runs (ref refs/pull/*), which is
+# why this is a pull_request workflow rather than workflow_dispatch. It runs
+# only for this branch. Close the PR after the job succeeds. Do not merge it.
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions: {}
+
+jobs:
+  backfill:
+    name: Copy gateway image onto missing tags
+    if: github.head_ref == 'preview-gateway-image-backfill'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        with:
+          aws-region: ${{ vars.AWS_PREVIEW_REGION }}
+          role-to-assume: ${{ vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN }}
+
+      - name: Login to AWS ECR
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+
+      - name: Copy the running gateway image onto the missing tags
+        env:
+          SOURCE: 044014415108.dkr.ecr.eu-west-1.amazonaws.com/langfuse-preview-ai-gateway:pr-18719-dfe0f7068d975947f77024a3b605b36b14e4494e
+        run: |
+          set -euo pipefail
+          repo="${SOURCE%:*}"
+          repo_name="${repo##*/}"
+          docker pull "${SOURCE}"
+
+          copy_tag() {
+            local tag="$1"
+            local dest="${repo}:${tag}"
+            local describe_out
+            if describe_out="$(aws ecr describe-images --repository-name "${repo_name}" \
+                  --image-ids "imageTag=${tag}" 2>&1)"; then
+              echo "${dest} already present — skipping."
+              return 0
+            fi
+            if ! grep -q 'ImageNotFoundException' <<<"${describe_out}"; then
+              echo "::error::Cannot confirm ${dest} in ECR — ${describe_out}"
+              return 1
+            fi
+            docker tag "${SOURCE}" "${dest}"
+            docker push "${dest}"
+            echo "pushed ${dest}"
+          }
+
+          copy_tag pr-18417-7a4a3194c7f5c9ab7fa4811cb87cb5d37086b29b
+          copy_tag pr-18418-1e4ade0865461b957587dcb6c799cc6ba5ab5754
+          copy_tag pr-18448-949eca46a85edb9e6e46a61ff2dc517384baf3f5
+          copy_tag pr-18483-0ebcac596cee94280a6fa71da597614cd5d13e97
+          copy_tag pr-18491-a04bb08a5f657a9a6e4bf06ee5c4da5bc6fe8062
+          copy_tag pr-18493-b26da23b882d8a66ee94dac574f0e0cb75572133
+          copy_tag pr-18545-66f20aa92d09f857f9aed23ddf7c95abf63f0e0c
+          copy_tag pr-18575-1d9b794761d554bbfb8f2c108137a2f6ef4f3781
+          copy_tag pr-18593-bcb6920a3d0a29520f431d28ef6fc4a8faa5a1d8
+          copy_tag pr-18597-32b2c953d9d3ba2ee3c98b495a88ffe9676c606d
+          copy_tag pr-18598-ecada3f2f51d9e8c1320f4691d3463e0068f9e33
+          copy_tag pr-18631-f14b113383d4a0a66bb926e37cd6169aa8a6a9be
+          copy_tag pr-18637-d3dbe5ad39602e725342af8c478fcaee7121d503
+          copy_tag pr-18639-de6be2e9c991ceaa4545f5b78300237aa13b9c97
+          copy_tag pr-18643-35bf75824fbf02d8cbb4eebb3e40577e86e2c71f
+          copy_tag pr-18645-3d7af0f9c95c0e2636b096e992876f6bceb40f87
+          copy_tag pr-18649-7e77b9e4189572b624767e9d17b011b745148295
+          copy_tag pr-18656-07c2c956b2eae97ea74d155a5e7f3b7bf61c5dca
+          copy_tag pr-18657-cb65a830edee1bd5fa86ce2e59942b384915faa2
+          copy_tag pr-18658-9f808f74c5ec18f0740d5d230cddae548e9f8b50
+          copy_tag pr-18668-02ddeda252f9860c18d2523da1f351a668f58966
+          copy_tag pr-18669-aac454de6b69696760db83c7860b458c553f1f8a
+          copy_tag pr-18673-8973eee8e2a4b37b6d239f82d6a4f176c39b3e84
+          copy_tag pr-18677-7e6f846a1e2613d1da4c149cd153496cfb552c29
+          copy_tag pr-18680-0562ff3a2a1d0ad174f0c1794262b62ecd44690b
+          copy_tag pr-18682-6dfd46551ea964c6dcaa63b4dcdf81920e6fa905
+          copy_tag pr-18684-778800278156b6116cd0530a434e2a4f99396bfb
+          copy_tag pr-18692-3153131d500c743ce45995c9609d4a09e5a1e1b6
+          copy_tag pr-18693-9785ed45650cb974b468d9fe4de7eec2255e8493
+          copy_tag pr-18695-e6fc3e7342656a54669474d17aa114ad1db22ea7
+          copy_tag pr-18704-f6497f0dcb1b0d01a5ebfe7dcf34faa53a3eb42b
+          copy_tag pr-18723-485c87fa1bdcfbbf31426aa0036131575123fe2d
