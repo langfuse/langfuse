@@ -303,21 +303,32 @@ const numberMap = (values: Record<string, number>) =>
   Object.fromEntries(
     Object.entries(values).map(([key, value]) => [key, Number(value)]),
   );
-function summaryResult(row: SummaryRow): TopicSummary {
-  const { metadataJson, unitStartTimeMs, processedAtMs, ...rest } = row;
+function summarySourceAndTimestamps(
+  row: Pick<
+    SummaryRow,
+    "traceId" | "sessionId" | "unitStartTimeMs" | "processedAtMs"
+  >,
+) {
   return {
-    ...rest,
     ...topicSourceSchema.parse({
       traceId: row.traceId || null,
       sessionId: row.sessionId || null,
     }),
+    unitStartTime: new Date(Number(row.unitStartTimeMs)).toISOString(),
+    processedAt: new Date(Number(row.processedAtMs)).toISOString(),
+  };
+}
+
+function summaryResult(row: SummaryRow): TopicSummary {
+  const { metadataJson, unitStartTimeMs, processedAtMs, ...rest } = row;
+  return {
+    ...rest,
+    ...summarySourceAndTimestamps(row),
     providedUsageDetails: numberMap(row.providedUsageDetails),
     usageDetails: numberMap(row.usageDetails),
     providedCostDetails: numberMap(row.providedCostDetails),
     costDetails: numberMap(row.costDetails),
     metadata: JSON.parse(metadataJson),
-    unitStartTime: new Date(Number(unitStartTimeMs)).toISOString(),
-    processedAt: new Date(Number(processedAtMs)).toISOString(),
   };
 }
 
@@ -409,12 +420,7 @@ export async function getLatestFacetSummaries(
       facetVersion: row.facetVersion,
       state: row.state,
       summary: row.summary,
-      ...topicSourceSchema.parse({
-        traceId: row.traceId || null,
-        sessionId: row.sessionId || null,
-      }),
-      unitStartTime: new Date(Number(row.unitStartTimeMs)).toISOString(),
-      processedAt: new Date(Number(row.processedAtMs)).toISOString(),
+      ...summarySourceAndTimestamps(row),
     }));
 }
 
