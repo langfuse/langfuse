@@ -100,7 +100,7 @@ const primaryActionVariants = cva(
   {
     variants: {
       hasDescription: {
-        true: "items-start",
+        true: "items-center gap-1",
         false: "items-center",
       },
     },
@@ -132,7 +132,7 @@ function MenuItemLabel({
 
   return (
     <span className="flex min-w-0 flex-1 flex-col text-left">
-      <span>{title}</span>
+      <span className="font-bold">{title}</span>
       <span className="text-muted-foreground text-xs">{description}</span>
     </span>
   );

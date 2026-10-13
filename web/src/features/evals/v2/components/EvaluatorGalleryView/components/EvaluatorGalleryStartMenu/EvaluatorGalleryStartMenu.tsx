@@ -37,7 +37,7 @@ export function EvaluatorGalleryStartMenu({
         id: option.type,
         title: option.title,
         description: option.description,
-        leadingVisual: <EvaluatorMethodTile type={option.type} />,
+        leadingVisual: <EvaluatorMethodTile type={option.type} size="lg" />,
         onClick: () => onCreateFromScratch(option.type),
       }))}
     >

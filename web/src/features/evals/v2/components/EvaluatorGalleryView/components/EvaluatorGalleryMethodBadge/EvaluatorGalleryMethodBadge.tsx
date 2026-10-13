@@ -30,17 +30,27 @@ const METHOD_BADGES = {
 >;
 
 /** The type icon on its pastel tile. */
-export function EvaluatorMethodTile({ type }: { type: EvalTemplateType }) {
+export function EvaluatorMethodTile({
+  type,
+  size = "sm",
+}: {
+  type: EvalTemplateType;
+  size?: "sm" | "lg";
+}) {
   const { Icon, tileClassName } = METHOD_BADGES[type];
 
   return (
     <span
       className={cn(
-        "inline-flex size-5 shrink-0 items-center justify-center rounded-sm",
+        "inline-flex shrink-0 items-center justify-center",
+        size === "lg" ? "size-10 rounded-md" : "size-5 rounded-sm",
         tileClassName,
       )}
     >
-      <Icon className="icon-sm" aria-hidden="true" />
+      <Icon
+        className={size === "lg" ? "icon-base" : "icon-sm"}
+        aria-hidden="true"
+      />
     </span>
   );
 }
