@@ -17,6 +17,7 @@ import {
   topicMinimumTraceCountSchema,
   type TopicExecutionStatus,
   type TopicFacet,
+  type TopicFacetRef,
   type TopicFacetVersion,
   type TopicRule,
   type TopicTimeRange,
@@ -27,6 +28,15 @@ type RegenerateFacet = {
   facet: TopicFacet;
   version: TopicFacetVersion;
   summaries: number;
+};
+type RegenerateLastRun = Pick<
+  TopicExecutionList[number],
+  "id" | "status" | "createdAt"
+>;
+type RegenerateRequest = {
+  facets: TopicFacetRef[];
+  exploratory: boolean;
+  minimumTraceCount: number;
 };
 
 const label = "Regenerate topics";
@@ -118,18 +128,45 @@ export function useRegenerateTopics({
   const lastRun =
     executions?.find((execution) => execution.input.operation === "update") ??
     null;
-  const openDialog = () => setOpen(true);
+  const [error, setError] = useState<string | null>(null);
+  const request = useRef<{ key: string; id: string } | null>(null);
+  const trigger = api.topics.trigger.useMutation();
+  const openDialog = () => {
+    setError(null);
+    setOpen(true);
+  };
+  async function submit(values: RegenerateRequest) {
+    if (!timeRange) return;
+    setError(null);
+    const input = {
+      projectId,
+      operation: "update" as const,
+      timeRange,
+      ...values,
+    };
+    const key = JSON.stringify(input);
+    if (request.current?.key !== key)
+      request.current = { key, id: crypto.randomUUID() };
+    try {
+      const result = await trigger.mutateAsync({
+        ...input,
+        requestId: request.current.id,
+      });
+      request.current = null;
+      setOpen(false);
+      onTriggered(result.id);
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not regenerate topics.",
+      );
+    }
+  }
 
   const action = (
-    <DisabledReasonTooltip reason={disabledReason}>
-      <Button
-        text={label}
-        size="sm"
-        variant="secondary"
-        disabled={disabledReason !== null}
-        onClick={openDialog}
-      />
-    </DisabledReasonTooltip>
+    <RegenerateTopicsButton
+      disabledReason={disabledReason}
+      onClick={openDialog}
+    />
   );
   const menuRow = (closeMenu: () => void) => (
     <HeaderActionMenuRow
@@ -147,11 +184,13 @@ export function useRegenerateTopics({
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       {open && timeRange && (
         <RegenerateTopicsDialog
-          projectId={projectId}
           facets={regenerateFacets}
           timeRange={timeRange}
           lastRun={lastRun}
           disabledReason={disabledReason}
+          isSubmitting={trigger.isPending}
+          error={error}
+          onSubmit={submit}
           onOpenRun={(executionId) => {
             setOpen(false);
             onTriggered(executionId);
@@ -208,38 +247,51 @@ function regenerateDisabledReason({
   return null;
 }
 
-function DisabledReasonTooltip({
-  reason,
-  children,
+export function RegenerateTopicsButton({
+  disabledReason,
+  onClick,
 }: {
-  reason: string | null;
-  children: React.ReactNode;
+  disabledReason: string | null;
+  onClick: () => void;
 }) {
-  if (reason === null) return children;
+  const button = (
+    <Button
+      text={label}
+      size="sm"
+      variant="secondary"
+      disabled={disabledReason !== null}
+      onClick={onClick}
+    />
+  );
+  if (disabledReason === null) return button;
   return (
-    <Tooltip label={reason} placement="bottom">
+    <Tooltip label={disabledReason} placement="bottom">
       {({ getTriggerProps }) => (
-        <span {...getTriggerProps()} tabIndex={0} aria-label={reason}>
-          {children}
+        <span {...getTriggerProps()} tabIndex={0} aria-label={disabledReason}>
+          {button}
         </span>
       )}
     </Tooltip>
   );
 }
 
-function RegenerateTopicsDialog({
-  projectId,
+export function RegenerateTopicsDialog({
   facets,
   timeRange,
   lastRun,
   disabledReason,
+  isSubmitting,
+  error,
+  onSubmit,
   onOpenRun,
 }: {
-  projectId: string;
   facets: RegenerateFacet[];
   timeRange: TopicTimeRange;
-  lastRun: TopicExecutionList[number] | null;
+  lastRun: RegenerateLastRun | null;
   disabledReason: string | null;
+  isSubmitting: boolean;
+  error: string | null;
+  onSubmit: (request: RegenerateRequest) => void;
   onOpenRun: (executionId: string) => void;
 }) {
   const [selectedFacetIds, setSelectedFacetIds] = useState(
@@ -256,46 +308,12 @@ function RegenerateTopicsDialog({
   );
   const minimumValue = minimumTraceCount ?? (exploratory ? "10" : "100");
   const minimum = topicMinimumTraceCountSchema.safeParse(Number(minimumValue));
-  const [error, setError] = useState<string | null>(null);
-  const request = useRef<{ key: string; id: string } | null>(null);
-  const trigger = api.topics.trigger.useMutation();
   const selected = facets.filter(
     (facet) => facet.summaries > 0 && selectedFacetIds.has(facet.facet.id),
   );
   const belowMinimum = minimum.success
     ? selected.filter((facet) => facet.summaries < minimum.data)
     : [];
-
-  async function submit() {
-    if (!minimum.success || selected.length === 0) return;
-    setError(null);
-    const values = {
-      projectId,
-      operation: "update" as const,
-      facets: selected.map(({ facet, version }) => ({
-        facetId: facet.id,
-        version: version.version,
-      })),
-      exploratory,
-      timeRange,
-      minimumTraceCount: minimum.data,
-    };
-    const key = JSON.stringify(values);
-    if (request.current?.key !== key)
-      request.current = { key, id: crypto.randomUUID() };
-    try {
-      const result = await trigger.mutateAsync({
-        ...values,
-        requestId: request.current.id,
-      });
-      request.current = null;
-      onOpenRun(result.id);
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Could not regenerate topics.",
-      );
-    }
-  }
 
   return (
     <Dialog
@@ -304,13 +322,23 @@ function RegenerateTopicsDialog({
       actions={[
         {
           label,
-          loading: trigger.isPending,
+          loading: isSubmitting,
           disabled:
             disabledReason !== null ||
-            trigger.isPending ||
+            isSubmitting ||
             !minimum.success ||
             selected.length === 0,
-          onClick: submit,
+          onClick: () => {
+            if (!minimum.success) return;
+            onSubmit({
+              facets: selected.map(({ facet, version }) => ({
+                facetId: facet.id,
+                version: version.version,
+              })),
+              exploratory,
+              minimumTraceCount: minimum.data,
+            });
+          },
         },
       ]}
     >
