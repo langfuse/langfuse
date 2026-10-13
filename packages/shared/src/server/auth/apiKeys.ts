@@ -8,10 +8,10 @@ import { InvalidRequestError } from "../../errors";
 import {
   ApiKeyId,
   OrganizationId,
-  hasApiKeyKind,
   hasOrganizationKind,
   hasProjectKind,
   hasSystemRoleKind,
+  hasUserKind,
   toSystemRole,
   untag,
   type OwnerId,
@@ -187,7 +187,7 @@ async function creatorColumns(
   >
 > {
   if (createdBy === "system") return {};
-  if (!hasApiKeyKind(createdBy)) return { createdByUserId: untag(createdBy) };
+  if (hasUserKind(createdBy)) return { createdByUserId: untag(createdBy) };
 
   const parent = await tx.apiKey.findUnique({
     where: { id: untag(createdBy) },
