@@ -23,6 +23,7 @@ import {
   getTopicRule,
   listTopicRules,
   saveTopicRule,
+  saveTopicRuleAndModels,
   createTopicExecution,
   readTopicExecutionSummary,
   writeTopicExecution,
@@ -37,6 +38,10 @@ describe("Topics eval-backed configuration", () => {
   const orgId = randomUUID();
   const projectId = randomUUID();
   const otherProjectId = randomUUID();
+  const ruleProjectId = randomUUID();
+  const rollbackProjectId = randomUUID();
+  const auditProjectId = randomUUID();
+  const userIds = [randomUUID(), randomUUID()];
 
   beforeAll(async () => {
     await prisma.organization.create({
@@ -47,14 +52,21 @@ describe("Topics eval-backed configuration", () => {
           create: [
             { id: projectId, name: "Topics" },
             { id: otherProjectId, name: "Other project" },
+            { id: ruleProjectId, name: "Topics rule" },
+            { id: rollbackProjectId, name: "Topics rollback" },
+            { id: auditProjectId, name: "Topics audit" },
           ],
         },
       },
+    });
+    await prisma.user.createMany({
+      data: userIds.map((id) => ({ id, email: `${id}@example.com` })),
     });
   });
 
   afterAll(async () => {
     await prisma.organization.deleteMany({ where: { id: orgId } });
+    await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   });
 
   it("initializes built-in FACET evaluators once under concurrent requests", async () => {
@@ -88,6 +100,122 @@ describe("Topics eval-backed configuration", () => {
         prompt: "Replace the built-in instructions.",
       }),
     ).rejects.toThrow(/built-in/i);
+  });
+
+  it("keeps one Topics rule per project when first saves race", async () => {
+    const facets = await ensureDefaultTopicFacets(ruleProjectId);
+    const facetIds = facets.slice(0, 2).map((facet) => facet.id);
+    const saved = await Promise.allSettled(
+      [0.25, 0.5, 0.75].map((sampling) =>
+        saveTopicRule({
+          projectId: ruleProjectId,
+          filter: [],
+          facetIds,
+          sampling,
+        }),
+      ),
+    );
+
+    // One save creates the rule; the others see it and are rejected.
+    expect(
+      saved.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    for (const result of saved.filter((r) => r.status === "rejected"))
+      expect(String(result.reason)).toMatch(/already has a Topics rule/);
+    const rules = await listTopicRules(ruleProjectId);
+    expect(rules).toHaveLength(1);
+    expect(rules[0].facetIds.sort()).toEqual([...facetIds].sort());
+  });
+
+  it("leaves no rule behind when the model settings cannot be written", async () => {
+    const facets = await ensureDefaultTopicFacets(rollbackProjectId);
+    await expect(
+      saveTopicRuleAndModels(
+        {
+          projectId: rollbackProjectId,
+          filter: [],
+          facetIds: [facets[0].id],
+        },
+        {
+          enabled: true,
+          blockedAt: null,
+          blockReason: null,
+          blockMessage: null,
+          // No such connection: the foreign key rejects the model write.
+          summaryLlmApiKeyId: "missing-connection",
+          summaryModel: "gpt-6-luna",
+          embeddingLlmApiKeyId: null,
+          embeddingModel: null,
+          embeddingDimensions: 1024,
+          clusteringLlmApiKeyId: null,
+          clusteringModel: null,
+        },
+        120_000,
+      ),
+    ).rejects.toThrow();
+
+    expect(await listTopicRules(rollbackProjectId)).toEqual([]);
+    expect(
+      await prisma.topicConfig.findUnique({
+        where: { projectId: rollbackProjectId },
+      }),
+    ).toBeNull();
+  });
+
+  it("records who created and last updated the Topics configuration", async () => {
+    const facets = await ensureDefaultTopicFacets(auditProjectId);
+    const models = {
+      enabled: false,
+      blockedAt: null,
+      blockReason: null,
+      blockMessage: null,
+      summaryLlmApiKeyId: null,
+      summaryModel: null,
+      embeddingLlmApiKeyId: null,
+      embeddingModel: null,
+      embeddingDimensions: 1024,
+      clusteringLlmApiKeyId: null,
+      clusteringModel: null,
+    };
+    const rule = await saveTopicRuleAndModels(
+      {
+        projectId: auditProjectId,
+        filter: [],
+        facetIds: [facets[0].id],
+        userId: userIds[0],
+      },
+      models,
+      120_000,
+    );
+    await saveTopicRuleAndModels(
+      {
+        id: rule.id,
+        projectId: auditProjectId,
+        filter: [],
+        facetIds: [facets[0].id],
+        userId: userIds[1],
+      },
+      models,
+      180_000,
+    );
+
+    expect(
+      await prisma.topicConfig.findUnique({
+        where: { projectId: auditProjectId },
+      }),
+    ).toMatchObject({ createdBy: userIds[0], updatedBy: userIds[1] });
+    expect(
+      await prisma.tracingReadinessSettings.findUnique({
+        where: { projectId: auditProjectId },
+      }),
+    ).toMatchObject({
+      traceIdleMs: 180_000,
+      createdBy: userIds[0],
+      updatedBy: userIds[1],
+    });
+    expect(
+      await prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
+    ).toMatchObject({ createdByUserId: userIds[0] });
   });
 
   it("keeps versions and rule assignments scoped to this project's FACET evaluators", async () => {
@@ -150,12 +278,22 @@ describe("Topics eval-backed configuration", () => {
       facetIds: [facet.id, facet.id],
     });
     expect(rule.facetIds).toEqual([facet.id]);
+    const second = { projectId, filter: [], facetIds: [facet.id] };
+    await expect(saveTopicRule(second)).rejects.toThrow(
+      /already has a Topics rule/,
+    );
+    expect(
+      await saveTopicRule({
+        ...second,
+        id: rule.id,
+        name: "Second selection",
+      }),
+    ).toMatchObject({ id: rule.id, name: "Second selection" });
     expect(
       await prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
     ).toMatchObject({
       targetObject: "trace",
       delay: 0,
-      idleTime: null,
       timeScope: ["NEW"],
       status: "ACTIVE",
     });

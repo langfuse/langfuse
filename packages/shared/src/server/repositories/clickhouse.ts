@@ -35,7 +35,7 @@ import {
   clickHouseQueryShape,
   clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
-  recordClickHouseQueryPerformance,
+  recordClickHouseQueryElapsed,
 } from "../clickhouse/queryOutcome";
 
 /**
@@ -789,7 +789,7 @@ export async function queryClickhouse<T>(
         clickhouseService,
       );
       if (summary) {
-        recordClickHouseQueryPerformance(
+        recordClickHouseQueryElapsed(
           summary,
           normalizedTags,
           table,

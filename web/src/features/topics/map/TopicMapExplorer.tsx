@@ -782,8 +782,6 @@ type LayoutReadoutProps = {
   unpositionedCount: number;
 };
 
-export const __test = { fitMapPoints };
-
 type MapLabelsProps = {
   model: TopicMapModel;
   size: Size;
@@ -793,3 +791,5 @@ type MapLabelsProps = {
   matchingTraceIds?: ReadonlySet<string>;
   onSelectTrace: (id: string) => void;
 };
+
+export const __test = { fitMapPoints };

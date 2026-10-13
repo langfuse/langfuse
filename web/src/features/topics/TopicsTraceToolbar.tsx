@@ -13,7 +13,7 @@ export function TopicsTraceToolbar({
   searchQuery,
   onSearchQueryChange,
 }: TopicsTraceToolbarProps) {
-  const registry = createTopicTraceRegistry(topics);
+  const registry = createTopicTraceRegistry(topics, filters);
   const topicField = registry.fields.find((field) => field.id === "topic");
 
   return (

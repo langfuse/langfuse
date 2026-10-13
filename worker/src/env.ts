@@ -116,6 +116,22 @@ const EnvSchema = z.object({
   LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    )
+    .refine((ids) => !ids.includes("*") || ids.length === 1, {
+      message:
+        'Use "*" alone to select all projects, or a comma-separated list of project IDs',
+    }),
   LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -196,6 +212,14 @@ const EnvSchema = z.object({
     .enum(["project", "locality"])
     .default("project"),
   LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce.number().int().positive(),
+  LANGFUSE_TRACE_BATCH_SHARD_COUNT: z.coerce.number().int().min(1).max(256),
+  LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(2 * 24 * 60 * 60 * 1_000)
+    .default(24 * 60 * 60 * 1_000),
+  // Recovery grace after readiness; whole-key expiry includes the idle interval.
   LANGFUSE_TRACE_BATCH_PENDING_TTL_MS: z.coerce
     .number()
     .int()
@@ -350,9 +374,6 @@ const EnvSchema = z.object({
   LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
     .enum(["true", "false"])
     .optional(),
-  // Internal Topics PoC model selection; not a supported self-hosting setting.
-  LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
-  LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),
@@ -795,6 +816,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+  /** Interval at which one worker per queue set polls queue depth and DLQ age */
   LANGFUSE_QUEUE_METRICS_INTERVAL_MS: z.coerce.number().min(100).default(1000),
   LANGFUSE_QUEUE_METRICS_ENABLED: z.enum(["true", "false"]).default("true"),
   // Upper bound for a random delay before the worker registers its queues and
@@ -875,6 +897,10 @@ const parseEnv = (): ParsedEnv => {
   if (source.LANGFUSE_TRACE_BATCH_IDLE_MS === undefined) {
     source.LANGFUSE_TRACE_BATCH_IDLE_MS =
       source.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "120000" : "600000";
+  }
+  if (source.LANGFUSE_TRACE_BATCH_SHARD_COUNT === undefined) {
+    source.LANGFUSE_TRACE_BATCH_SHARD_COUNT =
+      source.REDIS_CLUSTER_ENABLED === "true" ? "16" : "1";
   }
   const parsed = EnvSchema.parse(source);
   validateV4Flags(parsed);

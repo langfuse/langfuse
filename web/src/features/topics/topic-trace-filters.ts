@@ -14,17 +14,12 @@ export const TOPIC_ASSIGNMENT_OPTIONS = [
 
 export function createTopicTraceRegistry(
   topics: readonly { id: string; name: string }[],
+  filters: FilterState = [],
 ) {
-  const nameCounts = new Map<string, number>();
-  for (const topic of topics)
-    nameCounts.set(topic.name, (nameCounts.get(topic.name) ?? 0) + 1);
-  const topicOptions = topics.map((topic) => ({
-    value: topic.id,
-    displayValue:
-      (nameCounts.get(topic.name) ?? 0) > 1
-        ? `${topic.name} (${topic.id})`
-        : topic.name,
-  }));
+  const topicOptions = withUnavailableTopicOptions(
+    buildTopicOptions(topics),
+    filters,
+  );
   const columns: ColumnDefinition[] = [
     {
       id: "topicId",
@@ -76,16 +71,6 @@ export function createTopicTraceRegistry(
     "assignment",
     TOPIC_ASSIGNMENT_OPTIONS,
   );
-}
-
-export function getTopicAssignment(outcome: string) {
-  if (
-    outcome === "assigned" ||
-    outcome === "outlier" ||
-    outcome === "awaiting_map"
-  )
-    return outcome;
-  return "no_topic";
 }
 
 export function selectTopicTraceFilters(
@@ -148,6 +133,51 @@ export function filterTopicTraces<Row extends TopicTraceRow>(
       return filter.operator === "any of" ? matches : !matches;
     });
   });
+}
+
+export function getTopicAssignment(outcome: string) {
+  if (
+    outcome === "assigned" ||
+    outcome === "outlier" ||
+    outcome === "awaiting_map"
+  )
+    return outcome;
+  return "no_topic";
+}
+
+function buildTopicOptions(topics: readonly { id: string; name: string }[]) {
+  const nameCounts = new Map<string, number>();
+  for (const topic of topics)
+    nameCounts.set(topic.name, (nameCounts.get(topic.name) ?? 0) + 1);
+  return topics.map((topic) => ({
+    value: topic.id,
+    displayValue:
+      (nameCounts.get(topic.name) ?? 0) > 1
+        ? `${topic.name} (${topic.id})`
+        : topic.name,
+  }));
+}
+
+function withUnavailableTopicOptions(
+  options: readonly { value: string; displayValue: string }[],
+  filters: FilterState,
+) {
+  const topicOptions = [...options];
+  const topicIds = new Set(options.map((option) => option.value));
+  const labels = new Set(options.map((option) => option.displayValue));
+  for (const filter of filters) {
+    if (filter.column !== "topicId" || filter.type !== "stringOptions")
+      continue;
+    for (const id of filter.value) {
+      if (topicIds.has(id)) continue;
+      let displayValue = `Unavailable topic (${id})`;
+      while (labels.has(displayValue)) displayValue += ` (${id})`;
+      topicOptions.push({ value: id, displayValue });
+      topicIds.add(id);
+      labels.add(displayValue);
+    }
+  }
+  return topicOptions;
 }
 
 type TopicTraceRow = {

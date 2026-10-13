@@ -8,7 +8,15 @@ import {
 } from "@/src/features/evals/v2/constants/ruleSampling";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 
-export function RuleSamplingSection({ store }: { store: RuleSetupStore }) {
+export function RuleSamplingSection({
+  store,
+  description = "Set the percentage of matching observations this rule evaluates.",
+  tooltip = "The percentage of matching observations that will be evaluated. Lower sampling rates reduce evaluation volume and cost.",
+}: {
+  store: RuleSetupStore;
+  description?: string;
+  tooltip?: string;
+}) {
   const sampling = useStore(store, (state) => state.sampling);
   const setSampling = useStore(store, (state) => state.actions.setSampling);
 
@@ -17,14 +25,9 @@ export function RuleSamplingSection({ store }: { store: RuleSetupStore }) {
       <div>
         <div className="flex items-center gap-1.5">
           <h3 className="text-sm font-bold">Sampling rate</h3>
-          <InfoTooltip label="About sampling rate">
-            The percentage of matching observations that will be evaluated.
-            Lower sampling rates reduce evaluation volume and cost.
-          </InfoTooltip>
+          <InfoTooltip label="About sampling rate">{tooltip}</InfoTooltip>
         </div>
-        <p className="text-muted-foreground text-sm">
-          Set the percentage of matching observations this rule evaluates.
-        </p>
+        <p className="text-muted-foreground text-sm">{description}</p>
       </div>
       <Slider
         min={SAMPLING_SLIDER_MIN}

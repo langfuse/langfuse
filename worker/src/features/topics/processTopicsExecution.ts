@@ -22,8 +22,9 @@ import {
   enqueueTopicEmbeddingBatch,
   TOPIC_EMBEDDING_EXPIRED_ERROR,
   TOPICS_TRANSCRIPT_VERSION,
-  getTopicsModelConfig,
+  getTopicsModels,
   type TopicEmbeddingRef,
+  type TopicsModels,
 } from "@langfuse/shared/topics/server";
 import {
   type TopicExecution,
@@ -38,12 +39,12 @@ import {
   sameTopicGeometry,
   topicTimeRangeSchema,
 } from "@langfuse/shared/topics";
+import { summarizeTopicTrace, nameTopicGroup } from "./models";
 import {
-  summarizeTopicTrace,
-  nameTopicGroup,
-  TOPICS_NAMING_MODEL,
-} from "./models";
-import { TopicsProviderUnavailable } from "./provider-error";
+  isRejectedConnection,
+  pauseForRejectedConnection,
+  TopicsProviderUnavailable,
+} from "./provider-error";
 import {
   buildTopicPrototypes,
   buildNamingEvidence,
@@ -101,6 +102,7 @@ async function saveProgress(
 
 async function summarizeTrace(
   metrics: TopicMetrics,
+  models: TopicsModels,
   execution: ProcessExecution,
   facet: TopicFacetVersion,
   traceId: string,
@@ -185,6 +187,7 @@ async function summarizeTrace(
   } else if (transcript !== null) {
     const result = await metrics.measure("summary", async () => {
       const result = await summarizeTopicTrace(
+        models,
         facet,
         JSON.stringify(transcript),
         execution.input.processingConfig,
@@ -460,6 +463,7 @@ async function assignSummaries(
 
 async function clusterFacet(
   metrics: TopicMetrics,
+  models: TopicsModels,
   execution: UpdateExecution,
   facet: TopicFacetVersion,
   progress: TopicFacetProgress,
@@ -684,7 +688,7 @@ async function clusterFacet(
         const members = new Map(
           group.members.map((summary, index) => [`m${index + 1}`, summary]),
         );
-        const { output: label } = await nameTopicGroup({
+        const { output: label } = await nameTopicGroup(models, {
           members: Array.from(members, ([id, { summary }]) => ({
             id,
             summary,
@@ -734,7 +738,7 @@ async function clusterFacet(
         metadata: {
           ...candidate.metadata,
           effectiveMemberCount: group.count,
-          namingModel: TOPICS_NAMING_MODEL,
+          namingModel: models.clustering.model,
         },
       });
       metrics.result("naming", "generated");
@@ -808,6 +812,7 @@ async function pendingFacets(
 /** Processes one bounded queue batch; the job owns retry state until completion. */
 async function processTraces(
   metrics: TopicMetrics,
+  models: TopicsModels,
   execution: ProcessExecution,
   state: TopicProcessBatchState,
   batchId: string,
@@ -890,6 +895,7 @@ async function processTraces(
         try {
           const summary = await summarizeTrace(
             metrics,
+            models,
             execution,
             facet,
             traceId,
@@ -1020,7 +1026,11 @@ async function processTraces(
 }
 
 /** Each unpublished attempt fits the current compatible summaries from scratch. */
-async function updateTopics(metrics: TopicMetrics, execution: UpdateExecution) {
+async function updateTopics(
+  metrics: TopicMetrics,
+  models: TopicsModels,
+  execution: UpdateExecution,
+) {
   for (const { facet, progress } of await pendingFacets(execution)) {
     try {
       const accepted = progress.runId
@@ -1073,6 +1083,7 @@ async function updateTopics(metrics: TopicMetrics, execution: UpdateExecution) {
       progress.counts.requested = summaries.length;
       await clusterFacet(
         metrics,
+        models,
         execution,
         facet,
         progress,
@@ -1196,27 +1207,30 @@ export async function processTopicsExecution({
   const phase = execution.phase === "embedding" ? "embedding" : "summarizing";
   await save(processing ? phase : "selecting");
   try {
-    const configuredModels = getTopicsModelConfig();
-    if (!configuredModels.summaryModel || !configuredModels.embeddingModel)
+    const models = await getTopicsModels(projectId);
+    if (!models)
       throw new TopicsProviderUnavailable(
-        "Configure LANGFUSE_TOPICS_SUMMARY_MODEL and LANGFUSE_TOPICS_EMBEDDING_MODEL before running Topics.",
-        "authentication",
+        "Choose Topics models for this project before running Topics.",
+        "configuration",
+      );
+    if (
+      execution.input.embeddingConfig.embeddingModel !== models.embedding.model
+    )
+      throw new TopicsProviderUnavailable(
+        "The project's embedding model changed after this execution was created; start a new Topics execution.",
+        "configuration",
       );
     if (execution.input.operation === "process") {
       if (
-        !execution.input.processingConfig.summaryModel ||
-        !execution.input.embeddingConfig.embeddingModel ||
-        execution.input.processingConfig.summaryModel !==
-          configuredModels.summaryModel ||
-        execution.input.embeddingConfig.embeddingModel !==
-          configuredModels.embeddingModel
+        execution.input.processingConfig.summaryModel !== models.summary.model
       )
         throw new TopicsProviderUnavailable(
-          "Configure matching LANGFUSE_TOPICS_SUMMARY_MODEL and LANGFUSE_TOPICS_EMBEDDING_MODEL values on web and worker, then start a new Topics execution.",
-          "authentication",
+          "The project's summary model changed after this execution was created; start a new Topics execution.",
+          "configuration",
         );
       await processTraces(
         metrics,
+        models,
         execution as ProcessExecution,
         state,
         batchId!,
@@ -1224,15 +1238,7 @@ export async function processTopicsExecution({
         save,
       );
     } else {
-      if (
-        execution.input.embeddingConfig.embeddingModel !==
-        configuredModels.embeddingModel
-      )
-        throw new TopicsProviderUnavailable(
-          "LANGFUSE_TOPICS_EMBEDDING_MODEL changed after this execution was created. Start a new Topics execution.",
-          "authentication",
-        );
-      await updateTopics(metrics, execution as UpdateExecution);
+      await updateTopics(metrics, models, execution as UpdateExecution);
     }
     execution.status = execution.facets.some(
       (facet) => facet.outcome === "failed" || facet.counts.failed > 0,
@@ -1247,6 +1253,8 @@ export async function processTopicsExecution({
       await save("embedding");
       return;
     }
+    if (isRejectedConnection(error))
+      await pauseForRejectedConnection(projectId, error);
     metrics.error("execution", error);
     metrics.execution("failed");
     execution.status = "failed";

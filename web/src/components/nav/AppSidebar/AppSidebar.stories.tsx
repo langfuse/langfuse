@@ -54,7 +54,7 @@ const meta = preview.meta({
     userMenuItems: [
       {
         type: "link",
-        name: "Account Settings",
+        name: "Settings",
         href: "/account/settings",
       },
       { type: "action", name: "Sign out", onClick: fn() },

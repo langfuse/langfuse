@@ -320,6 +320,5 @@ jobs:
       - name: Notify Slack
         uses: ./.github/actions/notify-slack-failure
         with:
-          title: "❌ SDK API Spec Generation Failed"
           message: "❌ SDK API spec generation failed on ${{ github.ref_name }}"
           webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
