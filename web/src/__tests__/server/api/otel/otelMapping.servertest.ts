@@ -5708,6 +5708,78 @@ describe("OTel Resource Span Mapping", () => {
       );
     });
 
+    it("should map Claude Managed Agents tool results to output in both ingestion paths", async () => {
+      const input = JSON.stringify({ path: "/workspace/example.txt" });
+      const output = JSON.stringify([
+        { type: "text", text: "Example file contents." },
+        { type: "text", text: "Second content block." },
+      ]);
+      const resourceSpan: ResourceSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "claude-platform" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: { name: "com.anthropic.claude-platform" },
+            spans: [
+              {
+                ...defaultSpanProps,
+                traceId: Buffer.from(defaultSpanProps.traceId.data),
+                spanId: Buffer.from(defaultSpanProps.spanId.data),
+                name: "read",
+                attributes: [
+                  {
+                    key: "gen_ai.provider.name",
+                    value: { stringValue: "anthropic" },
+                  },
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "execute_tool" },
+                  },
+                  {
+                    key: "gen_ai.tool.name",
+                    value: { stringValue: "read" },
+                  },
+                  {
+                    key: "gen_ai.tool.call.arguments",
+                    value: { stringValue: input },
+                  },
+                  {
+                    key: "anthropic.tool_result.content",
+                    value: { stringValue: output },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const tool = events.find((event) => event.type === "tool-create");
+      expect(tool?.body).toMatchObject({ input, output });
+      expect(
+        tool?.body.metadata.attributes?.["anthropic.tool_result.content"],
+      ).toBeUndefined();
+
+      const eventInputs = createTestOtelProcessor().processToEvent([
+        resourceSpan,
+      ]);
+      expect(eventInputs).toHaveLength(1);
+      expect(eventInputs[0]).toMatchObject({ type: "TOOL", input, output });
+      expect(
+        eventInputs[0].metadata.attributes["anthropic.tool_result.content"],
+      ).toBeUndefined();
+    });
+
     it("should filter all input/output attribute patterns from metadata.attributes while preserving custom attributes", async () => {
       // This test verifies that extractInputAndOutput's filteredAttributes correctly removes
       // all known input/output attribute patterns from multiple frameworks
