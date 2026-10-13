@@ -8,7 +8,7 @@ import {
   writeTopicSummaries,
   type TopicEmbeddingBatch,
 } from "@langfuse/shared/topics/server";
-import { embedTopicSummary } from "./models";
+import { embedTopicSummaries } from "./models";
 import { TopicMetrics } from "./metrics";
 import { mergeTopicModelUsage } from "./summaryResult";
 import {
@@ -23,7 +23,11 @@ export async function processTopicEmbeddingBatch(
   batch: TopicEmbeddingBatch,
 ): Promise<void> {
   const metrics = new TopicMetrics();
-  const pending: TopicSummary[] = [];
+  // Batch order; rows still `summarized` are not persisted.
+  const rows: {
+    ref: TopicEmbeddingBatch["summaries"][number];
+    summary: TopicSummary;
+  }[] = [];
   try {
     const models = await getTopicsModels(batch.projectId);
     if (!models)
@@ -31,6 +35,8 @@ export async function processTopicEmbeddingBatch(
         "Choose Topics models for this project, then start a new Topics execution.",
         "configuration",
       );
+    // Every summary in a batch belongs to one execution's embedding configuration.
+    let dimensions = models.embedding.dimensions;
     for (const ref of batch.summaries) {
       const staged = await readStagedTopicSummary(batch, ref);
       if (!staged) throw new UnrecoverableError(TOPIC_EMBEDDING_EXPIRED_ERROR);
@@ -39,38 +45,46 @@ export async function processTopicEmbeddingBatch(
           "The project's embedding model changed after this batch was created. Start a new Topics execution.",
           "configuration",
         );
-      let { summary } = staged;
-      if (summary.state === "summarized") {
-        const result = await metrics.measure("embedding", async () => {
-          try {
-            return await embedTopicSummary(
-              models.embedding,
-              summary.summary,
-              staged.embeddingConfig.embeddingDimensions,
-            );
-          } catch (error) {
-            throw error instanceof TopicsProviderUnavailable
-              ? error
-              : topicProviderError(error, models.embedding);
-          }
-        });
-        summary = {
-          ...summary,
-          state: "complete",
-          embedding: result.embedding,
-          ...mergeTopicModelUsage(summary, result),
-          processedAt: new Date().toISOString(),
-        };
-        metrics.result("embedding", "generated");
-        // All overlapping attempts must persist the same accepted result.
-        const accepted = await updateStagedTopicSummary(batch, ref, summary);
-        if (!accepted)
-          throw new UnrecoverableError(TOPIC_EMBEDDING_EXPIRED_ERROR);
-        pending.push(accepted);
-      } else {
-        if (summary.state === "complete") metrics.result("embedding", "cached");
-        pending.push(summary);
+      dimensions = staged.embeddingConfig.embeddingDimensions;
+      if (staged.summary.state === "complete")
+        metrics.result("embedding", "cached");
+      rows.push({ ref, summary: staged.summary });
+    }
+    const unembedded = rows.filter(
+      ({ summary }) => summary.state === "summarized",
+    );
+    if (!unembedded.length) return;
+    // One batched call; a retry re-embeds the whole remainder.
+    const result = await metrics.measure("embedding", async () => {
+      try {
+        return await embedTopicSummaries(
+          models.embedding,
+          unembedded.map(({ summary }) => summary.summary),
+          dimensions,
+        );
+      } catch (error) {
+        throw error instanceof TopicsProviderUnavailable
+          ? error
+          : topicProviderError(error, models.embedding);
       }
+    });
+    const processedAt = new Date().toISOString();
+    for (const [index, row] of unembedded.entries()) {
+      const { ref, summary } = row;
+      const embedded: TopicSummary = {
+        ...summary,
+        state: "complete",
+        embedding: result.embeddings[index],
+        // The batched call's usage is recorded once, on its first summary.
+        ...(index === 0 ? mergeTopicModelUsage(summary, result) : {}),
+        processedAt,
+      };
+      metrics.result("embedding", "generated");
+      // All overlapping attempts must persist the same accepted result.
+      const accepted = await updateStagedTopicSummary(batch, ref, embedded);
+      if (!accepted)
+        throw new UnrecoverableError(TOPIC_EMBEDDING_EXPIRED_ERROR);
+      row.summary = accepted;
     }
   } catch (error) {
     if (isRejectedConnection(error))
@@ -87,6 +101,9 @@ export async function processTopicEmbeddingBatch(
       throw new UnrecoverableError(error.message);
     throw error;
   } finally {
+    const pending = rows
+      .map(({ summary }) => summary)
+      .filter((summary) => summary.state !== "summarized");
     if (pending.length)
       await metrics.measure(
         "storage",

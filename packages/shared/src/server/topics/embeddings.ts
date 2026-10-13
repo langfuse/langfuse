@@ -20,10 +20,10 @@ function bedrockEmbeddingOptions(
   return { dimensions };
 }
 
-/** Embeds one summary through the project's LLM connection. */
-export async function generateTopicEmbedding(params: {
+/** Embeds summaries through the project's LLM connection in as few requests as the provider allows. */
+export async function generateTopicEmbeddings(params: {
   model: TopicsModel;
-  summary: string;
+  summaries: string[];
   dimensions: number;
 }) {
   const { embeddingDimensions } = topicEmbeddingConfigSchema.parse({
@@ -32,7 +32,7 @@ export async function generateTopicEmbedding(params: {
   const result = await embedLLMText({
     model: { adapter: params.model.adapter, id: params.model.model },
     connection: params.model.connection,
-    value: params.summary,
+    values: params.summaries,
     // Discovery and later centroid assignment must share one vector space, so
     // every provider is asked for clustering vectors of the configured size.
     providerOptions:
@@ -55,7 +55,9 @@ export async function generateTopicEmbedding(params: {
             },
           },
     maxRetries: 2,
+    // Single-text models (Bedrock Titan, Nova) split a batch into one request per text.
+    maxParallelCalls: 10,
     abortSignal: AbortSignal.timeout(60_000),
   });
-  return { embedding: result.embedding, tokens: result.usage.tokens };
+  return { embeddings: result.embeddings, tokens: result.usage.tokens };
 }

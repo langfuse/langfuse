@@ -19,7 +19,7 @@ import {
   type TopicsModelSlotName,
 } from "../../topics";
 import { hasTopicEmbeddings } from "./clickhouse";
-import { generateTopicEmbedding } from "./embeddings";
+import { generateTopicEmbeddings } from "./embeddings";
 import { z } from "zod";
 
 export type TopicsModel = {
@@ -331,9 +331,11 @@ async function testTopicsModelSlots(
           errors[name] = "LLM connection not found in this project.";
           return;
         }
-        const { embedding } = await generateTopicEmbedding({
+        const {
+          embeddings: [embedding],
+        } = await generateTopicEmbeddings({
           model: resolved,
-          summary: "Topics model check",
+          summaries: ["Topics model check"],
           dimensions: settings.embeddingDimensions,
         });
         if (embedding.length !== settings.embeddingDimensions)

@@ -2,7 +2,7 @@ import { get_encoding } from "tiktoken";
 import { z } from "zod";
 import { logger } from "@langfuse/shared/src/server";
 import {
-  generateTopicEmbedding,
+  generateTopicEmbeddings,
   generateTopicText,
   type TopicPromptPart,
   type TopicsModel,
@@ -348,13 +348,15 @@ export async function nameTopicGroup(
   );
 }
 
-export async function embedTopicSummary(
+/** Embeds summaries in one batched call; the usage covers every returned vector. */
+export async function embedTopicSummaries(
   model: TopicsModel,
-  summary: string,
+  summaries: string[],
   dimensions: number,
-): Promise<TopicModelUsage & { embedding: number[] }> {
+): Promise<TopicModelUsage & { embeddings: number[][] }> {
   if (
-    !summary.trim() ||
+    !summaries.length ||
+    summaries.some((summary) => !summary.trim()) ||
     !topicEmbeddingConfigSchema.safeParse({ embeddingDimensions: dimensions })
       .success
   )
@@ -362,20 +364,26 @@ export async function embedTopicSummary(
       "Topics embeddings require non-empty text and 64 to 4,096 dimensions.",
       "invalid_input",
     );
-  const result = await generateTopicEmbedding({
+  const result = await generateTopicEmbeddings({
     model,
-    summary,
+    summaries,
     dimensions,
   }).catch((error: unknown) => {
     throw topicProviderError(error, model);
   });
   recordTopicTokenUsage("embedding", { input: result.tokens });
   // ClickHouse stores Float32; calibration and future classification must use those same vectors.
-  const embedding = Array.from(new Float32Array(result.embedding));
+  const embeddings = result.embeddings.map((vector) =>
+    Array.from(new Float32Array(vector)),
+  );
   if (
-    embedding.length !== dimensions ||
-    !embedding.every(Number.isFinite) ||
-    !embedding.some((value) => value !== 0)
+    embeddings.length !== summaries.length ||
+    embeddings.some(
+      (embedding) =>
+        embedding.length !== dimensions ||
+        !embedding.every(Number.isFinite) ||
+        !embedding.some((value) => value !== 0),
+    )
   )
     throw new TopicsProviderUnavailable(
       "Topics embedding provider returned an invalid vector.",
@@ -394,7 +402,7 @@ export async function embedTopicSummary(
     });
   }
   return {
-    embedding,
+    embeddings,
     providedUsageDetails: usageDetails,
     usageDetails,
     providedCostDetails: {},

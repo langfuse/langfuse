@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("./clickhouse", () => ({ hasTopicEmbeddings: mocks.hasEmbeddings }));
 vi.mock("../llm/testModelCall", () => ({ testModelCall: mocks.testCall }));
-vi.mock("./embeddings", () => ({ generateTopicEmbedding: mocks.embed }));
+vi.mock("./embeddings", () => ({ generateTopicEmbeddings: mocks.embed }));
 vi.mock("../../db", () => ({
   prisma: {
     llmApiKeys: { findMany: mocks.keys },
@@ -66,7 +66,7 @@ beforeEach(() => {
   mocks.hasEmbeddings.mockResolvedValue(false);
   mocks.testCall.mockResolvedValue(undefined);
   mocks.embed.mockImplementation(async ({ dimensions }) => ({
-    embedding: Array(dimensions).fill(0.1),
+    embeddings: [Array(dimensions).fill(0.1)],
   }));
 });
 
@@ -100,7 +100,7 @@ describe("prepareTopicsModelSettings", () => {
       if (model === "gpt-5.6-terra")
         throw new Error("Model not found (HTTP 404)");
     });
-    mocks.embed.mockResolvedValue({ embedding: Array(1536).fill(0.1) });
+    mocks.embed.mockResolvedValue({ embeddings: [Array(1536).fill(0.1)] });
 
     await expect(saveTopicsModelSettings("project", settings)).rejects.toThrow(
       "Embeddings (text-embedding-3-small): The model returned 1536 dimensions instead of 1024. Choose a size this model supports.; Topic clustering (gpt-5.6-terra): Model not found (HTTP 404)",
