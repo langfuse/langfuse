@@ -592,7 +592,7 @@ export const ExperimentGridCell = ({
           },
         ] satisfies CellRowDef<GridCellData>[])
       : []),
-    // Output section
+    // Output section. Display chooses text or JSON. Row height does not.
     {
       accessorKey: "output",
       header: "Output",
@@ -601,12 +601,14 @@ export const ExperimentGridCell = ({
           <ConnectedIOTableCell
             isLoading
             variant="output"
+            followRowHeight={false}
             singleLine={singleLine}
           />
         ) : (
           <ConnectedIOTableCell
             data={data.output ?? null}
             variant="output"
+            followRowHeight={false}
             singleLine={singleLine}
           />
         ),

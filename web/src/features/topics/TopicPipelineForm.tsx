@@ -179,7 +179,7 @@ export function useTopicPipelineForm({
       const values = (() => {
         if (operation === "update") {
           if (!timeRange)
-            throw new Error("Select a time range of at most 93 days.");
+            throw new Error("Select a time range of at most 90 days.");
           return {
             ...base,
             operation,

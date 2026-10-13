@@ -126,10 +126,7 @@ describe("SignOutAllSessionsButton", () => {
         operation: "account.revoke_sessions",
       });
     });
-    expect(showErrorToastMock).not.toHaveBeenCalledWith(
-      "Failed to Sign Out of All Sessions",
-      expect.anything(),
-    );
+    expect(showErrorToastMock).not.toHaveBeenCalled();
     expect(reportNonTrpcErrorMock).toHaveBeenCalled();
   });
 
@@ -151,6 +148,11 @@ describe("SignOutAllSessionsButton", () => {
       expect(showErrorToastMock).toHaveBeenCalledWith(
         "Failed to Sign Out of All Sessions",
         "UNAUTHORIZED",
+        {
+          operation: "account.revoke_sessions",
+          errorOrigin: "frontend",
+          errorCategory: "internal",
+        },
       );
     });
     expect(signOutCleanlyMock).not.toHaveBeenCalled();

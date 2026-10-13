@@ -66,6 +66,11 @@ export const useViewMutations = ({
             showErrorToast(
               "Failed to copy permalink",
               "Could not write to the clipboard. Please copy the link manually.",
+              {
+                operation: "saved_view.permalink_copy",
+                errorOrigin: "frontend",
+                errorCategory: "permission",
+              },
               "WARNING",
             ),
           );

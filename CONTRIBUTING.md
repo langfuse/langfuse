@@ -326,7 +326,6 @@ pnpm run db:seed:examples
   pnpm run dev
   pnpm --filter=web run dev # execute command only in one package
   pnpm tc                   # fast typecheck all packages
-  pnpm build:check          # Full Next.js build to alternate dir (can run parallel with dev server)
   ```
 
   In the root `package.json`, you can find scripts which are executed with turbo e.g. `turbo run dev`. These scripts are executed with the help of Turbo. Turbo executes the commands in all packages taking care of the correct order of execution. Task definitions can be found in the `turbo.config.js` file.
@@ -550,9 +549,9 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --light-yellow                   | Light yellow for warning background                                | LevelColor                       |
 | --dark-yellow                    | Dark yellow for warning text                                       | LevelColor                       |
 | --light-green                    | Light green for success status badge background                    | StatusBadge                      |
-| --dark-green                     | Dark green for success status badge text and dot                   | StatusBadge                      |
+| --dark-green                     | Dark green for success text, badge text and dots (emerald-800)     | StatusBadge, Badge, Switch       |
 | --light-blue                     | Light blue for background of Staging label                         | LangfuseLogo                     |
-| --dark-blue                      | Dark blue for text and border of Staging label                     | LangfuseLogo                     |
+| --dark-blue                      | Dark blue for info text, links and badge text (blue-800)           | StatusBadge, Badge, Alert        |
 | --accent-light-blue              | Light blue accent for table link hover effect                      | TableLink                        |
 | --accent-dark-blue               | Dark blue accent for table link text                               | TableLink                        |
 | --find-match-selected-background | Background color for selected search matches                       | CodeMirrorEditor                 |

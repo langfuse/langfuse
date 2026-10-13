@@ -116,6 +116,22 @@ const EnvSchema = z.object({
   LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    )
+    .refine((ids) => !ids.includes("*") || ids.length === 1, {
+      message:
+        'Use "*" alone to select all projects, or a comma-separated list of project IDs',
+    }),
   LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -797,6 +813,17 @@ const EnvSchema = z.object({
     .default(2),
   LANGFUSE_QUEUE_METRICS_INTERVAL_MS: z.coerce.number().min(100).default(1000),
   LANGFUSE_QUEUE_METRICS_ENABLED: z.enum(["true", "false"]).default("true"),
+  // Upper bound for a random delay before the worker registers its queues and
+  // starts its periodic runners. Spreads the Redis connection setup of tasks
+  // that boot together (e.g. an autoscaling step) over time. 0 disables it.
+  // Keep it below the container health check grace period: the HTTP server
+  // only starts listening after the delay.
+  LANGFUSE_WORKER_STARTUP_JITTER_MAX_MS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(120_000)
+    .default(0),
 });
 
 type ParsedEnv = z.infer<typeof EnvSchema>;

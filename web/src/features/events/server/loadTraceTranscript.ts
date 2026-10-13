@@ -32,6 +32,24 @@ type Observation = Awaited<
   ReturnType<typeof getObservationsForTraceFromEventsTable>
 >["observations"][number];
 
+type SessionTranscript = Omit<Transcript, "threads"> & {
+  threads: Array<
+    Omit<Transcript["threads"][number], "currentTurn"> & {
+      currentTurn: Omit<
+        Transcript["threads"][number]["currentTurn"],
+        "messages"
+      > & {
+        messages: Array<
+          Transcript["threads"][number]["currentTurn"]["messages"][number] & {
+            level?: Observation["level"];
+            statusMessage?: Observation["statusMessage"];
+          }
+        >;
+      };
+    }
+  >;
+};
+
 /**
  * Load a trace's observations from the events table, walk them in trace tree
  * order, and assemble the transcript of its generations and tools.
@@ -50,7 +68,7 @@ export async function loadTraceTranscript(trace: {
   /** Use root observation I/O when no generation/tool transcript exists. */
   fallbackToRootIO?: boolean;
 }): Promise<{
-  transcript: Transcript | null;
+  transcript: SessionTranscript | null;
   /** The trace has more observations than the transcript could read. */
   cutoff: boolean;
 }> {
@@ -137,8 +155,44 @@ export async function loadTraceTranscript(trace: {
     structure.totalCount > MAX_OBSERVATIONS_PER_TRACE ||
     content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS;
   return {
-    transcript,
+    transcript: withToolObservationStatus(transcript, contentById),
     cutoff,
+  };
+}
+
+function withToolObservationStatus(
+  transcript: Transcript | null,
+  observationsById: ReadonlyMap<string, Observation>,
+): SessionTranscript | null {
+  if (!transcript) return null;
+  const hasToolStatus = [...observationsById.values()].some(
+    (observation) =>
+      observation.type === "TOOL" &&
+      (observation.level !== undefined ||
+        observation.statusMessage !== undefined),
+  );
+  if (!hasToolStatus) return transcript;
+  return {
+    ...transcript,
+    threads: transcript.threads.map((thread) => ({
+      ...thread,
+      currentTurn: {
+        ...thread.currentTurn,
+        messages: thread.currentTurn.messages.map((message) => {
+          const observation = observationsById.get(message.observationId);
+          if (
+            observation?.type !== "TOOL" ||
+            observation.traceId !== message.traceId
+          )
+            return message;
+          return {
+            ...message,
+            level: observation.level,
+            statusMessage: observation.statusMessage,
+          };
+        }),
+      },
+    })),
   };
 }
 
@@ -170,6 +224,19 @@ function assembleSessionTraceTranscript(
       messages,
       (message) => message.source === "input",
     );
+    if (
+      observation.type === "TOOL" &&
+      outputMessages.every((message) => message.parts.length === 0) &&
+      (observation.level === "ERROR" ||
+        observation.level === "WARNING" ||
+        observation.statusMessage)
+    ) {
+      outputMessages.push({
+        role: "tool",
+        source: "output",
+        parts: [{ type: "data", value: null }],
+      });
+    }
     const [input, output] = partition(
       [...inputMessages, ...transformOutput(observation, outputMessages)].map(
         (message) => ({ message, key: messageKey(message) }),
@@ -184,7 +251,13 @@ function assembleSessionTraceTranscript(
         const marker: NormalizedMessage = {
           role: "tool",
           source: "output",
-          parts: [{ type: "tool-result", toolCallId: callId, output: null }],
+          parts: [
+            {
+              type: "tool-result",
+              toolCallId: callId,
+              output: { type: "json", value: null },
+            },
+          ],
         };
         // Let the registry resolve identity and placement, then retain the
         // original media parts instead of exposing a JSON-only result marker.
@@ -322,9 +395,31 @@ function recoverToolCalls(observations: Observation[]) {
         !resolvedCallIds.has(JSON.stringify([observation.traceId, callId]))
       )
         return messages;
+      if (
+        observation.output === null &&
+        (observation.level === "ERROR" ||
+          observation.level === "WARNING" ||
+          observation.statusMessage)
+      ) {
+        return [
+          {
+            role: "tool",
+            source: "output",
+            parts: [
+              {
+                type: "tool-result",
+                toolCallId: callId,
+                toolName: observation.name ?? "Tool",
+                output: { type: "json", value: null },
+                isError: observation.level === "ERROR",
+              },
+            ],
+          },
+        ];
+      }
       const parts = messages.flatMap((message) => message.parts);
-      // Tool-result payloads are JSON; wrapping media would discard the file
-      // parts the session renderer needs for previews.
+      // Keep the session media rendering path when metadata recovers a call
+      // whose response contains media or other individually rendered parts.
       if (!parts.length) return messages;
       if (
         !parts.every((part) => part.type === "text") &&
@@ -509,15 +604,12 @@ function pairToolResponses(
             const call = candidates.get(index);
             if (!call?.toolCallId) return message;
             if (candidateCounts.get(call.toolCallId) !== 1) return message;
-            const output = (() => {
-              if (message.parts.every((part) => part.type === "text")) {
-                return message.parts.map((part) => part.text).join("\n");
-              }
-              const values = message.parts.flatMap((part) =>
-                part.type === "data" ? [part.value] : [],
-              );
-              return values.length === 1 ? values[0] : values;
-            })();
+            const output = {
+              type: "content" as const,
+              value: message.parts.filter(
+                (part) => part.type === "text" || part.type === "data",
+              ),
+            };
             return {
               ...message,
               parts: [

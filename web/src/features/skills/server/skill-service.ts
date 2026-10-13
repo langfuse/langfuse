@@ -423,13 +423,19 @@ export class SkillService {
   }
 
   async filterOptions(params: { projectId: string }) {
-    const skills = await this.prisma.skill.findMany({
-      where: {
-        projectId: params.projectId,
-        labels: { has: SKILL_LATEST_LABEL },
-      },
-      select: { tags: true },
-    });
+    const [skills, labeledVersions] = await Promise.all([
+      this.prisma.skill.findMany({
+        where: {
+          projectId: params.projectId,
+          labels: { has: SKILL_LATEST_LABEL },
+        },
+        select: { name: true, tags: true },
+      }),
+      this.prisma.skill.findMany({
+        where: { projectId: params.projectId, labels: { isEmpty: false } },
+        select: { labels: true },
+      }),
+    ]);
     const counts = new Map<string, number>();
     for (const skill of skills) {
       for (const tag of new Set(skill.tags)) {
@@ -437,6 +443,12 @@ export class SkillService {
       }
     }
     return {
+      labels: [
+        ...new Set(labeledVersions.flatMap(({ labels }) => labels)),
+      ].sort((a, b) => a.localeCompare(b)),
+      names: [...new Set(skills.map(({ name }) => name))].sort((a, b) =>
+        a.localeCompare(b),
+      ),
       tags: [...counts]
         .map(([value, count]) => ({ value, count }))
         .sort((a, b) => a.value.localeCompare(b.value)),

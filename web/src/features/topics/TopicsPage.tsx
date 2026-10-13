@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { format } from "date-fns";
+import { useMemo, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -7,6 +6,14 @@ import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace
 import { useRouter } from "next/router";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import Page from "@/src/components/layouts/page";
+import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
+import { TimeRangePicker } from "@/src/components/date-picker";
+import { useGlobalDateRange } from "@/src/features/global-time-range/useGlobalDateRange";
+import {
+  DASHBOARD_AGGREGATION_OPTIONS,
+  TABLE_AGGREGATION_OPTIONS,
+  TIME_RANGES,
+} from "@/src/utils/date-range-utils";
 import { ErrorPage } from "@/src/components/error-page";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Button as PopoverButton } from "@/src/components/ui/button";
@@ -21,7 +28,6 @@ import {
 import { Input } from "@/src/components/design-system/Input/Input";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/components/DateRangeInput/DateRangeInput";
 import { Textarea } from "@/src/components/ui/textarea";
 import { PopoverController } from "@/src/components/ui/popover";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -47,12 +53,15 @@ import { TopicsFilters } from "./TopicsFilters";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
 import { resolveTopicFacetId } from "./topic-facet-selection";
-import {
-  isValidTopicTimeRange,
-  relativeTopicTimeRange,
-  topicCalendarDates,
-  topicCalendarRange,
-} from "./time-range";
+import { isValidTopicTimeRange } from "./time-range";
+
+const maxTimeRangeMs = TIME_RANGES.last90Days.minutes * 60_000;
+const sharedTimeRangePresets = [
+  ...new Set([...TABLE_AGGREGATION_OPTIONS, ...DASHBOARD_AGGREGATION_OPTIONS]),
+].sort((a, b) => TIME_RANGES[a].minutes - TIME_RANGES[b].minutes);
+const topicsTimeRangePresets = sharedTimeRangePresets.filter(
+  (range) => TIME_RANGES[range].minutes * 60_000 <= maxTimeRangeMs,
+);
 
 const operationLabels: Record<TopicOperation, string> = {
   process: "Process traces",
@@ -128,11 +137,13 @@ function TopicsWorkspaceView({
   facets: UseQueryResult<TopicFacet[], { message: string }>;
 }) {
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [timeWindow, setTimeWindow] = useState("7");
-  const [timeRange, setTimeRange] = useState(() => relativeTopicTimeRange(7));
+  const { timeRange, setTimeRange } = useGlobalDateRange({
+    allowedRanges: sharedTimeRangePresets,
+    fallback: "last7Days",
+  });
+  const [refreshedAt, setRefreshedAt] = useState(Date.now);
   const [selectedFacetId, setSelectedFacetId] = useState<string>();
   const [tracePanel, setTracePanel] = useState<HTMLElement | null>(null);
-  const validTimeRange = isValidTopicTimeRange(timeRange);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
@@ -175,11 +186,40 @@ function TopicsWorkspaceView({
           : [],
     ),
   );
-  const rangeEnd = Math.max(timeRange.to.getTime(), completedAt);
-  const currentTimeRange =
-    timeWindow === "custom" || !Number.isFinite(rangeEnd)
-      ? timeRange
-      : relativeTopicTimeRange(Number(timeWindow), new Date(rangeEnd));
+  const { currentTimeRange, effectiveTimeRange, isTimeRangeCapped } =
+    useMemo(() => {
+      const to =
+        "from" in timeRange
+          ? timeRange.to
+          : new Date(Math.max(Date.now(), completedAt, refreshedAt));
+      const from =
+        "from" in timeRange
+          ? timeRange.from
+          : new Date(
+              to.getTime() -
+                (TIME_RANGES[timeRange.range as keyof typeof TIME_RANGES]
+                  .minutes ?? TIME_RANGES.last7Days.minutes) *
+                  60_000,
+            );
+      const isTimeRangeCapped = to.getTime() - from.getTime() > maxTimeRangeMs;
+      const currentTimeRange = {
+        from: isTimeRangeCapped
+          ? new Date(to.getTime() - maxTimeRangeMs)
+          : from,
+        to,
+      };
+      let effectiveTimeRange = timeRange;
+      if (isTimeRangeCapped) {
+        effectiveTimeRange =
+          "from" in timeRange ? currentTimeRange : { range: "last90Days" };
+      }
+      return {
+        currentTimeRange,
+        effectiveTimeRange,
+        isTimeRangeCapped,
+      };
+    }, [timeRange, completedAt, refreshedAt]);
+  const validTimeRange = isValidTopicTimeRange(currentTimeRange);
   const running =
     Boolean(executions.data?.some((execution) => busy(execution.status))) ||
     busy(selectedExecution.data?.status ?? "");
@@ -194,8 +234,7 @@ function TopicsWorkspaceView({
     selectedFacetId,
   );
   const refreshResults = () => {
-    if (timeWindow !== "custom")
-      setTimeRange(relativeTopicTimeRange(Number(timeWindow)));
+    setRefreshedAt(Date.now());
     utils.topics.currentResults.invalidate({ projectId });
   };
   const openExecution = (id: string) => {
@@ -221,19 +260,6 @@ function TopicsWorkspaceView({
   function openHistory() {
     setHistoryOpen(true);
   }
-  function selectTimeWindow(value: string) {
-    setTimeWindow(value);
-    setTimeRange(
-      value === "custom"
-        ? topicCalendarRange(topicCalendarDates(currentTimeRange))
-        : relativeTopicTimeRange(Number(value)),
-    );
-  }
-  function selectCalendarRange(
-    value: Parameters<typeof topicCalendarRange>[0],
-  ) {
-    setTimeRange(topicCalendarRange(value));
-  }
   const {
     primaryAction,
     triggerAction,
@@ -251,13 +277,6 @@ function TopicsWorkspaceView({
         <FacetEditor projectId={projectId} facets={facets.data ?? []} />
       ) : null,
   });
-  const filterProps = {
-    facets: results.data ?? [],
-    selectedFacetId,
-    timeWindow,
-    onSelectFacet: setSelectedFacetId,
-    onSelectTimeWindow: selectTimeWindow,
-  };
   const actions = (
     <div className="ph-no-capture flex items-center justify-end gap-1">
       {primaryAction}
@@ -309,7 +328,6 @@ function TopicsWorkspaceView({
             "Explore recurring themes across traces, one facet at a time.",
         },
         actionButtonsRight: actions,
-        actionButtonsLeft: <TopicsFilters {...filterProps} layout="header" />,
         actionButtonsMenu: ({ closeMenu }) => (
           <TopicsActionsMenu
             hasFacets={(facets.data?.length ?? 0) > 0}
@@ -318,26 +336,31 @@ function TopicsWorkspaceView({
             onOpenConfiguration={openConfiguration}
             onOpenHistory={openHistory}
             onRefresh={refreshResults}
-          >
-            <TopicsFilters {...filterProps} layout="menu" />
-          </TopicsActionsMenu>
+          />
         ),
       }}
     >
+      <PageHeaderControlsPortal>
+        <TimeRangePicker
+          timeRange={effectiveTimeRange}
+          onTimeRangeChange={setTimeRange}
+          timeRangePresets={topicsTimeRangePresets}
+          maxRangeMs={maxTimeRangeMs}
+          className="my-0 max-w-full overflow-x-auto"
+          triggerClassName="px-2"
+        />
+      </PageHeaderControlsPortal>
       <div className="ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
-        {timeWindow === "custom" && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <DateRangeInput
-              value={topicCalendarDates(timeRange)}
-              max={format(new Date(), "yyyy-MM-dd")}
-              fromAriaLabel="Topics start date"
-              toAriaLabel="Topics end date"
-              onValueChange={selectCalendarRange}
-            />
-          </div>
+        {isTimeRangeCapped && (
+          <p role="status" className="text-muted-foreground shrink-0 text-xs">
+            {"from" in timeRange
+              ? "Showing the final 90 days of your selected range."
+              : "Showing the last 90 days."}{" "}
+            Your selection is preserved on other pages.
+          </p>
         )}
         {!validTimeRange && (
-          <ErrorMessage message="Select a time range of at most 93 days." />
+          <ErrorMessage message="Select a time range of at most 90 days." />
         )}
         {error && <ErrorMessage message={error} />}
         {configuration}
@@ -420,13 +443,19 @@ function TopicsWorkspaceView({
             widthStorageKey="topicsPeekViewWidthFraction"
           />
           {validTimeRange && (
-            <CurrentTopics
-              projectId={projectId}
-              timeRange={currentTimeRange}
-              result={results}
-              selectedFacetId={selectedFacet}
-              tracePanelRef={setTracePanel}
-            />
+            <TopicsFilters
+              facets={results.data ?? []}
+              selectedFacetId={selectedFacetId}
+              onSelectFacet={setSelectedFacetId}
+            >
+              <CurrentTopics
+                projectId={projectId}
+                timeRange={currentTimeRange}
+                result={results}
+                selectedFacetId={selectedFacet}
+                tracePanelRef={setTracePanel}
+              />
+            </TopicsFilters>
           )}
           {facets.isLoading && <p>Loading facets…</p>}
           {facets.error && <ErrorMessage message={facets.error.message} />}
