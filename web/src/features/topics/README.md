@@ -46,7 +46,12 @@ project permissions. Processing additionally requires the project allowlist.
   with a first version, and saves one rule for the filter, idle time, and
   sampling rate. A project can have only one Topics rule.
   Process traces or Update topics opens its own run dialog. Overlay owners stay
-  outside the responsive header menu. Facet versions contain only prompts;
+  outside the responsive header menu.
+  The header's Regenerate topics button (`useRegenerateTopics`) starts the same
+  update run for the rule's facets at their latest version over the page time
+  range. It is disabled with a reason without `topics:CUD`, while Topics is
+  paused or unconfigured, while any run is queued or running, and when the
+  range has no stored summaries. Facet versions contain only prompts;
   processing settings and embedding dimensions are frozen on executions.
   Built-in facets are read-only; custom facets are added on their own page.
 - `useTopicPipelineForm` owns the run dialog, operation, facet versions and
