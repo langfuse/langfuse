@@ -31,12 +31,12 @@
   `Transcript | null`; serialize it for inference and skip inference on null.
   Token counting and its WASM dependency stay in `src/features/topics/models.ts`.
   Model calls use `generateTopicText` and `generateTopicEmbedding` from
-  `@langfuse/shared/topics/server` to keep Bedrock transport on shared's AI SDK
-  version. Internal PoC model selection uses required, default-free
-  `LANGFUSE_TOPICS_SUMMARY_MODEL` and `LANGFUSE_TOPICS_EMBEDDING_MODEL` values
-  shared by web and worker; topic naming still uses the fixed Terra profile.
-  Local AWS auth uses shared `LANGFUSE_AI_FEATURES_AWS_PROFILE`; region/setup
-  details live in the Topics README.
+  `@langfuse/shared/topics/server` with the project's resolved `TopicsModels`
+  (summary, embedding, clustering LLM connections from `topic_configs`).
+  Pass models explicitly; never put them on execution or batch state, which is
+  persisted. Trace-batch jobs load enabled settings for all allowlisted batch
+  projects in one query (`getEnabledTopicsModels`) and pause a project on
+  authentication errors (`pauseTopicsModels`).
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation

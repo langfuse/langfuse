@@ -209,12 +209,12 @@ pub(super) fn may_contain_serialized_media(value: &str) -> bool {
     has_provider_shape || has_quoted_root_candidate
 }
 
-/// Return true when a validated document might contain a media candidate.
+/// Return true when raw or validated JSON might contain a media candidate.
 /// Unicode escapes are included because they can spell a marker after decoding.
-pub(super) fn may_contain_media_candidate(value: &str) -> bool {
+pub(crate) fn may_contain_media_candidate(value: impl AsRef<[u8]>) -> bool {
     // Broad fragments are intentional: false positives only select the full
     // walk, while escaped nesting remains discoverable.
-    MEDIA_CANDIDATE_MARKERS.is_match(value)
+    MEDIA_CANDIDATE_MARKERS.is_match(value.as_ref())
 }
 
 pub(super) fn may_be_serialized_json(value: &str) -> bool {

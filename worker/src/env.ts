@@ -366,9 +366,6 @@ const EnvSchema = z.object({
   LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
     .enum(["true", "false"])
     .optional(),
-  // Internal Topics PoC model selection; not a supported self-hosting setting.
-  LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
-  LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),
@@ -811,6 +808,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+  /** Interval at which one worker per queue set polls queue depth and DLQ age */
   LANGFUSE_QUEUE_METRICS_INTERVAL_MS: z.coerce.number().min(100).default(1000),
   LANGFUSE_QUEUE_METRICS_ENABLED: z.enum(["true", "false"]).default("true"),
   // Upper bound for a random delay before the worker registers its queues and

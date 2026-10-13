@@ -221,27 +221,30 @@ describe("early media extraction rollout", () => {
     vi.mocked(getS3EventStorageClient).mockReturnValue({
       downloadBytes: vi.fn().mockResolvedValue(bytes),
     } as unknown as ReturnType<typeof getS3EventStorageClient>);
-    const prepare = otelPreparation.prepareOtelBatch;
+    const native =
+      await vi.importActual<typeof import("@langfuse/native")>(
+        "@langfuse/native",
+      );
+    const validated = await native.validateOtelJson(bytes);
+    const nativeBatch = await validated.extract(false);
     const parse = JSON.parse;
     let checkedBeforeParse = false;
     const stop = new Error("stop after parsing");
     try {
       vi.spyOn(otelPreparation, "prepareOtelBatch").mockImplementation(
-        async (params) => {
-          const prepared = await prepare(params);
-          const batch = prepared.batch!;
-          expect(batch.mediaCount()).toBe(0);
-          vi.spyOn(batch, "takeJsonBuffer").mockImplementation(() => {
+        async () => {
+          expect(nativeBatch.mediaCount()).toBe(0);
+          vi.spyOn(nativeBatch, "takeJsonBuffer").mockImplementation(() => {
             throw new Error("must not transfer a second document to Node");
           });
           vi.spyOn(JSON, "parse").mockImplementation((text, reviver) => {
             if (text === json) {
-              expect(() => batch.mediaCount()).toThrow(/disposed/);
+              expect(() => nativeBatch.mediaCount()).toThrow(/disposed/);
               checkedBeforeParse = true;
             }
             return parse(text, reviver);
           });
-          return prepared;
+          return { batch: nativeBatch, sourceUnchanged: true };
         },
       );
       vi.spyOn(
