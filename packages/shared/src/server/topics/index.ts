@@ -7,6 +7,7 @@ export { emitTopicStagingMetrics } from "./staging-metrics";
 export * from "./embeddings";
 export * from "./text";
 export * from "./config";
+export * from "./processing-gate";
 export * from "./model-config";
 export * from "./setup";
 export * from "./trace-input";

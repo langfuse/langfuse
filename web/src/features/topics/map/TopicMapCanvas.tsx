@@ -22,6 +22,7 @@ export function TopicMapCanvas({
   store,
   selectedTopic,
   selectedTraceId,
+  matchingTraceIds,
 }: TopicMapCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
   const presentation = useRef<Presentation | null>(null);
@@ -111,6 +112,7 @@ export function TopicMapCanvas({
       size,
       scene.pointer,
       selectedTopic,
+      matchingTraceIds,
     );
     const hover = getTopicMapHover(state, frame);
     for (const point of model.points) {
@@ -173,6 +175,7 @@ export function TopicMapCanvas({
     camera.zoom,
     selectedTopic,
     selectedTraceId,
+    matchingTraceIds,
   ]);
   return (
     <canvas
@@ -190,7 +193,7 @@ function drawMap(
 ) {
   const context = canvas.getContext("2d");
   if (!context) return;
-  const { model, camera, size, readingTopic } = frame;
+  const { model, camera, size, matchingTraceIds } = frame;
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
   if (
     canvas.width !== Math.round(size.width * ratio) ||
@@ -211,6 +214,12 @@ function drawMap(
     const { x, y, rx, ry } = zoneHalo(zone, camera, model.bounds, size);
     if (x + rx < 0 || x - rx > size.width || y + ry < 0 || y - ry > size.height)
       continue;
+    context.globalAlpha =
+      cloudVisibility *
+      (!matchingTraceIds ||
+      zone.points.some((point) => matchingTraceIds.has(point.traceId))
+        ? 1
+        : 0.15);
     context.save();
     context.translate(x, y);
     context.scale(rx, ry);
@@ -227,10 +236,9 @@ function drawMap(
   for (const node of frame.nodes) {
     const { point, rect, cornerRadius } = node;
     const active = emphasis.get(point.traceId) ?? 0;
-    const opacity =
-      readingTopic && point.groupId !== readingTopic
-        ? 0.22 + active * 0.78
-        : 0.75 + point.depth * 0.2;
+    const opacity = !node.matchesFilters
+      ? 0.08 + active * 0.92
+      : 0.75 + point.depth * 0.2;
     context.beginPath();
     context.roundRect(rect.x, rect.y, rect.width, rect.height, cornerRadius);
     context.globalAlpha = opacity;
@@ -267,6 +275,7 @@ type TopicMapCanvasProps = {
   store: TopicMapStore;
   selectedTopic: string | null;
   selectedTraceId: string | null;
+  matchingTraceIds?: ReadonlySet<string>;
 };
 
 type Presentation = {

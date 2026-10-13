@@ -30,9 +30,14 @@
   Transcript assembly is shared with web through `loadTopicTranscript`, returning
   `Transcript | null`; serialize it for inference and skip inference on null.
   Token counting and its WASM dependency stay in `src/features/topics/models.ts`.
-  Model calls use `generateTopicText` and `generateTopicEmbedding` from
+  Model calls use `generateTopicText` and `generateTopicEmbeddings` from
   `@langfuse/shared/topics/server` with the project's resolved `TopicsModels`
   (summary, embedding, clustering LLM connections from `topic_configs`).
+  Text tracing requires the source project in
+  `LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS` (empty by default) and checks
+  organization `aiFeaturesEnabled` and `aiTelemetryEnabled` in `models.ts`;
+  embeddings are untraced. Use `isInternalEvalEnvironment`
+  to exclude internal sources.
   Pass models explicitly; never put them on execution or batch state, which is
   persisted. Trace-batch jobs load enabled settings for all allowlisted batch
   projects in one query (`getEnabledTopicsModels`) and pause a project on
@@ -50,6 +55,26 @@
   `src/features/traceBatching/TraceBatchMetricsRunner.ts` collects bounded queue
   and Redis snapshots independently of dispatch/consumption when either role is
   enabled. Global snapshot gauges must not be summed across worker reporters.
+  Readiness uses project/trace-hashed shards with one dispatcher lease; all Lua
+  keys share a shard hash tag. Defaults are 16 shards on Redis Cluster and 1 on
+  standalone/Sentinel, with an explicit count override. Redis resizing does not
+  change the count. Hourly first-seen hashes retain packed minimum and
+  maximum event starts and cumulative size estimates after acknowledgement for late arrivals;
+  history retention defaults to 24 hours and is capped at 48 hours. Pending state
+  carries the bucket pointer. Pending expiry is due plus recovery grace, including
+  the whole-key backstop. Tracking uses the project's configured idle duration,
+  falling back to the environment default when unavailable.
+  Cached Lua calls cap tracking/hydration/acknowledgement at 50 and cleanup at 100;
+  ingestion pipelines at most four scripts within a shard, with one clock lookup
+  per ingestion call; single-script groups use a direct call. Record all
+  acknowledged siblings after a pipeline error; retry
+  only `NOSCRIPT` commands. Retained estimates guard the whole known read window,
+  including late arrivals; unknown estimates remain unknown. Locality selection
+  still pools 1,000 candidates. Drain the old layout before upgrade
+  or shard-count/retention changes. The trace-batch consumer checks existing
+  summaries against the job enqueue time so retries skip completed facets while
+  later redispatches append updated summaries. Map gauges include shard and
+  total series; never sum duplicate reporters or add totals to shard series.
   `src/features/traceBatching/traceBatchTranscript.ts` measures per-trace assembly
   phases, thread count, current-turn/history token estimates and their sum. Each
   admitted trace records full assembled-transcript JSON lengths, renders the

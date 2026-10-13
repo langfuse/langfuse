@@ -12,12 +12,13 @@ import {
 } from "@langfuse/shared/topics";
 import {
   instrumentAsync,
+  isInternalEvalEnvironment,
   recordIncrement,
   type Transcript,
 } from "@langfuse/shared/src/server";
 import { prepareAssembledTopicTranscript } from "./assembledTranscript";
 import { TopicMetrics } from "./metrics";
-import { embedTopicSummary, summarizeTopicTraceFacets } from "./models";
+import { embedTopicSummaries, summarizeTopicTraceFacets } from "./models";
 import { TopicsProviderUnavailable } from "./provider-error";
 import {
   mergeTopicModelUsage,
@@ -40,6 +41,7 @@ type AssembledTraceInput = {
   projectId: string;
   traceId: string;
   traceTimestamp: string;
+  jobEnqueuedAt: Date;
   environment: string;
   traceName: string;
   transcript: Transcript | null;
@@ -49,12 +51,13 @@ type AssembledTraceInput = {
 
 /**
  * Summarizes one trace from the transcript the batch job already assembled,
- * with one model call for all of its pending facets. Does not load
+ * with one model call for all of its configured facets. Does not load
  * observations again.
  */
 export async function summarizeAssembledTrace(
   input: AssembledTraceInput,
-): Promise<"unchanged" | "summarized"> {
+): Promise<"disabled" | "unchanged" | "summarized"> {
+  if (isInternalEvalEnvironment(input.environment)) return "disabled";
   return instrumentAsync(
     { name: "topics-trace-summary", traceScope: "topics" },
     async (span) => {
@@ -86,11 +89,6 @@ async function summarizeEnabledTrace(
   const config = topicProcessingConfigSchema.parse({
     summaryModel: models.summary.model,
   });
-  const timestamp = Date.parse(input.traceTimestamp);
-  const timeRange = {
-    from: new Date(timestamp),
-    to: new Date(timestamp + 1),
-  };
   const pending: {
     name: string;
     version: TopicFacetVersion;
@@ -101,6 +99,11 @@ async function summarizeEnabledTrace(
     ...facets.filter((facet) => facet.isBuiltIn),
     ...facets.filter((facet) => !facet.isBuiltIn),
   ];
+  const timestamp = Date.parse(input.traceTimestamp);
+  const timeRange = {
+    from: new Date(timestamp),
+    to: new Date(timestamp + 1),
+  };
   for (const facet of ordered) {
     const version = facet.versions[0];
     if (facet.projectId !== input.projectId || !version) continue;
@@ -113,8 +116,14 @@ async function summarizeEnabledTrace(
       },
       timeRange,
     );
-    if (!stored.length)
-      pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
+    if (
+      stored.some(
+        (summary) =>
+          Date.parse(summary.processedAt) >= input.jobEnqueuedAt.getTime(),
+      )
+    )
+      continue;
+    pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
   }
   if (!pending.length) return "unchanged";
 
@@ -141,6 +150,10 @@ async function summarizeEnabledTrace(
           keyed,
           prepared.text,
           config,
+          {
+            source_trace_id: input.traceId,
+            source_environment: input.environment,
+          },
         );
         const outputs = generated.output as Record<string, FacetOutput>;
         for (const { key } of keyed) {
@@ -171,24 +184,52 @@ async function summarizeEnabledTrace(
       providedCostDetails: result.providedCostDetails,
       costDetails: result.costDetails,
     };
-    rows = [];
-    // A failed facet (invalid output, embedding error) must not discard the others.
-    for (const [index, { key }] of keyed.entries()) {
-      if (invalidFacets.has(key)) continue;
+    const accepted = keyed.flatMap(({ key }, index) =>
+      invalidFacets.has(key)
+        ? []
+        : [{ base: bases[index], output: outputs[key] }],
+    );
+    const applicable = accepted
+      .filter(({ output }) => output.status === "applicable")
+      .map(({ output }) => output.summary.trim());
+    let embedded: Awaited<ReturnType<typeof embedTopicSummaries>> | undefined;
+    if (applicable.length > 0) {
       try {
-        rows.push(
-          await finalizeSummary(
-            bases[index],
-            outputs[key],
-            // One call serves every facet of the trace; record its usage once.
-            rows.length ? NO_USAGE : usage,
-            models,
-            metrics,
+        embedded = await metrics.measure("embedding", () =>
+          embedTopicSummaries(
+            models.embedding,
+            applicable,
+            models.embedding.dimensions,
           ),
         );
       } catch (error) {
+        // Non-applicable facets are still persisted when the embedding fails.
         if (failure === undefined) failure = error;
       }
+    }
+    // One call summarizes and one embeds every facet of the trace; record their usage once.
+    const traceUsage = embedded ? mergeTopicModelUsage(usage, embedded) : usage;
+    rows = [];
+    let embeddingIndex = 0;
+    for (const { base, output } of accepted) {
+      const rowUsage = rows.length > 0 ? NO_USAGE : traceUsage;
+      if (output.status !== "applicable")
+        rows.push({
+          ...base,
+          state:
+            output.status === "not_applicable"
+              ? "not_applicable"
+              : "insufficient_input",
+          ...rowUsage,
+        });
+      else if (embedded)
+        rows.push({
+          ...base,
+          state: "complete",
+          summary: output.summary.trim(),
+          embedding: embedded.embeddings[embeddingIndex++],
+          ...rowUsage,
+        });
     }
   }
   if (rows.length)
@@ -231,34 +272,5 @@ function baseSummary(
     ...NO_USAGE,
     processedAt: new Date().toISOString(),
     metadata: { input: "assembled-transcript" },
-  };
-}
-
-async function finalizeSummary(
-  base: TopicSummary,
-  output: FacetOutput,
-  usage: TopicModelUsage,
-  models: TopicsModels,
-  metrics: TopicMetrics,
-): Promise<TopicSummary> {
-  if (output.status !== "applicable")
-    return {
-      ...base,
-      state:
-        output.status === "not_applicable"
-          ? "not_applicable"
-          : "insufficient_input",
-      ...usage,
-    };
-  const summary = output.summary.trim();
-  const embedded = await metrics.measure("embedding", () =>
-    embedTopicSummary(models.embedding, summary, models.embedding.dimensions),
-  );
-  return {
-    ...base,
-    state: "complete",
-    summary,
-    embedding: embedded.embedding,
-    ...mergeTopicModelUsage(usage, embedded),
   };
 }

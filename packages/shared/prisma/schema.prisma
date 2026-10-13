@@ -1086,6 +1086,17 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// Outbox for audit events on their way to the ClickHouse `audit_logs` table.
+// A row is deleted once ClickHouse has acknowledged its insert, so the table
+// stays near-empty. `payload` holds an `AuditLogStagingPayload`.
+model AuditLogStaging {
+  id        String   @id @db.Uuid // UUIDv7, so id order follows creation time
+  createdAt DateTime @default(now()) @map("created_at")
+  payload   Json
+
+  @@map("audit_log_staging")
+}
+
 model EvalTemplate {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")

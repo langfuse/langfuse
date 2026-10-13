@@ -21,7 +21,10 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   writeTopicSummaries: (...args: unknown[]) => state.write(...args),
   TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v3",
 }));
-vi.mock("@langfuse/shared/src/server", () => ({
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  isInternalEvalEnvironment: (
+    await importOriginal<typeof import("@langfuse/shared/src/server")>()
+  ).isInternalEvalEnvironment,
   recordDistribution: vi.fn(),
   recordIncrement: vi.fn(),
   instrumentAsync: async (
@@ -34,7 +37,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
 }));
 vi.mock("./models", () => ({
   summarizeTopicTraceFacets: (...args: unknown[]) => state.summarize(...args),
-  embedTopicSummary: (...args: unknown[]) => state.embed(...args),
+  embedTopicSummaries: (...args: unknown[]) => state.embed(...args),
 }));
 
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
@@ -123,21 +126,41 @@ beforeEach(() => {
     },
     ...usage,
   });
-  state.embed.mockResolvedValue({
-    embedding: [0.25],
+  state.embed.mockImplementation(async (_model, summaries: string[]) => ({
+    embeddings: summaries.map(() => [0.25]),
     providedUsageDetails: { embedding_input: 4 },
     usageDetails: { embedding_input: 4, total: 4 },
     providedCostDetails: {},
     costDetails: { embedding_input: 0.00000048, total: 0.00000048 },
-  });
+  }));
 });
 
 describe("summarizeAssembledTrace", () => {
-  it("summarizes the assembled transcript once per current facet and skips a finished retry", async () => {
+  it("skips internal traces before reading summaries, calling models or writing", async () => {
+    const result = await summarizeAssembledTrace({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
+      environment: "langfuse-topics",
+      traceName: "topics-summary",
+      transcript,
+      models,
+      facets: [facet],
+    });
+    expect(result).toBe("disabled");
+    expect(state.stored).not.toHaveBeenCalled();
+    expect(state.summarize).not.toHaveBeenCalled();
+    expect(state.embed).not.toHaveBeenCalled();
+    expect(state.write).not.toHaveBeenCalled();
+  });
+
+  it("skips a finished job retry but summarizes a later redispatch", async () => {
     await summarizeAssembledTrace({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "default",
       traceName: "agent-turn",
       transcript,
@@ -152,6 +175,10 @@ describe("summarizeAssembledTrace", () => {
     ]);
     expect(submitted[2]).toContain("Export monthly sales");
     expect(submitted[2]).not.toContain("observation");
+    expect(submitted[4]).toEqual({
+      source_trace_id: "trace-1",
+      source_environment: "default",
+    });
     const written = state.write.mock.calls[0][0][0];
     expect(written).toMatchObject({
       projectId: "project-a",
@@ -183,18 +210,16 @@ describe("summarizeAssembledTrace", () => {
       expect.any(Number),
       { stage: "trace", outcome: "success", unit: "milliseconds" },
     );
-    state.stored.mockImplementation(async (_projectId, _filter, timeRange) =>
-      new Date(written.unitStartTime) >= timeRange.from &&
-      new Date(written.unitStartTime) < timeRange.to
-        ? [written]
-        : [],
-    );
+    state.stored.mockResolvedValue([
+      { ...written, processedAt: "2026-09-22T12:02:00.000Z" },
+    ]);
     state.summarize.mockClear();
     state.write.mockClear();
     await summarizeAssembledTrace({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "default",
       traceName: "agent-turn",
       transcript,
@@ -206,7 +231,8 @@ describe("summarizeAssembledTrace", () => {
     await summarizeAssembledTrace({
       projectId: "project-a",
       traceId: "trace-1",
-      traceTimestamp: "2026-09-22T11:59:00.000Z",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:03:00.000Z"),
       environment: "default",
       traceName: "agent-turn",
       transcript,
@@ -214,23 +240,32 @@ describe("summarizeAssembledTrace", () => {
       facets: state.facets(),
     });
     expect(state.summarize).toHaveBeenCalledOnce();
+    expect(state.write).toHaveBeenCalledOnce();
     expect(state.write.mock.calls[0][0][0].unitStartTime).toBe(
-      "2026-09-22T11:59:00.000Z",
+      written.unitStartTime,
     );
+    expect(state.stored).toHaveBeenCalledTimes(3);
   });
 
-  it("summarizes all pending facets in one call and records its usage once", async () => {
+  it("summarizes and embeds all pending facets in one call each and records their usage once", async () => {
     const issues: TopicFacet = {
       ...facet,
       id: "facet-2",
       name: "Issues",
       versions: [{ ...facet.versions[0], facetId: "facet-2", version: 1 }],
     };
-    state.facets.mockReturnValue([facet, issues]);
+    const outcome: TopicFacet = {
+      ...facet,
+      id: "facet-3",
+      name: "Outcome",
+      versions: [{ ...facet.versions[0], facetId: "facet-3", version: 1 }],
+    };
+    state.facets.mockReturnValue([facet, issues, outcome]);
     state.summarize.mockResolvedValue({
       output: {
         intent_1: { summary: "Export monthly sales.", status: "applicable" },
         issues_2: { summary: "", status: "not_applicable" },
+        outcome_3: { summary: "Export completed.", status: "applicable" },
       },
       ...usage,
     });
@@ -238,6 +273,7 @@ describe("summarizeAssembledTrace", () => {
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "default",
       traceName: "agent-turn",
       transcript,
@@ -266,6 +302,7 @@ describe("summarizeAssembledTrace", () => {
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "default",
       traceName: "agent-turn",
       transcript,
@@ -298,6 +335,7 @@ describe("summarizeAssembledTrace", () => {
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
+        jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
         environment: "default",
         traceName: "agent-turn",
         transcript,
@@ -355,6 +393,7 @@ describe("summarizeAssembledTrace", () => {
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "default",
       traceName: "agent-turn",
       transcript,
@@ -391,6 +430,7 @@ describe("summarizeAssembledTrace", () => {
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
+        jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
         environment: "default",
         traceName: "agent-turn",
         transcript,
@@ -433,6 +473,7 @@ describe("summarizeAssembledTrace", () => {
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
+        jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
         environment: "default",
         traceName: "agent-turn",
         transcript,
@@ -470,6 +511,7 @@ describe("summarizeAssembledTrace", () => {
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
+        jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
         environment: "default",
         traceName: "agent-turn",
         transcript,

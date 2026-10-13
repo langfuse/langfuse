@@ -595,6 +595,62 @@ describe("Topics definition persistence", () => {
     expect(
       await getLatestFacetSummaries(projectId, "facet", 1, newRange),
     ).toEqual([moved]);
+
+    const internalFacet = "internal-environments";
+    const internalTraces = [
+      "langfuse-topics",
+      "llm-as-a-judge",
+      "langfuse",
+    ].map((environment) => ({ traceId: randomUUID(), environment }));
+    await writeTopicSummaries([
+      ...internalTraces.flatMap(({ traceId, environment }) => {
+        return [
+          { ...summary, facetId: internalFacet, traceId },
+          {
+            ...latest,
+            facetId: internalFacet,
+            traceId,
+            environment,
+          },
+        ];
+      }),
+      { ...summary, facetId: internalFacet, traceId: "allowed-trace" },
+    ]);
+    const [eligible, counts, listed, latestDisplayed] = await Promise.all([
+      getTopicClusteringSummaries(
+        projectId,
+        internalFacet,
+        1,
+        embedding,
+        oldRange,
+      ),
+      getTopicSummaryCounts(
+        projectId,
+        [{ facetId: internalFacet, version: 1 }],
+        embedding,
+        oldRange,
+      ),
+      listTopicSummaries(
+        projectId,
+        {
+          facetId: internalFacet,
+          facetVersion: 1,
+          traceIds: ["allowed-trace"].concat(
+            internalTraces.map(({ traceId }) => traceId),
+          ),
+        },
+        oldRange,
+      ),
+      getLatestFacetSummaries(projectId, internalFacet, undefined, oldRange),
+    ]);
+    expect(eligible.map(({ traceId }) => traceId)).toEqual(["allowed-trace"]);
+    expect(listed.map(({ traceId }) => traceId)).toEqual(["allowed-trace"]);
+    expect(latestDisplayed.map(({ traceId }) => traceId)).toEqual([
+      "allowed-trace",
+    ]);
+    expect(counts).toEqual([
+      { facetId: internalFacet, facetVersion: 1, count: 1 },
+    ]);
   });
 
   it("round-trips Float64 geometry and normalized source references through ClickHouse", async () => {

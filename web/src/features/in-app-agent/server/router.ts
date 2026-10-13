@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  ForbiddenError,
   InvalidRequestError,
   resolveInAppAgentRootRunId,
   ScoreDataTypeEnum,
@@ -38,6 +39,7 @@ import {
   getInAppAgentApiAccessScope,
 } from "@/src/features/in-app-agent/server/rateLimit";
 import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
+import { hasInternalAccess } from "@/src/features/feature-flags/server";
 import {
   cancelBackgroundRun,
   decideBackgroundApproval,
@@ -448,5 +450,38 @@ export const inAppAgentRouter = createTRPCRouter({
       }
 
       return { feedback: { value: input.value, comment } };
+    }),
+
+  /**
+   * The project this instance traces assistant turns into, where each
+   * conversation is a session. Internal surface only: null when the
+   * organization opted out of AI telemetry or tracing is not configured.
+   */
+  telemetryProject: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      if (
+        !hasInternalAccess({
+          isAdmin: ctx.session.user.admin === true,
+          isExperimentalFeaturesEnabled:
+            env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+        })
+      ) {
+        throw new ForbiddenError(
+          "The assistant telemetry project is an internal surface.",
+        );
+      }
+
+      const projectAvailability = await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
+
+      return {
+        projectId: projectAvailability.aiTelemetryEnabled
+          ? (env.LANGFUSE_AI_FEATURES_PROJECT_ID ?? null)
+          : null,
+      };
     }),
 });
