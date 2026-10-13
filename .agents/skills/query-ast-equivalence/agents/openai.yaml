@@ -1,0 +1,4 @@
+interface:
+  display_name: "Query-AST Equivalence"
+  short_description: "Prove migrated query-AST SQL matches legacy SQL"
+  default_prompt: "Use $query-ast-equivalence to prove this branch's query-AST migration emits the same SQL as main."
