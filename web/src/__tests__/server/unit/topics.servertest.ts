@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   readLatestTopicAssignments: vi.fn(),
   getLatestFacetSummaries: vi.fn(),
   getPublishedTopicRun: vi.fn(),
-  ensureDefaultTopicFacets: vi.fn(),
   getTopicFacetVersion: vi.fn(),
   createTopicFacet: vi.fn(),
   createTopicFacetVersion: vi.fn(),
@@ -268,12 +267,9 @@ describe("Topics project allowlist", () => {
   it("keeps reads and facet configuration available when processing is disabled", async () => {
     mocks.isTopicsProjectEnabled.mockReturnValue(false);
     mocks.listTopicFacets.mockResolvedValue([]);
-    mocks.ensureDefaultTopicFacets.mockResolvedValue([]);
 
     await expect(caller().facets({ projectId })).resolves.toEqual([]);
-    await expect(caller().initialize({ projectId })).resolves.toEqual([]);
     expect(mocks.listTopicFacets).toHaveBeenCalledWith(projectId);
-    expect(mocks.ensureDefaultTopicFacets).toHaveBeenCalledWith(projectId);
   });
 });
 
@@ -1470,7 +1466,6 @@ describe("Topics write access", () => {
     string,
     (api: ReturnType<typeof caller>, projectId: string) => Promise<unknown>
   > = {
-    initialize: (api, projectId) => api.initialize({ projectId }),
     saveFacet: (api, projectId) => api.saveFacet({ projectId, ...facetDraft }),
     saveRule: (api, projectId) =>
       api.saveRule({
@@ -1499,7 +1494,6 @@ describe("Topics write access", () => {
       api.retry({ projectId, executionId: "execution-a" }),
   };
   const writeMocks = [
-    mocks.ensureDefaultTopicFacets,
     mocks.createTopicFacet,
     mocks.createTopicFacetVersion,
     mocks.saveTopicRule,

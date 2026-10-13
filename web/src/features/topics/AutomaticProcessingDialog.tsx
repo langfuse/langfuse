@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Info } from "lucide-react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { SwitchInput } from "@/src/components/design-system/SwitchInput/SwitchInput";
 import { RuleSamplingSection } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleSamplingSection";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 import {
@@ -10,29 +11,31 @@ import {
   type TopicsModelSlotName,
 } from "@langfuse/shared/topics";
 
-type EnableAutomaticProcessingDialogProps = {
-  /** `enable` turns processing on; `edit` changes sampling while it is on. */
-  mode: "enable" | "edit";
+type AutomaticProcessingDialogProps = {
+  initialEnabled: boolean;
   initialSampling: number;
   traceIdleMs: number;
   models: Record<TopicsModelSlotName, string | null>;
   paused: { shortLabel: string; message: string } | null;
   saving: boolean;
   error: string | null;
-  onSubmit: (sampling: number) => void;
+  onSave: (input: { enabled: boolean; sampling: number }) => void;
 };
 
+const COST_NOTE =
+  "Each sampled trace makes LLM calls on your connections, so cost depends on your trace volume, the selected models, and the sampling rate.";
+
 /** Dialog content; render it inside a Radix `Dialog.Root`. */
-export function EnableAutomaticProcessingDialog({
+export function AutomaticProcessingDialog({
   error,
+  initialEnabled,
   initialSampling,
-  mode,
   models,
-  onSubmit,
+  onSave,
   paused,
   saving,
   traceIdleMs,
-}: EnableAutomaticProcessingDialogProps) {
+}: AutomaticProcessingDialogProps) {
   const [samplingStore] = useState(() =>
     createRuleSetupStore({
       name: "",
@@ -41,16 +44,18 @@ export function EnableAutomaticProcessingDialog({
       assignments: [],
     }),
   );
+  const [enabled, setEnabled] = useState(initialEnabled);
   const missingModel = TOPICS_MODEL_SLOTS.some((slot) => !models[slot]);
   return (
     <Dialog
-      title={dialogTitle(mode, paused !== null)}
+      title="Automatic processing"
       actions={[
         {
-          label: mode === "enable" ? "Turn on" : "Save sampling",
+          label: "Save",
           loading: saving,
-          disabled: saving || (mode === "enable" && missingModel),
-          onClick: () => onSubmit(samplingStore.getState().sampling),
+          disabled: saving || (enabled && missingModel),
+          onClick: () =>
+            onSave({ enabled, sampling: samplingStore.getState().sampling }),
         },
       ]}
     >
@@ -58,8 +63,9 @@ export function EnableAutomaticProcessingDialog({
         <div className="flex flex-col gap-4">
           <p className="text-sm">
             New traces are summarized with your saved facets and models once
-            they have been idle for {idleTimeLabel(traceIdleMs)}. Backfills and
-            manual runs do not need this and are not sampled.
+            they have been idle for {idleTimeLabel(traceIdleMs)}. The sampling
+            rate below applies only to automatic processing. For manual
+            processing, such as backfills, you set the sampling for each run.
           </p>
           {paused ? (
             <Alert variant="warning">
@@ -87,13 +93,20 @@ export function EnableAutomaticProcessingDialog({
               ))}
             </dl>
             <p className="text-muted-foreground text-xs">
-              {modelsHint(mode, missingModel)}
+              {modelsHint(paused !== null, missingModel)}
             </p>
           </section>
           <RuleSamplingSection
             store={samplingStore}
             description="The share of new traces Topics summarizes automatically."
-            tooltip="Topics summarizes this share of new traces. A lower rate costs less. Backfills and manual runs always process every trace they select."
+            tooltip="Topics summarizes this share of new traces. A lower rate costs less. For manual processing, you set the sampling for each run."
+          />
+          <SwitchInput
+            id="topics-automatic-processing"
+            aria-label="Automatic processing"
+            description={`Summarize new traces automatically. ${COST_NOTE}`}
+            checked={enabled}
+            onCheckedChange={setEnabled}
           />
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
         </div>
@@ -117,18 +130,11 @@ function ModelRow({ label, model }: { label: string; model: string | null }) {
   );
 }
 
-function dialogTitle(mode: "enable" | "edit", paused: boolean) {
-  if (mode === "edit") return "Automatic processing sampling";
-  return paused
-    ? "Turn automatic processing back on"
-    : "Enable automatic processing";
-}
-
-function modelsHint(mode: "enable" | "edit", missingModel: boolean) {
+function modelsHint(paused: boolean, missingModel: boolean) {
   if (missingModel)
     return "Choose every model in Configure Topics before turning this on.";
-  return mode === "enable"
-    ? "Turning this on tests each model with one call."
+  return paused
+    ? "Turning this back on tests each model with one call."
     : "Change models in Configure Topics.";
 }
 

@@ -25,7 +25,7 @@ const alertVariants = cva(
         "top-right": "pr-10",
       },
       hasIcon: {
-        true: "[&>[data-slot=alert-title]]:pl-6 [&>[data-slot=alert-description]]:pl-6 [&>[data-slot=alert-icon]+[data-slot=alert-description]]:translate-y-[-3px]",
+        true: "[&>[data-slot=alert-title]]:pl-6 [&>[data-slot=alert-description]]:pl-6 [&>[data-slot=alert-icon]:has(+[data-slot=alert-description])]:mt-[3px]",
       },
     },
     defaultVariants: {

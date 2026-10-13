@@ -4,10 +4,10 @@ import { getEvaluatorBlockMetadata } from "@langfuse/shared";
 import { type TopicRule } from "@langfuse/shared/topics";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
-  AutomaticProcessingMenu,
+  AutomaticProcessingControl,
   type AutomaticProcessingState,
-} from "./AutomaticProcessingMenu";
-import { EnableAutomaticProcessingDialog } from "./EnableAutomaticProcessingDialog";
+} from "./AutomaticProcessingControl";
+import { AutomaticProcessingDialog } from "./AutomaticProcessingDialog";
 
 type StoredSettings = RouterOutputs["topics"]["modelSettings"];
 
@@ -29,7 +29,8 @@ export function useAutomaticProcessing({
   traceIdleMs: number | null;
 }) {
   const utils = api.useUtils();
-  const [dialog, setDialog] = useState<"enable" | "edit" | null>(null);
+  // The switch's starting position while the dialog is open.
+  const [dialog, setDialog] = useState<{ enabled: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const mutation = api.topics.setAutomaticProcessing.useMutation({
     onSuccess: () =>
@@ -43,32 +44,30 @@ export function useAutomaticProcessing({
     stored?.blockMessage && state.status === "paused"
       ? { shortLabel: state.shortLabel, message: stored.blockMessage }
       : null;
-  const open = (next: "enable" | "edit") => {
+  const open = (enabled: boolean) => {
     setError(null);
-    setDialog(next);
+    setDialog({ enabled });
   };
-  const submit = (sampling: number) => {
+  const save = (input: { enabled: boolean; sampling: number }) => {
     setError(null);
     mutation
-      .mutateAsync({ projectId, enabled: true, sampling })
+      .mutateAsync({ projectId, ...input })
       .then(() => setDialog(null))
       .catch((cause: unknown) =>
         setError(
           cause instanceof Error
             ? cause.message
-            : "Could not turn on automatic processing.",
+            : "Could not save automatic processing.",
         ),
       );
   };
 
   const control = (
     <>
-      <AutomaticProcessingMenu
+      <AutomaticProcessingControl
         state={state}
         canWrite={canWrite && !mutation.isPending}
-        onEnable={() => open("enable")}
-        onEditSampling={() => open("edit")}
-        onTurnOff={() => mutation.mutate({ projectId, enabled: false })}
+        onOpen={() => open(state.status === "on")}
       />
       <DialogPrimitive.Root
         open={dialog !== null}
@@ -77,9 +76,8 @@ export function useAutomaticProcessing({
         }}
       >
         {dialog ? (
-          <EnableAutomaticProcessingDialog
-            key={dialog}
-            mode={dialog}
+          <AutomaticProcessingDialog
+            initialEnabled={dialog.enabled}
             initialSampling={rule?.sampling ?? 1}
             traceIdleMs={traceIdleMs ?? 600_000}
             models={{
@@ -90,14 +88,18 @@ export function useAutomaticProcessing({
             paused={paused}
             saving={mutation.isPending}
             error={error}
-            onSubmit={submit}
+            onSave={save}
           />
         ) : null}
       </DialogPrimitive.Root>
     </>
   );
 
-  return { control, openEnable: () => open("enable") };
+  return {
+    control,
+    openEnable: () => open(true),
+    clearPause: () => mutation.mutate({ projectId, enabled: false }),
+  };
 }
 
 function automaticProcessingState(
@@ -106,6 +108,7 @@ function automaticProcessingState(
 ): AutomaticProcessingState {
   if (!stored || stored.enabled === null || !rule)
     return { status: "unconfigured" };
+  if (!stored.processingAvailable) return { status: "unavailable" };
   if (stored.blockMessage)
     return {
       status: "paused",
@@ -113,6 +116,6 @@ function automaticProcessingState(
         ? getEvaluatorBlockMetadata(stored.blockReason).shortLabel
         : "Paused",
     };
-  if (stored.enabled) return { status: "on", sampling: rule.sampling };
+  if (stored.enabled) return { status: "on" };
   return { status: "off" };
 }

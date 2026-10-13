@@ -28,7 +28,6 @@ import {
   getTopicSummaryCounts,
   listTopicExecutions,
   listTopicFacets,
-  ensureDefaultTopicFacets,
   getTopicFacetVersion,
   getLatestFacetSummaries,
   createTopicFacet,
@@ -328,9 +327,6 @@ export const topicsRouter = createTRPCRouter({
   facets: topicsProcedure.query(({ input }) =>
     listTopicFacets(input.projectId),
   ),
-  initialize: topicsWriteProcedure.mutation(({ input }) =>
-    ensureDefaultTopicFacets(input.projectId),
-  ),
   saveFacet: topicsWriteProcedure
     .input(
       projectInput.extend({
@@ -369,9 +365,10 @@ export const topicsRouter = createTRPCRouter({
       });
       return rule;
     }),
-  modelSettings: topicsProcedure.query(({ input }) =>
-    readTopicsModelSettings(input.projectId),
-  ),
+  modelSettings: topicsProcedure.query(async ({ input }) => ({
+    ...(await readTopicsModelSettings(input.projectId)),
+    processingAvailable: isTopicsProjectEnabled(input.projectId),
+  })),
   tracingReadinessSettings: topicsProcedure.query(({ input }) =>
     getTracingReadinessSettings(input.projectId),
   ),

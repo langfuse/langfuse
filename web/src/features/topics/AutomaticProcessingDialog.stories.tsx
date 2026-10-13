@@ -2,7 +2,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
-import { EnableAutomaticProcessingDialog } from "./EnableAutomaticProcessingDialog";
+import { AutomaticProcessingDialog } from "./AutomaticProcessingDialog";
 
 const models = {
   summary: "us.openai.gpt-6-luna",
@@ -11,7 +11,7 @@ const models = {
 };
 
 const meta = preview.meta({
-  component: EnableAutomaticProcessingDialog,
+  component: AutomaticProcessingDialog,
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
@@ -21,14 +21,14 @@ const meta = preview.meta({
     ),
   ],
   args: {
-    mode: "enable" as const,
+    initialEnabled: false,
     initialSampling: 1,
     traceIdleMs: 600_000,
     models,
     paused: null,
     saving: false,
     error: null,
-    onSubmit: fn(),
+    onSave: fn(),
   },
 });
 
@@ -37,7 +37,7 @@ export default meta;
 export const Enable = meta.story({});
 
 export const EditSampling = meta.story({
-  args: { mode: "edit" as const, initialSampling: 0.25 },
+  args: { initialEnabled: true, initialSampling: 0.25 },
 });
 
 export const Paused = meta.story({
@@ -63,16 +63,25 @@ export const MissingModel = meta.story({
   play: async () => {
     const body = within(document.body);
     await expect(await body.findByText("Not set")).toBeInTheDocument();
-    await expect(body.getByRole("button", { name: "Turn on" })).toBeDisabled();
+    await userEvent.click(
+      body.getByRole("switch", { name: "Automatic processing" }),
+    );
+    await expect(body.getByRole("button", { name: "Save" })).toBeDisabled();
   },
 });
 
 export const SubmitsSampling = meta.story({
-  name: "(Test) Turn on sends the chosen sampling rate",
+  name: "(Test) Turning on saves the chosen sampling rate",
   args: { initialSampling: 0.25 },
   play: async ({ args }) => {
     const body = within(document.body);
-    await userEvent.click(body.getByRole("button", { name: "Turn on" }));
-    await expect(args.onSubmit).toHaveBeenCalledWith(0.25);
+    await userEvent.click(
+      body.getByRole("switch", { name: "Automatic processing" }),
+    );
+    await userEvent.click(body.getByRole("button", { name: "Save" }));
+    await expect(args.onSave).toHaveBeenCalledWith({
+      enabled: true,
+      sampling: 0.25,
+    });
   },
 });

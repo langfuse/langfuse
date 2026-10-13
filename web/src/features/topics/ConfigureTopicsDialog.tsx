@@ -1,17 +1,13 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { AlertTriangle, ExternalLinkIcon } from "lucide-react";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import DocPopup from "@/src/components/layouts/doc-popup";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button as LegacyButton } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/src/components/ui/sheet";
 import {
   Tooltip,
   TooltipContent,
@@ -95,6 +91,9 @@ type ConfigureTopicsDialogProps = {
   embeddingProviderGroups?: Array<[string, string[]]>;
   draft: ConfigureTopicsDraft;
   defaultOpen: boolean;
+  /** Controls the dialog from outside, e.g. an empty state that opens it. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onConfigureProviders: () => void;
   onSave: (draft: ConfigureTopicsSaveDraft) => void | Promise<void>;
   onSlotCommit?: (
@@ -125,15 +124,19 @@ type ConfigureTopicsDialogProps = {
 const SLOT_COPY = {
   summary: {
     label: "Facet summaries",
-    hint: "A small, fast model. It runs once per trace.",
+    recommendation:
+      "Choose a strong but cost-efficient model, such as GPT-6 Luna or Claude Haiku 5.5. It runs once per trace.",
   },
   embedding: {
     label: "Embeddings",
-    hint: "Locked after the first summaries are embedded.",
+    lockedHint: "Locked after the first summaries are embedded.",
+    recommendation:
+      "Choose an embedding model your connection offers, such as text-embedding-3-small.",
   },
   clustering: {
     label: "Topic clustering",
-    hint: "Names each topic when topics are updated.",
+    recommendation:
+      "Choose a slightly stronger model, such as GPT-5.6 Terra, GPT-6.1 Sol, or Claude Sonnet. It runs when topics are updated, manually or once or twice a day.",
   },
 } as const;
 
@@ -162,7 +165,10 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
           message: props.message,
         }
       : null;
-  const [open, setOpen] = useState(defaultOpen);
+  const [localOpen, setLocalOpen] = useState(defaultOpen);
+  const open = props.open ?? localOpen;
+  const setOpen = props.onOpenChange ?? setLocalOpen;
+  const formId = useId();
   const [summary, setSummary] = useState(draft.summary);
   const [embedding, setEmbedding] = useState(draft.embedding);
   const [dimensions, setDimensions] = useState(draft.embeddingDimensions);
@@ -228,18 +234,22 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
         size="sm"
         onClick={() => setOpen(true)}
       />
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent
-          overlayClassName="bg-transparent"
-          className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+      <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
+        <Dialog
+          title="Configure Topics"
+          size="lg"
+          actions={[
+            {
+              label: "Save",
+              type: "submit",
+              form: formId,
+              loading: saving,
+              disabled: !canSave,
+            },
+          ]}
         >
-          <SheetHeader className="items-start space-y-1 p-6 pb-4 text-left">
-            <SheetTitle>Configure Topics</SheetTitle>
-            <SheetDescription>
-              Models, what to look for, and which traces to run.
-            </SheetDescription>
-          </SheetHeader>
           <form
+            id={formId}
             className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault();
@@ -258,7 +268,10 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                 .catch(() => undefined);
             }}
           >
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 pb-4">
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
+              <p className="text-muted-foreground text-sm">
+                Models, what to look for, and which traces to run.
+              </p>
               {paused ? (
                 <PausedNotice
                   shortLabel={paused.shortLabel}
@@ -321,7 +334,10 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               </Stepper>
               <Stepper
                 number={2}
-                title="Insights"
+                title="Facets"
+                titleAddon={
+                  <DocPopup description="A facet is one question Topics answers for every trace, such as what the user asked for, how the run ended, or which issues came up. Answers to the same facet are clustered into topics." />
+                }
                 description="Choose which questions you want answered. Five can be on."
                 compactBottomSpacing
               >
@@ -367,25 +383,11 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               </Stepper>
             </div>
             {saveError ? (
-              <p className="text-destructive px-6 pb-2 text-sm">{saveError}</p>
+              <p className="text-destructive px-4 pb-2 text-sm">{saveError}</p>
             ) : null}
-            <div className="mt-auto flex items-center justify-end gap-2 border-t p-4">
-              <div className="flex gap-2">
-                <LegacyButton
-                  type="button"
-                  variant="outline"
-                  onClick={() => setOpen(false)}
-                >
-                  Cancel
-                </LegacyButton>
-                <LegacyButton type="submit" disabled={!canSave}>
-                  {saving ? "Saving…" : "Save"}
-                </LegacyButton>
-              </div>
-            </div>
           </form>
-        </SheetContent>
-      </Sheet>
+        </Dialog>
+      </DialogPrimitive.Root>
     </div>
   );
 }
@@ -461,32 +463,42 @@ function ModelSlot({
   const fields = (
     <div className="flex min-w-0 flex-1 items-center gap-2">{controls}</div>
   );
+
   return (
     <div className="flex items-start gap-2">
-      <p
-        className="flex h-8 w-36 shrink-0 items-center text-sm font-bold"
-        title={copy.hint}
-      >
+      <p className="flex h-8 w-36 shrink-0 items-center text-sm font-bold">
         {copy.label}
       </p>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         {locked ? (
           <Tooltip>
             <TooltipTrigger asChild>{fields}</TooltipTrigger>
-            <TooltipContent side="bottom">{copy.hint}</TooltipContent>
+            <TooltipContent side="bottom">
+              {"lockedHint" in copy ? copy.lockedHint : null}
+            </TooltipContent>
           </Tooltip>
         ) : (
           fields
         )}
-        {check?.status === "testing" ? (
-          <p className="text-muted-foreground text-sm">Testing this model…</p>
-        ) : null}
-        {check?.status === "error" && check.message ? (
-          <p className="text-destructive text-sm">{check.message}</p>
-        ) : null}
+        <SlotStatus check={check} recommendation={copy.recommendation} />
       </div>
     </div>
   );
+}
+
+// A test status replaces the recommendation, so the field keeps one line below it.
+function SlotStatus({
+  check,
+  recommendation,
+}: {
+  check?: TopicSlotCheck;
+  recommendation: string;
+}) {
+  if (check?.status === "testing")
+    return <p className="text-muted-foreground text-xs">Testing this model…</p>;
+  if (check?.status === "error" && check.message)
+    return <p className="text-destructive text-xs">{check.message}</p>;
+  return <p className="text-muted-foreground text-xs">{recommendation}</p>;
 }
 
 function FacetPicker({
@@ -509,7 +521,7 @@ function FacetPicker({
   const enabledCount = facets.filter((facet) => facet.enabled).length;
   return (
     <div className="flex flex-col gap-3">
-      <div className="max-w-full overflow-x-auto">
+      <div className="-m-1 max-w-full overflow-x-auto p-1">
         <Tabs value={browsing} onValueChange={onBrowse}>
           <Tabs.List
             aria-label="Facets"
@@ -533,7 +545,9 @@ function FacetPicker({
       </div>
       {browsed ? (
         <div className="flex flex-col gap-2">
-          <p className="text-sm">{browsed.question}</p>
+          <div className="bg-muted/50 max-h-48 overflow-y-auto rounded-md border px-3 py-2 text-sm leading-5 break-words whitespace-pre-wrap">
+            {browsed.question}
+          </div>
           <label className="flex items-center gap-2 text-sm">
             <Switch
               checked={browsed.enabled}
@@ -559,9 +573,10 @@ function FacetPicker({
           )}
         </div>
       ) : (
-        <p className="text-muted-foreground text-sm">
-          Custom questions are added on their own page. This setup uses the
-          facets already in the project.
+        <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
+          <Badge text="Coming soon" color="blue" size="sm" />
+          Custom facets with your own questions. This setup uses the built-in
+          facets for now.
         </p>
       )}
     </div>
