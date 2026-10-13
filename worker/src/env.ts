@@ -899,7 +899,7 @@ const parseEnv = (): ParsedEnv => {
   }
   if (source.LANGFUSE_TRACE_BATCH_SHARD_COUNT === undefined) {
     source.LANGFUSE_TRACE_BATCH_SHARD_COUNT =
-      source.REDIS_CLUSTER_ENABLED === "true" ? "64" : "1";
+      source.REDIS_CLUSTER_ENABLED === "true" ? "16" : "1";
   }
   const parsed = EnvSchema.parse(source);
   validateV4Flags(parsed);

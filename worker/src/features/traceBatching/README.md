@@ -16,9 +16,8 @@ templates. The local dev template sets the idle time below.
 - A late arrival within history retention opens a new pending window and reads the
   whole known trace, using the earliest and latest retained event starts plus the
   existing two-minute buffer. Backdated arrivals must preserve the previous tail.
-- The consumer summarizes every dispatched trace and appends its result without
-  querying existing summaries. Job retries may repeat model calls and append
-  another version; duplicate runs are accepted.
+- The consumer checks existing summaries against the job enqueue time. Retries
+  skip facets completed by this job; later redispatches append updated summaries.
 - Bounds, counters, revision and due time are merged atomically. Readiness is
   revalidated before enqueue, and acknowledgement must preserve any newer revision.
 - Pending state must survive its idle interval plus recovery grace. Historical
@@ -54,7 +53,7 @@ templates. The local dev template sets the idle time below.
 | `LANGFUSE_TRACE_BATCH_IDLE_MS`                    | `600000`    | Default idle time before a trace is ready. Unset and `DEV` uses `120000` (2 minutes); every other region uses 10 minutes. A project's `tracing_readiness_settings.trace_idle_ms` (60 seconds to 60 minutes) overrides it, capped at the pending TTL minus the dispatch interval. The project value is cached in Redis for 5 minutes; saving replaces it, and a failed read uses the default without caching. |
 | `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`             | `7200000`   | Recovery grace after a trace becomes due (2 hours). Pending keys expire no earlier than the latest required due-plus-grace deadline.                                              |
 | `LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS`          | `86400000`  | Historical event-start bounds and size estimates retained after activity or dispatch (24 hours; at most 48 hours). Internal and cloud-gated.                                      |
-| `LANGFUSE_TRACE_BATCH_SHARD_COUNT`                | `auto`      | 64 on Redis Cluster; 1 on standalone/Sentinel. Override with 1–256. Fixed across Redis resizing; drain before changing.                                                           |
+| `LANGFUSE_TRACE_BATCH_SHARD_COUNT`                | `auto`      | 16 on Redis Cluster; 1 on standalone/Sentinel. Override with 1–256. Fixed across Redis resizing; drain before changing.                                                           |
 | `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`       | `30000`     | Dispatcher cadence (30 seconds).                                                                                                                                                  |
 
 Producer, dispatcher and consumer can run independently. Sampling reuses the
@@ -189,11 +188,10 @@ the incoming start equals it. History without pending state can also result from
 pending expiry, so it does not prove a previous dispatch. Concurrent arrivals
 replace the revision and survive an acknowledgement of an older snapshot.
 
-The consumer reads the supplied trace window, generates summaries and appends
-rows to ClickHouse. It does not classify late arrivals, query existing summaries,
-or add Redis completion markers or staged results. Retries may repeat model
-calls and append another summary; consumer retry idempotency is outside this
-readiness-map contract. BullMQ still uses Redis for queue delivery.
+The consumer reads the supplied trace window and checks existing summaries for
+each facet. A summary processed since this job was enqueued is skipped on retry;
+a later redispatch generates and appends an updated row. There are no Redis
+completion markers or staged results. BullMQ still uses Redis for queue delivery.
 
 `ReplacingMergeTree(processed_at)` retains the greatest processing timestamp
 when the Topics sort key matches. That key includes the start minute: an event

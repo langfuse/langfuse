@@ -1,4 +1,5 @@
 import {
+  listTopicSummaries,
   TOPICS_TRANSCRIPT_VERSION,
   writeTopicSummaries,
   type TopicsModels,
@@ -39,6 +40,7 @@ type AssembledTraceInput = {
   projectId: string;
   traceId: string;
   traceTimestamp: string;
+  jobEnqueuedAt: Date;
   environment: string;
   traceName: string;
   transcript: Transcript | null;
@@ -95,9 +97,30 @@ async function summarizeEnabledTrace(
     ...facets.filter((facet) => facet.isBuiltIn),
     ...facets.filter((facet) => !facet.isBuiltIn),
   ];
+  const timestamp = Date.parse(input.traceTimestamp);
+  const timeRange = {
+    from: new Date(timestamp),
+    to: new Date(timestamp + 1),
+  };
   for (const facet of ordered) {
     const version = facet.versions[0];
     if (facet.projectId !== input.projectId || !version) continue;
+    const stored = await listTopicSummaries(
+      input.projectId,
+      {
+        traceIds: [input.traceId],
+        facetId: version.facetId,
+        facetVersion: version.version,
+      },
+      timeRange,
+    );
+    if (
+      stored.some(
+        (summary) =>
+          Date.parse(summary.processedAt) >= input.jobEnqueuedAt.getTime(),
+      )
+    )
+      continue;
     pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
   }
   if (!pending.length) return "unchanged";
