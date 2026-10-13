@@ -96,8 +96,7 @@ describe("prepareTopicsModelSettings", () => {
     expect(mocks.upsert).toHaveBeenCalledOnce();
   });
 
-  it("tests every configured slot and names the ones that fail", async () => {
-    // Running with the same models stored: unchanged slots are still tested.
+  it("skips the test calls for unchanged models while automatic processing is on", async () => {
     mocks.current.mockResolvedValue({
       enabled: true,
       summaryLlmApiKeyId: "openai",
@@ -108,6 +107,19 @@ describe("prepareTopicsModelSettings", () => {
       clusteringLlmApiKeyId: "openai",
       clusteringModel: "gpt-5.6-terra",
     });
+    await saveTopicsModelSettings("project", {
+      ...settings,
+      clustering: slot("openai", "gpt-6.1-sol"),
+    });
+    expect(mocks.testCall).toHaveBeenCalledOnce();
+    expect(mocks.testCall).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-6.1-sol" }),
+    );
+    expect(mocks.embed).not.toHaveBeenCalled();
+  });
+
+  it("tests every changed slot and names the ones that fail", async () => {
+    mocks.current.mockResolvedValue({ enabled: true });
     mocks.testCall.mockImplementation(async ({ model }) => {
       if (model === "gpt-5.6-terra")
         throw new Error("Model not found (HTTP 404)");

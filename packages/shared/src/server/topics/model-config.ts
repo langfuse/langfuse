@@ -265,12 +265,9 @@ export async function prepareTopicsModelSettings(
       "The embedding model and dimensions cannot change after summaries were embedded; existing vectors could no longer be clustered together.",
     );
 
-  // With automatic processing off, only models the user changed are tested, so
-  // a broken stored connection never blocks saving the rest of the setup.
-  await testTopicsModels(
-    running ? settings : changedSlots(settings, current),
-    keys,
-  );
+  // Only changed models are tested: the dialog tests each pick, turning
+  // processing on tests all three, and a broken stored connection pauses Topics.
+  await testTopicsModels(changedSlots(settings, current), keys);
 
   const data = {
     summaryLlmApiKeyId: slots.summary.llmApiKeyId,

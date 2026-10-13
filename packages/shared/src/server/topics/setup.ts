@@ -125,8 +125,8 @@ export async function setTopicsAutomaticProcessing(
     throw new InvalidRequestError(
       "This project has more than one Topics rule.",
     );
-  if (enabled && (!config.enabled || config.blockedAt))
-    await testStoredTopicsModels(config);
+  // Saved models were tested on save; a pause means a connection failed since.
+  if (enabled && config.blockedAt) await testStoredTopicsModels(config);
 
   await prisma.$transaction(async (tx) => {
     await tx.topicConfig.update({
