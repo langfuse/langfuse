@@ -1,5 +1,6 @@
 import { logger } from "./logger";
 import { redis } from "./";
+import { invalidateTopicsProcessingActive } from "./topics/processing-gate";
 
 /**
  * Redis cache utilities for eval job configuration optimization.
@@ -90,10 +91,13 @@ export const clearNoEvalConfigsCache = async (
   }
 };
 
-export const invalidateProjectEvalConfigCaches = (
+/** Also clears the Topics processing gate, which reads the same rules. */
+export const invalidateProjectEvalConfigCaches = async (
   projectId: string,
-): Promise<[void, void]> =>
-  Promise.all([
+): Promise<void> => {
+  await Promise.all([
     clearNoEvalConfigsCache(projectId, "traceBased"),
     clearNoEvalConfigsCache(projectId, "eventBased"),
+    invalidateTopicsProcessingActive(projectId),
   ]);
+};
