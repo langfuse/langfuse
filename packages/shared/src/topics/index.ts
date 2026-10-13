@@ -58,7 +58,7 @@ export const TOPICS_MODEL_SLOT_DETAILS: Record<
   },
 };
 const topicsModelSlotSchema = z.object({
-  provider: z.string().min(1),
+  llmApiKeyId: z.string().min(1),
   model: z.string().trim().min(1).max(256),
 });
 export const topicsModelSettingsSchema = z.object({

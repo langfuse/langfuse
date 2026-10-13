@@ -44,10 +44,10 @@ const facets = DEFAULT_TOPIC_FACETS.map((facet, index) => ({
 }));
 
 const setup = {
-  summary: { provider: "provider", model: "gpt" },
-  embedding: { provider: "provider", model: "embed" },
+  summary: { llmApiKeyId: "key", model: "gpt" },
+  embedding: { llmApiKeyId: "key", model: "embed" },
   embeddingDimensions: 1024,
-  clustering: { provider: "provider", model: "cluster" },
+  clustering: { llmApiKeyId: "key", model: "cluster" },
   enabled: true,
   facets: facets.map((facet) => ({
     name: facet.name,

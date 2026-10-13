@@ -1285,7 +1285,7 @@ describe("Topics model settings", () => {
   const settings = {
     projectId,
     summary: null,
-    embedding: { provider: "provider", model: "text-embedding-3-small" },
+    embedding: { llmApiKeyId: "key", model: "text-embedding-3-small" },
     embeddingDimensions: 1024,
     clustering: null,
     enabled: false,
@@ -1320,10 +1320,10 @@ describe("Topics model settings", () => {
 describe("Topics setup", () => {
   const setup = {
     projectId,
-    summary: { provider: "provider", model: "gpt" },
-    embedding: { provider: "provider", model: "embed" },
+    summary: { llmApiKeyId: "key", model: "gpt" },
+    embedding: { llmApiKeyId: "key", model: "embed" },
     embeddingDimensions: 1024,
-    clustering: { provider: "provider", model: "cluster" },
+    clustering: { llmApiKeyId: "key", model: "cluster" },
     enabled: true,
     facets: DEFAULT_TOPIC_FACETS.map((facet) => ({
       name: facet.name,
@@ -1399,7 +1399,7 @@ describe("Topics write access", () => {
     description: "",
     prompt: "Describe the original request.",
   };
-  const slot = { provider: "provider", model: "gpt" };
+  const slot = { llmApiKeyId: "key", model: "gpt" };
   const settings = {
     summary: slot,
     embedding: slot,

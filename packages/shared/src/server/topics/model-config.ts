@@ -11,12 +11,7 @@ import {
   type LLMConnection,
 } from "../llm/llmText";
 import { testModelCall } from "../llm/testModelCall";
-import { LLMAdapter, type LLMApiKey, type LLMApiKeySchema } from "../llm/types";
-import {
-  listEffectiveLlmApiKeys,
-  toProjectLlmApiKey,
-} from "../services/LLMApiKeys";
-import { logger } from "../logger";
+import { LLMAdapter, type LLMApiKeySchema } from "../llm/types";
 import {
   TOPICS_MODEL_SLOT_DETAILS,
   TOPICS_MODEL_SLOTS,
@@ -45,19 +40,41 @@ export type TopicsModels = {
   clustering: TopicsModel;
 };
 
+const withConnections = {
+  project: { select: { orgId: true } },
+  summaryLlmApiKey: true,
+  embeddingLlmApiKey: true,
+  clusteringLlmApiKey: true,
+} as const;
+
+type ConfigWithConnections = TopicConfig & {
+  project: { orgId: string };
+  summaryLlmApiKey: LlmApiKeys | null;
+  embeddingLlmApiKey: LlmApiKeys | null;
+  clusteringLlmApiKey: LlmApiKeys | null;
+};
+
 function resolveSlot(
   slot: TopicsModelSlotName,
-  key: LLMApiKey | undefined,
+  key: LlmApiKeys | null,
   model: string | null,
+  projectId?: string,
+  organizationId?: string,
 ): TopicsModel | null {
   if (!key || !model) return null;
+  if (
+    projectId &&
+    key.projectId !== projectId &&
+    key.organizationId !== organizationId
+  )
+    return null;
   return {
     slot,
     provider: key.provider,
     adapter: key.adapter as LLMAdapter,
     model,
     connection: {
-      projectId: key.projectId ?? undefined,
+      projectId: projectId ?? key.projectId ?? undefined,
       secretKey: key.secretKey,
       extraHeaders: key.extraHeaders,
       baseURL: key.baseURL,
@@ -66,26 +83,27 @@ function resolveSlot(
   };
 }
 
-function resolveModels(
-  row: TopicConfig,
-  connections: Map<string, LLMApiKey>,
-): TopicsModels | null {
+function resolveModels(row: ConfigWithConnections): TopicsModels | null {
   const summary = resolveSlot(
     "summary",
-    row.summaryProvider ? connections.get(row.summaryProvider) : undefined,
+    row.summaryLlmApiKey,
     row.summaryModel,
+    row.projectId,
+    row.project.orgId,
   );
   const embedding = resolveSlot(
     "embedding",
-    row.embeddingProvider ? connections.get(row.embeddingProvider) : undefined,
+    row.embeddingLlmApiKey,
     row.embeddingModel,
+    row.projectId,
+    row.project.orgId,
   );
   const clustering = resolveSlot(
     "clustering",
-    row.clusteringProvider
-      ? connections.get(row.clusteringProvider)
-      : undefined,
+    row.clusteringLlmApiKey,
     row.clusteringModel,
+    row.projectId,
+    row.project.orgId,
   );
   if (!summary || !embedding || !clustering) return null;
   return {
@@ -97,57 +115,15 @@ function resolveModels(
   };
 }
 
-async function resolveConfig(row: TopicConfig): Promise<TopicsModels | null> {
-  const effective = await listEffectiveLlmApiKeys(row.projectId);
-  return resolveConfigWithConnections(
-    row,
-    new Map(
-      effective.map(({ connection }) => [connection.provider, connection]),
-    ),
-  );
-}
-
-async function resolveConfigWithConnections(
-  row: TopicConfig,
-  connections: Map<string, LLMApiKey>,
-) {
-  const resolved = resolveModels(row, connections);
-  if (!resolved && row.enabled)
-    await pauseTopicsModels(row.projectId, {
-      blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-      blockMessage:
-        "A configured LLM connection is no longer available. Choose another connection and turn Topics on again.",
-    });
-  return resolved;
-}
-
-function effectiveConnectionMap(
-  projectId: string,
-  projectConnections: LlmApiKeys[],
-  organizationConnections: LlmApiKeys[],
-) {
-  const byProvider = new Map(
-    organizationConnections.map((connection) => [
-      connection.provider,
-      toProjectLlmApiKey(connection, projectId),
-    ]),
-  );
-  for (const connection of projectConnections)
-    byProvider.set(
-      connection.provider,
-      toProjectLlmApiKey(connection, projectId),
-    );
-  return byProvider;
-}
-
 /** Returns the configured models of a project, or null while any slot is missing. */
 export async function getTopicsModels(
   projectId: string,
 ): Promise<TopicsModels | null> {
   const row = await prisma.topicConfig.findUnique({
     where: { projectId },
+    include: withConnections,
   });
-  return row ? resolveConfig(row) : null;
+  return row ? resolveModels(row) : null;
 }
 
 /** Loads the enabled, fully configured projects of a trace batch in one query. */
@@ -157,38 +133,13 @@ export async function getEnabledTopicsModels(
   if (!projectIds.length) return new Map();
   const rows = await prisma.topicConfig.findMany({
     where: { projectId: { in: projectIds }, enabled: true },
-    include: {
-      project: {
-        select: {
-          LlmApiKeys: true,
-          organization: {
-            select: { organizationLlmApiKeys: true },
-          },
-        },
-      },
-    },
+    include: withConnections,
   });
   const models = new Map<string, TopicsModels>();
-  await Promise.all(
-    rows.map(async (row) => {
-      try {
-        const resolved = await resolveConfigWithConnections(
-          row,
-          effectiveConnectionMap(
-            row.projectId,
-            row.project.LlmApiKeys,
-            row.project.organization.organizationLlmApiKeys,
-          ),
-        );
-        if (resolved) models.set(row.projectId, resolved);
-      } catch (error) {
-        logger.error("Failed to resolve Topics models for trace batch", {
-          projectId: row.projectId,
-          error,
-        });
-      }
-    }),
-  );
+  for (const row of rows) {
+    const resolved = resolveModels(row);
+    if (resolved) models.set(row.projectId, resolved);
+  }
   return models;
 }
 
@@ -209,32 +160,169 @@ export async function pauseTopicsModels(
   await invalidateTopicsProcessingActive(projectId);
 }
 
-/**
- * Pauses Topics in a project that uses a provider with no effective fallback.
- * Callers that pass a transaction call `invalidateTopicsProcessingActive`
- * after it commits.
- */
-export async function pauseTopicsModelsUsingProvider(
-  params: { projectId: string; provider: string },
-  tx: Prisma.TransactionClient = prisma,
-): Promise<void> {
-  const { projectId, provider } = params;
-  await tx.topicConfig.updateMany({
+/** Keeps Topics connection references valid before an LLM connection is deleted. */
+export async function handleTopicsLlmApiKeyDeletion(params: {
+  tx: Prisma.TransactionClient;
+  llmApiKeyId: string;
+  provider: string;
+  replacementLlmApiKeyId?: string;
+  projectReplacementProvider?: string;
+}): Promise<string[]> {
+  const {
+    tx,
+    llmApiKeyId,
+    provider,
+    replacementLlmApiKeyId,
+    projectReplacementProvider,
+  } = params;
+  const configs = await tx.topicConfig.findMany({
     where: {
-      projectId,
       OR: [
-        { summaryProvider: provider },
-        { embeddingProvider: provider },
-        { clusteringProvider: provider },
+        { summaryLlmApiKeyId: llmApiKeyId },
+        { embeddingLlmApiKeyId: llmApiKeyId },
+        { clusteringLlmApiKeyId: llmApiKeyId },
       ],
     },
-    data: {
-      enabled: false,
-      blockedAt: new Date(),
-      blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-      blockMessage: `The LLM connection "${provider}" was deleted. Choose another connection and turn Topics on again.`,
+    select: {
+      id: true,
+      projectId: true,
+      summaryLlmApiKeyId: true,
+      embeddingLlmApiKeyId: true,
+      clusteringLlmApiKeyId: true,
     },
   });
+
+  const projectReplacements = projectReplacementProvider
+    ? await tx.llmApiKeys.findMany({
+        where: {
+          projectId: { in: configs.map(({ projectId }) => projectId) },
+          provider: projectReplacementProvider,
+          id: { not: llmApiKeyId },
+        },
+        select: { id: true, projectId: true },
+      })
+    : [];
+  const projectReplacementByProjectId = new Map(
+    projectReplacements.flatMap(({ id, projectId }) =>
+      projectId ? [[projectId, id] as const] : [],
+    ),
+  );
+
+  for (const config of configs) {
+    const replacement =
+      replacementLlmApiKeyId ??
+      projectReplacementByProjectId.get(config.projectId);
+    const slotUpdates = {
+      ...(config.summaryLlmApiKeyId === llmApiKeyId
+        ? { summaryLlmApiKeyId: replacement ?? null }
+        : {}),
+      ...(config.embeddingLlmApiKeyId === llmApiKeyId
+        ? { embeddingLlmApiKeyId: replacement ?? null }
+        : {}),
+      ...(config.clusteringLlmApiKeyId === llmApiKeyId
+        ? { clusteringLlmApiKeyId: replacement ?? null }
+        : {}),
+    };
+    await tx.topicConfig.update({
+      where: { id: config.id },
+      data: replacement
+        ? slotUpdates
+        : {
+            ...slotUpdates,
+            enabled: false,
+            blockedAt: new Date(),
+            blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+            blockMessage: `The LLM connection "${provider}" was deleted. Choose another connection and turn Topics on again.`,
+          },
+    });
+  }
+
+  return configs.map(({ projectId }) => projectId);
+}
+
+/** Rebinds inherited Topics connections after a project changes organization. */
+export async function reconcileTopicsConnectionsForProject(
+  projectId: string,
+): Promise<void> {
+  const changed = await prisma.$transaction(async (tx) => {
+    const config = await tx.topicConfig.findUnique({
+      where: { projectId },
+      include: {
+        project: { select: { orgId: true } },
+        summaryLlmApiKey: true,
+        embeddingLlmApiKey: true,
+        clusteringLlmApiKey: true,
+      },
+    });
+    if (!config) return false;
+
+    const keys = [
+      config.summaryLlmApiKey,
+      config.embeddingLlmApiKey,
+      config.clusteringLlmApiKey,
+    ];
+    const inaccessibleKeys = keys.filter(
+      (key) =>
+        key &&
+        key.projectId !== projectId &&
+        key.organizationId !== config.project.orgId,
+    );
+    if (inaccessibleKeys.length === 0) return false;
+
+    const replacements = await tx.llmApiKeys.findMany({
+      where: {
+        provider: {
+          in: inaccessibleKeys.flatMap((key) => (key ? [key.provider] : [])),
+        },
+        OR: [{ projectId }, { organizationId: config.project.orgId }],
+      },
+    });
+    const replacementByProvider = new Map(
+      replacements
+        .filter(({ organizationId }) => organizationId)
+        .map((key) => [key.provider, key]),
+    );
+    for (const key of replacements) {
+      if (key.projectId === projectId)
+        replacementByProvider.set(key.provider, key);
+    }
+
+    const resolveKeyId = (key: LlmApiKeys | null) => {
+      if (!key) return null;
+      if (
+        key.projectId === projectId ||
+        key.organizationId === config.project.orgId
+      )
+        return key.id;
+      return replacementByProvider.get(key.provider)?.id ?? null;
+    };
+    const summaryLlmApiKeyId = resolveKeyId(config.summaryLlmApiKey);
+    const embeddingLlmApiKeyId = resolveKeyId(config.embeddingLlmApiKey);
+    const clusteringLlmApiKeyId = resolveKeyId(config.clusteringLlmApiKey);
+    const hasMissingConnection =
+      !summaryLlmApiKeyId || !embeddingLlmApiKeyId || !clusteringLlmApiKeyId;
+
+    await tx.topicConfig.update({
+      where: { id: config.id },
+      data: {
+        summaryLlmApiKeyId,
+        embeddingLlmApiKeyId,
+        clusteringLlmApiKeyId,
+        ...(hasMissingConnection
+          ? {
+              enabled: false,
+              blockedAt: new Date(),
+              blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+              blockMessage:
+                "A configured LLM connection is not available in this organization. Choose another connection and turn Topics on again.",
+            }
+          : {}),
+      },
+    });
+    return true;
+  });
+
+  if (changed) await invalidateTopicsProcessingActive(projectId);
 }
 
 /** Settings shown in the Topics page; never includes secrets. */
@@ -242,17 +330,17 @@ export async function readTopicsModelSettings(projectId: string) {
   const row = await prisma.topicConfig.findUnique({
     where: { projectId },
   });
-  const slot = (provider: string | null, model: string | null) =>
-    provider && model ? { provider, model } : null;
+  const slot = (llmApiKeyId: string | null, model: string | null) =>
+    llmApiKeyId && model ? { llmApiKeyId, model } : null;
   return {
-    summary: slot(row?.summaryProvider ?? null, row?.summaryModel ?? null),
+    summary: slot(row?.summaryLlmApiKeyId ?? null, row?.summaryModel ?? null),
     embedding: slot(
-      row?.embeddingProvider ?? null,
+      row?.embeddingLlmApiKeyId ?? null,
       row?.embeddingModel ?? null,
     ),
     embeddingDimensions: row?.embeddingDimensions ?? 1024,
     clustering: slot(
-      row?.clusteringProvider ?? null,
+      row?.clusteringLlmApiKeyId ?? null,
       row?.clusteringModel ?? null,
     ),
     enabled: row?.enabled ?? false,
@@ -266,16 +354,26 @@ async function loadTopicsModelKeys(
   projectId: string,
   settings: TopicsModelSettings,
 ) {
-  const providers = [
+  const ids = [
     settings.summary,
     settings.embedding,
     settings.clustering,
-  ].flatMap((slot) => (slot ? [slot.provider] : []));
-  const keys = (await listEffectiveLlmApiKeys(projectId)).map(
-    ({ connection }) => connection,
-  );
-  for (const provider of providers) {
-    if (!keys.some((key) => key.provider === provider))
+  ].flatMap((slot) => (slot ? [slot.llmApiKeyId] : []));
+  const keys = await prisma.llmApiKeys.findMany({
+    where: {
+      id: { in: ids },
+      OR: [
+        { projectId },
+        {
+          organization: {
+            projects: { some: { id: projectId, deletedAt: null } },
+          },
+        },
+      ],
+    },
+  });
+  for (const id of ids) {
+    if (!keys.some((key) => key.id === id))
       throw new InvalidRequestError(
         "LLM connection not found in this project.",
       );
@@ -325,25 +423,18 @@ export async function prepareTopicsModelSettings(
 
   await testTopicsModels(settings, keys);
 
-  const connectionId = (provider: string | undefined) =>
-    provider
-      ? (keys.find((key) => key.provider === provider)?.id ?? null)
-      : null;
   const data = {
     enabled: settings.enabled,
     // Saving the settings acknowledges the last pause.
     blockedAt: null,
     blockReason: null,
     blockMessage: null,
-    summaryProvider: settings.summary?.provider ?? null,
-    summaryLlmApiKeyId: connectionId(settings.summary?.provider),
+    summaryLlmApiKeyId: settings.summary?.llmApiKeyId ?? null,
     summaryModel: settings.summary?.model ?? null,
-    embeddingProvider: settings.embedding?.provider ?? null,
-    embeddingLlmApiKeyId: connectionId(settings.embedding?.provider),
+    embeddingLlmApiKeyId: settings.embedding?.llmApiKeyId ?? null,
     embeddingModel: settings.embedding?.model ?? null,
     embeddingDimensions: settings.embeddingDimensions,
-    clusteringProvider: settings.clustering?.provider ?? null,
-    clusteringLlmApiKeyId: connectionId(settings.clustering?.provider),
+    clusteringLlmApiKeyId: settings.clustering?.llmApiKeyId ?? null,
     clusteringModel: settings.clustering?.model ?? null,
   };
   return data;
@@ -379,7 +470,7 @@ const TEST_SCHEMAS = {
  */
 async function testTopicsModelSlots(
   settings: TopicsModelSettings,
-  keys: LLMApiKey[],
+  keys: LlmApiKeys[],
 ): Promise<Partial<Record<TopicsModelSlotName, string>>> {
   const errors: Partial<Record<TopicsModelSlotName, string>> = {};
   await Promise.all(
@@ -387,7 +478,7 @@ async function testTopicsModelSlots(
       const slot = settings[name];
       if (!slot) return;
       const llmApiKey = keys.find(
-        (candidate) => candidate.provider === slot.provider,
+        (candidate) => candidate.id === slot.llmApiKeyId,
       );
       if (!llmApiKey) {
         errors[name] = "LLM connection not found in this project.";
@@ -439,7 +530,7 @@ async function testTopicsModelSlots(
 
 async function testTopicsModels(
   settings: TopicsModelSettings,
-  keys: LLMApiKey[],
+  keys: LlmApiKeys[],
 ): Promise<void> {
   const errors = await testTopicsModelSlots(settings, keys);
   const failures = TOPICS_MODEL_SLOTS.flatMap((name) => {

@@ -21,7 +21,7 @@ import {
   invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import { transferRoleAssignments } from "@langfuse/shared/rbac/server";
-import { getTopicsModels } from "@langfuse/shared/topics/server";
+import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/server";
 import { randomUUID } from "crypto";
 import { LangfuseConflictError, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
@@ -373,8 +373,7 @@ export const projectsRouter = createTRPCRouter({
         projectId: input.projectId,
       });
 
-      // Re-resolve inherited credentials against the destination organization.
-      await getTopicsModels(input.projectId);
+      await reconcileTopicsConnectionsForProject(input.projectId);
     }),
 
   environmentFilterOptions: protectedProjectProcedure

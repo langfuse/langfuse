@@ -4,10 +4,10 @@ import type { ConfigureTopicsSaveDraft } from "./ConfigureTopicsDialog";
 import { topicsSetupPayload } from "./topics-setup";
 
 const slots = {
-  summary: { provider: "provider", model: "gpt" },
-  embedding: { provider: "provider", model: "embed" },
+  summary: { llmApiKeyId: "key", model: "gpt" },
+  embedding: { llmApiKeyId: "key", model: "embed" },
   embeddingDimensions: 1024,
-  clustering: { provider: "provider", model: "cluster" },
+  clustering: { llmApiKeyId: "key", model: "cluster" },
 };
 
 const draft: ConfigureTopicsSaveDraft = {

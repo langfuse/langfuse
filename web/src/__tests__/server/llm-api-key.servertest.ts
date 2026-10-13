@@ -2049,15 +2049,12 @@ describe("llmApiKey.all RPC", () => {
         data: {
           projectId,
           enabled: true,
-          summaryProvider: PROVIDER,
           summaryLlmApiKeyId: projectConnection.id,
-          summaryModel: "gpt-4o",
-          embeddingProvider: PROVIDER,
+          summaryModel: "gpt-6-luna",
           embeddingLlmApiKeyId: projectConnection.id,
           embeddingModel: "text-embedding-3-small",
-          clusteringProvider: PROVIDER,
           clusteringLlmApiKeyId: projectConnection.id,
-          clusteringModel: "gpt-4o",
+          clusteringModel: "gpt-5.6-terra",
         },
       });
 
@@ -2100,16 +2097,16 @@ describe("llmApiKey.all RPC", () => {
           where: { projectId },
           select: {
             enabled: true,
-            summaryProvider: true,
-            embeddingProvider: true,
-            clusteringProvider: true,
+            summaryLlmApiKeyId: true,
+            embeddingLlmApiKeyId: true,
+            clusteringLlmApiKeyId: true,
           },
         }),
       ).toEqual({
         enabled: true,
-        summaryProvider: PROVIDER,
-        embeddingProvider: PROVIDER,
-        clusteringProvider: PROVIDER,
+        summaryLlmApiKeyId: organizationConnection.id,
+        embeddingLlmApiKeyId: organizationConnection.id,
+        clusteringLlmApiKeyId: organizationConnection.id,
       });
     });
 
@@ -2147,7 +2144,6 @@ describe("llmApiKey.all RPC", () => {
           model: "gpt-4o",
         },
       });
-
       await caller.llmApiKey.delete({
         projectId,
         id: projectConnection.id,
@@ -2196,6 +2192,18 @@ describe("llmApiKey.all RPC", () => {
           model: "gpt-4o",
         },
       });
+      await prisma.topicConfig.create({
+        data: {
+          projectId,
+          enabled: true,
+          summaryLlmApiKeyId: organizationConnection.id,
+          summaryModel: "gpt-6-luna",
+          embeddingLlmApiKeyId: organizationConnection.id,
+          embeddingModel: "text-embedding-3-small",
+          clusteringLlmApiKeyId: organizationConnection.id,
+          clusteringModel: "gpt-5.6-terra",
+        },
+      });
 
       await caller.organizationLlmApiKey.delete({
         orgId,
@@ -2209,6 +2217,22 @@ describe("llmApiKey.all RPC", () => {
           select: { llmApiKeyId: true },
         }),
       ).toEqual({ llmApiKeyId: projectConnection.id });
+      expect(
+        await prisma.topicConfig.findUniqueOrThrow({
+          where: { projectId },
+          select: {
+            enabled: true,
+            summaryLlmApiKeyId: true,
+            embeddingLlmApiKeyId: true,
+            clusteringLlmApiKeyId: true,
+          },
+        }),
+      ).toEqual({
+        enabled: true,
+        summaryLlmApiKeyId: projectConnection.id,
+        embeddingLlmApiKeyId: projectConnection.id,
+        clusteringLlmApiKeyId: projectConnection.id,
+      });
     });
 
     it("turns Topics off and records why when its connection is deleted", async () => {
@@ -2227,13 +2251,10 @@ describe("llmApiKey.all RPC", () => {
         data: {
           projectId,
           enabled: true,
-          summaryProvider: PROVIDER,
           summaryLlmApiKeyId: connection.id,
           summaryModel: "gpt-6-luna",
-          embeddingProvider: PROVIDER,
           embeddingLlmApiKeyId: connection.id,
           embeddingModel: "text-embedding-3-small",
-          clusteringProvider: PROVIDER,
           clusteringLlmApiKeyId: connection.id,
           clusteringModel: "gpt-5.6-terra",
         },

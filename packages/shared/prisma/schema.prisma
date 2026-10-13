@@ -511,10 +511,10 @@ model LlmApiKeys {
   organizationId String?       @map("organization_id")
   organization   Organization? @relation("OrganizationLlmApiKeys", fields: [organizationId], references: [id], onDelete: Cascade)
 
-  topicSummaryConfigs    TopicConfig[]     @relation("TopicConfigSummaryLlmApiKey")
-  topicEmbeddingConfigs  TopicConfig[]     @relation("TopicConfigEmbeddingLlmApiKey")
-  topicClusteringConfigs TopicConfig[]     @relation("TopicConfigClusteringLlmApiKey")
-  DefaultLlmModel        DefaultLlmModel[] @relation("LlmApiKeyId")
+  DefaultLlmModel DefaultLlmModel[] @relation("LlmApiKeyId")
+  topicSummaryConfigs    TopicConfig[] @relation("TopicConfigSummaryLlmApiKey")
+  topicEmbeddingConfigs  TopicConfig[] @relation("TopicConfigEmbeddingLlmApiKey")
+  topicClusteringConfigs TopicConfig[] @relation("TopicConfigClusteringLlmApiKey")
 
   @@unique([projectId, provider])
   @@unique([organizationId, provider])
@@ -978,15 +978,15 @@ model SkillFile {
 }
 
 model SkillBlob {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String    @id @default(cuid())
+  createdAt  DateTime  @default(now()) @map("created_at")
 
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   sha256Hash    String @map("sha_256_hash") @db.Char(44)
   contentType   String @map("content_type")
-  contentLength Int    @map("content_length")
+  contentLength Int @map("content_length")
   content       String @db.Text
 
   files SkillFile[]
@@ -1146,7 +1146,7 @@ model Evaluator {
 
   name            String
   type            EvalTemplateType
-  isBuiltIn       Boolean               @default(false) @map("is_built_in")
+  isBuiltIn       Boolean              @default(false) @map("is_built_in")
   description     String?
   createdByUserId String?               @map("created_by_user_id")
   createdByUser   User?                 @relation("EvaluatorCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -1391,7 +1391,7 @@ model DefaultLlmModel {
 }
 
 // Per-project Topics configuration: the switch, pause state, and the three model
-// slots. Providers are resolved to the project's effective connection at runtime.
+// slots, each referencing one of the project's LLM connections.
 model TopicConfig {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
@@ -1406,25 +1406,22 @@ model TopicConfig {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   // Kill switch for automatic trace processing; facet rules are kept while off.
-  enabled      Boolean               @default(false)
+  enabled Boolean @default(false)
   // Same columns as Evaluator, set when a configured connection is no longer valid.
   blockedAt    DateTime?             @map("blocked_at")
   blockReason  EvaluatorBlockReason? @map("block_reason")
   blockMessage String?               @map("block_message")
 
-  summaryProvider    String?     @map("summary_provider")
   summaryLlmApiKeyId String?     @map("summary_llm_api_key_id")
   summaryLlmApiKey   LlmApiKeys? @relation("TopicConfigSummaryLlmApiKey", fields: [summaryLlmApiKeyId], references: [id], onDelete: SetNull)
   summaryModel       String?     @map("summary_model")
 
-  embeddingProvider    String?     @map("embedding_provider")
   embeddingLlmApiKeyId String?     @map("embedding_llm_api_key_id")
   embeddingLlmApiKey   LlmApiKeys? @relation("TopicConfigEmbeddingLlmApiKey", fields: [embeddingLlmApiKeyId], references: [id], onDelete: SetNull)
   embeddingModel       String?     @map("embedding_model")
   embeddingDimensions  Int         @default(1024) @map("embedding_dimensions")
 
   // Names and describes each cluster during Update topics.
-  clusteringProvider    String?     @map("clustering_provider")
   clusteringLlmApiKeyId String?     @map("clustering_llm_api_key_id")
   clusteringLlmApiKey   LlmApiKeys? @relation("TopicConfigClusteringLlmApiKey", fields: [clusteringLlmApiKeyId], references: [id], onDelete: SetNull)
   clusteringModel       String?     @map("clustering_model")
@@ -1485,7 +1482,7 @@ model PosthogIntegration {
   // True while the integration is exporting history (new, re-enabled, or export
   // mode reset), so the export staleness gauge can separate it from steady
   // state. Cleared by the worker once a run lands within an hour of its start.
-  backfill Boolean @default(true)
+  backfill               Boolean                          @default(true)
 
   // Last deterministic customer-config fault (bad hostname) that disabled the
   // integration. Written by the worker, surfaced in the integration settings
@@ -1509,7 +1506,7 @@ model MixpanelIntegration {
   // True while the integration is exporting history (new, re-enabled, or export
   // mode reset), so the export staleness gauge can separate it from steady
   // state. Cleared by the worker once a run lands within an hour of its start.
-  backfill Boolean @default(true)
+  backfill                      Boolean                          @default(true)
 
   @@map("mixpanel_integrations")
 }
@@ -1551,7 +1548,7 @@ model BlobStorageIntegration {
   // True while the integration is exporting history (new, re-enabled, or export
   // mode reset), so the export staleness gauge can separate it from steady
   // state. Cleared by the worker once a run lands within an hour of its start.
-  backfill Boolean @default(true)
+  backfill     Boolean   @default(true)
 
   // Error tracking
   lastError   String?   @map("last_error")

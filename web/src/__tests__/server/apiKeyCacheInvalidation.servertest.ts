@@ -20,11 +20,12 @@ import {
 } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  getTopicsModels: vi.fn(),
+  reconcileTopicsConnectionsForProject: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/topics/server", () => ({
-  getTopicsModels: mocks.getTopicsModels,
+  reconcileTopicsConnectionsForProject:
+    mocks.reconcileTopicsConnectionsForProject,
 }));
 
 // organizations.delete cancels Stripe before deleting; the test env has a cloud
@@ -251,7 +252,7 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     const user = await createUserInOrgs([sourceOrgId, targetOrgId]);
     const sourceKeys = await seedOrgScopedKey(sourceOrgId);
     const targetKeys = await seedOrgScopedKey(targetOrgId);
-    mocks.getTopicsModels.mockRejectedValueOnce(
+    mocks.reconcileTopicsConnectionsForProject.mockRejectedValueOnce(
       new Error("Topics refresh failed"),
     );
 
