@@ -64,7 +64,7 @@ function resolveSlot(
     adapter: key.adapter as LLMAdapter,
     model,
     connection: {
-      projectId: key.projectId,
+      projectId: key.projectId ?? undefined,
       secretKey: key.secretKey,
       extraHeaders: key.extraHeaders,
       baseURL: key.baseURL,
