@@ -511,9 +511,10 @@ model LlmApiKeys {
   organizationId String?       @map("organization_id")
   organization   Organization? @relation("OrganizationLlmApiKeys", fields: [organizationId], references: [id], onDelete: Cascade)
 
-  topicSummaryConfigs    TopicConfig[] @relation("TopicConfigSummaryLlmApiKey")
-  topicEmbeddingConfigs  TopicConfig[] @relation("TopicConfigEmbeddingLlmApiKey")
-  topicClusteringConfigs TopicConfig[] @relation("TopicConfigClusteringLlmApiKey")
+  topicSummaryConfigs    TopicConfig[]     @relation("TopicConfigSummaryLlmApiKey")
+  topicEmbeddingConfigs  TopicConfig[]     @relation("TopicConfigEmbeddingLlmApiKey")
+  topicClusteringConfigs TopicConfig[]     @relation("TopicConfigClusteringLlmApiKey")
+  DefaultLlmModel        DefaultLlmModel[] @relation("LlmApiKeyId")
 
   @@unique([projectId, provider])
   @@unique([organizationId, provider])
@@ -1377,7 +1378,8 @@ model DefaultLlmModel {
   projectId String  @map("project_id")
   Project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  llmApiKeyId String? @map("llm_api_key_id")
+  llmApiKeyId String     @map("llm_api_key_id")
+  LlmApiKey   LlmApiKeys @relation("LlmApiKeyId", fields: [llmApiKeyId], references: [id], onDelete: Cascade)
 
   provider    String
   adapter     String // This controls the interface that is used to connect with the LLM, e.g. 'openai' or 'anthropic'

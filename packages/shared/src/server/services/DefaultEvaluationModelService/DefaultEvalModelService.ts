@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import z from "zod";
 import { prisma } from "../../../db";
 import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
@@ -5,6 +6,10 @@ import { getClientInitiatedNonStreamingLlmTimeoutMs } from "../../llm/llmText";
 import { LLMAdapter, LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
 import { testModelCall } from "../../llm/testModelCall";
 import { resolveLlmApiKey } from "../LLMApiKeys";
+import {
+  blockEvaluatorsUsingDefaultModel,
+  type EvaluatorBlockResult,
+} from "../blockEvaluators";
 
 type ValidConfig = {
   provider: string;
@@ -69,6 +74,7 @@ export class DefaultEvalModelService {
         projectId,
       },
       update: {
+        llmApiKeyId: llmApiKey.id,
         provider,
         adapter: llmApiKey.adapter,
         model,
@@ -76,12 +82,62 @@ export class DefaultEvalModelService {
       },
       create: {
         projectId,
+        llmApiKeyId: llmApiKey.id,
         provider,
         adapter: llmApiKey.adapter,
         model,
         modelParams: modelParams ? modelParams : undefined,
       },
     });
+  }
+
+  /**
+   * Keeps default-model references valid before an LLM connection is deleted.
+   */
+  public static async handleLlmApiKeyDeletion(params: {
+    tx: Prisma.TransactionClient;
+    llmApiKeyId: string;
+    replacementLlmApiKeyId?: string;
+  }): Promise<
+    Array<{ projectId: string; defaultModelBlock: EvaluatorBlockResult }>
+  > {
+    const { tx, llmApiKeyId, replacementLlmApiKeyId } = params;
+    const defaultModels = await tx.defaultLlmModel.findMany({
+      where: { llmApiKeyId },
+      select: { projectId: true },
+    });
+
+    if (defaultModels.length === 0) {
+      return [];
+    }
+
+    if (replacementLlmApiKeyId) {
+      await tx.defaultLlmModel.updateMany({
+        where: { llmApiKeyId },
+        data: { llmApiKeyId: replacementLlmApiKeyId },
+      });
+      return [];
+    }
+
+    const blockResults: Array<{
+      projectId: string;
+      defaultModelBlock: EvaluatorBlockResult;
+    }> = [];
+    for (const { projectId } of defaultModels) {
+      blockResults.push({
+        projectId,
+        defaultModelBlock: await blockEvaluatorsUsingDefaultModel({
+          tx,
+          projectId,
+        }),
+      });
+    }
+
+    await tx.defaultLlmModel.deleteMany({
+      where: { llmApiKeyId },
+    });
+
+    return blockResults;
   }
 
   /**

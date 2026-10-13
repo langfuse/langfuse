@@ -28,11 +28,11 @@ import {
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import {
-  blockEvaluatorsUsingDefaultModel,
   blockEvaluatorsUsingProvider,
   ChatMessageType,
   createTypeSafeDecisionModelClient,
   decryptAndParseExtraHeaders,
+  DefaultEvalModelService,
   EMPTY_EVALUATOR_BLOCK,
   EvaluatorBlockSource,
   finalizeEvaluatorBlocks,
@@ -802,45 +802,46 @@ export class LlmConnectionService {
           provider: connection.provider,
         });
     }
-    const defaultModelProjectIds = (
-      await this.db.defaultLlmModel.findMany({
-        where: {
-          projectId: { in: providerProjectIds },
-          provider: connection.provider,
-        },
-        select: { projectId: true },
-      })
-    ).map(({ projectId }) => projectId);
-    const defaultModelProjectIdSet = new Set(defaultModelProjectIds);
-
     const { blockResults, topicProjectIds } = await this.db.$transaction(
       async (tx) => {
         const txRepository = this.repository.withDb(tx);
+        const defaultModelResults =
+          await DefaultEvalModelService.handleLlmApiKeyDeletion({
+            tx,
+            llmApiKeyId: connection.id,
+            replacementLlmApiKeyId: hasCompatibleOrganizationFallback
+              ? organizationFallback?.id
+              : undefined,
+          });
+        const defaultModelBlocksByProjectId = new Map(
+          defaultModelResults.map(({ projectId, defaultModelBlock }) => [
+            projectId,
+            defaultModelBlock,
+          ]),
+        );
+        const affectedProjectIds = new Set([
+          ...providerProjectIds,
+          ...defaultModelBlocksByProjectId.keys(),
+        ]);
+        const providerProjectIdSet = new Set(providerProjectIds);
         const results: Array<{
           projectId: string;
           providerBlock: typeof EMPTY_EVALUATOR_BLOCK;
           defaultModelBlock: typeof EMPTY_EVALUATOR_BLOCK;
         }> = [];
 
-        for (const projectId of providerProjectIds) {
-          const providerBlock = await blockEvaluatorsUsingProvider({
-            tx,
-            projectId,
-            provider: connection.provider,
-          });
-          const defaultModelBlock = defaultModelProjectIdSet.has(projectId)
-            ? await blockEvaluatorsUsingDefaultModel({ tx, projectId })
+        for (const projectId of affectedProjectIds) {
+          const providerBlock = providerProjectIdSet.has(projectId)
+            ? await blockEvaluatorsUsingProvider({
+                tx,
+                projectId,
+                provider: connection.provider,
+              })
             : EMPTY_EVALUATOR_BLOCK;
+          const defaultModelBlock =
+            defaultModelBlocksByProjectId.get(projectId) ??
+            EMPTY_EVALUATOR_BLOCK;
           results.push({ projectId, providerBlock, defaultModelBlock });
-        }
-
-        if (defaultModelProjectIds.length > 0) {
-          await tx.defaultLlmModel.deleteMany({
-            where: {
-              projectId: { in: defaultModelProjectIds },
-              provider: connection.provider,
-            },
-          });
         }
 
         const topicConfigs = await tx.topicConfig.findMany({

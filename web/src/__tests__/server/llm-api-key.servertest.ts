@@ -170,6 +170,7 @@ describe("llmApiKey.all RPC", () => {
     await prisma.defaultLlmModel.create({
       data: {
         projectId,
+        llmApiKeyId: organizationConnection.id,
         provider,
         adapter: LLMAdapter.OpenAI,
         model: "gpt-4o",
@@ -1962,6 +1963,7 @@ describe("llmApiKey.all RPC", () => {
       await prisma.defaultLlmModel.create({
         data: {
           projectId,
+          llmApiKeyId: connection.id,
           provider: PROVIDER,
           adapter: LLMAdapter.OpenAI,
           model: "gpt-4o",
@@ -2010,26 +2012,23 @@ describe("llmApiKey.all RPC", () => {
     });
 
     it("keeps the default model when deleting an override with an organization fallback", async () => {
-      await prisma.llmApiKeys.createMany({
-        data: [
-          {
-            organizationId: orgId,
-            secretKey: encrypt("organization-secret"),
-            displaySecretKey: "...cret",
-            provider: PROVIDER,
-            adapter: LLMAdapter.OpenAI,
-          },
-          {
-            projectId,
-            secretKey: encrypt("project-secret"),
-            displaySecretKey: "...cret",
-            provider: PROVIDER,
-            adapter: LLMAdapter.OpenAI,
-          },
-        ],
+      const organizationConnection = await prisma.llmApiKeys.create({
+        data: {
+          organizationId: orgId,
+          secretKey: encrypt("organization-secret"),
+          displaySecretKey: "...cret",
+          provider: PROVIDER,
+          adapter: LLMAdapter.OpenAI,
+        },
       });
-      const projectConnection = await prisma.llmApiKeys.findFirstOrThrow({
-        where: { projectId, provider: PROVIDER },
+      const projectConnection = await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          secretKey: encrypt("project-secret"),
+          displaySecretKey: "...cret",
+          provider: PROVIDER,
+          adapter: LLMAdapter.OpenAI,
+        },
       });
       const providerEvaluatorId = await createV2Evaluator([
         { provider: PROVIDER, model: "gpt-4o" },
@@ -2040,6 +2039,7 @@ describe("llmApiKey.all RPC", () => {
       await prisma.defaultLlmModel.create({
         data: {
           projectId,
+          llmApiKeyId: projectConnection.id,
           provider: PROVIDER,
           adapter: LLMAdapter.OpenAI,
           model: "gpt-4o",
@@ -2082,9 +2082,15 @@ describe("llmApiKey.all RPC", () => {
       expect(
         await prisma.defaultLlmModel.findUniqueOrThrow({
           where: { projectId },
-          select: { provider: true, adapter: true, model: true },
+          select: {
+            llmApiKeyId: true,
+            provider: true,
+            adapter: true,
+            model: true,
+          },
         }),
       ).toEqual({
+        llmApiKeyId: organizationConnection.id,
         provider: PROVIDER,
         adapter: LLMAdapter.OpenAI,
         model: "gpt-4o",
@@ -2135,6 +2141,7 @@ describe("llmApiKey.all RPC", () => {
       await prisma.defaultLlmModel.create({
         data: {
           projectId,
+          llmApiKeyId: projectConnection.id,
           provider: PROVIDER,
           adapter: LLMAdapter.OpenAI,
           model: "gpt-4o",

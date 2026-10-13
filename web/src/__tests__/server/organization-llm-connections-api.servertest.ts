@@ -149,6 +149,7 @@ describe("/api/public/organizations/llm-connections", () => {
     await prisma.defaultLlmModel.create({
       data: {
         projectId: fixture.projectId,
+        llmApiKeyId: connection.id,
         provider: connection.provider,
         adapter: LLMAdapter.OpenAI,
         model: "gpt-4o",
