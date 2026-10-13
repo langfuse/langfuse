@@ -469,7 +469,7 @@ function AnnotationQueueRunContent({
                   }
                   size="lg"
                   className={cn(
-                    "gap-1.5 px-4 transition-colors duration-150",
+                    "px-4 transition-colors duration-150",
                     shortcutPulse === "back" &&
                       "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
                   )}
@@ -512,7 +512,7 @@ function AnnotationQueueRunContent({
                   }
                   size="lg"
                   className={cn(
-                    "gap-1.5 px-4 transition-colors duration-150",
+                    "px-4 transition-colors duration-150",
                     !relevantItem ? "w-full" : "",
                     shortcutPulse === "next" &&
                       "border-primary/60 bg-accent/60 ring-primary/20 ring-2",

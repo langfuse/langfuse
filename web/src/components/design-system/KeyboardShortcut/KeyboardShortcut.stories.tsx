@@ -111,12 +111,13 @@ export const TestGlyphsStayCentredInTheChip = meta.story({
       <div className="flex items-center gap-2">
         <KeyboardShortcut size="xs" keys={["ArrowDown"]} />
         <KeyboardShortcut size="xs" keys={["9"]} />
+        <KeyboardShortcut variant="keycap" size="xs" keys={["Mod", "Enter"]} />
       </div>
     </div>
   ),
   play: async ({ canvasElement }) => {
     const chips = Array.from(canvasElement.querySelectorAll("kbd"));
-    await expect(chips).toHaveLength(11);
+    await expect(chips).toHaveLength(12);
 
     const round = (value: number) => Math.round(value * 10) / 10;
     const misaligned = chips.flatMap((chip) => {
