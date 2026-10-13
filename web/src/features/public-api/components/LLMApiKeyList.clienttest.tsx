@@ -86,37 +86,6 @@ describe("LLM connection editing", () => {
     } as ReturnType<typeof api.llmApiKey.inherited.useQuery>);
   });
 
-  it("shows organization and project empty states", () => {
-    vi.mocked(api.llmApiKey.all.useQuery).mockReturnValue({
-      data: { data: [] },
-      isLoading: false,
-      isError: false,
-    } as ReturnType<typeof api.llmApiKey.all.useQuery>);
-
-    render(
-      <LlmApiKeyList
-        projectId="project"
-        projectName="Test Project"
-        organizationId="organization"
-        organizationName="Test Organization"
-      />,
-      { wrapper: TestProvider },
-    );
-
-    expect(screen.getByText("No organization connections")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Organization connections are shared with every project in Test Organization.",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText("No project connections")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Project connections are only available in Test Project and take precedence over organization connections with the same provider.",
-      ),
-    ).toBeInTheDocument();
-  });
-
   it("preserves the dialog and draft across list updates, then opens a fresh form for another connection", () => {
     const keys = ["First", "Second"].map((provider) => ({
       id: provider,

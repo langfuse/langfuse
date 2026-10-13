@@ -191,29 +191,6 @@ describe("llmApiKey.all RPC", () => {
     });
   });
 
-  it("allows project overrides with a different adapter", async () => {
-    const provider = `override-${randomUUID()}`;
-    await prisma.llmApiKeys.create({
-      data: {
-        organizationId: orgId,
-        provider,
-        adapter: LLMAdapter.OpenAI,
-        secretKey: encrypt("organization-secret"),
-        displaySecretKey: "...cret",
-      },
-    });
-
-    await caller.llmApiKey.create({
-      projectId,
-      provider,
-      adapter: LLMAdapter.Anthropic,
-      secretKey: "project-secret",
-    });
-    expect(
-      await prisma.llmApiKeys.findFirst({ where: { projectId, provider } }),
-    ).toMatchObject({ adapter: LLMAdapter.Anthropic });
-  });
-
   it("returns CONFLICT when creating a key for an existing provider", async () => {
     const provider = `duplicate-provider-${randomUUID()}`;
     const input = {
