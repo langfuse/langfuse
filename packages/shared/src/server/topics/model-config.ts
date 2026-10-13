@@ -20,6 +20,7 @@ import {
 } from "../../topics";
 import { hasTopicEmbeddings } from "./clickhouse";
 import { generateTopicEmbeddings } from "./embeddings";
+import { invalidateTopicsProcessingActive } from "./processing-gate";
 import { z } from "zod";
 
 export type TopicsModel = {
@@ -140,9 +141,14 @@ export async function pauseTopicsModels(
       blockMessage: block.blockMessage,
     },
   });
+  await invalidateTopicsProcessingActive(projectId);
 }
 
-/** Pauses Topics in every config that uses a connection about to be deleted. */
+/**
+ * Pauses Topics in every config that uses a connection about to be deleted.
+ * Callers that pass a transaction call `invalidateTopicsProcessingActive`
+ * after it commits.
+ */
 export async function pauseTopicsModelsUsingConnection(
   params: { projectId: string; llmApiKeyId: string; provider: string },
   tx: Prisma.TransactionClient = prisma,

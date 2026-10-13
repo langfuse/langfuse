@@ -37,7 +37,7 @@ templates. The local dev template sets the idle time below.
 | `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED`     | `false`     | Register the batch worker.                                                                                                                                                                                                                                                                                                                                                                                   |
 | `LANGFUSE_TRACE_BATCH_READ_ENABLED`               | `false`     | Allow the worker to query ClickHouse; otherwise discard jobs.                                                                                                                                                                                                                                                                                                                                                |
 | `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` | `false`     | Emit transcript size distributions. Span attributes and failure counters stay on either way.                                                                                                                                                                                                                                                                                                                 |
-| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`              | `0`         | Fraction of other projects admitted by ingestion, from 0 to 1. Unset or `0` is off. Topics-enabled projects are always admitted.                                                                                                                                                                                                                                                                             |
+| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`              | `0`         | Fraction of other projects admitted by ingestion, from 0 to 1. Unset or `0` is off. Topics-active projects are always admitted.                                                                                                                                                                                                                                                                              |
 | `LANGFUSE_TRACE_BATCH_STRATEGY`                   | `project`   | Choose project-order packing or opt-in locality grouping.                                                                                                                                                                                                                                                                                                                                                    |
 | `LANGFUSE_TRACE_BATCH_MAX_SIZE`                   | `60`        | Maximum traces per job, up to 10,000.                                                                                                                                                                                                                                                                                                                                                                        |
 | `LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES`    | `1500`      | Estimated event updates per multi-trace job; `0` disables.                                                                                                                                                                                                                                                                                                                                                   |
@@ -371,10 +371,16 @@ root I/O, observation markers and inline errors, excluding section headings and
 tool definitions. Keep
 numerator and denominator on the same basis when calculating shares. Ingestion
 applies `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` by trace ID before the dispatcher
-and worker; every admitted trace receives Topics measurements. Projects in the
-Topics allowlist (`LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`) bypass sampling so every
-trace is summarized; a rate of `0` limits the flow to those projects and skips
-all tracking work (no per-trace state, metrics or Redis calls) for the rest.
+and worker; every admitted trace receives Topics measurements. Projects where
+`isTopicsProcessingActive` holds (in the Topics allowlist
+`LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`, Topics enabled with all three models, and
+an active rule with an unblocked facet) bypass sampling so every trace is
+summarized; a rate of `0` limits the flow to those projects and skips all
+per-trace tracking work (no per-trace state or metrics) for the rest. Projects
+outside the allowlist make no Redis or Postgres calls; allowlisted ones read the
+cached gate answer (5 minutes), and a miss queries Postgres with a 2-second
+deadline. If that lookup fails or times out, ingestion falls back to the
+allowlist, caches that answer for 30 seconds and increments `topics_gate_failures`.
 
 Transcript token counts use the existing local worker-thread pool and bundled
 tiktoken WASM, without a network or model API call. The `gpt-4o` configuration
