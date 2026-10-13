@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
+  env: { LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS: ["project"] },
   call: vi.fn(),
   embed: vi.fn(),
   increment: vi.fn(),
   project: vi.fn(),
   traceSink: vi.fn(),
 }));
+vi.mock("@langfuse/shared/src/env", () => ({ env: state.env }));
 vi.mock("@langfuse/shared/src/server", () => ({
   getLangfuseAITraceSinkParams: state.traceSink,
   LangfuseInternalTraceEnvironment: { Topics: "langfuse-topics" },
@@ -71,6 +73,7 @@ const evidence = {
 };
 
 beforeEach(() => {
+  state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS = ["project"];
   state.call.mockReset();
   state.embed.mockReset();
   state.increment.mockReset();
@@ -456,23 +459,33 @@ describe("Topics naming boundary", () => {
     },
   );
 
-  it("skips the consent lookup when tracing is unconfigured", async () => {
-    state.traceSink.mockReturnValue(undefined);
-    state.call.mockResolvedValue({
-      output: { summary: "A billing request.", status: "applicable" },
-      usage: {},
-    });
-    await summarizeTopicTrace(
-      topicsModels(),
-      facet,
-      "A billing request.",
-      topicProcessingConfigSchema.parse({
-        summaryModel: "us.openai.gpt-5.6-luna",
-      }),
-    );
-    expect(state.project).not.toHaveBeenCalled();
-    expect(state.call.mock.calls[0][0].trace).toBeUndefined();
-  });
+  it.each(["unconfigured destination", "empty allowlist", "unlisted source"])(
+    "keeps inference untraced and skips the consent lookup with %s",
+    async (reason) => {
+      if (reason === "unconfigured destination")
+        state.traceSink.mockReturnValue(undefined);
+      else
+        state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS =
+          reason === "empty allowlist" ? [] : ["ai-features", "project-other"];
+      state.call.mockResolvedValue({
+        output: { summary: "A billing request.", status: "applicable" },
+        usage: {},
+      });
+      await summarizeTopicTrace(
+        topicsModels(),
+        facet,
+        "A billing request.",
+        topicProcessingConfigSchema.parse({
+          summaryModel: "us.openai.gpt-5.6-luna",
+        }),
+      );
+      expect(state.project).not.toHaveBeenCalled();
+      expect(state.call).toHaveBeenCalledOnce();
+      expect(state.call.mock.calls[0][0].trace).toBeUndefined();
+      if (reason !== "unconfigured destination")
+        expect(state.traceSink).not.toHaveBeenCalled();
+    },
+  );
 
   it("records embedding input usage even when the returned vector is invalid", async () => {
     state.embed.mockResolvedValue({ embedding: [], tokens: 12 });

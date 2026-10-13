@@ -53,6 +53,15 @@ const EnvSchema = z.object({
         .map((id) => id.trim())
         .filter(Boolean),
     ),
+  LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
   LANGFUSE_TOPICS_REDIS_TTL_SECONDS: z.coerce
     .number()
     .int()

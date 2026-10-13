@@ -88,9 +88,13 @@ cost estimates are only available for the model IDs priced in
 
 Summary and naming calls emit one generation each to the configured internal
 AI-features project (`LANGFUSE_AI_FEATURES_PROJECT_ID`) only when the source
-organization enables AI features and AI analytics. Multi-facet summaries share
-one generation. Both connection-based SDK calls and cached Bedrock InvokeModel
-calls record inputs, outputs, models, usage, and errors; embeddings are untraced.
+project is listed in `LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS` and its
+organization enables AI features and AI analytics. The tracing allowlist is
+comma-separated, trims whitespace, and defaults to empty (tracing off). It is
+independent of the processing allowlist; projects can run Topics without tracing.
+Multi-facet summaries share one generation. Both connection-based SDK calls and
+cached Bedrock InvokeModel calls record inputs, outputs, models, usage, and errors;
+embeddings are untraced.
 Trace costs use the destination project's model catalog. Unmatched connection
 model IDs retain their usage but have no trace cost, independently of Topics'
 own estimates in `models.ts`.

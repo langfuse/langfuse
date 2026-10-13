@@ -95,7 +95,8 @@
   - `text.ts` and `embeddings.ts`: model transport through the project's LLM
     connections (`generateLLMText` / `embedLLMText`), with cached Bedrock text
     calls using InvokeModel. Text accepts optional internal generation tracing;
-    worker model calls own organization consent, usage, cost and vector validation.
+    worker model calls own tracing allowlisting, organization consent, usage,
+    cost and vector validation.
   - `model-config.ts`: per-project `topic_configs` (three connection +
     model slots and the automatic-processing switch). Saving tests every slot
     with a real call; Anthropic works for summaries and clustering but fails the

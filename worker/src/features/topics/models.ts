@@ -1,6 +1,7 @@
 import { get_encoding } from "tiktoken";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
+import { env } from "@langfuse/shared/src/env";
 import {
   logger,
   getLangfuseAITraceSinkParams,
@@ -175,6 +176,8 @@ async function topicTraceSink(
   projectId: string,
   metadata?: Record<string, unknown>,
 ) {
+  if (!env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS?.includes(projectId))
+    return undefined;
   const trace = getLangfuseAITraceSinkParams({
     feature: "topics",
     projectId,
