@@ -659,7 +659,7 @@ function MapLabels({
               left: rect.x,
               top: rect.y,
               width: rect.width,
-              height: rect.height,
+              maxHeight: rect.height,
               borderLeftColor: trace?.point.color ?? zone!.color,
               borderLeftWidth: 2,
             }}
