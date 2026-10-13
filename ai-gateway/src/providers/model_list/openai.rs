@@ -4,6 +4,7 @@ use serde::Serialize;
 use super::CatalogEntry;
 use crate::resolution::ResolutionError;
 
+// API contract: https://developers.openai.com/api/reference/resources/models/methods/list
 #[derive(Serialize)]
 struct Response<'a> {
     object: &'static str,
