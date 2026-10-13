@@ -1,4 +1,4 @@
-import { expect, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { BreakdownTooltip } from "./BreakdownTooltip";
@@ -260,7 +260,7 @@ export const TestCacheHitRate = meta.story({
     children: <span>253,225 tokens</span>,
   },
   play: async ({ canvasElement }) => {
-    const { content, tooltip } = await openBreakdownTooltip(
+    const { trigger, content, tooltip } = await openBreakdownTooltip(
       canvasElement,
       "253,225 tokens",
     );
@@ -277,9 +277,39 @@ export const TestCacheHitRate = meta.story({
       text.indexOf("Output usage"),
     );
 
+    const help = content.getByRole("button", {
+      name: "How cache hit rate is calculated",
+    });
+    await userEvent.hover(help);
     await expect(
-      content.getByLabelText("How cache hit rate is calculated"),
+      await within(canvasElement.ownerDocument.body).findByText(
+        "Cache-read tokens divided by total input tokens.",
+      ),
     ).toBeInTheDocument();
+    await expect(content.getByText("Cache hit rate")).toBeInTheDocument();
+
+    await userEvent.unhover(help);
+    await waitFor(() =>
+      expect(
+        within(canvasElement.ownerDocument.body).queryByText(
+          "Cache-read tokens divided by total input tokens.",
+        ),
+      ).not.toBeInTheDocument(),
+    );
+    trigger.focus();
+    await userEvent.tab();
+    await expect(
+      canvasElement.ownerDocument.activeElement,
+    ).toHaveAccessibleName("How cache hit rate is calculated");
+    await expect(canvasElement.ownerDocument.activeElement?.tagName).toBe(
+      "BUTTON",
+    );
+    await expect(
+      await within(canvasElement.ownerDocument.body).findByText(
+        "Cache-read tokens divided by total input tokens.",
+      ),
+    ).toBeInTheDocument();
+    await expect(content.getByText("Cache hit rate")).toBeInTheDocument();
   },
 });
 
@@ -342,6 +372,10 @@ export const TestZeroCacheHitRate = meta.story({
 const hiddenCacheUsage = [
   ["no cache tokens", { input: 100, output: 20, total: 120 }],
   ["zero input", { cache_read_input_tokens: 0, input: 0, output: 1, total: 1 }],
+  [
+    "cache tokens without input",
+    { input_cached_tokens: 100, output: 20, total: 120 },
+  ],
 ] as const;
 
 export const TestHiddenCacheHitRate = meta.story({

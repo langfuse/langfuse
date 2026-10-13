@@ -373,12 +373,17 @@ function CacheHitRateInfo() {
       }
     >
       {({ getTriggerProps }) => (
-        <InfoIcon
+        <button
+          type="button"
           {...getTriggerProps()}
-          aria-hidden={false}
           aria-label="How cache hit rate is calculated"
-          className="text-muted-foreground icon-sm shrink-0"
-        />
+          className="focus-visible:ring-ring inline-flex rounded-sm focus-visible:ring-2 focus-visible:outline-hidden"
+        >
+          <InfoIcon
+            aria-hidden
+            className="text-muted-foreground icon-sm shrink-0"
+          />
+        </button>
       )}
     </CustomTooltip>
   );
@@ -394,6 +399,7 @@ function isInputUsageKey(key: string) {
 
 function getCacheHitRate(entries: [string, number | undefined][]) {
   if (!entries.some(([key]) => /cache/i.test(key))) return null;
+  if (!entries.some(([key]) => key === "input")) return null;
   if (entries.some(([, value]) => !isUsableTokenCount(value))) return null;
 
   const total = sumEntries(entries);
