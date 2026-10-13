@@ -15,22 +15,26 @@ import {
   markQueueWorkerRegistered,
 } from "../features/health/queueConsumption";
 import { WORKER_HOST_ID } from "../utils/hostId";
+import { logRetryableJobFailure } from "./jobFailureLog";
 import { SHARDED_QUEUE_BASE_NAMES } from "./shardedQueueRegistry";
+import { classifyJobFailure } from "./jobFailureReason";
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
 
   private static extractProjectId(job: Job): string | undefined {
-    const data = job.data as {
-      payload?: {
-        projectId?: unknown;
-        authCheck?: { scope?: { projectId?: unknown } };
-      };
-    };
+    const data = job.data as
+      | {
+          payload?: {
+            projectId?: unknown;
+            authCheck?: { scope?: { projectId?: unknown } };
+          };
+        }
+      | undefined;
 
     const candidates = [
-      data.payload?.projectId,
-      data.payload?.authCheck?.scope?.projectId,
+      data?.payload?.projectId,
+      data?.payload?.authCheck?.scope?.projectId,
     ];
 
     return candidates.find((candidate): candidate is string => {
@@ -172,15 +176,34 @@ export class WorkerManager {
 
     // Add error handling
     worker.on("failed", (job: Job | undefined, err: Error) => {
-      logger.error(
-        `Queue job ${job?.name} with id ${job?.id} in ${queueName} failed`,
-        err,
-      );
-      traceException(err);
+      const reason = classifyJobFailure(err);
+      logRetryableJobFailure({
+        message: `Queue job ${job?.name} with id ${job?.id} in ${queueName} failed`,
+        error: err,
+        job,
+        attemptsIncludeCurrentFailure: true,
+        fields: {
+          projectId: job ? WorkerManager.extractProjectId(job) : undefined,
+          jobId: job?.id,
+          failureReason: reason,
+          // true once BullMQ stops retrying: the job's events are dropped.
+          terminal: Boolean(job?.finishedOn),
+        },
+      });
       recordIncrement(baseMetric + ".rate", 1, {
         type: "failed",
+        reason,
         ...shardTag,
       });
+      // BullMQ sets finishedOn only when it moves the job to the failed set
+      // instead of scheduling a retry.
+      if (job?.finishedOn) {
+        recordIncrement(baseMetric + ".rate", 1, {
+          type: "failed_terminal",
+          reason,
+          ...shardTag,
+        });
+      }
     });
     worker.on("error", (failedReason: Error) => {
       logger.error(

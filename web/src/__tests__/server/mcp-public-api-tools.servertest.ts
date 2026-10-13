@@ -34,7 +34,14 @@ vi.mock("@langfuse/shared/src/server", async () => {
 import { v4 as uuidv4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  createAndAddApiKeysToDb,
+  ApiKeyId,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import {
+  createApiKey,
   createObservation,
   createObservationsCh,
   createDatasetRunItem,
@@ -63,13 +70,14 @@ import {
   handleListAnnotationQueueItems,
   handleListAnnotationQueues,
   handleUpdateAnnotationQueueItem,
-} from "@/src/features/mcp/features/annotationQueues/tools";
+} from "@/src/features/mcp/server/annotationQueues/tools";
 import {
   handleCreateComment,
   handleGetComment,
   handleListComments,
-} from "@/src/features/mcp/features/comments/tools";
+} from "@/src/features/mcp/server/comments/tools";
 import {
+  handleBatchUpsertDatasetItems,
   handleCreateDatasetRunItem,
   handleDeleteDatasetItem,
   handleDeleteDatasetRun,
@@ -83,18 +91,18 @@ import {
   handleUpsertDataset,
   handleUpsertDatasetItem,
   upsertDatasetTool,
-} from "@/src/features/mcp/features/datasets/tools";
-import { handleGetHealth } from "@/src/features/mcp/features/health/tools";
+} from "@/src/features/mcp/server/datasets/tools";
+import { handleGetHealth } from "@/src/features/mcp/server/health/tools";
 import {
   handleCreateModel,
   handleDeleteModel,
   handleGetModel,
   handleListModels,
-} from "@/src/features/mcp/features/models/tools";
-import { handleCreateScoreConfig } from "@/src/features/mcp/features/scores/tools/createScoreConfig";
-import { handleGetScoreConfig } from "@/src/features/mcp/features/scores/tools/getScoreConfig";
-import { handleListScoreConfigs } from "@/src/features/mcp/features/scores/tools/listScoreConfigs";
-import { handleUpdateScoreConfig } from "@/src/features/mcp/features/scores/tools/updateScoreConfig";
+} from "@/src/features/mcp/server/models/tools";
+import { handleCreateScoreConfig } from "@/src/features/mcp/server/scores/tools/createScoreConfig";
+import { handleGetScoreConfig } from "@/src/features/mcp/server/scores/tools/getScoreConfig";
+import { handleListScoreConfigs } from "@/src/features/mcp/server/scores/tools/listScoreConfigs";
+import { handleUpdateScoreConfig } from "@/src/features/mcp/server/scores/tools/updateScoreConfig";
 
 const createScoreConfig = async (projectId: string) =>
   prisma.scoreConfig.create({
@@ -162,6 +170,7 @@ describe("MCP public API tools", () => {
         "getEvaluationRule",
         "createEvaluationRule",
         "createDashboardWidget",
+        "batchUpsertDatasetItems",
         "listDatasets",
         "getHealth",
         "listScores",
@@ -253,6 +262,7 @@ describe("MCP public API tools", () => {
       [
         "addDashboardPlacement",
         "attachEvaluatorToEvaluationRule",
+        "batchUpsertDatasetItems",
         "createChatPrompt",
         "createDashboard",
         "createDashboardWidget",
@@ -399,7 +409,7 @@ describe("MCP public API tools", () => {
     ).resolves.toBe(assignmentAuditLogCount + 1);
 
     const auditLogCreateSpy = vi
-      .spyOn(prisma, "$transaction")
+      .spyOn(prisma.auditLog, "create")
       .mockRejectedValueOnce(new Error("audit failed"));
 
     try {
@@ -458,18 +468,18 @@ describe("MCP public API tools", () => {
         name: `comment-creator-${uuidv4()}`,
         prompt: "Test prompt",
       });
-      let key = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: depth ? orgId : projectId,
-        scope: depth ? "ORGANIZATION" : "PROJECT",
-        createdByUserId: user.id,
+      let key = await createApiKey(prisma, {
+        owner: depth ? OrganizationId(orgId) : ProjectId(projectId),
+        role: SystemRoleId(
+          depth ? "LEGACY_ORGANIZATION_API_KEY" : "LEGACY_PROJECT_API_KEY",
+        ),
+        createdBy: UserId(user.id),
       });
       for (let index = 0; index < depth; index++) {
-        key = await createAndAddApiKeysToDb({
-          prisma,
-          entityId: projectId,
-          scope: "PROJECT",
-          createdByApiKeyId: key.id,
+        key = await createApiKey(prisma, {
+          owner: ProjectId(projectId),
+          role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+          createdBy: ApiKeyId(key.id),
         });
       }
 
@@ -510,12 +520,17 @@ describe("MCP public API tools", () => {
         await createMcpTestSetup();
       const other = await createMcpTestSetup();
       const user = await createProjectUser(other);
-      const parent = await createAndAddApiKeysToDb({
-        prisma,
-        entityId:
-          scenario === "foreign organization" ? other.orgId : other.projectId,
-        scope: scenario === "foreign organization" ? "ORGANIZATION" : "PROJECT",
-        createdByUserId: user.id,
+      const parent = await createApiKey(prisma, {
+        owner:
+          scenario === "foreign organization"
+            ? OrganizationId(other.orgId)
+            : ProjectId(other.projectId),
+        role: SystemRoleId(
+          scenario === "foreign organization"
+            ? "LEGACY_ORGANIZATION_API_KEY"
+            : "LEGACY_PROJECT_API_KEY",
+        ),
+        createdBy: UserId(user.id),
       });
       await prisma.apiKey.update({
         where: { id: apiKeyId },
@@ -668,7 +683,7 @@ describe("MCP public API tools", () => {
       additionalProperties: false,
     };
     const datasetExpectedOutputSchema = {
-      type: "object",
+      type: ["object", "null"],
       properties: { answer: { type: "string" } },
       required: ["answer"],
       additionalProperties: false,
@@ -769,6 +784,85 @@ describe("MCP public API tools", () => {
       context,
     )) as { id: string; datasetName: string };
     expect(datasetItem.datasetName).toBe(renamedDatasetName);
+
+    await expect(
+      handleUpsertDatasetItem(
+        {
+          datasetId: dataset.id,
+          id: datasetItem.id,
+          expectedOutput: null,
+        },
+        context,
+      ),
+    ).resolves.toMatchObject({ expectedOutput: null });
+
+    const firstBatchItemId = uuidv4();
+    const batchResult = (await handleBatchUpsertDatasetItems(
+      {
+        datasetId: dataset.id,
+        items: [
+          {
+            id: firstBatchItemId,
+            input: { question: "first batch question" },
+            expectedOutput: { answer: "first batch answer" },
+          },
+          {
+            input: { question: "second batch question" },
+            expectedOutput: { answer: "second batch answer" },
+          },
+        ],
+      },
+      context,
+    )) as {
+      data: Array<{ id: string; input: unknown; url: string }>;
+    };
+    expect(batchResult.data).toHaveLength(2);
+    expect(batchResult.data[0]).toMatchObject({
+      id: firstBatchItemId,
+      input: { question: "first batch question" },
+      url: expect.stringContaining(firstBatchItemId),
+    });
+
+    await expect(
+      handleBatchUpsertDatasetItems(
+        {
+          datasetId: dataset.id,
+          items: [
+            {
+              id: firstBatchItemId,
+              input: { question: "updated batch question" },
+              expectedOutput: null,
+            },
+          ],
+        },
+        context,
+      ),
+    ).resolves.toMatchObject({
+      data: [
+        {
+          id: firstBatchItemId,
+          input: { question: "updated batch question" },
+          expectedOutput: null,
+        },
+      ],
+    });
+
+    await expect(
+      handleBatchUpsertDatasetItems(
+        { datasetId: dataset.id, items: [] },
+        context,
+      ),
+    ).rejects.toThrow("Validation failed");
+
+    await expect(
+      handleBatchUpsertDatasetItems(
+        {
+          datasetId: dataset.id,
+          items: Array.from({ length: 101 }, () => ({ input: {} })),
+        },
+        context,
+      ),
+    ).rejects.toThrow("Validation failed");
 
     const datasetItems = (await handleListDatasetItems(
       { datasetId: dataset.id, page: 1, limit: 10 },

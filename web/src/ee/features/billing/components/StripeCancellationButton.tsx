@@ -13,7 +13,8 @@ import {
 import { useBillingInformation } from "./useBillingInformation";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
-import { toast } from "sonner";
+import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { nanoid } from "nanoid";
 
 export const StripeCancellationButton = ({
@@ -21,7 +22,7 @@ export const StripeCancellationButton = ({
   variant,
   className,
 }: {
-  orgId: string | undefined;
+  orgId: string;
   variant: "secondary" | "default";
   className?: string;
 }) => {
@@ -31,34 +32,48 @@ export const StripeCancellationButton = ({
 
   const cancelMutation = api.cloudBilling.cancelStripeSubscription.useMutation({
     onSuccess: () => {
-      toast.success("Subscription will be cancelled at period end");
+      showSuccessToast({
+        operation: "subscription.cancel",
+        title: "Subscription will be cancelled at period end",
+        description: "",
+      });
       setLoading(false);
       setOpId(null);
       setTimeout(() => window.location.reload(), 500);
     },
-    onError: () => {
+    onError: (error) => {
       setLoading(false);
       setOpId(null);
-      toast.error("Failed to cancel subscription");
+      showToast({
+        type: "ERROR",
+        title: "Failed to cancel subscription",
+        analytics: classifyTrpcToastError(error, "subscription.cancel"),
+      });
     },
   });
 
   const reactivateMutation =
     api.cloudBilling.reactivateStripeSubscription.useMutation({
       onSuccess: () => {
-        toast.success("Subscription reactivated");
+        showSuccessToast({
+          operation: "subscription.reactivate",
+          title: "Subscription reactivated",
+          description: "",
+        });
         setLoading(false);
         setOpId(null);
         setTimeout(() => window.location.reload(), 500);
       },
-      onError: () => {
+      onError: (error) => {
         setLoading(false);
         setOpId(null);
-        toast.error("Failed to reactivate subscription");
+        showToast({
+          type: "ERROR",
+          title: "Failed to reactivate subscription",
+          analytics: classifyTrpcToastError(error, "subscription.reactivate"),
+        });
       },
     });
-
-  if (!orgId) return null;
 
   const onReactivate = async () => {
     try {
@@ -70,8 +85,12 @@ export const StripeCancellationButton = ({
         setOpId(opId);
       }
       await reactivateMutation.mutateAsync({ orgId, opId });
-    } catch (_e) {
-      toast.error("Failed to reactivate subscription");
+    } catch (error) {
+      showToast({
+        type: "ERROR",
+        title: "Failed to reactivate subscription",
+        analytics: classifyTrpcToastError(error, "subscription.reactivate"),
+      });
     }
   };
 
@@ -85,8 +104,12 @@ export const StripeCancellationButton = ({
         setOpId(opId);
       }
       await cancelMutation.mutateAsync({ orgId, opId });
-    } catch (_e) {
-      toast.error("Failed to cancel subscription");
+    } catch (error) {
+      showToast({
+        type: "ERROR",
+        title: "Failed to cancel subscription",
+        analytics: classifyTrpcToastError(error, "subscription.cancel"),
+      });
     }
   };
 

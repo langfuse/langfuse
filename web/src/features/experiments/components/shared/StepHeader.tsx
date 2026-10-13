@@ -1,5 +1,5 @@
 import React from "react";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 export interface StepHeaderProps {
   title: string;
@@ -18,7 +18,7 @@ export const StepHeader: React.FC<StepHeaderProps> = ({
       <p className="text-muted-foreground text-sm">{description}</p>
       {errorMessage && (
         <Alert variant="destructive">
-          <AlertDescription>{errorMessage}</AlertDescription>
+          <Alert.Description>{errorMessage}</Alert.Description>
         </Alert>
       )}
     </div>

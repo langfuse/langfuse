@@ -1,15 +1,24 @@
+/* eslint-disable no-nested-ternary */
 import {
+  DecisionModelQuestionsSchema,
+  DecisionModelStateKeySchema,
+  EvalOutputDefinitionSchema,
   EvalTemplateType,
+  EvaluatorPromptMessagesSchema,
+  extractVariables,
   EvaluatorSourceCodeLanguage,
   InvalidRequestError,
   PersistedEvalOutputDefinitionSchema,
   ZodModelConfig,
   jsonSchema,
+  observationVariableMappingList,
   paginationLimitZod,
-  singleFilter,
+  singleFilterList,
   type ObservationVariableMapping,
+  type PersistedEvaluatorPromptMessages,
 } from "@langfuse/shared";
 import { z } from "zod";
+import { endOfDay, startOfDay, subMonths } from "date-fns";
 
 const EvaluatorMetadataSchema = z.object({
   name: z.string().trim().min(1),
@@ -46,9 +55,9 @@ export type EvaluatorVersionCursor = z.infer<
 export const encodeEvaluatorVersionCursor = (cursor: EvaluatorVersionCursor) =>
   Buffer.from(JSON.stringify(cursor)).toString("base64url");
 
-export const LlmEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
+const LlmEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
   type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
-  prompt: z.string().min(1),
+  promptMessages: EvaluatorPromptMessagesSchema,
   provider: z.string().nullable(),
   model: z.string().nullable(),
   modelParams: ZodModelConfig.nullable(),
@@ -63,21 +72,99 @@ export const CodeEvaluatorDefinitionSchema = z.object({
   variableMapping: z.never().optional(),
 });
 
+/**
+ * Decision-model evaluators use the JSON object built from the variable
+ * mapping (key → extractor) as state. `questions` are the typed questions
+ * asked about it, and each question writes its own score. The model connection
+ * is always explicit; there is no project default.
+ */
+const DecisionModelEvaluatorDefinitionSchema =
+  EvaluatorVersionBaseSchema.extend({
+    type: z.literal(EvalTemplateType.DECISION_MODEL),
+    questions: DecisionModelQuestionsSchema,
+    provider: z.string().min(1),
+    model: z.string().min(1),
+    vars: z.array(DecisionModelStateKeySchema),
+  });
+
 export const EvaluatorDefinitionSchema = z.discriminatedUnion("type", [
   LlmEvaluatorDefinitionSchema,
   CodeEvaluatorDefinitionSchema,
+  DecisionModelEvaluatorDefinitionSchema,
 ]);
+
+export const EvaluatorModelConfigSchema = z.object({
+  provider: z.string().min(1),
+  model: z.string().min(1),
+  modelParams: ZodModelConfig.nullable().optional(),
+});
+
+const LlmEvaluatorDefinitionInputSchema = EvaluatorVersionBaseSchema.extend({
+  type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
+  promptMessages: EvaluatorPromptMessagesSchema,
+  modelConfig: EvaluatorModelConfigSchema.nullable(),
+  outputDefinition: EvalOutputDefinitionSchema,
+});
+
+const DecisionModelEvaluatorDefinitionInputSchema = z.object({
+  type: z.literal(EvalTemplateType.DECISION_MODEL),
+  questions: DecisionModelQuestionsSchema,
+  modelConfig: EvaluatorModelConfigSchema.pick({ provider: true, model: true }),
+  /** The state: one entry per key. Required, unlike LLM judges. */
+  variableMapping: observationVariableMappingList.min(1),
+});
+
+export const EvaluatorDefinitionInputSchema = z
+  .discriminatedUnion("type", [
+    LlmEvaluatorDefinitionInputSchema,
+    CodeEvaluatorDefinitionSchema,
+    DecisionModelEvaluatorDefinitionInputSchema,
+  ])
+  .transform((definition): z.infer<typeof EvaluatorDefinitionSchema> => {
+    switch (definition.type) {
+      case EvalTemplateType.CODE:
+        return definition;
+      case EvalTemplateType.DECISION_MODEL:
+        return {
+          type: EvalTemplateType.DECISION_MODEL,
+          questions: definition.questions,
+          provider: definition.modelConfig.provider,
+          model: definition.modelConfig.model,
+          vars: definition.variableMapping.map(
+            ({ templateVariable }) => templateVariable,
+          ),
+          variableMapping: definition.variableMapping,
+        };
+      case EvalTemplateType.LLM_AS_JUDGE:
+        return {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          promptMessages: definition.promptMessages,
+          provider: definition.modelConfig?.provider ?? null,
+          model: definition.modelConfig?.model ?? null,
+          modelParams: definition.modelConfig?.modelParams ?? null,
+          vars: [
+            ...new Set(
+              definition.promptMessages.flatMap(({ content }) =>
+                extractVariables(content),
+              ),
+            ),
+          ],
+          variableMapping: definition.variableMapping,
+          outputDefinition: definition.outputDefinition,
+        };
+    }
+  });
 
 export const CreateEvaluatorSchema = EvaluatorMetadataSchema.extend({
   projectId: z.string(),
   evaluatorId: z.uuid().optional(),
-  definition: EvaluatorDefinitionSchema,
+  definition: EvaluatorDefinitionInputSchema,
 });
 
 export const UpdateEvaluatorSchema = EvaluatorMetadataSchema.extend({
   projectId: z.string(),
   evaluatorId: z.string(),
-  definition: EvaluatorDefinitionSchema,
+  definition: EvaluatorDefinitionInputSchema,
 });
 
 export const EvaluatorIdSchema = z.object({
@@ -96,17 +183,34 @@ export const EvaluatorIdsSchema = z.object({
 });
 
 export const ActivationCostEstimatesSchema = EvaluatorIdsSchema.extend({
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
   sampling: z.number().min(0).max(1),
   shouldRunMissingTest: z.boolean().optional().default(true),
   knownTestRunCostUsd: z.number().nonnegative().optional(),
+  timeRange: z
+    .object({
+      from: z.date(),
+      to: z.date(),
+    })
+    .refine(({ from, to }) => from <= to, {
+      message: "The start of the time range must be before its end.",
+      path: ["from"],
+    })
+    .refine(({ from }) => from >= startOfDay(subMonths(new Date(), 6)), {
+      message: "The time range cannot start more than six months ago.",
+      path: ["from"],
+    })
+    .refine(({ to }) => to <= endOfDay(new Date()), {
+      message: "The time range cannot end in the future.",
+      path: ["to"],
+    })
+    .optional(),
 }).refine(
   ({ evaluatorIds }) => new Set(evaluatorIds).size === evaluatorIds.length,
   { message: "Evaluator IDs must be unique", path: ["evaluatorIds"] },
 );
 
-const EvaluatorListFilterSchema = z
-  .array(singleFilter)
+const EvaluatorListFilterSchema = singleFilterList
   .superRefine((filters, ctx) => {
     for (const [index, filter] of filters.entries()) {
       const valid =
@@ -154,8 +258,26 @@ export const ListEvaluatorsSchema = z.object({
   projectId: z.string(),
   page: z.number().int().positive().default(1),
   limit: paginationLimitZod.optional().default(50),
+  orderBy: z
+    .object({
+      column: z.enum(["name", "type", "createdAt", "updatedAt"]),
+      order: z.enum(["ASC", "DESC"]),
+    })
+    .optional(),
   search: z.string().trim().max(200).optional(),
   filter: EvaluatorListFilterSchema,
+});
+
+export const ListEvaluatorGallerySchema = z.object({
+  projectId: z.string(),
+  cursor: z
+    .object({
+      createdAt: z.date(),
+      id: z.string(),
+    })
+    .optional(),
+  limit: paginationLimitZod.optional().default(50),
+  search: z.string().trim().max(200).optional(),
 });
 
 export const EvaluatorOptionsSchema = z.object({
@@ -171,21 +293,38 @@ export const SuggestEvaluatorTextSchema = z.object({
   definition: z.discriminatedUnion("type", [
     z.object({
       type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
-      prompt: z.string().min(1),
+      promptMessages: EvaluatorPromptMessagesSchema,
     }),
     z.object({
       type: z.literal(EvalTemplateType.CODE),
       sourceCode: z.string().min(1),
     }),
+    z.object({
+      type: z.literal(EvalTemplateType.DECISION_MODEL),
+      questions: DecisionModelQuestionsSchema,
+    }),
   ]),
 });
 
 export type EvaluatorDefinition = z.infer<typeof EvaluatorDefinitionSchema>;
+export type NormalizedEvaluatorDefinition = EvaluatorDefinition;
 export type EvaluatorDefinitionForPersistence =
-  | Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>
+  | (Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }> & {
+      prompt: string;
+      promptMessages: PersistedEvaluatorPromptMessages;
+    })
   | (Omit<Extract<EvaluatorDefinition, { type: "CODE" }>, "variableMapping"> & {
       variableMapping: ObservationVariableMapping[];
-    });
+    })
+  | Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>;
 export type CreateEvaluatorInput = z.infer<typeof CreateEvaluatorSchema>;
 export type UpdateEvaluatorInput = z.infer<typeof UpdateEvaluatorSchema>;
+export type PatchEvaluatorInput = Pick<
+  UpdateEvaluatorInput,
+  "projectId" | "evaluatorId"
+> &
+  Partial<Pick<UpdateEvaluatorInput, "name" | "description" | "definition">>;
 export type DeleteEvaluatorsInput = z.infer<typeof DeleteEvaluatorsSchema>;
+export type EvaluatorListOrderBy = z.infer<
+  typeof ListEvaluatorsSchema
+>["orderBy"];

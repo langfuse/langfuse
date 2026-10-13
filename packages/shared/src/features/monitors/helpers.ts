@@ -4,7 +4,7 @@
 /**
  * SECOND is one second in milliseconds.
  */
-export const SECOND = 1000n;
+const SECOND = 1000n;
 
 /**
  * MINUTE is one minute in milliseconds.

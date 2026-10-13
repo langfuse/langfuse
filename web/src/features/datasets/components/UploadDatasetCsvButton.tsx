@@ -1,7 +1,7 @@
 import { UploadIcon } from "lucide-react";
 import { DialogTrigger } from "@radix-ui/react-dialog";
 import { useState } from "react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionButton } from "@/src/components/ActionButton";
 import { CsvUploadDialog } from "@/src/features/datasets/components/CsvUploadDialog";
 
@@ -28,7 +28,7 @@ export const UploadDatasetCsvButton = (props: {
           disabled={!hasAccess}
           hasAccess={hasAccess}
           trackingEventName="dataset_item:upload_csv_button_click"
-          icon={<UploadIcon className="h-4 w-4" aria-hidden="true" />}
+          icon={<UploadIcon className="icon-base" aria-hidden="true" />}
         >
           Upload CSV
         </ActionButton>

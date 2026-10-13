@@ -16,7 +16,11 @@
 
 import { type ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import {
+  ItemTypeIcon,
+  type LangfuseItemType,
+} from "@/src/components/ItemBadge";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 
@@ -33,6 +37,7 @@ export interface TreeNodeMetadata {
 }
 
 interface TreeNodeWrapperProps {
+  isLoading?: false;
   // Tree structure data
   metadata: TreeNodeMetadata;
   nodeType: LangfuseItemType; // For the icon badge (e.g., "SPAN", "GENERATION", "TRACE")
@@ -51,17 +56,22 @@ interface TreeNodeWrapperProps {
   className?: string;
 }
 
-export function VirtualizedTreeNodeWrapper({
-  metadata,
-  nodeType,
-  hasChildren,
-  isCollapsed,
-  onToggleCollapse,
-  isSelected,
-  onSelect,
-  children,
-  className,
-}: TreeNodeWrapperProps) {
+/** Placeholder row: same geometry, a skeleton in the icon slot, no actions. */
+interface TreeNodeWrapperLoadingProps {
+  isLoading: true;
+  metadata: TreeNodeMetadata;
+  hasChildren?: boolean;
+  children: ReactNode;
+}
+
+export function VirtualizedTreeNodeWrapper(
+  props: TreeNodeWrapperProps | TreeNodeWrapperLoadingProps,
+) {
+  const loaded = props.isLoading === true ? null : props;
+  const { metadata, children } = props;
+  const hasChildren = props.hasChildren ?? false;
+  const isCollapsed = loaded?.isCollapsed ?? false;
+  const isSelected = loaded?.isSelected ?? false;
   const { depth, treeLines, isLastSibling } = metadata;
   const maxVisualDepth = metadata.maxVisualDepth ?? Infinity;
   // Visual depth: real depth, capped so indentation never exceeds the
@@ -74,23 +84,29 @@ export function VirtualizedTreeNodeWrapper({
   return (
     <div
       className={cn(
-        "relative flex w-full cursor-pointer px-0",
+        "group relative flex w-full px-0",
+        loaded && "cursor-pointer",
         // Dim unselected rows in dark only — in light the gray read as washed
         // out, an accepted light/dark inconsistency.
-        isSelected
-          ? "bg-muted text-foreground"
-          : "hover:bg-muted/50 dark:text-muted-foreground",
-        className,
+        loaded &&
+          (isSelected
+            ? "bg-muted text-foreground"
+            : "hover:bg-accent dark:text-muted-foreground"),
+        loaded?.className,
       )}
       style={{
         paddingTop: 0,
         paddingBottom: 0,
       }}
-      onClick={(e) => {
-        if (!e.currentTarget?.closest("[data-expand-button]")) {
-          onSelect();
-        }
-      }}
+      onClick={
+        loaded
+          ? (e) => {
+              if (!e.currentTarget?.closest("[data-expand-button]")) {
+                loaded.onSelect();
+              }
+            }
+          : undefined
+      }
     >
       <div className="flex w-full pl-2">
         {/* 1. Indents: ancestor level indicators (capped at visualDepth) */}
@@ -112,19 +128,12 @@ export function VirtualizedTreeNodeWrapper({
         {visualDepth > 0 && (
           <div className="relative w-5 shrink-0">
             <>
-              {/* Vertical bar connecting upwards */}
-              <div
-                className={cn(
-                  "bg-border-contrast absolute top-0 left-3 w-px",
-                  isLastSibling ? "h-3" : "bottom-3",
-                )}
-              />
-              {/* Vertical bar connecting downwards if not last sibling */}
+              {/* Spine continuing to the next sibling */}
               {!isLastSibling && (
-                <div className="bg-border-contrast absolute top-3 bottom-0 left-3 w-px" />
+                <div className="bg-border-contrast absolute top-0 bottom-0 left-3 w-px" />
               )}
-              {/* Horizontal bar connecting to icon */}
-              <div className="bg-border-contrast absolute top-3 left-3 h-px w-2" />
+              {/* Rounded elbow into the icon */}
+              <div className="border-border-contrast absolute top-0 left-3 z-20 h-3.5 w-3 rounded-bl-md border-b border-l mask-r-from-40%" />
             </>
           </div>
         )}
@@ -132,26 +141,31 @@ export function VirtualizedTreeNodeWrapper({
         {/* 3. Icon + child connector: fixed width container */}
         <div className="relative flex w-6 shrink-0 flex-col py-1.5">
           <div className="relative z-10 flex h-4 items-center justify-center">
-            <ItemBadge type={nodeType} isSmall className="size-3!" />
+            {loaded ? (
+              <ItemTypeIcon type={loaded.nodeType} className="icon-base" />
+            ) : (
+              <Skeleton className="size-4 rounded-sm" />
+            )}
           </div>
           {/* Vertical bar downwards if there are expanded children (skipped
               when children render capped at this same indent — the spine
               would point at nothing) */}
           {hasChildren && !isCollapsed && !childrenAreCapped && (
-            <div className="bg-border-contrast absolute top-3 bottom-0 left-1/2 w-px" />
+            <div className="bg-border-contrast absolute top-5.5 bottom-0 left-1/2 w-px mask-t-from-[calc(100%-var(--spacing)*2)]" />
           )}
           {/* Root node downward connector */}
           {depth === 0 && hasChildren && !isCollapsed && !childrenAreCapped && (
-            <div className="bg-border-contrast absolute top-3 bottom-0 left-1/2 w-px" />
+            <div className="bg-border-contrast absolute top-5.5 bottom-0 left-1/2 w-px mask-t-from-[calc(100%-var(--spacing)*2)]" />
           )}
         </div>
 
         {/* 4. Content area (passed as children - completely decoupled) */}
         <div className="flex min-w-0 flex-1">{children}</div>
 
-        {/* 5. Expand/Collapse button */}
-        {hasChildren && (
-          <div className="flex items-center justify-end py-1 pr-1">
+        {/* 5. Expand/Collapse button. Leaf rows keep the slot so right-aligned
+            content lines up across rows. */}
+        <div className="flex w-7 shrink-0 items-start justify-end py-0.5 pr-1">
+          {loaded && hasChildren && (
             <Button
               aria-expanded={!isCollapsed}
               data-expand-button
@@ -159,9 +173,9 @@ export function VirtualizedTreeNodeWrapper({
               variant="ghost"
               onClick={(ev) => {
                 ev.stopPropagation();
-                onToggleCollapse();
+                loaded.onToggleCollapse();
               }}
-              className="hover:bg-primary/10 h-6 w-6 shrink-0"
+              className="text-muted-foreground hover:text-foreground hover:bg-primary/10 h-6 w-6 shrink-0"
             >
               <span
                 className={cn(
@@ -169,11 +183,11 @@ export function VirtualizedTreeNodeWrapper({
                   isCollapsed ? "rotate-0" : "rotate-90",
                 )}
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="icon-base text-icon-foreground" />
               </span>
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

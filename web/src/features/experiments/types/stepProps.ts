@@ -33,21 +33,21 @@ interface EvaluatorData {
 }
 
 // Shared state types
-export type FormState = {
+type FormState = {
   form: UseFormReturn<CreateExperiment>;
 };
 
-export type NavigationState = {
+type NavigationState = {
   setActiveStep: (step: string) => void;
 };
 
-export type PermissionsState = {
+type PermissionsState = {
   hasEvalReadAccess: boolean;
   hasEvalWriteAccess: boolean;
 };
 
 // Domain-specific grouped state
-export type PromptModelState = {
+type PromptModelState = {
   selectedPromptName: string;
   setSelectedPromptName: (name: string) => void;
   selectedPromptVersion: number | null;
@@ -58,7 +58,7 @@ export type PromptModelState = {
   selectedPromptToolConfig: PromptToolConfig;
 };
 
-export type ModelState = {
+type ModelState = {
   modelParams: UIModelParams;
   updateModelParamValue: ModelParamsContext["updateModelParamValue"];
   setModelParamEnabled: ModelParamsContext["setModelParamEnabled"];
@@ -67,14 +67,14 @@ export type ModelState = {
   availableProviders: string[];
 };
 
-export type StructuredOutputState = {
+type StructuredOutputState = {
   structuredOutputEnabled: boolean;
   setStructuredOutputEnabled: (enabled: boolean) => void;
   selectedSchemaName: string | null;
   setSelectedSchemaName: (name: string | null) => void;
 };
 
-export type DatasetState = {
+type DatasetState = {
   datasets: Array<{ id: string; name: string }> | undefined;
   selectedDatasetId: string | null;
   selectedDataset: { id: string; name: string } | undefined;
@@ -112,7 +112,7 @@ type V2EvaluatorState = {
   isUpdating: boolean;
 };
 
-export type EvaluatorState = LegacyEvaluatorState | V2EvaluatorState;
+type EvaluatorState = LegacyEvaluatorState | V2EvaluatorState;
 
 // Step-specific prop interfaces
 export interface PromptModelStepProps {

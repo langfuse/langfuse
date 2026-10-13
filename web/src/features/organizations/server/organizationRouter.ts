@@ -3,31 +3,34 @@ import {
   protectedOrganizationProcedure,
   authenticatedProcedure,
 } from "@/src/server/api/trpc";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   organizationFormSchema,
   organizationOptionalNameSchema,
 } from "@/src/features/organizations/utils/organizationNameSchema";
 import * as z from "zod";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
 import { TRPCError } from "@trpc/server";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server";
 import {
   getLastTraceTimestampsByProjects,
+  isLangfuseAITracingConfigured,
   redis,
 } from "@langfuse/shared/src/server";
-import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripe/stripeBillingService";
-import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
-import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
+import {
+  isCloudBillingEnabled,
+  resolveBillingService,
+} from "@/src/ee/features/billing/server";
+import { shouldAutoEnableV4 } from "@/src/features/events/server";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
   featurePreviewFlags,
-  filterFeaturePreviewFlags,
-} from "@/src/features/feature-flags/available-flags";
-import { setOrganizationFeatureFlagDefault } from "@/src/features/feature-flags/server/organizationFeatureFlags";
-import { parseFlags } from "@/src/features/feature-flags/utils";
-
+  getOrganizationFeaturePreviewDefaults,
+  isOrganizationOnlyFeaturePreviewFlag,
+  setOrganizationFeatureFlagDefault,
+  parseFlags,
+} from "@/src/features/feature-flags/server";
 import { env } from "@/src/env.mjs";
 
 export const organizationsRouter = createTRPCRouter({
@@ -94,7 +97,7 @@ export const organizationsRouter = createTRPCRouter({
       }
 
       return {
-        defaults: filterFeaturePreviewFlags(
+        defaults: getOrganizationFeaturePreviewDefaults(
           organization.featureFlagOrgDefaults,
         ),
         memberCount: organization._count.organizationMemberships,
@@ -127,6 +130,7 @@ export const organizationsRouter = createTRPCRouter({
 
       if (
         input.enabled &&
+        !isOrganizationOnlyFeaturePreviewFlag(input.flag) &&
         env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES !== "true"
       ) {
         const actor = await ctx.prisma.user.findUnique({
@@ -170,7 +174,7 @@ export const organizationsRouter = createTRPCRouter({
       });
 
       return {
-        defaults: result.after,
+        defaults: getOrganizationFeaturePreviewDefaults(result.after),
         flag: input.flag,
         enabled: input.enabled,
       };
@@ -315,15 +319,22 @@ export const organizationsRouter = createTRPCRouter({
         scope: "organization:update",
       });
 
-      if (
-        input.aiTelemetryEnabled !== undefined &&
-        !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-      ) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "AI telemetry controls are only available on Langfuse Cloud.",
-        });
+      if (input.aiTelemetryEnabled !== undefined) {
+        if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "AI telemetry controls are only available on Langfuse Cloud.",
+          });
+        }
+
+        if (!isLangfuseAITracingConfigured()) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "AI telemetry controls are only available when the AI-features project is configured.",
+          });
+        }
       }
 
       const beforeOrganization = await ctx.prisma.organization.findFirst({
@@ -397,32 +408,33 @@ export const organizationsRouter = createTRPCRouter({
         });
       }
 
-      // Attempt to cancel Stripe subscription immediately (Cloud only) before deleting org
+      // Attempt to cancel the billing subscription immediately (Cloud only) before deleting org
       if (isCloudBillingEnabled()) {
         try {
-          const stripeBillingService = createBillingServiceFromContext(ctx);
-          await stripeBillingService.cancelImmediatelyAndInvoice(input.orgId);
+          const { service } = await resolveBillingService(ctx, input.orgId);
+          await service.cancelImmediatelyAndInvoice(input.orgId);
         } catch (e) {
           // If billing cancellation fails for reasons other than no subscription, abort deletion
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message:
-              "Failed to cancel Stripe subscription prior to organization deletion",
+              "Failed to cancel billing subscription prior to organization deletion",
             cause: e as Error,
           });
         }
       }
+
+      // Evict before the delete: ApiKey.organization cascades, so keys are gone
+      // by the time a post-delete eviction would run and it would find nothing.
+      await new ApiAuthService(ctx.prisma, redis).invalidateCachedOrgApiKeys(
+        input.orgId,
+      );
 
       const organization = await ctx.prisma.organization.delete({
         where: {
           id: input.orgId,
         },
       });
-
-      // the api keys contain which org they belong to, so we need to remove them from Redis
-      await new ApiAuthService(ctx.prisma, redis).invalidateCachedOrgApiKeys(
-        input.orgId,
-      );
 
       await auditLog({
         session: ctx.session,

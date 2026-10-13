@@ -40,6 +40,7 @@ export const PostCommentsV1Body = z
       description:
         "Ignored. Attribution uses the authenticated user or API key creator.",
     }),
+    objectStartTime: z.coerce.date().nullish(),
   })
   .strict();
 export const PostCommentsV1Response = z.object({ id: z.string() }).strict();

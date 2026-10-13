@@ -19,9 +19,9 @@
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { SkeletonGroup } from "@/src/components/ui/skeleton";
 import { TraceDetailView } from "./TraceDetailView/TraceDetailView";
-import { ObservationDetailView } from "./ObservationDetailView/ObservationDetailView";
+import { ConnectedObservationDetailView } from "./ObservationDetailView/ConnectedObservationDetailView";
 import { useMemo } from "react";
 
 function PanelMessage({ title, body }: { title: string; body: string }) {
@@ -33,13 +33,26 @@ function PanelMessage({ title, body }: { title: string; body: string }) {
   );
 }
 
-export function TracePanelDetail() {
+export function TracePanelDetail({
+  isLoading = false,
+}: {
+  isLoading?: boolean;
+}) {
+  return (
+    <div className="bg-surface-sunken h-full w-full overflow-y-auto [--surface-context:hsl(var(--surface-sunken))]">
+      {isLoading ? <TraceDetailView isLoading /> : <TracePanelDetailContent />}
+    </div>
+  );
+}
+
+function TracePanelDetailContent() {
   const { selectedNodeId } = useSelection();
   const {
     trace,
     observations,
     serverScores: scores,
     corrections,
+    isPlaceholderData,
   } = useTraceData();
 
   // Resolved from the selected id, not from the tree: the observation list is
@@ -50,21 +63,27 @@ export function TracePanelDetail() {
     traceId: trace.id,
     projectId: trace.projectId,
     observations,
+    enabled: !isPlaceholderData,
   });
 
   // Memoize to prevent recreation when deps haven't changed
-  const content = useMemo(() => {
+  return useMemo(() => {
     switch (selected.kind) {
       case "observation":
         return (
-          <ObservationDetailView
+          <ConnectedObservationDetailView
             observation={selected.observation}
             projectId={trace.projectId}
             traceId={trace.id}
           />
         );
       case "loading":
-        return <Skeleton className="h-full w-full rounded-none" />;
+        // The observation view shares this shell, so nothing moves when it lands.
+        return (
+          <SkeletonGroup className="h-full w-full">
+            <TraceDetailView isLoading />
+          </SkeletonGroup>
+        );
       case "not-found":
         return (
           <PanelMessage
@@ -91,8 +110,4 @@ export function TracePanelDetail() {
         );
     }
   }, [selected, trace, observations, scores, corrections]);
-
-  return (
-    <div className="bg-background h-full w-full overflow-y-auto">{content}</div>
-  );
 }

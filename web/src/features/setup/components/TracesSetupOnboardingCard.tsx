@@ -5,14 +5,15 @@ import { SplashScreen } from "@/src/components/ui/splash-screen";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Check, Copy, LockIcon, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { toast } from "sonner";
+import { showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 const SKILLS_INSTALL_COMMAND =
   "Install the Langfuse AI skill from github.com/langfuse/skills and use it to add tracing to this application with Langfuse following best practices.";
@@ -35,7 +36,15 @@ function CopyableSnippet({
       setCopied(true);
       setTimeout(() => setCopied(false), 1000);
     } catch {
-      toast.error("Failed to copy to clipboard");
+      showToast({
+        type: "ERROR",
+        title: "Failed to copy to clipboard",
+        analytics: {
+          operation: "onboarding_prompt.copy",
+          errorOrigin: "frontend",
+          errorCategory: "internal",
+        },
+      });
     }
   };
 
@@ -50,7 +59,11 @@ function CopyableSnippet({
         className="shrink-0 gap-2"
         onClick={() => handleCopy()}
       >
-        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+        {copied ? (
+          <Check className="icon-base text-icon-foreground" />
+        ) : (
+          <Copy className="icon-base text-icon-foreground" />
+        )}
         {copied ? "Copied" : "Copy prompt"}
       </Button>
     </div>
@@ -86,7 +99,11 @@ export function TracesSetupOnboardingCard({
       await mutCreateApiKey.mutateAsync({ projectId });
     } catch (error) {
       reportNonTrpcError(error, "setup");
-      toast.error("Failed to create API key");
+      showToast({
+        type: "ERROR",
+        title: "Failed to create API key",
+        analytics: classifyTrpcToastError(error, "project_api_key.create"),
+      });
     }
   };
 
@@ -124,7 +141,7 @@ export function TracesSetupOnboardingCard({
               ) : (
                 <Button disabled className="self-start">
                   <LockIcon
-                    className="mr-2 -ml-0.5 h-4 w-4"
+                    className="icon-base mr-2 -ml-0.5"
                     aria-hidden="true"
                   />
                   Create new API key
@@ -143,7 +160,7 @@ export function TracesSetupOnboardingCard({
           title: "Add tracing with your coding agent",
           badge: (
             <Badge variant="tertiary" className="gap-1">
-              <Sparkles className="h-3 w-3" />
+              <Sparkles className="icon-sm" />
               Recommended
             </Badge>
           ),

@@ -7,6 +7,7 @@ import {
   BATCH_PROJECT_CLEANER_LOCK_PREFIX,
 } from "../features/batch-project-cleaner";
 import {
+  clickhouseClient,
   createOrgProjectAndApiKey,
   createTracesCh,
   createTrace,
@@ -14,10 +15,31 @@ import {
   createDatasetRunItem,
   queryClickhouse,
   redis,
+  toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 import type { RedisLock } from "../utils/RedisLock";
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  return {
+    ...actual,
+    commandClickhouse: (opts: Parameters<typeof actual.commandClickhouse>[0]) =>
+      actual.commandClickhouse({
+        ...opts,
+        clickhouseSettings: /^\s*DELETE FROM topic_facet_summaries\b/.test(
+          opts.query,
+        )
+          ? {
+              lightweight_delete_mode: "lightweight_update_force",
+              ...opts.clickhouseSettings,
+            }
+          : opts.clickhouseSettings,
+      }),
+  };
+});
 
 type TestableBatchProjectCleaner = {
   countQueryLock: RedisLock;
@@ -163,6 +185,42 @@ describe("BatchProjectCleaner", () => {
       // Verify only deleted project's traces were removed
       expect(await getClickhouseCount(TEST_TABLE, deletedProjectId)).toBe(0);
       expect(await getClickhouseCount(TEST_TABLE, activeProjectId)).toBe(3);
+    });
+
+    it("deletes Topics summaries when patch deletes are forced by default without affecting active projects", async () => {
+      const { projectId: deletedProjectId } = await createOrgProjectAndApiKey();
+      const { projectId: activeProjectId } = await createOrgProjectAndApiKey();
+      await prisma.project.update({
+        where: { id: deletedProjectId },
+        data: { deletedAt: new Date() },
+      });
+      await clickhouseClient().insert({
+        table: "topic_facet_summaries",
+        format: "JSONEachRow",
+        values: [deletedProjectId, activeProjectId].map((projectId) => ({
+          project_id: projectId,
+          facet_id: "intent",
+          facet_version: 1,
+          trace_id: randomUUID(),
+          environment: "default",
+          unit_start_time: toClickhouseDateTime(new Date()),
+          processing_state: "complete",
+          summary: "A trace summary.",
+        })),
+      });
+      expect(
+        await getClickhouseCount("topic_facet_summaries", deletedProjectId),
+      ).toBe(1);
+
+      const cleaner = new BatchProjectCleaner("topic_facet_summaries");
+      await cleaner.processBatch();
+
+      expect(
+        await getClickhouseCount("topic_facet_summaries", deletedProjectId),
+      ).toBe(0);
+      expect(
+        await getClickhouseCount("topic_facet_summaries", activeProjectId),
+      ).toBe(1);
     });
 
     it("should delete traces from multiple soft-deleted projects", async () => {

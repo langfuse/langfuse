@@ -1,9 +1,10 @@
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { paginationZod } from "@langfuse/shared";
+import { TOPICS_ACTION } from "@langfuse/shared/topics/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { GetBatchActionByIdSchema } from "../validation";
@@ -26,6 +27,7 @@ export const batchActionRouter = createTRPCRouter({
         where: {
           id: input.batchActionId,
           projectId: input.projectId,
+          actionType: { not: TOPICS_ACTION },
         },
         select: {
           id: true,
@@ -70,6 +72,7 @@ export const batchActionRouter = createTRPCRouter({
         ctx.prisma.batchAction.findMany({
           where: {
             projectId: input.projectId,
+            actionType: { not: TOPICS_ACTION },
           },
           take: input.limit,
           skip: input.page * input.limit,
@@ -80,6 +83,7 @@ export const batchActionRouter = createTRPCRouter({
         ctx.prisma.batchAction.count({
           where: {
             projectId: input.projectId,
+            actionType: { not: TOPICS_ACTION },
           },
         }),
       ]);

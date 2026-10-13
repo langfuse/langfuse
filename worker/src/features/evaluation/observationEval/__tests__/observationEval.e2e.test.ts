@@ -88,6 +88,9 @@ const mockEvalExecutionResult = {
   ],
   executionTraceId: "trace-123",
   metadata: {},
+  evaluationContext: {
+    evaluatorExecutionIsTest: false,
+  },
 };
 
 describe("Observation Eval E2E Pipeline", () => {

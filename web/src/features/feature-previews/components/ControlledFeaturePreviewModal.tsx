@@ -1,11 +1,11 @@
+/* eslint-disable no-nested-ternary */
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useSession } from "next-auth/react";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
-import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
+import { featurePreviewLabels } from "@/src/features/feature-flags";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 import {
   FeaturePreviewModal,
@@ -23,7 +23,7 @@ export function ControlledFeaturePreviewModal({
   onOpenChange,
 }: ControlledFeaturePreviewModalProps) {
   const authSession = useSession();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
   const setFeaturePreviewEnabled =
     api.userAccount.setFeaturePreviewEnabled.useMutation({
@@ -34,45 +34,66 @@ export function ControlledFeaturePreviewModal({
           isEnabled: variables.enabled,
         });
         showSuccessToast({
+          operation: "user_feature_preview.update",
           title: "Feature preview updated",
           description: `${featurePreviewLabels[variables.flag]} preview has been ${variables.enabled ? "enabled" : "disabled"}.`,
         });
       },
       onError: (error) => {
-        showErrorToast("Failed to update feature preview", error.message);
+        showErrorToast(
+          "Failed to update feature preview",
+          error.message,
+          classifyTrpcToastError(error, "user_feature_preview.update"),
+        );
       },
     });
 
   const onToggle = (flag: PreviewFlag) => (enabled: boolean) =>
     setFeaturePreviewEnabled.mutate({ flag, enabled });
 
+  const isModernSessionEnabled =
+    authSession.data?.user?.featureFlags.sessionViewV2 === true ||
+    authSession.data?.environment.enableExperimentalFeatures === true;
+
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
-    modernSession: {
-      enabled:
-        authSession.data?.user?.featureFlags.modernSession === true ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
+    ...(authSession.data?.user?.admin === true
+      ? {
+          langfuseTopics: {
+            enabled: authSession.data.user.featureFlags.langfuseTopics === true,
+            onToggle: onToggle("langfuseTopics"),
+            isToggling: setFeaturePreviewEnabled.isPending,
+          },
+        }
+      : {}),
+    sessionViewV2: {
+      enabled: isModernSessionEnabled,
       disabled:
-        !isBetaEnabled ||
+        !isV4 ||
         authSession.data?.environment.enableExperimentalFeatures === true,
-      warningReason: !isBetaEnabled
-        ? `Compact Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
+      warningReason: !isV4
+        ? `Redesigned Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
         : authSession.data?.environment.enableExperimentalFeatures === true
           ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
           : undefined,
-      onToggle: onToggle("modernSession"),
+      onToggle: onToggle("sessionViewV2"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
-    compactTimeline: {
+    sessionViewV2Timeline: {
       enabled:
-        authSession.data?.user?.featureFlags.compactTimeline === true ||
+        authSession.data?.user?.featureFlags.sessionViewV2Timeline === true ||
         authSession.data?.environment.enableExperimentalFeatures === true,
       disabled:
+        !isV4 ||
+        !isModernSessionEnabled ||
         authSession.data?.environment.enableExperimentalFeatures === true,
-      warningReason:
-        authSession.data?.environment.enableExperimentalFeatures === true
-          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
-          : undefined,
-      onToggle: onToggle("compactTimeline"),
+      warningReason: !isV4
+        ? `Redesigned Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
+        : !isModernSessionEnabled
+          ? "Enable Redesigned Session View before enabling the Session Timeline."
+          : authSession.data?.environment.enableExperimentalFeatures === true
+            ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
+            : undefined,
+      onToggle: onToggle("sessionViewV2Timeline"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
   };

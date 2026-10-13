@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -12,6 +13,7 @@ describe("organization AI feature settings", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalSharedInAppAgentEnabled =
     sharedEnv.LANGFUSE_IN_APP_AGENT_ENABLED;
+  const originalAiFeaturesProjectId = sharedEnv.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
@@ -21,6 +23,9 @@ describe("organization AI feature settings", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED =
       originalSharedInAppAgentEnabled;
+    (
+      sharedEnv as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
+    ).LANGFUSE_AI_FEATURES_PROJECT_ID = originalAiFeaturesProjectId;
   });
 
   it("allows a self-hosted organization administrator to opt in to AI features", async () => {
@@ -88,6 +93,47 @@ describe("organization AI feature settings", () => {
       message: "AI telemetry controls are only available on Langfuse Cloud.",
     });
   });
+
+  it("rejects AI telemetry updates when the AI-features project is not configured", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    (
+      sharedEnv as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
+    ).LANGFUSE_AI_FEATURES_PROJECT_ID = undefined;
+
+    const { caller, orgId } = await createCaller();
+
+    await expect(
+      caller.organizations.update({
+        orgId,
+        aiTelemetryEnabled: false,
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      message:
+        "AI telemetry controls are only available when the AI-features project is configured.",
+    });
+  });
+
+  it("allows Cloud organizations to update AI telemetry when the AI-features project is configured", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    (
+      sharedEnv as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
+    ).LANGFUSE_AI_FEATURES_PROJECT_ID = "test-ai-features-project";
+
+    const { caller, orgId } = await createCaller();
+
+    await caller.organizations.update({
+      orgId,
+      aiTelemetryEnabled: false,
+    });
+
+    await expect(
+      prisma.organization.findUniqueOrThrow({
+        where: { id: orgId },
+        select: { aiTelemetryEnabled: true },
+      }),
+    ).resolves.toEqual({ aiTelemetryEnabled: false });
+  });
 });
 
 async function createCaller() {
@@ -148,14 +194,7 @@ async function createCaller() {
           ],
         },
       ],
-      featureFlags: {
-        searchBar: false,
-        templateFlag: false,
-        excludeClickhouseRead: false,
-        observationEvals: false,
-        v4BetaToggleVisible: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags({ templateFlag: false }),
       admin: false,
     },
     environment: {

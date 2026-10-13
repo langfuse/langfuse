@@ -46,10 +46,66 @@ function tryParsePythonDict(str: string): unknown {
  * Options for deepParseJson
  */
 export interface DeepParseJsonOptions {
-  /** Maximum size in bytes before skipping parsing (default: 500KB) */
+  /** Approximate object size in characters to traverse (default: 500,000).
+   * Larger nested strings stay raw and count only as opaque leaves.
+   * Root string inputs retain their existing parsing behavior.
+   */
   maxSize?: number;
   /** Maximum recursion depth (default: 3) */
   maxDepth?: number;
+}
+
+/** Bound object traversal without serializing oversized, opaque string fields. */
+function exceedsParseSize(json: object, maxSize: number): boolean {
+  type Frame = {
+    value: object;
+    keys: string[] | null;
+    length: number;
+    index: number;
+  };
+  const stack: Frame[] = [];
+  const ancestors = new Set<object>();
+  let value: unknown = json;
+  let size = 0;
+
+  while (true) {
+    if (typeof value === "string") {
+      // Count an opaque leaf as null, without scanning or copying its contents.
+      size += value.length > maxSize ? 4 : value.length + 2;
+    } else if (typeof value === "object" && value !== null) {
+      if (ancestors.has(value)) return true;
+      const keys = Array.isArray(value) ? null : Object.keys(value);
+      const length = Array.isArray(value) ? value.length : keys!.length;
+      size += 2 + Math.max(0, length - 1); // Brackets/braces and commas.
+      // Every child costs at least one character. Reject wide containers before
+      // reading their children or allocating parser entries for them.
+      if (size + length > maxSize) return true;
+      ancestors.add(value);
+      stack.push({ value, keys, length, index: 0 });
+    } else {
+      size += String(value).length;
+    }
+    if (size > maxSize) return true;
+
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1];
+      if (frame.index < frame.length) break;
+      ancestors.delete(frame.value);
+      stack.pop();
+    }
+    if (stack.length === 0) return false;
+
+    const frame = stack[stack.length - 1];
+    const index = frame.index++;
+    if (frame.keys) {
+      const key = frame.keys[index];
+      size += key.length + 3; // Key quotes and colon.
+      if (size > maxSize) return true;
+      value = (frame.value as Record<string, unknown>)[key];
+    } else {
+      value = (frame.value as unknown[])[index];
+    }
+  }
 }
 
 /**
@@ -66,16 +122,16 @@ export function deepParseJson(
 ): unknown {
   const { maxSize = 500_000, maxDepth = 3 } = options;
 
-  // Size check: skip parsing for large objects to prevent UI freeze
+  // Root strings are also used for document decoding on the server. Only
+  // object inputs use the traversal limit and opaque-string handling.
+  let maxStringSize = Infinity;
   if (typeof json === "object" && json !== null) {
-    const size = JSON.stringify(json).length;
-    if (size > maxSize) {
-      return json;
-    }
+    if (exceedsParseSize(json, maxSize)) return json;
+    maxStringSize = maxSize;
   }
 
   // Perform depth-limited parsing
-  const result = deepParseJsonRecursive(json, 0, maxDepth);
+  const result = deepParseJsonRecursive(json, 0, maxDepth, maxStringSize);
 
   return result;
 }
@@ -87,6 +143,7 @@ function deepParseJsonRecursive(
   json: unknown,
   currentDepth: number,
   maxDepth: number,
+  maxStringSize: number,
 ): unknown {
   // Stop recursing if we've hit max depth
   if (currentDepth >= maxDepth) {
@@ -94,17 +151,28 @@ function deepParseJsonRecursive(
   }
 
   if (typeof json === "string") {
+    if (json.length > maxStringSize) return json;
     // A bare JSON number literal stays a string: this preserves user-provided
     // numeric strings and, critically, big integers that would lose precision
     // if coerced to a JS number (issue #6628).
     if (isJsonNumberLiteral(json)) return json;
     try {
       const parsed = parsePreservingPrecision(json);
-      return deepParseJsonRecursive(parsed, currentDepth + 1, maxDepth); // Recursively parse parsed value
+      return deepParseJsonRecursive(
+        parsed,
+        currentDepth + 1,
+        maxDepth,
+        maxStringSize,
+      );
     } catch {
       const pythonParsed = tryParsePythonDict(json);
       if (pythonParsed !== json) {
-        return deepParseJsonRecursive(pythonParsed, currentDepth + 1, maxDepth);
+        return deepParseJsonRecursive(
+          pythonParsed,
+          currentDepth + 1,
+          maxDepth,
+          maxStringSize,
+        );
       }
       return json; // If it's not a valid JSON string, just return the original string
     }
@@ -112,7 +180,12 @@ function deepParseJsonRecursive(
     // Handle arrays
     if (Array.isArray(json)) {
       for (let i = 0; i < json.length; i++) {
-        json[i] = deepParseJsonRecursive(json[i], currentDepth + 1, maxDepth);
+        json[i] = deepParseJsonRecursive(
+          json[i],
+          currentDepth + 1,
+          maxDepth,
+          maxStringSize,
+        );
       }
     } else {
       // Handle nested objects
@@ -127,6 +200,7 @@ function deepParseJsonRecursive(
               (json as Record<string, unknown>)[key],
               currentDepth + 1,
               maxDepth,
+              maxStringSize,
             );
           }
         }
@@ -173,12 +247,10 @@ export function deepParseJsonIterative(
 ): unknown {
   const { maxSize = 500_000, maxDepth = 3 } = options;
 
-  // Size check: skip parsing for large objects to prevent UI freeze
+  let maxStringSize = Infinity;
   if (typeof json === "object" && json !== null) {
-    const size = JSON.stringify(json).length;
-    if (size > maxSize) {
-      return json;
-    }
+    if (exceedsParseSize(json, maxSize)) return json;
+    maxStringSize = maxSize;
   }
 
   // Root entry
@@ -213,6 +285,11 @@ export function deepParseJsonIterative(
 
     // Process strings - try to parse as JSON
     if (typeof input === "string") {
+      if (input.length > maxStringSize) {
+        entry.output = input;
+        processed.add(entry);
+        continue;
+      }
       // A bare JSON number literal stays a string (see deepParseJsonRecursive):
       // preserves numeric strings and big integers that would otherwise lose
       // precision when coerced to a JS number (issue #6628).

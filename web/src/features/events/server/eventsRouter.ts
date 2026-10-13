@@ -1,14 +1,21 @@
 import { type z, z as zodSchema } from "zod";
+import { TRPCError } from "@trpc/server";
+import { env } from "@/src/env.mjs";
+import {
+  getContextualFeatureFlags,
+  hasInternalAccess,
+} from "@/src/features/feature-flags/server";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
   protectedGetEventsTraceProcedure,
+  protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
 import {
   type OrderByState,
   normalizeOrderByForTable,
   paginationZod,
-  singleFilter,
+  singleFilterList,
   timeFilter,
 } from "@langfuse/shared";
 import {
@@ -26,6 +33,7 @@ import {
   getEventBatchIO,
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
+import { loadTraceTranscript } from "./loadTraceTranscript";
 import {
   instrumentAsync,
   getScoresAndCorrectionsForTraces,
@@ -40,11 +48,15 @@ import {
 import {
   AgentGraphDataSchema,
   type AgentGraphDataResponse,
-} from "@/src/features/trace-graph-view/types";
+} from "@/src/features/trace-graph-view/server";
 import type * as opentelemetry from "@opentelemetry/api";
 
 const GetAllEventsInput = EventsTableOptions.safeExtend({
   ...paginationZod,
+});
+
+const GetSessionEventsInput = GetAllEventsInput.safeExtend({
+  sessionId: zodSchema.string().min(1),
 });
 
 const GetEventsCursorInput = EventsCursorTableOptions.safeExtend({
@@ -69,7 +81,7 @@ export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
-  filter: zodSchema.array(singleFilter).optional(),
+  filter: singleFilterList.optional(),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
   isRootObservation: zodSchema.boolean().optional(),
   hasParentObservation: zodSchema.boolean().optional(),
@@ -92,7 +104,7 @@ const GetEventMetadataValuesInput = zodSchema.object({
   startTimeFilter: zodSchema.array(timeFilter).optional(),
 });
 
-export const BatchIOInput = zodSchema.object({
+const BatchIOInput = zodSchema.object({
   projectId: zodSchema.string(),
   observations: zodSchema
     .array(
@@ -115,8 +127,11 @@ export const BatchIOInput = zodSchema.object({
   // Opts into trace-level auth (public traces) in protectedGetEventsTraceProcedure
   traceId: zodSchema.string().optional(),
 });
+const SessionBatchIOInput = BatchIOInput.omit({ traceId: true }).extend({
+  sessionId: zodSchema.string().min(1),
+});
 
-export type BatchIOInput = z.infer<typeof BatchIOInput>;
+type BatchIOInput = z.infer<typeof BatchIOInput>;
 
 export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -155,6 +170,50 @@ export const eventsRouter = createTRPCRouter({
           });
         },
       );
+    }),
+  sessionAll: protectedGetSessionProcedure
+    .input(GetSessionEventsInput)
+    .query(async ({ input, ctx }) => {
+      const filter = ctx.session.projectRole
+        ? (input.filter ?? [])
+        : (input.filter ?? []).filter(
+            ({ column }) =>
+              column !== "commentContent" && column !== "commentCount",
+          );
+
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: filter,
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        objectType: "OBSERVATION",
+      });
+
+      if (hasNoMatches) {
+        return { observations: [], hasMore: false };
+      }
+
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "startTime",
+      });
+
+      return getEventList({
+        projectId: input.projectId,
+        filter: [
+          ...filterState,
+          {
+            column: "sessionId",
+            type: "string",
+            operator: "=",
+            value: input.sessionId,
+          },
+        ],
+        searchQuery: input.searchQuery ?? undefined,
+        searchType: input.searchType,
+        orderBy: normalizedOrderBy,
+        page: input.page,
+        limit: input.limit,
+      });
     }),
   listCursor: protectedProjectProcedure
     .input(GetEventsCursorInput)
@@ -297,6 +356,31 @@ export const eventsRouter = createTRPCRouter({
         },
       );
     }),
+  sessionBatchIO: protectedGetSessionProcedure
+    .input(SessionBatchIOInput)
+    .query(async ({ input }) => {
+      return instrumentAsync(
+        { name: "get-event-session-batch-io-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("session_id", input.sessionId);
+          span.setAttribute("observation_count", input.observations.length);
+
+          const batchIO = await getEventBatchIO({
+            projectId: input.projectId,
+            sessionId: input.sessionId,
+            observations: input.observations,
+            minStartTime: input.minStartTime,
+            maxStartTime: input.maxStartTime,
+            truncated: input.truncated,
+            ioCharLimit: input.ioCharLimit,
+            includeToolCallFields: input.includeToolCalls,
+          });
+
+          return batchIO.map(toDomainWithStringifiedMetadata);
+        },
+      );
+    }),
   experimentBatchIO: protectedProjectProcedure
     .input(BatchIOInput)
     .query(async ({ input, ctx }) => {
@@ -346,6 +430,70 @@ export const eventsRouter = createTRPCRouter({
             // we need traceTS here because we filter for that in DB
             // fallback to input in case trace unavailable - shouldn't happen
             timestamp: ctx.trace?.timestamp ?? input.timestamp,
+          });
+        },
+      );
+    }),
+  /**
+   * Assemble the message transcript of a trace from its generations and tools,
+   * see `loadTraceTranscript`. Available to internal users and Session Timeline
+   * preview users, only where the events tables are written.
+   */
+  transcriptByTraceId: protectedGetEventsTraceProcedure
+    .input(
+      zodSchema.object({
+        projectId: zodSchema.string(),
+        traceId: zodSchema.string(),
+        timestamp: zodSchema.date().optional(),
+        fallbackToRootIO: zodSchema.boolean().default(false),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const isSessionTimelineEnabled =
+        getContextualFeatureFlags(ctx.session?.user, {
+          projectId: input.projectId,
+        })?.sessionViewV2Timeline === true;
+      if (
+        !isSessionTimelineEnabled &&
+        !hasInternalAccess({
+          isAdmin: ctx.session?.user?.admin === true,
+          isExperimentalFeaturesEnabled:
+            env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+        })
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Transcripts require internal access or the Session Timeline preview.",
+        });
+      }
+      if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Transcripts need the events-backed trace view.",
+        });
+      }
+      // The trace timestamp bounds the observation read; the trace is loaded
+      // by the procedure, so the input is only a fallback.
+      const timestamp = ctx.trace?.timestamp ?? input.timestamp;
+      if (!timestamp) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Trace timestamp is required.",
+        });
+      }
+
+      return instrumentAsync(
+        { name: "get-transcript-by-trace-id-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("trace_id", input.traceId);
+
+          return loadTraceTranscript({
+            projectId: input.projectId,
+            traceId: input.traceId,
+            timestamp,
+            fallbackToRootIO: input.fallbackToRootIO,
           });
         },
       );
@@ -492,7 +640,7 @@ export const eventsRouter = createTRPCRouter({
     }),
 });
 
-export const addAttributesToSpan = ({
+const addAttributesToSpan = ({
   span,
   input,
   orderBy,
@@ -534,6 +682,6 @@ export const addAttributesToSpan = ({
   }
 };
 
-export const dateDiff = (date1: Date, date2: Date) => {
+const dateDiff = (date1: Date, date2: Date) => {
   return Math.abs(date2.getTime() - date1.getTime());
 };

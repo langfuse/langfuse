@@ -11,7 +11,7 @@ import {
 
 type EvaluatorJudgeModelPickerProps = Exclude<
   JudgeModelPickerProps,
-  { purpose: "projectDefault" }
+  { purpose: "projectDefault" } | { purpose: "decision" }
 >;
 
 function EvaluatorJudgeModelPicker(props: EvaluatorJudgeModelPickerProps) {
@@ -82,6 +82,19 @@ export const Custom = meta.story({
     defaultModel: { provider: "OpenAI", model: "gpt-4.1-mini" },
     providerGroups: [["Anthropic", ["claude-sonnet-4"]]],
     selectedModel: { provider: "Anthropic", model: "claude-sonnet-4" },
+  },
+  render: StatefulJudgeModelPicker,
+});
+
+export const CustomWithModelConfiguration = meta.story({
+  args: {
+    ...actions,
+    open: true,
+    mode: "custom",
+    defaultModel: { provider: "OpenAI", model: "gpt-4.1-mini" },
+    providerGroups: [["Anthropic", ["claude-sonnet-4"]]],
+    selectedModel: { provider: "Anthropic", model: "claude-sonnet-4" },
+    hasModelConfiguration: true,
   },
   render: StatefulJudgeModelPicker,
 });

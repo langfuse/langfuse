@@ -3,9 +3,28 @@ import { describe, expect, it } from "vitest";
 import {
   createInAppAgentToolPolicy,
   getInAppAgentToolApprovalSource,
+  IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
 } from "./mcpPolicy";
 
 describe("createInAppAgentToolPolicy", () => {
+  it("lists experiments with promptExperiments:read", () => {
+    expect(
+      IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES.listExperiments.availability,
+    ).toEqual({ scope: "promptExperiments:read" });
+    expect(
+      IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES.listExperimentItems.availability,
+    ).toEqual({ scope: "promptExperiments:read" });
+  });
+
+  it("keeps listExperiments available to members", () => {
+    const asMember = createInAppAgentToolPolicy({
+      userAccess: { projectRole: "MEMBER", isAdmin: false },
+    });
+
+    expect(asMember.available.has("listExperiments")).toBe(true);
+    expect(asMember.available.has("listExperimentItems")).toBe(true);
+  });
+
   it("drops a stored grant the user's role no longer covers", () => {
     const grants = ["langfuse_createModel"];
 

@@ -1,12 +1,13 @@
-import { render } from "@testing-library/react";
+/* eslint-disable @repo/prefer-stories-over-client-tests */
+import { render, screen } from "@testing-library/react";
 import {
   MarkdownView,
   prependBasePathToInternalHref,
 } from "@/src/components/ui/MarkdownViewer";
-import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
+import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 
 vi.mock("next/router", () => ({
-  useRouter: () => ({ query: {} }),
+  useRouter: () => ({ query: { projectId: "project-1" } }),
 }));
 
 vi.mock("next-themes", () => ({
@@ -17,12 +18,70 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
+const { resolveExternalMediaQueryMock } = vi.hoisted(() => ({
+  resolveExternalMediaQueryMock: vi.fn(() => ({
+    isError: false,
+    data: undefined,
+    refetch: vi.fn(),
+  })),
+}));
+
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    media: {
+      resolveExternalMedia: {
+        useQuery: resolveExternalMediaQueryMock,
+      },
+    },
+  },
+}));
+
+vi.mock("@/src/features/feature-flags", () => ({
+  useIsFeatureEnabled: () => true,
+}));
+
 const renderMarkdown = (markdown: string) =>
-  render(
-    <MarkdownContextProvider>
-      <MarkdownView markdown={markdown} />
-    </MarkdownContextProvider>,
-  );
+  render(<MarkdownView markdown={markdown} />);
+
+describe("MarkdownView external S3 media", () => {
+  it("renders a standalone S3 media URI as external media", () => {
+    const uri = "s3://customer-bucket/media/photo.png";
+
+    renderMarkdown(uri);
+
+    expect(
+      screen.getByRole("button", { name: "PNG media" }),
+    ).toBeInTheDocument();
+    expect(resolveExternalMediaQueryMock).toHaveBeenCalledWith(
+      { projectId: "project-1", uri },
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("renders a Markdown S3 image and preserves its alt text", () => {
+    const uri = "s3://customer-bucket/media/photo.png";
+
+    renderMarkdown(`![Product photo](${uri})`);
+
+    expect(
+      screen.getByRole("button", { name: "Product photo media" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders an OpenAI image_url S3 URI as external media", () => {
+    const uri = "s3://customer-bucket/media/photo.png";
+
+    render(
+      <MarkdownJsonView
+        content={[{ type: "image_url", image_url: { url: uri } }]}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "PNG media" }),
+    ).toBeInTheDocument();
+  });
+});
 
 describe("MarkdownView link rendering", () => {
   it("renders an external link as a native anchor opening in a new tab", () => {
@@ -61,11 +120,96 @@ describe("MarkdownView link rendering", () => {
   });
 });
 
+const NESTED_BULLET_MARKDOWN = `Langfuse is an open-source observability and analytics tool for LLM applications.
+
+In practical terms, it helps you:
+
+- **Track and debug LLM calls**
+  - Log prompts, model responses, latency, errors, and metadata
+- **Evaluate quality**
+  - Run evaluations on outputs (automatic metrics or human feedback)
+- **Monitor in production**
+  - Dashboards for usage, cost, latency, and failure rates`;
+
+const NESTED_ORDERED_MARKDOWN = `Steps:
+
+1. **Prepare the dataset**
+   1. Collect traces
+   2. Label outcomes
+2. **Run the eval**
+   1. Score outputs`;
+
+const directChildren = (parent: Element, tagName: string) =>
+  Array.from(parent.children).filter(
+    (child) => child.tagName === tagName.toUpperCase(),
+  );
+
 describe("MarkdownView ordered lists", () => {
   it("preserves an explicit ordered-list start number", () => {
     const { container } = renderMarkdown("2.");
 
     expect(container.querySelector("ol")?.getAttribute("start")).toBe("2");
+  });
+});
+
+describe("MarkdownView list item layout", () => {
+  // A list item that also contains a nested list has a block sibling
+  // after the label. Markers use list-outside and matching left padding
+  // so they sit in the gutter beside the first line.
+  it("places nested bullet markers outside the item content box", () => {
+    const { container } = renderMarkdown(NESTED_BULLET_MARKDOWN);
+
+    const topList = container.querySelector("ul");
+    expect(topList).not.toBeNull();
+    expect(topList?.className).toContain("list-outside");
+    expect(topList?.className).not.toContain("list-inside");
+    expect(topList?.className).toContain("pl-6");
+
+    const topItems = directChildren(topList!, "li");
+    expect(topItems).toHaveLength(3);
+    expect(
+      topItems.map((item) => item.querySelector("strong")?.textContent),
+    ).toEqual([
+      "Track and debug LLM calls",
+      "Evaluate quality",
+      "Monitor in production",
+    ]);
+
+    for (const item of topItems) {
+      const nested = item.querySelector(":scope > ul");
+      expect(nested).not.toBeNull();
+      expect(nested?.className).toContain("pl-6");
+      expect(item.className).not.toContain("[&>ul]:pl-4");
+    }
+  });
+
+  it("places nested numbered-list markers outside the item content box", () => {
+    const { container } = renderMarkdown(NESTED_ORDERED_MARKDOWN);
+
+    const topList = container.querySelector("ol");
+    expect(topList).not.toBeNull();
+    expect(topList?.className).toContain("list-outside");
+    expect(topList?.className).not.toContain("list-inside");
+    expect(topList?.className).toContain("pl-6");
+
+    const topItems = directChildren(topList!, "li");
+    expect(topItems).toHaveLength(2);
+
+    for (const item of topItems) {
+      const nested = item.querySelector(":scope > ol");
+      expect(nested).not.toBeNull();
+      expect(nested?.className).toContain("pl-6");
+      expect(item.className).not.toContain("[&>ol]:pl-4");
+    }
+  });
+
+  it("does not emit an empty trailing list item for a nested bullet list", () => {
+    const { container } = renderMarkdown(NESTED_BULLET_MARKDOWN);
+    const topItems = directChildren(container.querySelector("ul")!, "li");
+
+    expect(
+      topItems.every((item) => (item.textContent ?? "").trim().length > 0),
+    ).toBe(true);
   });
 });
 
@@ -76,19 +220,13 @@ describe("MarkdownView code blocks", () => {
   it("reuses the same code block instance across re-renders", () => {
     const markdown = "```js\nconst x = 1;\n```";
     const { container, rerender } = render(
-      <MarkdownContextProvider>
-        <MarkdownView markdown={markdown} />
-      </MarkdownContextProvider>,
+      <MarkdownView markdown={markdown} />,
     );
 
     const codeblock = container.querySelector(".codeblock");
     expect(codeblock).not.toBeNull();
 
-    rerender(
-      <MarkdownContextProvider>
-        <MarkdownView markdown={markdown} />
-      </MarkdownContextProvider>,
-    );
+    rerender(<MarkdownView markdown={markdown} />);
 
     expect(container.querySelector(".codeblock")).toBe(codeblock);
   });

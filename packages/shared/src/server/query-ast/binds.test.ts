@@ -1,0 +1,137 @@
+import { describe, expect, it } from "vitest";
+
+import { compileClickhouseQuery } from "./compile";
+import { getClickhouseKysely } from "./dialect";
+
+const ctx = { projectId: "proj-1" };
+
+function compile(builder: Parameters<typeof compileClickhouseQuery>[0]) {
+  return compileClickhouseQuery(builder, ctx);
+}
+
+describe("typed params from the column registry", () => {
+  it("binds an integer compared to total_cost as Float64, not Int64", () => {
+    const { sql, params } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where("total_cost", ">", 1),
+    );
+    expect(sql).toMatch(/total_cost > \{p\d+:Float64\}/);
+    expect(sql).not.toMatch(/\{p\d+:Int64\}/);
+    expect(Object.values(params)).toContain(1);
+  });
+
+  it("binds an IN list against a Float column as Array(Float64)", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where("total_cost", "in", [1, 2]),
+    );
+    expect(sql).toMatch(/total_cost in \(\{p\d+:Array\(Float64\)\}\)/);
+  });
+
+  it("wraps an IN list against an Array column as Array(Array(...))", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where("metadata_names", "in", [["a"], ["b"]]),
+    );
+    expect(sql).toMatch(
+      /metadata_names in \(\{p\d+:Array\(Array\(String\)\)\}\)/,
+    );
+    expect(sql).not.toMatch(/metadata_names in \(\{p\d+:Array\(String\)\}\)/);
+  });
+
+  it("keeps DateTime64(3) when comparing through toStartOfMinute / toDate", () => {
+    const start = "2026-01-01 00:00:00.000";
+    const { sql: minuteSql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where((eb) =>
+          eb(
+            eb.fn("toStartOfMinute", ["start_time"]),
+            "=",
+            eb.fn("toStartOfMinute", [eb.val(start)]),
+          ),
+        ),
+    );
+    expect(minuteSql).toMatch(
+      /toStartOfMinute\(start_time\) = toStartOfMinute\(\{p\d+:DateTime64\(3\)\}\)/,
+    );
+
+    const { sql: dateSql } = compile(
+      getClickhouseKysely()
+        .selectFrom("traces as t")
+        .select("id")
+        .where((eb) =>
+          eb(
+            eb.fn("toDate", [eb.ref("t.timestamp")]),
+            "=",
+            eb.fn("toDate", [eb.val(start)]),
+          ),
+        ),
+    );
+    expect(dateSql).toMatch(
+      /toDate\(t\.timestamp\) = toDate\(\{p\d+:DateTime64\(3\)\}\)/,
+    );
+  });
+
+  it("does not type extra date-wrapper arguments as the column", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where((eb) =>
+          eb(
+            eb.fn("toStartOfDay", ["start_time", eb.val("UTC")]),
+            ">=",
+            "2026-01-01 00:00:00.000",
+          ),
+        ),
+    );
+    expect(sql).toMatch(/toStartOfDay\(start_time, \{p\d+:String\}\)/);
+  });
+
+  it("does not type a subquery LIMIT from an outer column comparison", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("trace_id")
+        .where(
+          "trace_id",
+          "in",
+          getClickhouseKysely().selectFrom("traces").select("id").limit(3),
+        ),
+    );
+    expect(sql).toMatch(/limit \{p\d+:Int64\}/);
+    expect(sql).not.toMatch(/limit \{p\d+:String\}/);
+  });
+
+  it("interns the same typed value to one placeholder across UNION branches", () => {
+    const { sql, params } = compile(
+      getClickhouseKysely()
+        .selectFrom("traces")
+        .select("environment")
+        .where("id", "=", "same")
+        .unionAll(
+          getClickhouseKysely()
+            .selectFrom("observations")
+            .select("environment")
+            .where("trace_id", "=", "same"),
+        ),
+    );
+    expect(
+      Object.entries(params).filter(([, value]) => value === "same"),
+    ).toHaveLength(1);
+    const sameName = Object.entries(params).find(
+      ([, value]) => value === "same",
+    )?.[0];
+    expect(sameName).toBeDefined();
+    const occurrences = sql.split(`{${sameName}:String}`).length - 1;
+    expect(occurrences).toBe(2);
+  });
+});

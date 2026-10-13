@@ -22,3 +22,9 @@ types:
       totalPages:
         type: integer
         docs: number of total pages given the current limit
+  CursorMetaResponse:
+    docs: Metadata for cursor-based pagination.
+    properties:
+      cursor:
+        type: optional<string>
+        docs: Opaque cursor for the next page. Omitted when there is no next page.

@@ -24,6 +24,7 @@ describe("EvaluatorSetupFooter", () => {
           isSaving={false}
           nameAIAssistanceAvailable={false}
           codeValidation={{ isValid: false, isPending: false }}
+          fallbackDecisionModel={null}
           onClose={vi.fn()}
           onSave={vi.fn()}
         />
@@ -33,6 +34,42 @@ describe("EvaluatorSetupFooter", () => {
     expect(
       screen.getByRole("button", { name: "Create evaluator" }),
     ).toBeDisabled();
+  });
+
+  it("explains that empty prompt messages block evaluator creation", async () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      initialType: "LLM_AS_JUDGE",
+      mode: "create",
+    });
+    store.getState().actions.setName("LLM evaluator");
+    store.getState().actions.setPromptMessage(0, { role: "user", content: "" });
+
+    render(
+      <TooltipProvider delayDuration={0}>
+        <EvaluatorSetupFooter
+          store={store}
+          initialSnapshot=""
+          isEditing={false}
+          isSaving={false}
+          nameAIAssistanceAvailable={false}
+          codeValidation={null}
+          fallbackDecisionModel={null}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    const createButton = screen.getByRole("button", {
+      name: "Create evaluator",
+    });
+    expect(createButton).toBeDisabled();
+
+    fireEvent.focus(createButton.parentElement!);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Add content to every prompt message before saving.",
+    );
   });
 
   it("explains that empty category names block evaluator creation", async () => {
@@ -61,6 +98,7 @@ describe("EvaluatorSetupFooter", () => {
           isSaving={false}
           nameAIAssistanceAvailable={false}
           codeValidation={null}
+          fallbackDecisionModel={null}
           onClose={vi.fn()}
           onSave={vi.fn()}
         />

@@ -15,10 +15,11 @@ import {
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 import { randomUUID } from "crypto";
-
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Score",
+    action: "scores:save",
     bodySchema: PostScoresBodyV1,
     responseSchema: PostScoresResponseV1,
     allowedAccessLevels: ["project", "scores"],
@@ -29,6 +30,44 @@ export default withMiddlewares({
         );
       }
 
+      const scoresApiService = new ScoresApiService("v1");
+      const attribution = createIngestionAttribution({
+        headers: req.headers,
+        authCheck: auth,
+      });
+
+      if (Array.isArray(body)) {
+        const conformedBodies = body.map((score) => {
+          if (
+            typeof score !== "object" ||
+            score === null ||
+            Array.isArray(score)
+          ) {
+            // Leave malformed items for ingestion to reject.
+            return score;
+          }
+          // Generate IDs for scores with missing or empty IDs.
+          return { ...score, id: ("id" in score && score.id) || randomUUID() };
+        });
+        const { result } = await scoresApiService.createScores({
+          bodies: conformedBodies,
+          auth,
+          attribution,
+        });
+        if (result.errors.length > 0) {
+          res.status(207);
+          return {
+            accepted: result.successes.length,
+            rejected: result.errors.length,
+            errors: result.errors.map((error) => ({
+              message: error.error ?? error.message ?? "Failed to create score",
+            })),
+          };
+        }
+        res.status(202);
+        return { message: "Accepted" };
+      }
+
       const conformedBody = {
         ...body,
         // We previously used `if(!body.id)` to decide if a new ID should be generated,
@@ -37,14 +76,10 @@ export default withMiddlewares({
         id: body.id || randomUUID(),
       };
 
-      const scoresApiService = new ScoresApiService("v1");
       const { id, result } = await scoresApiService.createScore({
         body: conformedBody,
         auth,
-        attribution: createIngestionAttribution({
-          headers: req.headers,
-          authCheck: auth,
-        }),
+        attribution,
       });
       if (result.errors.length > 0) {
         const error = result.errors[0];
@@ -62,12 +97,38 @@ export default withMiddlewares({
   }),
   GET: createAuthedProjectAPIRoute({
     name: "/api/public/scores",
+    action: "scores:read",
     querySchema: GetScoresQueryV1,
     responseSchema: GetScoresResponseV1,
     deprecation: SCORES_DEPRECATION,
     rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       const scoresApiService = new ScoresApiService("v1");
+      const dataAccessWindow = clampToDataAccessDays({
+        plan: auth.scope.plan,
+        fromTimestamp: query.fromTimestamp ?? undefined,
+      });
+      const advancedFilters = dataAccessWindow.accessFloor
+        ? [
+            ...(query.filter ?? []),
+            {
+              column: "timestamp",
+              operator: ">=" as const,
+              value: dataAccessWindow.effectiveFromTimestamp!,
+              type: "datetime" as const,
+            },
+            ...(query.toTimestamp
+              ? [
+                  {
+                    column: "timestamp",
+                    operator: "<" as const,
+                    value: new Date(query.toTimestamp),
+                    type: "datetime" as const,
+                  },
+                ]
+              : []),
+          ]
+        : query.filter;
 
       const scoreParams = {
         projectId: auth.scope.projectId,
@@ -79,14 +140,14 @@ export default withMiddlewares({
         queueId: query.queueId ?? undefined,
         traceTags: query.traceTags ?? undefined,
         dataType: query.dataType ?? undefined,
-        fromTimestamp: query.fromTimestamp ?? undefined,
+        fromTimestamp: dataAccessWindow.effectiveFromTimestamp?.toISOString(),
         toTimestamp: query.toTimestamp ?? undefined,
         environment: query.environment ?? undefined,
         source: query.source ?? undefined,
         value: query.value ?? undefined,
         operator: query.operator ?? undefined,
         scoreIds: query.scoreIds ?? undefined,
-        advancedFilters: query.filter,
+        advancedFilters,
       };
       const [items, count] = await Promise.all([
         scoresApiService.generateScoresForPublicApi(scoreParams),

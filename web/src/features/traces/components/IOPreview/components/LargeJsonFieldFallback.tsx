@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Download } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 /** How much of the raw payload the preview head shows. Bounded regardless of
  *  payload size — the full value is reachable via download or the other views. */
@@ -91,7 +91,7 @@ export function LargeJsonFieldFallback({
         <div className="text-muted-foreground flex items-center gap-2 px-1 py-1 text-xs">
           <span>{sizeSummary}</span>
           <Button variant="outline" size="sm" onClick={onDownload}>
-            <Download className="mr-1 h-3.5 w-3.5" />
+            <Download className="icon-base text-icon-foreground mr-1" />
             Download {title}
           </Button>
         </div>
@@ -118,7 +118,7 @@ export function LargeJsonFieldFallback({
         </pre>
         <div>
           <Button variant="outline" size="sm" onClick={onDownload}>
-            <Download className="mr-1 h-3.5 w-3.5" />
+            <Download className="icon-base text-icon-foreground mr-1" />
             Download {title}
           </Button>
         </div>

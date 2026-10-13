@@ -1,0 +1,24 @@
+{
+  "name": "@repo/langfuse-skills",
+  "version": "0.0.0",
+  "private": true,
+  "engines": {
+    "node": "24"
+  },
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js",
+      "require": "./src/index.js"
+    }
+  },
+  "scripts": {
+    "sync": "node scripts/sync-skills.mjs",
+    "sync:check": "node scripts/sync-skills.mjs --check"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3"
+  }
+}

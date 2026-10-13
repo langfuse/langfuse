@@ -1,6 +1,6 @@
 import { api } from "@/src/utils/api";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
+import { keepPreviousData } from "@tanstack/react-query";
+import { useEventsTraceData, useReadPath } from "@/src/features/events";
 import { useSession } from "next-auth/react";
 
 /**
@@ -21,7 +21,7 @@ export function useTraceDetailData({
   timestamp?: Date;
   enabled?: boolean;
 }) {
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const { status: sessionStatus } = useSession();
   const isUnauthenticated = sessionStatus === "unauthenticated";
   const traceReadConfig = api.public.traceReadConfig.useQuery(undefined, {
@@ -35,7 +35,7 @@ export function useTraceDetailData({
     traceReadConfig.data?.v4WriteMode === "dual" ||
     traceReadConfig.data?.v4WriteMode === "events_only";
   const useEventsTraceSource =
-    isBetaEnabled || (isUnauthenticated && unauthenticatedEventsReadEnabled);
+    isV4 || (isUnauthenticated && unauthenticatedEventsReadEnabled);
 
   // Old path: traces table (beta OFF).
   const tracesQuery = api.traces.byIdWithObservationsAndScores.useQuery(
@@ -60,6 +60,7 @@ export function useTraceDetailData({
         return failureCount < 3;
       },
       staleTime: 60 * 1000,
+      placeholderData: keepPreviousData,
     },
   );
 
@@ -85,6 +86,7 @@ export function useTraceDetailData({
       isNotFound: false,
       isUnauthorized: false,
       truncatedAtObservations: undefined,
+      isPlaceholderData: false,
     };
   }
 
@@ -109,6 +111,7 @@ export function useTraceDetailData({
         !eventsData.isLoading && !eventsData.data && !eventsData.error,
       isUnauthorized,
       truncatedAtObservations: eventsData.truncatedAtObservations,
+      isPlaceholderData: eventsData.isPlaceholderData,
     };
   }
 
@@ -121,5 +124,6 @@ export function useTraceDetailData({
     isUnauthorized: tracesQuery.error?.data?.code === "UNAUTHORIZED",
     // The traces-table read path has no row cap.
     truncatedAtObservations: undefined,
+    isPlaceholderData: tracesQuery.isPlaceholderData,
   };
 }

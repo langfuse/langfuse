@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { type Prisma, prisma } from "@langfuse/shared/src/db";
@@ -54,14 +55,7 @@ async function prepare() {
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: true,
     },
     environment: {

@@ -16,6 +16,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   buildAnalyticsRedirectOptions,
+  hostnameForLog,
   rethrowIfOutboundValidationFailure,
 } from "../analyticsIntegrationEgress";
 import {
@@ -27,6 +28,7 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
+import { isExportCaughtUp } from "../../services/exportStalenessMetric";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { classifyCustomerFault } from "../integrations/customerFaultClassification";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
@@ -283,6 +285,8 @@ export const handlePostHogIntegrationProjectJob = async (
     return;
   }
 
+  const runStartTime = new Date();
+
   try {
     // Validate PostHog hostname to prevent SSRF attacks before sending data.
     // Rewrap preserving { cause } so the single catch below can classify the
@@ -291,7 +295,7 @@ export const handlePostHogIntegrationProjectJob = async (
       await validateWebhookURL(postHogIntegration.posthogHostName);
     } catch (error) {
       logger.error(
-        `[POSTHOG] PostHog integration for project ${projectId} has invalid hostname: ${postHogIntegration.posthogHostName}. Error: ${error instanceof Error ? error.message : String(error)}`,
+        `[POSTHOG] PostHog integration for project ${projectId} has invalid hostname: ${hostnameForLog(postHogIntegration.posthogHostName)}. Error: ${error instanceof Error ? error.message : String(error)}`,
       );
       throw new Error(
         `Invalid PostHog hostname for project ${projectId}: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -416,6 +420,12 @@ export const handlePostHogIntegrationProjectJob = async (
         lastSyncAt: executionConfig.maxTimestamp,
         lastError: null,
         lastErrorAt: null,
+        ...(isExportCaughtUp({
+          lastSyncAt: executionConfig.maxTimestamp,
+          runStartTime,
+        })
+          ? { backfill: false }
+          : {}),
       },
     });
     // Record gzipped on-wire export volume once the run has succeeded.
@@ -517,7 +527,7 @@ export const handlePostHogIntegrationProjectJob = async (
     await notifyPostHogExportFailed(
       projectId,
       postHogIntegration.project.name,
-      postHogIntegration.posthogHostName,
+      hostnameForLog(postHogIntegration.posthogHostName),
     );
     return;
   }

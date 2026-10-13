@@ -1,4 +1,4 @@
-import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
+import type { Entitlement } from "@/src/features/entitlements";
 import {
   type ProjectScope,
   type BatchActionType,
@@ -25,7 +25,7 @@ type BaseTableAction = {
   };
 };
 
-export type CreateTableAction = BaseTableAction & {
+type CreateTableAction = BaseTableAction & {
   type: BatchActionType.Create;
   targetLabel: string;
   execute: ({

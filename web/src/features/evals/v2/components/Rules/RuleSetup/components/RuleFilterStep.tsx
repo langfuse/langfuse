@@ -4,7 +4,7 @@ import { useStore } from "zustand";
 import { RuleSampleObservationSelector } from "@/src/features/evals/v2/components/Evaluators/Testing/components/RuleSampleObservationSelector/RuleSampleObservationSelector";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
-import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import { RULE_SAMPLE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { env } from "@/src/env.mjs";
 import { RuleSamplingSection } from "./RuleSamplingSection";
 
@@ -38,7 +38,7 @@ export function RuleFilterStep({
         filterState={filter}
         onFilterStateChange={actions.setFilter}
         tableName="evaluation-rule-matching-observations"
-        registry={RULE_FIELD_REGISTRY}
+        registry={RULE_SAMPLE_FIELD_REGISTRY}
         selectedObservationId={selectedObservationId}
         onSelect={actions.setSelectedObservation}
         onOpenTrace={(observation) => {

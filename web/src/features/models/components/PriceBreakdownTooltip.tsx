@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import Decimal from "decimal.js";
 import { InfoIcon } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -9,7 +10,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
 import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
 import { type PriceUnit } from "@/src/features/models/validation";
 
@@ -17,27 +17,26 @@ export const PriceBreakdownTooltip = ({
   modelName,
   prices,
   priceUnit,
+  priceUnitMultiplier,
   rowHeight,
 }: {
   modelName: string;
-  prices?: Record<string, number>;
+  prices: Record<string, number>;
   priceUnit: PriceUnit;
+  priceUnitMultiplier: number;
   rowHeight: RowHeight;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const { priceUnitMultiplier } = usePriceUnitMultiplier();
 
   const maxDecimals = useMemo(
     () =>
       Math.max(
-        ...Object.values(prices ?? {}).map((price) => {
+        ...Object.values(prices).map((price) => {
           return getMaxDecimals(price, priceUnitMultiplier);
         }),
       ),
     [prices, priceUnitMultiplier],
   );
-
-  if (!prices) return null;
 
   return (
     <>
@@ -73,7 +72,7 @@ export const PriceBreakdownTooltip = ({
               className="flex cursor-pointer items-center gap-2 pr-4 text-xs"
               onClick={() => setIsOpen(!isOpen)}
             >
-              <InfoIcon className="h-3 w-3" />
+              <InfoIcon className="icon-sm" />
               {Object.keys(prices).length} prices set
             </TooltipTrigger>
             <TooltipContent className="min-w-64 grow p-4">

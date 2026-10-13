@@ -18,14 +18,9 @@ import {
   getAbbreviatedTimeRange,
   getTimeRangeLabel,
 } from "@/src/utils/date-range-utils";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import { useMemo } from "react";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-  HoverCardPortal,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 type BaseDateRangeDropdownProps<T> = {
   selectedOption: T;
@@ -76,15 +71,19 @@ const BaseDateRangeDropdown = <T extends string>({
           const isLimited = limitedOptions?.includes(item);
 
           return isLimited ? (
-            <HoverCard openDelay={200} key={item}>
-              <HoverCardTrigger asChild>
-                <span>{itemObj}</span>
-              </HoverCardTrigger>
-              <HoverCardPortal>
-                <HoverCardContent className="w-60 text-sm" side="right">
+            <HoverCard
+              openDelay={200}
+              key={item}
+              placement="right"
+              content={
+                <div className="w-60 p-3 text-sm">
                   This time range is not available in your current plan.
-                </HoverCardContent>
-              </HoverCardPortal>
+                </div>
+              }
+            >
+              {({ getTriggerProps }) => (
+                <span {...getTriggerProps()}>{itemObj}</span>
+              )}
             </HoverCard>
           ) : (
             itemObj

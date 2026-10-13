@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import React, { useEffect, useState, useRef, type ReactNode } from "react";
 import { CircleFadingArrowUp } from "lucide-react";
@@ -14,7 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
@@ -23,9 +24,12 @@ import {
   type Prompt,
 } from "@langfuse/shared";
 import { LabelCommandItem } from "./LabelCommandItem";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { isReservedPromptLabel } from "@/src/features/prompts/utils";
-import { TruncatedLabels } from "@/src/components/TruncatedLabels";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import {
+  isReservedPromptLabel,
+  toPromptLabelListItems,
+} from "@/src/features/prompts/utils";
+import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
 import { cn } from "@/src/utils/tailwind";
 
 export function SetPromptVersionLabels({
@@ -178,10 +182,12 @@ export function SetPromptVersionLabels({
           )}
         >
           {title && title}
-          <TruncatedLabels
-            labels={promptLabels}
-            maxVisibleLabels={maxVisibleLabels}
-          />
+          {promptLabels.length > 0 && (
+            <LabelList
+              labels={toPromptLabelListItems(promptLabels)}
+              maxVisible={maxVisibleLabels}
+            />
+          )}
           <Button
             variant="outline"
             title="Add prompt label"
@@ -191,7 +197,7 @@ export function SetPromptVersionLabels({
               !hasAccess && "cursor-not-allowed group-hover:opacity-50",
             )}
           >
-            <CircleFadingArrowUp className="h-3.5 w-3.5 shrink-0" />
+            <CircleFadingArrowUp className="icon-base text-icon-foreground shrink-0" />
           </Button>
         </div>
       </PopoverTrigger>

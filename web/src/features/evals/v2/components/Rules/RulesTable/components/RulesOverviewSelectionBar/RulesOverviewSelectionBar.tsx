@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useStore } from "zustand";
 import { RulesOverviewSelectionBarView } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RulesOverviewSelectionBar/RulesOverviewSelectionBarView";
 import type { RulesTableStore } from "@/src/features/evals/v2/types/rules";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import type { FilterState } from "@langfuse/shared";
@@ -35,7 +35,7 @@ export function RulesOverviewSelectionBar({
     : selectedIds.length;
   const selectionActions = selectionStore.getState().actions;
   const setEnabled = api.evalsV2.rules.setManyEnabled.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.status_update"),
     onSuccess: async (result, variables) => {
       capture("evaluation_rules:status_change", {
         isEnabled: variables.enabled,
@@ -46,7 +46,7 @@ export function RulesOverviewSelectionBar({
     },
   });
   const deleteMany = api.evalsV2.rules.deleteMany.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.delete"),
     onSuccess: async (result) => {
       capture("evaluation_rules:delete", {
         ruleCount: result.ruleIds.length,

@@ -5,6 +5,7 @@ import {
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
 } from "../constants";
 import type { AgUiEvent } from "../schema";
+import { isRecord } from "./toolErrors";
 
 export type SilentInAppAgentMcpToolOutput = {
   type: typeof IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE;
@@ -69,6 +70,63 @@ export function isSilentInAppAgentMcpToolOutput(
     value.type === IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE &&
     "output" in value
   );
+}
+
+export type AiSdkToolModelOutput = {
+  type: string;
+  value: unknown;
+};
+
+/**
+ * Map tool execute results to the LanguageModelV3 `{ type, value }` shape.
+ * Providers serialize `output.value`; a raw MCP `{ content }` envelope has
+ * no `.value` and becomes an empty tool result on the wire.
+ */
+export function toAiSdkToolModelOutput(output: unknown): AiSdkToolModelOutput {
+  if (typeof output === "string") {
+    return { type: "text", value: output };
+  }
+
+  if (isSilentInAppAgentMcpToolOutput(output)) {
+    if (output.toolCallId && output.toolName) {
+      return {
+        type: "text",
+        value: getInAppAgentSilentMcpOutputMessage(
+          output.toolName,
+          output.toolCallId,
+        ),
+      };
+    }
+
+    return toAiSdkToolModelOutput(output.output);
+  }
+
+  if (
+    isRecord(output) &&
+    typeof output.type === "string" &&
+    "value" in output
+  ) {
+    return { type: output.type, value: output.value };
+  }
+
+  return { type: "json", value: output };
+}
+
+/** AG-UI tool messages store a string. Unwrap LanguageModelV3 `{ type, value }`. */
+export function toAgUiToolResultContent(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (isRecord(value) && typeof value.type === "string" && "value" in value) {
+    return toAgUiToolResultContent(value.value);
+  }
+
+  try {
+    return JSON.stringify(value ?? null);
+  } catch {
+    return String(value);
+  }
 }
 
 /** Withhold private persisted event payloads from browser-facing streams. */

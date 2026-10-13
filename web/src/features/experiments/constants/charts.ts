@@ -1,9 +1,12 @@
+import type { ScoreLevel as ScoreTagLevel } from "@/src/components/score-tag";
 import type {
   ScoreLevel,
   ScoreMetricSpec,
 } from "@/src/features/experiments/types/charts";
-import type { WidgetDimensionConfig } from "@/src/features/widgets/hooks/useWidgetQuery";
+import type { WidgetDimensionConfig } from "@/src/features/widgets";
 import type { FilterCondition } from "@langfuse/shared";
+
+export const MAX_EXPERIMENT_CHARTS = 4;
 
 // Base chart IDs
 export const BASE_CHART_IDS = {
@@ -11,32 +14,48 @@ export const BASE_CHART_IDS = {
   LATENCY: "base:latency",
 } as const;
 
-export const MAX_CHARTS = 4;
+/**
+ * The level tag shown next to a score name in the metric dropdown, in the
+ * vocabulary the tracing tables' score pickers use (`ScoreTag`).
+ */
+export const SCORE_LEVEL_TAGS: Record<ScoreLevel, ScoreTagLevel> = {
+  obs: "observation",
+  experiment: "experiment",
+};
+
+/**
+ * Where the boolean score names sit per level. Booleans are also listed under
+ * `*_scores_avg` (they are stored as 0/1), so this is what tells a numeric
+ * option apart from a boolean one.
+ */
+export const SCORE_BOOLEAN_FILTER_KEYS: Record<
+  ScoreLevel,
+  "obs_score_booleans" | "experiment_score_booleans"
+> = {
+  obs: "obs_score_booleans",
+  experiment: "experiment_score_booleans",
+};
 
 export const SCORE_METRIC_SPECS: ScoreMetricSpec = {
   "obs:numeric": {
     level: "obs",
     dataType: "numeric",
     filterKey: "obs_scores_avg",
-    group: "Observation Scores",
   },
   "obs:categorical": {
     level: "obs",
     dataType: "categorical",
     filterKey: "obs_score_categories",
-    group: "Observation Scores",
   },
   "experiment:numeric": {
     level: "experiment",
     dataType: "numeric",
     filterKey: "experiment_scores_avg",
-    group: "Experiment Scores",
   },
   "experiment:categorical": {
     level: "experiment",
     dataType: "categorical",
     filterKey: "experiment_score_categories",
-    group: "Experiment Scores",
   },
 };
 

@@ -3,7 +3,8 @@ import React from "react";
 import { ArrowUpRight } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { CodeMirrorEditor } from "@/src/components/editor";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
+import { assertUnreachable } from "@langfuse/shared";
 
 type JSONSchemaEditorMode = "json"; // Future: "json" | "builder"
 
@@ -56,6 +57,11 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
       showErrorToast(
         "Failed to prettify JSON",
         "Please verify your input is valid JSON",
+        {
+          operation: "json_schema.prettify",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
         "WARNING",
       );
     }
@@ -75,7 +81,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
               className="hover:text-foreground inline-flex items-center underline"
             >
               See JSON Schema examples
-              <ArrowUpRight className="ml-0.5 h-3 w-3" />
+              <ArrowUpRight className="icon-sm ml-0.5" />
             </a>
           </p>
         )}
@@ -107,5 +113,5 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
   }
 
   // Future mode implementations go here
-  return null;
+  return assertUnreachable(mode);
 };

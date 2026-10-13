@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ---- Hoisted mocks ----
@@ -44,6 +45,7 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
       },
       organizationMembership: {
         findFirst: vi.fn(async (): Promise<unknown> => null),
+        findUnique: vi.fn(async (): Promise<unknown> => null),
         findMany: vi.fn(async (): Promise<unknown[]> => []),
         count: vi.fn(async () => 1),
         create: vi.fn(async (): Promise<unknown> => ({})),
@@ -61,6 +63,9 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
       },
       auditLog: {
         create: vi.fn(async () => ({})),
+      },
+      apiKey: {
+        findUnique: vi.fn(async (): Promise<unknown> => null),
       },
       // Starter-org provisioning serializes on SELECT ... FOR UPDATE.
       $queryRaw: vi.fn(async (): Promise<unknown> => []),
@@ -125,7 +130,9 @@ import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/create
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { handleUpdateMembership } from "@/src/ee/features/admin-api/server/memberships";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { CloudConfigSchema, Role } from "@langfuse/shared";
+import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -650,6 +657,158 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(loggerMock.error).toHaveBeenCalled();
   });
+
+  describe("member re-link for orgs that predate the live sync", () => {
+    const PRE_SYNC_SIGNUP_AT = new Date("2026-05-02T10:00:00.000Z");
+    const sentBodies = () =>
+      fetchMock.mock.calls.map(
+        ([, init]) =>
+          JSON.parse(init.body as string) as Record<string, unknown>,
+      );
+
+    beforeEach(() => {
+      fetchMock.mockImplementation(async () => emptyOkResponse());
+    });
+    afterEach(() => {
+      fetchMock.mockReset();
+    });
+
+    // The re-link runs in the background; its summary line marks the end.
+    const relinkFinished = (summary: Record<string, unknown>) =>
+      vi.waitFor(() =>
+        expect(loggerMock.info).toHaveBeenCalledWith(
+          "[SFDC] linked existing members after plan change",
+          expect.objectContaining(summary),
+        ),
+      );
+    const preSyncOwner = {
+      userId: "owner-old",
+      role: "OWNER",
+      user: {
+        email: "owner@old.test",
+        name: "Old Owner",
+        createdAt: PRE_SYNC_SIGNUP_AT,
+      },
+    };
+
+    it("links every member on the Hobby→paid upgrade, upserting Leads only for pre-sync signups", async () => {
+      prismaMock.organizationMembership.findMany.mockResolvedValueOnce([
+        preSyncOwner,
+        {
+          userId: "member-new",
+          role: "MEMBER",
+          user: {
+            email: "member@new.test",
+            name: "New Member",
+            createdAt: SIGNUP_AT,
+          },
+        },
+      ]);
+      // Lead-source heuristic: the owner's earliest membership was as OWNER.
+      prismaMock.organizationMembership.findFirst.mockResolvedValueOnce({
+        role: "OWNER",
+      });
+
+      await syncOrgPlanChangeToSfdc({
+        orgBeforeUpdate: orgBefore(null),
+        updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+        billingCycleAnchor: CONVERTED_AT,
+      });
+
+      await relinkFinished({ orgId: "org-1", members: 2, linked: 2 });
+
+      // Account first, then each member's Lead before its bridge. The
+      // post-sync member got its Lead at signup — only the bridge is sent.
+      expect(sentBodies()).toEqual([
+        expect.objectContaining({ type: "updateOrg", plan: "Pro" }),
+        expect.objectContaining({
+          userId: "owner-old",
+          email: "owner@old.test",
+          leadSource: "Langfuse Cloud Signup",
+        }),
+        expect.objectContaining({
+          type: "setUserRole",
+          orgId: "org-1",
+          userId: "owner-old",
+          role: "ADMIN",
+        }),
+        expect.objectContaining({
+          type: "setUserRole",
+          orgId: "org-1",
+          userId: "member-new",
+          role: "DEVELOPER",
+        }),
+      ]);
+    });
+
+    it("sends no bridge for a member whose Lead was not delivered", async () => {
+      fetchMock.mockImplementation(async (url: string) =>
+        url === "https://mulesoft.test/manage-user"
+          ? nonOkResponse(500)
+          : emptyOkResponse(),
+      );
+      prismaMock.organizationMembership.findMany.mockResolvedValueOnce([
+        preSyncOwner,
+      ]);
+
+      await syncOrgPlanChangeToSfdc({
+        orgBeforeUpdate: orgBefore(null),
+        updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+        billingCycleAnchor: CONVERTED_AT,
+      });
+      await relinkFinished({ members: 1, linked: 0 });
+
+      expect(sentBodies().map((body) => body.type ?? "upsertUser")).toEqual([
+        "updateOrg",
+        "upsertUser",
+      ]);
+    });
+
+    it("keeps a member query failure inside the re-link", async () => {
+      prismaMock.organizationMembership.findMany.mockRejectedValueOnce(
+        new Error("db down"),
+      );
+
+      await expect(
+        syncOrgPlanChangeToSfdc({
+          orgBeforeUpdate: orgBefore(null),
+          updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+          billingCycleAnchor: CONVERTED_AT,
+        }),
+      ).resolves.toBeUndefined();
+      await vi.waitFor(() =>
+        expect(loggerMock.error).toHaveBeenCalledWith(
+          "[SFDC] failed to link existing members after plan change",
+          { orgId: "org-1", error: "db down" },
+        ),
+      );
+      expect(fetchMock).toHaveBeenCalledOnce();
+    });
+
+    it("does not re-link members of orgs created after the live sync started", async () => {
+      await syncOrgPlanChangeToSfdc({
+        orgBeforeUpdate: {
+          ...orgBefore(null),
+          createdAt: new Date("2026-08-01T00:00:00.000Z"),
+        },
+        updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+        billingCycleAnchor: CONVERTED_AT,
+      });
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(prismaMock.organizationMembership.findMany).not.toHaveBeenCalled();
+    });
+
+    it("does not link members when the account push fails", async () => {
+      fetchMock.mockImplementation(async () => nonOkResponse(500));
+      await syncOrgPlanChangeToSfdc({
+        orgBeforeUpdate: orgBefore(null),
+        updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+        billingCycleAnchor: CONVERTED_AT,
+      });
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(prismaMock.organizationMembership.findMany).not.toHaveBeenCalled();
+    });
+  });
 });
 
 // ---- Call sites ----
@@ -680,14 +839,7 @@ function buildOwnerSession(orgId: string): Session {
           projects: [],
         },
       ],
-      featureFlags: {
-        searchBar: false,
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: false,
     },
     environment: {
@@ -790,6 +942,38 @@ describe("call site: tRPC members.updateOrgMembership", () => {
 
 describe("call site: admin API handleUpdateMembership", () => {
   const member = { id: "member-1", email: "member@test.com", name: "Member" };
+  const context: AuthorizationContext = {
+    principal: {
+      kind: "apiKey",
+      apiKeyId: "key-1",
+      userId: null,
+      isInAppAgentKey: false,
+      publicKey: "pk-lf-test",
+      scope: "ORGANIZATION",
+      presentation: "privateKey",
+      organizations: [
+        {
+          orgId: "org-1",
+          organizationCreatedAt: ORG_CREATED_AT.toISOString(),
+          plan: "cloud:team",
+          rateLimitOverrides: [],
+          projectIds: [],
+          isIngestionSuspended: false,
+        },
+      ],
+      boundResource: { orgId: "org-1" },
+    },
+    policies: [
+      {
+        id: "membership-admin",
+        roleId: SystemRoleId("ADMIN"),
+        tenantId: OrganizationId("org-1"),
+        effect: "ALLOW",
+        actions: ["organizationMembers:CUD"],
+        resources: [OrganizationId("org-1")],
+      },
+    ],
+  };
 
   it("syncs a downgrade to NONE as removeUser", async () => {
     prismaMock.user.findUnique.mockResolvedValueOnce(member);
@@ -804,7 +988,7 @@ describe("call site: admin API handleUpdateMembership", () => {
       body: { userId: "member-1", role: "NONE" },
     } as NextApiRequest;
     const res = createMockRes();
-    await handleUpdateMembership(req, res, "org-1");
+    await handleUpdateMembership(req, res, "org-1", "key-1", context);
 
     expect(res.statusCode).toBe(200);
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -831,7 +1015,7 @@ describe("call site: admin API handleUpdateMembership", () => {
       body: { userId: "member-1", role: "MEMBER" },
     } as NextApiRequest;
     const res = createMockRes();
-    await handleUpdateMembership(req, res, "org-1");
+    await handleUpdateMembership(req, res, "org-1", "key-1", context);
 
     expect(res.statusCode).toBe(200);
     expect(fetchMock).toHaveBeenCalledOnce();

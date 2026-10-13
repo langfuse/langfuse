@@ -23,7 +23,7 @@ import {
 import { stripeClient as defaultStripeClient } from "@/src/ee/features/billing/utils/stripe";
 import { StripeCatalogue } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { createStripeClientReference } from "@/src/ee/features/billing/utils/stripeClientReference";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 
 import {
   makeIdempotencyKey,
@@ -64,7 +64,7 @@ export type BillingSubscriptionInfo = {
   hasValidPaymentMethod: boolean;
 };
 
-class BillingService {
+export class BillingService {
   constructor(
     private stripe: Stripe,
     private ctx: OrgAuthedContext,
@@ -282,7 +282,6 @@ class BillingService {
           idempotencyKey,
           opId,
           userId: this.ctx.session.user?.id,
-          userEmail: this.ctx.session.user?.email,
         });
         await client.subscriptionSchedules.release(
           schedule.id,
@@ -408,7 +407,6 @@ class BillingService {
                   "StripeBillingService.getSubscriptionInfo:stripe.subscription.schedule.nextPhase.item.price.notExpanded",
                   {
                     userId: this.ctx.session.user?.id,
-                    userEmail: this.ctx.session.user?.email,
                     customerId: parsedOrg.cloudConfig?.stripe?.customerId,
                     subscriptionId:
                       parsedOrg.cloudConfig?.stripe?.activeSubscriptionId,
@@ -425,7 +423,6 @@ class BillingService {
                   "StripeBillingService.getSubscriptionInfo:stripe.subscription.schedule.nextPhase.item.price.deleted",
                   {
                     userId: this.ctx.session.user?.id,
-                    userEmail: this.ctx.session.user?.email,
                     customerId: parsedOrg.cloudConfig?.stripe?.customerId,
                     subscriptionId:
                       parsedOrg.cloudConfig?.stripe?.activeSubscriptionId,
@@ -523,7 +520,6 @@ class BillingService {
               "StripeBillingService.getSubscriptionInfo:failed to check payment method",
               {
                 userId: this.ctx.session.user?.id,
-                userEmail: this.ctx.session.user?.email,
                 customerId:
                   typeof subscription.customer === "string"
                     ? subscription.customer
@@ -572,7 +568,7 @@ class BillingService {
 
         if (!stripeCustomerId || !stripeSubscriptionId) {
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "No stripe customer or subscription found",
           });
         }
@@ -620,9 +616,18 @@ class BillingService {
    *
    * @param orgId Organization id
    * @param stripeProductId Stripe Product id for the subscription plan
+   * @param _opId Unused here, and deliberately so: Stripe checkout session
+   * creation sends no idempotency key today and this keeps that unchanged. The
+   * parameter exists only so `cloudBillingRouter` can forward `opId` across the
+   * provider union, where the ClickHouse Billing path does key its request on
+   * it.
    * @returns Redirect URL to Stripe Checkout
    */
-  async createCheckoutSession(orgId: string, stripeProductId: string) {
+  async createCheckoutSession(
+    orgId: string,
+    stripeProductId: string,
+    _opId?: string,
+  ) {
     return await instrumentAsync(
       { name: "stripe.checkout.create", spanKind: SpanKind.CLIENT },
       async (span) => {
@@ -632,7 +637,7 @@ class BillingService {
 
         if (parsedOrg.cloudConfig?.plan) {
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message:
               "Cannot initialize stripe checkout for orgs that have a manual plan override",
           });
@@ -640,7 +645,7 @@ class BillingService {
 
         if (!StripeCatalogue.isValidCheckoutProduct(stripeProductId)) {
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "BAD_REQUEST",
             message: "Invalid stripe product id",
           });
         }
@@ -726,7 +731,6 @@ class BillingService {
           customerId: stripeCustomerId,
           productId: stripeProductId,
           userId: this.ctx.session.user.id,
-          userEmail: this.ctx.session.user.email,
         });
 
         try {
@@ -792,7 +796,7 @@ class BillingService {
 
         if (parsedOrg.cloudConfig?.plan)
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message:
               "Cannot change plan for orgs that have a manually set plan",
           });
@@ -802,7 +806,7 @@ class BillingService {
 
         if (!stripeSubscriptionId)
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "Organization does not have an active subscription",
           });
 
@@ -826,7 +830,7 @@ class BillingService {
           )
         ) {
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message:
               "Subscription is not active, current status: " +
               subscription.status,
@@ -835,7 +839,7 @@ class BillingService {
 
         if (!StripeCatalogue.isValidCheckoutProduct(newProductId)) {
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "BAD_REQUEST",
             message: "Invalid stripe product id for new product",
           });
         }
@@ -891,7 +895,6 @@ class BillingService {
             idempotencyKey: legacyUpdateKey,
             opId,
             userId: this.ctx.session.user?.id,
-            userEmail: this.ctx.session.user.email,
           });
           await client.subscriptions.update(
             stripeSubscriptionId,
@@ -937,7 +940,6 @@ class BillingService {
             orgId: parsedOrg.id,
             opId,
             userId: this.ctx.session.user.id,
-            userEmail: this.ctx.session.user.email,
           });
           await client.subscriptions.migrate(
             stripeSubscriptionId,
@@ -1003,7 +1005,6 @@ class BillingService {
             idempotencyKey: upgradeKey,
             opId,
             userId: this.ctx.session.user.id,
-            userEmail: this.ctx.session.user.email,
           });
           await client.subscriptions.update(
             stripeSubscriptionId,
@@ -1068,7 +1069,6 @@ class BillingService {
             idempotencyKey: createScheduleKey,
             opId,
             userId: this.ctx.session.user.id,
-            userEmail: this.ctx.session.user.email,
           },
         );
         const initialSchedule = await client.subscriptionSchedules.create(
@@ -1121,7 +1121,6 @@ class BillingService {
           idempotencyKey: updateScheduleKey,
           opId,
           userId: this.ctx.session.user.id,
-          userEmail: this.ctx.session.user.email,
         });
         await client.subscriptionSchedules.update(
           initialSchedule.id,
@@ -1188,7 +1187,7 @@ class BillingService {
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
         if (!subscriptionId)
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "No active subscription to cancel",
           });
 
@@ -1219,7 +1218,6 @@ class BillingService {
           idempotencyKey: cancelKey,
           opId,
           userId: this.ctx.session.user.id,
-          userEmail: this.ctx.session.user.email,
         });
 
         try {
@@ -1238,7 +1236,6 @@ class BillingService {
               subscriptionId,
               orgId: parsedOrg.id,
               userId: this.ctx.session.user.id,
-              userEmail: this.ctx.session.user.email,
               idempotencyKey: cancelKey,
               error,
               stripeRequestId: error?.requestId,
@@ -1288,7 +1285,7 @@ class BillingService {
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
         if (!subscriptionId)
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "No active subscription to reactivate",
           });
 
@@ -1323,7 +1320,6 @@ class BillingService {
           idempotencyKey: reactivateKey,
           opId,
           userId: this.ctx.session.user.id,
-          userEmail: this.ctx.session.user.email,
         });
 
         try {
@@ -1437,7 +1433,6 @@ class BillingService {
           idempotencyKey: cancelNowKey,
           opId,
           userId: this.ctx.session.user?.id,
-          userEmail: this.ctx.session.user?.email,
         });
 
         try {
@@ -1501,7 +1496,7 @@ class BillingService {
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
         if (!subscriptionId)
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "No active subscription found",
           });
 
@@ -1564,7 +1559,7 @@ class BillingService {
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
         if (!stripeCustomerId) {
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "No stripe customer or subscription found",
           });
         }
@@ -1924,7 +1919,7 @@ class BillingService {
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
         if (!subscriptionId)
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "PRECONDITION_FAILED",
             message: "Organization does not have an active subscription",
           });
 
@@ -2019,7 +2014,6 @@ class BillingService {
           idempotencyKey,
           opId,
           userId: this.ctx.session.user?.id,
-          userEmail: this.ctx.session.user?.email,
         });
 
         try {
@@ -2036,7 +2030,6 @@ class BillingService {
             "StripeBillingService.applyPromotionCode:stripe.subscription.update.failed",
             {
               userId: this.ctx.session.user?.id,
-              userEmail: this.ctx.session.user?.email,
               customerId: subscription.customer,
               subscriptionId,
               orgId: parsedOrg.id,

@@ -70,14 +70,14 @@ export function EvaluatorBlockedBanner({
       className="border-light-yellow bg-light-yellow rounded-lg border"
     >
       <div className="flex gap-3 p-4">
-        <AlertTriangle className="text-dark-yellow mt-0.5 h-4 w-4 shrink-0" />
+        <AlertTriangle className="text-dark-yellow icon-base mt-0.5 shrink-0" />
 
         <div className="min-w-0 flex-1">
-          <h2 className="text-foreground text-base leading-5 font-bold">
+          <h2 className="text-foreground text-base font-bold">
             Evaluator paused
           </h2>
 
-          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm leading-5">
+          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted-foreground font-bold">
               {blockMetadata.shortLabel}
             </span>
@@ -89,14 +89,14 @@ export function EvaluatorBlockedBanner({
             </Fragment>
           </div>
 
-          <p className="text-muted-foreground mt-2 max-w-3xl text-sm leading-5">
+          <p className="text-muted-foreground mt-2 max-w-3xl text-sm">
             {blockMessage ?? DEFAULT_BLOCK_MESSAGE}
           </p>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button asChild variant="outline" size="sm" className="h-8 px-3">
               <Link href={resolutionAction.href}>
-                <ExternalLinkIcon className="mr-1.5 h-3.5 w-3.5" />
+                <ExternalLinkIcon className="icon-base text-icon-foreground mr-1.5" />
                 {resolutionAction.label}
               </Link>
             </Button>
@@ -110,7 +110,7 @@ export function EvaluatorBlockedBanner({
                 onClick={onReactivate}
                 className="h-8 px-3"
               >
-                <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
+                <RefreshCcw className="icon-base text-icon-foreground mr-1.5" />
                 Reactivate
               </Button>
             ) : null}

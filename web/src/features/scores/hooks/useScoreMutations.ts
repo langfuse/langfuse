@@ -4,20 +4,10 @@ import {
   isTraceScore,
 } from "@/src/features/scores/lib/helpers";
 import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
-import { type ScoreTarget } from "@langfuse/shared";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
-export function useScoreMutations({
-  scoreTarget,
-  scoreMetadata,
-}: {
-  scoreTarget: ScoreTarget;
-  scoreMetadata: {
-    projectId: string;
-    queueId?: string;
-    environment?: string;
-  };
-}) {
+export function useScoreMutations() {
   const {
     set: cacheSet,
     get: cacheGet,
@@ -31,6 +21,7 @@ export function useScoreMutations({
   const createMutation = api.scores.createAnnotationScore.useMutation({
     onMutate: (variables) => {
       if (!variables.id) return;
+      const scoreTarget = variables.scoreTarget;
 
       // Write to columns cache
       cacheSetColumn({
@@ -42,8 +33,8 @@ export function useScoreMutations({
       // Write to cache for optimistic update
       cacheSet(variables.id, {
         id: variables.id,
-        projectId: scoreMetadata.projectId,
-        environment: scoreMetadata.environment ?? "default",
+        projectId: variables.projectId,
+        environment: variables.environment ?? "default",
         traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : null,
         observationId: isTraceScore(scoreTarget)
           ? (scoreTarget.observationId ?? null)
@@ -65,20 +56,26 @@ export function useScoreMutations({
       if (!variables.id) return;
       // Rollback failed create from cache
       cacheRollbackSet(variables.id);
-      showErrorToast("Failed to create score", err.message, "WARNING");
+      showErrorToast(
+        "Failed to create score",
+        err.message,
+        classifyTrpcToastError(err, "score.create"),
+        "WARNING",
+      );
     },
   });
 
   const updateMutation = api.scores.updateAnnotationScore.useMutation({
     onMutate: (variables) => {
+      const scoreTarget = variables.scoreTarget;
       const previousCacheValue = cacheGet(variables.id);
 
       if (!previousCacheValue) {
         // Write to cache for optimistic update
         cacheSet(variables.id, {
           id: variables.id,
-          projectId: scoreMetadata.projectId,
-          environment: scoreMetadata.environment ?? "default",
+          projectId: variables.projectId,
+          environment: variables.environment ?? "default",
           traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : null,
           observationId: isTraceScore(scoreTarget)
             ? (scoreTarget.observationId ?? null)
@@ -114,7 +111,12 @@ export function useScoreMutations({
         // No cache entry → was DB-persisted → rollback optimistic update
         cacheRollbackSet(variables.id);
       }
-      showErrorToast("Failed to update score", err.message, "WARNING");
+      showErrorToast(
+        "Failed to update score",
+        err.message,
+        classifyTrpcToastError(err, "score.update"),
+        "WARNING",
+      );
     },
   });
 
@@ -131,7 +133,12 @@ export function useScoreMutations({
     onError: (err, variables, context) => {
       // Rollback
       cacheRollbackDelete(variables.id, context?.previousCacheValue);
-      showErrorToast("Failed to delete score", err.message, "WARNING");
+      showErrorToast(
+        "Failed to delete score",
+        err.message,
+        classifyTrpcToastError(err, "score.delete"),
+        "WARNING",
+      );
     },
   });
 

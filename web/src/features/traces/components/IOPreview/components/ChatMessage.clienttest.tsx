@@ -38,7 +38,6 @@ import { ChatMlArraySchema } from "@langfuse/shared";
 
 import { ChatMessage } from "./ChatMessage";
 import { type ChatMlMessage } from "../../../fns/chatMessageUtils";
-import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { type IOPreviewContentMode } from "../IOPreview";
 
 function createMemoryStorage(): Storage {
@@ -78,14 +77,12 @@ function renderChatMessage(
   } = {},
 ) {
   return render(
-    <MarkdownContextProvider>
-      <ChatMessage
-        message={message}
-        shouldRenderMarkdown={shouldRenderMarkdown}
-        currentView="pretty"
-        contentMode={contentMode}
-      />
-    </MarkdownContextProvider>,
+    <ChatMessage
+      message={message}
+      shouldRenderMarkdown={shouldRenderMarkdown}
+      currentView="pretty"
+      contentMode={contentMode}
+    />,
   );
 }
 
@@ -119,10 +116,12 @@ describe("ChatMessage content modes", () => {
 
 // getByRole ignores elements hidden via display:none, so queries only see the
 // active render path (markdown vs json), even though ChatMessage mounts both.
-const expandButton = () =>
-  screen.queryByRole("button", { name: /expand system prompt/i });
-const collapseButton = () =>
-  screen.queryByRole("button", { name: /collapse system prompt/i });
+const expandButtons = () =>
+  screen.queryAllByRole("button", { name: /expand system prompt/i });
+const collapseButtons = () =>
+  screen.queryAllByRole("button", { name: /collapse system prompt/i });
+const expandButton = () => expandButtons()[0] ?? null;
+const collapseButton = () => collapseButtons()[0] ?? null;
 
 describe("ChatMessage system prompt collapse", () => {
   beforeEach(() => {
@@ -136,7 +135,10 @@ describe("ChatMessage system prompt collapse", () => {
       content: longSystemPrompt,
     } as ChatMlMessage);
 
-    expect(expandButton()).toBeInTheDocument();
+    // One control only, and it sits with the prompt body rather than being
+    // duplicated into the message header.
+    expect(expandButtons()).toHaveLength(1);
+    expect(expandButtons()[0].closest(".io-message-header")).toBeNull();
   });
 
   it("collapses a long system message that carries a name", () => {
@@ -172,7 +174,7 @@ describe("ChatMessage system prompt collapse", () => {
     expect(localStorage.getItem("collapseSystemPrompt")).toBe("false");
   });
 
-  it("respects a persisted expanded preference and does not force-collapse", () => {
+  it("respects a persisted expanded preference and collapses back on click", () => {
     localStorage.setItem("collapseSystemPrompt", "false");
 
     renderChatMessage({
@@ -180,9 +182,14 @@ describe("ChatMessage system prompt collapse", () => {
       content: longSystemPrompt,
     } as ChatMlMessage);
 
-    // rendered expanded, with the option to collapse still offered
-    expect(expandButton()).not.toBeInTheDocument();
-    expect(collapseButton()).toBeInTheDocument();
+    // rendered expanded, with a single collapse control still offered
+    expect(expandButtons()).toHaveLength(0);
+    expect(collapseButtons()).toHaveLength(1);
+
+    fireEvent.click(collapseButton()!);
+
+    expect(expandButtons().length).toBeGreaterThan(0);
+    expect(localStorage.getItem("collapseSystemPrompt")).toBe("true");
   });
 
   it("migrates the legacy expanded preference key and writes it through", () => {
@@ -357,6 +364,26 @@ describe("ChatMessage media content parts", () => {
     } as unknown as ChatMlMessage);
 
     expect(screen.getByText("here is the thermostat")).toBeInTheDocument();
+    expect(screen.getByTestId("langfuse-media")).toHaveAttribute(
+      "data-media-ref",
+      referenceString,
+    );
+  });
+
+  it("renders an AI SDK file part carrying a langfuse media reference", () => {
+    renderChatMessage({
+      role: "user",
+      content: [
+        { type: "text", text: "attached report" },
+        {
+          type: "file",
+          data: referenceString,
+          mediaType: "image/png",
+        },
+      ],
+    } as unknown as ChatMlMessage);
+
+    expect(screen.getByText("attached report")).toBeInTheDocument();
     expect(screen.getByTestId("langfuse-media")).toHaveAttribute(
       "data-media-ref",
       referenceString,

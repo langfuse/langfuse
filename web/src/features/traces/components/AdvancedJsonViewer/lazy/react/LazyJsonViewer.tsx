@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 /**
  * LazyJsonViewer — the in-memory entry point to the lazy JSON renderer
@@ -17,13 +18,13 @@
 
 import React, { useEffect, useState } from "react";
 import { useStore } from "zustand";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { cn } from "@/src/utils/tailwind";
 import { LazyJsonList } from "./LazyJsonList";
 import { createRowModelStore, type LazyViewerMetric } from "./rowModelStore";
 import { TreeRowModel } from "../treeRowModel";
 import { sourceFromSerialized } from "../asyncJsonSource";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { reportError } from "@/src/utils/reportError";
 
 // Provisional main-thread budgets (LFE-14419) — the telemetry exists to LEARN

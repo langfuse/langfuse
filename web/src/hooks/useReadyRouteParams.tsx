@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 /**
  * Next.js pages-router dynamic segments are missing on the first render of a

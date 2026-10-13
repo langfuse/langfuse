@@ -42,6 +42,31 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
+  // Internal Topics PoC controls; not a supported self-hosting configuration.
+  LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  LANGFUSE_TOPICS_REDIS_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10800),
   // NextAuth.js falls back to VERCEL_URL when NEXTAUTH_URL is unset; the
   // shared base-URL helper mirrors that (see web/src/env.mjs preprocess).
   VERCEL_URL: z.string().optional(),
@@ -127,6 +152,9 @@ const EnvSchema = z.object({
   CLICKHOUSE_PASSWORD: z.string(),
   CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: z.coerce.number().int().default(9000),
   CLICKHOUSE_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
+  LANGFUSE_JSON_BAD_UNICODE_ESCAPE: z
+    .enum(["auto", "no_throw", "sanitize"])
+    .optional(),
   // Optional to allow for server-setting fallbacks
   CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: z.string().optional(),
   CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS: z.coerce.number().int().optional(),
@@ -142,13 +170,18 @@ const EnvSchema = z.object({
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])
     .default("auto"),
-  // Workaround for ClickHouse analyzer/lazy materialization bugs. In "auto",
-  // Langfuse detects the ClickHouse version on startup and applies known
-  // compatibility settings for affected version bands.
+  // Workarounds for ClickHouse version-specific parser and analyzer bugs. In
+  // "auto", Langfuse detects the ClickHouse version on startup and applies
+  // known compatibility settings for affected version bands.
   CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
     .enum(["auto", "true", "false"])
     .default("auto"),
   CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: z
+    .enum(["auto", "true", "false"])
+    .default("auto"),
+  // Read-time skip-index evaluation, applied only from the version that fixes
+  // the patch-part read bug. See the compatibility rule for details.
+  CLICKHOUSE_ENABLE_SKIP_INDEXES_ON_DATA_READ: z
     .enum(["auto", "true", "false"])
     .default("auto"),
   CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
@@ -273,10 +306,21 @@ const EnvSchema = z.object({
   LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_EVENT_KEY_MAX_SEGMENT_BYTES:
     langfuseS3EventKeyMaxSegmentBytesSchema,
+  LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(100),
+  LANGFUSE_OTEL_MEDIA_UPLOAD_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(128 * 1024 * 1024),
   LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
@@ -284,6 +328,11 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30_000),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
   LANGFUSE_AZURE_SKIP_CONTAINER_CHECK: z
     .enum(["true", "false"])
@@ -464,6 +513,40 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  // Buckets that keyless GOOGLE_CLOUD_STORAGE blob exports (default credentials,
+  // no service account key) may write to. Those run as the deployment's own GCP
+  // identity (ADC), so without this allowlist any project owner could export into
+  // any bucket that identity can write. Empty disables keyless GCS exports;
+  // exports with a service account key are unaffected.
+  LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? s
+            .split(",")
+            .map((s) => s.toLowerCase().trim())
+            .filter(Boolean)
+        : [],
+    ),
   LANGFUSE_SSO_DISCOVERY_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -519,20 +602,70 @@ const EnvSchema = z.object({
     .positive()
     .default(DEFAULT_LLM_COMPLETION_TIMEOUT_MS), // 2 minutes
 
-  // LANGFUSE_AWS_BEDROCK_REGION is a deprecated alias of
-  // LANGFUSE_AI_AWS_BEDROCK_REGION. Bedrock model IDs stay on
-  // LANGFUSE_AWS_BEDROCK_MODEL / LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
-  // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL are Anthropic-only.
-  LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
-  LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
-  LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
-  LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic"]).optional(),
+  // LANGFUSE_AI_PROVIDER is optional at boot. Unset means unconfigured;
+  // bedrock requires LANGFUSE_AI_PROVIDER=bedrock.
+  // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
+  // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
+  // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
+  // LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
+  // LANGFUSE_AI_VERTEX_LOCATION applies to vertex only; like bedrock, vertex
+  // authenticates through the instance credential chain (GCP application
+  // default credentials) and takes no key.
+  LANGFUSE_AI_PROVIDER: z
+    .enum(["bedrock", "anthropic", "openai", "vertex"])
+    .optional(),
   LANGFUSE_AI_MODEL: z.string().optional(),
   LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
   LANGFUSE_AI_API_KEY: z.string().optional(),
   LANGFUSE_AI_BASE_URL: z.string().optional(),
+  LANGFUSE_AI_USE_RESPONSES_API: z.enum(["true", "false"]).optional(),
+  LANGFUSE_AI_EXTRA_HEADERS: z
+    .string()
+    .optional()
+    .refine(
+      (value) => {
+        if (value == null || value.trim() === "") {
+          return true;
+        }
+
+        try {
+          z.record(z.string(), z.string()).parse(JSON.parse(value));
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      {
+        message:
+          "LANGFUSE_AI_EXTRA_HEADERS must be a JSON object of string header names and values",
+      },
+    ),
   LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+  // Cloud runtime credentials require an operator-provisioned connection.
+  LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  // Local AI credentials; production normally uses the AWS role chain.
+  AWS_PROFILE: z.string().optional(),
+  LANGFUSE_AI_FEATURES_AWS_PROFILE: z.string().optional(),
+  // Legacy local profile alias.
+  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
+  LANGFUSE_AI_VERTEX_LOCATION: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
+  LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
+    .enum(["url", "inline", "disabled"])
+    .optional(),
+  LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20_000_000),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.
@@ -567,6 +700,10 @@ const EnvSchema = z.object({
 
   // EE License
   LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
+
+  // FIPS mode (EE feature): refuse to start without an enterprise license or
+  // an active OpenSSL FIPS provider. See server/ee/fips.
+  LANGFUSE_REQUIRE_FIPS: z.enum(["true", "false"]).default("false"),
 
   // Ingestion Masking (EE feature)
   LANGFUSE_INGESTION_MASKING_CALLBACK_URL: z.url().optional(),

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 "use client";
 
 import * as React from "react";
@@ -10,7 +10,7 @@ import { cn } from "@/src/utils/tailwind";
 import {
   KeyboardShortcut,
   type KeyboardShortcutProps,
-} from "@/src/components/ui/keyboard-shortcut";
+} from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Dialog,
   DialogBody,
@@ -87,11 +87,11 @@ const CommandInput = React.forwardRef<
       "cmdk-input-wrapper",
     )}
   >
-    <Search className="absolute top-1/2 left-2 mr-2 h-3.5 w-3.5 shrink-0 -translate-y-1/2 opacity-50" />
+    <Search className="icon-base absolute top-1/2 left-2 mr-2 shrink-0 -translate-y-1/2 opacity-50" />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
-        "placeholder:text-foreground-tertiary flex h-8 w-full rounded-md bg-transparent py-3 pr-6 pl-6 text-sm outline-hidden focus:ring-0 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+        "placeholder:text-muted-foreground flex h-8 w-full rounded-md bg-transparent py-3 pr-6 pl-6 text-sm outline-hidden focus:ring-0 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}
@@ -163,7 +163,7 @@ const CommandItem = React.forwardRef<
     ref={ref}
     className={cn(
       className,
-      "data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+      "data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground relative flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
     )}
     {...props}
   />
@@ -171,8 +171,16 @@ const CommandItem = React.forwardRef<
 
 CommandItem.displayName = CommandPrimitive.Item.displayName;
 
-const CommandShortcut = ({ className, ...props }: KeyboardShortcutProps) => {
-  return <KeyboardShortcut className={cn("ml-auto", className)} {...props} />;
+type CommandShortcutProps = KeyboardShortcutProps & {
+  className?: string;
+};
+
+const CommandShortcut = ({ className, ...props }: CommandShortcutProps) => {
+  return (
+    <span className={cn("ml-auto hidden md:inline-flex", className)}>
+      <KeyboardShortcut {...props} />
+    </span>
+  );
 };
 CommandShortcut.displayName = "CommandShortcut";
 
@@ -184,6 +192,5 @@ export {
   CommandEmpty,
   CommandGroup,
   CommandItem,
-  CommandShortcut,
   CommandSeparator,
 };

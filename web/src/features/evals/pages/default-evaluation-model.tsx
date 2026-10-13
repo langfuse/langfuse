@@ -1,7 +1,7 @@
 import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { SupportOrUpgradePage } from "@/src/ee/features/billing";
 import { DefaultEvalModelSetup } from "@/src/features/evals/components/default-eval-model-setup";
 
 export default function DefaultEvaluationModelPage() {

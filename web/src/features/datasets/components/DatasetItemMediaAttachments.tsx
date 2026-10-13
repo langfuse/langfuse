@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { type RefObject, useRef, useState } from "react";
 import type { EditorView, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { type Extension } from "@codemirror/state";
@@ -10,7 +11,7 @@ import { type PendingMediaUpload } from "../hooks/useDatasetItemMediaUpload";
 import {
   type MediaContentType,
   type MediaReturnType,
-} from "@/src/features/media/validation";
+} from "@/src/features/media";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
@@ -164,7 +165,7 @@ export function createMediaDropPasteExtension({
  * Attach button for a dataset item field. Shows a spinner while its upload is
  * in flight; failures surface via toast from the upload hook.
  */
-export function DatasetItemMediaUploadButton({
+function DatasetItemMediaUploadButton({
   onSelectFile,
   disabled,
 }: {
@@ -202,9 +203,9 @@ export function DatasetItemMediaUploadButton({
         onClick={() => inputRef.current?.click()}
       >
         {isUploading ? (
-          <Loader2 className="h-3 w-3 animate-spin" />
+          <Loader2 className="icon-sm text-icon-foreground animate-spin" />
         ) : (
-          <Paperclip className="h-3 w-3" />
+          <Paperclip className="icon-sm text-icon-foreground" />
         )}
       </Button>
     </>
@@ -232,7 +233,11 @@ function CopyFieldValueButton({ value }: { value: string }) {
         setTimeout(() => setCopied(false), 1000);
       }}
     >
-      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+      {copied ? (
+        <Check className="icon-sm text-icon-foreground" />
+      ) : (
+        <Copy className="icon-sm text-icon-foreground" />
+      )}
     </Button>
   );
 }
@@ -245,15 +250,20 @@ function CopyFieldValueButton({ value }: { value: string }) {
 export function DatasetItemFieldToolbar({
   copyValue,
   onSelectFile,
+  disabled,
 }: {
   copyValue: string;
   onSelectFile?: (file: File) => void | Promise<void>;
+  disabled?: boolean;
 }) {
   return (
     <div className="ml-auto flex items-center gap-0.5">
       <CopyFieldValueButton value={copyValue} />
       {onSelectFile && (
-        <DatasetItemMediaUploadButton onSelectFile={onSelectFile} />
+        <DatasetItemMediaUploadButton
+          onSelectFile={onSelectFile}
+          disabled={disabled}
+        />
       )}
     </div>
   );
@@ -267,7 +277,7 @@ export function DatasetItemFieldToolbar({
 function PendingMediaTile({ fileName }: { fileName: string }) {
   return (
     <div className="flex h-24 w-24 flex-col items-center justify-center gap-2 rounded-md border px-2 text-center">
-      <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
+      <Loader2 className="text-muted-foreground icon-lg animate-spin" />
       <span
         className="text-muted-foreground w-full truncate text-xs"
         title={fileName}

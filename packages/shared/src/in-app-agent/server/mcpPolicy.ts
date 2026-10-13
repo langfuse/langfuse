@@ -100,6 +100,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "datasets:CUD" },
   },
+  batchUpsertDatasetItems: {
+    approval: "approval",
+    availability: { scope: "datasets:CUD" },
+  },
   listDatasetItems: {
     approval: "auto",
     availability: { scope: "datasets:read" },
@@ -134,63 +138,67 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   listEvaluators: {
     approval: "auto",
-    availability: { scope: "evalTemplate:read" },
+    availability: { scope: "evaluator:read" },
   },
   listManagedEvaluatorTemplates: {
     approval: "auto",
-    availability: { scope: "evalTemplate:read" },
+    availability: { scope: "evaluator:read" },
   },
   getEvaluator: {
     approval: "auto",
-    availability: { scope: "evalTemplate:read" },
+    availability: { scope: "evaluator:read" },
+  },
+  testEvaluator: {
+    approval: "approval",
+    availability: { scope: "evaluator:CUD" },
   },
   createEvaluator: {
     approval: "approval",
-    availability: { scope: "evalTemplate:CUD" },
+    availability: { scope: "evaluator:CUD" },
   },
   updateEvaluator: {
     approval: "approval",
-    availability: { scope: "evalTemplate:CUD" },
+    availability: { scope: "evaluator:CUD" },
   },
   deleteEvaluator: {
     approval: "approval",
-    availability: { scope: "evalTemplate:CUD" },
+    availability: { scope: "evaluator:CUD" },
   },
   listEvaluationRules: {
     approval: "auto",
-    availability: { scope: "evalJob:read" },
+    availability: { scope: "evaluationRule:read" },
   },
   getEvaluationRule: {
     approval: "auto",
-    availability: { scope: "evalJob:read" },
+    availability: { scope: "evaluationRule:read" },
   },
   createEvaluationRule: {
     approval: "approval",
-    availability: { scope: "evalJob:CUD" },
+    availability: { scope: "evaluationRule:CUD" },
   },
   updateEvaluationRule: {
     approval: "approval",
-    availability: { scope: "evalJob:CUD" },
+    availability: { scope: "evaluationRule:CUD" },
   },
   attachEvaluatorToEvaluationRule: {
     approval: "approval",
-    availability: { scope: "evalJob:CUD" },
+    availability: { scope: "evaluationRule:CUD" },
   },
   detachEvaluatorFromEvaluationRule: {
     approval: "approval",
-    availability: { scope: "evalJob:CUD" },
+    availability: { scope: "evaluationRule:CUD" },
   },
   deleteEvaluationRule: {
     approval: "approval",
-    availability: { scope: "evalJob:CUD" },
+    availability: { scope: "evaluationRule:CUD" },
   },
   listExperiments: {
     approval: "auto",
-    availability: { scope: "project:read" },
+    availability: { scope: "promptExperiments:read" },
   },
   listExperimentItems: {
     approval: "auto",
-    availability: { scope: "project:read" },
+    availability: { scope: "promptExperiments:read" },
   },
   submitFeedback: {
     approval: "approval",
@@ -203,6 +211,22 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   getMedia: {
     approval: "auto",
     availability: { scope: "project:read" },
+  },
+  getExternalMediaStorage: {
+    approval: "auto",
+    availability: { scope: "project:read" },
+  },
+  configureExternalMediaStorage: {
+    approval: "approval",
+    availability: { scope: "integrations:CRUD" },
+  },
+  deleteExternalMediaStorage: {
+    approval: "approval",
+    availability: { scope: "integrations:CRUD" },
+  },
+  testExternalMediaStorage: {
+    approval: "auto",
+    availability: { scope: "integrations:CRUD" },
   },
   queryMetrics: {
     approval: "auto",
@@ -290,7 +314,7 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   createScore: {
     approval: "approval",
-    availability: { scope: "scores:CUD" },
+    availability: { scope: "scores:save" },
   },
   listScoreConfigs: {
     approval: "auto",
@@ -363,6 +387,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   deleteDashboardPlacement: {
     approval: "approval",
     availability: { scope: "dashboards:CUD" },
+  },
+  getV4MigrationData: {
+    approval: "auto",
+    availability: { scope: "project:read" },
   },
 } satisfies Record<string, InAppAgentMcpToolPolicy>;
 

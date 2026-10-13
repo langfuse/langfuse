@@ -3,7 +3,11 @@ import {
   LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
-import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
+import {
+  clickHouseRouteForRequest,
+  DYNAMIC_API_ROUTE_TEMPLATES,
+} from "@/src/features/public-api/server/clickHouseRequestTags";
+import { readdirSync, readFileSync } from "fs";
 import {
   BaseError,
   LangfuseNotFoundError,
@@ -52,6 +56,49 @@ describe("clickHouseRouteForRequest", () => {
         request("POST", "http://[::1?secret=do-not-log#fragment"),
       ),
     ).toBe("POST http://[::1");
+  });
+
+  it("reports a dynamic route as its template", () => {
+    expect(
+      clickHouseRouteForRequest(
+        request(
+          "GET",
+          "/api/public/v2/prompts/team%2Fsupport/versions/3?label=prod",
+        ),
+      ),
+    ).toBe("GET /api/public/v2/prompts/[promptName]/versions/[promptVersion]");
+  });
+
+  // A caller-chosen id must not survive into the route: the route tag feeds a
+  // metric, so every distinct id would add a series.
+  it.each([
+    "/api/public/traces/abcdefgh?traceId=x",
+    "/api/public/traces/api",
+    "/api/public/traces/traces/",
+  ])("templates %s regardless of the id's value", (url) => {
+    expect(clickHouseRouteForRequest(request("GET", url))).toBe(
+      "GET /api/public/traces/[traceId]",
+    );
+  });
+
+  it("lists every dynamic API route that tags its ClickHouse queries", () => {
+    const apiDir = `${__dirname}/../../pages/api`;
+    const tagsQueries = (file: string) =>
+      file.startsWith("public/") ||
+      /\b(withMiddlewares|createAuthedProjectAPIRoute|clickHouseRouteForRequest)\(/.test(
+        readFileSync(`${apiDir}/${file}`, "utf8"),
+      );
+    const dynamicTemplates = readdirSync(apiDir, { recursive: true })
+      .map(String)
+      .filter((file) => file.endsWith(".ts") && file.includes("["))
+      .filter(tagsQueries)
+      .map(
+        (file) => "/api/" + file.replace(/\.ts$/, "").replace(/\/index$/, ""),
+      );
+
+    expect([...DYNAMIC_API_ROUTE_TEMPLATES].sort()).toEqual(
+      [...new Set(dynamicTemplates)].sort(),
+    );
   });
 
   it("falls back to UNKNOWN method for missing methods", () => {
@@ -127,6 +174,24 @@ describe("withMiddlewares error handling", () => {
       });
       // Should trace 5xx errors
       expect(traceException).toHaveBeenCalledWith(error);
+    });
+    it("should set Retry-After when a ServiceUnavailableError carries one", async () => {
+      const handler = withMiddlewares({
+        POST: async () => {
+          throw new ServiceUnavailableError("Throttled", {
+            retryAfterSeconds: 2,
+          });
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "POST",
+      });
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(503);
+      expect(res.getHeader("Retry-After")).toBe("2");
     });
   });
 

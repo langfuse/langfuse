@@ -1,19 +1,36 @@
+/* eslint-disable no-nested-ternary */
 import {
   availableFlags,
+  defaultOnFeaturePreviewFlags,
+  featurePreviewFlags,
   filterFeaturePreviewFlags,
+  isRestrictedFlag,
+  isInternalFlag,
   isFeaturePreviewFlag,
+  isOrganizationOnlyFeaturePreviewFlag,
   isFeaturePreviewAvailable,
+  isAdminOnlyFeaturePreviewFlag,
   type FeaturePreviewAvailabilityContext,
-  type FeaturePreviewFlag,
+  type UserFeatureFlag,
 } from "./available-flags";
 import { type Flags } from "./types";
 
-export const getFeaturePreviewOptOutFlag = (flag: FeaturePreviewFlag) =>
+export const getFeaturePreviewOptOutFlag = (flag: UserFeatureFlag) =>
   `feature-preview:${flag}:disabled`;
 
-export const receivesFeaturePreviewsByDefault = (
-  email: string | null | undefined,
-) => {
+/**
+ * Langfuse admins and deployments with experimental features enabled see
+ * internal surfaces. Client and server gates share this rule.
+ */
+export const hasInternalAccess = ({
+  isAdmin,
+  isExperimentalFeaturesEnabled,
+}: {
+  isAdmin: boolean;
+  isExperimentalFeaturesEnabled: boolean;
+}) => isExperimentalFeaturesEnabled || isAdmin;
+
+const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
   const normalizedEmail = email?.toLowerCase();
   return (
     normalizedEmail?.endsWith("@langfuse.com") === true ||
@@ -25,6 +42,7 @@ export const parseFlags = (
   dbFlags: string[],
   context: FeaturePreviewAvailabilityContext & {
     email: string | null | undefined;
+    aiGatewayEnabled?: boolean;
   },
 ): Flags => {
   const parsedFlags = {} as Flags;
@@ -33,11 +51,41 @@ export const parseFlags = (
   );
 
   availableFlags.forEach((flag) => {
+    if (isRestrictedFlag(flag)) {
+      parsedFlags[flag] = context.aiGatewayEnabled === true;
+      return;
+    }
+
+    // Stored preference does not grant internal access.
+    if (isInternalFlag(flag)) {
+      parsedFlags[flag] = !dbFlags.includes(getFeaturePreviewOptOutFlag(flag));
+      return;
+    }
+
     if (
       isFeaturePreviewFlag(flag) &&
+      isOrganizationOnlyFeaturePreviewFlag(flag)
+    ) {
+      parsedFlags[flag] = false;
+      return;
+    }
+
+    if (
+      (isFeaturePreviewFlag(flag) || isAdminOnlyFeaturePreviewFlag(flag)) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
     ) {
       parsedFlags[flag] = false;
+      return;
+    }
+
+    if (
+      defaultOnFeaturePreviewFlags.some(
+        (defaultFlag) => defaultFlag === flag,
+      ) &&
+      isFeaturePreviewFlag(flag) &&
+      isFeaturePreviewAvailable(flag, context)
+    ) {
+      parsedFlags[flag] = true;
       return;
     }
 
@@ -53,6 +101,10 @@ export const parseFlags = (
     parsedFlags[flag] = dbFlags.includes(flag);
   });
 
+  if (!parsedFlags.sessionViewV2) {
+    parsedFlags.sessionViewV2Timeline = false;
+  }
+
   return parsedFlags;
 };
 
@@ -61,12 +113,25 @@ export const parseFlagsWithOrganizationDefaults = (
   organizationDefaults: string[],
   context: FeaturePreviewAvailabilityContext & {
     email: string | null | undefined;
+    aiGatewayEnabled?: boolean;
   },
 ): Flags => {
   const featurePreviewDefaults =
     filterFeaturePreviewFlags(organizationDefaults);
 
-  return parseFlags(dbFlags.concat(featurePreviewDefaults), context);
+  const organizationOptOuts = defaultOnFeaturePreviewFlags
+    .map(getFeaturePreviewOptOutFlag)
+    .filter((flag) => organizationDefaults.includes(flag));
+  const flags = parseFlags(
+    dbFlags.concat(featurePreviewDefaults, organizationOptOuts),
+    context,
+  );
+  for (const flag of featurePreviewFlags) {
+    if (isOrganizationOnlyFeaturePreviewFlag(flag)) {
+      flags[flag] = featurePreviewDefaults.includes(flag);
+    }
+  }
+  return flags;
 };
 
 type ContextualFeatureFlagUser = {

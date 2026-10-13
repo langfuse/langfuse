@@ -1,5 +1,6 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   AuthMethod,
   CreateLlmApiKey,
@@ -7,7 +8,8 @@ import {
   SafeLlmApiKeySchema,
   type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -25,14 +27,19 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
+  LangfuseNotFoundError,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
 
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
+import { Prisma } from "@langfuse/shared/src/db";
 import {
   ChatMessageType,
+  createTypeSafeDecisionModelClient,
+  DECISION_MODEL_ADAPTERS,
   generateLLMText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
+  isDecisionModelAdapter,
   LLMAdapter,
   logger,
   mapLegacyLLMCompletionParams,
@@ -45,6 +52,10 @@ import {
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import {
+  invalidateTopicsProcessingActive,
+  pauseTopicsModelsUsingConnection,
+} from "@langfuse/shared/topics/server";
 import { TRPCError } from "@trpc/server";
 
 export function getDisplaySecretKey(secretKey: string) {
@@ -59,7 +70,7 @@ export function getDisplaySecretKey(secretKey: string) {
     : "..." + secretKey.slice(-4);
 }
 
-export function validateBedrockSecretKey(secretKey: string) {
+function validateBedrockSecretKey(secretKey: string) {
   if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
     return;
   }
@@ -97,11 +108,46 @@ type TestLLMConnectionParams = {
   adapter: LLMAdapter;
   provider: string;
   secretKey: string;
+  /** Set only when reusing a credential from the scoped database row. */
+  projectId?: string;
   baseURL?: string | null;
   customModels?: string[];
   extraHeaders?: Record<string, string>;
   config?: unknown;
 };
+
+async function testDecisionModelConnection(params: {
+  secretKey: string;
+  model: string;
+  baseURL?: string | null;
+  extraHeaders?: Record<string, string>;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const client = createTypeSafeDecisionModelClient({
+      apiKey: params.secretKey,
+      model: params.model,
+      baseURL: params.baseURL,
+      extraHeaders: params.extraHeaders,
+    });
+    await client.evaluate({
+      state: { message: "Hello, is anyone there?" },
+      questions: {
+        kind: {
+          type: "choice",
+          instructions: "What kind of message is `message`?",
+          choices: [{ value: "greeting" }, { value: "other" }],
+        },
+      },
+    });
+    return { success: true };
+  } catch (err) {
+    logger.error(err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
+}
 
 async function testLLMConnection(
   params: TestLLMConnectionParams,
@@ -112,6 +158,15 @@ async function testLLMConnection(
       : supportedModels[params.adapter][0];
 
     if (!model) throw Error("No model found");
+
+    if (isDecisionModelAdapter(params.adapter)) {
+      return await testDecisionModelConnection({
+        secretKey: params.secretKey,
+        model,
+        baseURL: params.baseURL,
+        extraHeaders: params.extraHeaders,
+      });
+    }
 
     if (params.adapter === LLMAdapter.VertexAI) {
       // Skip validation if using ADC (Application Default Credentials)
@@ -156,6 +211,7 @@ async function testLLMConnection(
         },
         connection: {
           secretKey: encrypt(params.secretKey),
+          projectId: params.projectId,
           extraHeaders:
             params.extraHeaders && encrypt(JSON.stringify(params.extraHeaders)),
           baseURL: params.baseURL || undefined,
@@ -178,7 +234,30 @@ async function testLLMConnection(
   }
 }
 
+async function validateBaseURLForAdapter(params: {
+  adapter: LLMAdapter;
+  baseURL: string;
+}): Promise<void> {
+  // The TypeSafe provider appends /systemone to the raw base URL string.
+  if (params.adapter === LLMAdapter.TypeSafe) {
+    const url = new URL(params.baseURL);
+    if (/\/systemone\/?$/.test(url.pathname)) {
+      throw new Error(
+        "Remove /systemone from the end of the base URL. Langfuse appends it.",
+      );
+    }
+    if (url.search || url.hash) {
+      throw new Error(
+        "Remove the query string from the base URL. Langfuse appends /systemone to it.",
+      );
+    }
+  }
+
+  await validateLlmConnectionBaseURL(params.baseURL);
+}
+
 async function validateBaseURLForWrite(params: {
+  adapter: LLMAdapter;
   baseURL?: string | null;
   errorPrefix?: string;
 }): Promise<void> {
@@ -187,7 +266,10 @@ async function validateBaseURLForWrite(params: {
   }
 
   try {
-    await validateLlmConnectionBaseURL(params.baseURL);
+    await validateBaseURLForAdapter({
+      adapter: params.adapter,
+      baseURL: params.baseURL,
+    });
   } catch (error) {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -197,6 +279,35 @@ async function validateBaseURLForWrite(params: {
           : (params.errorPrefix ?? "Invalid base URL"),
     });
   }
+}
+
+function resolveUpdatedExtraHeaders(params: {
+  inputHeaders: Record<string, string | null | undefined> | undefined;
+  storedHeaders: string | null;
+  isBaseURLChanged: boolean;
+}): Record<string, string> | undefined {
+  const existingHeaders: Record<string, string> = params.isBaseURLChanged
+    ? {}
+    : (decryptAndParseExtraHeaders(params.storedHeaders) ?? {});
+
+  if (params.inputHeaders === undefined) {
+    return Object.keys(existingHeaders).length > 0
+      ? existingHeaders
+      : undefined;
+  }
+
+  const extraHeaders: Record<string, string> = {};
+  for (const [key, value] of Object.entries(params.inputHeaders)) {
+    if (value === null || value === undefined || value === "") {
+      if (existingHeaders[key] !== undefined) {
+        extraHeaders[key] = existingHeaders[key];
+      }
+    } else {
+      extraHeaders[key] = value;
+    }
+  }
+
+  return Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined;
 }
 
 export const llmApiKeyRouter = createTRPCRouter({
@@ -211,6 +322,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         });
 
         await validateBaseURLForWrite({
+          adapter: input.adapter,
           baseURL: input.baseURL,
         });
 
@@ -291,6 +403,15 @@ export const llmApiKeyRouter = createTRPCRouter({
           action: "create",
         });
       } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === "P2002"
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "There already exists an API key for this provider.",
+          });
+        }
         logger.error(e);
         throw e;
       }
@@ -316,51 +437,73 @@ export const llmApiKeyRouter = createTRPCRouter({
         },
       });
 
-      const result = await ctx.prisma.$transaction(async (tx) => {
-        // Check if the llm api key is used for the default evaluation model
-        const defaultModel = await tx.defaultLlmModel.findFirst({
-          where: {
-            projectId: input.projectId,
-          },
-          select: {
-            llmApiKeyId: true,
-          },
-        });
+      if (!llmApiKey) {
+        throw new LangfuseNotFoundError("LLM API key not found");
+      }
 
-        const providerBlock = llmApiKey?.provider
-          ? await blockEvaluatorsUsingProvider({
-              tx,
+      let result;
+      try {
+        result = await ctx.prisma.$transaction(async (tx) => {
+          // Check if the llm api key is used for the default evaluation model
+          const defaultModel = await tx.defaultLlmModel.findFirst({
+            where: {
               projectId: input.projectId,
-              provider: llmApiKey.provider,
-            })
-          : EMPTY_EVALUATOR_BLOCK;
+            },
+            select: {
+              llmApiKeyId: true,
+            },
+          });
 
-        const defaultModelBlock =
-          !!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id
-            ? await blockEvaluatorsUsingDefaultModel({
+          const providerBlock = llmApiKey.provider
+            ? await blockEvaluatorsUsingProvider({
                 tx,
                 projectId: input.projectId,
+                provider: llmApiKey.provider,
               })
             : EMPTY_EVALUATOR_BLOCK;
 
-        await tx.llmApiKeys.delete({
-          where: {
-            id: input.id,
-            projectId: input.projectId,
-          },
+          const defaultModelBlock =
+            !!defaultModel && defaultModel.llmApiKeyId === llmApiKey.id
+              ? await blockEvaluatorsUsingDefaultModel({
+                  tx,
+                  projectId: input.projectId,
+                })
+              : EMPTY_EVALUATOR_BLOCK;
+
+          await pauseTopicsModelsUsingConnection(
+            {
+              projectId: input.projectId,
+              llmApiKeyId: llmApiKey.id,
+              provider: llmApiKey.provider,
+            },
+            tx,
+          );
+
+          await tx.llmApiKeys.delete({
+            where: {
+              id: input.id,
+              projectId: input.projectId,
+            },
+          });
+
+          await auditLog({
+            session: ctx.session,
+            resourceType: "llmApiKey",
+            resourceId: input.id,
+            before: llmApiKey,
+            action: "delete",
+          });
+
+          return { providerBlock, defaultModelBlock };
         });
+      } catch (error) {
+        if (isPrismaRecordNotFoundError(error)) {
+          throw new LangfuseNotFoundError("LLM API key not found");
+        }
+        throw error;
+      }
 
-        await auditLog({
-          session: ctx.session,
-          resourceType: "llmApiKey",
-          resourceId: input.id,
-          before: llmApiKey,
-          action: "delete",
-        });
-
-        return { providerBlock, defaultModelBlock };
-      });
-
+      await invalidateTopicsProcessingActive(input.projectId);
       await finalizeEvaluatorBlocks({
         projectId: input.projectId,
         source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
@@ -378,6 +521,7 @@ export const llmApiKeyRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        includeDecisionModels: z.boolean().optional().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -386,6 +530,13 @@ export const llmApiKeyRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "llmApiKeys:read",
       });
+
+      const where = {
+        projectId: input.projectId,
+        ...(input.includeDecisionModels
+          ? {}
+          : { adapter: { notIn: [...DECISION_MODEL_ADAPTERS] } }),
+      };
 
       const storedApiKeys = await ctx.prisma.llmApiKeys.findMany({
         // secretKey is selected server-side only to derive a safe auth-method enum for Bedrock
@@ -404,9 +555,7 @@ export const llmApiKeyRouter = createTRPCRouter({
           config: true,
           secretKey: true,
         },
-        where: {
-          projectId: input.projectId,
-        },
+        where,
       });
 
       const apiKeys = z.array(SafeLlmApiKeySchema).parse(
@@ -421,11 +570,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         })),
       );
 
-      const count = await ctx.prisma.llmApiKeys.count({
-        where: {
-          projectId: input.projectId,
-        },
-      });
+      const count = await ctx.prisma.llmApiKeys.count({ where });
 
       return {
         data: apiKeys, // does not contain the secret key
@@ -444,7 +589,10 @@ export const llmApiKeyRouter = createTRPCRouter({
 
       if (input.baseURL) {
         try {
-          await validateLlmConnectionBaseURL(input.baseURL);
+          await validateBaseURLForAdapter({
+            adapter: input.adapter,
+            baseURL: input.baseURL,
+          });
         } catch (error) {
           return {
             success: false,
@@ -491,7 +639,8 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         const hasNewSecretKey =
           typeof input.secretKey === "string" && input.secretKey.length > 0;
-        const baseURL = input.baseURL ?? existingKey.baseURL;
+        const baseURL =
+          input.baseURL !== undefined ? input.baseURL : existingKey.baseURL;
         const isBaseURLChanged = baseURL !== existingKey.baseURL;
 
         if (isBaseURLChanged && !hasNewSecretKey) {
@@ -502,7 +651,10 @@ export const llmApiKeyRouter = createTRPCRouter({
         }
 
         if (input.baseURL && isBaseURLChanged) {
-          await validateLlmConnectionBaseURL(input.baseURL);
+          await validateBaseURLForAdapter({
+            adapter: input.adapter,
+            baseURL: input.baseURL,
+          });
         }
 
         const secretKey = hasNewSecretKey
@@ -515,20 +667,17 @@ export const llmApiKeyRouter = createTRPCRouter({
         const customModels = input.customModels ?? existingKey.customModels;
         const config = input.config ?? existingKey.config;
 
-        // Never reuse stored headers across a destination change.
-        const extraHeaders =
-          input.extraHeaders !== undefined
-            ? input.extraHeaders
-            : isBaseURLChanged
-              ? undefined
-              : existingKey.extraHeaders
-                ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
-                : undefined;
+        const extraHeaders = resolveUpdatedExtraHeaders({
+          inputHeaders: input.extraHeaders,
+          storedHeaders: existingKey.extraHeaders,
+          isBaseURLChanged,
+        });
 
         return testLLMConnection({
           adapter,
           provider,
           secretKey,
+          projectId: hasNewSecretKey ? undefined : existingKey.projectId,
           baseURL,
           customModels,
           extraHeaders,
@@ -596,6 +745,7 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         if (input.baseURL && isBaseURLChanged) {
           await validateBaseURLForWrite({
+            adapter: input.adapter,
             baseURL: input.baseURL,
           });
         }
@@ -637,44 +787,11 @@ export const llmApiKeyRouter = createTRPCRouter({
           input.extraHeaders = {};
         }
 
-        // Get existing decrypted headers for comparison
-        const decryptedHeaders = existingKey.extraHeaders
-          ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
-          : null;
-        const existingHeaders: Record<string, string> = isBaseURLChanged
-          ? {}
-          : (decryptedHeaders ?? {});
-
-        // Ensure we only update the extraHeaders where the value is not null
-        let extraHeaders: Record<string, string> | undefined;
-
-        if (input.extraHeaders === undefined) {
-          // Keep all existing headers unchanged
-          extraHeaders =
-            Object.keys(existingHeaders).length > 0
-              ? existingHeaders
-              : undefined;
-        } else {
-          // Process input headers, preserving existing values for empty inputs
-          extraHeaders = {};
-
-          for (const [key, value] of Object.entries(input.extraHeaders)) {
-            if (value === null || value === undefined || value === "") {
-              // Keep existing value if input value is empty and key exists
-              if (existingHeaders[key] !== undefined) {
-                extraHeaders[key] = existingHeaders[key];
-              }
-            } else {
-              // Use the new non-empty value
-              extraHeaders[key] = value;
-            }
-          }
-
-          // If no headers remain, set to undefined
-          if (Object.keys(extraHeaders).length === 0) {
-            extraHeaders = undefined;
-          }
-        }
+        const extraHeaders = resolveUpdatedExtraHeaders({
+          inputHeaders: input.extraHeaders,
+          storedHeaders: existingKey.extraHeaders,
+          isBaseURLChanged,
+        });
 
         const key = await ctx.prisma.llmApiKeys.update({
           where: {

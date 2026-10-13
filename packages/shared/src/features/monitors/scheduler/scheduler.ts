@@ -36,10 +36,12 @@ export class MonitorScheduler {
    * advances the schedule to the next run.
    */
   async schedule(scheduledAt: Date): Promise<number> {
-    const [, results] = await this.db.$transaction([
+    const [, , results] = await this.db.$transaction([
       this.db.$executeRawUnsafe(
         `SET LOCAL statement_timeout = ${MonitorScheduler.claimTimeoutMs}`,
       ),
+      // tz-naive columns are read back as UTC by Prisma; pin the session so raw casts store UTC wall-clock
+      this.db.$executeRawUnsafe(`SET LOCAL TIME ZONE 'UTC'`),
       this.db.$queryRaw<MonitorBatchResult[]>(
         buildScheduleQuery({
           tick: scheduledAt,

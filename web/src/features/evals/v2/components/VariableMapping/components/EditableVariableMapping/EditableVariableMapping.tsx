@@ -1,14 +1,24 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useState, type ReactNode } from "react";
 import { TriangleAlert } from "lucide-react";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
+import {
+  classifyMediaValue,
+  splitStringByMediaReferences,
+} from "@/src/components/ui/media/mediaUtils";
 import type {
   ActiveVariableMapping,
   VariableFieldState,
 } from "@/src/features/evals/v2/types/variableMapping";
 import { JsonPathEditor } from "../JsonPathEditor/JsonPathEditor";
 import { SampleDataTreeSelector } from "../SampleDataTreeSelector/SampleDataTreeSelector";
-import { VariableMappingCardShell } from "../VariableMappingCardShell";
+import {
+  VariableMappingCardShell,
+  type VariableDisplay,
+  type VariableRenameControls,
+} from "../VariableMappingCardShell";
 import { VariableMappingBinding } from "../VariableMappingBinding/VariableMappingBinding";
 import { buildJsonPathSuggestions } from "@/src/features/evals/v2/fns/variableMapping/buildJsonPathSuggestions";
 import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
@@ -22,7 +32,8 @@ import {
   deepParseJsonIterative,
   experimentTargetEvalVariableColumns,
 } from "@langfuse/shared";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
 
 const TOOL_CALLS_COLUMN_ID = "toolCalls";
 
@@ -39,6 +50,13 @@ const focusEditingSurface = (element: HTMLDivElement | null) => {
 function MappedValuePreview({ value }: { value: string }) {
   const parsed = useMemo(() => deepParseJsonIterative(value), [value]);
   const isJson = parsed !== null && typeof parsed === "object";
+  const mediaSegments = useMemo(() => {
+    const descriptor = classifyMediaValue(value);
+    return descriptor
+      ? [{ type: "media" as const, descriptor }]
+      : splitStringByMediaReferences(value);
+  }, [value]);
+  const hasMedia = mediaSegments.some((segment) => segment.type === "media");
 
   return (
     <div>
@@ -53,6 +71,21 @@ function MappedValuePreview({ value }: { value: string }) {
           scrollable={true}
           className="max-h-96 [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
         />
+      ) : hasMedia ? (
+        <div
+          data-testid="mapped-media-preview"
+          className="flex max-h-96 flex-wrap items-center gap-1 overflow-y-auto p-3 text-sm"
+        >
+          {mediaSegments.map((segment, index) =>
+            segment.type === "media" ? (
+              <MediaReferenceTag key={index} descriptor={segment.descriptor} />
+            ) : (
+              <span key={index} className="break-words whitespace-pre-wrap">
+                {segment.value}
+              </span>
+            ),
+          )}
+        </div>
       ) : (
         <pre className="max-h-96 overflow-y-auto p-3 font-sans text-sm break-words whitespace-pre-wrap">
           {value}
@@ -78,8 +111,22 @@ function MappingPreviewSurface({
       aria-label={`Change mapping for {{${variable}}}`}
       title={`Change mapping for {{${variable}}}`}
       className="hover:bg-muted/50 focus-visible:ring-ring cursor-pointer rounded-b-md transition-colors focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset"
-      onClick={onEdit}
+      onClick={(event) => {
+        if (
+          event.target instanceof Element &&
+          event.target.closest("[data-media-tag]")
+        ) {
+          return;
+        }
+        onEdit();
+      }}
       onKeyDown={(event) => {
+        if (
+          event.target instanceof Element &&
+          event.target.closest("[data-media-tag]")
+        ) {
+          return;
+        }
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           onEdit();
@@ -98,6 +145,7 @@ function MappingPreviewSurface({
  */
 function TreeSelectorBody({
   variable,
+  variableDisplay,
   fieldState,
   segments,
   sourceObject,
@@ -107,6 +155,7 @@ function TreeSelectorBody({
   onApplyJsonPath,
 }: {
   variable: string;
+  variableDisplay?: VariableDisplay;
   fieldState: VariableFieldState;
   segments: PathSegment[] | null;
   sourceObject: Record<string, unknown> | null;
@@ -159,7 +208,9 @@ function TreeSelectorBody({
     );
   }
 
-  const treeGuidance = `Click rows to open them — hover one and press "Use" to bind {{${variable}}}.`;
+  const variableLabel =
+    variableDisplay === "stateKey" ? variable : `{{${variable}}}`;
+  const treeGuidance = `Click rows to open them — hover one and press "Use" to bind ${variableLabel}.`;
 
   return (
     <>
@@ -193,7 +244,7 @@ function TreeSelectorBody({
         </button>
       </div>
       <SampleDataTreeSelector
-        variable={variable}
+        variableLabel={variableLabel}
         currentColumnId={selectedColumnId}
         currentSegments={segments}
         roots={roots}
@@ -211,9 +262,11 @@ function TreeSelectorBody({
  */
 function VariableMappingRow({
   variable,
+  variableDisplay,
   unmapped,
   expanded,
   editing,
+  rename,
   onExpandedChange,
   onEditingChange,
   fieldState,
@@ -225,9 +278,11 @@ function VariableMappingRow({
   onDelete,
 }: {
   variable: string;
+  variableDisplay?: VariableDisplay;
   unmapped: boolean;
   expanded: boolean;
   editing: boolean;
+  rename?: VariableRenameControls;
   onExpandedChange: (expanded: boolean) => void;
   onEditingChange: (editing: boolean) => void;
   fieldState: VariableFieldState;
@@ -239,6 +294,7 @@ function VariableMappingRow({
   onDelete?: () => void;
 }) {
   const capture = usePostHogClientCapture();
+  const onboardingAnalytics = useEvalOnboardingAnalytics();
   const segments = useMemo(
     () =>
       fieldState.jsonSelector
@@ -274,6 +330,7 @@ function VariableMappingRow({
   const body = editing ? (
     <TreeSelectorBody
       variable={variable}
+      variableDisplay={variableDisplay}
       fieldState={fieldState}
       segments={segments}
       sourceObject={sourceObject}
@@ -288,6 +345,10 @@ function VariableMappingRow({
           capture("evaluators:variable_mapping_configured", {
             method: "tree",
           });
+          onboardingAnalytics?.completeStep({
+            stepName: "variable_mapping_updated",
+            method: "tree",
+          });
         }
         onChange({
           selectedColumnId: columnId,
@@ -300,6 +361,10 @@ function VariableMappingRow({
       onApplyJsonPath={(jsonSelector) => {
         if (jsonSelector !== fieldState.jsonSelector) {
           capture("evaluators:variable_mapping_configured", {
+            method: "json_path",
+          });
+          onboardingAnalytics?.completeStep({
+            stepName: "variable_mapping_updated",
             method: "json_path",
           });
         }
@@ -317,7 +382,7 @@ function VariableMappingRow({
     >
       {unmapped ? (
         <div className="text-dark-yellow flex w-full items-start gap-1.5 p-3 text-left text-sm">
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <TriangleAlert className="icon-base mt-0.5 shrink-0" />
           {`{{${variable}}} is not mapped yet — click to choose the data it pulls in.`}
         </div>
       ) : !sourceObject ? (
@@ -331,7 +396,7 @@ function VariableMappingRow({
         </p>
       ) : extracted?.error ? (
         <div className="text-dark-yellow flex items-start gap-1.5 p-3 text-sm">
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <TriangleAlert className="icon-base mt-0.5 shrink-0" />
           {extracted.error}
         </div>
       ) : !extracted?.value ? (
@@ -347,6 +412,8 @@ function VariableMappingRow({
   return (
     <VariableMappingCardShell
       variable={variable}
+      variableDisplay={variableDisplay}
+      rename={rename}
       mapping={
         !unmapped && columnLabel ? (
           <VariableMappingBinding
@@ -389,6 +456,11 @@ export type EditableVariableMappingProps = {
   /** Selected source columns that have no value in this sample and cannot be validated. */
   unvalidatedSourceColumnIds?: string[];
   sourceUnavailableMessage?: string;
+  /** Renders names as prompt templates (default) or as state keys. */
+  variableDisplay?: VariableDisplay;
+  /** Enables renaming in the card header; the name must pass `validateVariableName`. */
+  onRenameVariable?: (variable: string, next: string) => void;
+  validateVariableName?: (variable: string, next: string) => string | null;
 };
 
 export function EditableVariableMapping({
@@ -401,6 +473,9 @@ export function EditableVariableMapping({
   hasMatchingObservations,
   unvalidatedSourceColumnIds = [],
   sourceUnavailableMessage,
+  variableDisplay,
+  onRenameVariable,
+  validateVariableName,
 }: EditableVariableMappingProps) {
   return (
     <div data-variable-mapping-root="" className="flex flex-col gap-4">
@@ -408,6 +483,7 @@ export function EditableVariableMapping({
         <VariableMappingRow
           key={item.variable}
           variable={item.variable}
+          variableDisplay={variableDisplay}
           unmapped={!item.fieldState.selectedColumnId}
           expanded={
             activeMapping?.variable === item.variable &&
@@ -416,6 +492,24 @@ export function EditableVariableMapping({
           editing={
             activeMapping?.variable === item.variable &&
             activeMapping.state === "editing"
+          }
+          rename={
+            onRenameVariable && validateVariableName
+              ? {
+                  isRenaming:
+                    activeMapping?.variable === item.variable &&
+                    activeMapping.state === "renaming",
+                  onRenamingChange: (renaming) =>
+                    onActiveMappingChange(
+                      renaming
+                        ? { variable: item.variable, state: "renaming" }
+                        : null,
+                    ),
+                  onRename: (next) => onRenameVariable(item.variable, next),
+                  validateName: (next) =>
+                    validateVariableName(item.variable, next),
+                }
+              : undefined
           }
           onExpandedChange={(expanded) =>
             onActiveMappingChange(

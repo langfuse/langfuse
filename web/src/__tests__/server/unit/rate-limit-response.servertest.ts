@@ -3,10 +3,10 @@ import { createMocks } from "node-mocks-http";
 import type { RateLimitResult } from "@langfuse/shared";
 
 const {
-  mockCreateUnstablePublicApiRateLimitError,
-  mockSendUnstablePublicApiErrorResponse,
+  mockCreateStructuredPublicApiRateLimitError,
+  mockSendStructuredPublicApiErrorResponse,
 } = vi.hoisted(() => ({
-  mockCreateUnstablePublicApiRateLimitError: vi.fn(
+  mockCreateStructuredPublicApiRateLimitError: vi.fn(
     (
       rateLimitRes: RateLimitResult,
       options?: {
@@ -33,7 +33,7 @@ const {
       };
     },
   ),
-  mockSendUnstablePublicApiErrorResponse: vi.fn((res, error) =>
+  mockSendStructuredPublicApiErrorResponse: vi.fn((res, error) =>
     res.status(error.httpCode).json({
       message: error.message,
       code: error.code,
@@ -74,12 +74,13 @@ vi.mock("@langfuse/shared/src/server", () => ({
 }));
 
 vi.mock(
-  "@/src/features/public-api/server/unstable-public-api-error-contract",
+  "@/src/features/public-api/server/structuredPublicApiErrorContract",
   () => ({
-    unstablePublicEvalsErrorContract: "unstable-public-evals",
-    createUnstablePublicApiRateLimitError:
-      mockCreateUnstablePublicApiRateLimitError,
-    sendUnstablePublicApiErrorResponse: mockSendUnstablePublicApiErrorResponse,
+    structuredPublicApiErrorContract: "structured",
+    createStructuredPublicApiRateLimitError:
+      mockCreateStructuredPublicApiRateLimitError,
+    sendStructuredPublicApiErrorResponse:
+      mockSendStructuredPublicApiErrorResponse,
   }),
 );
 
@@ -141,11 +142,28 @@ describe("sendRateLimitResponse", () => {
     expect(res.getHeader("Retry-After")).toBe(3);
     expect(res.getHeader("X-RateLimit-Limit")).toBe(10);
     expect(res.getHeader("X-RateLimit-Remaining")).toBe(-1);
-    expect(mockCreateUnstablePublicApiRateLimitError).toHaveBeenCalledWith(
+    expect(mockCreateStructuredPublicApiRateLimitError).toHaveBeenCalledWith(
       rateLimitResult,
       {},
     );
-    expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
+    expect(mockSendStructuredPublicApiErrorResponse).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends X-RateLimit-Reset as epoch seconds, rounded up", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.400Z"));
+    try {
+      const res = createResponse();
+
+      sendRateLimitResponse(res, rateLimitResult);
+
+      // 00:00:00.400 + 2500ms = 00:00:02.900 -> next full second
+      expect(res.getHeader("X-RateLimit-Reset")).toBe(
+        Date.parse("2026-01-01T00:00:03.000Z") / 1000,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("returns upgrade guidance for stable responses with an upgrade path", () => {
@@ -168,31 +186,31 @@ describe("sendRateLimitResponse", () => {
         resetAt: expect.any(String),
       },
     });
-    expect(mockCreateUnstablePublicApiRateLimitError).toHaveBeenCalledWith(
+    expect(mockCreateStructuredPublicApiRateLimitError).toHaveBeenCalledWith(
       rateLimitResult,
       {
         upgradePath,
       },
     );
-    expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
+    expect(mockSendStructuredPublicApiErrorResponse).toHaveBeenCalledTimes(1);
   });
 
   it("passes the error contract through when an upgrade path is present", () => {
     const res = createResponse();
 
     sendRateLimitResponse(res, rateLimitResult, {
-      errorContract: "unstable-public-evals",
+      errorContract: "structured",
       upgradePath,
     });
 
-    expect(mockCreateUnstablePublicApiRateLimitError).toHaveBeenCalledWith(
+    expect(mockCreateStructuredPublicApiRateLimitError).toHaveBeenCalledWith(
       rateLimitResult,
       {
-        errorContract: "unstable-public-evals",
+        errorContract: "structured",
         upgradePath,
       },
     );
-    expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
+    expect(mockSendStructuredPublicApiErrorResponse).toHaveBeenCalledTimes(1);
     expect(res.statusCode).toBe(429);
     expect(res._getJSONData()).toEqual({
       message:

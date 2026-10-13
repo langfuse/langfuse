@@ -1,13 +1,15 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Mock } from "vitest";
 import type { Session } from "next-auth";
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { encrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   BlobStorageIntegrationProcessingQueue,
   createOrgProjectAndApiKey,
+  logger,
   QueueJobs,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
@@ -15,6 +17,8 @@ import {
   OBSERVATION_FIELD_GROUPS_FULL,
   LEGACY_EXPORT_PROJECT_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
+  GCS_USE_DEFAULT_CREDENTIALS,
+  type Plan,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
@@ -49,7 +53,13 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 const __orgIds: string[] = [];
 
-const prepare = async () => {
+const prepare = async ({
+  admin = true,
+  plan = "cloud:hobby",
+}: {
+  admin?: boolean;
+  plan?: Plan;
+} = {}) => {
   const { project, org } = await createOrgProjectAndApiKey();
 
   const session: Session = {
@@ -63,7 +73,7 @@ const prepare = async () => {
           id: org.id,
           name: org.name,
           role: "OWNER",
-          plan: "cloud:hobby",
+          plan,
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: false,
@@ -82,19 +92,12 @@ const prepare = async () => {
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
-      admin: true,
+      featureFlags: testFeatureFlags(),
+      admin,
     },
     environment: {
       enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
+      selfHostedInstancePlan: plan,
     },
   };
 
@@ -192,9 +195,493 @@ describe("Blob Storage Integration tRPC Router", () => {
     });
   });
 
+  describe("scheduled-blob-exports entitlement", () => {
+    it("blocks a non-admin OWNER on cloud:hobby from all blobStorageIntegration procedures", async () => {
+      const { caller, project } = await prepare({
+        admin: false,
+        plan: "cloud:hobby",
+      });
+      await createIntegration({ projectId: project.id });
+
+      await expect(
+        caller.blobStorageIntegration.get({ projectId: project.id }),
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+        message: expect.stringContaining("scheduled-blob-exports"),
+      });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
+        caller.blobStorageIntegration.runNow({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
+        caller.blobStorageIntegration.validate({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
+        caller.blobStorageIntegration.delete({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      const stillThere = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+      });
+      expect(stillThere).not.toBeNull();
+    });
+
+    it("allows a non-admin OWNER on cloud:team to read the integration", async () => {
+      const { caller, project } = await prepare({
+        admin: false,
+        plan: "cloud:team",
+      });
+      await createIntegration({ projectId: project.id });
+
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config?.projectId).toBe(project.id);
+    });
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
+  });
+
+  describe("GOOGLE_CLOUD_STORAGE", () => {
+    const original = {
+      buckets: sharedEnv.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS,
+      region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    };
+    // Schema-valid but fake: never sent to Google (StorageServiceFactory is mocked).
+    const fakeServiceAccountKey = JSON.stringify({
+      type: "service_account",
+      project_id: "test-project",
+      private_key_id: "kid",
+      private_key:
+        "-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n",
+      client_email: "exporter@test-project.iam.gserviceaccount.com",
+      client_id: "1",
+      auth_uri: "https://accounts.google.com/o/oauth2/auth",
+      token_uri: "https://oauth2.googleapis.com/token",
+      auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+      client_x509_cert_url:
+        "https://www.googleapis.com/robot/v1/metadata/x509/x",
+    });
+    const gcsAdcConfig = {
+      ...baseConfig,
+      type: "GOOGLE_CLOUD_STORAGE" as const,
+      bucketName: "allowed-bucket",
+      accessKeyId: "ignored-key",
+      secretAccessKey: GCS_USE_DEFAULT_CREDENTIALS,
+    };
+    const gcsKeyConfig = {
+      ...gcsAdcConfig,
+      bucketName: "customer-bucket",
+      secretAccessKey: fakeServiceAccountKey,
+    };
+    const findIntegration = (projectId: string) =>
+      prisma.blobStorageIntegration.findUnique({ where: { projectId } });
+
+    beforeEach(() => {
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      sharedEnv.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS = ["allowed-bucket"];
+    });
+
+    afterEach(() => {
+      sharedEnv.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS = original.buckets;
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
+    });
+
+    describe("default credentials (ADC)", () => {
+      it("saves an allowlisted bucket without storing any keys", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        expect(await findIntegration(project.id)).toMatchObject({
+          type: "GOOGLE_CLOUD_STORAGE",
+          bucketName: "allowed-bucket",
+          accessKeyId: null,
+          secretAccessKey: null,
+        });
+      });
+
+      it("rejects a bucket outside LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...gcsAdcConfig,
+            bucketName: "someone-elses-bucket",
+          }),
+        ).rejects.toThrow(/LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS/);
+      });
+
+      it("clears stored S3 keys when an integration switches to GCS", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await createIntegration({ projectId: project.id });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        const integration = await findIntegration(project.id);
+        expect(integration?.accessKeyId).toBeNull();
+        expect(integration?.secretAccessKey).toBeNull();
+      });
+
+      it("does not store an endpoint left over from another provider", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        // The form keeps the hidden endpoint value across a provider switch.
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+          endpoint: "http://minio.internal:9000",
+        });
+
+        expect((await findIntegration(project.id))?.endpoint).toBeNull();
+      });
+
+      it("treats switching from S3 with no new secret as keyless (allowlist applies)", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await createIntegration({ projectId: project.id });
+
+        // The stored S3 secret must not be reused as a GCS key.
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...gcsAdcConfig,
+            bucketName: "someone-elses-bucket",
+            secretAccessKey: null,
+          }),
+        ).rejects.toThrow(/LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS/);
+      });
+
+      it("does not save the sentinel as a secret after switching to Azure", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        // The form keeps the sentinel in the secret field across a provider switch.
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            type: "AZURE_BLOB_STORAGE",
+            secretAccessKey: GCS_USE_DEFAULT_CREDENTIALS,
+          }),
+        ).rejects.toThrow(/Secret access key is required/);
+        expect((await findIntegration(project.id))?.type).toBe(
+          "GOOGLE_CLOUD_STORAGE",
+        );
+      });
+
+      it("validates with a plain upload (no signed URL)", async () => {
+        const uploadFile = vi.fn().mockResolvedValue(undefined);
+        const uploadWithSignedUrl = vi.fn();
+        (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+          uploadFile,
+          uploadWithSignedUrl,
+        });
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        const result = await caller.blobStorageIntegration.validate({
+          projectId: project.id,
+        });
+
+        expect(result.success).toBe(true);
+        expect(StorageServiceFactory.getInstance).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            useGoogleCloudStorage: true,
+            bucketName: "allowed-bucket",
+            googleCloudCredentials: undefined,
+            accessKeyId: undefined,
+            secretAccessKey: undefined,
+          }),
+        );
+        expect(uploadFile).toHaveBeenCalledWith(
+          expect.objectContaining({ fileName: result.testFileName }),
+        );
+        expect(uploadWithSignedUrl).not.toHaveBeenCalled();
+      });
+
+      it("is unavailable on Langfuse Cloud", async () => {
+        sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+        const { caller, project } = await prepare({ plan: "cloud:team" });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...gcsAdcConfig,
+          }),
+        ).rejects.toThrow(/self-hosted/);
+      });
+    });
+
+    describe("service account key", () => {
+      it("stores the key encrypted and needs no allowlist", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        const integration = await findIntegration(project.id);
+        expect(integration?.bucketName).toBe("customer-bucket");
+        expect(integration?.accessKeyId).toBeNull();
+        expect(integration?.secretAccessKey).toBeTruthy();
+        expect(integration?.secretAccessKey).not.toContain("service_account");
+        expect(decrypt(integration!.secretAccessKey!)).toBe(
+          fakeServiceAccountKey,
+        );
+      });
+
+      it("rejects a secret that is not a service account JSON key", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...gcsKeyConfig,
+            secretAccessKey: "/etc/passwd",
+          }),
+        ).rejects.toThrow(/service account JSON key/);
+      });
+
+      it("keeps the stored key when an update omits the secret", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+          secretAccessKey: null,
+          prefix: "renamed/",
+        });
+
+        const integration = await findIntegration(project.id);
+        expect(integration?.prefix).toBe("renamed/");
+        expect(decrypt(integration!.secretAccessKey!)).toBe(
+          fakeServiceAccountKey,
+        );
+      });
+
+      it("drops the stored key when switched to default credentials", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        expect((await findIntegration(project.id))?.secretAccessKey).toBeNull();
+      });
+
+      it("validates with the key and a signed URL", async () => {
+        const uploadWithSignedUrl = vi
+          .fn()
+          .mockResolvedValue({ signedUrl: "https://signed.example/gcs" });
+        (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+          uploadWithSignedUrl,
+        });
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        const result = await caller.blobStorageIntegration.validate({
+          projectId: project.id,
+        });
+
+        expect(result.success).toBe(true);
+        expect(StorageServiceFactory.getInstance).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            useGoogleCloudStorage: true,
+            bucketName: "customer-bucket",
+            googleCloudCredentials: fakeServiceAccountKey,
+            secretAccessKey: undefined,
+          }),
+        );
+        expect(uploadWithSignedUrl).toHaveBeenCalled();
+      });
+
+      it("works on Langfuse Cloud", async () => {
+        sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+        const { caller, project } = await prepare({ plan: "cloud:team" });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        expect((await findIntegration(project.id))?.type).toBe(
+          "GOOGLE_CLOUD_STORAGE",
+        );
+      });
+
+      it("never reuses a stored GCS key as an S3/Azure secret", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            type: "AZURE_BLOB_STORAGE",
+            secretAccessKey: null,
+          }),
+        ).rejects.toThrow(/Secret access key is required/);
+      });
+
+      it("reports hasSecretAccessKey without exposing the key", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        const { config } = await caller.blobStorageIntegration.get({
+          projectId: project.id,
+        });
+        expect(config?.hasSecretAccessKey).toBe(true);
+        expect(config).not.toHaveProperty("secretAccessKey");
+      });
+    });
+  });
+
+  describe("stored secret reuse", () => {
+    it("never reuses a stored S3 secret as an Azure key", async () => {
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          type: "AZURE_BLOB_STORAGE",
+          secretAccessKey: null,
+        }),
+      ).rejects.toThrow(/Secret access key is required/);
+    });
+  });
+
+  describe("region normalization", () => {
+    it("persists a trimmed region", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        region: " us-west-2",
+      });
+
+      const integration = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+        select: { region: true },
+      });
+      expect(integration?.region).toBe("us-west-2");
+    });
+  });
+
+  describe("backfill", () => {
+    it("marks backfill on create, re-enable and export-mode change, not on a plain save", async () => {
+      const { caller, project } = await prepare();
+      const save = (
+        overrides: Partial<
+          Parameters<typeof caller.blobStorageIntegration.update>[0]
+        >,
+      ) =>
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          ...overrides,
+        });
+      const backfill = async () =>
+        (
+          await prisma.blobStorageIntegration.findUniqueOrThrow({
+            where: { projectId: project.id },
+          })
+        ).backfill;
+      const catchUp = () =>
+        prisma.blobStorageIntegration.update({
+          where: { projectId: project.id },
+          data: { backfill: false },
+        });
+
+      await save({});
+      expect(await backfill()).toBe(true);
+
+      await catchUp();
+      await save({ bucketName: "renamed-bucket" });
+      expect(await backfill()).toBe(false);
+
+      await save({ enabled: false });
+      await save({ enabled: true });
+      expect(await backfill()).toBe(true);
+
+      await catchUp();
+      await save({ exportMode: "FROM_TODAY" });
+      expect(await backfill()).toBe(true);
+    });
   });
 
   describe("runNow", () => {
@@ -286,8 +773,10 @@ describe("Blob Storage Integration tRPC Router", () => {
       const uploadWithSignedUrl = vi.fn().mockResolvedValue({
         signedUrl: "https://signed.example/upload",
       });
+      const deleteFiles = vi.fn().mockResolvedValue(undefined);
       (StorageServiceFactory.getInstance as Mock).mockReturnValue({
         uploadWithSignedUrl,
+        deleteFiles,
       });
 
       const { caller, project } = await prepare();
@@ -305,6 +794,8 @@ describe("Blob Storage Integration tRPC Router", () => {
           expiresInSeconds: 3600,
         }),
       );
+      expect(result.testFileName).toMatch(/^test\/langfuse-validation-test-/);
+      expect(deleteFiles).toHaveBeenCalledWith([result.testFileName]);
 
       const auditLog = await findAuditLog({
         projectId: project.id,
@@ -317,6 +808,39 @@ describe("Blob Storage Integration tRPC Router", () => {
         testFileName: result.testFileName,
       });
       expect(JSON.stringify(after)).not.toContain("signed.example");
+    });
+
+    it("succeeds when the test file cannot be deleted", async () => {
+      const deleteError = new Error("AccessDenied: s3:DeleteObject");
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        uploadWithSignedUrl: vi.fn().mockResolvedValue({
+          signedUrl: "https://signed.example/upload",
+        }),
+        deleteFiles: vi.fn().mockRejectedValue(deleteError),
+      });
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      const result = await caller.blobStorageIntegration.validate({
+        projectId: project.id,
+      });
+
+      expect(result.success).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(result.testFileName),
+        deleteError,
+      );
+
+      const auditLog = await findAuditLog({
+        projectId: project.id,
+        action: "validate",
+      });
+      expect(parseAuditLogAfter(auditLog?.after ?? null)).toMatchObject({
+        outcome: "success",
+        testFileName: result.testFileName,
+      });
     });
 
     it("creates a failure audit log when validation upload fails", async () => {

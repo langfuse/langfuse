@@ -5,7 +5,7 @@ import {
   type ObservationDetailPageListEntry,
   type TraceDetailPageListEntry,
   useFirstDetailPageListEntry,
-} from "@/src/features/navigate-detail-pages/context";
+} from "@/src/features/navigate-detail-pages";
 import { type NextRouter } from "next/router";
 import {
   EvalTargetObject,

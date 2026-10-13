@@ -23,7 +23,11 @@ import type { TelemetryOptions } from "ai";
 import { stringifyValue } from "../../../utils/stringChecks";
 import { traceException } from "../../instrumentation";
 import { logger } from "../../logger";
-import { LangfuseOtelSpanAttributes } from "../../otel/attributes";
+import {
+  AI_FEATURE_OTEL_SDK_NAME,
+  buildEvaluationAttributes,
+  LangfuseOtelSpanAttributes,
+} from "../../otel/attributes";
 import { publishInternalOtelSpans } from "../../otel/internalTraceOtelWriter";
 import type { InternalTraceExperimentContext } from "../internalTraceEvents";
 import type { TraceSinkParams } from "../types";
@@ -79,20 +83,31 @@ export type AiSdkTelemetryCapture = {
  * experiment observation evals.
  *
  * Returns `undefined` (no tracing) when the environment is not
- * langfuse-prefixed (the eval-loop safeguard) or when the trace ID is not a
+ * langfuse-prefixed (the eval-loop safeguard) unless this is an AI-feature
+ * product trace (`aiFeatureOtelIngestion`), or when the trace ID is not a
  * valid W3C trace ID.
  */
 export function createAiSdkTelemetryCapture(params: {
   traceSinkParams: TraceSinkParams;
   /** Recorded as the root span's (and trace's) input. */
   rootInput?: unknown;
+  /** Trace-visible generation input. Pass media-reference messages instead of the exact provider egress payload when needed. */
+  generationInput?: unknown;
 }): AiSdkTelemetryCapture | undefined {
-  const { traceSinkParams, rootInput } = params;
+  const { traceSinkParams, rootInput, generationInput } = params;
+  const isAiFeatureProductTrace = Boolean(
+    traceSinkParams.aiFeatureOtelIngestion,
+  );
 
   // Safeguard: All internal traces must use LangfuseInternalTraceEnvironment enum values
   // This prevents infinite eval loops (user trace → eval → eval trace → another eval)
   // See corresponding check in worker/src/features/evaluation/evalService.ts createEvalJobs()
-  if (!traceSinkParams.environment?.startsWith("langfuse")) {
+  // AI-feature product traces are the exception: they use environment
+  // `production` so observation evals can match them.
+  if (
+    !isAiFeatureProductTrace &&
+    !traceSinkParams.environment?.startsWith("langfuse")
+  ) {
     logger.warn(
       "Skipping trace creation: internal traces must use LangfuseInternalTraceEnvironment enum",
       {
@@ -132,8 +147,34 @@ export function createAiSdkTelemetryCapture(params: {
 
   const serializedInput =
     rootInput !== undefined ? stringifyValue(rootInput) : undefined;
+  const evaluationAttributes = traceSinkParams.evaluationContext
+    ? buildEvaluationAttributes(traceSinkParams.evaluationContext)
+    : undefined;
 
-  const rootSpan: Span = tracer.startSpan(
+  const experimentContext = traceSinkParams.eventsWriter?.experimentContext;
+  // Customers pay per observation and only use an evaluator trace to inspect
+  // input, output, and cost, so the model call is written on this root span
+  // instead of adding another one. Prompt experiments still need the child span.
+  const writeGenerationOnRoot =
+    evaluationAttributes !== undefined && experimentContext === undefined;
+  const childSpanMetadata = traceSinkParams.metadata
+    ? Object.fromEntries(
+        Object.entries(traceSinkParams.metadata).filter(
+          ([key]) => key !== "structured_output_schema",
+        ),
+      )
+    : undefined;
+  const promptAttributes = traceSinkParams.prompt
+    ? {
+        // Link the LLM generation to the resolved Langfuse prompt.
+        [LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME]:
+          traceSinkParams.prompt.name,
+        [LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION]:
+          traceSinkParams.prompt.version,
+      }
+    : undefined;
+
+  const rootSpan = tracer.startSpan(
     traceSinkParams.traceName,
     {
       attributes: {
@@ -145,11 +186,19 @@ export function createAiSdkTelemetryCapture(params: {
                 traceSinkParams.userId,
             }
           : {}),
+        ...(evaluationAttributes ?? {}),
+        ...(writeGenerationOnRoot ? (promptAttributes ?? {}) : {}),
         ...(traceSinkParams.metadata
           ? {
               [LangfuseOtelSpanAttributes.TRACE_METADATA]: JSON.stringify(
                 traceSinkParams.metadata,
               ),
+            }
+          : {}),
+        ...(writeGenerationOnRoot && childSpanMetadata
+          ? {
+              [LangfuseOtelSpanAttributes.OBSERVATION_METADATA]:
+                JSON.stringify(childSpanMetadata),
             }
           : {}),
         ...(serializedInput !== undefined
@@ -164,7 +213,6 @@ export function createAiSdkTelemetryCapture(params: {
   );
   const activeContext = trace.setSpan(ROOT_CONTEXT, rootSpan);
 
-  const experimentContext = traceSinkParams.eventsWriter?.experimentContext;
   const experimentAttributes = experimentContext
     ? buildExperimentAttributes(
         experimentContext,
@@ -175,30 +223,15 @@ export function createAiSdkTelemetryCapture(params: {
     rootSpan.setAttributes(experimentAttributes);
   }
 
-  const promptAttributes = traceSinkParams.prompt
-    ? {
-        // Link the LLM generation spans to the resolved Langfuse prompt.
-        [LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME]:
-          traceSinkParams.prompt.name,
-        [LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION]:
-          traceSinkParams.prompt.version,
-      }
-    : undefined;
-
-  const childSpanMetadata = traceSinkParams.metadata
-    ? Object.fromEntries(
-        Object.entries(traceSinkParams.metadata).filter(
-          ([key]) => key !== "structured_output_schema",
-        ),
-      )
-    : undefined;
-
-  const otelIntegration = createGenerationSpanTelemetry({
+  const generationTelemetry = createGenerationSpanTelemetry({
     tracer,
+    recordedInput: generationInput,
+    existingSpan: writeGenerationOnRoot ? rootSpan : undefined,
     attributes: {
       // Experiment linkage goes on every span so every materialized event
       // remains associated with the run item root.
       ...(experimentAttributes ?? {}),
+      ...(evaluationAttributes ?? {}),
       ...(promptAttributes ?? {}),
       [LangfuseOtelSpanAttributes.TRACE_NAME]: traceSinkParams.traceName,
       [LangfuseOtelSpanAttributes.ENVIRONMENT]: traceSinkParams.environment,
@@ -270,7 +303,10 @@ export function createAiSdkTelemetryCapture(params: {
       await publishInternalOtelSpans({
         spans: matchingSpans,
         projectId: traceSinkParams.targetProjectId,
-        sdkName: INTERNAL_SDK_NAME,
+        sdkName: isAiFeatureProductTrace
+          ? AI_FEATURE_OTEL_SDK_NAME
+          : INTERNAL_SDK_NAME,
+        isLangfuseInternal: !isAiFeatureProductTrace,
       });
     } catch (e) {
       traceException(e);
@@ -285,7 +321,10 @@ export function createAiSdkTelemetryCapture(params: {
   };
 
   return {
-    telemetry: { isEnabled: true, integrations: [otelIntegration] },
+    telemetry: {
+      isEnabled: true,
+      integrations: [generationTelemetry],
+    },
     run: (fn) => context.with(activeContext, fn),
     setRootOutput,
     setRootError,
@@ -296,19 +335,54 @@ export function createAiSdkTelemetryCapture(params: {
 /**
  * Minimal AI SDK telemetry integration for Langfuse-internal LLM completions.
  */
-export function createGenerationSpanTelemetry(params: {
+function createGenerationSpanTelemetry(params: {
   tracer: Tracer;
   /**
    * Extra attributes for every generation span (Langfuse prompt link,
    * experiment linkage).
    */
   attributes?: Attributes;
+  /**
+   * Safe input to record instead of the provider-bound messages. The latter
+   * may contain short-lived signed media URLs that must not enter traces.
+   */
+  recordedInput?: unknown;
+  /**
+   * Evaluator executions write the model call onto the trace root instead of
+   * adding a child span. The caller ends that span.
+   */
+  existingSpan?: Span;
 }): Telemetry {
-  const { tracer, attributes } = params;
+  const { tracer, attributes, recordedInput, existingSpan } = params;
   const openSpans = new Map<string, Span>();
+
+  const generationAttributes = (
+    event: Parameters<NonNullable<Telemetry["onLanguageModelCallStart"]>>[0],
+  ): Attributes => ({
+    "gen_ai.operation.name": "chat",
+    "gen_ai.provider.name": event.provider,
+    "gen_ai.request.model": event.modelId,
+    ...definedNumberAttributes({
+      "gen_ai.request.max_tokens": event.maxOutputTokens,
+      "gen_ai.request.temperature": event.temperature,
+      "gen_ai.request.top_p": event.topP,
+    }),
+    ...(recordedInput !== undefined || event.messages !== undefined
+      ? {
+          "gen_ai.input.messages": safeJsonStringify(
+            recordedInput ?? event.messages,
+          ),
+        }
+      : {}),
+    ...(event.tools && event.tools.length > 0
+      ? { "gen_ai.tool.definitions": safeJsonStringify(event.tools) }
+      : {}),
+    ...attributes,
+  });
 
   const endAllOpenSpans = (error?: unknown): void => {
     for (const span of openSpans.values()) {
+      if (span === existingSpan) continue;
       if (error !== undefined) {
         span.setAttribute("error.type", getErrorType(error));
         span.setStatus({
@@ -325,6 +399,12 @@ export function createGenerationSpanTelemetry(params: {
 
   return {
     onLanguageModelCallStart(event) {
+      if (existingSpan) {
+        existingSpan.setAttributes(generationAttributes(event));
+        openSpans.set(event.callId, existingSpan);
+        return;
+      }
+
       // Defensive: a lingering span for this call id means its end event never
       // fired (e.g. a retried attempt) — close it before starting the next.
       openSpans.get(event.callId)?.end();
@@ -333,23 +413,7 @@ export function createGenerationSpanTelemetry(params: {
         `chat ${event.modelId}`,
         {
           kind: SpanKind.CLIENT,
-          attributes: {
-            "gen_ai.operation.name": "chat",
-            "gen_ai.provider.name": event.provider,
-            "gen_ai.request.model": event.modelId,
-            ...definedNumberAttributes({
-              "gen_ai.request.max_tokens": event.maxOutputTokens,
-              "gen_ai.request.temperature": event.temperature,
-              "gen_ai.request.top_p": event.topP,
-            }),
-            ...(event.messages !== undefined
-              ? { "gen_ai.input.messages": safeJsonStringify(event.messages) }
-              : {}),
-            ...(event.tools && event.tools.length > 0
-              ? { "gen_ai.tool.definitions": safeJsonStringify(event.tools) }
-              : {}),
-            ...attributes,
-          },
+          attributes: generationAttributes(event),
         },
         context.active(),
       );
@@ -362,8 +426,11 @@ export function createGenerationSpanTelemetry(params: {
 
       if (!span) return;
 
-      openSpans.delete(event.callId);
+      if (span !== existingSpan) openSpans.delete(event.callId);
 
+      const outputMessages = safeJsonStringify([
+        { role: "assistant", content: event.content },
+      ]);
       span.setAttributes({
         "gen_ai.response.finish_reasons": [event.finishReason],
         ...(event.responseId ? { "gen_ai.response.id": event.responseId } : {}),
@@ -375,14 +442,21 @@ export function createGenerationSpanTelemetry(params: {
           "gen_ai.usage.cache_creation.input_tokens":
             event.usage.inputTokenDetails?.cacheWriteTokens,
         }),
-        "gen_ai.output.messages": safeJsonStringify([
-          { role: "assistant", content: event.content },
-        ]),
+        "gen_ai.output.messages": outputMessages,
+        // The root span already has observation input. Without observation
+        // output, ingestion ignores this model response when a later step fails.
+        ...(span === existingSpan
+          ? {
+              [LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT]: outputMessages,
+            }
+          : {}),
       });
-      span.end();
+      if (span !== existingSpan) span.end();
     },
 
     onError(event) {
+      // The root span's error is recorded by setRootError. Marking it here too
+      // would store the same exception twice.
       endAllOpenSpans(getTelemetryError(event));
     },
 

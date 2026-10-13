@@ -1,15 +1,17 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import {
   authenticatedProcedure,
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   DEFAULT_TRACE_JOB_DELAY,
   deriveEvaluatorDisplayStateFromExecutionCounts,
-  singleFilter,
+  type singleFilter,
+  singleFilterList,
   variableMapping,
   observationVariableMapping,
   paginationZod,
@@ -76,6 +78,7 @@ import {
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import { assertCanCreateLegacyEvalJob } from "@/src/features/evals/server/legacyEvalGate";
 import { LegacyEvalCompatibilityService } from "@/src/features/evals/server/legacyCompatibilityService";
+import { reconcileEvaluatorPromptMessages } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";
 
 // Filter columns that used to be backed by the Postgres `traces` and
@@ -89,7 +92,7 @@ const CreateEvalJobSchema = z.object({
   evalTemplateId: z.string(),
   scoreName: z.string().min(1),
   target: EvalTargetObjectSchema,
-  filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
+  filter: singleFilterList.nullable(),
   // Accept either full variableMapping (trace/dataset) or simplified observationVariableMapping (event/experiment)
   mapping: z.union([
     z.array(variableMapping),
@@ -216,7 +219,7 @@ const assertTemplateCanRunForActivation = async (params: {
 
 const UpdateEvalJobSchema = z.object({
   scoreName: z.string().min(1).optional(),
-  filter: z.array(singleFilter).optional(),
+  filter: singleFilterList.optional(),
   // Accept either full variableMapping (trace/dataset) or simplified observationVariableMapping (event/experiment)
   variableMapping: z
     .union([z.array(variableMapping), z.array(observationVariableMapping)])
@@ -234,14 +237,21 @@ const validateVariableMappingForTarget = ({
   targetObject: string;
   mapping: unknown;
 }) => {
-  const result =
-    targetObject === EvalTargetObject.EVENT ||
-    targetObject === EvalTargetObject.EXPERIMENT
-      ? z.array(observationVariableMapping).safeParse(mapping)
-      : targetObject === EvalTargetObject.TRACE ||
-          targetObject === EvalTargetObject.DATASET
-        ? z.array(variableMapping).safeParse(mapping)
-        : null;
+  const result = (() => {
+    if (
+      targetObject === EvalTargetObject.EVENT ||
+      targetObject === EvalTargetObject.EXPERIMENT
+    ) {
+      return z.array(observationVariableMapping).safeParse(mapping);
+    }
+    if (
+      targetObject === EvalTargetObject.TRACE ||
+      targetObject === EvalTargetObject.DATASET
+    ) {
+      return z.array(variableMapping).safeParse(mapping);
+    }
+    return null;
+  })();
 
   if (!result?.success) {
     throw new TRPCError({
@@ -287,7 +297,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
       return env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT;
     }),
@@ -297,7 +307,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
 
       return new LegacyEvalCompatibilityService(ctx.prisma).counts(
@@ -308,7 +318,7 @@ export const evalRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(), // Required for protectedProjectProcedure
-        filter: z.array(singleFilter),
+        filter: singleFilterList,
         orderBy: orderBy,
         searchQuery: z.string().nullish(),
         ...paginationZod,
@@ -318,7 +328,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
       const result = await new LegacyEvalCompatibilityService(
         ctx.prisma,
@@ -355,7 +365,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
 
       const config = await new LegacyEvalCompatibilityService(
@@ -388,7 +398,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalTemplate:read",
+        scope: "evaluator:read",
       });
 
       const service = new LegacyEvalCompatibilityService(ctx.prisma);
@@ -416,7 +426,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalTemplate:read",
+        scope: "evaluator:read",
       });
 
       return new LegacyEvalCompatibilityService(
@@ -435,7 +445,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalTemplate:read",
+        scope: "evaluator:read",
       });
 
       return new LegacyEvalCompatibilityService(ctx.prisma).getTemplate(
@@ -456,7 +466,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalTemplate:read",
+        scope: "evaluator:read",
       });
 
       const service = new LegacyEvalCompatibilityService(ctx.prisma);
@@ -491,7 +501,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalTemplate:read",
+        scope: "evaluator:read",
       });
 
       const latestTemplates = await new LegacyEvalCompatibilityService(
@@ -519,7 +529,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
 
       return {
@@ -540,7 +550,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
 
       const targetObjects = Array.isArray(input.targetObject)
@@ -562,7 +572,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
 
       return {
@@ -578,7 +588,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:CUD",
+        scope: "evaluationRule:CUD",
       });
 
       assertCanCreateLegacyEvalJob({
@@ -715,7 +725,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:CUD",
+        scope: "evaluator:CUD",
       });
 
       assertCodeEvalEnabled();
@@ -754,7 +764,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalTemplate:CUD",
+        scope: "evaluator:CUD",
       });
 
       await validateEvalTemplateCreation(input);
@@ -768,7 +778,9 @@ export const evalRouter = createTRPCRouter({
             }
           : {
               type: EvalTemplateType.LLM_AS_JUDGE,
-              prompt: input.prompt,
+              promptMessages: reconcileEvaluatorPromptMessages({
+                prompt: input.prompt,
+              }),
               provider: input.provider ?? null,
               model: input.model ?? null,
               modelParams: input.modelParams ?? null,
@@ -826,7 +838,7 @@ export const evalRouter = createTRPCRouter({
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: projectId,
-          scope: "evalJob:CUD",
+          scope: "evaluationRule:CUD",
         });
 
         const compatibility = new LegacyEvalCompatibilityService(ctx.prisma);
@@ -895,7 +907,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: projectId,
-        scope: "evalJob:CUD",
+        scope: "evaluationRule:CUD",
       });
 
       const compatibility = new LegacyEvalCompatibilityService(ctx.prisma);
@@ -1086,7 +1098,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: projectId,
-        scope: "evalJob:CUD",
+        scope: "evaluationRule:CUD",
       });
 
       const compatibility = new LegacyEvalCompatibilityService(ctx.prisma);
@@ -1130,7 +1142,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: projectId,
-        scope: "evalJob:read",
+        scope: "evaluator:read",
       });
 
       return new LegacyEvalCompatibilityService(ctx.prisma).getTemplateUsage(
@@ -1145,7 +1157,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: projectId,
-        scope: "evalTemplate:CUD",
+        scope: "evaluator:CUD",
       });
 
       const deletedVersions = await new LegacyEvalCompatibilityService(
@@ -1168,7 +1180,7 @@ export const evalRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        filter: z.array(singleFilter),
+        filter: singleFilterList,
         jobConfigurationId: z.string().optional(),
         ...paginationZod,
       }),
@@ -1258,7 +1270,12 @@ export const evalRouter = createTRPCRouter({
 
       const scores =
         scoreIds.length > 0
-          ? await getScoresByIds(input.projectId, scoreIds)
+          ? await getScoresByIds(
+              input.projectId,
+              scoreIds,
+              undefined,
+              "ReadOnly",
+            )
           : [];
 
       return {
@@ -1276,7 +1293,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
 
       const { configs } = await new LegacyEvalCompatibilityService(
@@ -1308,7 +1325,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evalJobExecution:read",
       });
 
       if (input.evaluatorIds.length === 0) {
@@ -1363,7 +1380,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evalJobExecution:read",
       });
 
       const costs: Array<{ id: string; totalCost: number }> =
@@ -1399,7 +1416,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evalJobExecution:read",
       });
 
       const costs =

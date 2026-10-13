@@ -4,15 +4,19 @@ import {
   Role,
   SurveyName,
 } from "@langfuse/shared/src/db";
-import { resolveProjectRole } from "@langfuse/shared/src/server";
+import {
+  resolveProjectRole,
+  invalidateCachedOrgApiKeys,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   organizationRoleAccessRights,
   type OrganizationScope,
-} from "@/src/features/rbac/constants/organizationAccessRights";
+} from "@/src/features/rbac";
 import { projectRoleAccessRights } from "@langfuse/shared";
-import { createProjectRoute } from "@/src/features/setup/setupRoutes";
+import { createProjectRoute } from "@/src/features/setup";
+import { type BuildIntentId } from "@/src/features/onboarding/lib/buildIntent";
 
 const DEFAULT_STARTER_PROJECT_NAME = "My Project";
 const STARTER_ORGANIZATION_METADATA = {
@@ -210,7 +214,7 @@ export const resolveOnboardingRedirectTarget = async ({
   return null;
 };
 
-export const resolveOnboardingRedirectTargetWithFallback = async ({
+const resolveOnboardingRedirectTargetWithFallback = async ({
   prisma,
   userId,
   canCreateOrganizations,
@@ -274,6 +278,9 @@ export const completeCloudSignupOnboarding = async ({
   canCreateOrganizations,
   referralSource,
   aiFeaturesEnabled,
+  buildIntents,
+  buildIntentPositions,
+  buildIntentOther,
 }: {
   prisma: PrismaClient;
   userId: string;
@@ -281,6 +288,9 @@ export const completeCloudSignupOnboarding = async ({
   canCreateOrganizations: boolean;
   referralSource?: string;
   aiFeaturesEnabled?: boolean;
+  buildIntents?: BuildIntentId[];
+  buildIntentPositions?: number[];
+  buildIntentOther?: string;
 }) =>
   prisma.$transaction(async (tx) => {
     await tx.$queryRaw`
@@ -323,11 +333,18 @@ export const completeCloudSignupOnboarding = async ({
       await tx.survey.create({
         data: {
           surveyName: SurveyName.USER_ONBOARDING,
-          response: normalizedReferralSource
-            ? {
-                referralSource: normalizedReferralSource,
-              }
-            : {},
+          response: {
+            ...(normalizedReferralSource
+              ? { referralSource: normalizedReferralSource }
+              : {}),
+            ...(buildIntents && buildIntents.length > 0
+              ? {
+                  buildIntents,
+                  buildIntentPositions: buildIntentPositions ?? [],
+                  ...(buildIntentOther ? { buildIntentOther } : {}),
+                }
+              : {}),
+          },
           userId,
           userEmail: userEmail ?? undefined,
           orgId: redirectTarget.orgId,
@@ -337,6 +354,7 @@ export const completeCloudSignupOnboarding = async ({
 
     return {
       redirectTo: redirectTarget.redirectTo,
+      surveyCreated: !existingSurvey,
     };
   });
 
@@ -431,6 +449,10 @@ export const provisionStarterOrganizationForNewUser = async ({
     },
     prisma,
   );
+
+  // After the tx commits: refresh org-scoped keys' baked projectIds for the
+  // new starter project.
+  await invalidateCachedOrgApiKeys(createdResources.organization.id);
 
   return createdResources;
 };

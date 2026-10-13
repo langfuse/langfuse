@@ -9,7 +9,12 @@ export const LlmAsAJudge = meta.story({
   args: {
     definition: {
       type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
-      prompt: "Judge whether {{output}} correctly answers {{input}}.",
+      promptMessages: [
+        {
+          role: "user",
+          content: "Judge whether {{output}} correctly answers {{input}}.",
+        },
+      ],
       selectedModel: { provider: "openai", model: "gpt-4.1-mini" },
       defaultModel: null,
       outputDefinition: null,

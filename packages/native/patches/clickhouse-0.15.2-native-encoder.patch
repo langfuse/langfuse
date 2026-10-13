@@ -1,0 +1,128 @@
+diff --git a/src/native/mod.rs b/src/native/mod.rs
+index 1ef0339..68181bc 100644
+--- a/src/native/mod.rs
++++ b/src/native/mod.rs
+@@ -47,6 +47,15 @@ impl Block {
+         }
+     }
+ 
++    /// Encode this block as a self-contained ClickHouse Native-format payload.
++    ///
++    /// The returned bytes contain the block header, column metadata, and all column data. They
++    /// can be sent as one Native block without retaining any references to the builder or its
++    /// source values.
++    pub fn encode(&self) -> Result<Bytes, Error> {
++        writer::encode_block(self)
++    }
++
+     /// The number of rows in this block.
+     ///
+     /// Note that the size of a single block in a query resultset can be influenced by many things
+diff --git a/src/native/writer.rs b/src/native/writer.rs
+index b9553c8..35327f8 100644
+--- a/src/native/writer.rs
++++ b/src/native/writer.rs
+@@ -5,6 +5,103 @@ use crate::native::{Block, Column, Layout, LayoutKind, varuint};
+ use bytes::{BufMut, Bytes, BytesMut};
+ use std::num::Saturating;
+ 
++/// Encode a complete block synchronously in ClickHouse Native format.
++///
++/// This is kept separate from [`BlockWriter`], whose purpose is streaming an insert request. It
++/// lets callers that already own a block obtain an independent byte buffer with no async sink or
++/// request lifetime involved.
++pub(crate) fn encode_block(block: &Block) -> Result<Bytes, Error> {
++    if block.num_rows == 0 {
++        return Err(Error::Other("attempting to encode an empty block".into()));
++    }
++
++    let mut buf = BytesMut::with_capacity(8192);
++    varuint::write(&mut buf, block.columns.len());
++    varuint::write(&mut buf, block.num_rows);
++
++    for column in &block.columns {
++        encode_column(&mut buf, column)?;
++    }
++
++    Ok(buf.freeze())
++}
++
++fn encode_column(buf: &mut BytesMut, column: &Column) -> Result<(), Error> {
++    varuint::write(&mut *buf, column.name.len());
++    buf.extend_from_slice(column.name.as_bytes());
++
++    let data_type_str = column.data_type.to_str();
++    varuint::write(&mut *buf, data_type_str.len());
++    buf.extend_from_slice(data_type_str.as_bytes());
++
++    encode_layout(buf, &column.layout)
++}
++
++fn encode_layout(buf: &mut BytesMut, layout: &Layout) -> Result<(), Error> {
++    if let Some(nulls) = &layout.nulls {
++        buf.extend_from_slice(nulls);
++    }
++
++    match &layout.kind {
++        LayoutKind::Fixed { data, .. } => buf.extend_from_slice(data),
++        LayoutKind::Variable { end_offsets, data } => {
++            let mut start_offset = 0;
++
++            for &end_offset in end_offsets {
++                let len = end_offset.checked_sub(start_offset).ok_or_else(|| {
++                    Error::Other(
++                        format!(
++                            "BUG: string length underflow in encoding block: {end_offset} - {start_offset}"
++                        )
++                        .into(),
++                    )
++                })?;
++
++                varuint::write(&mut *buf, len);
++                buf.extend_from_slice(&data[start_offset..end_offset]);
++                start_offset = end_offset;
++            }
++        }
++        LayoutKind::LowCardinality(_) => {
++            return Err(Error::Other(
++                "inserting LowCardinality data not yet implemented".into(),
++            ));
++        }
++        LayoutKind::Array {
++            end_indices,
++            elem_layout,
++        } => {
++            for &index in end_indices {
++                buf.put_u64_le(u64::try_from(index).map_err(|_| {
++                    Error::Other(format!("array end index out of range: {index}").into())
++                })?);
++            }
++
++            encode_layout(buf, elem_layout)?;
++        }
++        LayoutKind::Tuple { layouts } => {
++            for layout in layouts {
++                encode_layout(buf, layout)?;
++            }
++        }
++        LayoutKind::Map {
++            key_val_layouts,
++            end_indices,
++        } => {
++            for &index in end_indices {
++                buf.put_u64_le(u64::try_from(index).map_err(|_| {
++                    Error::Other(format!("map end index out of range: {index}").into())
++                })?);
++            }
++
++            encode_layout(buf, &key_val_layouts[0])?;
++            encode_layout(buf, &key_val_layouts[1])?;
++        }
++    }
++
++    Ok(())
++}
++
+ pub(crate) struct BlockWriter {
+     insert: InsertFormatted,
+     buf: BytesMut,

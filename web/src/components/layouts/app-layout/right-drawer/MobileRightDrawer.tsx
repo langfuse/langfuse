@@ -1,4 +1,3 @@
-import { type PropsWithChildren } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -6,22 +5,20 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/src/components/ui/drawer";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useSupportDrawer } from "@/src/features/support-chat";
 import { SupportDrawer } from "@/src/features/support-chat/SupportDrawer";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { V4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanel";
+import { useV4MigrationTitle } from "@/src/features/v4-migration/V4MigrationContent";
 
-export function MobileRightDrawer({ children }: PropsWithChildren) {
+export function MobileRightDrawer() {
   const { open: supportOpen, setOpen: setSupportOpen } = useSupportDrawer();
   const { open: migrationOpen, setOpen: setMigrationOpen } =
     useV4MigrationPanel();
+  const migrationTitle = useV4MigrationTitle();
 
   return (
     <>
-      <main className="h-full flex-1" style={{ overscrollBehaviorY: "none" }}>
-        {children}
-      </main>
-
       <Drawer
         open={supportOpen}
         onOpenChange={(open) => {
@@ -64,10 +61,10 @@ export function MobileRightDrawer({ children }: PropsWithChildren) {
               <div className="bg-muted h-2 w-20 rounded-full" />
             </div>
             {/* sr-only for screen readers and accessibility */}
-            <DrawerTitle className="sr-only">Upgrade to v4</DrawerTitle>
+            <DrawerTitle className="sr-only">{migrationTitle}</DrawerTitle>
             <DrawerDescription className="sr-only">
-              Information about migrating to Langfuse v4 and upcoming
-              deprecations.
+              Action items to keep your integrations compatible with Langfuse v4
+              and upcoming deprecations.
             </DrawerDescription>
           </DrawerHeader>
           <V4MigrationPanel

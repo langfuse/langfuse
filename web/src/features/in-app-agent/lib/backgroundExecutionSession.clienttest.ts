@@ -18,6 +18,7 @@ import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors"
 import {
   BackgroundExecutionSessionController,
   getBackgroundRunNotice,
+  getSettledActivityOutcome,
   type BackgroundExecutionView,
 } from "./backgroundExecutionSession";
 
@@ -1404,6 +1405,41 @@ describe("getBackgroundRunNotice", () => {
       text,
       tone: "info",
     });
+  });
+
+  const truncatedRun = (errorCode: InAppAgentRunErrorCode) => ({
+    id: "run-1",
+    status: InAppAgentRunStatus.SUCCEEDED,
+    errorCode,
+    cancelRequested: false,
+  });
+
+  it.each([
+    [
+      InAppAgentRunErrorCode.STEP_LIMIT,
+      "The assistant had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.",
+    ],
+    [
+      InAppAgentRunErrorCode.OUTPUT_LIMIT,
+      "The assistant had to stop before finishing this answer. The response hit the model's output limit. Send another message to continue.",
+    ],
+  ] as const)("warns and marks SUCCEEDED %s as stopped", (errorCode, text) => {
+    const run = truncatedRun(errorCode);
+
+    expect(getBackgroundRunNotice(run)).toEqual({ text, tone: "warning" });
+    expect(getSettledActivityOutcome(run)).toBe("stopped");
+  });
+
+  it("shows no notice and marks a plain SUCCEEDED run as worked", () => {
+    const run = {
+      id: "run-1",
+      status: InAppAgentRunStatus.SUCCEEDED,
+      errorCode: null,
+      cancelRequested: false,
+    };
+
+    expect(getBackgroundRunNotice(run)).toBeNull();
+    expect(getSettledActivityOutcome(run)).toBe("worked");
   });
 });
 

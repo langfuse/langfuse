@@ -5,7 +5,7 @@ import { eventsRouter } from "@/src/features/events/server/eventsRouter";
 import { scoresRouter } from "./routers/scores";
 import { scoreAnalyticsRouter } from "@/src/features/score-analytics/server/scoreAnalyticsRouter";
 import { dashboardRouter } from "@/src/features/dashboard/server/dashboard-router";
-import { projectsRouter } from "@/src/features/projects/server/projectsRouter";
+import { projectsRouter } from "@/src/features/projects/server";
 import { projectApiKeysRouter } from "@/src/features/public-api/server/projectApiKeyRouter";
 import { membersRouter } from "@/src/features/rbac/server/membersRouter";
 import { userRouter } from "@/src/server/api/routers/users";
@@ -22,10 +22,12 @@ import { evaluatorRouter } from "@/src/features/evals/v2/server/evaluators/evalu
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
 import { mixpanelIntegrationRouter } from "@/src/features/mixpanel-integration/mixpanel-integration-router";
 import { blobStorageIntegrationRouter } from "@/src/features/blobstorage-integration/blobstorage-integration-router";
+import { externalMediaStorageRouter } from "@/src/features/external-media-storage/server";
 import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
 import { llmSchemaRouter } from "@/src/features/llm-schemas/server/router";
 import { llmToolRouter } from "@/src/features/llm-tools/server/router";
 import { organizationsRouter } from "@/src/features/organizations/server/organizationRouter";
+import { organizationUsageRouter } from "@/src/features/organization-usage/server/organizationUsageRouter";
 import { organizationApiKeysRouter } from "@/src/features/public-api/server/organizationApiKeyRouter";
 import { verifiedDomainRouter } from "@/src/ee/features/verified-domains/server/verifiedDomainRouter";
 import { ssoConfigRouter } from "@/src/ee/features/multi-tenant-sso/server/ssoConfigRouter";
@@ -54,7 +56,6 @@ import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalM
 import { slackRouter } from "@/src/features/slack/server/router";
 import { supportRouter } from "@/src/features/support-chat/trpc/supportRouter";
 import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/annotationQueueAssignmentsRouter";
-import { surveysRouter } from "@/src/server/api/routers/surveys";
 import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
 import { searchBarRouter } from "@/src/features/search-bar/server/router";
 import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
@@ -62,6 +63,9 @@ import { onboardingRouter } from "@/src/features/onboarding/server/onboardingRou
 import { webCalloutsRouter } from "@/src/features/web-callouts/server/router";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
+import { aiGatewayRouter } from "@/src/features/ai-gateway/server";
+import { topicsRouter } from "@/src/features/topics/server/topicsRouter";
+import { skillRouter } from "@/src/features/skills/server/skill-router";
 
 /**
  * This is the primary router for your server.
@@ -69,6 +73,7 @@ import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter"
  * All routers added in /api/routers should be manually added here.
  */
 export const appRouter = createTRPCRouter({
+  topics: topicsRouter,
   annotationQueues: queueRouter,
   annotationQueueItems: queueItemRouter,
   annotationQueueAssignments: queueAssignmentRouter,
@@ -82,6 +87,7 @@ export const appRouter = createTRPCRouter({
   scoreConfigs: scoreConfigsRouter,
   dashboard: dashboardRouter,
   organizations: organizationsRouter,
+  organizationUsage: organizationUsageRouter,
   organizationApiKeys: organizationApiKeysRouter,
   verifiedDomain: verifiedDomainRouter,
   ssoConfig: ssoConfigRouter,
@@ -103,6 +109,7 @@ export const appRouter = createTRPCRouter({
   posthogIntegration: posthogIntegrationRouter,
   mixpanelIntegration: mixpanelIntegrationRouter,
   blobStorageIntegration: blobStorageIntegrationRouter,
+  externalMediaStorage: externalMediaStorageRouter,
   llmApiKey: llmApiKeyRouter,
   llmSchemas: llmSchemaRouter,
   llmTools: llmToolRouter,
@@ -124,7 +131,6 @@ export const appRouter = createTRPCRouter({
   monitors: monitorsRouter,
   slack: slackRouter,
   supportRouter: supportRouter,
-  surveys: surveysRouter,
   onboarding: onboardingRouter,
   naturalLanguageFilters: naturalLanguageFilterRouter,
   searchBar: searchBarRouter,
@@ -132,6 +138,8 @@ export const appRouter = createTRPCRouter({
   webCallouts: webCalloutsRouter,
   inAppAgent: inAppAgentRouter,
   v4Transition: v4TransitionRouter,
+  aiGateway: aiGatewayRouter,
+  skills: skillRouter,
 });
 
 // export type definition of API

@@ -1,8 +1,8 @@
 import { type ButtonProps } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Edit, Pen, PlusIcon } from "lucide-react";
 import { api } from "@/src/utils/api";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import { ActionButton } from "@/src/components/ActionButton";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { AnnotationQueueFormDialogController } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogController";
@@ -46,7 +46,7 @@ export const CreateOrEditAnnotationQueueButton = ({
       {({ disabled, openDialog }) =>
         isTableAction ? (
           <IconOnlyButton
-            icon={<Pen className="h-4 w-4" />}
+            icon={<Pen className="icon-base" />}
             label="Edit"
             aria-label="edit"
             disabledReason={disabled?.reason}
@@ -61,9 +61,9 @@ export const CreateOrEditAnnotationQueueButton = ({
             onClick={openDialog}
             icon={
               queueId ? (
-                <Edit className="h-4 w-4" aria-hidden="true" />
+                <Edit className="icon-base" aria-hidden="true" />
               ) : (
-                <PlusIcon className="h-4 w-4" aria-hidden="true" />
+                <PlusIcon className="icon-base" aria-hidden="true" />
               )
             }
             hasAccess={!disabled}

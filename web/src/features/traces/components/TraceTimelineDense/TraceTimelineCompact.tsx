@@ -10,15 +10,13 @@
  * which is what keeps it reviewable in Storybook across every size and shape.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { type RowMetrics } from "./TimelineRowMetrics";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
-import {
-  useActiveObservationIds,
-  usePlayhead,
-  useShowPlayhead,
-} from "@/src/features/traces/contexts/PlayheadContext";
+import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { detectPointerModality } from "../../fns/timeline/density";
@@ -27,25 +25,21 @@ import { TimelineDense } from "./TimelineDense";
 export function TraceTimelineCompact() {
   const { roots, nodeMap } = useTraceData();
   const { selectedNodeId, collapsedNodes } = useSelection();
+  // The same five switches the tree honours. They live in one place because a
+  // toggle that works in one view and silently does nothing in the other is
+  // worse than no toggle.
+  const { showDuration, showCostTokens } = useViewPreferences();
   const { handleHover } = useHandlePrefetchObservation();
   const selectNode = useSelectTraceNode("timeline_compact");
 
-  // Playback: the transport lives in the navigation header and drives the shared
-  // engine, so this view owes the two things you WATCH — a line that sweeps and
-  // the rows lighting up as it passes them. Both are handed to the renderer,
-  // which stays context-free so Storybook can still mount it anywhere.
-  const { seekToSec, getPlayheadSec, subscribePosition } = usePlayhead();
-  const showPlayhead = useShowPlayhead();
-  const activeIds = useActiveObservationIds();
-  const playhead = useMemo(
-    () => ({
-      visible: showPlayhead,
-      getSec: getPlayheadSec,
-      subscribe: subscribePosition,
-      onSeek: seekToSec,
-    }),
-    [showPlayhead, getPlayheadSec, subscribePosition, seekToSec],
-  );
+  /**
+   * The search box, answered in place. The renderer takes the SET of ids that
+   * keep their colour and nothing about searching — it dims the rest, reveals
+   * the first hit and states the count, which is all a chart can do with a
+   * query. The Graph reads the same hook, so the two cannot state different
+   * counts for one query.
+   */
+  const search = useTraceSearchMatches();
 
   const [pointerModality] = useState(detectPointerModality);
   const [box, setBox] = useState<{ width: number; height: number } | null>(
@@ -82,22 +76,19 @@ export function TraceTimelineCompact() {
   );
 
   /**
-   * Cost, and only cost. Tokens used to come too, which put six numbers in a
-   * hover — and only on the spans that HAVE usage, so the tooltip changed shape
-   * from row to row. Cost is the one figure that means the same thing on every
-   * kind of span; the token split is a click away in the detail panel. Same
-   * formatter and the same `∑` for a subtotal as the tree row uses.
+   * What a row says about itself: its cost, formatted the way a tree row states
+   * it. Scores, comment counts and heat-map colouring were tried here and taken
+   * back out — a row beside a bar cannot carry them consistently, and colour
+   * already means observation type. `showScores` and `showComments` mean what
+   * their storage keys have always said: the observation tree.
    */
-  const factsOf = useCallback(
-    (nodeId: string) => {
+  const metricsOf = useCallback(
+    (nodeId: string): RowMetrics => {
       const node = nodeMap.get(nodeId);
-      if (!node?.totalCost) return [];
-      const aggregated = node.children.length > 0 || node.type === "TRACE";
-      return [
-        `${aggregated ? "∑ " : ""}${usdFormatter(node.totalCost.toNumber())}`,
-      ];
+      if (!node?.totalCost || !showCostTokens) return {};
+      return { costText: usdFormatter(node.totalCost.toNumber()) };
     },
-    [nodeMap],
+    [nodeMap, showCostTokens],
   );
 
   return (
@@ -115,9 +106,9 @@ export function TraceTimelineCompact() {
           selectedId={selectedNodeId}
           onSelect={selectNode}
           onHover={handleHoverNode}
-          activeIds={activeIds}
-          playhead={playhead}
-          factsOf={factsOf}
+          metricsOf={metricsOf}
+          showDuration={showDuration}
+          search={search}
         />
       ) : null}
     </div>

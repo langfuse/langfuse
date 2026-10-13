@@ -183,11 +183,14 @@ function validateDiscoveryIssuer(
 
   // OIDC Discovery §3: the doc's issuer must match the URL it was fetched from.
   // Trailing slashes trimmed on both sides — Auth0 and friends serve one.
+  // The returned issuer is chosen by the remote IdP, so it stays out of the
+  // client error. The discovery URL prefix already names what we fetched.
   const returnedIssuer = stripTrailingSlash(doc.issuer);
   if (returnedIssuer !== expectedIssuer) {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
-      message: `reported issuer "${doc.issuer}" but we expected "${expectedIssuer}". Check the issuer URL matches exactly.`,
+      message:
+        "did not report the configured issuer. Check the issuer URL matches exactly.",
     });
   }
 }

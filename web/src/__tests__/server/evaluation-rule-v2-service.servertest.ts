@@ -17,19 +17,18 @@ import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 import { MAX_ACTIVE_EVALUATION_RULES } from "@/src/features/evals/v2/server/rules/ruleErrors";
 
 const telemetryMocks = vi.hoisted(() => ({
-  getRecentRuleExecutionTraces: vi.fn(),
   getTotalCostByRule: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof SharedServer>()),
-  getRecentRuleExecutionTraces: telemetryMocks.getRecentRuleExecutionTraces,
   getTotalCostByRule: telemetryMocks.getTotalCostByRule,
 }));
 
 const orgIds: string[] = [];
 let projectId = "";
 let otherProjectId = "";
+let defaultEvaluatorId = "";
 
 beforeAll(async () => {
   const [first, second] = await Promise.all([
@@ -41,9 +40,9 @@ beforeAll(async () => {
   orgIds.push(first.org.id, second.org.id);
 });
 
-beforeEach(() => {
-  telemetryMocks.getRecentRuleExecutionTraces.mockReset();
+beforeEach(async () => {
   telemetryMocks.getTotalCostByRule.mockReset();
+  defaultEvaluatorId = (await createEvaluator()).id;
 });
 
 afterEach(async () => {
@@ -115,7 +114,7 @@ function createLegacyRule(
   });
 }
 
-function createInput(evaluatorId?: string) {
+function createInput(evaluatorId: string | null = defaultEvaluatorId) {
   return {
     projectId,
     name: "Production generations",
@@ -376,27 +375,6 @@ describe("RuleService", () => {
   });
 
   describe("telemetry", () => {
-    it("returns recent event-backed traces grouped by rule", async () => {
-      const timestamp = new Date("2026-08-12T12:00:00.000Z");
-      telemetryMocks.getRecentRuleExecutionTraces.mockResolvedValue([
-        { ruleId: "rule-1", id: "trace-1", level: "DEFAULT", timestamp },
-      ]);
-
-      await expect(
-        createService().listRecent({
-          projectId,
-          ruleIds: ["rule-1", "rule-2"],
-        }),
-      ).resolves.toEqual({
-        "rule-1": [{ id: "trace-1", level: "DEFAULT", timestamp }],
-        "rule-2": [],
-      });
-      expect(telemetryMocks.getRecentRuleExecutionTraces).toHaveBeenCalledWith(
-        projectId,
-        ["rule-1", "rule-2"],
-      );
-    });
-
     it("returns event-backed costs by rule", async () => {
       telemetryMocks.getTotalCostByRule.mockResolvedValue([
         { ruleId: "rule-1", totalCost: 1.25 },
@@ -416,17 +394,12 @@ describe("RuleService", () => {
   });
 
   describe("create", () => {
-    it("creates an active observation rule without evaluator assignments", async () => {
+    it("rejects an active observation rule without evaluator assignments", async () => {
       await expect(
-        createService().create(createInput(), null),
-      ).resolves.toMatchObject({
-        enabled: true,
-        targetObject: "event",
-        timeScope: ["NEW"],
-        delay: 0,
-        sampling: 0.25,
-        assignments: [],
-      });
+        createService().create(createInput(null), null),
+      ).rejects.toThrow(
+        "An enabled evaluation rule requires at least one evaluator assignment",
+      );
     });
 
     it("returns evaluator mapping fallback data", async () => {
@@ -721,7 +694,7 @@ describe("RuleService", () => {
       const evaluator = await createEvaluator();
       const service = createService();
       const rule = await service.create(
-        { ...createInput(), enabled: false },
+        { ...createInput(null), enabled: false },
         null,
       );
       const attachment = {
@@ -1055,7 +1028,17 @@ describe("RuleService", () => {
         });
         await prisma.evaluationRule.update({
           where: { id: legacyRule.id },
-          data: { status: "ACTIVE" },
+          data: {
+            status: "ACTIVE",
+            filter: [
+              {
+                type: "string",
+                column: "Trace Name",
+                operator: "=",
+                value: "legacy trace",
+              },
+            ],
+          },
         });
         await service.update({
           projectId,
@@ -1187,7 +1170,10 @@ describe("RuleService", () => {
         undefined,
         legacyMapping,
       );
-      const rule = await createService().create(createInput(), null);
+      const rule = await createService().create(
+        { ...createInput(null), enabled: false },
+        null,
+      );
 
       const updated = await createService().attach({
         projectId,
@@ -1223,16 +1209,61 @@ describe("RuleService", () => {
         },
       ]);
     });
+
+    it("rejects enabling a rule whose resulting assignment list is empty", async () => {
+      const service = createService();
+      const evaluator = await createEvaluator();
+      const assigned = await service.create(createInput(evaluator.id), null);
+      const unassigned = await service.create(
+        { ...createInput(null), enabled: false },
+        null,
+      );
+
+      await expect(
+        service.update({
+          projectId,
+          ruleId: assigned.id,
+          enabled: true,
+          evaluatorMappings: [],
+        }),
+      ).rejects.toThrow(
+        "An enabled evaluation rule requires at least one evaluator assignment",
+      );
+      await expect(
+        service.update({
+          projectId,
+          ruleId: unassigned.id,
+          enabled: true,
+        }),
+      ).rejects.toThrow(
+        "An enabled evaluation rule requires at least one evaluator assignment",
+      );
+    });
   });
 
   describe("setEnabled", () => {
     it("updates the rule status", async () => {
+      const evaluator = await createEvaluator();
       const service = createService();
-      const rule = await service.create(createInput(), null);
+      const rule = await service.create(createInput(evaluator.id), null);
 
       await expect(
         service.setEnabled({ projectId, ruleId: rule.id, enabled: false }),
       ).resolves.toMatchObject({ id: rule.id, enabled: false });
+    });
+
+    it("rejects enabling a rule without evaluator assignments", async () => {
+      const service = createService();
+      const rule = await service.create(
+        { ...createInput(null), enabled: false },
+        null,
+      );
+
+      await expect(
+        service.setEnabled({ projectId, ruleId: rule.id, enabled: true }),
+      ).rejects.toThrow(
+        "An enabled evaluation rule requires at least one evaluator assignment",
+      );
     });
 
     it("rejects an unavailable rule", async () => {
@@ -1325,6 +1356,31 @@ describe("RuleService", () => {
   });
 
   describe("setManyEnabled", () => {
+    it("rejects enabling any selected rule without evaluator assignments", async () => {
+      const service = createService();
+      const [first, second] = await Promise.all([
+        service.create({ ...createInput(null), enabled: false }, null),
+        service.create(
+          {
+            ...createInput(null),
+            name: "Second unassigned rule",
+            enabled: false,
+          },
+          null,
+        ),
+      ]);
+
+      await expect(
+        service.setManyEnabled({
+          projectId,
+          ruleIds: [first.id, second.id],
+          enabled: true,
+        }),
+      ).rejects.toThrow(
+        "An enabled evaluation rule requires at least one evaluator assignment",
+      );
+    });
+
     it("updates filtered matches without crossing project boundaries", async () => {
       const service = createService();
       const first = await service.create(createInput(), null);
@@ -1332,9 +1388,10 @@ describe("RuleService", () => {
         { ...createInput(), name: "Other production rule" },
         null,
       );
+      const foreignEvaluator = await createEvaluator(otherProjectId);
       await createService().create(
         {
-          ...createInput(),
+          ...createInput(foreignEvaluator.id),
           projectId: otherProjectId,
           name: "Foreign production rule",
         },
@@ -1345,13 +1402,24 @@ describe("RuleService", () => {
         projectId,
         isBatchAction: true,
         search: "production",
+        filter: [
+          {
+            type: "string",
+            column: "name",
+            operator: "=",
+            value: first.name,
+          },
+        ],
         enabled: false,
       });
 
-      expect(new Set(changedIds)).toEqual(new Set([first.id, second.id]));
+      expect(changedIds).toEqual([first.id]);
       await expect(
         service.list({ projectId, page: 1, limit: 50, enabled: false }),
-      ).resolves.toMatchObject({ totalItems: 2 });
+      ).resolves.toMatchObject({ totalItems: 1 });
+      await expect(service.get(projectId, second.id)).resolves.toMatchObject({
+        enabled: true,
+      });
     });
   });
 
@@ -1381,6 +1449,13 @@ describe("RuleService", () => {
         { ...createInput(), name: "Second rule" },
         null,
       );
+      await prisma.jobExecution.createMany({
+        data: [first.id, second.id].map((jobConfigurationId) => ({
+          projectId,
+          jobConfigurationId,
+          status: "PENDING" as const,
+        })),
+      });
 
       await expect(
         service.deleteMany({ projectId, ruleIds: [first.id, second.id] }),
@@ -1388,14 +1463,23 @@ describe("RuleService", () => {
       await expect(
         service.list({ projectId, page: 1, limit: 50 }),
       ).resolves.toEqual({ rules: [], totalItems: 0 });
+      await expect(
+        prisma.jobExecution.count({
+          where: {
+            projectId,
+            jobConfigurationId: { in: [first.id, second.id] },
+          },
+        }),
+      ).resolves.toBe(0);
     });
 
     it("ignores unavailable rules in an explicit selection", async () => {
       const service = createService();
       const local = await service.create(createInput(), null);
+      const foreignEvaluator = await createEvaluator(otherProjectId);
       const foreign = await createService().create(
         {
-          ...createInput(),
+          ...createInput(foreignEvaluator.id),
           projectId: otherProjectId,
           name: "Foreign rule",
         },
@@ -1456,10 +1540,13 @@ describe("RuleService", () => {
         },
       ],
     });
-    await service.detach({
+    await service.attach({
       projectId,
       ruleId: rule.id,
-      evaluatorId: secondEvaluator.id,
+      assignment: {
+        evaluatorId: firstEvaluator.id,
+        variableMapping: null,
+      },
     });
     await service.setManyEnabled({
       projectId,

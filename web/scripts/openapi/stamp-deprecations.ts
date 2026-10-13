@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import { isMap, isScalar, parse, parseDocument, Scalar } from "yaml";
 
-import {
-  type DeprecatedOperation,
-  type DeprecatedProperty,
-} from "./fern-deprecations";
+import { type DeprecatedOperation } from "./fern-deprecations";
 
 /** Fold width used by `fern export`. */
 const LINE_WIDTH = 80;
@@ -36,12 +33,6 @@ export function deprecationNotice(message: string): string {
 type OpenApiOperation = { deprecated?: boolean; description?: string };
 type OpenApiDocument = {
   paths: Record<string, Record<string, OpenApiOperation>>;
-  components?: {
-    schemas: Record<
-      string,
-      { properties: Record<string, { deprecated?: boolean }> }
-    >;
-  };
 };
 
 /**
@@ -62,11 +53,11 @@ function descriptionScalar(
   return scalar;
 }
 
-/** stampDeprecations preserves Fern operation and property deprecations in OpenAPI. */
+/** stampDeprecations marks deprecated operations and properties, adding notices to operations. */
 export function stampDeprecations(
   source: string,
   operations: DeprecatedOperation[],
-  properties: DeprecatedProperty[] = [],
+  properties: string[][] = [],
 ): string {
   const document = parseDocument(source);
   if (document.errors.length > 0) {
@@ -115,20 +106,23 @@ export function stampDeprecations(
     target.description = description;
   }
 
-  for (const { schema, property } of properties) {
-    const fieldPath = ["components", "schemas", schema, "properties", property];
-    const field = document.getIn(fieldPath, true);
-    if (!isMap(field)) {
-      throw new Error(`OpenAPI schema does not contain ${schema}.${property}`);
+  for (const propertyPath of properties) {
+    const property = document.getIn(propertyPath, true);
+    if (!isMap(property)) {
+      throw new Error(
+        `OpenAPI schema does not contain property ${propertyPath.join("/")}`,
+      );
     }
-    field.set("deprecated", true);
-    const target = expected.components?.schemas[schema]?.properties[property];
-    if (!target)
-      throw new Error(`OpenAPI schema does not contain ${schema}.${property}`);
-    target.deprecated = true;
+    property.set("deprecated", true);
+    const expectedProperty = propertyPath.reduce<Record<string, unknown>>(
+      (node, key) => node[key] as Record<string, unknown>,
+      expected as unknown as Record<string, unknown>,
+    );
+    expectedProperty.deprecated = true;
   }
 
   const text = document.toString({ lineWidth: LINE_WIDTH });
+  // Only targeted deprecation metadata may change.
   assert.deepStrictEqual(parse(text, RESOLVE_OPTIONS), expected);
 
   return text;

@@ -1,11 +1,20 @@
+/* eslint-disable no-nested-ternary */
+import { isOpenAIDecisionModel } from "@langfuse/shared";
+
+import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { buildScoreOutputDefinition } from "@/src/features/evals/v2/fns/scoreOutput/buildScoreOutputDefinition";
 import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
 import type { EvaluatorSetupStoreState } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
+import { buildDecisionModelStateFields } from "@/src/features/evals/v2/fns/variableMapping/buildDecisionModelStateFields";
 
 type EvaluatorSetupDraftState = Pick<
   EvaluatorSetupStoreState,
   | "type"
-  | "prompt"
+  | "name"
+  | "promptMessages"
+  | "questions"
+  | "stateKeys"
   | "sourceCode"
   | "sourceCodeLanguage"
   | "scoreOutput"
@@ -18,31 +27,74 @@ type EvaluatorSetupDraftState = Pick<
 
 export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
   const outputDefinition = buildScoreOutputDefinition(params.scoreOutput);
-  const mappings =
-    params.type === "LLM_AS_JUDGE"
-      ? buildEvaluatorVariableMappings({
-          prompt: params.prompt,
-          variableFields: params.variableFields,
-        })
-      : [];
-  const variables = mappings.map(({ variable }) => variable);
-  const definition =
-    params.type === "LLM_AS_JUDGE"
-      ? outputDefinition
+  const promptMessagesValid =
+    getPromptMessagesValidationError(params.promptMessages) === null;
+  const mappings = (() => {
+    if (params.type === "LLM_AS_JUDGE") {
+      return buildEvaluatorVariableMappings({
+        promptMessages: params.promptMessages,
+        variableFields: params.variableFields,
+      });
+    }
+    if (params.type === "DECISION_MODEL") {
+      return buildDecisionModelStateFields({
+        stateKeys:
+          params.selectedModel != null &&
+          isOpenAIDecisionModel(params.selectedModel.model)
+            ? ["input"]
+            : params.stateKeys,
+        variableFields: params.variableFields,
+      });
+    }
+    return [];
+  })();
+
+  if (params.type === "DECISION_MODEL") {
+    const questions = draftsToQuestions(params.questions);
+    // Every state key has to resolve to data, or the state the model sees
+    // would silently miss a field the questions refer to.
+    const variableMapping = mappings.flatMap(({ variable, fieldState }) =>
+      fieldState.selectedColumnId
+        ? [
+            {
+              templateVariable: variable,
+              selectedColumnId: fieldState.selectedColumnId,
+              jsonSelector: fieldState.jsonSelector,
+            },
+          ]
+        : [],
+    );
+    const stateComplete =
+      mappings.length > 0 && variableMapping.length === mappings.length;
+    const definition =
+      questions && params.selectedModel && stateComplete
         ? {
             type: params.type,
-            prompt: params.prompt,
-            provider:
-              params.modelMode === "custom"
-                ? (params.selectedModel?.provider ?? null)
+            questions,
+            modelConfig: {
+              provider: params.selectedModel.provider,
+              model: params.selectedModel.model,
+            },
+            variableMapping,
+          }
+        : null;
+    return { definition, mappings };
+  }
+
+  const definition =
+    params.type === "LLM_AS_JUDGE"
+      ? outputDefinition && promptMessagesValid
+        ? {
+            type: params.type,
+            promptMessages: params.promptMessages,
+            modelConfig:
+              params.modelMode === "custom" && params.selectedModel
+                ? {
+                    provider: params.selectedModel.provider,
+                    model: params.selectedModel.model,
+                    modelParams: params.modelParams,
+                  }
                 : null,
-            model:
-              params.modelMode === "custom"
-                ? (params.selectedModel?.model ?? null)
-                : null,
-            modelParams:
-              params.modelMode === "custom" ? params.modelParams : null,
-            vars: variables,
             variableMapping: mappings.map(({ variable, fieldState }) => ({
               templateVariable: variable,
               selectedColumnId: fieldState.selectedColumnId,

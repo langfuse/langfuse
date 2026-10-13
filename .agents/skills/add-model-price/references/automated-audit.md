@@ -7,8 +7,9 @@ Use this reference when a scheduled or CI agent audits
 
 Produce either no diff or a surgical pricing/model-coverage diff backed by
 official provider evidence. The audit must look for newly released major models,
-not only validate rows already present in the pricing file. Prefer a small
-report over an uncertain code change.
+not only validate rows already present in the pricing file, and must keep the
+selectable model arrays free of models the provider no longer serves. Prefer a
+small report over an uncertain code change.
 
 ## Required Inputs
 
@@ -43,18 +44,23 @@ report over an uncertain code change.
      when the official docs confirm the model ID, price unit, and usage shape;
    - narrow `matchPattern` additions for documented provider model IDs;
    - required `packages/shared/src/server/llm/types.ts` additions when a newly
-     priced model should be selectable.
-5. Add one complete report-table row for every distinct model price entry
+     priced model should be selectable;
+   - removal of selectable model array entries that meet the criteria in
+     "Selectable Model Availability".
+5. Check every entry in `openAIModels`, `anthropicModels`, `vertexAIModels`, and
+   `googleAIStudioModels` against the provider's official model, deprecation,
+   and lifecycle pages, as described in "Selectable Model Availability".
+6. Add one complete report-table row for every distinct model price entry
    checked, including confirmed and unchanged entries. Do not collapse multiple
    checked models into a family-level row.
-6. Capture durable provider-source URLs, model-ID variants, pricing-page quirks,
+7. Capture durable provider-source URLs, model-ID variants, pricing-page quirks,
    or recurring audit rules in the most relevant file under
    `.agents/skills/add-model-price/references/`.
-7. Optionally replace the snapshot in `references/model-audit-memory.md` when
+8. Optionally replace the snapshot in `references/model-audit-memory.md` when
    retaining the complete current per-model result would materially help a
    future audit. Do not persist a partial table, append unbounded run history,
    or update it only to refresh the audit date.
-8. Re-run the validator, including changed-entry usage-key validation against
+9. Re-run the validator, including changed-entry usage-key validation against
    the pre-audit pricing file.
 
 ## Edit Rules
@@ -67,6 +73,9 @@ report over an uncertain code change.
 - Preserve existing IDs when updating an entry.
 - Generate a new lowercase UUID for a new model entry.
 - Refresh `updatedAt` only for entries that changed.
+- Write every per-token price in a changed entry as `<USD per MTok>e-6`
+  (`0.1e-6`, not `1e-7`; `25e-6`, not `2.5e-5`). See "Price Conversion" in
+  `provider-sources-and-price-keys.md`.
 - Add newly released major models when they are officially documented, priced,
   and representable with Langfuse's existing usage keys. Prioritize flagship
   text/chat/reasoning models and models named by manual audit instructions.
@@ -77,10 +86,53 @@ report over an uncertain code change.
 - Update only pricing skill reference docs for skill learnings; do not edit
   `SKILL.md`, scripts, generated shim files, or unrelated skills during an
   automated audit.
-- Keep the first selectable model in each provider array unchanged unless the
-  audit explicitly intends to change the default model.
+- Never remove a pricing entry. Retired models keep their pricing entries so
+  historical traces keep their costs; only selectable model array entries may
+  be removed.
+- Do not reorder selectable model arrays, and keep the first entry of each
+  array unchanged. See "Selectable Model Availability" for the one exception.
 - If provider pricing has dimensions Langfuse cannot currently represent
   safely, leave the code unchanged and report the limitation.
+
+## Selectable Model Availability
+
+`openAIModels`, `anthropicModels`, `vertexAIModels`, and `googleAIStudioModels`
+in `packages/shared/src/server/llm/types.ts` populate the model picker in the
+playground, evaluator setup, and default model settings. The first entry of
+each array is also the model the LLM connection **Test** button calls. An entry
+the provider no longer serves shows users a model that fails with a 404.
+
+Remove an entry from an array only when an official source fetched during the
+current run shows one of the following:
+
+- the model is shut down, retired, or past its published retirement or
+  discontinuation date;
+- the ID is a preview, experimental, or dated snapshot that the provider's
+  model pages no longer list, and its successor (usually the GA model) is
+  already in the same array;
+- the model is not callable through the text-generation endpoint that array
+  feeds, for example a Live API-only, realtime-only, or audio-only model.
+
+Keep the entry when:
+
+- the model is deprecated but its retirement date has not passed yet;
+- the evidence is a blog post, changelog, third-party page, SDK change, or the
+  audit memory alone;
+- the official pages are ambiguous or could not be fetched; report it as
+  unresolved instead.
+
+Apply each array on its own evidence. Vertex AI and Google AI Studio share
+model IDs but retire them on different schedules, so confirm the lifecycle
+page for the platform that array targets.
+
+If the first entry of an array is removed, the next remaining entry becomes the
+default; do not move another model to the front. If that next entry is itself
+deprecated with an announced retirement date, report it as unresolved so a
+human can choose a new default.
+
+The output guardrails enforce this: removals need a `removed` row with an
+official source, the array cannot become empty, and pricing entries cannot be
+removed.
 
 ## Evidence Required In The Agent Summary
 
@@ -97,7 +149,7 @@ entry and these columns:
 | Price confirmed       | `Yes` only when official evidence fetched in the current run confirms every current price; otherwise `No`                                            |
 | Tiering checked       | Every applicable tier name, threshold, and condition, or a statement that no provider tiering applies                                                |
 | Tiering correct       | `Yes` when every applicable threshold and tier price is confirmed, `No` when it is not, or `N/A` only when no provider tiering dimension applies     |
-| Change                | `None`, `Updated`, `Added`, or `Unresolved`                                                                                                          |
+| Change                | `None`, `Updated`, `Added`, `Removed`, or `Unresolved`                                                                                               |
 | Official source(s)    | Every official URL used for the row                                                                                                                  |
 | Comments              | Units, conversions, tier thresholds, corrections, uncertainty, or why no change was made; use an em dash only when there is genuinely nothing to add |
 
@@ -115,6 +167,16 @@ For every changed model, include:
 - official source URL;
 - provider price unit and converted per-token value;
 - validation commands run.
+
+For every model removed from a selectable model array, include one `Removed`
+row with:
+
+- the arrays it was removed from;
+- its retirement status or date, and its successor if one exists;
+- the official model, deprecation, or lifecycle URL that confirms the status.
+
+Price, usage-key, and tiering confirmations may be `No` on a removed row. The
+pricing entry stays unchanged.
 
 For every unresolved finding, include why no code change was made.
 

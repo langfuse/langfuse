@@ -23,6 +23,8 @@ type UseExperimentItemsTableDataParams = {
     order: "ASC" | "DESC";
   } | null;
   itemVisibility?: "baseline-only" | "all";
+  /** Chars of I/O to load from the full event text. Omitted keeps the preview. */
+  ioCharLimit?: number;
 };
 
 /**
@@ -40,6 +42,7 @@ export function useExperimentItemsTableData({
   paginationState,
   orderByState,
   itemVisibility,
+  ioCharLimit,
 }: UseExperimentItemsTableDataParams) {
   const hasSelectedRuns =
     Boolean(baseExperimentId) || compExperimentIds.length > 0;
@@ -113,8 +116,15 @@ export function useExperimentItemsTableData({
       itemIds: data.map((item) => item.itemId),
       baseExperimentId,
       compExperimentIds,
+      ...(ioCharLimit !== undefined ? { ioCharLimit } : {}),
     };
-  }, [itemsQuery.data?.data, projectId, baseExperimentId, compExperimentIds]);
+  }, [
+    itemsQuery.data?.data,
+    projectId,
+    baseExperimentId,
+    compExperimentIds,
+    ioCharLimit,
+  ]);
 
   // Fetch IO data for visible items
   const batchIOQuery = api.experiments.batchIO.useQuery(batchIOPayload!, {
@@ -191,10 +201,20 @@ export function useExperimentItemsTableData({
 
   const dataUpdatedAt = itemsQuery.dataUpdatedAt;
 
+  // Readiness comes from the query settling, never from `isLoading`: a query
+  // that has not started is neither loading nor errored, so `isLoading` is
+  // already false while its empty data would read as the answer. The payload
+  // check keeps the flag false when there is genuinely nothing to fetch.
+  const ioLoading =
+    batchIOPayload !== null && !batchIOQuery.isSuccess && !batchIOQuery.isError;
+  const isTotalCountLoading =
+    hasSelectedRuns && !totalCountQuery.isSuccess && !totalCountQuery.isError;
+
   return {
     items: joinedData,
     dataUpdatedAt,
     totalCount,
-    ioLoading: batchIOQuery.isLoading,
+    ioLoading,
+    isTotalCountLoading,
   };
 }

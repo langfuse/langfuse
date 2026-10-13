@@ -4,6 +4,7 @@ import {
   evaluateEventPropagationStuck,
   getEventPropagationHealth,
 } from "../features/health";
+import { getLastRunStartedAt } from "../features/eventPropagation/handleEventPropagationJob";
 
 // Pin the write mode to events_only: the propagation worker registers for any
 // mode that writes to events_full (dual AND events_only), so the health gate
@@ -31,6 +32,20 @@ describe("getEventPropagationHealth", () => {
 
     expect(health.enabled).toBe(true);
     expect(health.stuck).toBe(false); // no heartbeat yet -> not stuck
+  });
+
+  it("allows a long propagation run but still detects an expired heartbeat", async () => {
+    vi.mocked(getLastRunStartedAt).mockResolvedValueOnce(
+      Date.now() - 30 * 60_000,
+    );
+
+    expect((await getEventPropagationHealth()).stuck).toBe(false);
+
+    vi.mocked(getLastRunStartedAt).mockResolvedValueOnce(
+      Date.now() - 36 * 60_000,
+    );
+
+    expect((await getEventPropagationHealth()).stuck).toBe(true);
   });
 });
 

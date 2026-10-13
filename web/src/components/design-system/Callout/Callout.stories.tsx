@@ -2,7 +2,6 @@ import { Bot } from "lucide-react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Button } from "../../ui/button";
 import { Callout } from "./Callout";
 
 const meta = preview.meta({
@@ -11,7 +10,7 @@ const meta = preview.meta({
 
 const message = (
   <div className="flex items-start gap-2 sm:items-center">
-    <Bot className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />
+    <Bot className="icon-base mt-0.5 shrink-0 sm:mt-0" />
     <span>
       <span className="font-bold">
         Langfuse works great with your AI agents.
@@ -26,7 +25,7 @@ export const Default = meta.story({
     variant: "info",
     align: "middle",
     children: message,
-    actions: null,
+    actions: [],
     onDismiss: fn(),
   },
 });
@@ -41,7 +40,7 @@ export const Warning = meta.story({
         its ingestion limit.
       </span>
     ),
-    actions: null,
+    actions: [],
     onDismiss: fn(),
   },
 });
@@ -51,11 +50,10 @@ export const WithActions = meta.story({
     variant: "info",
     align: "middle",
     children: message,
-    actions: (
-      <Button size="sm" variant="secondary">
-        Learn more
-      </Button>
-    ),
+    actions: [
+      { type: "button", label: "Learn more", onClick: fn() },
+      { type: "button", label: "Not now", onClick: fn() },
+    ],
     onDismiss: fn(),
   },
 });
@@ -66,7 +64,7 @@ export const Dismisses = meta.story({
     variant: "info",
     align: "middle",
     children: <span>This callout can be dismissed.</span>,
-    actions: null,
+    actions: [],
     onDismiss: fn(),
   },
   play: async ({ args, canvasElement }) => {

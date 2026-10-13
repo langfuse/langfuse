@@ -1,19 +1,19 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useMemo, useRef } from "react";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useRouter } from "next/router";
 import { type LucideIcon, Plus } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { startCase } from "lodash";
 
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
 import { Button } from "@/src/components/ui/button";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/src/components/ui/accordion";
 import {
   Card,
   CardContent,
@@ -40,12 +40,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
-import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
-import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useProject } from "@/src/features/projects";
+import { WidgetPropertySelectItem } from "@/src/features/widgets";
+import { MetricsFilterBuilder } from "@/src/features/metrics";
+import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import {
+  resolveMonitorNameForSave,
+  type MonitorNameResolution,
+} from "@/src/features/monitors/fns/resolveMonitorNameForSave";
 import { cn } from "@/src/utils/tailwind";
 
 import {
@@ -69,8 +74,7 @@ import {
 } from "@langfuse/shared/monitors";
 import { viewDeclarations, type FilterState } from "@langfuse/shared";
 
-import TagManager from "@/src/features/tag/components/TagManager";
-
+import { TagManager } from "@/src/features/tag";
 import { MonitorChartPreview } from "./MonitorChartPreview";
 import { getMonitorFilterOptionsLookbackFrom } from "../helpers/monitorTimeRanges";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
@@ -88,18 +92,24 @@ import {
 } from "../helpers/renderMonitorLabels";
 
 /** createDefaults returns the form defaults for a brand-new monitor. */
-const createDefaults = (projectId: string): Partial<CreateMonitor> => ({
+const createDefaults = (
+  projectId: string,
+  prefill?: Partial<
+    Pick<CreateMonitor, "view" | "filters" | "metric" | "window" | "tags">
+  >,
+  initialTriggerIds: string[] = [],
+): Partial<CreateMonitor> => ({
   projectId,
-  view: "observations",
-  filters: [],
-  metric: { measure: "count", aggregation: "count" },
-  window: "5m",
+  view: prefill?.view ?? "observations",
+  filters: prefill?.filters ?? [],
+  metric: prefill?.metric ?? { measure: "count", aggregation: "count" },
+  window: prefill?.window ?? "5m",
   thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
   warningThreshold: null,
   noData: { mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO },
   renotify: { mode: "OFF" },
-  tags: [],
-  triggerIds: [],
+  tags: prefill?.tags ?? [],
+  triggerIds: initialTriggerIds,
   status: MonitorStatusSchema.enum.ACTIVE,
 });
 
@@ -140,19 +150,49 @@ const nameOrPlaceholder = (
   placeholder: string,
 ): string => name || placeholder;
 
+type MonitorAnalyticsSource =
+  | "alerts"
+  | "evaluator_score"
+  | "evaluator_cost"
+  | "all_evaluator_cost";
+
+const monitorCreateAnalyticsProperties = (
+  source: MonitorAnalyticsSource,
+  monitor: Pick<CreateMonitor, "view" | "metric" | "window">,
+) => ({
+  source,
+  view: monitor.view,
+  measure: monitor.metric.measure,
+  aggregation: monitor.metric.aggregation,
+  window: monitor.window,
+});
+
 /** MonitorForm renders the create/edit form for a Monitor. */
 export const MonitorForm = ({
   projectId,
   monitor,
+  prefill,
+  analyticsSource = "alerts",
+  initialTriggerIds = [],
   onNameChange,
 }: {
   projectId: string;
   monitor?: Monitor;
+  prefill?: Partial<
+    Pick<CreateMonitor, "view" | "filters" | "metric" | "window" | "tags">
+  >;
+  analyticsSource?: MonitorAnalyticsSource;
+  initialTriggerIds?: string[];
   /** onNameChange fires on every form change so the host (e.g. the edit page header) can mirror the live name. */
   onNameChange?: (name: string) => void;
 }) => {
   /** router is the Next router used to redirect after a successful create. */
   const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { organization } = useProject(projectId);
+  const nameAIAssistanceAvailable =
+    isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
   /** isEdit is true when the form is bound to an existing monitor. */
   const isEdit = Boolean(monitor);
   /** hasAccess gates write controls behind the alerts:CUD RBAC scope. */
@@ -165,7 +205,7 @@ export const MonitorForm = ({
   /** defaultValues seeds the form from the existing monitor on edit, otherwise from createDefaults. */
   const defaultValues = isEdit
     ? monitorToDefaults(monitor as Monitor)
-    : createDefaults(projectId);
+    : createDefaults(projectId, prefill, initialTriggerIds);
 
   /** namePlaceholderRef holds the latest computed name placeholder for the resolver. */
   const namePlaceholderRef = useRef("");
@@ -190,17 +230,66 @@ export const MonitorForm = ({
     mode: "onChange",
   });
 
+  const suggestName = api.monitors.suggestName.useMutation();
+  const generateNameSuggestion = async (): Promise<string | null> => {
+    if (!nameAIAssistanceAvailable) return null;
+    return suggestName.mutateAsync({
+      projectId,
+      description: namePlaceholderRef.current,
+    });
+  };
+  const requestNameSuggestion = async () => {
+    let generatedName: string | null;
+    try {
+      generatedName = await generateNameSuggestion();
+    } catch (error) {
+      showErrorToast(
+        "Couldn't generate an alert title",
+        "Please enter a title manually.",
+        classifyTrpcToastError(error, "monitor_title.generate"),
+      );
+      return;
+    }
+    if (!generatedName) {
+      showErrorToast(
+        "Couldn't generate an alert title",
+        "Please enter a title manually.",
+        {
+          operation: "monitor_title.generate",
+          errorOrigin: "backend",
+          errorCategory: "internal",
+        },
+      );
+      return;
+    }
+    form.setValue("name", generatedName, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    onNameChange?.(generatedName);
+  };
+
   /** createMutation creates a new monitor and returns to the monitors list on success. */
   const createMutation = api.monitors.create.useMutation({
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
+      capture(
+        "monitors:create",
+        monitorCreateAnalyticsProperties(analyticsSource, variables),
+      );
       showSuccessToast({
+        operation: "monitor.create",
         title: "Alert created",
         description: `"${variables.name}" is now active.`,
       });
       router.replace(`/project/${projectId}/alerts`);
     },
-    onError: (e) => showErrorToast("Failed to create alert", e.message),
+    onError: (e) =>
+      showErrorToast(
+        "Failed to create alert",
+        e.message,
+        classifyTrpcToastError(e, "monitor.create"),
+      ),
   });
 
   /** updateMutation saves edits to an existing monitor and returns to the monitors list on success. */
@@ -208,19 +297,67 @@ export const MonitorForm = ({
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
+        operation: "monitor.update",
         title: "Alert saved",
         description: `Your changes to "${variables.name}" have been applied.`,
       });
       router.replace(`/project/${projectId}/alerts`);
     },
-    onError: (e) => showErrorToast("Failed to save alert", e.message),
+    onError: (e) =>
+      showErrorToast(
+        "Failed to save alert",
+        e.message,
+        classifyTrpcToastError(e, "monitor.update"),
+      ),
   });
 
   /** onSubmit strips unsupported filter rows and dispatches the create or update mutation. */
   const onSubmit = form.handleSubmit(
-    (values) => {
+    async (values) => {
+      let nameResolution: MonitorNameResolution;
+      try {
+        nameResolution = await resolveMonitorNameForSave({
+          name: form.getValues("name"),
+          fallbackName: namePlaceholderRef.current,
+          aiAvailable: nameAIAssistanceAvailable,
+          generateName: generateNameSuggestion,
+        });
+      } catch (error) {
+        showErrorToast(
+          "Couldn't generate an alert title",
+          "Please enter a title manually and try again.",
+          classifyTrpcToastError(error, "monitor_title.generate"),
+        );
+        return;
+      }
+      if (nameResolution.status === "generation-failed") {
+        showErrorToast(
+          "Couldn't generate an alert title",
+          "Please enter a title manually and try again.",
+          {
+            operation: "monitor_title.generate",
+            errorOrigin: "backend",
+            errorCategory: "internal",
+          },
+        );
+        return;
+      }
+      if (nameResolution.status === "validation-failed") {
+        showErrorToast(
+          "Couldn't generate an alert title",
+          "Please enter a title manually and try again.",
+          {
+            operation: isEdit ? "monitor.update" : "monitor.create",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
+        );
+        return;
+      }
+
       const normalizedValues = {
         ...values,
+        name: nameResolution.name,
         filters: partitionWidgetUiTableFiltersToView(
           values.view as Parameters<
             typeof partitionWidgetUiTableFiltersToView
@@ -327,7 +464,8 @@ export const MonitorForm = ({
   const submitting =
     form.formState.isSubmitting ||
     createMutation.isPending ||
-    updateMutation.isPending;
+    updateMutation.isPending ||
+    suggestName.isPending;
 
   return (
     <Form {...form}>
@@ -664,43 +802,48 @@ export const MonitorForm = ({
                     </FormItem>
                   )}
                 />
-                <Accordion type="single" collapsible>
-                  <AccordionItem value="advanced" className="border-b-0">
-                    <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-bold [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
-                      Advanced Options
-                    </AccordionTrigger>
-                    <AccordionContent className="space-y-6 px-1 pt-2">
-                      <FormField
-                        control={form.control}
-                        name="noData"
-                        render={({ field }) => (
-                          <FormItem>
-                            <NoDataField
-                              value={field.value as MonitorNoData}
-                              onChange={field.onChange}
-                              disabled={!hasAccess}
-                            />
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="renotify"
-                        render={({ field }) => (
-                          <FormItem>
-                            <RenotifyField
-                              value={field.value as MonitorRenotify}
-                              onChange={field.onChange}
-                              disabled={!hasAccess}
-                            />
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
+                <AccordionPrimitive.Root type="single" collapsible>
+                  <AccordionPrimitive.Item value="advanced">
+                    <AccordionPrimitive.Header className="flex">
+                      <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-start gap-2 py-2 text-sm font-bold transition-all hover:underline [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
+                        <DropdownIndicator nudge />
+                        Advanced Options
+                      </AccordionPrimitive.Trigger>
+                    </AccordionPrimitive.Header>
+                    <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm transition-all">
+                      <div className="space-y-6 px-1 pt-2 pb-4">
+                        <FormField
+                          control={form.control}
+                          name="noData"
+                          render={({ field }) => (
+                            <FormItem>
+                              <NoDataField
+                                value={field.value as MonitorNoData}
+                                onChange={field.onChange}
+                                disabled={!hasAccess}
+                              />
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="renotify"
+                          render={({ field }) => (
+                            <FormItem>
+                              <RenotifyField
+                                value={field.value as MonitorRenotify}
+                                onChange={field.onChange}
+                                disabled={!hasAccess}
+                              />
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </AccordionPrimitive.Content>
+                  </AccordionPrimitive.Item>
+                </AccordionPrimitive.Root>
               </Section>
 
               <Section title="Notifications" step={3} className="pb-2">
@@ -709,18 +852,33 @@ export const MonitorForm = ({
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Name</FormLabel>
+                      <FormLabel>Title</FormLabel>
                       <FormControl>
-                        <Input
+                        <AIAssistedInput
+                          id="monitor-title"
                           maxLength={200}
                           placeholder={namePlaceholder}
                           disabled={!hasAccess}
-                          {...field}
                           value={field.value ?? ""}
                           onChange={(e) => {
                             field.onChange(e);
                             onNameChange?.(e.target.value ?? "");
                           }}
+                          fieldName="title"
+                          aiAssistance={
+                            !nameAIAssistanceAvailable
+                              ? { state: "unavailable" }
+                              : suggestName.isPending
+                                ? { state: "generating" }
+                                : {
+                                    state: "idle",
+                                    onGenerate: () => {
+                                      requestNameSuggestion().catch(
+                                        () => undefined,
+                                      );
+                                    },
+                                  }
+                          }
                         />
                       </FormControl>
                       <FormMessage />
@@ -751,7 +909,7 @@ export const MonitorForm = ({
                               size="sm"
                               className="gap-1"
                             >
-                              <Plus className="h-3 w-3" />
+                              <Plus className="icon-base" />
                               Add tag
                             </Button>
                           }
@@ -840,7 +998,7 @@ const Header = ({
           {step}
         </span>
       ) : null}
-      {Icon ? <Icon className="h-5 w-5" aria-hidden="true" /> : null}
+      {Icon ? <Icon className="icon-lg" aria-hidden="true" /> : null}
       {title}
     </h3>
   </div>
@@ -1017,4 +1175,5 @@ export const __test = {
   monitorToDefaults,
   nameOrPlaceholder,
   resolveViewChangePatch,
+  monitorCreateAnalyticsProperties,
 };

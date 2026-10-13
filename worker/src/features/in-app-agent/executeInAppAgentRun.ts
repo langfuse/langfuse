@@ -1,6 +1,7 @@
 import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  getLangfuseAIAwsProfile,
   getLangfuseAITraceSinkParams,
   logger,
   recordIncrement,
@@ -8,9 +9,10 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   deleteInAppAgentMcpApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunRequestSchema,
@@ -52,7 +54,10 @@ import {
   getInAppAgentRegistryToolName,
   type InAppAgentUserAccess,
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
-import { IN_APP_AGENT_HEARTBEAT_INTERVAL_MS } from "@langfuse/shared/in-app-agent/server/tunables";
+import {
+  IN_APP_AGENT_HEARTBEAT_INTERVAL_MS,
+  IN_APP_AGENT_RUN_MAX_DURATION_MS,
+} from "@langfuse/shared/in-app-agent/server/tunables";
 import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
@@ -60,11 +65,12 @@ import {
 import { createInAppAgentSandbox } from "./runtime/sandbox";
 import { createAgUiStream } from "./runtime/agent";
 import { getInAppAgentPromptClient } from "./runtime/promptClient";
+import { resolveLangfuseMcpUrl } from "./resolveLangfuseMcpUrl";
 import type { AgUiRunAgentInput } from "./runtime/types";
 
 import { env } from "../../env";
 
-const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";
+const inAppAgentApiKeyName = "In-app agent MCP session";
 
 type AbortReason = "cancelled" | "fenced" | "worker_shutdown";
 
@@ -106,7 +112,7 @@ export async function executeInAppAgentRun(params: {
   runId: string;
 }): Promise<void> {
   const { projectId, runId } = params;
-  const awsProfile = env.AWS_PROFILE ?? env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
+  const awsProfile = getLangfuseAIAwsProfile();
 
   // Claim CAS: zero rows means duplicate delivery or a run reconciled away
   // while queued. Reconcile then ack — Postgres owns correctness.
@@ -158,7 +164,7 @@ export async function executeInAppAgentRun(params: {
   // The uncovered durability window: an approved mutation may have started
   // but its result never persisted. Never generically retried. Hoisted to
   // function scope because both the loop callbacks and the outer catch can
-  // record the terminal state (failStream races the drain rejection).
+  // record the terminal state.
   const failureCode = () =>
     isApprovedContinuation && !approvedToolResultPersisted
       ? {
@@ -168,20 +174,22 @@ export async function executeInAppAgentRun(params: {
         }
       : undefined;
 
-  // Single-flight (same shape as web's withInAppAgentMcpApiKeyCleanup): the
-  // loop's onFinish and the outer catch can invoke this concurrently because
-  // failStream errors the stream without awaiting its onError/onFinish chain.
+  // Single-flight (same shape as web's withInAppAgentMcpApiKeyCleanup):
+  // onFinish cleans up before the stream errors, then the outer catch
+  // runs after drainStream rejects and may call this again.
   const cleanupMcpApiKey = (): Promise<void> => {
     if (!mcpApiKey) return Promise.resolve();
     const keyId = mcpApiKey.id;
-    mcpApiKeyCleanup ??= (async () => {
-      await deleteInAppAgentMcpApiKey({ projectId, apiKeyId: keyId });
-      // Pointer is nulled after delete succeeds or the key is already gone.
-      await clearRunMcpApiKeyPointer({ prisma, projectId, runId });
-    })().catch((error: unknown) => {
-      mcpApiKeyCleanup = undefined;
-      throw error;
-    });
+    if (mcpApiKeyCleanup === undefined) {
+      mcpApiKeyCleanup = (async () => {
+        await deleteInAppAgentMcpApiKey({ projectId, apiKeyId: keyId });
+        // Pointer is nulled after delete succeeds or the key is already gone.
+        await clearRunMcpApiKeyPointer({ prisma, projectId, runId });
+      })().catch((error: unknown) => {
+        mcpApiKeyCleanup = undefined;
+        throw error;
+      });
+    }
     return mcpApiKeyCleanup;
   };
 
@@ -243,9 +251,10 @@ export async function executeInAppAgentRun(params: {
       // implicitly mean "trusted system".
       throw new InAppAgentRunInitError("Run has no triggering user");
     }
+    const triggeredByUserId = run.triggeredByUserId;
 
     const access = await resolveUserProjectAccess({
-      userId: run.triggeredByUserId,
+      userId: triggeredByUserId,
       projectId,
       orgId: project.orgId,
     });
@@ -378,16 +387,18 @@ export async function executeInAppAgentRun(params: {
         })
       : undefined;
 
-    // ---- Temp MCP key: mint + link to the run in one transaction, so no
-    // crash window can leave a key that is not discoverable from its run. ----
+    // Link the key atomically to prevent orphan credentials.
     mcpApiKey = await prisma.$transaction(async (tx) => {
-      const key = await createAndAddApiKeysToDb({
-        prisma: tx,
-        entityId: projectId,
-        scope: "PROJECT",
-        note: IN_APP_AGENT_API_KEY_NOTE,
+      const key = await createApiKey(tx, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(triggeredByUserId),
+        name: inAppAgentApiKeyName,
+        expiresAt: new Date(
+          (run.claimedAt ?? run.createdAt).getTime() +
+            IN_APP_AGENT_RUN_MAX_DURATION_MS,
+        ),
         isInAppAgentKey: true,
-        createdByUserId: run.triggeredByUserId ?? undefined,
       });
 
       await tx.inAppAgentRun.updateMany({
@@ -523,18 +534,14 @@ export async function executeInAppAgentRun(params: {
           if (outcome?.reachedStepLimit) {
             recordIncrement("langfuse.in_app_agent.step_limit_reached", 1);
           }
+          if (outcome?.truncatedByOutputLimit) {
+            recordIncrement("langfuse.in_app_agent.output_limit_reached", 1);
+          }
 
           await flushPersistedRunEvents(
             interruptRequest
               ? { status: InAppAgentRunStatus.AWAITING_APPROVAL }
-              : outcome?.truncatedByStepLimit
-                ? {
-                    status: InAppAgentRunStatus.SUCCEEDED,
-                    errorCode: InAppAgentRunErrorCode.STEP_LIMIT,
-                    errorMessage:
-                      "The run reached the step limit before a final answer",
-                  }
-                : { status: InAppAgentRunStatus.SUCCEEDED },
+              : resolveCompletedRunFinish(outcome),
           );
         },
         onAbort: async () => {
@@ -629,12 +636,12 @@ export async function executeInAppAgentRun(params: {
     await drainStream(stream);
   } catch (error) {
     // Two classes land here: pre-loop failures (revalidation, input build,
-    // key minting) and loop failures surfaced through the errored stream —
-    // failStream fires the loop's onError without awaiting it and errors the
-    // stream synchronously, so this catch can RACE that onError and win the
-    // terminal CAS. Both writers therefore classify identically: the
-    // durability check first, then agent_error for loop-phase failures and
-    // init_failed only before the loop existed.
+    // key minting) and loop failures surfaced through the errored stream
+    // after tracing flush, onError, and onFinish. finishClaimedRun is
+    // idempotent, so a second write is a no-op if onError already recorded
+    // FAILED. Both writers classify identically: the durability check first,
+    // then agent_error for loop-phase failures and init_failed only before
+    // the loop existed.
     await finishClaimedRun({
       prisma,
       projectId,
@@ -715,6 +722,28 @@ async function resolveUserProjectAccess(params: {
   };
 }
 
+function resolveCompletedRunFinish(outcome?: {
+  truncatedByStepLimit: boolean;
+  truncatedByOutputLimit: boolean;
+}): NonNullable<Parameters<typeof flushPendingRunEvents>[0]["finish"]> {
+  if (outcome?.truncatedByOutputLimit) {
+    return {
+      status: InAppAgentRunStatus.SUCCEEDED,
+      errorCode: InAppAgentRunErrorCode.OUTPUT_LIMIT,
+      errorMessage:
+        "The response hit the model's output-token limit before a final answer",
+    };
+  }
+  if (outcome?.truncatedByStepLimit) {
+    return {
+      status: InAppAgentRunStatus.SUCCEEDED,
+      errorCode: InAppAgentRunErrorCode.STEP_LIMIT,
+      errorMessage: "The run reached the step limit before a final answer",
+    };
+  }
+  return { status: InAppAgentRunStatus.SUCCEEDED };
+}
+
 function findPersistedApprovalRequest(
   events: readonly PersistedConversationEvent[],
   request: Extract<InAppAgentRunRequest, { kind: "approvalDecision" }>,
@@ -735,20 +764,18 @@ function findPersistedApprovalRequest(
 }
 
 function getLangfuseMcpUrl(): string {
-  if (!env.NEXTAUTH_URL) {
+  const url = resolveLangfuseMcpUrl({
+    mcpBaseUrl: env.LANGFUSE_MCP_BASE_URL,
+    nextAuthUrl: env.NEXTAUTH_URL,
+  });
+
+  if (!url) {
     throw new InAppAgentRunInitError(
-      "NEXTAUTH_URL must be configured to derive the MCP endpoint",
+      "LANGFUSE_MCP_BASE_URL or NEXTAUTH_URL must be configured to derive the MCP endpoint",
     );
   }
 
-  const rawUrl = env.NEXTAUTH_URL.replace(/\/api\/auth\/?$/, "");
-  const baseUrl = new URL(rawUrl);
-
-  baseUrl.pathname = `${baseUrl.pathname.replace(/\/$/, "")}/api/public/mcp`;
-  baseUrl.search = "";
-  baseUrl.hash = "";
-
-  return baseUrl.toString();
+  return url;
 }
 
 function buildTracingConfig(params: {
@@ -768,7 +795,6 @@ function buildTracingConfig(params: {
   }
 
   const traceSinkParams = getLangfuseAITraceSinkParams({
-    environment: "langfuse-in-app-agent",
     feature: "in-app-agent",
     projectId: params.projectId,
     traceId: getInAppAgentInstrumentationTraceId(params.runId),

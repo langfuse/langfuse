@@ -1,0 +1,676 @@
+import { randomUUID } from "crypto";
+
+import { type NextApiRequest } from "next";
+
+import { prisma } from "@langfuse/shared/src/db";
+import {
+  createBasicAuthHeader,
+  createOrgProjectAndApiKey,
+  createShaHash,
+  getDisplaySecretKey,
+} from "@langfuse/shared/src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  type OrganizationAction,
+  type ProjectAction,
+} from "@langfuse/shared/rbac";
+
+import { env } from "@/src/env.mjs";
+import { authorize } from "@/src/features/rbac/authorize";
+import { type ShadowAuthParams } from "@/src/features/public-api/server";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+
+// The seam is imported dynamically so the authenticator singleton captures
+// the admin key set in beforeAll.
+
+type ShadowResult =
+  | { success: true; scope: Record<string, unknown> }
+  | { success: false; error: { httpCode: number; message: string } };
+
+type ShadowAuth = (params: ShadowAuthParams) => Promise<ShadowResult>;
+
+type Authenticator = {
+  authenticate: (params: {
+    headers: { authorization: string };
+  }) => Promise<
+    { success: true; context: AuthorizationContext } | { success: false }
+  >;
+};
+
+const adminApiKey = "test-admin-api-key-direct-enforce-scope";
+
+let shadowAuth: ShadowAuth;
+let authenticator: Authenticator;
+let orgId = "";
+let projectId = "";
+let foreignProjectId = "";
+let foreignOrgId = "";
+let orgAuth = "";
+let projectAuth = "";
+let projectPublicKey = "";
+
+let originalMigration: string | undefined;
+let originalAdminApiKey: string | undefined;
+let originalCloudRegion: string | undefined;
+
+const reqWith = (
+  headers: Record<string, string | undefined>,
+  query: Record<string, string> = {},
+): NextApiRequest =>
+  ({ headers, method: "GET", query }) as unknown as NextApiRequest;
+
+const setMode = (mode: string) => {
+  (env as any).API_AUTH_MIGRATION = mode;
+};
+
+const dropScopeKey = ({
+  scope: _apiKeyScope,
+  ...rest
+}: Record<string, unknown>) => rest;
+
+const orgResultUnderModes = async (
+  authorization: string,
+  action: OrganizationAction = "projects:read",
+) => {
+  const params: ShadowAuthParams = {
+    req: reqWith({ authorization }),
+    action,
+    allowedAccessLevels: ["organization"],
+  };
+  setMode("legacy");
+  const legacy = await shadowAuth(params);
+  setMode("enforce");
+  const enforce = await shadowAuth(params);
+  return { legacy, enforce };
+};
+
+const projectResultUnderModes = async (
+  authorization: string,
+  target?: string,
+) => {
+  const params: ShadowAuthParams = {
+    req: reqWith({ authorization, "x-langfuse-project-id": target }),
+    action: "project:read",
+    allowedAccessLevels: ["project"],
+  };
+  setMode("legacy");
+  const legacy = await shadowAuth(params);
+  setMode("enforce");
+  const enforce = await shadowAuth(params);
+  return { legacy, enforce };
+};
+
+const projectNestedUnderModes = async (
+  authorization: string,
+  target: string,
+  action: ProjectAction = "apiKeys:read",
+) => {
+  const params: ShadowAuthParams = {
+    req: reqWith({ authorization }, { projectId: target }),
+    action,
+    allowedAccessLevels: ["organization"],
+  };
+  setMode("legacy");
+  const legacy = await shadowAuth(params);
+  setMode("enforce");
+  const enforce = await shadowAuth(params);
+  return { legacy, enforce };
+};
+
+const resultsUnderModes = async (params: ShadowAuthParams) => {
+  setMode("legacy");
+  const legacy = await shadowAuth(params);
+  setMode("enforce");
+  const enforce = await shadowAuth(params);
+  return { legacy, enforce };
+};
+
+const scopeOf = (result: ShadowResult): Record<string, unknown> => {
+  if (!result.success) throw new Error(`denied with ${result.error.httpCode}`);
+  return result.scope;
+};
+
+const createOrgApiKey = async (targetOrgId: string) => {
+  const publicKey = `pk-lf-${randomUUID()}`;
+  const secretKey = `sk-lf-${randomUUID()}`;
+  const apiKeyRowId = randomUUID();
+  await prisma.apiKey.create({
+    data: {
+      id: apiKeyRowId,
+      orgId: targetOrgId,
+      publicKey,
+      hashedSecretKey: `test-hashed-secret-key-${randomUUID()}`,
+      fastHashedSecretKey: createShaHash(secretKey, env.SALT as string),
+      displaySecretKey: getDisplaySecretKey(secretKey),
+      scope: "ORGANIZATION",
+    },
+  });
+  await prisma.roleAssignment.create({
+    data: {
+      orgId: targetOrgId,
+      apiKeyId: apiKeyRowId,
+      principalId: `apiKey/${apiKeyRowId}`,
+      systemRole: "LEGACY_ORGANIZATION_API_KEY",
+      roleId: "system/LEGACY_ORGANIZATION_API_KEY",
+      ownerId: `organization/${targetOrgId}`,
+    },
+  });
+  return createBasicAuthHeader(publicKey, secretKey);
+};
+
+const createOrgWithoutProjects = async () => {
+  const org = await prisma.organization.create({
+    data: { id: randomUUID(), name: randomUUID() },
+  });
+  return { orgId: org.id, auth: await createOrgApiKey(org.id) };
+};
+
+const contextFor = async (
+  authorization: string,
+): Promise<AuthorizationContext> => {
+  const authn = await authenticator.authenticate({
+    headers: { authorization },
+  });
+  if (!authn.success) throw new Error("authentication failed");
+  return authn.context;
+};
+
+const ownedProjectIds = (context: AuthorizationContext): string[] =>
+  context.principal.kind === "apiKey"
+    ? context.principal.organizations.flatMap((o) => o.projectIds)
+    : [];
+
+const createUnassignedApiKey = async (scope: "PROJECT" | "ORGANIZATION") => {
+  const publicKey = `pk-lf-${randomUUID()}`;
+  const secretKey = `sk-lf-${randomUUID()}`;
+  const apiKey = await prisma.apiKey.create({
+    data: {
+      scope,
+      projectId: scope === "PROJECT" ? projectId : null,
+      orgId: scope === "ORGANIZATION" ? orgId : null,
+      publicKey,
+      hashedSecretKey: `unused-fast-hash-${randomUUID()}`,
+      fastHashedSecretKey: createShaHash(secretKey, env.SALT),
+      displaySecretKey: getDisplaySecretKey(secretKey),
+    },
+  });
+  return { apiKey, authorization: createBasicAuthHeader(publicKey, secretKey) };
+};
+
+describe("shadowAuth maps principals to legacy-identical scopes", () => {
+  beforeAll(async () => {
+    originalMigration = (env as any).API_AUTH_MIGRATION;
+    originalAdminApiKey = (env as any).ADMIN_API_KEY;
+    originalCloudRegion = (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    (env as any).ADMIN_API_KEY = adminApiKey;
+
+    ({ shadowAuth } =
+      (await import("@/src/features/public-api/server/shadowAuth")) as unknown as {
+        shadowAuth: ShadowAuth;
+      });
+    ({ authenticator } =
+      (await import("@/src/features/apiKey/authenticator")) as unknown as {
+        authenticator: Authenticator;
+      });
+
+    const base = await createOrgProjectAndApiKey();
+    orgId = base.orgId;
+    projectId = base.projectId;
+    projectAuth = base.auth;
+    projectPublicKey = base.publicKey;
+    orgAuth = await createOrgApiKey(orgId);
+
+    const foreign = await createOrgProjectAndApiKey();
+    foreignProjectId = foreign.projectId;
+    foreignOrgId = foreign.orgId;
+  });
+
+  afterAll(() => {
+    (env as any).API_AUTH_MIGRATION = originalMigration;
+    (env as any).ADMIN_API_KEY = originalAdminApiKey;
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+  });
+
+  describe("backfills verified keys without role assignments", () => {
+    it.each(["PROJECT", "ORGANIZATION"] as const)(
+      "repairs a %s key on first use and authorizes that request",
+      async (scope) => {
+        const { apiKey, authorization } = await createUnassignedApiKey(scope);
+        setMode("enforce");
+        const result = await shadowAuth({
+          req: reqWith({ authorization }),
+          action: scope === "PROJECT" ? "project:read" : "projects:read",
+          allowedAccessLevels: [
+            scope === "PROJECT" ? "project" : "organization",
+          ],
+        });
+        expect(result.success).toBe(true);
+        expect(
+          await prisma.roleAssignment.findMany({
+            where: { apiKeyId: apiKey.id },
+          }),
+        ).toMatchObject([
+          {
+            orgId,
+            ownerId:
+              scope === "PROJECT"
+                ? `project/${projectId}`
+                : `organization/${orgId}`,
+            systemRole:
+              scope === "PROJECT"
+                ? "LEGACY_PROJECT_API_KEY"
+                : "LEGACY_ORGANIZATION_API_KEY",
+          },
+        ]);
+      },
+    );
+
+    it("preserves a narrow assignment instead of restoring a legacy grant", async () => {
+      const { apiKey, authorization } = await createUnassignedApiKey("PROJECT");
+      const assignment = await prisma.roleAssignment.create({
+        data: {
+          orgId,
+          projectId,
+          apiKeyId: apiKey.id,
+          ownerId: `project/${projectId}`,
+          principalId: `apiKey/${apiKey.id}`,
+          roleId: "system/INGEST",
+          systemRole: "INGEST",
+        },
+      });
+      setMode("enforce");
+      const result = await shadowAuth({
+        req: reqWith({ authorization }),
+        action: "project:read",
+        allowedAccessLevels: ["project"],
+      });
+      expect(result).toMatchObject({
+        success: false,
+        error: { httpCode: 403 },
+      });
+      expect(
+        await prisma.roleAssignment.findMany({
+          where: { apiKeyId: apiKey.id },
+        }),
+      ).toEqual([assignment]);
+    });
+
+    it.each(["invalid", "expired"] as const)(
+      "does not repair an %s credential",
+      async (kind) => {
+        const { apiKey, authorization } =
+          await createUnassignedApiKey("PROJECT");
+        if (kind === "expired") {
+          await prisma.apiKey.update({
+            where: { id: apiKey.id },
+            data: { expiresAt: new Date(0) },
+          });
+        }
+        setMode("enforce");
+        const result = await shadowAuth({
+          req: reqWith({
+            authorization:
+              kind === "invalid"
+                ? createBasicAuthHeader(
+                    apiKey.publicKey,
+                    `sk-lf-${randomUUID()}`,
+                  )
+                : authorization,
+          }),
+          action: "project:read",
+          allowedAccessLevels: ["project"],
+        });
+        expect(result).toMatchObject({
+          success: false,
+          error: { httpCode: 401 },
+        });
+        expect(
+          await prisma.roleAssignment.count({ where: { apiKeyId: apiKey.id } }),
+        ).toBe(0);
+      },
+    );
+
+    it("repairs a transferred project's key in its current tenant", async () => {
+      const fixture = await createOrgProjectAndApiKey();
+      const key = await prisma.apiKey.findUniqueOrThrow({
+        where: { publicKey: fixture.publicKey },
+      });
+      await prisma.roleAssignment.deleteMany({ where: { apiKeyId: key.id } });
+      await prisma.project.update({
+        where: { id: fixture.projectId },
+        data: { orgId: foreignOrgId },
+      });
+      const context = await contextFor(fixture.auth);
+      expect(
+        authorize(
+          context,
+          OrganizationId(foreignOrgId),
+          "project:read",
+          ProjectId(fixture.projectId),
+        ).success,
+      ).toBe(true);
+      expect(
+        authorize(
+          context,
+          OrganizationId(fixture.orgId),
+          "project:read",
+          ProjectId(fixture.projectId),
+        ).success,
+      ).toBe(false);
+      expect(
+        await prisma.roleAssignment.findMany({ where: { apiKeyId: key.id } }),
+      ).toMatchObject([{ orgId: foreignOrgId }]);
+    });
+
+    it("creates one assignment across concurrent first-use repairs", async () => {
+      const { apiKey, authorization } = await createUnassignedApiKey("PROJECT");
+      setMode("enforce");
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          shadowAuth({
+            req: reqWith({ authorization }),
+            action: "project:read",
+            allowedAccessLevels: ["project"],
+          }),
+        ),
+      );
+      expect(results.every((result) => result.success)).toBe(true);
+      expect(
+        await prisma.roleAssignment.count({ where: { apiKeyId: apiKey.id } }),
+      ).toBe(1);
+    });
+
+    it("keeps a repaired public bearer restricted to scores", async () => {
+      const { apiKey } = await createUnassignedApiKey("PROJECT");
+      const context = await contextFor(`Bearer ${apiKey.publicKey}`);
+      expect(
+        authorize(
+          context,
+          OrganizationId(orgId),
+          "scores:save",
+          ProjectId(projectId),
+        ).success,
+      ).toBe(true);
+      expect(
+        authorize(
+          context,
+          OrganizationId(orgId),
+          "project:read",
+          ProjectId(projectId),
+        ).success,
+      ).toBe(false);
+      expect(
+        await prisma.roleAssignment.count({ where: { apiKeyId: apiKey.id } }),
+      ).toBe(1);
+    });
+  });
+
+  it("an organization key on an org route yields a legacy-identical org scope", async () => {
+    const { legacy, enforce } = await orgResultUnderModes(orgAuth);
+    expect(scopeOf(enforce).accessLevel).toBe("organization");
+    expect(scopeOf(enforce).orgId).toBe(orgId);
+    expect(scopeOf(enforce).projectId).toBeNull();
+    expect(dropScopeKey(scopeOf(enforce))).toEqual(
+      dropScopeKey(scopeOf(legacy)),
+    );
+  });
+
+  const orgRouteActions: OrganizationAction[] = [
+    "organization:CRUD_apiKeys",
+    "organizationMembers:read",
+    "organizationMembers:CUD",
+    "projects:create",
+  ];
+
+  it.each(orgRouteActions)(
+    "an organization key is authorized for %s in both modes",
+    async (action) => {
+      const { legacy, enforce } = await orgResultUnderModes(orgAuth, action);
+      expect(scopeOf(enforce).accessLevel).toBe("organization");
+      expect(dropScopeKey(scopeOf(enforce))).toEqual(
+        dropScopeKey(scopeOf(legacy)),
+      );
+    },
+  );
+
+  it.each(orgRouteActions)(
+    "a project key on an org route 403s for %s in both modes",
+    async (action) => {
+      const { legacy, enforce } = await orgResultUnderModes(
+        projectAuth,
+        action,
+      );
+      expect(legacy).toMatchObject({
+        success: false,
+        error: { httpCode: 403 },
+      });
+      expect(enforce).toMatchObject({
+        success: false,
+        error: { httpCode: 403 },
+      });
+    },
+  );
+
+  it("a project key on a project route yields a legacy-identical project scope", async () => {
+    const { legacy, enforce } = await projectResultUnderModes(projectAuth);
+    expect(scopeOf(enforce).accessLevel).toBe("project");
+    expect(scopeOf(enforce).projectId).toBe(projectId);
+    expect(dropScopeKey(scopeOf(enforce))).toEqual(
+      dropScopeKey(scopeOf(legacy)),
+    );
+  });
+
+  it("a project key on an org route 403s in both modes", async () => {
+    const { legacy, enforce } = await orgResultUnderModes(projectAuth);
+    expect(legacy).toMatchObject({ success: false, error: { httpCode: 403 } });
+    expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
+  });
+
+  it("an organization key naming a project it owns on a project route 403s in legacy and authorizes its own project in enforce", async () => {
+    const { legacy, enforce } = await projectResultUnderModes(
+      orgAuth,
+      projectId,
+    );
+    expect(legacy).toMatchObject({ success: false, error: { httpCode: 403 } });
+    expect(scopeOf(enforce).projectId).toBe(projectId);
+    expect(scopeOf(enforce).orgId).toBe(orgId);
+  });
+
+  it("an organization key naming no project 403s in both modes", async () => {
+    const { legacy, enforce } = await projectResultUnderModes(orgAuth);
+    expect(legacy).toMatchObject({ success: false, error: { httpCode: 403 } });
+    expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
+  });
+
+  it("a bearer-presented project key on a project route 403s in both modes", async () => {
+    const { legacy, enforce } = await projectResultUnderModes(
+      `Bearer ${projectPublicKey}`,
+    );
+    expect(legacy).toMatchObject({ success: false, error: { httpCode: 403 } });
+    expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
+  });
+
+  it("an organization key on a project-nested route stays org-gated in legacy and authorizes its own project in enforce", async () => {
+    const { legacy, enforce } = await projectNestedUnderModes(
+      orgAuth,
+      projectId,
+    );
+    expect(scopeOf(legacy).accessLevel).toBe("organization");
+    expect(scopeOf(enforce).projectId).toBe(projectId);
+    expect(scopeOf(enforce).orgId).toBe(orgId);
+  });
+
+  it("an organization key on a project-nested route 404s in enforce for a project it does not own, as the legacy handler does", async () => {
+    const { legacy, enforce } = await projectNestedUnderModes(
+      orgAuth,
+      foreignProjectId,
+    );
+    expect(scopeOf(legacy).accessLevel).toBe("organization");
+    expect(enforce).toMatchObject({ success: false, error: { httpCode: 404 } });
+  });
+
+  it("a project key on a project-nested route 403s in both modes", async () => {
+    const { legacy, enforce } = await projectNestedUnderModes(
+      projectAuth,
+      projectId,
+    );
+    expect(legacy).toMatchObject({ success: false, error: { httpCode: 403 } });
+    expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
+  });
+
+  it("an organization key is granted project:read on a project it owns", async () => {
+    const context = await contextFor(orgAuth);
+    expect(ownedProjectIds(context)).toContain(projectId);
+    expect(
+      authorize(
+        context,
+        OrganizationId(orgId),
+        "project:read",
+        ProjectId(projectId),
+      ).success,
+    ).toBe(true);
+  });
+
+  it("an organization key is denied project:read on a project in another tenant", async () => {
+    const context = await contextFor(orgAuth);
+    expect(
+      authorize(
+        context,
+        OrganizationId(foreignOrgId),
+        "project:read",
+        ProjectId(foreignProjectId),
+      ).success,
+    ).toBe(false);
+  });
+
+  it("an organization with no projects exposes no project ids to the per-project gate", async () => {
+    const { auth } = await createOrgWithoutProjects();
+    expect(ownedProjectIds(await contextFor(auth))).toEqual([]);
+  });
+
+  it("an organization key's project wildcard covers live projects and excludes soft-deleted projects", async () => {
+    const org = await prisma.organization.create({
+      data: { id: randomUUID(), name: randomUUID() },
+    });
+    const live1 = await prisma.project.create({
+      data: { id: randomUUID(), name: randomUUID(), orgId: org.id },
+    });
+    const live2 = await prisma.project.create({
+      data: { id: randomUUID(), name: randomUUID(), orgId: org.id },
+    });
+    const deleted = await prisma.project.create({
+      data: {
+        id: randomUUID(),
+        name: randomUUID(),
+        orgId: org.id,
+        deletedAt: new Date(),
+      },
+    });
+    const auth = await createOrgApiKey(org.id);
+    const context = await contextFor(auth);
+
+    expect([...ownedProjectIds(context)].sort()).toEqual(
+      [live1.id, live2.id].sort(),
+    );
+
+    for (const projectId of [live1.id, live2.id]) {
+      const { enforce } = await projectNestedUnderModes(auth, projectId);
+      expect(scopeOf(enforce).projectId).toBe(projectId);
+    }
+    const { enforce: deletedEnforce } = await projectNestedUnderModes(
+      auth,
+      deleted.id,
+    );
+    expect(deletedEnforce).toMatchObject({
+      success: false,
+      error: { httpCode: 404 },
+    });
+
+    expect(
+      authorize(
+        context,
+        OrganizationId(org.id),
+        "project:read",
+        ProjectId(live2.id),
+      ).success,
+    ).toBe(true);
+  });
+
+  it("the admin key is refused on both dispatch families in both modes", async () => {
+    const admin = `Bearer ${adminApiKey}`;
+    const org = await orgResultUnderModes(admin);
+    const project = await projectResultUnderModes(admin);
+    expect(org.legacy).toMatchObject({
+      success: false,
+      error: { httpCode: 401 },
+    });
+    expect(org.enforce).toMatchObject({
+      success: false,
+      error: { httpCode: 401 },
+    });
+    expect(project.legacy).toMatchObject({
+      success: false,
+      error: { httpCode: 401 },
+    });
+    expect(project.enforce).toMatchObject({
+      success: false,
+      error: { httpCode: 401 },
+    });
+  });
+
+  it("a public-key bearer on a score-ingest route yields the scores access level", async () => {
+    const { legacy, enforce } = await resultsUnderModes({
+      req: reqWith({ authorization: `Bearer ${projectPublicKey}` }),
+      action: "scores:save",
+      allowedAccessLevels: ["project", "scores"],
+    });
+    expect(scopeOf(enforce).accessLevel).toBe("scores");
+    expect(dropScopeKey(scopeOf(enforce))).toEqual(
+      dropScopeKey(scopeOf(legacy)),
+    );
+  });
+
+  it("an admin key on self-host yields the synthesized admin scope", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    const { legacy, enforce } = await resultsUnderModes({
+      req: reqWith({
+        authorization: `Bearer ${adminApiKey}`,
+        "x-langfuse-admin-api-key": adminApiKey,
+        "x-langfuse-project-id": projectId,
+      }),
+      action: "models:read",
+      isAdminApiKeyAuthAllowed: true,
+      allowedAccessLevels: ["project"],
+    });
+    expect(scopeOf(enforce).apiKeyId).toBe("ADMIN_API_KEY");
+    expect(scopeOf(enforce).projectId).toBe(projectId);
+    expect(dropScopeKey(scopeOf(enforce))).toEqual(
+      dropScopeKey(scopeOf(legacy)),
+    );
+  });
+
+  it("an admin key on Langfuse Cloud is refused in legacy and enforce", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+    const params: ShadowAuthParams = {
+      req: reqWith({
+        authorization: `Bearer ${adminApiKey}`,
+        "x-langfuse-admin-api-key": adminApiKey,
+        "x-langfuse-project-id": projectId,
+      }),
+      action: "models:read",
+      isAdminApiKeyAuthAllowed: true,
+      allowedAccessLevels: ["project"],
+    };
+    const cloudDenial = {
+      success: false,
+      error: {
+        httpCode: 403,
+        message: "Admin API key auth is not available on Langfuse Cloud",
+      },
+    };
+    const { legacy, enforce } = await resultsUnderModes(params);
+    expect(legacy).toMatchObject(cloudDenial);
+    expect(enforce).toMatchObject(cloudDenial);
+  });
+});

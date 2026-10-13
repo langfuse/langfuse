@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import crypto from "crypto";
 import fs from "fs";
 import type { Session } from "next-auth";
@@ -11,7 +12,7 @@ import {
   GetMediaResponseSchema,
   type GetMediaUploadUrlResponse,
   GetMediaUploadUrlResponseSchema,
-} from "@/src/features/media/validation";
+} from "@/src/features/media/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
@@ -63,14 +64,7 @@ describe("Media Upload API", () => {
           ],
         },
       ],
-      featureFlags: {
-        searchBar: false,
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: true,
     },
     environment: {} as any,
@@ -949,7 +943,7 @@ describe("Media Upload API", () => {
 
       // Create a modified copy of the PNG file bytes by changing a single byte
       const modifiedFileBytes = Buffer.from(validPNG.fileBytes);
-      modifiedFileBytes[0] = modifiedFileBytes[0] ^ 0xff; // Flip bits of first byte
+      modifiedFileBytes[0] = 255 - modifiedFileBytes[0];
 
       const result = await runMediaUploadEndToEndTest({
         ...validPNG,

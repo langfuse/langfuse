@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { FilterState } from "@langfuse/shared";
 
-import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
+import type { FieldRegistry } from "@/src/features/search-bar";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import {

@@ -57,18 +57,19 @@ import {
   isInAppAgentRateLimited,
   type InAppAiAgentMessage,
 } from "@/src/features/in-app-agent/components/utils/utils";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements";
+import { showErrorToast } from "@/src/features/notifications";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { api } from "@/src/utils/api";
 import {
   createInAppAgentScreenContext,
   createInAppAgentUserContext,
 } from "@/src/features/in-app-agent/context";
 import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   getCompletedToolCalls,
   performToolSideEffectsForCompletedToolCalls,
@@ -125,6 +126,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isSubmitting: false,
   pendingToolApprovals: [],
   isSelectedConversationHydrating: false,
+  isSelectedConversationPersisted: false,
   execution: { run: null, isCancelling: false, cancel: () => undefined },
   error: null,
   messages: [],
@@ -159,7 +161,7 @@ export type InAppAgentPendingToolApproval = {
   runId?: string;
 };
 
-export type InAppAiAgentConversation = {
+type InAppAiAgentConversation = {
   id: string;
   title: string | null;
   updatedAt: Date;
@@ -183,6 +185,8 @@ type InAppAiAgentContextType = {
   isSubmitting: boolean;
   pendingToolApprovals: InAppAgentPendingToolApproval[];
   isSelectedConversationHydrating: boolean;
+  /** False until the server acknowledges the selected conversation's first run. */
+  isSelectedConversationPersisted: boolean;
   execution: InAppAiAgentExecution;
   error: InAppAgentError | null;
   messages: InAppAiAgentMessage[];
@@ -592,7 +596,11 @@ function InAppAiAgentProviderInner({
 
     fetchNextConversationsPage().catch((error) => {
       const errorMessage = getAgentErrorMessage(error);
-      showErrorToast("Failed to load conversations", errorMessage);
+      showErrorToast(
+        "Failed to load conversations",
+        errorMessage,
+        classifyTrpcToastError(error, "in_app_agent_conversations.load"),
+      );
       console.error("Failed to load in-app agent conversations", error);
     });
   }, [
@@ -613,7 +621,14 @@ function InAppAiAgentProviderInner({
     }
 
     const errorMessage = getAgentErrorMessage(conversationListQuery.error);
-    showErrorToast("Failed to load conversations", errorMessage);
+    showErrorToast(
+      "Failed to load conversations",
+      errorMessage,
+      classifyTrpcToastError(
+        conversationListQuery.error,
+        "in_app_agent_conversations.load",
+      ),
+    );
     console.error("Failed to load in-app agent conversations", {
       error: conversationListQuery.error,
       projectId,
@@ -1000,7 +1015,11 @@ function InAppAiAgentProviderInner({
         ]);
       } catch (error) {
         const errorMessage = getAgentErrorMessage(error);
-        showErrorToast("Failed to delete conversation", errorMessage);
+        showErrorToast(
+          "Failed to delete conversation",
+          errorMessage,
+          classifyTrpcToastError(error, "in_app_agent_conversation.delete"),
+        );
         console.error("Failed to delete in-app agent conversation", error);
         throw error;
       }
@@ -1168,7 +1187,11 @@ function InAppAiAgentProviderInner({
         });
       } catch (error) {
         const errorMessage = getAgentErrorMessage(error);
-        showErrorToast("Failed to save feedback", errorMessage);
+        showErrorToast(
+          "Failed to save feedback",
+          errorMessage,
+          classifyTrpcToastError(error, "in_app_agent_feedback.save"),
+        );
         console.error("Failed to save in-app agent feedback", error);
         throw error;
       }
@@ -1292,7 +1315,11 @@ function InAppAiAgentProviderInner({
     );
 
     backgroundSession.cancel().catch((error: unknown) => {
-      showErrorToast("Failed to stop the run", getAgentErrorMessage(error));
+      showErrorToast(
+        "Failed to stop the run",
+        getAgentErrorMessage(error),
+        classifyTrpcToastError(error, "in_app_agent_run.stop"),
+      );
     });
   }, [
     conversationQuery.data,
@@ -1444,6 +1471,9 @@ function InAppAiAgentProviderInner({
         ? []
         : effectivePendingToolApprovals,
       isSelectedConversationHydrating,
+      isSelectedConversationPersisted:
+        Boolean(selectedConversationId) &&
+        !unpersistedConversationIds.has(selectedConversationId ?? ""),
       execution,
       error: effectiveError,
       messages: messagesWithUiState,
@@ -1495,6 +1525,7 @@ function InAppAiAgentProviderInner({
       selectedConversationId,
       submit,
       submitFeedback,
+      unpersistedConversationIds,
     ],
   );
 
@@ -1596,7 +1627,7 @@ export function useInAppAiAgent() {
  * Features. Use this for polling and other paths that must not hit the
  * server when org AI Features is off. More restrictive than
  * useIsInAppAgentLauncherVisible. */
-export function useCanUseInAppAgent() {
+function useCanUseInAppAgent() {
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
   const { organization } = useQueryProjectOrOrganization();
   const session = useSession();

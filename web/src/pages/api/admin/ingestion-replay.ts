@@ -13,8 +13,7 @@ import {
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
-import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
-
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
 const IngestionReplayBody = z.object({
   keys: z.array(z.string()).min(1).max(1000),
 });

@@ -7,6 +7,7 @@ import {
 import { isForceV3ExperienceProject } from "@langfuse/shared/src/server";
 import {
   getAccessibleOrganizationProjects,
+  getProjectV4MigrationData,
   getMigrationActions,
   getLegacyApiUsageSummaries,
   getLegacyIntegrationSummaries,
@@ -18,6 +19,15 @@ export const v4TransitionRouter = createTRPCRouter({
   forceV3Experience: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(({ input }) => isForceV3ExperienceProject(input.projectId)),
+
+  migrationData: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(({ input, ctx }) =>
+      getProjectV4MigrationData({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+      }),
+    ),
 
   summary: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))

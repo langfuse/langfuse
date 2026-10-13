@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   commons: ./commons.yml
+  pagination: ./utils/pagination.yml
 service:
   auth: true
   base-path: /api/public
@@ -8,6 +9,8 @@ service:
     getMany:
       docs: |
         Get a list of observations with cursor-based pagination and flexible field selection.
+
+        Together with OpenTelemetry ingestion and Metrics API v2, this is the only real-time read path. Other public API endpoints can delay data by about 10 minutes.
 
         ## Cursor-based Pagination
         This endpoint uses cursor-based pagination for efficient traversal of large datasets.
@@ -21,7 +24,7 @@ service:
         - `time` - completionStartTime, createdAt, updatedAt
         - `io` - input, output
         - `metadata` - metadata (truncated to 200 chars by default, use `expandMetadata` to get full values)
-        - `model` - providedModelName, internalModelId, modelParameters
+        - `model` - model, internalModelId, modelParameters
         - `usage` - usageDetails, costDetails, totalCost, usagePricingTierName
         - `prompt` - promptId, promptName, promptVersion
         - `metrics` - latency, timeToFirstToken
@@ -118,7 +121,7 @@ service:
                                             // - categoryOptions: "any of", "none of"
                                             // - arrayOptions: "any of", "none of", "all of"
                                             // - number: "=", ">", "<", ">=", "<="
-                                            // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches"
+                                            // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches", "is set", "is not set"
                                             // - numberObject: "=", ">", "<", ">=", "<="
                                             // - boolean: "=", "<>"
                                             // - null: "is null", "is not null"
@@ -229,8 +232,6 @@ types:
       meta: ObservationsV2Meta
 
   ObservationsV2Meta:
-    docs: Metadata for cursor-based pagination
-    properties:
-      cursor:
-        type: optional<string>
-        docs: Base64-encoded cursor to use for retrieving the next page. If not present, there are no more results.
+    docs: Metadata for cursor-based pagination.
+    extends:
+      - pagination.CursorMetaResponse

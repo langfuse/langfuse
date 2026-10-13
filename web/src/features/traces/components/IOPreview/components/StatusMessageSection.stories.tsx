@@ -1,0 +1,52 @@
+import preview from "../../../../../../.storybook/preview";
+import { StatusMessageSection } from "./StatusMessageSection";
+import { expect } from "storybook/test";
+
+const meta = preview.meta({
+  component: StatusMessageSection,
+});
+
+export const Default = meta.story({
+  args: {
+    currentView: "pretty",
+    status: {
+      level: "DEFAULT",
+      message: "The observation completed with additional status details.",
+    },
+  },
+});
+
+export const Debug = meta.story({
+  args: {
+    currentView: "pretty",
+    status: {
+      level: "DEBUG",
+      message: "Detailed diagnostic information for this observation.",
+    },
+  },
+});
+
+export const Warning = meta.story({
+  args: {
+    currentView: "pretty",
+    status: {
+      level: "WARNING",
+      message: "The observation completed with a recoverable warning.",
+    },
+  },
+});
+
+export const Error = meta.story({
+  name: "(Test) Renders Error Message",
+  args: {
+    currentView: "pretty",
+    status: {
+      level: "ERROR",
+      message: "Upstream model request timed out after 30 seconds.",
+    },
+  },
+  play: async ({ canvas, args }) => {
+    await expect(canvas.getByText("Error")).toBeVisible();
+    await expect(canvas.getByText(args.status.message)).toBeVisible();
+  },
+});

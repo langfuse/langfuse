@@ -1,4 +1,4 @@
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { cn } from "@/src/utils/tailwind";
 import { type ReactNode, useState } from "react";
 

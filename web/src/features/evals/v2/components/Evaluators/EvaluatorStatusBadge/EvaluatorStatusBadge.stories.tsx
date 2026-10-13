@@ -1,39 +1,39 @@
 import preview from "../../../../../../../.storybook/preview";
 import { EvaluatorStatusBadge } from "./EvaluatorStatusBadge";
 
-const meta = preview.meta({ component: EvaluatorStatusBadge });
-
-export const Active = meta.story({
-  args: { ruleCount: 2, active: true },
+const meta = preview.meta({
+  component: EvaluatorStatusBadge,
+  args: {
+    ruleCount: 2,
+    summary: { total: 10, failed: 0 },
+    executionsHref: "/project/demo/traces?dateRange=7d",
+  },
 });
 
+export const Healthy = meta.story({});
 export const Inactive = meta.story({
-  args: { ruleCount: 1, active: false },
+  args: { summary: { total: 0, failed: 0 } },
 });
-
-/** No reason stored: the badge stays a plain badge with no hover target. */
-export const Blocked = meta.story({
-  args: { ruleCount: 1, active: true, blocked: true },
+export const NoRule = meta.story({ args: { ruleCount: 0 } });
+export const Degraded = meta.story({
+  args: { summary: { total: 10, failed: 4 } },
 });
-
-/** Hovering explains why the evaluator was paused and how to fix it. */
+export const Failing = meta.story({
+  args: { summary: { total: 10, failed: 5 } },
+});
+export const Unavailable = meta.story({ args: { summary: undefined } });
+export const WithoutExecutionAccess = meta.story({
+  args: { summary: undefined, executionsHref: null },
+});
+export const Blocked = meta.story({ args: { blocked: true } });
 export const BlockedWithReason = meta.story({
   args: {
-    ruleCount: 1,
-    active: true,
     blocked: true,
     blockReason: "LLM_CONNECTION_MISSING",
     blockMessage:
       "Evaluator paused: the LLM connection it used was deleted. Recreate the connection or point the evaluator at another one, then reactivate it.",
   },
 });
-
-/** Rows blocked before messages were persisted fall back to the reason copy. */
 export const BlockedReasonOnly = meta.story({
-  args: {
-    ruleCount: 1,
-    active: true,
-    blocked: true,
-    blockReason: "LLM_CONNECTION_AUTH_INVALID",
-  },
+  args: { blocked: true, blockReason: "LLM_CONNECTION_AUTH_INVALID" },
 });

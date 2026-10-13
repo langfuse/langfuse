@@ -1,19 +1,28 @@
+/* eslint-disable no-nested-ternary */
+import { showSuccessToast } from "@/src/features/notifications";
 import { formatDistanceToNowStrict } from "date-fns";
-import { TableViewPresetTableName, ZodModelConfig } from "@langfuse/shared";
+import {
+  type OrderByState,
+  TableViewPresetTableName,
+  ZodModelConfig,
+} from "@langfuse/shared";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/router";
-import { type ComponentProps, useMemo, useState } from "react";
+import { type ComponentProps, useMemo, useRef, useState } from "react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { useStore } from "zustand";
 import Page from "@/src/components/layouts/page";
 import { DataTable } from "@/src/components/table/data-table";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControls,
   DataTableControlsProvider,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -25,32 +34,33 @@ import { EvaluatorBulkDeleteDialog } from "../components/Evaluators/EvaluatorBul
 import { EvaluatorGalleryDialog } from "../components/EvaluatorGalleryDialog/EvaluatorGalleryDialog";
 import { EvaluatorStatusBadge } from "../components/Evaluators/EvaluatorStatusBadge/EvaluatorStatusBadge";
 import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
-import { EvaluatorExecutionHistory } from "@/src/features/evals/v2/components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
 import { OverviewSelectionBar } from "../components/OverviewSelectionBar/OverviewSelectionBar";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
+import { TableSelectionManager } from "@/src/features/table";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { useSidebarFilterState } from "@/src/features/filters";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
+import { EVALUATORS_LIST_FIELD_REGISTRY } from "../constants/tableSearchRegistry";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {
   createEvaluatorsTableStore,
   type EvaluatorsTableStore,
 } from "../store/evaluatorsTableStore";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
   evaluatorExecutionsUrl,
   evaluatorScoresUrl,
 } from "../fns/evaluators/evaluatorScoresUrl";
-import {
-  EVALS_V2_TABS,
-  getEvalsV2Tabs,
-} from "@/src/features/navigation/utils/evals-v2-tabs";
+import { EVALS_V2_TABS, getEvalsV2Tabs } from "@/src/features/navigation";
 import { DefaultModelChangeConfirmationDialog } from "../components/Evaluators/ProjectDefaultModel/DefaultModelChangeConfirmationDialog";
 import { useProjectDefaultModel } from "@/src/features/evals/v2/hooks/useProjectDefaultModel";
 import {
@@ -65,6 +75,10 @@ import {
 } from "../constants/tableFilterColumns";
 import type { GalleryTemplate } from "../types/templateGallery";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { useOrderByState } from "@/src/features/orderBy";
+import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { EvaluatorAlertButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";
 
 type EvaluatorRow = RouterOutputs["evalsV2"]["list"]["evaluators"][number];
 
@@ -114,7 +128,7 @@ function EvaluatorsOverviewSelectionBar({
         className="h-8"
         onClick={() => onDeleteSelection({ selectAll, selectedIds })}
       >
-        <Trash2 className="h-4 w-4 sm:mr-2" />
+        <Trash2 className="icon-base text-icon-foreground sm:mr-2" />
         <span className="hidden sm:inline">Delete</span>
       </Button>
     </OverviewSelectionBar>
@@ -145,6 +159,7 @@ function EvaluatorsTableToolbar({
 
   return (
     <DataTableToolbar
+      tableName="evaluators-v2"
       {...toolbarProps}
       multiSelect={{
         selectAll,
@@ -163,12 +178,20 @@ export default function EvaluatorsPage() {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
+  const evaluatorAlerts = useEvaluatorAlerts({
+    scope: "allEvaluators",
+    projectId,
+  });
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
     source: "overview",
   });
   const [pagination, setPagination] = usePaginationState(1, 50);
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [orderBy, setOrderBy] = useOrderByState({
+    column: "updatedAt",
+    order: "DESC",
+  });
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "evaluatorsV2",
     "s",
   );
@@ -203,9 +226,7 @@ export default function EvaluatorsPage() {
               ...facet,
               renderOptionSuffix: (model: string) =>
                 model === projectDefaultModel.defaultModel?.model ? (
-                  <Badge variant="secondary" size="sm">
-                    Project default
-                  </Badge>
+                  <Badge variant="secondary">Project default</Badge>
                 ) : null,
             }
           : facet,
@@ -213,11 +234,22 @@ export default function EvaluatorsPage() {
     }),
     [projectDefaultModel.defaultModel?.model],
   );
+  const viewControllersRef = useRef<Pick<
+    ReturnType<typeof useTableViewManager>,
+    "handleUserStateChange"
+  > | null>(null);
   const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
     loading: filterOptionsQuery.isPending,
     stateLocation: "urlAndSessionStorage",
     sessionFilterContextId: projectId,
-    onExplicitFilterStateChange: () => {
+    onExplicitFilterStateChange: (change) => {
+      if (change.origin === "user") {
+        viewControllersRef.current?.handleUserStateChange(
+          change.previousFilters,
+          change.nextFilters,
+          { force: change.action === "clear" },
+        );
+      }
       setPagination({ page: 1, limit: pagination.limit });
       selectionStore.getState().actions.clearSelection();
     },
@@ -240,6 +272,9 @@ export default function EvaluatorsPage() {
     {
       projectId,
       ...pagination,
+      orderBy: orderBy
+        ? (orderBy as RouterInputs["evalsV2"]["list"]["orderBy"])
+        : undefined,
       search: searchQuery ?? undefined,
       filter: filterState,
     },
@@ -254,9 +289,16 @@ export default function EvaluatorsPage() {
     evaluators.data.totalItems === 0 &&
     !searchQuery &&
     filterState.length === 0;
+  const openGalleryFromNewEvaluatorButton = () => {
+    capture("eval:onboarding_started", {
+      entryPoint: "new_evaluator_button",
+      hasExistingEvaluators: evaluators.isSuccess ? !showOnboarding : undefined,
+    });
+    setGalleryOpen(true);
+  };
   const hasExecutionReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:read",
+    scope: "evalJobExecution:read",
   });
   const defaultModelConnection = projectDefaultModel.connections.find(
     ({ provider }) => provider === projectDefaultModel.defaultModel?.provider,
@@ -282,7 +324,7 @@ export default function EvaluatorsPage() {
       meta: { silentHttpCodes: [503] },
     },
   );
-  const recentExecutions = api.evalsV2.recentExecutions.useQuery(
+  const executionSummaries = api.evalsV2.executionSummaries.useQuery(
     { projectId, evaluatorIds },
     {
       enabled: hasExecutionReadAccess && evaluatorIds.length > 0,
@@ -291,7 +333,7 @@ export default function EvaluatorsPage() {
   );
   const utils = api.useUtils();
   const deleteMany = api.evalsV2.deleteMany.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator.delete"),
     onSuccess: async () => {
       selectionStore.getState().actions.clearSelection();
       setDeleteIds([]);
@@ -305,6 +347,7 @@ export default function EvaluatorsPage() {
         isAllMatching: deleteAll,
       });
       showSuccessToast({
+        operation: "evaluator.bulk_delete",
         title: "Evaluators deleted",
         description: `${deletedCount} evaluator${deletedCount === 1 ? "" : "s"} deleted.`,
       });
@@ -329,8 +372,9 @@ export default function EvaluatorsPage() {
         accessorKey: "name",
         id: "name",
         header: "Name",
-        size: 320,
+        size: 240,
         isFixedPosition: true,
+        enableSorting: true,
         cell: ({ row }) => (
           <span className="block truncate font-bold" title={row.original.name}>
             {row.original.name}
@@ -341,52 +385,34 @@ export default function EvaluatorsPage() {
         accessorKey: "status",
         id: "status",
         header: "Status",
-        size: 130,
-        enableHiding: true,
-        cell: ({ row }) => (
-          <EvaluatorStatusBadge
-            ruleCount={row.original._count.assignments}
-            active={row.original.hasActiveRules}
-            blocked={Boolean(row.original.blockedAt)}
-            blockReason={row.original.blockReason}
-            blockMessage={row.original.blockMessage}
-          />
-        ),
-      },
-      {
-        accessorKey: "executionTraces",
-        id: "executionTraces",
-        header: "Last 5 runs",
-        size: 130,
+        size: 100,
         enableHiding: true,
         cell: ({ row }) => {
-          if (recentExecutions.isPending && hasExecutionReadAccess) {
+          if (
+            executionSummaries.isPending &&
+            hasExecutionReadAccess &&
+            !row.original.blockedAt &&
+            row.original._count.assignments > 0
+          ) {
             return <Skeleton className="h-4 w-16" />;
           }
-          const history = (
-            <EvaluatorExecutionHistory
-              traces={recentExecutions.data?.[row.original.id] ?? []}
-            />
-          );
-          return hasExecutionReadAccess ? (
-            <button
-              type="button"
-              className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-              aria-label={`View executions for ${row.original.name}`}
-              onClick={() =>
-                router.push(
-                  evaluatorExecutionsUrl(
-                    projectId,
-                    row.original.name,
-                    row.original.type,
-                  ),
-                )
+          return (
+            <EvaluatorStatusBadge
+              ruleCount={row.original._count.assignments}
+              summary={executionSummaries.data?.[row.original.id]}
+              blocked={Boolean(row.original.blockedAt)}
+              blockReason={row.original.blockReason}
+              blockMessage={row.original.blockMessage}
+              executionsHref={
+                hasExecutionReadAccess
+                  ? evaluatorExecutionsUrl(
+                      projectId,
+                      row.original.id,
+                      row.original.type,
+                    )
+                  : null
               }
-            >
-              {history}
-            </button>
-          ) : (
-            history
+            />
           );
         },
       },
@@ -394,24 +420,27 @@ export default function EvaluatorsPage() {
         accessorKey: "type",
         id: "type",
         header: "Type",
-        size: 160,
+        size: 130,
         enableHiding: true,
+        enableSorting: true,
         cell: ({ row }) => <EvaluatorTypeBadge type={row.original.type} />,
       },
-      {
-        accessorKey: "totalCost",
+      createNumberTableColumn<EvaluatorRow>({
+        accessorFn: (row) => costs.data?.[row.id],
         id: "totalCost",
-        header: "Total cost (7d)",
-        size: 140,
+        header: "Cost (7d)",
+        size: 110,
         enableHiding: true,
-        cell: ({ row }) => {
+        formatter: (value) => usdFormatter(value, 2, 4),
+        getValue: (value) => {
           if (costs.isPending && hasExecutionReadAccess) {
-            return <Skeleton className="h-4 w-16" />;
+            return { type: "loading" };
           }
-          const cost = costs.data?.[row.original.id];
-          return cost == null ? "—" : usdFormatter(cost, 2, 4);
+          if (value === null || value === undefined) return undefined;
+
+          return value;
         },
-      },
+      }),
       {
         accessorKey: "model",
         id: "model",
@@ -429,24 +458,14 @@ export default function EvaluatorsPage() {
           );
         },
       },
-      {
+      createUserTableColumn<EvaluatorRow>({
         accessorKey: "createdByUser",
-        id: "createdByUser",
         header: "Created by",
-        size: 180,
+        size: 90,
         enableHiding: true,
-        cell: ({ row }) => {
-          const creator =
-            row.original.createdByUser?.name ??
-            row.original.createdByUser?.email ??
-            "API";
-          return (
-            <span className="block truncate" title={creator}>
-              {creator}
-            </span>
-          );
-        },
-      },
+        variant: "text",
+        emptyValue: "API",
+      }),
       {
         accessorKey: "createdAt",
         id: "createdAt",
@@ -454,6 +473,7 @@ export default function EvaluatorsPage() {
         size: 180,
         enableHiding: true,
         defaultHidden: true,
+        enableSorting: true,
         cell: ({ row }) => <RelativeDate date={row.original.createdAt} />,
       },
       {
@@ -462,14 +482,16 @@ export default function EvaluatorsPage() {
         header: "Updated at",
         size: 180,
         enableHiding: true,
+        enableSorting: true,
         cell: ({ row }) => <RelativeDate date={row.original.updatedAt} />,
       },
       {
         accessorKey: "actions",
         id: "actions",
         header: "Actions",
-        size: 170,
+        size: 130,
         isFixedPosition: true,
+        isPinnedRight: true,
         enableSorting: false,
         enableResizing: false,
         cell: ({ row }) => (
@@ -483,7 +505,6 @@ export default function EvaluatorsPage() {
                     row.original.id,
                     row.original.name,
                     row.original.type,
-                    row.original.assignedRuleIds,
                   ),
                 )
               }
@@ -491,7 +512,7 @@ export default function EvaluatorsPage() {
                 router.push(
                   evaluatorExecutionsUrl(
                     projectId,
-                    row.original.name,
+                    row.original.id,
                     row.original.type,
                   ),
                 )
@@ -499,11 +520,15 @@ export default function EvaluatorsPage() {
               onEdit={() =>
                 router.push(`/project/${projectId}/evals/${row.original.id}`)
               }
-              onClone={() =>
-                router.push(
+              onClone={() => {
+                capture("eval:onboarding_started", {
+                  entryPoint: "clone_evaluator",
+                  hasExistingEvaluators: true,
+                });
+                return router.push(
                   `/project/${projectId}/evals/new?evaluatorId=${encodeURIComponent(row.original.id)}`,
-                )
-              }
+                );
+              }}
               onDelete={() => setDeleteIds([row.original.id])}
             />
           </div>
@@ -511,12 +536,13 @@ export default function EvaluatorsPage() {
       },
     ],
     [
+      capture,
       costs.data,
       costs.isPending,
       hasExecutionReadAccess,
       projectId,
-      recentExecutions.data,
-      recentExecutions.isPending,
+      executionSummaries.data,
+      executionSummaries.isPending,
       router,
       selectActionColumn,
     ],
@@ -527,6 +553,11 @@ export default function EvaluatorsPage() {
     "evaluatorsV2ColumnOrder-v2",
     columns,
   );
+  const setEvaluatorOrderBy = (nextOrderBy: OrderByState) => {
+    setOrderBy(nextOrderBy);
+    setPagination({ page: 1, limit: pagination.limit });
+    selectionStore.getState().actions.clearSelection();
+  };
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Evaluators,
     projectId,
@@ -541,6 +572,7 @@ export default function EvaluatorsPage() {
       },
       setColumnOrder,
       setColumnVisibility,
+      setOrderBy: setEvaluatorOrderBy,
     },
     validationContext: {
       columns,
@@ -550,6 +582,31 @@ export default function EvaluatorsPage() {
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,
   });
+  viewControllersRef.current = viewControllers;
+
+  const handleSearchChange = (query: string | null) => {
+    viewControllers.handleUserStateChange(searchQuery ?? "", query ?? "");
+    setSearchQuery(query);
+    setPagination({ page: 1, limit: pagination.limit });
+    selectionStore.getState().actions.clearSelection();
+  };
+  const handleOrderByChange = (next: OrderByState) => {
+    viewControllers.handleUserStateChange(orderBy, next);
+    setEvaluatorOrderBy(next);
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (updater) => {
+    const next = typeof updater === "function" ? updater(columnOrder) : updater;
+    viewControllers.handleUserStateChange(columnOrder, next);
+    setColumnOrder(next);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibility = (
+    updater,
+  ) => {
+    const next =
+      typeof updater === "function" ? updater(columnVisibility) : updater;
+    viewControllers.handleUserStateChange(columnVisibility, next);
+    setColumnVisibility(next);
+  };
 
   return (
     <Page
@@ -560,6 +617,12 @@ export default function EvaluatorsPage() {
           description:
             "Create reusable evaluator definitions and test them before activation.",
         },
+        mobileActionButtons: showOnboarding ? (
+          <Button size="sm" onClick={openGalleryFromNewEvaluatorButton}>
+            <Plus className="icon-base mr-2" />
+            New evaluator
+          </Button>
+        ) : undefined,
         actionButtonsRight: (
           <div className="flex gap-2">
             {showOnboarding ? null : (
@@ -582,6 +645,10 @@ export default function EvaluatorsPage() {
                 }}
                 onConfigureProviders={projectDefaultModel.openProviderSettings}
                 onConfigureModel={() => setDefaultModelConfigurationOpen(true)}
+                hasModelConfiguration={Boolean(
+                  defaultModelConfig &&
+                  Object.keys(defaultModelConfig.modelParams).length > 0,
+                )}
               >
                 <PopoverTrigger asChild>
                   <JudgeModelPickerTrigger
@@ -597,12 +664,20 @@ export default function EvaluatorsPage() {
                       projectDefaultModel.connectionsPending ||
                       projectDefaultModel.update.isPending
                     }
+                    borderVariant="contrast"
                   />
                 </PopoverTrigger>
               </JudgeModelPicker>
             )}
-            <Button onClick={() => setGalleryOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
+            {showOnboarding ? null : (
+              <EvaluatorAlertButton
+                scope="allEvaluators"
+                projectId={projectId}
+                {...evaluatorAlerts}
+              />
+            )}
+            <Button onClick={openGalleryFromNewEvaluatorButton}>
+              <Plus className="icon-base text-icon-foreground mr-2" />
               New evaluator
             </Button>
           </div>
@@ -623,40 +698,55 @@ export default function EvaluatorsPage() {
       ) : (
         <DataTableControlsProvider tableName={filterConfig.tableName}>
           <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
-            <EvaluatorsTableToolbar
-              selectionStore={selectionStore}
-              pageRowIds={evaluatorIds}
-              pageSize={pagination.limit}
-              pageIndex={pagination.page - 1}
-              totalCount={evaluators.data?.totalItems ?? null}
-              columns={columns}
-              columnVisibility={columnVisibility}
-              setColumnVisibility={setColumnVisibility}
-              columnOrder={columnOrder}
-              setColumnOrder={setColumnOrder}
-              rowHeight={rowHeight}
-              setRowHeight={setRowHeight}
-              filterState={filterState}
-              currentSearchQuery={searchQuery ?? undefined}
-              viewConfig={{
-                tableName: TableViewPresetTableName.Evaluators,
-                projectId,
-                controllers: viewControllers,
-              }}
-              searchConfig={{
-                metadataSearchFields: ["Name"],
-                updateQuery: (query) => {
-                  setSearchQuery(query || null);
-                  setPagination({ page: 1, limit: pagination.limit });
-                  selectionStore.getState().actions.clearSelection();
-                },
-                currentQuery: searchQuery ?? undefined,
-                tableAllowsFullTextSearch: false,
-              }}
-            />
-            <ResizableFilterLayout>
+            <SearchableTableFilterLayout
+              search={
+                <TableSearchBar
+                  size="large"
+                  key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+                  projectId={projectId}
+                  tableName={filterConfig.tableName}
+                  registry={EVALUATORS_LIST_FIELD_REGISTRY}
+                  filterState={queryFilter.searchBarFilterState}
+                  setFilterState={queryFilter.setFilterState}
+                  observed={toObservedOptions(
+                    filterOptions,
+                    filterOptionsQuery.isPending,
+                  )}
+                  search={{
+                    query: searchQuery ?? null,
+                    setQuery: handleSearchChange,
+                  }}
+                  isV4={false}
+                />
+              }
+              toolbar={
+                <EvaluatorsTableToolbar
+                  selectionStore={selectionStore}
+                  pageRowIds={evaluatorIds}
+                  pageSize={pagination.limit}
+                  pageIndex={pagination.page - 1}
+                  totalCount={evaluators.data?.totalItems ?? null}
+                  columns={columns}
+                  columnVisibility={columnVisibility}
+                  setColumnVisibility={handleColumnVisibilityChange}
+                  columnOrder={columnOrder}
+                  setColumnOrder={handleColumnOrderChange}
+                  rowHeight={rowHeight}
+                  setRowHeight={setRowHeight}
+                  customRowHeight={customRowHeightMenu(rowHeights)}
+                  filterState={filterState}
+                  orderByState={orderBy}
+                  currentSearchQuery={searchQuery ?? ""}
+                  viewConfig={{
+                    tableName: TableViewPresetTableName.Evaluators,
+                    projectId,
+                    controllers: viewControllers,
+                  }}
+                />
+              }
+            >
               <DataTableControls
-                key={viewControllers.selectedViewId ?? "no-view"}
+                key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
                 queryFilter={queryFilter}
               />
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -700,17 +790,22 @@ export default function EvaluatorsPage() {
                   }}
                   selectionStore={selectionStore}
                   columnVisibility={columnVisibility}
-                  onColumnVisibilityChange={setColumnVisibility}
+                  onColumnVisibilityChange={handleColumnVisibilityChange}
                   columnOrder={columnOrder}
-                  onColumnOrderChange={setColumnOrder}
+                  onColumnOrderChange={handleColumnOrderChange}
                   rowHeight={rowHeight}
+                  customRowHeightPx={rowHeights.activeHeightPx}
+                  onCustomRowHeightChange={rowHeights.setCustomPx}
+                  onSelectRowHeight={setRowHeight}
+                  orderBy={orderBy}
+                  setOrderBy={handleOrderByChange}
                   onRowClick={(row) =>
                     router.push(`/project/${projectId}/evals/${row.id}`)
                   }
                   noResultsMessage="No evaluators found."
                 />
               </div>
-            </ResizableFilterLayout>
+            </SearchableTableFilterLayout>
           </div>
         </DataTableControlsProvider>
       )}

@@ -1,7 +1,8 @@
+/* eslint-disable no-nested-ternary */
 import { type RouterOutputs } from "@/src/utils/api";
-import { type SdkVersionInfo } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
+import { type SdkVersionInfo } from "@/src/features/sdk-version";
 
-export type V4MigrationSdkStatus =
+type V4MigrationSdkStatus =
   | "checking"
   | "error"
   | "no_data"
@@ -30,7 +31,7 @@ const requiresOtelIngestionHeader = (
   series.actionLevel === "required";
 
 // SQL owns remediation classification; the client only groups rows for display.
-export const isCustomInstrumentationSeries = (
+const isCustomInstrumentationSeries = (
   series: V4MigrationSdkUsageSeries,
 ): boolean => series.remediationType === "upgrade_instrumentation";
 
@@ -110,9 +111,8 @@ export const getV4MigrationSdkState = (params: {
 
 // Recognized Langfuse SDK traffic stays in the SDK bucket even when it uses
 // OTLP; raw/third-party OTel is classified separately by SQL.
-export const isOtelExporterSeries = (
-  series: V4MigrationSdkUsageSeries,
-): boolean => series.remediationType === "update_otel_instrumentation";
+const isOtelExporterSeries = (series: V4MigrationSdkUsageSeries): boolean =>
+  series.remediationType === "update_otel_instrumentation";
 
 // Action sections contain only SQL-classified required rows. Successful rows
 // are shown separately in the detected-instrumentation section.
@@ -196,12 +196,15 @@ export const getDetectedInstrumentationSeries = (
 export const formatSdkVersion = (sdkVersion: SdkVersionInfo | undefined) => {
   if (!sdkVersion?.language || !sdkVersion.version) return null;
 
-  const language =
-    sdkVersion.language === "javascript"
-      ? "JavaScript"
-      : sdkVersion.language === "python"
-        ? "Python"
-        : sdkVersion.language;
+  const language = (() => {
+    if (sdkVersion.language === "javascript") {
+      return "JavaScript";
+    }
+    if (sdkVersion.language === "python") {
+      return "Python";
+    }
+    return sdkVersion.language;
+  })();
   return `${language} ${sdkVersion.version}`;
 };
 

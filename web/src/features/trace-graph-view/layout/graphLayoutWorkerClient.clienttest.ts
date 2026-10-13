@@ -1,6 +1,15 @@
 import { type GraphCanvasData, type GraphNodeData } from "../types";
 import { MAX_MAIN_THREAD_LAYOUT_NODES } from "./elkLayout";
 
+const { mockCaptureException } = vi.hoisted(() => ({
+  mockCaptureException: vi.fn(),
+}));
+
+vi.mock("@sentry/nextjs", () => ({
+  captureException: mockCaptureException,
+  addBreadcrumb: vi.fn(),
+}));
+
 const node = (id: string): GraphNodeData => ({ id, label: id, type: "AGENT" });
 
 const graph: GraphCanvasData = {
@@ -36,7 +45,7 @@ type ElkMessage = {
   graph?: { edges?: unknown[]; layoutOptions?: Record<string, string> };
 };
 
-/** Stands in for the bundled elkjs worker: same message protocol, no layout. */
+/** Stands in for elkjs's prebuilt worker: same message protocol, no layout. */
 class FakeWorker {
   static instances: FakeWorker[] = [];
   onmessage: ((event: MessageEvent) => void) | null = null;
@@ -44,7 +53,7 @@ class FakeWorker {
   posted: ElkMessage[] = [];
   terminated = false;
 
-  constructor() {
+  constructor(public readonly url: string) {
     FakeWorker.instances.push(this);
   }
 
@@ -63,6 +72,10 @@ class FakeWorker {
   answer(message: ElkMessage, data: unknown) {
     this.onmessage?.({ data: { id: message.id, data } } as MessageEvent);
   }
+
+  fail(message: ElkMessage, error: unknown) {
+    this.onmessage?.({ data: { id: message.id, error } } as MessageEvent);
+  }
 }
 
 // The client keeps the worker in module state, so every test needs its own copy.
@@ -76,13 +89,53 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("requestGraphLayout", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     FakeWorker.instances = [];
     vi.stubGlobal("Worker", FakeWorker);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("starts the worker from a URL that outlives a deploy", async () => {
+    const client = await loadClient();
+    client.requestGraphLayout(graph, {}, "DOWN").catch(() => {});
+
+    // A `/_next/static/chunks/...` worker URL is content-hashed and pinned to
+    // the app origin, which only serves the current build — so it 404s in every
+    // tab that was open across a deploy.
+    expect(FakeWorker.instances[0]!.url).toBe(client.ELK_WORKER_URL);
+    expect(client.ELK_WORKER_URL).not.toContain("/_next/");
+    expect(client.ELK_WORKER_URL).toMatch(/\/api\/workers\/elk-worker$/);
+  });
+
+  it("degrades to this thread and cancels the error when the worker will not load", async () => {
+    const client = await loadClient();
+    const pending = client.requestGraphLayout(graph, {}, "DOWN");
+    const worker = FakeWorker.instances[0]!;
+    await flush();
+
+    const event = new ErrorEvent("error", { message: "failed to load" });
+    const preventDefault = vi.spyOn(event, "preventDefault");
+    worker.onerror?.(event);
+
+    // Uncanceled, the browser reports the same failure again on the owning
+    // document, where Sentry captures it a second time as unhandled.
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(mockCaptureException).toHaveBeenCalledTimes(1);
+
+    const layout = await pending;
+    expect(layout.tooLarge).toBeFalsy();
+    expect(layout.nodes).toHaveLength(2);
+
+    // The worker is retired, not retried: the script will not start next time
+    // either, and every attempt costs another failure.
+    client.requestGraphLayout(graph, {}, "DOWN").catch(() => {});
+    expect(FakeWorker.instances).toHaveLength(1);
   });
 
   it("resolves with the layout the worker sends back", async () => {
@@ -128,6 +181,21 @@ describe("requestGraphLayout", () => {
     staleWorker.answer(staleRequest, laidOut(1));
     freshWorker.answer(freshWorker.layoutRequests[0], laidOut(2));
     await expect(fresh).resolves.toMatchObject({ width: 2 });
+  });
+
+  it("gives up with the too-large notice when elkjs overflows the worker stack", async () => {
+    const client = await loadClient();
+    const pending = client.requestGraphLayout(graph, {}, "DOWN");
+    const worker = FakeWorker.instances[0];
+    await flush();
+
+    worker.fail(worker.layoutRequests[0], "Maximum call stack size exceeded");
+
+    await expect(pending).resolves.toMatchObject({
+      tooLarge: true,
+      nodeCount: 2,
+      edgeCount: 1,
+    });
   });
 
   it("gives up with the too-large notice when a layout blows the deadline", async () => {

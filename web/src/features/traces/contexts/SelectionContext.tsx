@@ -5,7 +5,7 @@
  * - Tracks selected node ID (synced to URL query param)
  * - Manages collapsed/expanded state for tree nodes
  * - Handles search query with debounced input
- * - Tracks selected tab (preview/log/scores) - synced to URL query param `traceTab`
+ * - Tracks selected detail tab - synced to URL query param `traceTab`
  * - Tracks view preference (formatted/json) - synced to URL query param AND localStorage
  *
  * View Preference Behavior:
@@ -28,14 +28,14 @@ import {
 } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { useViewPreferences } from "./ViewPreferencesContext";
 import {
-  useViewPreferences,
+  isPrettyLikeJsonView,
   type JsonViewPreference,
-} from "./ViewPreferencesContext";
+} from "@/src/components/ui/jsonViewPreference";
 
-// Valid tab values for detail view
-export type DetailTab = "preview" | "log" | "scores";
-const VALID_TABS: DetailTab[] = ["preview", "log", "scores"];
+import { DETAIL_TABS, type DetailTab } from "../constants/detailTabs";
+export type { DetailTab } from "../constants/detailTabs";
 const DEFAULT_TAB: DetailTab = "preview";
 
 // Valid view preference values
@@ -90,16 +90,16 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Validate and provide defaults for tab
-  const selectedTab: DetailTab = VALID_TABS.includes(tabParam as DetailTab)
+  const selectedTab: DetailTab = DETAIL_TABS.includes(tabParam as DetailTab)
     ? (tabParam as DetailTab)
     : DEFAULT_TAB;
 
   // Map localStorage JsonViewPreference to ViewPref format
-  // Both "json" and "json-beta" map to "json" ViewPref
-  const localStorageViewPref: ViewPref =
-    jsonViewPreference === "json" || jsonViewPreference === "json-beta"
-      ? "json"
-      : "formatted";
+  const localStorageViewPref: ViewPref = isPrettyLikeJsonView(
+    jsonViewPreference,
+  )
+    ? "formatted"
+    : "json";
 
   // View preference: URL param overrides localStorage default
   const viewPref: ViewPref = VALID_PREFS.includes(prefParam as ViewPref)

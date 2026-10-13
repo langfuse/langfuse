@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
-  useIsInAppAgentLauncherVisible: () => true,
   useInAppAiAgent: () => ({
     open: mocks.open,
     attentionCount: mocks.attentionCount,

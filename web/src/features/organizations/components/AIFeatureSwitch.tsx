@@ -1,3 +1,4 @@
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
@@ -11,8 +12,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import Header from "@/src/components/layouts/header";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   useLangfuseCloudRegion,
   useQueryOrganization,
@@ -22,9 +22,11 @@ import { LockIcon, ExternalLink } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 export default function AIFeatureSwitch() {
-  const { update: updateSession } = useSession();
+  const { data: session, update: updateSession } = useSession();
   const utils = api.useUtils();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const aiFeaturesTracingConfigured =
+    session?.environment.aiFeaturesTracingConfigured === true;
   const capture = usePostHogClientCapture();
   const organization = useQueryOrganization();
   const aiFeaturesEnabled = organization?.aiFeaturesEnabled;
@@ -58,6 +60,7 @@ export default function AIFeatureSwitch() {
       await updateSession();
       // Admins resolve org context from this query, not the session
       utils.organizations.byId.invalidate();
+      utils.inAppAgent.telemetryProject.invalidate();
     },
     onError: () => {
       setIsAITelemetrySwitchEnabled(aiTelemetryEnabled ?? true);
@@ -127,8 +130,7 @@ export default function AIFeatureSwitch() {
               <p className="text-sm">
                 This setting applies to all users and projects. Any data{" "}
                 <i>can</i> be sent to AWS Bedrock within the Langfuse data
-                region. Traces are sent to Langfuse Cloud in your data region.
-                Your data will not be used for training models. Applicable
+                region. Your data will not be used to train models. Applicable
                 HIPAA, SOC2, GDPR, and ISO 27001 compliance remains intact.{" "}
                 <a
                   href="https://langfuse.com/security/ai-features"
@@ -137,7 +139,7 @@ export default function AIFeatureSwitch() {
                   className="text-primary inline-flex items-center gap-1 hover:underline"
                 >
                   More details in the docs here.
-                  <ExternalLink className="h-3 w-3" />
+                  <ExternalLink className="icon-sm" />
                 </a>
               </p>
             ) : (
@@ -156,36 +158,38 @@ export default function AIFeatureSwitch() {
             />
             {!hasAccess && (
               <span title="No access">
-                <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
+                <LockIcon className="text-muted icon-base absolute top-1/2 right-3 -translate-y-1/2 transform" />
               </span>
             )}
           </div>
         </div>
-        {isLangfuseCloud && isAIFeatureSwitchEnabled && (
-          <div className="mt-4 flex flex-row items-center justify-between border-t pt-4">
-            <div className="flex flex-col gap-1">
-              <h4 className="font-bold">
-                AI Data Use for Product/Service Improvement
-              </h4>
-              <p className="text-sm">
-                Share data about your use of AI with Langfuse for product and
-                service improvement.
-              </p>
+        {isLangfuseCloud &&
+          isAIFeatureSwitchEnabled &&
+          aiFeaturesTracingConfigured && (
+            <div className="mt-4 flex flex-row items-center justify-between border-t pt-4">
+              <div className="flex flex-col gap-1">
+                <h4 className="font-bold">
+                  AI Data Use for Product/Service Improvement
+                </h4>
+                <p className="text-sm">
+                  Share data about your use of AI with Langfuse for product and
+                  service improvement.
+                </p>
+              </div>
+              <div className="relative">
+                <Switch
+                  checked={isAITelemetrySwitchEnabled}
+                  onCheckedChange={handleTelemetrySwitchChange}
+                  disabled={!hasAccess || updateAITelemetry.isPending}
+                />
+                {!hasAccess && (
+                  <span title="No access">
+                    <LockIcon className="text-muted icon-base absolute top-1/2 right-3 -translate-y-1/2 transform" />
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="relative">
-              <Switch
-                checked={isAITelemetrySwitchEnabled}
-                onCheckedChange={handleTelemetrySwitchChange}
-                disabled={!hasAccess || updateAITelemetry.isPending}
-              />
-              {!hasAccess && (
-                <span title="No access">
-                  <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
-                </span>
-              )}
-            </div>
-          </div>
-        )}
+          )}
       </Card>
 
       <Dialog
@@ -223,7 +227,7 @@ export default function AIFeatureSwitch() {
                     className="text-primary inline-flex items-center gap-1 hover:underline"
                   >
                     Learn more in the docs.
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink className="icon-sm" />
                   </a>
                 </>
               )}

@@ -41,6 +41,11 @@ import { getSupportedCodeEvalTemplateLanguages } from "@/src/features/evals/serv
 import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
 import type { ManagedTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import type { EvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import {
+  getLegacyEvaluatorPrompt,
+  reconcileEvaluatorPromptMessages,
+  toEvaluatorDefinition,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 
 const MANAGED_TEMPLATE_ID_PREFIX = "managed:";
 
@@ -55,6 +60,39 @@ const LEGACY_TARGET_OBJECTS = [
   EvalTargetObject.EVENT,
   EvalTargetObject.EXPERIMENT,
 ];
+
+const visibleRuleWhere = {
+  assignments: { none: { evaluator: { type: EvalTemplateType.FACET } } },
+} satisfies Prisma.EvaluationRuleWhereInput;
+
+async function assertNoBlockedBuiltInEvaluators(
+  tx: TransactionClient,
+  projectId: string,
+  ruleIds: string[],
+) {
+  const blockedRule = await tx.evaluationRule.findFirst({
+    where: {
+      projectId,
+      id: { in: ruleIds },
+      AND: [
+        visibleRuleWhere,
+        {
+          assignments: {
+            some: {
+              evaluator: { isBuiltIn: true, blockedAt: { not: null } },
+            },
+          },
+        },
+      ],
+    },
+    select: { id: true },
+  });
+  if (blockedRule) {
+    throw new InvalidRequestError(
+      "Blocked built-in evaluators cannot be activated",
+    );
+  }
+}
 
 const latestVersion = {
   orderBy: { version: "desc" as const },
@@ -86,7 +124,25 @@ function managedTemplateId(key: string) {
   return `${MANAGED_TEMPLATE_ID_PREFIX}${key}`;
 }
 
-function toLegacyManagedTemplate(template: ManagedTemplate) {
+type LegacyManagedTemplate = ManagedTemplate & {
+  evaluator: Exclude<
+    ManagedTemplate["evaluator"],
+    { type: typeof EvalTemplateType.DECISION_MODEL }
+  >;
+};
+
+function isLegacyManagedTemplate(
+  template: ManagedTemplate,
+): template is LegacyManagedTemplate {
+  return template.evaluator.type !== EvalTemplateType.DECISION_MODEL;
+}
+
+function legacyManagedTemplates(): LegacyManagedTemplate[] {
+  const templates: ManagedTemplate[] = MANAGED_TEMPLATES_CATALOG.templates;
+  return templates.filter(isLegacyManagedTemplate);
+}
+
+function toLegacyManagedTemplate(template: LegacyManagedTemplate) {
   const now = new Date(0);
   if (template.evaluator.type === EvalTemplateType.CODE) {
     return {
@@ -116,7 +172,7 @@ function toLegacyManagedTemplate(template: ManagedTemplate) {
     projectId: null,
     name: template.name,
     version: 1,
-    prompt: template.evaluator.prompt,
+    prompt: getLegacyEvaluatorPrompt(template.evaluator.promptMessages),
     type: EvalTemplateType.LLM_AS_JUDGE,
     partner: null,
     model: null,
@@ -140,7 +196,15 @@ function toLegacyEvaluatorTemplate(evaluator: StableEvaluator) {
     projectId: evaluator.projectId,
     name: evaluator.name,
     version: version.version,
-    prompt: version.prompt,
+    prompt:
+      evaluator.type === EvalTemplateType.LLM_AS_JUDGE
+        ? getLegacyEvaluatorPrompt(
+            reconcileEvaluatorPromptMessages({
+              prompt: version.prompt,
+              promptMessages: version.promptMessages,
+            }),
+          )
+        : null,
     type: evaluator.type,
     partner: version.partner,
     model: version.model,
@@ -190,7 +254,7 @@ type LlmEvaluatorVariableMapping = Extract<
 >["variableMapping"];
 
 function definitionFromManagedTemplate(
-  template: ManagedTemplate,
+  template: LegacyManagedTemplate,
   variableMapping: LlmEvaluatorVariableMapping,
 ): EvaluatorDefinition {
   if (template.evaluator.type === EvalTemplateType.CODE) {
@@ -203,7 +267,7 @@ function definitionFromManagedTemplate(
 
   return {
     type: EvalTemplateType.LLM_AS_JUDGE,
-    prompt: template.evaluator.prompt,
+    promptMessages: template.evaluator.promptMessages,
     provider: null,
     model: null,
     modelParams: null,
@@ -219,6 +283,7 @@ function definitionFromEvaluator(
 ): EvaluatorDefinition | null {
   const version = evaluator.versions[0];
   if (!version) return null;
+  if (evaluator.type === EvalTemplateType.FACET) return null;
   if (evaluator.type === EvalTemplateType.CODE) {
     if (!version.sourceCode || !version.sourceCodeLanguage) return null;
     return {
@@ -227,17 +292,11 @@ function definitionFromEvaluator(
       sourceCodeLanguage: version.sourceCodeLanguage,
     };
   }
-  if (!version.prompt || !version.outputDefinition) return null;
-  return {
-    type: EvalTemplateType.LLM_AS_JUDGE,
-    prompt: version.prompt,
-    provider: version.provider,
-    model: version.model,
-    modelParams: version.modelParams,
-    vars: version.vars,
-    variableMapping,
-    outputDefinition: version.outputDefinition,
-  } as EvaluatorDefinition;
+  if (!version.outputDefinition) return null;
+  const definition = toEvaluatorDefinition(evaluator.type, version);
+  return definition.type === EvalTemplateType.LLM_AS_JUDGE
+    ? { ...definition, variableMapping }
+    : null;
 }
 
 function evaluatorVersionData(
@@ -247,20 +306,35 @@ function evaluatorVersionData(
   const common = {
     createdByUserId,
   };
-  return definition.type === EvalTemplateType.CODE
-    ? {
+  switch (definition.type) {
+    case EvalTemplateType.CODE:
+      return {
         ...common,
         variableMapping: getCodeEvalVariableMapping() as Prisma.InputJsonValue,
         sourceCode: definition.sourceCode,
         sourceCodeLanguage: definition.sourceCodeLanguage,
-      }
-    : {
+      };
+    case EvalTemplateType.DECISION_MODEL:
+      return {
         ...common,
         variableMapping:
           definition.variableMapping === null
             ? Prisma.DbNull
             : (definition.variableMapping as Prisma.InputJsonValue),
-        prompt: definition.prompt,
+        provider: definition.provider,
+        model: definition.model,
+        vars: definition.vars,
+        questions: definition.questions as Prisma.InputJsonValue,
+      };
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return {
+        ...common,
+        variableMapping:
+          definition.variableMapping === null
+            ? Prisma.DbNull
+            : (definition.variableMapping as Prisma.InputJsonValue),
+        prompt: getLegacyEvaluatorPrompt(definition.promptMessages),
+        promptMessages: definition.promptMessages as Prisma.InputJsonValue,
         provider: definition.provider,
         model: definition.model,
         modelParams:
@@ -270,6 +344,7 @@ function evaluatorVersionData(
         vars: definition.vars,
         outputDefinition: definition.outputDefinition as Prisma.InputJsonValue,
       };
+  }
 }
 
 /**
@@ -285,11 +360,22 @@ function definitionsMatch(a: EvaluatorDefinition, b: EvaluatorDefinition) {
     );
   }
   if (
+    a.type === EvalTemplateType.DECISION_MODEL &&
+    b.type === EvalTemplateType.DECISION_MODEL
+  ) {
+    return (
+      isEqual(a.questions, b.questions) &&
+      a.provider === b.provider &&
+      a.model === b.model &&
+      isEqual([...a.vars].sort(), [...b.vars].sort())
+    );
+  }
+  if (
     a.type === EvalTemplateType.LLM_AS_JUDGE &&
     b.type === EvalTemplateType.LLM_AS_JUDGE
   ) {
     return (
-      a.prompt === b.prompt &&
+      isEqual(a.promptMessages, b.promptMessages) &&
       a.provider === b.provider &&
       a.model === b.model &&
       isEqual(a.modelParams, b.modelParams) &&
@@ -337,7 +423,10 @@ async function findReusableEvaluatorId(params: {
   }
 
   const version = await tx.evaluatorVersion.findFirst({
-    where: { id: templateId, evaluator: { projectId } },
+    where: {
+      id: templateId,
+      evaluator: { projectId, type: { not: EvalTemplateType.FACET } },
+    },
     include: { evaluator: { include: { versions: latestVersion } } },
   });
   if (!version) return null;
@@ -358,6 +447,7 @@ function isRunnableTemplate(template: {
   type: EvalTemplateType;
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage | null;
 }) {
+  if (template.type === EvalTemplateType.FACET) return false;
   if (template.type !== EvalTemplateType.CODE) return true;
 
   return (
@@ -374,7 +464,7 @@ type ManagedCatalogEntry = {
 };
 
 function runnableManagedCatalog(): ManagedCatalogEntry[] {
-  return MANAGED_TEMPLATES_CATALOG.templates
+  return legacyManagedTemplates()
     .map((template) => ({
       template: toLegacyManagedTemplate(template),
       definition: definitionFromManagedTemplate(template, null),
@@ -445,7 +535,12 @@ async function clearEvaluatorBlock(params: {
   if (!assignment) return;
 
   await params.tx.evaluator.updateMany({
-    where: { id: assignment.evaluatorId, projectId: params.projectId },
+    where: {
+      id: assignment.evaluatorId,
+      projectId: params.projectId,
+      isBuiltIn: false,
+      type: { not: EvalTemplateType.FACET },
+    },
     data: resetEvalConfigBlockFields,
   });
 }
@@ -471,10 +566,13 @@ async function applyScoreNameChange(params: {
     },
   });
   if (!evaluator || evaluator.name === scoreName) return;
+  if (evaluator.isBuiltIn || evaluator.type === EvalTemplateType.FACET) {
+    throw new InvalidRequestError("Built-in evaluators cannot be edited");
+  }
 
   if (evaluator._count.assignments <= 1) {
     await tx.evaluator.update({
-      where: { id: evaluatorId, projectId },
+      where: { id: evaluatorId, projectId, isBuiltIn: false },
       data: { name: scoreName },
     });
     return;
@@ -559,6 +657,7 @@ const legacyConfigIdsQuery = (params: {
     ) a ON a."evaluation_rule_id" = r."id"
     JOIN "evaluators" e ON e."id" = a."evaluator_id"
     WHERE r."project_id" = ${params.projectId}
+      AND e."type"::text <> ${EvalTemplateType.FACET}
   ) jc
   WHERE TRUE
   ${params.targetCondition}
@@ -595,14 +694,23 @@ export class LegacyEvalCompatibilityService {
   async counts(projectId: string) {
     const [configCount, configActiveCount, templateCount, legacyConfigCount] =
       await Promise.all([
-        this.prisma.evaluationRule.count({ where: { projectId } }),
         this.prisma.evaluationRule.count({
-          where: { projectId, status: JobConfigState.ACTIVE },
+          where: { projectId, ...visibleRuleWhere },
         }),
-        this.prisma.evaluator.count({ where: { projectId } }),
         this.prisma.evaluationRule.count({
           where: {
             projectId,
+            ...visibleRuleWhere,
+            status: JobConfigState.ACTIVE,
+          },
+        }),
+        this.prisma.evaluator.count({
+          where: { projectId, type: { not: EvalTemplateType.FACET } },
+        }),
+        this.prisma.evaluationRule.count({
+          where: {
+            projectId,
+            ...visibleRuleWhere,
             targetObject: {
               in: [EvalTargetObject.TRACE, EvalTargetObject.DATASET],
             },
@@ -705,7 +813,7 @@ export class LegacyEvalCompatibilityService {
 
   async getConfig(projectId: string, ruleId: string) {
     const rule = await this.prisma.evaluationRule.findFirst({
-      where: { id: ruleId, projectId },
+      where: { id: ruleId, projectId, ...visibleRuleWhere },
       include: ruleInclude,
     });
     if (!rule || rule.assignments.length > 1) return null;
@@ -759,7 +867,7 @@ export class LegacyEvalCompatibilityService {
     options: { collapseManagedCopies?: boolean } = {},
   ) {
     const evaluators = await this.prisma.evaluator.findMany({
-      where: { projectId },
+      where: { projectId, type: { not: EvalTemplateType.FACET } },
       include: { versions: latestVersion },
       orderBy: [{ name: "asc" }, { createdAt: "asc" }],
     });
@@ -783,6 +891,7 @@ export class LegacyEvalCompatibilityService {
     const evaluators = await this.prisma.evaluator.findMany({
       where: {
         projectId: params.projectId,
+        type: { not: EvalTemplateType.FACET },
         ...(search
           ? { name: { contains: search, mode: "insensitive" as const } }
           : {}),
@@ -863,7 +972,7 @@ export class LegacyEvalCompatibilityService {
   }
 
   listManagedTemplates() {
-    return MANAGED_TEMPLATES_CATALOG.templates
+    return legacyManagedTemplates()
       .map(toLegacyManagedTemplate)
       .filter(isRunnableTemplate);
   }
@@ -887,7 +996,7 @@ export class LegacyEvalCompatibilityService {
   async getTemplate(projectId: string, templateId: string) {
     if (templateId.startsWith(MANAGED_TEMPLATE_ID_PREFIX)) {
       const key = templateId.slice(MANAGED_TEMPLATE_ID_PREFIX.length);
-      const template = MANAGED_TEMPLATES_CATALOG.templates.find(
+      const template = legacyManagedTemplates().find(
         (candidate) => candidate.key === key,
       );
       if (!template) return null;
@@ -895,7 +1004,10 @@ export class LegacyEvalCompatibilityService {
       return isRunnableTemplate(legacyTemplate) ? legacyTemplate : null;
     }
     const version = await this.prisma.evaluatorVersion.findFirst({
-      where: { id: templateId, evaluator: { projectId } },
+      where: {
+        id: templateId,
+        evaluator: { projectId, type: { not: EvalTemplateType.FACET } },
+      },
       include: { evaluator: true },
     });
     if (!version) return null;
@@ -914,7 +1026,7 @@ export class LegacyEvalCompatibilityService {
   }) {
     if (params.templateId.startsWith(MANAGED_TEMPLATE_ID_PREFIX)) {
       const key = params.templateId.slice(MANAGED_TEMPLATE_ID_PREFIX.length);
-      const template = MANAGED_TEMPLATES_CATALOG.templates.find(
+      const template = legacyManagedTemplates().find(
         (candidate) => candidate.key === key,
       );
       return template
@@ -927,7 +1039,10 @@ export class LegacyEvalCompatibilityService {
     const version = await this.prisma.evaluatorVersion.findFirst({
       where: {
         id: params.templateId,
-        evaluator: { projectId: params.projectId },
+        evaluator: {
+          projectId: params.projectId,
+          type: { not: EvalTemplateType.FACET },
+        },
       },
       include: { evaluator: { include: { versions: latestVersion } } },
     });
@@ -996,6 +1111,7 @@ export class LegacyEvalCompatibilityService {
           where: {
             id: params.reuseEvaluatorFromRuleId,
             projectId: params.projectId,
+            ...visibleRuleWhere,
             targetObject: { in: LEGACY_TARGET_OBJECTS },
           },
           select: {
@@ -1102,7 +1218,11 @@ export class LegacyEvalCompatibilityService {
         const source = await tx.evaluatorVersion.findFirst({
           where: {
             id: params.intent.sourceTemplateId,
-            evaluator: { projectId: params.projectId },
+            evaluator: {
+              projectId: params.projectId,
+              isBuiltIn: false,
+              type: { not: EvalTemplateType.FACET },
+            },
           },
           select: { evaluatorId: true },
         });
@@ -1116,6 +1236,9 @@ export class LegacyEvalCompatibilityService {
           where: { id: source.evaluatorId, projectId: params.projectId },
           include: { versions: latestVersion },
         });
+        if (evaluator.isBuiltIn) {
+          throw new InvalidRequestError("Built-in evaluators cannot be edited");
+        }
         if (
           evaluator.name !== params.name ||
           evaluator.type !== params.definition.type
@@ -1200,9 +1323,7 @@ export class LegacyEvalCompatibilityService {
           ? params.intent.cloneSourceId.slice(MANAGED_TEMPLATE_ID_PREFIX.length)
           : null;
         const source = key
-          ? MANAGED_TEMPLATES_CATALOG.templates.find(
-              (candidate) => candidate.key === key,
-            )
+          ? legacyManagedTemplates().find((candidate) => candidate.key === key)
           : undefined;
         if (!source) {
           throw new LangfuseNotFoundError(
@@ -1259,7 +1380,7 @@ export class LegacyEvalCompatibilityService {
 
   async listTemplateVersions(projectId: string, name: string) {
     const evaluators = await this.prisma.evaluator.findMany({
-      where: { projectId, name },
+      where: { projectId, name, type: { not: EvalTemplateType.FACET } },
       include: { versions: { orderBy: { version: "desc" } } },
     });
     return evaluators.flatMap((evaluator) =>
@@ -1277,7 +1398,10 @@ export class LegacyEvalCompatibilityService {
     const rules = await this.prisma.evaluationRule.findMany({
       where: {
         projectId,
-        assignments: { some: { evaluator: { name } } },
+        AND: [
+          visibleRuleWhere,
+          { assignments: { some: { evaluator: { name } } } },
+        ],
       },
       include: ruleInclude,
     });
@@ -1304,6 +1428,7 @@ export class LegacyEvalCompatibilityService {
         where: {
           id: params.ruleId,
           projectId: params.projectId,
+          ...visibleRuleWhere,
           targetObject: { in: LEGACY_TARGET_OBJECTS },
         },
         include: { assignments: true },
@@ -1320,6 +1445,7 @@ export class LegacyEvalCompatibilityService {
         });
       }
       if (params.data.status === JobConfigState.ACTIVE) {
+        await assertNoBlockedBuiltInEvaluators(tx, params.projectId, [rule.id]);
         // Blocking moved to the evaluator, so activating the rule alone would
         // leave the evaluator paused and the worker would keep skipping it.
         await clearEvaluatorBlock({
@@ -1382,10 +1508,18 @@ export class LegacyEvalCompatibilityService {
     if (params.ruleIds.length === 0) return 0;
 
     return this.prisma.$transaction(async (tx) => {
+      if (params.status === JobConfigState.ACTIVE) {
+        await assertNoBlockedBuiltInEvaluators(
+          tx,
+          params.projectId,
+          params.ruleIds,
+        );
+      }
       const { count } = await tx.evaluationRule.updateMany({
         where: {
           id: { in: params.ruleIds },
           projectId: params.projectId,
+          ...visibleRuleWhere,
           targetObject: { in: LEGACY_TARGET_OBJECTS },
         },
         data: { status: params.status },
@@ -1397,6 +1531,7 @@ export class LegacyEvalCompatibilityService {
             where: {
               projectId: params.projectId,
               evaluationRuleId: { in: params.ruleIds },
+              evaluationRule: visibleRuleWhere,
             },
             select: { evaluatorId: true },
           },
@@ -1405,6 +1540,8 @@ export class LegacyEvalCompatibilityService {
           where: {
             projectId: params.projectId,
             id: { in: assignments.map(({ evaluatorId }) => evaluatorId) },
+            isBuiltIn: false,
+            type: { not: EvalTemplateType.FACET },
           },
           data: resetEvalConfigBlockFields,
         });
@@ -1419,6 +1556,7 @@ export class LegacyEvalCompatibilityService {
       where: {
         id: ruleId,
         projectId,
+        ...visibleRuleWhere,
         targetObject: { in: LEGACY_TARGET_OBJECTS },
       },
       select: { id: true },
@@ -1443,7 +1581,10 @@ export class LegacyEvalCompatibilityService {
       return [];
     }
     const version = await this.prisma.evaluatorVersion.findFirst({
-      where: { id: templateId, evaluator: { projectId } },
+      where: {
+        id: templateId,
+        evaluator: { projectId, type: { not: EvalTemplateType.FACET } },
+      },
       select: { evaluatorId: true },
     });
     if (!version) return [];
@@ -1467,7 +1608,14 @@ export class LegacyEvalCompatibilityService {
 
     return this.prisma.$transaction(async (tx) => {
       const version = await tx.evaluatorVersion.findFirst({
-        where: { id: templateId, evaluator: { projectId } },
+        where: {
+          id: templateId,
+          evaluator: {
+            projectId,
+            isBuiltIn: false,
+            type: { not: EvalTemplateType.FACET },
+          },
+        },
         select: { evaluatorId: true },
       });
       if (!version) throw new LangfuseNotFoundError("Evaluator not found");
@@ -1493,7 +1641,7 @@ export class LegacyEvalCompatibilityService {
         where: { evaluatorId: version.evaluatorId },
       });
       await tx.evaluator.delete({
-        where: { id: version.evaluatorId, projectId },
+        where: { id: version.evaluatorId, projectId, isBuiltIn: false },
       });
       return versions;
     });

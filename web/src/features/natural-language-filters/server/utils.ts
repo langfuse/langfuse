@@ -1,11 +1,10 @@
 import { Langfuse } from "langfuse";
-import { type FilterCondition, singleFilter } from "@langfuse/shared";
-import { z } from "zod";
+import { type FilterCondition, singleFilterList } from "@langfuse/shared";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 
 let langfuseClient: Langfuse | null = null;
 
-const FilterArraySchema = z.array(singleFilter);
+const FilterArraySchema = singleFilterList;
 
 export function parseFiltersFromCompletion(
   completion: string,

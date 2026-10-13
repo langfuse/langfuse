@@ -12,7 +12,7 @@ import { useRouter } from "next/router";
 import { SelectEvaluatorList } from "@/src/features/evals/components/select-evaluator-list";
 import { RunEvaluatorForm } from "@/src/features/evals/components/run-evaluator-form";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { DefaultEvalModelSetup } from "@/src/features/evals/components/default-eval-model-setup";
@@ -21,7 +21,7 @@ import {
   isCodeEvalTemplate,
   shouldShowEvalTemplate,
 } from "@/src/features/evals/utils/code-eval-template-utils";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { useState } from "react";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -51,10 +51,15 @@ export default function NewEvaluatorPage() {
   const hasDefaultModel =
     !!defaultModelQuery.data || defaultModelConfiguredInFlow;
 
-  const hasAccess = useHasProjectAccess({
+  const hasEvaluatorReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:read",
   });
+  const hasEvaluationRuleWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:CUD",
+  });
+  const hasAccess = hasEvaluatorReadAccess && hasEvaluationRuleWriteAccess;
 
   const evalTemplates = api.evals.latestTemplates.useQuery(
     {
@@ -138,13 +143,18 @@ export default function NewEvaluatorPage() {
     !hasDefaultModel &&
     !isCheckingDefaultModel,
   );
-  const step = !evaluatorId
-    ? "select"
-    : isCheckingDefaultModel
-      ? "loading"
-      : shouldSetupDefaultModel
-        ? "defaultModel"
-        : "run";
+  const step = (() => {
+    if (!evaluatorId) {
+      return "select";
+    }
+    if (isCheckingDefaultModel) {
+      return "loading";
+    }
+    if (shouldSetupDefaultModel) {
+      return "defaultModel";
+    }
+    return "run";
+  })();
   const selectedTemplateIsLlm = Boolean(
     currentTemplate && !isCodeEvalTemplate(currentTemplate),
   );
@@ -186,7 +196,7 @@ export default function NewEvaluatorPage() {
             >
               1. Select Evaluator
               {step !== "select" && (
-                <Check className="ml-1 inline-block h-3 w-3" />
+                <Check className="icon-sm ml-1 inline-block" />
               )}
             </BreadcrumbPage>
           </BreadcrumbItem>
@@ -201,7 +211,7 @@ export default function NewEvaluatorPage() {
             >
               2. Set up LLM connection
               {isProviderStepComplete && (
-                <Check className="ml-1 inline-block h-3 w-3" />
+                <Check className="icon-sm ml-1 inline-block" />
               )}
             </BreadcrumbPage>
           </BreadcrumbItem>
@@ -256,24 +266,25 @@ export default function NewEvaluatorPage() {
         step === "run" && evaluatorId && projectId && (
           <div className="flex flex-col gap-4">
             {hasNewerTemplate && latestTemplate && currentTemplate ? (
-              <Alert variant="info">
-                <Info className="h-4 w-4" />
-                <AlertTitle>Selected Evaluator has been updated</AlertTitle>
-                <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <span>
-                    Click to use the latest version of your evaluator{" "}
-                    {latestTemplate.name}.
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-fit"
-                    onClick={handleUseUpdatedEvaluator}
-                  >
-                    Use updated evaluator
-                  </Button>
-                </AlertDescription>
+              <Alert variant="info" icon={Info}>
+                <Alert.Title>Selected Evaluator has been updated</Alert.Title>
+                <Alert.Description>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <span>
+                      Click to use the latest version of your evaluator{" "}
+                      {latestTemplate.name}.
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-fit"
+                      onClick={handleUseUpdatedEvaluator}
+                    >
+                      Use updated evaluator
+                    </Button>
+                  </div>
+                </Alert.Description>
               </Alert>
             ) : null}
             <RunEvaluatorForm

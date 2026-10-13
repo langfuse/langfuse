@@ -1,10 +1,12 @@
+import { type PeekOpenOptions } from "./peek/hooks/usePeekNavigation";
+/* eslint-disable @repo/no-null-render */
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Sheet, SheetPortal } from "@/src/components/ui/sheet";
 import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
 import { Separator } from "@/src/components/ui/separator";
-import { type LayerName } from "@/src/components/ui/layer";
+import { type LayerName } from "@/src/context/LayerContext/layers";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
-import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
+import { type ListEntry } from "@/src/features/navigate-detail-pages";
 import { cn } from "@/src/utils/tailwind";
 import { memo, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
@@ -15,8 +17,7 @@ import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/Pee
 import { PeekHeader } from "@/src/components/table/peek/PeekHeader";
 import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState";
 import { shouldIgnoreOutsideInteraction } from "@/src/utils/outside-interaction";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 // Peek view-mode URL param (also cleared by usePeekNavigation on close). When
 // `expanded`, the desktop peek widens to viewport − sidebar — shareable + back-able.
@@ -32,7 +33,7 @@ type PeekViewItemType = Extract<
  * Options to control peek event behavior.
  * Ignore close events from certain clickable elements to ensure integrity of table row actions.
  */
-export type PeekEventControlOptions = {
+type PeekEventControlOptions = {
   ignoredSelectors?: string[];
 };
 
@@ -52,13 +53,17 @@ export type DataTablePeekViewProps = {
 
   // Event handlers
   /** Called to open the peek view. If undefined, row clicks won't trigger peek view opening */
-  openPeek?: (id?: string, row?: any) => void;
+  openPeek?: (id?: string, row?: any, options?: PeekOpenOptions) => void;
   /** Called to close the peek view*/
   closePeek: () => void;
   /** Called when the peek view is expanded to full view */
   expandPeek?: (openInNewTab: boolean) => void;
   /** Additional peek event options */
   peekEventOptions?: PeekEventControlOptions;
+  /** Analytics table identity for peek:* events. Forward from the owning table. */
+  tableName: string;
+  /** Surface dimension at the moment of the action. */
+  isV4: boolean;
 };
 
 type TablePeekViewProps = Pick<
@@ -73,8 +78,12 @@ type TablePeekViewProps = Pick<
   // longer rendered.
   | "expandPeek"
   | "peekEventOptions"
+  | "tableName"
+  | "isV4"
 > & {
   title?: string;
+  defaultWidthTarget?: HTMLElement | null;
+  widthStorageKey?: string;
   /**
    * Item-specific header actions (star / publish / delete …), shared with the
    * full detail page so the peek and the page expose the same controls.
@@ -85,6 +94,9 @@ type TablePeekViewProps = Pick<
    * overflow "…" menu when the peek is too narrow for the inline icon row.
    */
   actionsMenu?: React.ReactNode;
+  hideExpandToggle?: boolean;
+  /** Keep the content mounted across items instead of remounting per item. */
+  preserveContentAcrossItems?: boolean;
   // Content
   /**
    * The content to display in the peek view.
@@ -156,10 +168,16 @@ export const shouldClosePeekAfterDelete = (
 ): boolean => currentPeekTraceId === deletedTraceId;
 
 function TablePeekViewComponent(props: TablePeekViewProps) {
-  const { title, children, footer } = props;
+  const {
+    title,
+    children,
+    footer,
+    tableName,
+    isV4,
+    preserveContentAcrossItems,
+  } = props;
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled: isV4 } = useV4Beta();
   const itemId = router.query.peek as string | undefined;
   const isExpanded = router.query[PEEK_VIEW_PARAM] === PEEK_VIEW_EXPANDED;
   // Handheld, not width-only: a phone in landscape is wider than `md` but is
@@ -184,6 +202,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
         isExpanded: expanded,
         routePattern: router.pathname,
         isV4,
+        tableName,
       });
       if (expanded) params.set(PEEK_VIEW_PARAM, PEEK_VIEW_EXPANDED);
       else params.delete(PEEK_VIEW_PARAM);
@@ -196,13 +215,15 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
         { shallow: true },
       );
     },
-    [router, capture, isV4],
+    [router, capture, isV4, tableName],
   );
 
   const panel = usePeekPanelState({
     isOpen: !!itemId,
     isExpanded,
     onExpandedChange: setExpanded,
+    defaultWidthTarget: props.defaultWidthTarget,
+    widthStorageKey: props.widthStorageKey,
     onResized: useCallback(
       (widthFraction: number, trigger: "drag" | "keyboard") => {
         capture("peek:resized", {
@@ -211,9 +232,10 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           trigger,
           routePattern: router.pathname,
           isV4,
+          tableName,
         });
       },
-      [capture, router.pathname, isV4],
+      [capture, router.pathname, isV4, tableName],
     ),
   });
   const ignoredSelectors = props.peekEventOptions?.ignoredSelectors ?? [];
@@ -266,7 +288,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       actions={props.actions}
       actionsMenu={props.actionsMenu}
       expand={
-        isHandheld
+        isHandheld || props.hideExpandToggle
           ? undefined
           : {
               isExpanded: panel.isExpanded,
@@ -280,7 +302,10 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
 
   const content = (
     <div className="flex max-h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex-1 overflow-auto" key={itemId}>
+      <div
+        className="flex-1 overflow-auto"
+        key={preserveContentAcrossItems ? undefined : itemId}
+      >
         {children}
       </div>
       {footer && (
@@ -299,27 +324,33 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   // fresh provider, dropping that state. It unmounts only on close (the early
   // `return null` above), which is what resets the state (see README).
   return (
-    <PeekTableStateProvider>
+    <PeekTableStateProvider getPanelWidthPx={panel.getPanelWidthPx}>
       {isHandheld ? (
         // Mobile: a vaul bottom drawer with native swipe-down dismissal.
         <Drawer
           open={!!itemId}
           onOpenChange={handleOpenChange}
           forceDirection="bottom"
+          modal={false}
         >
-          <DrawerContent
-            size="full"
-            className="min-h-screen-with-banner top-[calc(var(--banner-offset)+10px)] bottom-0 gap-0 p-0"
-            onPointerDownOutside={preventDismissOnKeptOpen}
-            onInteractOutside={preventDismissOnKeptOpen}
-          >
-            <DrawerTitle className="sr-only">{resolvedTitle}</DrawerTitle>
-            <div className="flex w-full shrink-0 items-center justify-center pt-2 pb-1">
-              <div className="bg-muted h-1.5 w-12 rounded-full" />
-            </div>
-            {header}
-            {content}
-          </DrawerContent>
+          {/* Vaul does not forward modal to its Radix root. Keep its gestures,
+              but give portaled child dialogs the same non-modal host as desktop. */}
+          <Sheet open={!!itemId} onOpenChange={handleOpenChange} modal={false}>
+            <DrawerContent
+              portalLayer="modal"
+              size="full"
+              className="min-h-screen-with-banner top-[calc(var(--banner-offset)+10px)] bottom-0 gap-0 p-0"
+              onPointerDownOutside={preventDismissOnKeptOpen}
+              onInteractOutside={preventDismissOnKeptOpen}
+            >
+              <DrawerTitle className="sr-only">{resolvedTitle}</DrawerTitle>
+              <div className="flex w-full shrink-0 items-center justify-center pt-2 pb-1">
+                <div className="bg-muted h-1.5 w-12 rounded-full" />
+              </div>
+              {header}
+              {content}
+            </DrawerContent>
+          </Sheet>
         </Drawer>
       ) : (
         // Desktop: a docked-right, resizable panel that stays on top of the
@@ -348,6 +379,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
                 // would flip to a white glow).
                 "shadow-[-12px_0_32px_-16px_hsl(var(--foreground)/0.3)] dark:shadow-[-12px_0_32px_-16px_hsl(var(--background)/0.3)]",
                 "data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=closed]:duration-100 data-[state=open]:duration-100",
+                "has-[[data-peek-layout=review-navigation]]:min-w-[min(1120px,var(--peek-max-width))] has-[[data-peek-layout=review]]:min-w-[min(800px,var(--peek-max-width))]",
                 panel.isResizing && "select-none",
               )}
             >

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 "use client";
 
 import {
@@ -204,7 +205,7 @@ export function InAppAgentWindowShell({
   }
 
   // The shell renders inside the `agent` overlay layer (see
-  // components/ui/layer.tsx), whose container is `pointer-events: none` so the
+  // context/LayerContext/LayerContext.tsx), whose container is `pointer-events: none` so the
   // rest of the app stays click-through. The panel is the interactive surface,
   // so it opts pointer events back in via `pointer-events-auto`. No z-index:
   // layer ORDER stacks the whole `agent` layer below every transient overlay.

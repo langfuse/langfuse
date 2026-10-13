@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { SDK_NAME_HEADER, extractSdkName } from "./sdkName";
+import {
+  SDK_NAME_HEADER,
+  SDK_VERSION_HEADER,
+  extractSdkAttributes,
+  extractSdkName,
+} from "./sdkName";
 
 describe("extractSdkName", () => {
   it("canonicalizes first-party SDK names to the ingestion closed set", () => {
@@ -24,5 +29,23 @@ describe("extractSdkName", () => {
     expect(
       extractSdkName({ [SDK_NAME_HEADER]: "python, javascript" }),
     ).toBeUndefined();
+  });
+
+  it("returns canonical SDK name and validated version attributes", () => {
+    expect(
+      extractSdkAttributes({
+        [SDK_NAME_HEADER]: "langfuse-python",
+        [SDK_VERSION_HEADER]: "4.8.1rc1",
+      }),
+    ).toEqual({ sdkName: "python", sdkVersion: "4.8.1rc1" });
+  });
+
+  it("keeps a recognized SDK name when its version is invalid", () => {
+    expect(
+      extractSdkAttributes({
+        [SDK_NAME_HEADER]: "javascript",
+        [SDK_VERSION_HEADER]: "unbounded-cardinality",
+      }),
+    ).toEqual({ sdkName: "javascript" });
   });
 });

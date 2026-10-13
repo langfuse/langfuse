@@ -20,6 +20,11 @@ import { isUnrecoverableError } from "../errors/UnrecoverableError";
 import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
 import { isObservationNotFoundError } from "../errors/ObservationNotFoundError";
 import { env } from "../env";
+import {
+  getLlmEvalTerminalErrorOutcome,
+  recordEvalTerminalOutcome,
+  recordEvalTimeToFirstAttempt,
+} from "../features/evaluation/evalExecutionMetrics";
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
@@ -273,6 +278,14 @@ export const evalJobExecutorQueueProcessorBuilder = (
 export const llmAsJudgeExecutionQueueProcessorBuilder =
   (queueName: string): Processor =>
   async (job: Job<TQueueJobTypes[QueueName.LLMAsJudgeExecution]>) => {
+    const retryAttempt = job.data.retryBaggage?.attempt ?? 0;
+    if (job.attemptsStarted === 1 && retryAttempt === 0) {
+      recordEvalTimeToFirstAttempt(
+        EvalTemplateType.LLM_AS_JUDGE,
+        Math.max(0, Date.now() - job.timestamp),
+      );
+    }
+
     try {
       logger.debug(
         "Executing LLM-as-Judge Observation Evaluation Job",
@@ -292,17 +305,29 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         );
         span.setAttribute(
           "messaging.bullmq.job.input.retryBaggage.attempt",
-          job.data.retryBaggage?.attempt ?? 0,
+          retryAttempt,
         );
       }
 
-      await processObservationEval({
+      const outcome = await processObservationEval({
         event: job.data.payload,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
       });
+
+      if (outcome === "completed") {
+        recordEvalTerminalOutcome(EvalTemplateType.LLM_AS_JUDGE, "success");
+      } else if (outcome === "cancelled") {
+        recordEvalTerminalOutcome(EvalTemplateType.LLM_AS_JUDGE, "cancelled");
+      }
+
       return true;
     } catch (e) {
       const llmError = classifyEvaluatorLlmError(e);
+      // Media may still be uploading when evaluation starts after ingestion.
+      // Retry only this evaluator job instead of making the error globally retryable.
+      const isMediaNotFoundError =
+        llmError?.kind === "validation" &&
+        llmError.validationError?.code === "media-not-found";
       const executionTraceId = createW3CTraceId(
         job.data.payload.jobExecutionId,
       );
@@ -335,7 +360,9 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         }
       }
 
-      const isTerminalError = Boolean(llmError) || isUnrecoverableError(e);
+      const isUnrecoverable = isUnrecoverableError(e);
+      const isTerminalError =
+        (Boolean(llmError) && !isMediaNotFoundError) || isUnrecoverable;
       const totalAttempts = job.opts.attempts ?? 1;
       const isFinalAttempt = job.attemptsMade + 1 >= totalAttempts;
 
@@ -351,15 +378,20 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
           data: {
             status: JobExecutionStatus.ERROR,
             endTime: new Date(),
-            error: isTerminalError
-              ? (llmError?.message ?? (e as Error).message)
-              : "An internal error occurred",
+            error:
+              llmError || isUnrecoverable
+                ? (llmError?.message ?? (e as Error).message)
+                : "An internal error occurred",
             executionTraceId,
           },
         });
+        recordEvalTerminalOutcome(
+          EvalTemplateType.LLM_AS_JUDGE,
+          getLlmEvalTerminalErrorOutcome(llmError),
+        );
       }
 
-      if (isTerminalError) return;
+      if (isTerminalError || (isMediaNotFoundError && isFinalAttempt)) return;
 
       traceException(e);
       logger.error(

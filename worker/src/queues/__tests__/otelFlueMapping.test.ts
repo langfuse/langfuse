@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /**
  * Tests for mapping Flue (https://flueframework.com) OpenTelemetry spans to the
  * Langfuse data model.

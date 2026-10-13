@@ -1,4 +1,3 @@
-import { AnalyticsIntegrationExportSource } from "@langfuse/shared";
 import { z } from "zod";
 
 export const posthogIntegrationFormSchema = z.object({
@@ -14,6 +13,6 @@ export const posthogIntegrationFormSchema = z.object({
     .optional(),
   enabled: z.boolean(),
   exportSource: z
-    .enum(AnalyticsIntegrationExportSource)
-    .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+    .enum(["EVENTS", "TRACES_OBSERVATIONS", "TRACES_OBSERVATIONS_EVENTS"])
+    .default("TRACES_OBSERVATIONS"),
 });

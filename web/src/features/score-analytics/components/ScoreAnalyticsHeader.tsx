@@ -9,11 +9,7 @@ import {
 } from "@/src/utils/date-range-utils";
 import { useAnalyticsUrlState } from "@/src/features/score-analytics/lib/analytics-url-state";
 import { Badge } from "@/src/components/ui/badge";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 export interface ScoreAnalyticsHeaderProps {
   scoreOptions: ScoreOption[];
@@ -80,30 +76,38 @@ export function ScoreAnalyticsHeader({
           disabled={!urlState.score1}
           className="h-8 w-[200px]"
         />
-        <HoverCard>
-          <HoverCardTrigger asChild>
-            <Badge variant="warning" className="cursor-help">
+        <HoverCard
+          content={
+            <div className="w-80 p-3">
+              <div className="space-y-2">
+                <h4 className="text-sm font-bold">Beta Feature</h4>
+                <p className="text-muted-foreground text-sm">
+                  Score analytics is currently in beta. We&apos;re actively
+                  improving this feature and would love to hear your feedback.
+                </p>
+                <a
+                  href="https://langfuse.com/discussions"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary inline-flex items-center gap-1 text-sm font-bold hover:underline"
+                >
+                  Share feedback on GitHub Discussions
+                  <ExternalLink className="icon-sm" />
+                </a>
+              </div>
+            </div>
+          }
+        >
+          {({ getTriggerProps }) => (
+            <Badge
+              variant="warning"
+              className="cursor-help"
+              tabIndex={0}
+              {...getTriggerProps()}
+            >
               Beta Feature
             </Badge>
-          </HoverCardTrigger>
-          <HoverCardContent className="w-80">
-            <div className="space-y-2">
-              <h4 className="text-sm font-bold">Beta Feature</h4>
-              <p className="text-muted-foreground text-sm">
-                Score analytics is currently in beta. We&apos;re actively
-                improving this feature and would love to hear your feedback.
-              </p>
-              <a
-                href="https://langfuse.com/discussions"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary inline-flex items-center gap-1 text-sm font-bold hover:underline"
-              >
-                Share feedback on GitHub Discussions
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-          </HoverCardContent>
+          )}
         </HoverCard>
       </div>
 

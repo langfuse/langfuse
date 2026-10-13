@@ -1,3 +1,4 @@
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { EvalTargetObject, EvalTemplateType } from "@langfuse/shared";
 import { Link2, Plus, Unlink } from "lucide-react";
 import { useRouter } from "next/router";
@@ -18,8 +19,7 @@ import { ActivationConfirmationDialog } from "@/src/features/evals/v2/components
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
 import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Rules/EvaluationRulePicker/EvaluationRulePicker";
 import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { cn } from "@/src/utils/tailwind";
@@ -82,7 +82,7 @@ export function EvaluatorRuleRelationships({
   );
 }
 
-export function EvaluatorRuleRelationshipsSheet({
+function EvaluatorRuleRelationshipsSheet({
   projectId,
   evaluatorId,
   evaluatorName,
@@ -117,7 +117,7 @@ export function EvaluatorRuleRelationshipsSheet({
   const isEstimating = activationConfirmation.estimate.status === "estimating";
   const hasWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
   const assignments = api.evalsV2.rules.listRulesForEvaluator.useQuery(
     { projectId, evaluatorId },
@@ -143,7 +143,7 @@ export function EvaluatorRuleRelationshipsSheet({
       utils.evalsV2.list.invalidate({ projectId }),
     ]);
   const attach = api.evalsV2.rules.attach.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.attach"),
     onSuccess: async () => {
       capture("evaluation_rules:attach_evaluator", {
         evaluatorCount: 1,
@@ -154,7 +154,7 @@ export function EvaluatorRuleRelationshipsSheet({
     },
   });
   const detach = api.evalsV2.rules.detach.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.detach"),
     onSuccess: async () => {
       capture("evaluation_rules:detach_evaluator", {
         evaluatorCount: 1,
@@ -182,7 +182,7 @@ export function EvaluatorRuleRelationshipsSheet({
             <SheetDescription>
               {assignments.isPending
                 ? "Loading attached rules…"
-                : `This evaluator is used by ${assignmentCount} ${assignmentCount === 1 ? "rule" : "rules"}. Attach it to another rule or remove an existing connection.`}
+                : `This evaluator is used by ${assignmentCount} ${assignmentCount === 1 ? "rule" : "rules"}. Attach it to a rule to run the evaluator on incoming observations.`}
             </SheetDescription>
           </SheetHeader>
 
@@ -268,7 +268,7 @@ export function EvaluatorRuleRelationshipsSheet({
                           })
                         }
                       >
-                        <Unlink className="h-3.5 w-3.5" />
+                        <Unlink className="icon-base text-icon-foreground" />
                         Disconnect
                       </Button>
                     </li>
@@ -340,7 +340,7 @@ export function EvaluatorRuleRelationshipsSheet({
                         disabled={!hasWriteAccess}
                       >
                         <span className="flex items-center gap-2 text-sm font-bold">
-                          <Link2 className="h-4 w-4" />
+                          <Link2 className="icon-base" />
                           Attach to rule
                         </span>
                         <span className="text-muted-foreground text-sm font-normal">
@@ -355,7 +355,7 @@ export function EvaluatorRuleRelationshipsSheet({
                         className="text-foreground hover:text-foreground h-auto w-full justify-start px-0 py-0 text-xs underline-offset-4 hover:bg-transparent hover:underline"
                         disabled={!hasWriteAccess}
                       >
-                        <Plus className="mr-1.5 h-3.5 w-3.5" />
+                        <Plus className="icon-base text-icon-foreground mr-1.5" />
                         Attach another rule
                       </Button>
                     )}

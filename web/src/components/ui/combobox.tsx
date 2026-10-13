@@ -2,7 +2,8 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
@@ -21,9 +22,7 @@ import {
 } from "@/src/components/ui/popover";
 import { Badge } from "@/src/components/ui/badge";
 
-export interface ComboboxOption<
-  T extends string | number | boolean | { id: string },
-> {
+interface ComboboxOption<T extends string | number | boolean | { id: string }> {
   value: T;
   label?: string;
   /** Rendered before the label (e.g. a brand/ownership icon). */
@@ -56,6 +55,7 @@ export interface ComboboxProps<
   disabled?: boolean;
   className?: string;
   name?: string;
+  footer?: (args: { search: string; close: () => void }) => React.ReactNode;
 }
 
 function isGroupedOptions<T extends string | number | boolean | { id: string }>(
@@ -96,8 +96,15 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
   disabled = false,
   className,
   name,
+  footer,
 }: ComboboxProps<T>) {
   const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
+  const close = () => {
+    setOpen(false);
+    setSearch("");
+  };
+  const footerContent = footer?.({ search, close });
 
   const selectedOption = React.useMemo(() => {
     if (isGroupedOptions(options)) {
@@ -115,12 +122,19 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
     : placeholder;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={!disabled && open}
+      onOpenChange={(nextOpen) => {
+        if (disabled) return;
+        setOpen(nextOpen);
+        if (!nextOpen) setSearch("");
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           role="combobox"
-          aria-expanded={open}
+          aria-expanded={!disabled && open}
           className={cn(
             "w-full justify-between text-xs font-normal",
             !value && "text-muted-foreground",
@@ -142,12 +156,24 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
               {selectedOption.badge}
             </Badge>
           )}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <span className="ml-2 flex">
+            <DropdownIndicator direction="up-down" />
+          </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
+      <PopoverContent
+        className="w-(--radix-popover-trigger-width) p-0"
+        onCloseAutoFocus={(event) => {
+          if (disabled) event.preventDefault();
+        }}
+      >
         <Command>
-          <CommandInput placeholder={searchPlaceholder} className="text-xs" />
+          <CommandInput
+            placeholder={searchPlaceholder}
+            className="text-xs"
+            value={search}
+            onValueChange={setSearch}
+          />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             {isGroupedOptions(options) ? (
@@ -171,7 +197,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                       onSelect={() => {
                         if (!option.disabled && onValueChange) {
                           onValueChange(option.value as T);
-                          setOpen(false);
+                          close();
                         }
                       }}
                       className={cn(
@@ -181,7 +207,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                     >
                       <Check
                         className={cn(
-                          "mr-2 h-4 w-4",
+                          "icon-base mr-2",
                           isEqual(value as T | undefined, option.value)
                             ? "opacity-100"
                             : "opacity-0",
@@ -222,7 +248,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                     onSelect={() => {
                       if (!option.disabled && onValueChange) {
                         onValueChange(option.value as T);
-                        setOpen(false);
+                        close();
                       }
                     }}
                     className={cn(
@@ -232,7 +258,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                   >
                     <Check
                       className={cn(
-                        "mr-2 h-4 w-4",
+                        "icon-base mr-2",
                         isEqual(value as T | undefined, option.value)
                           ? "opacity-100"
                           : "opacity-0",
@@ -255,6 +281,9 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
             )}
           </CommandList>
         </Command>
+        {footerContent ? (
+          <div className="border-border border-t p-1">{footerContent}</div>
+        ) : null}
       </PopoverContent>
     </Popover>
   );

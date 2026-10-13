@@ -2,14 +2,16 @@
 // The frontend only sends the column names to the backend. This needs to be changed in the future to send column IDs.
 
 import { UiColumnMappings } from "../../tableDefinitions";
-import { EvalExecutionMetadataKey } from "../../features/evals/evalExecutionMetadata";
 import {
   eventsTableHasParentObservationSql,
   eventsTableIsRootObservationSql,
   eventsTableHasInputSql,
   eventsTableHasOutputSql,
+  eventsTableCachedInputCostSql,
+  eventsTableCachedInputTokensSql,
   eventsTableTraceNameSql,
 } from "../../eventsTable";
+import { tokenCountFilterClickhouseType } from "./tokenCountFilterType";
 
 export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
   {
@@ -117,6 +119,12 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details)))",
   },
   {
+    uiTableName: "Cached Input Cost ($)",
+    uiTableId: "cachedInputCost",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableCachedInputCostSql,
+  },
+  {
     uiTableName: "Output Cost ($)",
     uiTableId: "outputCost",
     clickhouseTableName: "events_proto",
@@ -131,8 +139,9 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
       "if(mapExists((k, v) -> (k = 'total'), cost_details), cost_details['total'], NULL)",
   },
   {
-    uiTableName: "Level",
+    uiTableName: "Status",
     uiTableId: "level",
+    aliases: ["Level"],
     clickhouseTableName: "events_proto",
     clickhouseSelect: "level",
     queryPrefix: "e",
@@ -167,7 +176,14 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, usage_details)))",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
+  },
+  {
+    uiTableName: "Cached Input Tokens",
+    uiTableId: "cachedInputTokens",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableCachedInputTokensSql,
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Output Tokens",
@@ -175,7 +191,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details)))",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Total Tokens",
@@ -183,7 +199,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Tokens",
@@ -191,7 +207,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Metadata",
@@ -204,13 +220,13 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Evaluator ID",
     uiTableId: "evaluatorId",
     clickhouseTableName: "events_proto",
-    clickhouseSelect: `arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATOR_ID}'))`,
+    clickhouseSelect: "e.evaluator_id",
   },
   {
     uiTableName: "Rule ID",
     uiTableId: "ruleId",
     clickhouseTableName: "events_proto",
-    clickhouseSelect: `if(notEmpty(arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATION_RULE_ID}'))), arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATION_RULE_ID}')), arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.JOB_CONFIGURATION_ID}')))`,
+    clickhouseSelect: "e.evaluation_rule_id",
   },
   {
     uiTableName: "Version",

@@ -1,10 +1,11 @@
+/* eslint-disable no-nested-ternary */
+import { useHasProjectAccess } from "@/src/features/rbac";
 import * as React from "react";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { api } from "@/src/utils/api";
 import { type EvalTemplate } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import Page from "@/src/components/layouts/page";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Command } from "@/src/components/ui/command";
@@ -31,7 +32,7 @@ export const EvalTemplateDetail = () => {
   const capture = usePostHogClientCapture();
   const hasDeleteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
 
   // get the current template by id
@@ -110,7 +111,9 @@ export const EvalTemplateDetail = () => {
             {template.data?.projectId ? (
               <>
                 <IconOnlyButton
-                  icon={<TrashIcon className="h-4 w-4" />}
+                  icon={
+                    <TrashIcon className="icon-base text-icon-foreground" />
+                  }
                   label="Delete"
                   aria-label="delete"
                   variant="outline"
@@ -231,7 +234,7 @@ function UpdateTemplate({
 }) {
   const hasAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
   const capture = usePostHogClientCapture();
 

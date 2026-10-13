@@ -70,7 +70,7 @@ import {
 import { env } from "@/src/env.mjs";
 import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
-import { handleCreateDashboardWidget } from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboardWidget";
+import { handleCreateDashboardWidget } from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
 import {
   getDashboardTool,
   getDashboardWidgetTool,
@@ -81,122 +81,122 @@ import {
   handleListDashboardWidgets,
   listDashboardsTool,
   listDashboardWidgetsTool,
-} from "@/src/features/mcp/features/dashboardWidgets/tools/dashboardCrud";
+} from "@/src/features/mcp/server/dashboardWidgets/tools/dashboardCrud";
 
 // Import MCP tool handlers directly
 import {
   getObservationTool,
   handleGetObservation,
-} from "@/src/features/mcp/features/observations/tools/getObservation";
+} from "@/src/features/mcp/server/observations/tools/getObservation";
 import {
   getObservationFieldSchemaTool,
   handleGetObservationFieldSchema,
-} from "@/src/features/mcp/features/observations/tools/getObservationFieldSchema";
+} from "@/src/features/mcp/server/observations/tools/getObservationFieldSchema";
 import {
   getObservationFilterSchemaTool,
   handleGetObservationFilterSchema,
-} from "@/src/features/mcp/features/observations/tools/getObservationFilterSchema";
+} from "@/src/features/mcp/server/observations/tools/getObservationFilterSchema";
 import {
   getObservationFilterValuesTool,
   handleGetObservationFilterValues,
-} from "@/src/features/mcp/features/observations/tools/getObservationFilterValues";
+} from "@/src/features/mcp/server/observations/tools/getObservationFilterValues";
 import {
   listObservationsTool,
   handleListObservations,
-} from "@/src/features/mcp/features/observations/tools/listObservations";
+} from "@/src/features/mcp/server/observations/tools/listObservations";
 import {
   getMetricsSchemaTool,
   handleGetMetricsSchema,
-} from "@/src/features/mcp/features/metrics/tools/getMetricsSchema";
+} from "@/src/features/mcp/server/metrics/tools/getMetricsSchema";
 import {
   queryMetricsTool,
   handleQueryMetrics,
-} from "@/src/features/mcp/features/metrics/tools/queryMetrics";
+} from "@/src/features/mcp/server/metrics/tools/queryMetrics";
 import {
   getPromptTool,
   handleGetPrompt,
-} from "@/src/features/mcp/features/prompts/tools/getPrompt";
+} from "@/src/features/mcp/server/prompts/tools/getPrompt";
 import {
   getPromptUnresolvedTool,
   handleGetPromptUnresolved,
-} from "@/src/features/mcp/features/prompts/tools/getPromptUnresolved";
+} from "@/src/features/mcp/server/prompts/tools/getPromptUnresolved";
 import {
   listPromptsTool,
   handleListPrompts,
-} from "@/src/features/mcp/features/prompts/tools/listPrompts";
+} from "@/src/features/mcp/server/prompts/tools/listPrompts";
 import {
   createScoreConfigTool,
   handleCreateScoreConfig,
-} from "@/src/features/mcp/features/scores/tools/createScoreConfig";
+} from "@/src/features/mcp/server/scores/tools/createScoreConfig";
 import {
   createScoreTool,
   handleCreateScore,
-} from "@/src/features/mcp/features/scores/tools/createScore";
+} from "@/src/features/mcp/server/scores/tools/createScore";
 import {
   deleteScoreConfigTool,
   handleDeleteScoreConfig,
-} from "@/src/features/mcp/features/scores/tools/deleteScoreConfig";
+} from "@/src/features/mcp/server/scores/tools/deleteScoreConfig";
 import {
   getScoreTool,
   handleGetScore,
-} from "@/src/features/mcp/features/scores/tools/getScore";
+} from "@/src/features/mcp/server/scores/tools/getScore";
 import {
   getScoreConfigTool,
   handleGetScoreConfig,
-} from "@/src/features/mcp/features/scores/tools/getScoreConfig";
+} from "@/src/features/mcp/server/scores/tools/getScoreConfig";
 import {
   listScoreConfigsTool,
   handleListScoreConfigs,
-} from "@/src/features/mcp/features/scores/tools/listScoreConfigs";
+} from "@/src/features/mcp/server/scores/tools/listScoreConfigs";
 import {
   listScoresTool,
   handleListScores,
-} from "@/src/features/mcp/features/scores/tools/listScores";
+} from "@/src/features/mcp/server/scores/tools/listScores";
 import {
   updateScoreConfigTool,
   handleUpdateScoreConfig,
-} from "@/src/features/mcp/features/scores/tools/updateScoreConfig";
+} from "@/src/features/mcp/server/scores/tools/updateScoreConfig";
 import {
   getMediaTool,
   handleGetMedia,
-} from "@/src/features/mcp/features/media/tools/getMedia";
+} from "@/src/features/mcp/server/media/tools/getMedia";
 import {
   getEvaluatorTool,
   handleGetEvaluator,
-} from "@/src/features/mcp/features/evals/tools/getEvaluator";
+} from "@/src/features/mcp/server/evals/tools/getEvaluator";
 import {
   listEvaluatorsTool,
   handleListEvaluators,
-} from "@/src/features/mcp/features/evals/tools/listEvaluators";
+} from "@/src/features/mcp/server/evals/tools/listEvaluators";
 import {
   handleListManagedEvaluatorTemplates,
   listManagedEvaluatorTemplatesTool,
-} from "@/src/features/mcp/features/evals/tools/listManagedEvaluatorTemplates";
+} from "@/src/features/mcp/server/evals/tools/listManagedEvaluatorTemplates";
 import {
   getEvaluationRuleTool,
   handleGetEvaluationRule,
-} from "@/src/features/mcp/features/evals/tools/getEvaluationRule";
+} from "@/src/features/mcp/server/evals/tools/getEvaluationRule";
 import {
   listEvaluationRulesTool,
   handleListEvaluationRules,
-} from "@/src/features/mcp/features/evals/tools/listEvaluationRules";
-import { handleCreateEvaluator } from "@/src/features/mcp/features/evals/tools/createEvaluator";
-import { handleCreateEvaluationRule } from "@/src/features/mcp/features/evals/tools/createEvaluationRule";
+} from "@/src/features/mcp/server/evals/tools/listEvaluationRules";
+import { handleCreateEvaluator } from "@/src/features/mcp/server/evals/tools/createEvaluator";
+import { handleCreateEvaluationRule } from "@/src/features/mcp/server/evals/tools/createEvaluationRule";
 import {
   getMonitorTool,
   handleGetMonitor,
-} from "@/src/features/mcp/features/monitors/tools/getMonitor";
+} from "@/src/features/mcp/server/monitors/tools/getMonitor";
 import {
   listMonitorsTool,
   handleListMonitors,
-} from "@/src/features/mcp/features/monitors/tools/listMonitors";
+} from "@/src/features/mcp/server/monitors/tools/listMonitors";
 import {
   GetDatasetItemsMcpInput,
   GetDatasetMcpInput,
   GetDatasetRunMcpInput,
   GetDatasetRunsMcpInput,
   GetDatasetsMcpInput,
-} from "@/src/features/mcp/features/datasets/schema";
+} from "@/src/features/mcp/server/datasets/schema";
 
 const maybeEventsTable =
   env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
@@ -214,7 +214,7 @@ const createLlmEvaluatorForMcpReadTest = async (
       name,
       type: "LLM_AS_JUDGE",
       prompt: "Judge {{input}} against {{output}}",
-      outputDefinition: { version: 2, ...mcpEvalOutputDefinition },
+      outputDefinition: mcpEvalOutputDefinition,
     },
     setup.context,
   )) as { id: string; name: string };
@@ -591,6 +591,31 @@ describe("MCP Read Tools", () => {
         ),
       ).toBe(true);
     });
+
+    it("lists decision-model templates", async () => {
+      const result = (await handleListManagedEvaluatorTemplates(
+        { type: "DECISION_MODEL" },
+        mockServerContext(),
+      )) as {
+        templates: Array<{ key: string; evaluator: { type: string } }>;
+      };
+
+      expect(result.templates).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "topic-decision-model",
+            evaluator: expect.objectContaining({
+              type: "DECISION_MODEL",
+            }),
+          }),
+        ]),
+      );
+      expect(
+        result.templates.every(
+          (template) => template.evaluator.type === "DECISION_MODEL",
+        ),
+      ).toBe(true);
+    });
   });
 
   describe("getEvaluator tool", () => {
@@ -911,7 +936,7 @@ describe("MCP Read Tools", () => {
       expect(result.fields.input.sensitive).toBe(true);
       expect(result.fields.input.requiresScope).toBe(true);
       expect(result.fields.input.scopeRequirement).toMatch(
-        /traceId.*id filter.*fromStartTime.*toStartTime/i,
+        /requires both fromStartTime and toStartTime.*maximum range of 14 days.*even when scoped by traceId or observation id/i,
       );
       expect(result.fields.output.requiresScope).toBe(true);
       expect(result.fields.metadata.expensive).toBe(true);
@@ -1122,15 +1147,18 @@ describe("MCP Read Tools", () => {
     it("should filter by metadata advanced filters", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();
+      const startTime = new Date();
       const matchingObservation = createObservationEvent({
         projectId,
         traceId,
+        startTime,
         name: `mcp-filter-metadata-match-${nanoid()}`,
         metadata: { region: "us-east", tenant: "acme" },
       });
       const nonMatchingObservation = createObservationEvent({
         projectId,
         traceId,
+        startTime,
         name: `mcp-filter-metadata-miss-${nanoid()}`,
         metadata: { region: "eu-west", tenant: "acme" },
       });
@@ -1139,6 +1167,8 @@ describe("MCP Read Tools", () => {
 
       const result = (await handleListObservations(
         {
+          fromStartTime: new Date(startTime.getTime() - 1000).toISOString(),
+          toStartTime: new Date(startTime.getTime() + 1000).toISOString(),
           filter: [
             {
               type: "stringOptions",
@@ -1281,9 +1311,11 @@ describe("MCP Read Tools", () => {
     it("should include payload fields when requested with wildcard projection", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();
+      const startTime = new Date();
       const observation = createObservationEvent({
         projectId,
         traceId,
+        startTime,
         name: `mcp-list-wildcard-${nanoid()}`,
         input: "visible input",
         output: "visible output",
@@ -1293,7 +1325,13 @@ describe("MCP Read Tools", () => {
       await createEventsCh([observation]);
 
       const result = (await handleListObservations(
-        { traceId, fields: ["*"], limit: 100 },
+        {
+          traceId,
+          fields: ["*"],
+          fromStartTime: new Date(startTime.getTime() - 1000).toISOString(),
+          toStartTime: new Date(startTime.getTime() + 1000).toISOString(),
+          limit: 50,
+        },
         context,
       )) as { data: Array<Record<string, unknown>> };
 
@@ -1419,10 +1457,12 @@ describe("MCP Read Tools", () => {
     it("should match advanced input filters beyond the events_core truncation boundary", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();
+      const startTime = new Date();
       const needle = `needle-${nanoid()}`;
       const matchingObservation = createObservationEvent({
         projectId,
         traceId,
+        startTime,
         input: `${"x".repeat(250)} ${needle}`,
       });
 
@@ -1446,6 +1486,8 @@ describe("MCP Read Tools", () => {
               value: needle,
             },
           ],
+          fromStartTime: new Date(startTime.getTime() - 1000).toISOString(),
+          toStartTime: new Date(startTime.getTime() + 1000).toISOString(),
           fields: ["id"],
           limit: 100,
         },
@@ -1464,14 +1506,12 @@ describe("MCP Read Tools", () => {
       ]);
     });
 
-    it("should require selective scope for full io and metadata access", async () => {
+    it("should require a time range for full io and metadata access", async () => {
       const { context } = await createMcpTestSetup();
 
       await expect(
         handleListObservations({ fields: ["input"], limit: 100 }, context),
-      ).rejects.toThrow(
-        /requires traceId, an id filter, or both fromStartTime and toStartTime/i,
-      );
+      ).rejects.toThrow(/requires both fromStartTime and toStartTime/i);
 
       await expect(
         handleListObservations(
@@ -1489,9 +1529,7 @@ describe("MCP Read Tools", () => {
           },
           context,
         ),
-      ).rejects.toThrow(
-        /requires traceId, an id filter, or both fromStartTime and toStartTime/i,
-      );
+      ).rejects.toThrow(/requires both fromStartTime and toStartTime/i);
 
       await expect(
         handleListObservations(
@@ -1509,7 +1547,14 @@ describe("MCP Read Tools", () => {
           },
           context,
         ),
-      ).resolves.toMatchObject({ data: [] });
+      ).rejects.toThrow(/requires both fromStartTime and toStartTime/i);
+
+      await expect(
+        handleListObservations(
+          { traceId: randomUUID(), fields: ["metadata"], limit: 50 },
+          context,
+        ),
+      ).rejects.toThrow(/requires both fromStartTime and toStartTime/i);
 
       await expect(
         handleListObservations(
@@ -1524,10 +1569,108 @@ describe("MCP Read Tools", () => {
       ).resolves.toMatchObject({ data: [] });
     });
 
-    it("should treat an exact observation id filter as selective scope", async () => {
+    it("should limit date-scoped expensive observation access", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleListObservations(
+          {
+            fields: ["input"],
+            fromStartTime: "2026-01-01T00:00:00.000Z",
+            toStartTime: "2026-01-16T00:00:00.000Z",
+            limit: 50,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/maximum range of 14 days/i);
+
+      await expect(
+        handleListObservations(
+          {
+            fields: ["id"],
+            fromStartTime: "2026-01-01T00:00:00.000Z",
+            toStartTime: "2026-01-16T00:00:00.000Z",
+            filter: [
+              {
+                type: "string",
+                column: "input",
+                operator: "matches",
+                value: "needle",
+              },
+            ],
+            limit: 50,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/maximum range of 14 days/i);
+
+      await expect(
+        handleListObservations(
+          {
+            fields: ["input", "output"],
+            fromStartTime: "2026-01-01T00:00:00.000Z",
+            toStartTime: "2026-01-15T00:00:00.000Z",
+            limit: 51,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/maximum limit of 50/i);
+
+      await expect(
+        handleListObservations(
+          {
+            fields: ["input"],
+            fromStartTime: "2026-01-01T00:00:00.000Z",
+            toStartTime: "2026-01-15T00:00:00.000Z",
+            limit: 50,
+          },
+          context,
+        ),
+      ).resolves.toMatchObject({ data: [] });
+    });
+
+    it.each([
+      { traceId: randomUUID() },
+      {
+        filter: [
+          {
+            type: "string" as const,
+            column: "id",
+            operator: "=" as const,
+            value: randomUUID(),
+          },
+        ],
+      },
+    ])("should enforce the time range for scoped access: %j", async (scope) => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleListObservations(
+          { ...scope, fields: ["input"], limit: 50 },
+          context,
+        ),
+      ).rejects.toThrow(/requires both fromStartTime and toStartTime/i);
+
+      await expect(
+        handleListObservations(
+          {
+            ...scope,
+            fields: ["metadata"],
+            fromStartTime: "2026-01-01T00:00:00.000Z",
+            toStartTime: "2026-01-16T00:00:00.000Z",
+            limit: 50,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/maximum range of 14 days/i);
+    });
+
+    it("should allow an exact observation id filter with a time range", async () => {
       const { context, projectId } = await createMcpTestSetup();
+      const startTime = new Date();
       const observation = createObservationEvent({
         projectId,
+        startTime,
         input: "selective input",
       });
 
@@ -1536,6 +1679,8 @@ describe("MCP Read Tools", () => {
       const result = (await handleListObservations(
         {
           fields: ["id", "input"],
+          fromStartTime: new Date(startTime.getTime() - 1000).toISOString(),
+          toStartTime: new Date(startTime.getTime() + 1000).toISOString(),
           filter: [
             {
               type: "string",
@@ -1544,7 +1689,7 @@ describe("MCP Read Tools", () => {
               value: observation.id,
             },
           ],
-          limit: 100,
+          limit: 50,
         },
         context,
       )) as { data: Array<{ id: string; input: string }> };
@@ -2176,7 +2321,9 @@ describe("MCP Read Tools", () => {
             projectId,
             traceId,
             name: `mcp-metrics-custom-limit-${index}-${nanoid()}`,
-            startTime: new Date(`2026-01-01T00:00:${index}.000Z`),
+            startTime: new Date(
+              `2026-01-01T00:00:${String(index).padStart(2, "0")}.000Z`,
+            ),
           }),
         ),
       );
@@ -2270,6 +2417,8 @@ describe("MCP Read Tools", () => {
                   "does not contain",
                   "starts with",
                   "ends with",
+                  "is set",
+                  "is not set",
                 ],
                 requiresKey: true,
               },

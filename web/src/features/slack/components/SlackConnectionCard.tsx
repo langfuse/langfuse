@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { api } from "@/src/utils/api";
 import { SlackConnectButton } from "@/src/features/slack/components/SlackConnectButton";
 import { SlackDisconnectButton } from "@/src/features/slack/components/SlackDisconnectButton";
@@ -102,11 +102,10 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
           <CardDescription>Error loading connection status</CardDescription>
         </CardHeader>
         <CardContent>
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
+          <Alert icon={AlertCircle}>
+            <Alert.Description>
               Failed to load Slack integration status. Please try again.
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         </CardContent>
       </Card>
@@ -127,9 +126,8 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
         </CardHeader>
         <CardContent className="space-y-4">
           {integrationStatus?.error && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{integrationStatus.error}</AlertDescription>
+            <Alert icon={AlertCircle}>
+              <Alert.Description>{integrationStatus.error}</Alert.Description>
             </Alert>
           )}
 
@@ -167,7 +165,7 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
       <CardContent className="space-y-4">
         {/* Connection Status */}
         <div className="flex items-center gap-2">
-          <CheckCircle className="h-4 w-4 text-green-500" />
+          <CheckCircle className="icon-base text-green-500" />
           <span className="text-sm font-bold">Connected</span>
         </div>
 

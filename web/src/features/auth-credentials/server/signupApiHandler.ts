@@ -1,9 +1,17 @@
 import { env } from "@/src/env.mjs";
 import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+import {
+  ENTERPRISE_SSO_REQUIRED_MESSAGE,
+  TURNSTILE_ACTIONS,
+  TURNSTILE_FAILED_MESSAGE,
+} from "@/src/features/auth/constants";
+import {
+  getTurnstileRemoteIp,
+  verifyTurnstileToken,
+} from "@/src/features/auth/server/verifyTurnstile";
 import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
-import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
-import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
+import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/server";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { logger } from "@langfuse/shared/src/server";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
@@ -82,6 +90,16 @@ export async function signupApiHandler(
   }
 
   const body = validBody.data;
+
+  const turnstileValid = await verifyTurnstileToken({
+    token: req.body?.turnstileToken,
+    action: TURNSTILE_ACTIONS.signup,
+    remoteIp: getTurnstileRemoteIp(req.headers),
+  });
+  if (!turnstileValid) {
+    res.status(403).json({ message: TURNSTILE_FAILED_MESSAGE });
+    return;
+  }
 
   const eligibilityError = await validateSignupEligibility({
     email: body.email,

@@ -19,7 +19,7 @@ import { logger } from "@langfuse/shared/src/server";
  *
  * Combines tool definition (for MCP protocol) with handler (for execution)
  */
-export interface RegisteredTool<TName extends string = string> {
+interface RegisteredTool<TName extends string = string> {
   /** Tool definition for MCP protocol */
   definition: ToolDefinition<TName>;
 

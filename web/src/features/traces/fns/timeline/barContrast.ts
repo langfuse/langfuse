@@ -29,7 +29,7 @@ export type BarTextTone = "light" | "dark";
 const TONE_THRESHOLD = 0.179;
 
 /** Relative luminance of an sRGB byte triple, per WCAG 2. */
-export const luminanceOf = (r: number, g: number, b: number): number => {
+const luminanceOf = (r: number, g: number, b: number): number => {
   const channel = (value: number) => {
     const c = value / 255;
     return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
@@ -98,6 +98,3 @@ export function resolveBarTones(
   cache.set(key, tones);
   return tones;
 }
-
-/** Test seam: the cache is keyed on the theme, which a test changes by hand. */
-export const clearBarToneCache = () => cache.clear();

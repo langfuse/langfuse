@@ -14,10 +14,11 @@ import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema"
 export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
 
 // Tool definition extracted from messages
-export interface ToolDefinition {
+interface ToolDefinition {
   name: string;
   description?: string;
   parameters?: Record<string, unknown>;
+  type?: string;
 }
 
 export interface ToolCallInvocation {
@@ -25,6 +26,14 @@ export interface ToolCallInvocation {
   name: string;
   arguments?: unknown;
   invocationNumber: number;
+}
+
+export interface ToolCallBookkeeping {
+  allTools: ToolDefinition[];
+  toolCallCounts: Map<string, number>;
+  toolCallsByName: Map<string, ToolCallInvocation[]>;
+  messageToToolCallNumbers: Map<number, number[]>;
+  toolNameToDefinitionNumber: Map<string, number>;
 }
 
 // Result from ChatML parsing hook
@@ -47,11 +56,13 @@ export interface ChatMLParserResult {
 function parseToolCallsFromMessage(
   message: ReturnType<typeof combineInputOutputMessages>[0],
 ) {
-  return message.tool_calls && Array.isArray(message.tool_calls)
-    ? message.tool_calls
-    : message.json?.tool_calls && Array.isArray(message.json?.tool_calls)
-      ? message.json.tool_calls
-      : [];
+  if (message.tool_calls && Array.isArray(message.tool_calls)) {
+    return message.tool_calls;
+  }
+  if (message.json?.tool_calls && Array.isArray(message.json?.tool_calls)) {
+    return message.json.tool_calls;
+  }
+  return [];
 }
 
 function getToolCallStringField(
@@ -88,18 +99,11 @@ function getToolCallArguments(toolCall: unknown): unknown {
  * result has any conversation representation without relying on observation
  * types.
  */
-function parseChatML(
-  parsedInput: unknown,
-  parsedOutput: unknown,
-  parsedMetadata: unknown,
-  observationName: string | undefined,
-): ChatMLParserResult {
-  const ctx = { metadata: parsedMetadata, observationName };
-  const inResult = normalizeInput(parsedInput, ctx);
-  const outResult = normalizeOutput(parsedOutput, ctx);
-  const outputClean = cleanLegacyOutput(parsedOutput, parsedOutput);
-  const messages = combineInputOutputMessages(inResult, outResult, outputClean);
-
+export function computeToolCallBookkeeping(
+  messages: ChatMlMessage[],
+  inputMessageCount: number,
+  additionalTools: ToolDefinition[] = [],
+): ToolCallBookkeeping {
   const toolsMap = new Map<string, ToolDefinition>();
   for (const message of messages) {
     if (message.tools && Array.isArray(message.tools)) {
@@ -110,8 +114,12 @@ function parseChatML(
       }
     }
   }
+  for (const tool of additionalTools) {
+    if (!toolsMap.has(tool.name)) {
+      toolsMap.set(tool.name, tool);
+    }
+  }
 
-  const inputMessageCount = inResult.success ? inResult.data.length : 0;
   let toolCallCounter = 0;
   const messageToToolCallNumbers = new Map<number, number[]>();
   const toolCallCounts = new Map<string, number>();
@@ -167,17 +175,68 @@ function parseChatML(
   });
 
   return {
-    canDisplayAsChat:
-      (inResult.success || outResult.success) && messages.length > 0,
-    allMessages: messages as ChatMlMessage[],
-    additionalInput: extractAdditionalInput(parsedInput),
     allTools: sortedTools,
     toolCallCounts,
     toolCallsByName,
     messageToToolCallNumbers,
     toolNameToDefinitionNumber,
-    inputMessageCount,
   };
+}
+
+/**
+ * Parse already-decoded I/O into the same ChatML representation used by the
+ * pretty preview. Kept pure so parent surfaces can decide whether a filtered
+ * result has any conversation representation without relying on observation
+ * types.
+ */
+function emptyChatMLParserResult(): ChatMLParserResult {
+  return {
+    canDisplayAsChat: false,
+    allMessages: [],
+    additionalInput: undefined,
+    allTools: [],
+    toolCallCounts: new Map(),
+    toolCallsByName: new Map(),
+    messageToToolCallNumbers: new Map(),
+    toolNameToDefinitionNumber: new Map(),
+    inputMessageCount: 0,
+  };
+}
+
+export function parseChatML(
+  parsedInput: unknown,
+  parsedOutput: unknown,
+  parsedMetadata: unknown,
+  observationName: string | undefined,
+): ChatMLParserResult {
+  try {
+    const ctx = { metadata: parsedMetadata, observationName };
+    const inResult = normalizeInput(parsedInput, ctx);
+    const outResult = normalizeOutput(parsedOutput, ctx);
+    const outputClean = cleanLegacyOutput(parsedOutput, parsedOutput);
+    const messages = combineInputOutputMessages(
+      inResult,
+      outResult,
+      outputClean,
+    );
+
+    const inputMessageCount = inResult.success ? inResult.data.length : 0;
+    const toolBookkeeping = computeToolCallBookkeeping(
+      messages,
+      inputMessageCount,
+    );
+
+    return {
+      canDisplayAsChat:
+        (inResult.success || outResult.success) && messages.length > 0,
+      allMessages: messages as ChatMlMessage[],
+      additionalInput: extractAdditionalInput(parsedInput),
+      ...toolBookkeeping,
+      inputMessageCount,
+    };
+  } catch {
+    return emptyChatMLParserResult();
+  }
 }
 
 /**
@@ -205,21 +264,33 @@ export function useChatMLParser(
 ): ChatMLParserResult {
   // Use pre-parsed data if available (from Web Worker), otherwise parse synchronously
   // This eliminates ~100ms of duplicate parsing when data comes from useParsedObservation
-  const parsedInput = preParsedResult
-    ? undefined
-    : preParsedInput !== undefined
-      ? preParsedInput
-      : deepParseJson(input, { maxSize: 300_000, maxDepth: 25 });
-  const parsedOutput = preParsedResult
-    ? undefined
-    : preParsedOutput !== undefined
-      ? preParsedOutput
-      : deepParseJson(output, { maxSize: 300_000, maxDepth: 25 });
-  const parsedMetadata = preParsedResult
-    ? undefined
-    : preParsedMetadata !== undefined
-      ? preParsedMetadata
-      : deepParseJson(metadata, { maxSize: 100_000, maxDepth: 25 });
+  const parsedInput = (() => {
+    if (preParsedResult) {
+      return undefined;
+    }
+    if (preParsedInput !== undefined) {
+      return preParsedInput;
+    }
+    return deepParseJson(input, { maxSize: 300_000, maxDepth: 25 });
+  })();
+  const parsedOutput = (() => {
+    if (preParsedResult) {
+      return undefined;
+    }
+    if (preParsedOutput !== undefined) {
+      return preParsedOutput;
+    }
+    return deepParseJson(output, { maxSize: 300_000, maxDepth: 25 });
+  })();
+  const parsedMetadata = (() => {
+    if (preParsedResult) {
+      return undefined;
+    }
+    if (preParsedMetadata !== undefined) {
+      return preParsedMetadata;
+    }
+    return deepParseJson(metadata, { maxSize: 100_000, maxDepth: 25 });
+  })();
 
   return useMemo(
     () =>
@@ -236,4 +307,3 @@ export function useChatMLParser(
 }
 
 // Re-export for use in ChatMessage
-export { parseToolCallsFromMessage };

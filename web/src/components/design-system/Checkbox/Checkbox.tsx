@@ -12,8 +12,8 @@ const checkboxVariants = cva(
   {
     variants: {
       size: {
-        default: "h-4 w-4 [&_svg]:h-4 [&_svg]:w-4",
-        sm: "h-3.5 w-3.5 [&_svg]:h-3 [&_svg]:w-3",
+        default: "h-4 w-4",
+        sm: "h-3.5 w-3.5",
       },
       variant: {
         default: "",
@@ -32,7 +32,14 @@ type CheckboxProps = Pick<
     React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>,
     "className"
   >,
-  "aria-label" | "checked" | "disabled" | "id" | "onCheckedChange" | "onClick"
+  | "aria-hidden"
+  | "aria-label"
+  | "checked"
+  | "disabled"
+  | "id"
+  | "onCheckedChange"
+  | "onClick"
+  | "tabIndex"
 > &
   VariantProps<typeof checkboxVariants>;
 
@@ -46,7 +53,7 @@ const Checkbox = React.forwardRef<
     {...props}
   >
     <CheckboxPrimitive.Indicator className="flex items-center justify-center text-current">
-      <Check />
+      <Check className={size === "sm" ? "icon-sm" : "icon-base"} />
     </CheckboxPrimitive.Indicator>
   </CheckboxPrimitive.Root>
 ));

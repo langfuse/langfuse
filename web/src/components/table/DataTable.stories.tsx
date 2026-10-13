@@ -1,6 +1,7 @@
+/* eslint-disable no-nested-ternary */
 import preview from "../../../.storybook/preview";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { expect, fn } from "storybook/test";
+import { expect, fireEvent, fn } from "storybook/test";
 import {
   type OnChangeFn,
   type PaginationState,
@@ -14,49 +15,55 @@ import {
   type AsyncTableData,
 } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
+import {
+  resolveRowHeightRendering,
+  useRowHeightRendering,
+  type CustomHeights,
+  type RowHeight,
+} from "@/src/components/table/data-table-row-height-switch";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
-import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
+import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
+import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import TableLink from "@/src/components/table/table-link";
-import TableIdOrName from "@/src/components/table/table-id";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
-import { TokenUsageBadge } from "@/src/components/token-usage-badge";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
+import {
+  buildLocalIsoDatePresentation,
+  formatIntervalSeconds,
+} from "@/src/utils/dates";
+import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
+import { MediaTag } from "@/src/components/MediaTag/MediaTag";
+import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
 import {
   LevelCountsDisplay,
   type LevelCount,
 } from "@/src/components/level-counts-display";
 import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
-import TagList from "@/src/features/tag/components/TagList";
-import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
+import { TagList } from "@/src/features/tag";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import {
-  TableBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { formatIntervalSeconds } from "@/src/utils/dates";
-import { usdFormatter } from "@/src/utils/numbers";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
+import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
   Copy,
+  Folder,
   InfoIcon,
   ListTree,
-  MoreVertical,
   PlusCircle,
   Trash,
 } from "lucide-react";
+
+const renderMediaReference = (descriptor: MediaDescriptor) => (
+  <MediaTag contentType={descriptor.contentType} status="idle" />
+);
 
 // =============================================================================
 // FIDELITY GOAL
@@ -82,10 +89,10 @@ import {
 // the standalone visual part with identical DOM/classes:
 //   - tags:      real TagList in the real `flex gap-x-2 gap-y-1` wrapper,
 //                instead of TagPromptPopover/TagManager (same visible children).
-//   - actions:   real DropdownMenu + ghost MoreVertical, with a plain menu item
-//                instead of the tRPC-bound DeleteTraceButton / DeletePrompt.
-// Everything else (TableLink, Badge, IOTableCell, LocalIsoDate, TableIdOrName,
-// TokenUsageBadge, LevelCountsDisplay, FolderBreadcrumbLink, Skeleton, the
+//   - actions:   createDropdownTableColumn (ghost MoreVertical trigger), with a
+//                plain menu item instead of the tRPC-bound DeleteTraceButton.
+// Everything else (TextLink, Badge, IOTableCell, LocalIsoDate, IdTableCell,
+// createTokenUsageTableColumn, LevelCountsDisplay, folder links, Skeleton, the
 // loading cells) is the actual production component.
 //
 // The IOTableCell relies on MarkdownContext; that is provided globally in
@@ -229,13 +236,40 @@ function loadedTraceData(count = 20): AsyncTableData<TraceRow[]> {
 // -----------------------------------------------------------------------------
 // Mirrors the visible-by-default Traces columns. The action/selection
 // cells use the standalone visual components (see FIDELITY GOAL note). The IO
-// cells use the same MemoizedIOTableCell with the same bg classes + the
-// `singleLine = rowHeight === "s"` rule the real table applies.
+// cells use the same IOTableCell variants. Single-line text versus the JSON
+// preview comes from the row's resolved height: below Medium it is one line,
+// at Medium and above it is the preview. A drag uses that same height.
+
+function StoryTraceInputCell({
+  data,
+  loading = false,
+}: {
+  data?: TraceRow["input"];
+  loading?: boolean;
+}) {
+  const live = useRowHeightRendering();
+  const singleLine = live?.compact ?? false;
+  return loading ? (
+    <IOTableCell
+      isLoading
+      singleLine={singleLine}
+      renderMediaReference={renderMediaReference}
+    />
+  ) : (
+    <IOTableCell
+      data={data}
+      singleLine={singleLine}
+      enableExpandOnHover={singleLine}
+      renderMediaReference={renderMediaReference}
+    />
+  );
+}
 
 function buildTraceColumns(
   rowHeight: RowHeight,
 ): LangfuseColumnDef<TraceRow>[] {
-  const singleLine = rowHeight === "s";
+  const rendering = resolveRowHeightRendering({ preset: rowHeight });
+  const singleLine = rendering.compact;
   return [
     {
       // Row-selection checkbox column (each real table authors its own; the
@@ -283,51 +317,24 @@ function buildTraceColumns(
       header: "Input",
       id: "input",
       size: 400,
-      loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          className="bg-muted/50"
-          singleLine={singleLine}
-        />
-      ),
-      cell: ({ row }) => (
-        <MemoizedIOTableCell
-          data={row.original.input}
-          className="bg-muted/50"
-          singleLine={singleLine}
-          enableExpandOnHover={singleLine}
-        />
-      ),
+      cellBackground: "gray",
+      loadingCell: () => <StoryTraceInputCell loading />,
+      cell: ({ row }) => <StoryTraceInputCell data={row.original.input} />,
     },
-    {
+    createIOTableColumn<TraceRow>({
       accessorKey: "output",
       header: "Output",
-      id: "output",
       size: 400,
-      loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          className="bg-accent-light-green"
-          singleLine={singleLine}
-        />
-      ),
-      cell: ({ row }) => (
-        <MemoizedIOTableCell
-          data={row.original.output}
-          className="bg-accent-light-green"
-          singleLine={singleLine}
-          enableExpandOnHover={singleLine}
-        />
-      ),
-    },
+      singleLine,
+      enableExpandOnHover: true,
+      variant: "output",
+    }),
     {
       accessorKey: "levelCounts",
       id: "levelCounts",
       header: "Observation Levels",
       size: 150,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value = row.original.levelCounts;
         const counts: LevelCount[] = Object.entries(value).map(
@@ -346,7 +353,7 @@ function buildTraceColumns(
       header: "Latency",
       size: 100,
       enableSorting: true,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value = row.original.latency;
         return value !== undefined ? (
@@ -354,39 +361,32 @@ function buildTraceColumns(
         ) : undefined;
       },
     },
-    {
-      accessorKey: "tokens",
-      header: "Tokens",
+    createTokenUsageTableColumn<TraceRow, TraceRow["usage"]>({
       id: "tokens",
+      accessorFn: (row) => row.usage,
+      header: "Tokens",
       size: 180,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value = row.original.usage;
-        if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
-          return null;
-        }
-        return (
-          <BreakdownTooltip details={row.original.tokenDetails}>
-            <div className="flex items-center gap-1">
-              <TokenUsageBadge
-                inputUsage={Number(value.inputUsage)}
-                outputUsage={Number(value.outputUsage)}
-                totalUsage={Number(value.totalUsage)}
-                inline
-              />
-              <InfoIcon className="h-3 w-3" />
-            </div>
-          </BreakdownTooltip>
-        );
-      },
       enableSorting: true,
-    },
+      getCell: (value, { row }) => {
+        if (!value?.inputUsage && !value?.outputUsage && !value?.totalUsage) {
+          return undefined;
+        }
+
+        return {
+          type: "usage",
+          inputUsage: Number(value.inputUsage),
+          outputUsage: Number(value.outputUsage),
+          totalUsage: Number(value.totalUsage),
+          details: row.original.tokenDetails,
+        };
+      },
+    }),
     {
       accessorKey: "totalCost",
       id: "totalCost",
       header: "Total Cost",
       size: 130,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const cost = row.original.totalCost;
         return cost != null ? (
@@ -397,7 +397,7 @@ function buildTraceColumns(
               ) : (
                 <span>-</span>
               )}
-              <InfoIcon className="h-3 w-3" />
+              <InfoIcon className="icon-sm" />
             </div>
           </BreakdownTooltip>
         ) : null;
@@ -409,7 +409,7 @@ function buildTraceColumns(
       header: "Environment",
       id: "environment",
       size: 150,
-      loadingCell: <TableBadgeLoadingCell />,
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
       cell: ({ row }) => {
         const value = row.original.environment;
         return value ? (
@@ -430,41 +430,23 @@ function buildTraceColumns(
         description: "Group traces with tags.",
         href: "https://langfuse.com/docs/observability/features/tags",
       },
-      shouldWrap: rowHeight !== "s",
+      shouldWrap: !singleLine,
     }),
-    {
+    createIOTableColumn<TraceRow>({
       accessorKey: "metadata",
       header: "Metadata",
-      id: "metadata",
       size: 400,
-      loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          singleLine={singleLine}
-        />
-      ),
-      cell: ({ row }) => (
-        <MemoizedIOTableCell
-          data={row.original.metadata}
-          singleLine={singleLine}
-          enableExpandOnHover={singleLine}
-        />
-      ),
-    },
-    {
+      singleLine,
+      enableExpandOnHover: true,
+    }),
+    createIdTableColumn<TraceRow>({
       accessorKey: "userId",
       header: "User",
-      id: "userId",
       size: 150,
       // Default-hidden in the real table; seeds the Columns drawer unchecked.
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value = row.original.userId;
-        return value ? <TableIdOrName value={value} /> : undefined;
-      },
       enableSorting: true,
-    },
+    }),
     createIdTableColumn<TraceRow>({
       accessorKey: "id",
       header: "Trace ID",
@@ -472,31 +454,19 @@ function buildTraceColumns(
       defaultHidden: true,
       enableSorting: true,
     }),
-    {
-      accessorKey: "action",
-      header: "Action",
+    createDropdownTableColumn<TraceRow, string>({
       id: "action",
+      accessorFn: (row) => row.id,
+      header: "Action",
       size: 70,
       isFixedPosition: true,
-      // Real action menu: ghost MoreVertical trigger + dropdown. The destructive
-      // item is a plain menu item (the real one renders DeleteTraceButton, which
-      // needs tRPC) but the trigger DOM/spacing is identical.
-      cell: () => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem className="text-destructive">
-              <Trash className="mr-2 h-4 w-4" />
-              Delete trace
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      renderMenu: () => (
+        <DropdownMenuItem className="text-destructive">
+          <Trash className="icon-base mr-2" />
+          Delete trace
+        </DropdownMenuItem>
       ),
-    },
+    }),
   ];
 }
 
@@ -552,6 +522,10 @@ const plainColumns: LangfuseColumnDef<TraceRow>[] = [
 // opaque background, so the selected-row tint stops at the pin seam.
 const pinnedColumns: LangfuseColumnDef<TraceRow>[] = plainColumns.map((col) =>
   col.id === "id" ? { ...col, isPinnedLeft: true } : col,
+);
+
+const rightPinnedColumns: LangfuseColumnDef<TraceRow>[] = plainColumns.map(
+  (col) => (col.id === "latency" ? { ...col, isPinnedRight: true } : col),
 );
 
 // -----------------------------------------------------------------------------
@@ -618,24 +592,27 @@ function useAsyncPagedData<TRow>({
   const lastPageIndex = Math.ceil(totalCount / pagination.pageSize) - 1;
   const hasNextPage = pagination.pageIndex < lastPageIndex;
 
-  const paginationProp =
-    mode === "none"
-      ? undefined
-      : mode === "offset"
-        ? {
-            totalCount,
-            onChange,
-            state: pagination,
-            options: [10, 20, 50],
-          }
-        : {
-            totalCount: null,
-            hasNextPage,
-            canJumpPages: false,
-            onChange,
-            state: pagination,
-            options: [10, 20, 50],
-          };
+  const paginationProp = (() => {
+    if (mode === "none") {
+      return undefined;
+    }
+    if (mode === "offset") {
+      return {
+        totalCount,
+        onChange,
+        state: pagination,
+        options: [10, 20, 50],
+      };
+    }
+    return {
+      totalCount: null,
+      hasNextPage,
+      canJumpPages: false,
+      onChange,
+      state: pagination,
+      options: [10, 20, 50],
+    };
+  })();
 
   return { data, paginationProp, pagination };
 }
@@ -739,6 +716,13 @@ export const WithPinnedColumn = meta.story({
   args: {
     tableName: "story-pinned-column",
     columns: pinnedColumns,
+  },
+});
+
+export const WithRightPinnedColumn = meta.story({
+  args: {
+    tableName: "story-right-pinned-column",
+    columns: rightPinnedColumns,
   },
 });
 
@@ -1053,8 +1037,7 @@ function buildGroupedColumns(
         accessorKey: "observationCount",
         header: "Observations",
         size: 110,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
+        formatter: (value) => numberFormatter(value, 0, 0),
       }),
       {
         accessorKey: "latency",
@@ -1070,20 +1053,19 @@ function buildGroupedColumns(
     id: "usageGroup",
     header: "Cost & usage",
     columns: [
-      {
-        accessorKey: "totalCost",
+      createNumberTableColumn<TraceRow>({
         id: "totalCostGrouped",
+        accessorFn: (row) => row.totalCost.toNumber(),
         header: "Cost (USD)",
         size: 110,
-        cell: ({ row }) => usdFormatter(row.original.totalCost.toNumber()),
-      },
+        formatter: (value) => usdFormatter(value),
+      }),
       createNumberTableColumn<TraceRow>({
         id: "totalTokensGrouped",
         accessorFn: (row) => row.usage.totalUsage,
         header: "Tokens",
         size: 100,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
+        formatter: (value) => numberFormatter(value, 0, 0),
       }),
     ] satisfies LangfuseColumnDef<TraceRow>[],
   };
@@ -1135,12 +1117,12 @@ export const WithGroupedHeaders = meta.story({
 // -----------------------------------------------------------------------------
 // Reproduces features/prompts/components/prompts-table.tsx cell-for-cell:
 //   - cellPadding="comfortable" (the Prompts one-off override at prompts-table.tsx:482)
-//   - Name column: folder rows use the real FolderBreadcrumbLink (TableLink +
-//     Folder icon); prompt rows use TableLink to the prompt.
+//   - Name column: folder rows use the folder key column (TextLink + Folder
+//     icon); prompt rows use TextLink to the prompt.
 //   - Versions/Type: folder rows render null -> empty cells (column rhythm
 //     visibly breaks between folder and prompt rows, as in production).
 //   - "Latest Version Created At": LocalIsoDate, null on folder rows.
-//   - "Number of Observations (7d)": TableLink wrapping the count (0 still links),
+//   - "Number of Observations (7d)": TextLink wrapping the count (0 still links),
 //     with the real Skeleton fallback shape (h-3 w-1/2).
 //   - Tags: real TagList in the `flex gap-x-1 gap-y-1` wrapper; folder rows
 //     render the `h-6` spacer.
@@ -1214,27 +1196,28 @@ const PROMPT_ROWS: PromptRow[] = [
 ];
 
 const promptColumns: LangfuseColumnDef<PromptRow>[] = [
-  {
+  createFolderKeyTableColumn<PromptRow>({
     accessorKey: "name",
     header: "Name",
-    id: "name",
     enableSorting: true,
     size: 250,
-    cell: ({ row }) => {
-      const { name, type, fullPath } = row.original;
+    getCell: (name, { row }) => {
+      if (!name) return undefined;
+      const { type, fullPath } = row.original;
       if (type === "folder") {
-        // Real folder cell: FolderBreadcrumbLink (TableLink + Folder icon).
-        return <FolderBreadcrumbLink name={name} onClick={() => {}} />;
+        return { type: "folder", name, onClick: () => undefined };
       }
-      return name ? (
-        <TableLink
-          path={`/prompts/${encodeURIComponent(fullPath)}`}
-          value={name}
-          title={fullPath}
-        />
-      ) : undefined;
+
+      return {
+        type: "link",
+        props: {
+          path: `/prompts/${encodeURIComponent(fullPath)}`,
+          value: name,
+          title: fullPath,
+        },
+      };
     },
-  },
+  }),
   {
     accessorKey: "version",
     header: "Versions",
@@ -1259,8 +1242,13 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
     size: 200,
     cell: ({ row }) => {
       if (row.original.type === "folder") return null;
-      const createdAt = row.original.createdAt;
-      return createdAt ? <LocalIsoDate date={createdAt} /> : null;
+      const preparedDate = buildLocalIsoDatePresentation({
+        date: row.original.createdAt,
+      });
+
+      return preparedDate ? (
+        <span title={preparedDate.title}>{preparedDate.display}</span>
+      ) : null;
     },
   },
   {
@@ -1272,11 +1260,17 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
       if (row.original.type === "folder") return null;
       const n = row.original.numberOfObservations;
       // Real cell shows a Skeleton h-3 w-1/2 while metrics load; here metrics
-      // are "loaded", so it always renders the TableLink (0 still links).
+      // are "loaded", so it always renders the TextLink (0 still links).
       if (n === undefined) {
         return <Skeleton className="h-3 w-1/2" />;
       }
-      return <TableLink path="/observations" value={n.toLocaleString()} />;
+      return (
+        <TextLink
+          path="/observations"
+          value={n.toLocaleString()}
+          title={n.toLocaleString()}
+        />
+      );
     },
   },
   {
@@ -1314,17 +1308,17 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
               size="icon-xs"
               aria-label="Duplicate folder"
             >
-              <Copy className="h-4 w-4" />
+              <Copy className="icon-sm text-icon-foreground" />
             </Button>
             <Button variant="ghost" size="icon-xs" aria-label="Delete folder">
-              <Trash className="h-4 w-4" />
+              <Trash className="icon-sm text-icon-foreground" />
             </Button>
           </div>
         );
       }
       return (
         <Button variant="ghost" size="icon-xs" aria-label="Delete prompt">
-          <Trash className="h-4 w-4" />
+          <Trash className="icon-sm text-icon-foreground" />
         </Button>
       );
     },
@@ -1368,13 +1362,13 @@ export const WithFolderRows = meta.story({
 // "Provided Model Name" create-affordance, ListTree source links, folder rows).
 // They must NOT shift the text baseline relative to plain rows. This story puts
 // every variant in one column so any vertical-alignment regression is obvious:
-//   - plain TableIdOrName (no icon)
-//   - TableIdOrName + trailing PlusCircle — mirrors features/models
+//   - plain IdTableCell (no icon)
+//   - IdTableCell + trailing PlusCircle — mirrors features/models
 //     ProvidedModelNameCell: the name is wrapped in `inline-flex items-center`
 //     with the icon as a `shrink-0` adornment, so it lands on the same baseline
 //     as the no-icon rows.
-//   - TableLink with a leading icon (ListTree)
-//   - FolderBreadcrumbLink (Folder icon)
+//   - TextLink with a leading icon (ListTree)
+//   - Folder link (Folder icon)
 // A second plain-text column shows the row stays aligned across the table.
 
 type IconCellRow = {
@@ -1419,37 +1413,36 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
       const { name, kind } = row.original;
       switch (kind) {
         case "createModel":
-          // Faithful to ProvidedModelNameCell: same TableIdOrName + trailing
+          // Faithful to ProvidedModelNameCell: same IdTableCell + trailing
           // icon, in a native <button> trigger (keyboard-activatable).
           return (
             <button
               type="button"
-              className="inline-flex max-w-full cursor-pointer items-center gap-1 text-left"
+              className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1 text-left"
             >
-              <TableIdOrName value={name} className="min-w-0" />
-              <PlusCircle className="h-3.5 w-3.5 shrink-0" />
+              <IdTableCell value={name} />
+              <PlusCircle className="icon-base shrink-0" />
             </button>
           );
         case "link":
           return (
-            <TableLink
-              path="#"
-              value={name}
-              icon={
-                <span className="flex flex-row items-center gap-1">
-                  <ListTree className="h-3.5 w-3.5 shrink-0" />
-                  {name}
-                </span>
-              }
-            />
+            <TextLink path="#" value={name} icon={ListTree} title={name} />
           );
         case "folder":
-          return <FolderBreadcrumbLink name={name} onClick={() => {}} />;
+          return (
+            <TextLink
+              path=""
+              value={name}
+              icon={Folder}
+              onClick={() => undefined}
+              title={name}
+            />
+          );
         case "plain":
         default:
           return (
-            <span className="inline-flex max-w-full items-center">
-              <TableIdOrName value={name} className="min-w-0" />
+            <span className="inline-flex max-w-full min-w-0 items-center">
+              <IdTableCell value={name} />
             </span>
           );
       }
@@ -1513,3 +1506,511 @@ export const PaginationControlsStayGrouped = meta.story({
     ).toBeNull();
   },
 });
+
+export const TestManualIOCellBackground = meta.story({
+  name: "(Test) Manual IO Cell Background",
+  render: () => (
+    <TracesTable
+      tableName="story-manual-io-background"
+      rowHeight="s"
+      cellPadding="compact"
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const headers = Array.from(canvasElement.querySelectorAll("thead th"));
+    const inputIndex = headers.findIndex(
+      (header) => header.textContent?.trim() === "Input",
+    );
+    const outputIndex = headers.findIndex(
+      (header) => header.textContent?.trim() === "Output",
+    );
+    const row = canvasElement.querySelector<HTMLTableRowElement>("tbody tr");
+    if (!row) throw new globalThis.Error("Row not found");
+
+    await expect(row.cells[inputIndex]).toHaveClass("bg-muted/50");
+    await expect(row.cells[outputIndex]).toHaveClass("bg-surface-output");
+  },
+});
+
+function ResizeProbeCell({ rowIndex }: ResizeProbeCellProps) {
+  const rendering = useRowHeightRendering();
+  const counts = useRef({ renders: 0, commits: 0 });
+  const element = useRef<HTMLSpanElement>(null);
+  counts.current.renders += 1;
+  useEffect(() => {
+    counts.current.commits += 1;
+    element.current?.setAttribute(
+      "data-commit-count",
+      String(counts.current.commits),
+    );
+  });
+  return (
+    <span
+      ref={element}
+      data-testid={`resize-probe-${rowIndex}`}
+      data-render-count={counts.current.renders}
+    >
+      {rendering?.compact ? "compact" : "expanded"}
+    </span>
+  );
+}
+
+const resizeStoryColumns: LangfuseColumnDef<ResizeStoryRow>[] = [
+  {
+    accessorKey: "mode",
+    id: "mode",
+    header: "Cell rendering",
+    cell: ({ row }) => <ResizeProbeCell rowIndex={row.index} />,
+  },
+  { accessorKey: "value", header: "Value" },
+  { accessorKey: "status", header: "Status" },
+];
+
+function RowHeightLifecycleStory({
+  rowHeight = "s",
+  customRowHeights,
+  customRowHeightPx,
+  onCustomRowHeightChange,
+  initialRowCount = 2,
+}: RowHeightLifecycleStoryProps) {
+  const [rows, setRows] = useState<ResizeStoryRow[]>(() =>
+    [
+      { id: "first", value: "First value", status: "Ready", mode: 0 },
+      { id: "following", value: "Following value", status: "Ready", mode: 1 },
+    ].slice(0, initialRowCount),
+  );
+  const [loading, setLoading] = useState(false);
+  const [showStatus, setShowStatus] = useState(false);
+  const [presets, setPresets] = useState(customRowHeights);
+  const [heightPx, setHeightPx] = useState<number | undefined>(
+    customRowHeightPx ?? undefined,
+  );
+  const handleValuesRefresh = () => {
+    setRows((current) =>
+      current.map((row) => ({
+        ...row,
+        value: `${row.value} loaded`,
+      })),
+    );
+  };
+  const handleFirstRowReplacement = () => {
+    setRows((current) =>
+      current.map((row, index) =>
+        index === 0 ? { ...row, id: `${row.id}-replacement` } : row,
+      ),
+    );
+  };
+  const handleFollowingRowReplacement = () => {
+    setRows((current) =>
+      current.map((row, index) =>
+        index === 1 ? { ...row, id: `${row.id}-replacement` } : row,
+      ),
+    );
+  };
+  const handleFollowingRowAppend = () => {
+    setRows((current) => [
+      ...current,
+      { id: "following", value: "Following value", status: "Ready", mode: 1 },
+    ]);
+  };
+  const handleLoadingToggle = () => setLoading((current) => !current);
+  const handleShowStatus = () => setShowStatus(true);
+  const handlePresetsRefresh = () =>
+    setPresets((current) => current && { ...current });
+  const handleHeightCommit = (next: number) => {
+    setHeightPx(next);
+    onCustomRowHeightChange?.(next);
+  };
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Button onClick={handleValuesRefresh}>Refresh values</Button>
+        <Button onClick={handleFirstRowReplacement}>Replace first row</Button>
+        <Button onClick={handleFollowingRowReplacement}>
+          Replace following row
+        </Button>
+        <Button onClick={handleFollowingRowAppend} disabled={rows.length > 1}>
+          Append following row
+        </Button>
+        <Button onClick={handleLoadingToggle}>
+          {loading ? "Finish loading" : "Start loading"}
+        </Button>
+        <Button onClick={handleShowStatus}>Show status</Button>
+        <Button onClick={handlePresetsRefresh}>Refresh presets</Button>
+      </div>
+      <DataTable<ResizeStoryRow, unknown>
+        tableName="story-row-height-lifecycle"
+        columns={resizeStoryColumns}
+        data={{ isLoading: loading, isError: false, data: rows }}
+        columnVisibility={{ status: showStatus }}
+        hidePagination
+        rowHeight={rowHeight}
+        customRowHeights={presets}
+        customRowHeightPx={heightPx}
+        onCustomRowHeightChange={handleHeightCommit}
+      />
+    </>
+  );
+}
+
+const settleResize = () =>
+  new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+
+async function pointAtResizeHandle(
+  handle: HTMLElement,
+  type: string,
+  clientY: number,
+  pointerId = 1,
+) {
+  fireEvent(
+    handle,
+    new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      pointerId,
+      clientY,
+    }),
+  );
+  await settleResize();
+}
+
+function resizeFrames(canvasElement: HTMLElement, rowIndex: number) {
+  return Array.from(
+    canvasElement.querySelectorAll<HTMLElement>(
+      `tr[data-row-index="${rowIndex}"] [data-row-height]`,
+    ),
+  );
+}
+
+function resizeProbeCounts(canvasElement: HTMLElement, rowIndex: number) {
+  const probe = canvasElement.querySelector<HTMLElement>(
+    `[data-testid="resize-probe-${rowIndex}"]`,
+  );
+  if (!probe) throw new globalThis.Error(`Missing row ${rowIndex} probe`);
+  return {
+    renders: Number(probe.dataset.renderCount),
+    commits: Number(probe.dataset.commitCount),
+  };
+}
+
+function expectResizeHeight(
+  canvasElement: HTMLElement,
+  rowIndex: number,
+  px: number,
+) {
+  const frames = resizeFrames(canvasElement, rowIndex);
+  expect(frames.length).toBeGreaterThan(0);
+  for (const frame of frames) expect(frame).toHaveStyle({ height: `${px}px` });
+}
+
+export const PixelResizeKeepsCellsMounted = meta.story({
+  name: "(Test) Pixel Resize Keeps Cells Mounted",
+  args: { rowHeight: "m", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ canvas, canvasElement }) => {
+    await settleResize();
+    const before = [0, 1].map((index) =>
+      resizeProbeCounts(canvasElement, index),
+    );
+    const handle = canvas.getByRole("slider", { name: "Row height" });
+    await pointAtResizeHandle(handle, "pointerdown", 100);
+    for (const y of [101, 108, 116, 124, 140]) {
+      await pointAtResizeHandle(handle, "pointermove", y);
+    }
+    expect(
+      [0, 1].map((index) => resizeProbeCounts(canvasElement, index)),
+    ).toEqual(before);
+    expectResizeHeight(canvasElement, 0, 136);
+    expectResizeHeight(canvasElement, 1, 96);
+    await pointAtResizeHandle(handle, "pointercancel", 140);
+  },
+});
+
+export const MediumBoundaryUpdatesOnlyResizedRow = meta.story({
+  name: "(Test) Medium Boundary Updates Only Resized Row",
+  args: { rowHeight: "s", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ canvas, canvasElement }) => {
+    await settleResize();
+    const handle = canvas.getByRole("slider", { name: "Row height" });
+    await pointAtResizeHandle(handle, "pointerdown", 0);
+    for (const [y, mode] of [
+      [68, "expanded"],
+      [67, "compact"],
+    ] as const) {
+      const before = [0, 1].map((index) =>
+        resizeProbeCounts(canvasElement, index),
+      );
+      await pointAtResizeHandle(handle, "pointermove", y);
+      expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent(mode);
+      expect(canvas.getByTestId("resize-probe-1")).toHaveTextContent("compact");
+      expect(resizeProbeCounts(canvasElement, 0)).toEqual({
+        renders: before[0].renders + 1,
+        commits: before[0].commits + 1,
+      });
+      expect(resizeProbeCounts(canvasElement, 1)).toEqual(before[1]);
+      const after = resizeProbeCounts(canvasElement, 0);
+      await pointAtResizeHandle(handle, "pointermove", y);
+      expect(resizeProbeCounts(canvasElement, 0)).toEqual(after);
+      expect(resizeProbeCounts(canvasElement, 1)).toEqual(before[1]);
+    }
+    await pointAtResizeHandle(handle, "pointercancel", 67);
+  },
+});
+
+export const EquivalentRefreshKeepsResizeActive = meta.story({
+  name: "(Test) Equivalent Refresh Keeps Resize Active",
+  args: {
+    rowHeight: "s",
+    customRowHeights: {
+      s: "h-48",
+      m: "h-64",
+      l: "h-96",
+    } satisfies CustomHeights,
+    onCustomRowHeightChange: fn(),
+  },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ args, canvas, canvasElement, userEvent }) => {
+    const handle = canvas.getByRole("slider", { name: "Row height" });
+    const frames = resizeFrames(canvasElement, 0);
+    await pointAtResizeHandle(handle, "pointerdown", 0);
+    await pointAtResizeHandle(handle, "pointermove", 100);
+    for (const button of ["Refresh values", "Refresh presets"]) {
+      await userEvent.click(canvas.getByRole("button", { name: button }));
+      await settleResize();
+      expect(canvas.getByRole("slider", { name: "Row height" })).toBe(handle);
+      resizeFrames(canvasElement, 0).forEach((frame, index) =>
+        expect(frame).toBe(frames[index]),
+      );
+      expectResizeHeight(canvasElement, 0, 292);
+      expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent(
+        "expanded",
+      );
+    }
+    expect(canvas.getByText("First value loaded")).toBeVisible();
+    await pointAtResizeHandle(handle, "pointermove", 160);
+    expectResizeHeight(canvasElement, 0, 352);
+    await pointAtResizeHandle(handle, "pointerup", 160);
+    expect(args.onCustomRowHeightChange).toHaveBeenCalledTimes(1);
+    expect(args.onCustomRowHeightChange).toHaveBeenCalledWith(352);
+  },
+});
+
+export const MembershipChangesCancelResize = meta.story({
+  name: "(Test) Row Column And Loading Changes Cancel Resize",
+  args: { rowHeight: "s", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ args, canvas, canvasElement, userEvent }) => {
+    for (const button of [
+      "Replace first row",
+      "Show status",
+      "Start loading",
+    ]) {
+      const oldHandle = canvas.getByRole("slider", { name: "Row height" });
+      const oldFrames = resizeFrames(canvasElement, 0);
+      await pointAtResizeHandle(oldHandle, "pointerdown", 0);
+      await pointAtResizeHandle(oldHandle, "pointermove", 100);
+      expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent(
+        "expanded",
+      );
+      await userEvent.click(canvas.getByRole("button", { name: button }));
+      if (button === "Start loading") {
+        expect(oldHandle).not.toBeInTheDocument();
+        await userEvent.click(
+          canvas.getByRole("button", { name: "Finish loading" }),
+        );
+      }
+      await settleResize();
+      const handle = canvas.getByRole("slider", { name: "Row height" });
+      if (button !== "Show status") {
+        expect(handle).not.toBe(oldHandle);
+        expect(resizeFrames(canvasElement, 0)[0]).not.toBe(oldFrames[0]);
+      } else {
+        expect(resizeFrames(canvasElement, 0)).toHaveLength(
+          oldFrames.length + 1,
+        );
+      }
+      expectResizeHeight(canvasElement, 0, 28);
+      expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent("compact");
+      await pointAtResizeHandle(handle, "pointermove", 160);
+      await pointAtResizeHandle(handle, "pointerup", 160);
+      expect(args.onCustomRowHeightChange).not.toHaveBeenCalled();
+      expectResizeHeight(canvasElement, 0, 28);
+    }
+  },
+});
+
+export const CanceledPointersRestoreRowHeight = meta.story({
+  name: "(Test) Canceled Pointers Restore Row Height",
+  args: { rowHeight: "s", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ args, canvas, canvasElement }) => {
+    const handle = canvas.getByRole("slider", { name: "Row height" });
+    for (const eventType of ["pointercancel", "lostpointercapture"]) {
+      await pointAtResizeHandle(handle, "pointerdown", 0);
+      await pointAtResizeHandle(handle, "pointermove", 100);
+      expectResizeHeight(canvasElement, 0, 128);
+      expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent(
+        "expanded",
+      );
+      await pointAtResizeHandle(handle, eventType, 100);
+      expectResizeHeight(canvasElement, 0, 28);
+      expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent("compact");
+      expect(handle).toHaveAttribute("aria-valuenow", "28");
+      expect(args.onCustomRowHeightChange).not.toHaveBeenCalled();
+      await pointAtResizeHandle(handle, "pointerup", 100);
+      expect(args.onCustomRowHeightChange).not.toHaveBeenCalled();
+    }
+  },
+});
+
+export const OverlappingPointersKeepFirstResize = meta.story({
+  name: "(Test) Overlapping Pointers Keep First Resize",
+  args: { rowHeight: "s", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ args, canvas, canvasElement }) => {
+    const first = canvas.getByRole("slider", { name: "Row height" });
+    const second = canvasElement.querySelector<HTMLElement>(
+      'tr[data-row-index="1"] [data-row-resize-edge="last"]',
+    );
+    if (!second) throw new globalThis.Error("Missing second row handle");
+    await pointAtResizeHandle(first, "pointerdown", 0, 1);
+    await pointAtResizeHandle(first, "pointermove", 100, 1);
+    await pointAtResizeHandle(second, "pointerdown", 0, 2);
+    await pointAtResizeHandle(second, "pointermove", 200, 2);
+    await pointAtResizeHandle(second, "pointerup", 200, 2);
+    expect(args.onCustomRowHeightChange).not.toHaveBeenCalled();
+    expectResizeHeight(canvasElement, 0, 128);
+    expectResizeHeight(canvasElement, 1, 28);
+    await pointAtResizeHandle(first, "pointerup", 160, 1);
+    expect(args.onCustomRowHeightChange).toHaveBeenCalledTimes(1);
+    expect(args.onCustomRowHeightChange).toHaveBeenCalledWith(188);
+    expectResizeHeight(canvasElement, 0, 188);
+    expectResizeHeight(canvasElement, 1, 188);
+  },
+});
+
+async function assertLowerHalfHandleRemoval(
+  canvasElement: HTMLElement,
+  previewed: boolean,
+  replaceFollowingRow: () => Promise<void>,
+  onCustomRowHeightChange: DataTableDemoProps["onCustomRowHeightChange"],
+) {
+  const lower = canvasElement.querySelector<HTMLElement>(
+    'tr[data-row-index="1"] [data-row-resize-edge="below"]',
+  );
+  if (!lower) throw new globalThis.Error("Missing lower half handle");
+  const frames = resizeFrames(canvasElement, 0);
+  await pointAtResizeHandle(lower, "pointerdown", 0);
+  if (previewed) await pointAtResizeHandle(lower, "pointermove", 100);
+  await replaceFollowingRow();
+  await settleResize();
+  expect(lower).not.toBeInTheDocument();
+  resizeFrames(canvasElement, 0).forEach((frame, index) =>
+    expect(frame).toBe(frames[index]),
+  );
+  expectResizeHeight(canvasElement, 0, 28);
+  const probe = canvasElement.querySelector('[data-testid="resize-probe-0"]');
+  expect(probe).toHaveTextContent("compact");
+  const handle = canvasElement.querySelector<HTMLElement>(
+    '[role="slider"][aria-label="Row height"]',
+  );
+  if (!handle) throw new globalThis.Error("Missing row height slider");
+  await pointAtResizeHandle(handle, "pointerdown", 0, 2);
+  await pointAtResizeHandle(handle, "pointermove", 48, 2);
+  await pointAtResizeHandle(handle, "pointerup", 48, 2);
+  expect(onCustomRowHeightChange).toHaveBeenCalledTimes(1);
+  expect(onCustomRowHeightChange).toHaveBeenCalledWith(76);
+}
+
+export const RemovedLowerHandleReleasesPendingResize = meta.story({
+  name: "(Test) Removed Lower Handle Releases Pending Resize",
+  args: { rowHeight: "s", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ args, canvas, canvasElement, userEvent }) => {
+    await assertLowerHalfHandleRemoval(
+      canvasElement,
+      false,
+      async () => {
+        await userEvent.click(
+          canvas.getByRole("button", { name: "Replace following row" }),
+        );
+      },
+      args.onCustomRowHeightChange,
+    );
+  },
+});
+
+export const RemovedLowerHandleRollsBackPreview = meta.story({
+  name: "(Test) Removed Lower Handle Rolls Back Preview",
+  args: { rowHeight: "s", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ args, canvas, canvasElement, userEvent }) => {
+    await assertLowerHalfHandleRemoval(
+      canvasElement,
+      true,
+      async () => {
+        await userEvent.click(
+          canvas.getByRole("button", { name: "Replace following row" }),
+        );
+      },
+      args.onCustomRowHeightChange,
+    );
+  },
+});
+
+export const RemovedKeyboardHandleCancelsResize = meta.story({
+  name: "(Test) Removed Keyboard Handle Cancels Resize",
+  args: {
+    rowHeight: "s",
+    customRowHeightPx: 80,
+    onCustomRowHeightChange: fn(),
+  },
+  render: (args) => <RowHeightLifecycleStory {...args} initialRowCount={1} />,
+  play: async ({ args, canvas, canvasElement }) => {
+    const handle = canvas.getByRole("slider", { name: "Row height" });
+    const frames = resizeFrames(canvasElement, 0);
+    handle.focus();
+    fireEvent.keyDown(handle, { key: "ArrowDown" });
+    await settleResize();
+    expectResizeHeight(canvasElement, 0, 96);
+    expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent("expanded");
+    fireEvent.click(
+      canvas.getByRole("button", { name: "Append following row" }),
+    );
+    await settleResize();
+    expect(handle).not.toBeInTheDocument();
+    resizeFrames(canvasElement, 0).forEach((frame, index) =>
+      expect(frame).toBe(frames[index]),
+    );
+    expect(args.onCustomRowHeightChange).not.toHaveBeenCalled();
+    expectResizeHeight(canvasElement, 0, 80);
+    expect(canvas.getByTestId("resize-probe-0")).toHaveTextContent("compact");
+    const replacement = canvas.getByRole("slider", { name: "Row height" });
+    await pointAtResizeHandle(replacement, "pointerdown", 0, 2);
+    await pointAtResizeHandle(replacement, "pointermove", 48, 2);
+    await pointAtResizeHandle(replacement, "pointerup", 48, 2);
+    expect(args.onCustomRowHeightChange).toHaveBeenCalledTimes(1);
+    expect(args.onCustomRowHeightChange).toHaveBeenCalledWith(128);
+  },
+});
+
+type ResizeStoryRow = {
+  id: string;
+  value: string;
+  status: string;
+  mode: number;
+};
+
+type ResizeProbeCellProps = { rowIndex: number };
+
+type RowHeightLifecycleStoryProps = Pick<
+  DataTableDemoProps,
+  | "rowHeight"
+  | "customRowHeights"
+  | "customRowHeightPx"
+  | "onCustomRowHeightChange"
+> & { initialRowCount?: number };

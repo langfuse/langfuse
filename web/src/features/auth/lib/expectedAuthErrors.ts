@@ -24,7 +24,7 @@ import { MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE } from "@/src/features/auth/co
 // construction = provider misconfig), OAuthCreateAccount / EmailCreateAccount
 // (DB failures), EmailSignin (verification email failed to send), Signin,
 // Configuration, and any unknown/custom string.
-export const EXPECTED_SIGN_IN_ERROR_CODES: readonly string[] = [
+const EXPECTED_SIGN_IN_ERROR_CODES: readonly string[] = [
   "OAuthCallback",
   "Callback",
 ];
@@ -40,7 +40,7 @@ export const isExpectedSignInError = (code: string): boolean =>
 // - SSO domain mismatch: deliberate rejection thrown by our signIn callback
 //   (logged server-side before the throw).
 // Configuration / AccessDenied / unknown values still capture.
-export const EXPECTED_AUTH_ERROR_PAGE_MESSAGES: readonly string[] = [
+const EXPECTED_AUTH_ERROR_PAGE_MESSAGES: readonly string[] = [
   "Verification",
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
 ];
@@ -71,5 +71,27 @@ export const isNextAuthMissingSignInUrlError = (error: unknown): boolean => {
     message.includes("Failed to construct 'URL'") ||
     message.includes("URL constructor:") ||
     message.includes("undefined is not a valid URL")
+  );
+};
+
+/**
+ * True when `error` is a `SyntaxError` from `Response.json()` / `JSON.parse`
+ * on a non-JSON body (HTML error page, truncated payload, WAF challenge).
+ *
+ * `/api/auth/check-sso` always returns JSON, so a parse failure means
+ * something between server and client replaced the body — transport state
+ * the server owns, not an app bug. Chrome/Firefox/Safari word this
+ * differently; match all three. A SyntaxError that is not a JSON parse
+ * (eval, invalid regexp) still captures.
+ */
+export const isJsonParseSyntaxError = (error: unknown): boolean => {
+  if (!(error instanceof SyntaxError)) return false;
+  const message = error.message;
+  return (
+    message.includes("JSON.parse") ||
+    message.includes("JSON Parse error") ||
+    message.includes("is not valid JSON") ||
+    /in JSON at position/i.test(message) ||
+    message.includes("Unexpected end of JSON input")
   );
 };

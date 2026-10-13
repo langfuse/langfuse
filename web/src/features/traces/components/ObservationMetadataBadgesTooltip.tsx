@@ -1,76 +1,78 @@
-/**
- * Tooltip-based metadata badges for ObservationDetailView
- * These badges use BreakdownTooltip to show detailed cost/usage information
- */
+/** Cost and token metrics for the trace, observation and session headers; breakdowns open on hover. */
 
-import { type ObservationType, isGenerationLike } from "@langfuse/shared";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   BreakdownTooltip,
+  type CostSource,
   type PriceSource,
 } from "@/src/features/traces/components/BreakdownTooltip";
-import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import { InfoIcon } from "lucide-react";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+
+/** Header cost: short, with the exact value on hover. */
+export const formatMetricCost = (cost: number) => usdFormatter(cost, 2, 3);
+
+/** Header tokens, e.g. "21k tokens". */
+export const formatMetricTokens = (tokens: number) =>
+  `${compactNumberFormatter(tokens, 0).toLowerCase()} tokens`;
 
 export function CostBadge({
   totalCost,
   costDetails,
   priceSource,
+  costSource,
 }: {
-  totalCost: number | null;
-  costDetails: Record<string, number> | undefined;
+  totalCost: number;
+  costDetails: Record<string, number>;
   priceSource?: PriceSource;
+  costSource?: CostSource;
 }) {
-  // Don't show if no cost data or cost is 0
-  if (totalCost == null || totalCost === 0 || !costDetails) return null;
-
+  if (!hasBreakdown(costDetails)) {
+    return (
+      <Badge
+        font="mono"
+        color="ghost"
+        text={formatMetricCost(totalCost)}
+        title={`exact $${totalCost.toFixed(6)}`}
+      />
+    );
+  }
   return (
     <BreakdownTooltip
       details={costDetails}
       isCost={true}
       priceSource={priceSource}
+      costSource={costSource}
     >
-      <Badge variant="tertiary" className="flex items-center gap-1">
-        <span>{usdFormatter(totalCost)}</span>
-        <InfoIcon className="h-3 w-3" />
-      </Badge>
+      <Badge
+        font="mono"
+        color="ghost"
+        interactive
+        text={formatMetricCost(totalCost)}
+      />
     </BreakdownTooltip>
   );
 }
 
+/** A breakdown of nothing but zeros has nothing to say. */
+export const hasBreakdown = (details: Record<string, number>) =>
+  Object.values(details).some((value) => value > 0);
+
 export function UsageBadge({
-  type,
-  inputUsage,
-  outputUsage,
   totalUsage,
   usageDetails,
 }: {
-  type: ObservationType;
-  inputUsage: number;
-  outputUsage: number;
   totalUsage: number;
-  usageDetails: Record<string, number> | undefined;
+  usageDetails: Record<string, number>;
 }) {
-  // Only show for generation-like observations
-  if (!isGenerationLike(type) || !usageDetails) return null;
+  const tokenText = formatMetricTokens(totalUsage);
 
-  const tokenText = formatTokenCounts(
-    inputUsage,
-    outputUsage,
-    totalUsage,
-    true,
-  );
-  const hasText = tokenText.length > 0;
+  if (!hasBreakdown(usageDetails)) {
+    return <Badge font="mono" color="ghost" text={tokenText} />;
+  }
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
-      <Badge
-        variant="tertiary"
-        className={`flex items-center gap-1 ${!hasText ? "h-6 pl-2" : ""}`}
-      >
-        {hasText && <span>{tokenText}</span>}
-        <InfoIcon className="h-3 w-3" />
-      </Badge>
+      <Badge font="mono" color="ghost" interactive text={tokenText} />
     </BreakdownTooltip>
   );
 }

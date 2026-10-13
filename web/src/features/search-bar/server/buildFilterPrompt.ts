@@ -154,7 +154,7 @@ export function buildFilterSystemPrompt(
   const catalog = buildFieldCatalog(registry);
   const nullableIds = nullableFieldIds(registry);
 
-  if (registry.id === "evaluationRules") {
+  if (registry.id === "evaluationRules" || registry.id === "ruleSamples") {
     return `You generate observation filters for a Langfuse evaluation rule.
 Respond with ONLY a JSON array of flat FilterState objects. Use only canonical
 columns from this catalog and only the documented type/operator/value shape:

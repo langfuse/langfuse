@@ -5,7 +5,11 @@ import {
   DeleteLlmConnectionV1Query,
   DeleteLlmConnectionV1Response,
 } from "@/src/features/public-api/types/llm-connections";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
+import {
+  invalidateTopicsProcessingActive,
+  pauseTopicsModelsUsingConnection,
+} from "@langfuse/shared/topics/server";
 import { EvaluatorBlockReason, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   blockEvaluatorsUsingDefaultModel,
@@ -18,6 +22,7 @@ import {
 export default withMiddlewares({
   DELETE: createAuthedProjectAPIRoute({
     name: "Delete LLM Connection",
+    action: "llmApiKeys:delete",
     querySchema: DeleteLlmConnectionV1Query,
     responseSchema: DeleteLlmConnectionV1Response,
     isAdminApiKeyAuthAllowed: true,
@@ -54,6 +59,15 @@ export default withMiddlewares({
             ? await blockEvaluatorsUsingDefaultModel({ tx, projectId })
             : EMPTY_EVALUATOR_BLOCK;
 
+        await pauseTopicsModelsUsingConnection(
+          {
+            projectId,
+            llmApiKeyId: llmApiKey.id,
+            provider: llmApiKey.provider,
+          },
+          tx,
+        );
+
         await tx.llmApiKeys.delete({
           where: { id: llmApiKey.id, projectId },
         });
@@ -71,6 +85,7 @@ export default withMiddlewares({
         return { providerBlock, defaultModelBlock };
       });
 
+      await invalidateTopicsProcessingActive(projectId);
       await finalizeEvaluatorBlocks({
         projectId,
         source: EvaluatorBlockSource.LLM_API_KEY_DELETION,

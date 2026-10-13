@@ -7,7 +7,8 @@ const LLM_VALIDATION_ERROR_MARKER = Symbol.for(
 export type LLMValidationErrorCode =
   | "invalid-connection"
   | "invalid-request"
-  | "endpoint-unreachable";
+  | "endpoint-unreachable"
+  | "media-not-found";
 
 /**
  * A deterministic validation failure owned by Langfuse, before or around the
@@ -113,11 +114,15 @@ export function getLLMErrorInfo(error: unknown): LLMErrorInfo | null {
     };
   }
 
-  const aiSdkError = AISDKError.isInstance(resolvedError)
-    ? resolvedError
-    : AISDKError.isInstance(error)
-      ? error
-      : undefined;
+  const aiSdkError = (() => {
+    if (AISDKError.isInstance(resolvedError)) {
+      return resolvedError;
+    }
+    if (AISDKError.isInstance(error)) {
+      return error;
+    }
+    return undefined;
+  })();
   if (aiSdkError) {
     return {
       kind: "ai-sdk",
@@ -141,7 +146,9 @@ function unwrapRetryError(error: unknown): {
 
   while (RetryError.isInstance(resolvedError) && !visited.has(resolvedError)) {
     visited.add(resolvedError);
-    retryError ??= resolvedError;
+    if (retryError === undefined) {
+      retryError = resolvedError;
+    }
     resolvedError = resolvedError.lastError;
   }
 

@@ -1,7 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { V4MigrationNavItem } from "./V4MigrationNavItem";
+import { ROUTES, RouteSection } from "@/src/components/layouts/routes";
+import {
+  V4MigrationNavItem,
+  useV4MigrationNavItemProject,
+} from "./V4MigrationNavItem";
+
+function V4MigrationNavItemHarness() {
+  const project = useV4MigrationNavItemProject();
+  return <>{project && <V4MigrationNavItem project={project} />}</>;
+}
 import { V4MigrationProjectChip } from "./V4MigrationProjectChip";
 import { type ProjectMigrationStatus } from "./migrationData";
 
@@ -11,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   setOpenMobileSidebar: vi.fn(),
   migrationData: undefined as unknown as ProjectMigrationStatus,
   cachedActionNeeded: false,
+  upgradeUiEnabled: true,
+  migrationActions: vi.fn(),
 }));
 
 vi.mock("@/src/components/ui/sidebar", () => ({
@@ -27,7 +38,7 @@ vi.mock("@/src/components/ui/sidebar", () => ({
 }));
 
 vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
-  useV4UpgradeUiEnabled: () => true,
+  useV4UpgradeUiEnabled: () => mocks.upgradeUiEnabled,
 }));
 
 vi.mock("@/src/features/projects/hooks", () => ({
@@ -41,9 +52,10 @@ vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
   useProjectV4MigrationData: () => mocks.migrationData,
   // The nav item reads the shared migration-actions signal; unknown
   // categories keep the pill hidden.
-  useProjectV4MigrationActions: () => ({
-    actionNeeded: mocks.cachedActionNeeded,
-  }),
+  useProjectV4MigrationActions: (projectId: string | undefined) => {
+    mocks.migrationActions(projectId);
+    return { actionNeeded: mocks.cachedActionNeeded };
+  },
 }));
 
 vi.mock("@/src/features/v4-migration/hooks/useOpenV4MigrationPanel", () => ({
@@ -75,20 +87,34 @@ describe("v4 migration entry points", () => {
   beforeEach(() => {
     mocks.migrationData = migrationStatus();
     mocks.cachedActionNeeded = false;
+    mocks.upgradeUiEnabled = true;
+    mocks.migrationActions.mockClear();
   });
 
-  it("hides the project chip and sidebar item when the project is up to date", () => {
-    render(
-      <>
-        <V4MigrationProjectChip
-          project={{ id: "project-1", name: "Project 1" }}
-          status={mocks.migrationData}
-        />
-        <V4MigrationNavItem />
-      </>,
-    );
+  it("disables migration actions when the upgrade UI is unavailable", () => {
+    mocks.upgradeUiEnabled = false;
+    mocks.cachedActionNeeded = true;
 
-    expect(screen.queryByText("Up to date")).not.toBeInTheDocument();
+    render(<V4MigrationNavItemHarness />);
+
+    expect(mocks.migrationActions).toHaveBeenCalledWith(undefined);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("places the Action required pill above Upgrade Plan in the secondary nav", () => {
+    const secondaryTitles = ROUTES.filter(
+      (route) => route.section === RouteSection.Secondary,
+    ).map((route) => route.title);
+    const updateIndex = secondaryTitles.indexOf("Update");
+    const upgradeIndex = secondaryTitles.indexOf("Upgrade Plan");
+
+    expect(updateIndex).toBeGreaterThanOrEqual(0);
+    expect(upgradeIndex).toBeGreaterThan(updateIndex);
+  });
+
+  it("hides the sidebar item when the project is up to date", () => {
+    render(<V4MigrationNavItemHarness />);
+
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
@@ -102,9 +128,9 @@ describe("v4 migration entry points", () => {
       <>
         <V4MigrationProjectChip
           project={{ id: "project-1", name: "Project 1" }}
-          status={mocks.migrationData}
+          readiness="action-needed"
         />
-        <V4MigrationNavItem />
+        <V4MigrationNavItemHarness />
       </>,
     );
 
@@ -112,21 +138,13 @@ describe("v4 migration entry points", () => {
     expect(screen.getByText("Action required")).toBeInTheDocument();
   });
 
-  it("hides both entry points while checks are pending or unavailable", () => {
+  it("hides the sidebar item while checks are pending or unavailable", () => {
     for (const status of [
       migrationStatus({ evals: { status: "loading", count: 0 } }),
       migrationStatus({ evals: { status: "error", count: 0 } }),
     ]) {
       mocks.migrationData = status;
-      const { unmount } = render(
-        <>
-          <V4MigrationProjectChip
-            project={{ id: "project-1", name: "Project 1" }}
-            status={status}
-          />
-          <V4MigrationNavItem />
-        </>,
-      );
+      const { unmount } = render(<V4MigrationNavItemHarness />);
 
       expect(screen.queryByRole("button")).not.toBeInTheDocument();
       unmount();

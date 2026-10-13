@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState } from "react";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
+import { useSelectAll } from "@/src/features/table";
 import {
   createObservationsTableStore,
   type ObservationsTableStore,

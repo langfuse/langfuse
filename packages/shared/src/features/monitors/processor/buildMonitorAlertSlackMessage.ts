@@ -16,14 +16,21 @@ const severityVisual: Record<MonitorSeverity, { color: string }> = {
 export function buildMonitorAlertSlackMessage(
   alert: MonitorAlert,
 ): SlackMessage {
+  const missingScoreLink =
+    alert.view !== "observations" &&
+    alert.permalink &&
+    !alert.dataPermalink &&
+    (alert.severity === "ALERT" || alert.severity === "WARNING");
   return buildColoredAttachmentSlackMessage({
     color: severityVisual[alert.severity].color,
     title: alert.message.title,
-    body: alert.message.body,
+    body: missingScoreLink
+      ? `${alert.message.body}\n\nA filtered scores link is unavailable for this alert. Open the alert to review its filters.`
+      : alert.message.body,
     timestamp: alert.timestamp,
     url: alert.permalink,
     secondaryUrl: alert.dataPermalink,
     secondaryLabel:
-      alert.view === "observations" ? "View observations" : "View traces",
+      alert.view === "observations" ? "View observations" : "View scores",
   });
 }

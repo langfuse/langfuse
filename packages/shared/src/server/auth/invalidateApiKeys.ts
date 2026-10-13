@@ -1,44 +1,53 @@
 import { prisma } from "../../db";
 import { redis, safeMultiDel, scanKeys } from "..";
 import { logger } from "../logger";
+import { env } from "../../env";
 import type { Cluster, Redis } from "ioredis";
 
 import { type ApiKey } from "../../db";
-import { API_KEY_CACHE_PATTERN, createApiKeyCacheKey } from "./apiKeyCache";
+import {
+  API_KEY_CACHE_PATTERN,
+  AUTHZ_CONTEXT_CACHE_PATTERN,
+  AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
+  createApiKeyCacheKey,
+  createAuthzContextCacheKey,
+} from "./apiKeyCache";
+import { createShaHash } from "./apiKeys";
 
-/**
- * Invalidate cached API keys from Redis cache
- *
- * Utility used by higher-level helpers to remove individual API keys from the cache,
- * e.g. after key rotation, revocation, or entitlement/plan changes.
- *
- * Note: This only invalidates the Redis cache, not the API keys themselves in the database.
- *
- * Behavior:
- * - Skips keys without a `fastHashedSecretKey`
- * - No-ops when Redis is not configured
- *
- * @param apiKeys - List of API key records to invalidate from cache
- * @param identifier - Context string for logging (e.g., org or project identifier)
- */
+/** cacheKeysForRows includes legacy and versioned credential entries. */
+function cacheKeysForRows(apiKeys: ApiKey[]): string[] {
+  const salt = env.SALT;
+  const keys: string[] = [];
+  for (const key of apiKeys) {
+    if (key.fastHashedSecretKey) {
+      keys.push(createApiKeyCacheKey(key.fastHashedSecretKey));
+      keys.push(`${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${key.fastHashedSecretKey}`);
+      keys.push(createAuthzContextCacheKey("basic", key.fastHashedSecretKey));
+      keys.push(createAuthzContextCacheKey("bearer", key.fastHashedSecretKey));
+    }
+    if (salt && key.publicKey) {
+      const publicHash = createShaHash(key.publicKey, salt);
+      keys.push(`${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${publicHash}`);
+      keys.push(createAuthzContextCacheKey("bearer", publicHash));
+    }
+  }
+  return keys;
+}
+
+/** invalidateCachedApiKeys removes every cached credential presentation. */
 export async function invalidateCachedApiKeys(
   apiKeys: ApiKey[],
   identifier: string,
   redisClient: Redis | Cluster | null = redis,
 ) {
-  const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
-
-  const filteredHashKeys = hashKeys.filter((hash): hash is string =>
-    Boolean(hash),
-  );
-  if (filteredHashKeys.length === 0) {
+  const keysToDelete = cacheKeysForRows(apiKeys);
+  if (keysToDelete.length === 0) {
     logger.info("No valid keys to invalidate");
     return;
   }
 
   if (redisClient) {
     logger.info(`Invalidating API keys in redis for ${identifier}`);
-    const keysToDelete = filteredHashKeys.map(createApiKeyCacheKey);
     await safeMultiDel(redisClient, keysToDelete);
   }
 }
@@ -73,18 +82,14 @@ export async function invalidateCachedOrgApiKeys(
     },
   });
 
-  const hashKeys = apiKeys
-    .map((key) => key.fastHashedSecretKey)
-    .filter((hash): hash is string => Boolean(hash));
-
-  if (hashKeys.length === 0) {
+  const keysToDelete = cacheKeysForRows(apiKeys);
+  if (keysToDelete.length === 0) {
     logger.info(`No valid API keys to invalidate for org ${orgId}`);
     return;
   }
 
   if (redisClient) {
     logger.info(`Invalidating API keys in redis for org ${orgId}`);
-    const keysToDelete = hashKeys.map(createApiKeyCacheKey);
     await safeMultiDel(redisClient, keysToDelete);
   }
 }
@@ -109,18 +114,14 @@ export async function invalidateCachedProjectApiKeys(
     },
   });
 
-  const hashKeys = apiKeys
-    .map((key) => key.fastHashedSecretKey)
-    .filter((hash): hash is string => Boolean(hash));
-
-  if (hashKeys.length === 0) {
+  const keysToDelete = cacheKeysForRows(apiKeys);
+  if (keysToDelete.length === 0) {
     logger.info(`No valid API keys to invalidate for project ${projectId}`);
     return;
   }
 
   if (redisClient) {
     logger.info(`Invalidating API keys in redis for project ${projectId}`);
-    const keysToDelete = hashKeys.map(createApiKeyCacheKey);
     await safeMultiDel(redisClient, keysToDelete);
   }
 }
@@ -141,7 +142,11 @@ export async function invalidateAllCachedApiKeys(
     return 0;
   }
 
-  const keysToDelete = await scanKeys(redisClient, API_KEY_CACHE_PATTERN);
+  const [legacyKeys, contextKeys] = await Promise.all([
+    scanKeys(redisClient, API_KEY_CACHE_PATTERN),
+    scanKeys(redisClient, AUTHZ_CONTEXT_CACHE_PATTERN),
+  ]);
+  const keysToDelete = [...legacyKeys, ...contextKeys];
 
   if (keysToDelete.length === 0) {
     logger.info("No cached API keys to invalidate");

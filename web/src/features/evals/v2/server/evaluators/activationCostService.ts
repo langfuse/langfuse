@@ -29,8 +29,12 @@ export async function getActivationCostEstimates(params: {
   filter: FilterState;
   sampling: number;
   knownTestRunCostUsd?: number;
-  shouldRunMissingTest?: boolean;
+  missingCostMode?: "probe" | "wait" | "skip";
   shouldReadFromObservationsTable: boolean;
+  timeRange?: {
+    from: Date;
+    to: Date;
+  };
 }) {
   const validation = validateEvaluatorFiltersForTarget({
     targetObject: EvalTargetObject.EVENT,
@@ -54,7 +58,7 @@ export async function getActivationCostEstimates(params: {
     (evaluator) => evaluator.type === EvalTemplateType.LLM_AS_JUDGE,
   );
 
-  const since = new Date(Date.now() - SEVEN_DAYS_MS);
+  const since = params.timeRange?.from ?? new Date(Date.now() - SEVEN_DAYS_MS);
   const filter: FilterState = [
     ...validation.validatedFilters,
     {
@@ -63,6 +67,16 @@ export async function getActivationCostEstimates(params: {
       operator: ">=",
       value: since,
     },
+    ...(params.timeRange
+      ? [
+          {
+            column: "startTime" as const,
+            type: "datetime" as const,
+            operator: "<=" as const,
+            value: params.timeRange.to,
+          },
+        ]
+      : []),
   ];
   const [matchingObservations, recentRunCosts] = await Promise.all([
     getObservationsCountFromEventsTable({
@@ -100,7 +114,7 @@ export async function getActivationCostEstimates(params: {
     (evaluator) => costsByEvaluatorId.get(evaluator.id) === null,
   );
   if (
-    params.shouldRunMissingTest === false &&
+    params.missingCostMode === "wait" &&
     matchingObservations > 0 &&
     evaluatorsWithoutCost.length > 0
   ) {
@@ -113,7 +127,11 @@ export async function getActivationCostEstimates(params: {
     availableCosts.forEach(({ evaluatorId, cost }) =>
       costsByEvaluatorId.set(evaluatorId, cost),
     );
-  } else if (matchingObservations > 0 && evaluatorsWithoutCost.length > 0) {
+  } else if (
+    params.missingCostMode !== "skip" &&
+    matchingObservations > 0 &&
+    evaluatorsWithoutCost.length > 0
+  ) {
     const sample = (
       await getObservationsWithModelDataFromEventsTable({
         projectId: params.projectId,

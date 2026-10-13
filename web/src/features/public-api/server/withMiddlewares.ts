@@ -17,16 +17,16 @@ import {
 } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import {
-  sendUnstablePublicApiErrorResponse,
-  toUnstablePublicApiError,
-  unstablePublicEvalsErrorContract,
+  sendStructuredPublicApiErrorResponse,
+  structuredPublicApiErrorContract,
+  toStructuredPublicApiError,
   type PublicApiErrorContract,
-} from "@/src/features/public-api/server/unstable-public-api-error-contract";
+} from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
+import { setRetryAfterHeader } from "@/src/features/public-api/server/writeError";
 
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
-export const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
+const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
 export type HttpMethod = (typeof httpMethods)[number];
 type Handlers = {
   [Method in HttpMethod]?: (
@@ -114,6 +114,8 @@ export function withMiddlewares(
 
         return await finalHandlers[method](req, res);
       } catch (error) {
+        setRetryAfterHeader(res, error);
+
         if (error instanceof ClickHouseResourceError) {
           const errorMessage =
             options?.clickHouseResourceErrorMessage ??
@@ -126,10 +128,10 @@ export function withMiddlewares(
             tags: error.tags,
           });
 
-          if (options?.errorContract === unstablePublicEvalsErrorContract) {
-            return sendUnstablePublicApiErrorResponse(
+          if (options?.errorContract === structuredPublicApiErrorContract) {
+            return sendStructuredPublicApiErrorResponse(
               res,
-              toUnstablePublicApiError(error),
+              toStructuredPublicApiError(error),
             );
           }
 
@@ -139,7 +141,7 @@ export function withMiddlewares(
           });
         }
 
-        if (options?.errorContract === unstablePublicEvalsErrorContract) {
+        if (options?.errorContract === structuredPublicApiErrorContract) {
           if (isBaseError(error)) {
             logBaseError(error);
           } else if (isZodError(error)) {
@@ -156,9 +158,9 @@ export function withMiddlewares(
             traceException(error);
           }
 
-          return sendUnstablePublicApiErrorResponse(
+          return sendStructuredPublicApiErrorResponse(
             res,
-            toUnstablePublicApiError(error),
+            toStructuredPublicApiError(error),
           );
         }
 

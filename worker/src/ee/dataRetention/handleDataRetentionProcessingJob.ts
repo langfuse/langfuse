@@ -9,9 +9,14 @@ import {
   logger,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
   getCurrentSpan,
+  redis,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
+import { Prisma } from "@prisma/client";
+import { isMissingInAppAgentMcpApiKeyError } from "@langfuse/shared/in-app-agent/server/runLifecycle";
+import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { env, v4WritesToEventsTable } from "../../env";
 
 export const handleDataRetentionProcessingJob = async (job: Job) => {
@@ -21,6 +26,14 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
   if (span) {
     span.setAttribute("messaging.bullmq.job.input.jobId", job.data.id);
     span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
+  }
+
+  // Data retention is an enterprise feature, and the license is read from the
+  // environment at startup. Jobs enqueued while licensed survive in Redis
+  // across the restart that removes the key, so the license has to be checked
+  // here as well as at scheduling time.
+  if (!isEnterpriseLicenseAvailable()) {
+    return;
   }
 
   // CRITICAL FIX: Re-fetch current retention setting from database
@@ -57,6 +70,62 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
 
   const cutoffDate = new Date(
     Date.now() - currentRetention * 24 * 60 * 60 * 1000,
+  );
+
+  let processedRuns = 0;
+  while (processedRuns < 10_000) {
+    const keyRuns = await prisma.inAppAgentRun.findMany({
+      where: {
+        projectId,
+        conversation: { updatedAt: { lt: cutoffDate } },
+        finishedAt: { not: null },
+        mcpApiKeyId: { not: null },
+      },
+      select: { id: true, mcpApiKeyId: true },
+      take: Math.min(100, 10_000 - processedRuns),
+    });
+    if (keyRuns.length === 0) break;
+    for (const run of keyRuns) {
+      // Prisma does not narrow the nullable field type from the `not: null` query filter.
+      if (!run.mcpApiKeyId) continue;
+      await deleteInAppAgentMcpApiKeyFromDb({
+        prisma,
+        id: run.mcpApiKeyId,
+        projectId,
+        redis,
+      }).catch((error: unknown) => {
+        if (!isMissingInAppAgentMcpApiKeyError(error)) throw error;
+      });
+    }
+    await prisma.$executeRaw`
+      UPDATE in_app_agent_runs AS runs
+      SET mcp_api_key_id = NULL, updated_at = NOW()
+      FROM (VALUES ${Prisma.join(
+        keyRuns
+          .filter((run): run is { id: string; mcpApiKeyId: string } =>
+            Boolean(run.mcpApiKeyId),
+          )
+          .map((run) => Prisma.sql`(${run.id}, ${run.mcpApiKeyId})`),
+      )}) AS selected(id, key_id)
+      WHERE runs.id = selected.id
+        AND runs.project_id = ${projectId}
+        AND runs.mcp_api_key_id = selected.key_id
+    `;
+    processedRuns += keyRuns.length;
+  }
+  // Conversations with unfinished runs are skipped until those runs are reconciled.
+  const deleted = await prisma.inAppAgentConversation.deleteMany({
+    where: {
+      projectId,
+      updatedAt: { lt: cutoffDate },
+      AND: [
+        { runs: { none: { finishedAt: null } } },
+        { runs: { none: { mcpApiKeyId: { not: null } } } },
+      ],
+    },
+  });
+  logger.info(
+    `[Data Retention] Deleted ${deleted.count} expired assistant conversations for project ${projectId}`,
   );
 
   // Delete media files if bucket is configured

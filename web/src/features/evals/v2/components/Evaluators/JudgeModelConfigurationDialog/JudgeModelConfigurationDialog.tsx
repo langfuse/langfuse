@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
+import { useModelParams } from "@/src/features/playground";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
 
@@ -55,7 +55,14 @@ function JudgeModelConfigurationDialogContent({
   onSave: (model: ProjectDefaultModelConfig) => void;
 }) {
   const { modelParams, updateModelParamValue, setModelParamEnabled } =
-    useModelParams(undefined, { initialModel });
+    useModelParams(undefined, {
+      initialModel: {
+        provider: initialModel.provider,
+        adapter: initialModel.adapter,
+        model: initialModel.model,
+        ...initialModel.modelParams,
+      },
+    });
 
   return (
     <DialogContent>

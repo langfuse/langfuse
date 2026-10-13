@@ -3,10 +3,9 @@
  * Handles linked models (with external link) and unlinked models (with create form)
  */
 
-import { Badge } from "@/src/components/ui/badge";
-import { ExternalLinkIcon, PlusCircle } from "lucide-react";
-import Link from "next/link";
-import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
+import { UpsertModelFormDialogController } from "@/src/features/models";
 
 export function ModelBadge({
   model,
@@ -14,34 +13,25 @@ export function ModelBadge({
   projectId,
   usageDetails,
 }: {
-  model: string | null;
+  model: string;
   internalModelId: string | null;
   projectId: string;
   usageDetails: Record<string, number> | undefined;
 }) {
-  if (!model) return null;
-
   // Linked model - show link to model settings
   if (internalModelId) {
     return (
-      <Badge>
-        <Link
-          href={`/project/${projectId}/settings/models/${internalModelId}`}
-          className="flex items-center"
-          title="View model details"
-        >
-          <span className="truncate" title={model}>
-            {model}
-          </span>
-          <ExternalLinkIcon className="ml-1 h-3 w-3" />
-        </Link>
-      </Badge>
+      <LinkBadge
+        href={`/project/${projectId}/settings/models/${internalModelId}`}
+        text={model}
+        title="View model details"
+      />
     );
   }
 
   // Unlinked model - show create form dialog
   return (
-    <UpsertModelFormDialog
+    <UpsertModelFormDialogController
       action="create"
       projectId={projectId}
       prefilledModelData={{
@@ -59,12 +49,17 @@ export function ModelBadge({
                 )
             : undefined,
       }}
-      className="cursor-pointer"
     >
-      <Badge variant="tertiary" className="flex items-center gap-1">
-        <span>{model}</span>
-        <PlusCircle className="h-3 w-3" />
-      </Badge>
-    </UpsertModelFormDialog>
+      {({ openDialog }) => (
+        <button
+          type="button"
+          title="Create model definition"
+          className="inline-flex cursor-pointer font-mono"
+          onClick={openDialog}
+        >
+          <Badge color="ghost" font="mono" interactive text={model} />
+        </button>
+      )}
+    </UpsertModelFormDialogController>
   );
 }

@@ -1,7 +1,8 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import {
   createEvent,
   createEventsCh,
@@ -12,6 +13,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 const mocks = vi.hoisted(() => ({
   getEvaluatorDefinitionPreflightError: vi.fn(async () => null),
+  getActivationCostEstimates: vi.fn(async () => []),
 }));
 
 vi.mock(
@@ -24,6 +26,13 @@ vi.mock("@/src/features/evals/server/evaluator-preflight", () => ({
     mocks.getEvaluatorDefinitionPreflightError,
 }));
 
+vi.mock(
+  "@/src/features/evals/v2/server/evaluators/activationCostService",
+  () => ({
+    getActivationCostEstimates: mocks.getActivationCostEstimates,
+  }),
+);
+
 const orgIds: string[] = [];
 let projectId = "";
 let otherProjectId = "";
@@ -31,16 +40,30 @@ let userId = "";
 let caller: ReturnType<typeof appRouter.createCaller>;
 let session: Session & { user: NonNullable<Session["user"]> };
 
+function createCallerWithProjectRole(role: Role) {
+  const roleSession = {
+    ...session,
+    user: {
+      ...session.user,
+      organizations: session.user.organizations.map((organization) => ({
+        ...organization,
+        projects: organization.projects.map((project) => ({
+          ...project,
+          role,
+        })),
+      })),
+    },
+  };
+  const ctx = createInnerTRPCContext({ session: roleSession, headers: {} });
+  return appRouter.createCaller({ ...ctx, prisma });
+}
+
 const definition = {
   type: "LLM_AS_JUDGE" as const,
-  prompt: "Judge {{output}}",
-  provider: null,
-  model: null,
-  modelParams: null,
-  vars: ["output"],
+  promptMessages: [{ role: "user" as const, content: "Judge {{output}}" }],
+  modelConfig: null,
   variableMapping: [{ templateVariable: "output", selectedColumnId: "output" }],
   outputDefinition: {
-    version: 2 as const,
     dataType: "NUMERIC" as const,
     score: { description: "Quality" },
     reasoning: { description: "Reasoning" },
@@ -91,14 +114,7 @@ beforeAll(async () => {
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       v4BetaEnabled: false,
     },
     environment: {
@@ -116,6 +132,41 @@ afterAll(async () => {
 });
 
 describe("evalsV2 tRPC", () => {
+  it("allows viewers to estimate costs without running a missing-cost test", async () => {
+    const viewerCaller = createCallerWithProjectRole("VIEWER");
+    const memberCaller = createCallerWithProjectRole("MEMBER");
+    const input = {
+      projectId,
+      evaluatorIds: ["evaluator-id"],
+      filter: [],
+      sampling: 1,
+      shouldRunMissingTest: true,
+    };
+
+    await viewerCaller.evalsV2.activationCostEstimates(input);
+    expect(mocks.getActivationCostEstimates).toHaveBeenLastCalledWith(
+      expect.objectContaining({ missingCostMode: "skip" }),
+    );
+
+    await memberCaller.evalsV2.activationCostEstimates(input);
+    expect(mocks.getActivationCostEstimates).toHaveBeenLastCalledWith(
+      expect.objectContaining({ missingCostMode: "probe" }),
+    );
+  });
+
+  it("rejects cost estimates without execution read access", async () => {
+    const noAccessCaller = createCallerWithProjectRole("NONE");
+
+    await expect(
+      noAccessCaller.evalsV2.activationCostEstimates({
+        projectId,
+        evaluatorIds: ["evaluator-id"],
+        filter: [],
+        sampling: 1,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("supports the evaluator management flow", async () => {
     const created = await caller.evalsV2.create({
       projectId,
@@ -129,7 +180,12 @@ describe("evalsV2 tRPC", () => {
       evaluatorId: created.id,
       name: "Renamed transport evaluator",
       description: "Updated through tRPC",
-      definition: { ...definition, prompt: "Judge this carefully: {{output}}" },
+      definition: {
+        ...definition,
+        promptMessages: [
+          { role: "user", content: "Judge this carefully: {{output}}" },
+        ],
+      },
     });
 
     const [listed, versions] = await Promise.all([
@@ -171,6 +227,61 @@ describe("evalsV2 tRPC", () => {
     await expect(
       caller.evalsV2.get({ projectId, evaluatorId: created.id }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("paginates evaluator gallery results", async () => {
+    const search = `Gallery pagination ${randomUUID()}`;
+    const created = await Promise.all(
+      Array.from({ length: 3 }, (_, index) =>
+        caller.evalsV2.create({
+          projectId,
+          name: `${search} ${index + 1}`,
+          description: null,
+          definition,
+        }),
+      ),
+    );
+
+    const firstPage = await caller.evalsV2.listGallery({
+      projectId,
+      search,
+      limit: 2,
+    });
+    const firstPageIds = new Set(
+      firstPage.evaluators.map((evaluator) => evaluator.id),
+    );
+    const remainingId = created.find(
+      (evaluator) => !firstPageIds.has(evaluator.id),
+    )?.id;
+    if (!remainingId) throw new Error("Expected an evaluator on the next page");
+    await prisma.evaluator.update({
+      where: { id: remainingId },
+      data: { updatedAt: new Date(Date.now() + 60_000) },
+    });
+
+    const secondPage = await caller.evalsV2.listGallery({
+      projectId,
+      search,
+      limit: 2,
+      cursor: firstPage.nextCursor,
+    });
+
+    expect(firstPage.evaluators).toHaveLength(2);
+    expect(firstPage.totalItems).toBe(3);
+    expect(firstPage.nextCursor).toEqual({
+      createdAt: expect.any(Date),
+      id: expect.any(String),
+    });
+    expect(secondPage.evaluators).toHaveLength(1);
+    expect(secondPage.totalItems).toBeUndefined();
+    expect(secondPage.nextCursor).toBeUndefined();
+    expect(
+      new Set(
+        [...firstPage.evaluators, ...secondPage.evaluators].map(
+          (evaluator) => evaluator.id,
+        ),
+      ),
+    ).toEqual(new Set(created.map((evaluator) => evaluator.id)));
   });
 
   it("rejects access to another project", async () => {
@@ -236,7 +347,7 @@ describe("evalsV2 tRPC", () => {
       createEvent({
         project_id: projectId,
         trace_id: randomUUID(),
-        trace_name: `Execute evaluator: ${evaluator.name}`,
+        evaluator_id: evaluator.id,
         type: "GENERATION",
         cost_details: { total: 0.02 },
       }),

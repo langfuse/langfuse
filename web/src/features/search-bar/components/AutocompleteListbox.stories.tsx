@@ -25,7 +25,7 @@ const fieldPlan: CompletionPlan = {
           id: "field:level",
           kind: "field",
           label: "level",
-          detail: "Observation level",
+          detail: "Observation status",
           fieldId: "level",
         },
         {

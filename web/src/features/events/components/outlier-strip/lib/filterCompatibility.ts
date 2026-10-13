@@ -1,5 +1,5 @@
 import { type FilterState } from "@langfuse/shared";
-import { chartFilterExclusionReason } from "@/src/features/chart-view/lib/chartFilterCompatibility";
+import { chartConditionExclusionReason } from "@/src/features/chart-view/lib/chartFilterCompatibility";
 
 export const canApplyOutlierStripFilters = (
   filterState: FilterState,
@@ -11,7 +11,6 @@ export const canApplyOutlierStripFilters = (
     if (filter.type === "datetime" && filter.column === "startTime") {
       return true;
     }
-    if (filter.type === "null") return false;
-    return chartFilterExclusionReason(filter.column) === null;
+    return chartConditionExclusionReason(filter) === null;
   });
 };

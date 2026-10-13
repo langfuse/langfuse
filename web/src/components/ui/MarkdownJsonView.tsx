@@ -1,64 +1,87 @@
 /* eslint-disable @repo/no-style-props */
 import {
+  OpenAIContentParts,
   OpenAIContentSchema,
   type OpenAIOutputAudioType,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
+import { cn } from "@/src/utils/tailwind";
+import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 
 type MarkdownJsonViewHeaderProps = {
   title: string | React.ReactNode;
   titleIcon?: React.ReactNode;
-  handleOnValueChange: () => void;
   handleOnCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
-  canEnableMarkdown?: boolean;
   controlButtons?: React.ReactNode;
+  /** Hosts that render their own copy control (e.g. inside the content box)
+      suppress the header's. */
+  hideCopyButton?: boolean;
+  /** Reveal the right-side controls only while hovering the hosting section
+      (requires a `group/iosection` ancestor). */
+  hoverRevealControls?: boolean;
 };
 
 export function MarkdownJsonViewHeader({
   title,
   titleIcon,
-  handleOnValueChange: _handleOnValueChange,
   handleOnCopy,
-  canEnableMarkdown: _canEnableMarkdown = true,
   controlButtons,
+  hideCopyButton = false,
+  hoverRevealControls = false,
 }: MarkdownJsonViewHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
 
+  const titleContent = (
+    <>
+      {titleIcon}
+      {title}
+    </>
+  );
+
   return (
-    <div className="io-message-header group-hover:bg-muted/80 flex flex-row items-center justify-between px-1 py-1 text-sm font-bold capitalize transition-colors">
+    <div className="io-message-header flex flex-row items-center justify-between px-1 py-1 text-base font-bold capitalize">
       {/* Masked from session recordings: the title can be a customer-provided
           message `name` (or tool name) rather than a fixed role string. */}
       <div className="ph-no-capture flex items-center gap-2">
-        {titleIcon}
-        {title}
+        {titleContent}
       </div>
-      <div className="mr-1 flex min-w-0 shrink flex-row items-center gap-1">
+      <div
+        className={cn(
+          "mr-1 flex min-w-0 shrink flex-row items-center gap-1",
+          // pointer-coarse: touch devices have no hover, so the controls
+          // stay visible there instead of being unreachable.
+          hoverRevealControls &&
+            "opacity-0 transition-opacity group-hover/iosection:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100",
+        )}
+      >
         {controlButtons}
-        <Button
-          title="Copy to clipboard"
-          variant="ghost"
-          size="icon-xs"
-          type="button"
-          onClick={(event) => {
-            setIsCopied(true);
-            handleOnCopy(event);
-            setTimeout(() => setIsCopied(false), 1000);
-          }}
-          className="hover:bg-border -mr-2"
-        >
-          {isCopied ? (
-            <Check className="h-3 w-3" />
-          ) : (
-            <Copy className="h-3 w-3" />
-          )}
-        </Button>
+        {!hideCopyButton && (
+          <Button
+            title="Copy to clipboard"
+            variant="ghost"
+            size="icon-xs"
+            type="button"
+            onClick={(event) => {
+              setIsCopied(true);
+              handleOnCopy(event);
+              setTimeout(() => setIsCopied(false), 1000);
+            }}
+            className="text-muted-foreground hover:text-foreground hover:bg-transparent"
+          >
+            {isCopied ? (
+              <Check className="icon-base text-icon-foreground" />
+            ) : (
+              <Copy className="icon-base text-icon-foreground" />
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -78,12 +101,38 @@ export const canRenderContentAsMarkdown = (
   content: unknown,
   characterLimit: number,
 ): content is z.input<typeof OpenAIContentSchema> =>
-  OpenAIContentSchema.safeParse(content).success &&
+  (OpenAIContentSchema.safeParse(content).success ||
+    isOpenAIContentWithExternalS3Image(content)) &&
   // Don't render if markdown content is huge
   JSON.stringify(content || {}).length <= characterLimit;
 
-// MarkdownJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
-// otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
+const isOpenAIContentWithExternalS3Image = (content: unknown) => {
+  if (!Array.isArray(content)) return false;
+
+  let hasExternalS3Image = false;
+  const hasOnlyRenderableParts = content.every((part) => {
+    if (
+      typeof part === "object" &&
+      part !== null &&
+      part.type === "image_url" &&
+      typeof part.image_url === "object" &&
+      part.image_url !== null
+    ) {
+      const descriptor = classifyMediaValue(part.image_url.url);
+      if (descriptor?.kind === "s3") {
+        hasExternalS3Image = true;
+        return true;
+      }
+    }
+
+    return OpenAIContentParts.safeParse([part]).success;
+  });
+
+  return hasExternalS3Image && hasOnlyRenderableParts;
+};
+
+// MarkdownJsonView renders markdown whenever the content is valid markdown
+// (see canRenderContentAsMarkdown), otherwise it falls back to JSON.
 export function MarkdownJsonView({
   content,
   title,

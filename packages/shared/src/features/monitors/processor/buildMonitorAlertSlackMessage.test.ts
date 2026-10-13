@@ -108,9 +108,9 @@ describe("buildMonitorAlertSlackMessage", () => {
     });
   });
 
-  it("labels the data button 'View traces' for a scores view", () => {
+  it("labels the data button 'View scores' for a scores view", () => {
     const dataPermalink =
-      "https://cloud.langfuse.com/project/proj_01/traces?dateRange=1779450930000-1779451230000";
+      "https://cloud.langfuse.com/project/proj_01/scores?dateRange=1779450930000-1779451230000";
     const { attachments } = buildMonitorAlertSlackMessage({
       ...mockMonitorAlert,
       view: "scores-numeric",
@@ -121,7 +121,7 @@ describe("buildMonitorAlertSlackMessage", () => {
     );
     expect(actions.elements).toHaveLength(2);
     expect(actions.elements[1]).toMatchObject({
-      text: { text: "View traces" },
+      text: { text: "View scores" },
       url: dataPermalink,
     });
   });
@@ -135,14 +135,29 @@ describe("buildMonitorAlertSlackMessage", () => {
     expect(actions.elements[0].text.text).toBe("View in Langfuse");
   });
 
+  it("explains an unavailable score link while retaining the alert action", () => {
+    const { attachments } = buildMonitorAlertSlackMessage({
+      ...mockMonitorAlert,
+      view: "scores-numeric",
+    });
+    const blocks = attachments![0].blocks!;
+    expect(blocks[1].text.text).toContain(
+      "A filtered scores link is unavailable",
+    );
+    const actions = blocks.find((block: any) => block.type === "actions");
+    expect(actions.elements).toHaveLength(1);
+    expect(actions.elements[0].url).toBe(mockMonitorAlert.permalink);
+  });
+
   // buildAlert only sets dataPermalink for breaching severities, so recovery
   // (OK) and NO_DATA notifications arrive here with dataPermalink undefined and
-  // must render no "View traces" button — recovery messages stay unchanged.
+  // must render no secondary data button — recovery messages stay unchanged.
   it.each(["OK", "NO_DATA"] as const)(
     "renders no secondary data button for a %s (non-breach) alert",
     (severity) => {
       const { attachments } = buildMonitorAlertSlackMessage({
         ...mockMonitorAlert,
+        view: "scores-numeric",
         severity,
         dataPermalink: undefined,
       });
@@ -151,6 +166,9 @@ describe("buildMonitorAlertSlackMessage", () => {
       );
       expect(actions.elements).toHaveLength(1);
       expect(actions.elements[0].text.text).toBe("View in Langfuse");
+      expect(attachments![0].blocks![1].text.text).not.toContain(
+        "scores link is unavailable",
+      );
     },
   );
 });

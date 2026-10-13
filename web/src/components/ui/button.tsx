@@ -5,12 +5,12 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
 
-import { default as SpinnerLib } from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner as SpinnerLib } from "@/src/components/design-system/Spinner/Spinner";
 
 const buttonVariants = cva(
   // No font-* here: buttons follow the text-sm token weight (one weight per
   // token; heavier text must be an explicit, deliberate exception).
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       variant: {

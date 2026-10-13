@@ -15,7 +15,7 @@ import type {
 import { optionDomId } from "@/src/features/search-bar/components/presentation";
 
 function OptionIcon({ kind }: { kind: CompletionOption["kind"] }) {
-  const cls = "h-3.5 w-3.5 flex-none opacity-55";
+  const cls = "icon-base flex-none opacity-55";
   if (kind === "recent") return <Clock className={cls} aria-hidden />;
   if (kind === "preset") return <Bookmark className={cls} aria-hidden />;
   if (kind === "operator" || kind === "pattern")
@@ -73,7 +73,7 @@ export function AutocompleteListbox({
       data-testid="search-bar-autocomplete"
       data-stage={plan.stage}
       className={cn(
-        "w-max max-w-[calc(100vw-16px)] min-w-[min(420px,calc(100vw-16px))]",
+        "ph-no-capture w-max max-w-[calc(100vw-16px)] min-w-[min(420px,calc(100vw-16px))]",
         "max-h-[min(420px,40vh)] overflow-x-hidden overflow-y-auto",
         "bg-popover text-popover-foreground rounded-md border py-1 shadow-md",
       )}
@@ -137,11 +137,11 @@ export function AutocompleteListbox({
               </span>
               {o.kind === "field" &&
                 o.scoreLevels?.map((level) => (
-                  <ScoreTag key={level} level={level} className="flex-none" />
+                  <ScoreTag key={level} level={level} />
                 ))}
               {o.kind === "value" && o.active && (
                 <Check
-                  className="text-foreground/80 h-3.5 w-3.5 flex-none"
+                  className="text-foreground/80 icon-base flex-none"
                   aria-label="selected"
                 />
               )}

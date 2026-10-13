@@ -3,6 +3,7 @@
  * scheduler DTOs. */
 export * from "./index";
 export * from "./service";
+export * from "./service/evaluatorFilterMatching";
 export * from "./scheduler/types";
 export * from "./scheduler/scheduler";
 export * from "./processor/processor";

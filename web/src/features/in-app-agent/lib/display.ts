@@ -74,7 +74,7 @@ const InAppAgentDisplayPlacementSchema = z.object({
  * dominate and are never duplicated here, so that optimization is not worth
  * its invariant today.
  */
-export const SerializedInAppAgentDisplayStateSchema = z.object({
+const SerializedInAppAgentDisplayStateSchema = z.object({
   latestPlacement: InAppAgentDisplayPlacementSchema.nullable(),
   nativeToolCallParentMessageId: z.string().nullable(),
   latestNewMessageId: z.string().nullable(),

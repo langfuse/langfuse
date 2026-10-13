@@ -5,9 +5,8 @@ import { type ViewVersion } from "@langfuse/shared/query";
 import { type TimeFilter, ObservationLevelDomain } from "@langfuse/shared";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { normalizeSingleValueOptions } from "@/src/features/filters";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import {
   importWidgetFile,
   type ImportedWidgetFormSnapshot,
@@ -24,13 +23,13 @@ export const WidgetImporter = ({
   projectId,
   viewVersion,
   dateRange,
-  isBetaEnabled,
+  isV4,
   onImport,
 }: {
   projectId: string;
   viewVersion: ViewVersion;
   dateRange: { from: Date; to: Date } | undefined;
-  isBetaEnabled: boolean;
+  isV4: boolean;
   onImport: (snapshot: ImportedWidgetFormSnapshot) => void;
 }) => {
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -53,7 +52,7 @@ export const WidgetImporter = ({
       dateRange,
     });
 
-    await runImport({ file, optionSets, isBetaEnabled, onImport });
+    await runImport({ file, optionSets, isV4, onImport });
   };
 
   return (
@@ -70,7 +69,7 @@ export const WidgetImporter = ({
         size="sm"
         onClick={() => importInputRef.current?.click()}
       >
-        <Upload className="mr-2 h-4 w-4" />
+        <Upload className="icon-base text-icon-foreground mr-2" />
         Import
       </Button>
     </>
@@ -176,19 +175,20 @@ function buildImportOptionSets(params: {
 async function runImport(params: {
   file: File;
   optionSets: WidgetImportOptionSets;
-  isBetaEnabled: boolean;
+  isV4: boolean;
   onImport: (snapshot: ImportedWidgetFormSnapshot) => void;
 }): Promise<void> {
   try {
     const result = await importWidgetFile({
       file: params.file,
       optionSets: params.optionSets,
-      isBetaEnabled: params.isBetaEnabled,
+      isV4: params.isV4,
     });
 
     params.onImport(result.snapshot);
 
     showSuccessToast({
+      operation: "widget.import",
       title: "Widget uploaded successfully",
       description: "Widget configuration has been loaded.",
     });
@@ -197,6 +197,11 @@ async function runImport(params: {
       showErrorToast(
         "Widget filters were adjusted",
         "Some imported filters or filter values were removed because they are not available in this project.",
+        {
+          operation: "widget.import",
+          errorOrigin: "frontend",
+          errorCategory: "product_state",
+        },
         "WARNING",
       );
     }
@@ -204,6 +209,11 @@ async function runImport(params: {
     showErrorToast(
       "Malformed input",
       "This operation can't be done due to the malformed input",
+      {
+        operation: "widget.import",
+        errorOrigin: "frontend",
+        errorCategory: "user_input",
+      },
       "WARNING",
     );
   }

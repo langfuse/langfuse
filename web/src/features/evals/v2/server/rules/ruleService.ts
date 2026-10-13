@@ -1,6 +1,6 @@
 import {
-  EvalTemplateType,
   EvalTargetObject,
+  EvalTemplateType,
   InvalidRequestError,
   isExperimentEvaluationRule,
   LangfuseConflictError,
@@ -22,10 +22,9 @@ import {
   getClientInitiatedNonStreamingLlmTimeoutMs,
   invalidateProjectEvalConfigCaches,
   logger,
-  getRecentRuleExecutionTraces,
   getTotalCostByRule,
 } from "@langfuse/shared/src/server";
-import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server/availability";
+import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server";
 import type {
   CreateOrAttachFromEvaluatorFiltersInput,
   CreateRuleInput,
@@ -35,11 +34,18 @@ import type {
   UpdateRuleInput,
 } from "./ruleTypes";
 import * as evaluatorRepository from "../evaluators/evaluatorRepository";
-import { assertActiveRuleLimitNotExceeded } from "./ruleErrors";
+import { reconcileEvaluatorPromptMessages } from "../evaluators/evaluatorService";
+import {
+  assertActiveRuleLimitNotExceeded,
+  assertEnabledRuleHasAssignments,
+} from "./ruleErrors";
 import * as repository from "./ruleRepository";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
-import { assertCompleteEvaluatorVariableMapping } from "../evaluators/evaluatorValidation";
+import {
+  assertCompleteEvaluatorVariableMapping,
+  extractEvaluatorPromptVariables,
+} from "../evaluators/evaluatorValidation";
 import { fallbackRuleName, filterStateKey } from "./ruleFilterMatching";
 
 const MAX_REUSABLE_FILTERS = 10;
@@ -68,6 +74,18 @@ export class RuleService {
     return { rules: rules.map(toRuleResponse), totalItems };
   }
 
+  async listCursor(
+    input: Omit<ListRulesInput, "page"> & {
+      cursor?: { createdAt: Date; id: string };
+    },
+  ) {
+    const { rules, nextCursor } = await repository.listRulesCursor({
+      prisma: this.prisma,
+      input,
+    });
+    return { rules: rules.map(toRuleResponse), nextCursor };
+  }
+
   listFilterOptions(projectId: string) {
     return repository.listRuleFilterOptions({
       prisma: this.prisma,
@@ -83,23 +101,6 @@ export class RuleService {
     });
     if (!rule) throw new LangfuseNotFoundError("Evaluation rule not found");
     return toRuleResponse(rule);
-  }
-
-  async listRecent(params: { projectId: string; ruleIds: string[] }) {
-    const result = Object.fromEntries(
-      params.ruleIds.map((ruleId) => [ruleId, []]),
-    ) as Record<string, Array<{ id: string; level: string; timestamp: Date }>>;
-    if (params.ruleIds.length === 0) return result;
-
-    const traces = await getRecentRuleExecutionTraces(
-      params.projectId,
-      params.ruleIds,
-    );
-
-    for (const { ruleId, ...trace } of traces) {
-      result[ruleId]?.push(trace);
-    }
-    return result;
   }
 
   async getTotalCosts(params: { projectId: string; ruleIds: string[] }) {
@@ -245,6 +246,10 @@ export class RuleService {
       normalized.filter,
     );
     this.assertUniqueAssignments(input.evaluatorAssignments);
+    assertEnabledRuleHasAssignments({
+      enabled: input.enabled,
+      assignmentCount: input.evaluatorAssignments.length,
+    });
     const rule = await this.prisma.$transaction(async (prisma) => {
       await assertActiveRuleLimitNotExceeded({
         prisma,
@@ -356,6 +361,16 @@ export class RuleService {
         input.ruleId,
       );
       this.assertLegacyRuleUpdateAllowed(current.targetObject, input);
+      const resultingAssignmentCount =
+        input.evaluatorMappings?.length ?? current.assignments.length;
+      assertEnabledRuleHasAssignments({
+        enabled:
+          input.enabled ??
+          (input.evaluatorMappings?.length === 0
+            ? false
+            : current.status === JobConfigState.ACTIVE),
+        assignmentCount: resultingAssignmentCount,
+      });
       const currentTargetObject = current.targetObject as EvalTargetObject;
       const currentFilter = current.filter as FilterState;
       // Whether a rule targets experiments is derived from its filter, so an
@@ -375,10 +390,9 @@ export class RuleService {
         targetObject: input.targetObject ?? inheritedTargetObject,
         filter: effectiveFilter,
       });
-      const filter = this.validateRuleFilters(
-        normalized.targetObject,
-        normalized.filter,
-      );
+      const filter = isLegacyEvalTarget(currentTargetObject)
+        ? currentFilter
+        : this.validateRuleFilters(normalized.targetObject, normalized.filter);
       await assertActiveRuleLimitNotExceeded({
         prisma,
         projectId: input.projectId,
@@ -441,6 +455,10 @@ export class RuleService {
         params.ruleId,
       );
       this.assertLegacyRuleCanBeEnabled(current.targetObject, params.enabled);
+      assertEnabledRuleHasAssignments({
+        enabled: params.enabled,
+        assignmentCount: current.assignments.length,
+      });
       await assertActiveRuleLimitNotExceeded({
         prisma,
         projectId: params.projectId,
@@ -485,8 +503,10 @@ export class RuleService {
   async deleteMany(input: RuleSelectionInput) {
     const ruleIds = await this.prisma.$transaction(async (prisma) => {
       const ids = await repository.listSelectedRuleIds({ prisma, input });
-      await prisma.evaluationRule.deleteMany({
-        where: { projectId: input.projectId, id: { in: ids } },
+      await repository.deleteRules({
+        prisma,
+        projectId: input.projectId,
+        ruleIds: ids,
       });
       return ids;
     });
@@ -512,6 +532,7 @@ export class RuleService {
               projectId: input.projectId,
               isBatchAction: true,
               search: input.search,
+              filter: input.filter,
             };
       const ids = await repository.listSelectedRuleIds({
         prisma,
@@ -530,6 +551,18 @@ export class RuleService {
         this.assertLegacyRuleCanBeEnabled("trace", input.enabled);
       }
       if (input.enabled) {
+        const unassignedRule = await prisma.evaluationRule.findFirst({
+          where: {
+            projectId: input.projectId,
+            id: { in: ids },
+            assignments: { none: {} },
+          },
+          select: { id: true },
+        });
+        assertEnabledRuleHasAssignments({
+          enabled: true,
+          assignmentCount: unassignedRule ? 0 : 1,
+        });
         // Only rules that are not already active consume a new slot.
         const newlyActivated = await prisma.evaluationRule.count({
           where: {
@@ -743,8 +776,17 @@ export class RuleService {
       );
       const storedVariableMapping =
         assignment.variableMapping ?? prepared.initialVariableMapping;
+      const requiredVariables =
+        evaluator.type === EvalTemplateType.DECISION_MODEL
+          ? latestVersion.vars
+          : extractEvaluatorPromptVariables(
+              reconcileEvaluatorPromptMessages({
+                prompt: latestVersion.prompt,
+                promptMessages: latestVersion.promptMessages,
+              }),
+            );
       assertCompleteEvaluatorVariableMapping({
-        prompt: latestVersion.prompt ?? "",
+        promptVariables: requiredVariables,
         variableMapping:
           storedVariableMapping ?? prepared.defaultVariableMapping,
       });

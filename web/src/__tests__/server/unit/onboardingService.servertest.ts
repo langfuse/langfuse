@@ -2,7 +2,7 @@ const { auditLogMock } = vi.hoisted(() => ({
   auditLogMock: vi.fn(),
 }));
 
-vi.mock("@/src/features/audit-logs/auditLog", () => ({
+vi.mock("@/src/features/audit-logs/server", () => ({
   auditLog: auditLogMock,
 }));
 
@@ -13,7 +13,7 @@ import {
   provisionStarterOrganizationForNewUser,
   resolveOnboardingRedirectTarget,
   type RealOrganizationMembership,
-} from "@/src/features/onboarding/server/onboardingService";
+} from "@/src/features/onboarding/server";
 
 type CompletionPrisma = Parameters<
   typeof completeCloudSignupOnboarding
@@ -215,6 +215,7 @@ describe("completeCloudSignupOnboarding", () => {
       }),
     ).resolves.toEqual({
       redirectTo: "/project/project-1/traces",
+      surveyCreated: true,
     });
 
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
@@ -248,7 +249,7 @@ describe("completeCloudSignupOnboarding", () => {
 
     tx.survey.findFirst.mockResolvedValue({ id: "survey-1" });
 
-    await completeCloudSignupOnboarding({
+    const repeatResult = await completeCloudSignupOnboarding({
       prisma,
       userId: "user-1",
       userEmail: "user@example.com",
@@ -257,8 +258,62 @@ describe("completeCloudSignupOnboarding", () => {
       aiFeaturesEnabled: false,
     });
 
+    expect(repeatResult.surveyCreated).toBe(false);
+
     expect(tx.survey.create).toHaveBeenCalledTimes(1);
     expect(tx.organization.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("stores each pick with the position it was shown at", async () => {
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await completeCloudSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      userEmail: "user@example.com",
+      canCreateOrganizations: true,
+      referralSource: "Reddit",
+      buildIntents: ["rag", "other"],
+      buildIntentPositions: [2, 6],
+      buildIntentOther: "eval pipeline",
+    });
+
+    expect(tx.survey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          response: {
+            referralSource: "Reddit",
+            buildIntents: ["rag", "other"],
+            buildIntentPositions: [2, 6],
+            buildIntentOther: "eval pipeline",
+          },
+        }),
+      }),
+    );
+  });
+
+  it("stores an empty response when the survey is skipped", async () => {
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await completeCloudSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      canCreateOrganizations: true,
+    });
+
+    expect(tx.survey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ response: {} }),
+      }),
+    );
   });
 
   it("does not update AI features for an existing organization", async () => {

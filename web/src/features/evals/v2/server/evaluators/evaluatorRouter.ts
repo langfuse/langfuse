@@ -1,5 +1,5 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { hasProjectAccess, throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -10,11 +10,12 @@ import {
   ActivationCostEstimatesSchema,
   CreateEvaluatorSchema,
   DeleteEvaluatorsSchema,
-  EvaluatorDefinitionSchema,
+  EvaluatorDefinitionInputSchema,
   EvaluatorIdSchema,
   EvaluatorIdsSchema,
   EvaluatorOptionsSchema,
   EvaluatorVersionsSchema,
+  ListEvaluatorGallerySchema,
   ListEvaluatorsSchema,
   SuggestEvaluatorTextSchema,
   UpdateEvaluatorSchema,
@@ -26,7 +27,7 @@ import { getActivationCostEstimates } from "./activationCostService";
 const TestEvaluatorSchema = z.object({
   projectId: z.string(),
   evaluatorId: z.string(),
-  definition: EvaluatorDefinitionSchema,
+  definition: EvaluatorDefinitionInputSchema,
   observationId: z.string(),
   traceId: z.string(),
   startTime: z.coerce.date(),
@@ -59,12 +60,36 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalTemplate:read",
+        scope: "evaluator:read",
       });
       return serviceForContext(ctx).list({
         ...input,
         projectId: ctx.session.projectId,
       });
+    }),
+
+  listGallery: protectedProjectProcedure
+    .input(ListEvaluatorGallerySchema)
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evaluator:read",
+      });
+      const service = serviceForContext(ctx);
+      const params = {
+        ...input,
+        projectId: ctx.session.projectId,
+      };
+      const [result, totalItems] = await Promise.all([
+        service.listCursor(params),
+        input.cursor ? undefined : service.count(params),
+      ]);
+
+      return {
+        ...result,
+        totalItems,
+      };
     }),
 
   filterOptions: protectedProjectProcedure
@@ -73,7 +98,7 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalTemplate:read",
+        scope: "evaluator:read",
       });
       return serviceForContext(ctx).listFilterOptions(ctx.session.projectId);
     }),
@@ -84,7 +109,7 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalTemplate:read",
+        scope: "evaluator:read",
       });
       return serviceForContext(ctx).listOptions({
         ...input,
@@ -98,7 +123,7 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalTemplate:read",
+        scope: "evaluator:read",
       });
       return serviceForContext(ctx).getWithSampleFilter(
         ctx.session.projectId,
@@ -112,7 +137,7 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalTemplate:read",
+        scope: "evaluator:read",
       });
       return serviceForContext(ctx).listVersions({
         ...input,
@@ -120,15 +145,15 @@ export const evaluatorRouter = createTRPCRouter({
       });
     }),
 
-  recentExecutions: protectedProjectProcedure
+  executionSummaries: protectedProjectProcedure
     .input(EvaluatorIdsSchema)
     .query(({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalJob:read",
+        scope: "evalJobExecution:read",
       });
-      return serviceForContext(ctx).listRecent({
+      return serviceForContext(ctx).getExecutionSummaries({
         ...input,
         projectId: ctx.session.projectId,
       });
@@ -140,7 +165,7 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalJob:read",
+        scope: "evalJobExecution:read",
       });
       return serviceForContext(ctx).getTotalCosts({
         ...input,
@@ -154,12 +179,23 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalJob:CUD",
+        scope: "evalJobExecution:read",
       });
+      const canRunMissingCostTest = hasProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evaluationRule:CUD",
+      });
+      const { shouldRunMissingTest, ...estimateInput } = input;
+      let missingCostMode: "probe" | "wait" | "skip" = "skip";
+      if (canRunMissingCostTest) {
+        missingCostMode = shouldRunMissingTest ? "probe" : "wait";
+      }
       return getActivationCostEstimates({
-        ...input,
+        ...estimateInput,
         projectId: ctx.session.projectId,
         orgId: ctx.session.orgId,
+        missingCostMode,
         shouldReadFromObservationsTable:
           ctx.session.user.v4BetaEnabled !== true,
       });
@@ -171,7 +207,7 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalTemplate:CUD",
+        scope: "evaluator:CUD",
       });
       const service = serviceForContext(ctx);
       return service.create(
@@ -186,7 +222,7 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalTemplate:CUD",
+        scope: "evaluator:CUD",
       });
       const service = serviceForContext(ctx);
       return service.update(
@@ -201,7 +237,7 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalTemplate:CUD",
+        scope: "evaluator:CUD",
       });
       return serviceForContext(ctx).reactivate({
         projectId: ctx.session.projectId,
@@ -215,7 +251,7 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalTemplate:CUD",
+        scope: "evaluator:CUD",
       });
       const service = serviceForContext(ctx);
       await service.delete(ctx.session.projectId, input.evaluatorId);
@@ -228,7 +264,7 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalTemplate:CUD",
+        scope: "evaluator:CUD",
       });
       const service = serviceForContext(ctx);
       await service.deleteMany({
@@ -244,7 +280,7 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalTemplate:CUD",
+        scope: "evaluator:CUD",
       });
       return serviceForContext(ctx).testEvaluator({
         orgId: ctx.session.orgId,
@@ -265,7 +301,7 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalTemplate:CUD",
+        scope: "evaluator:CUD",
       });
       return serviceForContext(ctx).suggestName({
         ...input,
@@ -280,7 +316,7 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evalTemplate:CUD",
+        scope: "evaluator:CUD",
       });
       return serviceForContext(ctx).suggestDescription({
         ...input,

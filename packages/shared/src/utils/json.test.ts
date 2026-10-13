@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { parseJsonPrioritised } from "./json";
+import {
+  deepParseJson,
+  deepParseJsonIterative,
+  parseJsonPrioritised,
+} from "./json";
 
 // Focused on the precision path (UNSAFE_NUMBER_PATTERN hit -> source-access
 // reviver). Complementary coverage elsewhere: basic parseJsonPrioritised
@@ -51,5 +55,67 @@ describe("parseJsonPrioritised precision path", () => {
     expect(parseJsonPrioritised('{"a": 1, "a": 9223372036854775807}')).toEqual({
       a: "9223372036854775807",
     });
+  });
+});
+
+describe.each([
+  ["recursive", deepParseJson],
+  ["iterative", deepParseJsonIterative],
+] as const)("%s object size limits", (_name, parse) => {
+  it("parses eligible siblings of an oversized JSON string", () => {
+    const oversized = JSON.stringify({ text: "x".repeat(523_000) });
+    const input = {
+      oversized,
+      details: '{"ok":true}',
+      python: "{'enabled': True}",
+    };
+
+    const result = parse(input) as Record<string, unknown>;
+    expect(result.details).toEqual({ ok: true });
+    expect(result.python).toEqual({ enabled: true });
+    expect(result.oversized).toBe(oversized);
+  });
+
+  it("keeps the aggregate limit for individually eligible fields", () => {
+    const field = JSON.stringify({ text: "x".repeat(260_000) });
+    const input = { first: field, second: field };
+
+    expect(parse(input)).toBe(input);
+    expect(input.first).toBe(field);
+    expect(input.second).toBe(field);
+  });
+
+  it("keeps wide containers opaque even when their leaves are small", () => {
+    const first = '{"ok":true}';
+    const input: unknown[] = Array(1_000_000).fill(0);
+    input[0] = first;
+
+    expect(parse(input)).toBe(input);
+    expect(input[0]).toBe(first);
+  });
+
+  it("counts encoded object fields once across nested decoding", () => {
+    const payload = "x".repeat(260_000);
+    const input = {
+      json: JSON.stringify({ nested: JSON.stringify({ payload }) }),
+    };
+
+    const result = parse(input, { maxDepth: 5 }) as {
+      json: { nested: { payload: string } };
+    };
+    expect(typeof result.json.nested).toBe("object");
+    expect(result.json.nested.payload).toBe(payload);
+  });
+
+  it("preserves nested decoding of root strings below the size limit", () => {
+    const payload = "x".repeat(260_000);
+    const input = JSON.stringify({ json: JSON.stringify({ payload }) });
+
+    expect(parse(input)).toEqual({ json: { payload } });
+  });
+
+  it("preserves root string parsing above the object size limit", () => {
+    const payload = "x".repeat(523_000);
+    expect(parse(JSON.stringify({ payload }))).toEqual({ payload });
   });
 });

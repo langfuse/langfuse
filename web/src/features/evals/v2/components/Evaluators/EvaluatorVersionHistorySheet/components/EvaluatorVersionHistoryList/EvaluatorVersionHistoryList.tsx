@@ -1,7 +1,12 @@
-import { EvalTemplateTypeEnum } from "@langfuse/shared";
+import {
+  EvalTemplateTypeEnum,
+  observationVariableMappingList,
+} from "@langfuse/shared";
 import { formatDistanceToNowStrict } from "date-fns";
+import { RotateCcw } from "lucide-react";
 
 import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { CollapsibleCard } from "@/src/features/evals/v2/components/CollapsibleCard/CollapsibleCard";
 import {
@@ -23,9 +28,24 @@ function toEvaluatorDefinition(
     };
   }
 
+  if (version.type === EvalTemplateTypeEnum.DECISION_MODEL) {
+    const variableMapping = observationVariableMappingList.safeParse(
+      version.variableMapping,
+    );
+    return {
+      type: EvalTemplateTypeEnum.DECISION_MODEL,
+      questions: version.questions,
+      selectedModel:
+        version.provider && version.model
+          ? { provider: version.provider, model: version.model }
+          : null,
+      variableMapping: variableMapping.success ? variableMapping.data : [],
+    };
+  }
+
   return {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
-    prompt: version.prompt,
+    promptMessages: version.promptMessages!,
     // Each version pins the model it ran with; the project default only fills
     // in when it never had an explicit one.
     selectedModel:
@@ -44,6 +64,7 @@ export function EvaluatorVersionHistoryList({
   defaultModel,
   expandedVersionId,
   onExpandedVersionChange,
+  onRestoreVersion,
   isLoading,
 }: {
   versions: EvaluatorVersion[];
@@ -52,6 +73,7 @@ export function EvaluatorVersionHistoryList({
   /** The version whose definition is open; null collapses them all. */
   expandedVersionId: string | null;
   onExpandedVersionChange: (versionId: string | null) => void;
+  onRestoreVersion: (version: EvaluatorVersion) => void;
   isLoading: boolean;
 }) {
   if (isLoading) {
@@ -118,7 +140,22 @@ export function EvaluatorVersionHistoryList({
                 </span>
               </>
             }
-            actions={null}
+            actions={
+              version.id === currentVersionId ? null : (
+                <span className="flex shrink-0 items-center pr-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Restore version ${version.version}`}
+                    title={`Restore version ${version.version}`}
+                    onClick={() => onRestoreVersion(version)}
+                  >
+                    <RotateCcw className="icon-sm text-icon-foreground" />
+                  </Button>
+                </span>
+              )
+            }
           >
             <div className="p-3">
               <EvaluatorDefinitionView

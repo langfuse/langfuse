@@ -8,9 +8,9 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { Info } from "lucide-react";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "@/src/features/projects";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
+import { AIFeaturesDisabledNotice } from "@/src/features/organizations";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 
@@ -81,7 +81,7 @@ export function DataTableAIFilters({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Info className="text-muted-foreground h-4 w-4" />
+              <Info className="text-muted-foreground icon-base" />
             </TooltipTrigger>
             <TooltipContent>
               <p className="text-xs">

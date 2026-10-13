@@ -17,6 +17,10 @@ vi.mock("../analyticsIntegrationEgress", () => ({
     redirectValidation: { validateUrl: () => {} },
   }),
   rethrowIfOutboundValidationFailure: () => undefined,
+  // No-op: this suite is Mixpanel HTTP error handling, not URL policy.
+  // Real IP-literal / credential / scheme coverage lives in
+  // analyticsIntegrationOutboundUrlNegative.test.ts.
+  validateAnalyticsIntegrationUrl: () => undefined,
 }));
 
 vi.mock("../../env", () => ({

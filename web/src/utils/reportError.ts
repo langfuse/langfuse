@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { addBreadcrumb, captureException } from "@sentry/nextjs";
 
 /**
@@ -42,7 +43,7 @@ function describeUnknown(value: unknown): string {
  * `[area] <readable value>` (never `[object Object]`), so the synthesized event
  * both groups by `area` and stays diagnosable.
  */
-export function coerceToError(area: string, value: unknown): Error {
+function coerceToError(area: string, value: unknown): Error {
   return value instanceof Error
     ? value
     : new Error(

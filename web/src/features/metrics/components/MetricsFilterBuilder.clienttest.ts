@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { type FilterState } from "@langfuse/shared";
+import { filterOperators, type FilterState } from "@langfuse/shared";
 
 import {
   getMetricsColumnsWithCustomSelect,
@@ -54,6 +54,44 @@ describe("editorFiltersToViewFilters", () => {
       ),
     ).toEqual(filters);
   });
+
+  it("canonicalizes current and legacy evaluator display labels", () => {
+    const canonical: FilterState = [
+      {
+        column: "evaluatorId",
+        type: "string",
+        operator: "=",
+        value: "evaluator-1",
+      },
+    ];
+    for (const column of ["Evaluator", "Evaluator ID"]) {
+      expect(
+        editorFiltersToViewFilters("observations", [
+          {
+            ...canonical[0],
+            column,
+          },
+        ]),
+      ).toEqual(canonical);
+    }
+    expect(
+      editorFiltersToViewFilters("observations", [
+        {
+          column: "Evaluator execution",
+          type: "boolean",
+          operator: "=",
+          value: false,
+        },
+      ]),
+    ).toEqual([
+      {
+        column: "isEvaluatorTest",
+        type: "boolean",
+        operator: "=",
+        value: false,
+      },
+    ]);
+  });
 });
 
 describe("resolvesToColumn", () => {
@@ -89,6 +127,23 @@ describe("resolvesToColumn", () => {
   it("v2-only column on v1: does not resolve", () => {
     expect(resolves("isRootObservation", "observations", "v2")).toBe(true);
     expect(resolves("isRootObservation", "observations", "v1")).toBe(false);
+  });
+
+  it("offers an is-not-empty operator for evaluator IDs", () => {
+    const evaluatorColumn = columnsFor("observations").find(
+      (column) => column.id === "evaluatorId",
+    );
+
+    expect(evaluatorColumn?.type).toBe("string");
+    expect(filterOperators.string).toContain("is not empty");
+  });
+
+  it("renders evaluator alert prefill filters", () => {
+    expect(resolves("evaluatorId", "observations", "v1")).toBe(true);
+    expect(resolves("evaluatorId", "observations", "v2")).toBe(true);
+    expect(resolves("isEvaluatorTest", "observations", "v2")).toBe(true);
+    expect(resolves("evaluatorId", "scores-categorical", "v2")).toBe(true);
+    expect(resolves("isEvaluatorTest", "scores-categorical", "v2")).toBe(true);
   });
 
   it("unmapped column: does not resolve", () => {
@@ -214,6 +269,27 @@ describe("buildV2FilterColumnsParams", () => {
       { value: "exp-1", displayValue: "My Experiment" },
     ]);
     expect(getMetricsColumnsWithCustomSelect(params)).toContain("experimentId");
+  });
+
+  it("labels evaluator ID suggestions by name while retaining ID values", () => {
+    const params = buildV2FilterColumnsParams({
+      view: "observations",
+      filterOptions: undefined,
+      datasets: undefined,
+      evaluatorOptions: [
+        { value: "evaluator-1", displayValue: "Answer quality" },
+      ],
+    });
+    const column = getMetricsFilterColumns(params).find(
+      (candidate) => candidate.id === "evaluatorId",
+    );
+
+    expect(column?.name).toBe("Evaluator");
+    expect(column?.type).toBe("string");
+    expect(column && "options" in column ? column.options : []).toEqual([
+      { value: "evaluator-1", displayValue: "Answer quality" },
+    ]);
+    expect(getMetricsColumnsWithCustomSelect(params)).toContain("evaluatorId");
   });
 
   it("wires metadata key suggestions into the Metadata column", () => {

@@ -19,10 +19,9 @@ const startingPoints = [
       maintainer: "langfuse",
       evaluator: {
         type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
-        prompt: "Classify {{input}}.",
+        promptMessages: [{ role: "user", content: "Classify {{input}}." }],
         variables: [{ name: "input", defaultMapping: { field: "input" } }],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Topic.",
@@ -49,12 +48,16 @@ const startingPoints = [
       maintainer: "langfuse",
       evaluator: {
         type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
-        prompt: "Decide whether {{last_user_message}} is disagreement.",
+        promptMessages: [
+          {
+            role: "user",
+            content: "Decide whether {{last_user_message}} is disagreement.",
+          },
+        ],
         variables: [
           { name: "last_user_message", defaultMapping: { field: "input" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: { description: "True if disagreement is present." },
           reasoning: { description: "One sentence." },

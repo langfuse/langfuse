@@ -4,6 +4,10 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["views", "relationJoins", "metrics"]
+  // rhel-openssl-3.0.x: UBI9 runtime images (glibc); these engines link the
+  // system libcrypto.so.3, so Postgres TLS runs inside the platform's
+  // FIPS-validated OpenSSL module.
+  binaryTargets   = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -51,6 +55,7 @@ model User {
   email                     String?                     @unique
   emailVerified             DateTime?                   @map("email_verified")
   password                  String?
+  sessionsExpiredAt         DateTime?                   @map("sessions_expired_at")
   image                     String?
   admin                     Boolean                     @default(false)
   v4BetaEnabled             Boolean                     @default(false) @map("v4_beta_enabled")
@@ -72,6 +77,10 @@ model User {
   tableViewPresetUpdated    TableViewPreset[]           @relation("UpdatedByUser")
   monitorsCreated           Monitor[]                   @relation("CreatedByUser")
   monitorsUpdated           Monitor[]                   @relation("UpdatedByUser")
+  topicConfigsCreated       TopicConfig[]               @relation("CreatedByUser")
+  topicConfigsUpdated       TopicConfig[]               @relation("UpdatedByUser")
+  tracingReadinessCreated   TracingReadinessSettings[]  @relation("CreatedByUser")
+  tracingReadinessUpdated   TracingReadinessSettings[]  @relation("UpdatedByUser")
   annotationQueueAssignment AnnotationQueueAssignment[]
   surveys                   Survey[]
   commentReactions          CommentReaction[]
@@ -80,9 +89,12 @@ model User {
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
   apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
+  roleAssignments           RoleAssignment[]
   evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
   evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
+
+  deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentUser") @ignore
 
   @@map("users")
 }
@@ -122,6 +134,11 @@ model Organization {
   surveys                          Survey[]
   cloudSpendAlerts                 CloudSpendAlert[]
   verifiedDomains                  VerifiedDomain[]
+  gatewayConfig                    GatewayConfig?
+  gatewayAiConnections             GatewayAiConnection[]
+  roleAssignments                  RoleAssignment[]         @relation("RoleAssignmentTenant")
+
+  deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentOrganization") @ignore
 
   @@map("organizations")
 }
@@ -143,10 +160,14 @@ model Project {
   projectMembers                    ProjectMembership[]
   organization                      Organization                        @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   apiKeys                           ApiKey[]
+  roleAssignments                   RoleAssignment[]
   dataset                           Dataset[]
   invitations                       MembershipInvitation[]
   sessions                          TraceSession[]
   Prompt                            Prompt[]
+  Skill                             Skill[]
+  SkillFile                         SkillFile[]
+  SkillBlob                         SkillBlob[]
   Model                             Model[]
   EvalTemplate                      EvalTemplate[]
   JobConfiguration                  JobConfiguration[]
@@ -154,10 +175,12 @@ model Project {
   Evaluator                         Evaluator[]
   EvaluationRule                    EvaluationRule[]
   EvaluationRuleEvaluatorAssignment EvaluationRuleEvaluatorAssignment[]
+  tracingReadinessSettings          TracingReadinessSettings?
   LlmApiKeys                        LlmApiKeys[]
   PosthogIntegration                PosthogIntegration[]
   MixpanelIntegration               MixpanelIntegration[]
   BlobStorageIntegration            BlobStorageIntegration[]
+  ExternalMediaStorageIntegration   ExternalMediaStorageIntegration?
   webCalloutEndpoints               WebCalloutEndpoint[]
   scoreConfig                       ScoreConfig[]
   BatchExport                       BatchExport[]
@@ -180,6 +203,7 @@ model Project {
   Automation                        Automation[]
   monitors                          Monitor[]
   DefaultLlmModel                   DefaultLlmModel[]
+  TopicConfig                       TopicConfig?
   Price                             Price[]
   SlackIntegration                  SlackIntegration?
   PendingDeletion                   PendingDeletion[]
@@ -190,6 +214,10 @@ model Project {
   InAppAgentEvent                   InAppAgentEvent[]
   InAppAgentRun                     InAppAgentRun[]
   InAppAgentPendingToolApproval     InAppAgentPendingToolApproval[]
+  topicClusteringRuns               TopicClusteringRun[]
+  gatewayConfigs                    GatewayConfig[]                     @relation("GatewayDefaultIngestionProject")
+
+  deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentProject") @ignore
 
   @@index([orgId])
   @@map("projects")
@@ -201,26 +229,31 @@ enum ApiKeyScope {
 }
 
 model ApiKey {
-  id                  String        @id @unique @default(cuid())
-  createdAt           DateTime      @default(now()) @map("created_at")
+  id                  String                    @id @unique @default(cuid())
+  createdAt           DateTime                  @default(now()) @map("created_at")
   note                String?
-  publicKey           String        @unique @map("public_key")
-  hashedSecretKey     String        @unique @map("hashed_secret_key")
-  fastHashedSecretKey String?       @unique @map("fast_hashed_secret_key")
-  displaySecretKey    String        @map("display_secret_key")
-  lastUsedAt          DateTime?     @map("last_used_at")
-  expiresAt           DateTime?     @map("expires_at")
-  isInAppAgentKey     Boolean       @default(false) @map("is_in_app_agent_key")
-  projectId           String?       @map("project_id")
-  project             Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  orgId               String?       @map("organization_id")
-  organization        Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  scope               ApiKeyScope   @default(PROJECT) @map("scope")
-  createdByUserId     String?       @map("created_by_user_id")
-  createdByUser       User?         @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  createdByApiKeyId   String?       @map("created_by_api_key_id")
-  createdByApiKey     ApiKey?       @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
-  apiKeysCreated      ApiKey[]      @relation("ApiKeyCreatedByApiKey")
+  publicKey           String                    @unique @map("public_key")
+  // bcrypt hash for keys created before fastHashedSecretKey existed; newer keys store a non-secret placeholder
+  hashedSecretKey     String                    @unique @map("hashed_secret_key")
+  fastHashedSecretKey String?                   @unique @map("fast_hashed_secret_key")
+  displaySecretKey    String                    @map("display_secret_key")
+  lastUsedAt          DateTime?                 @map("last_used_at")
+  expiresAt           DateTime?                 @map("expires_at")
+  isInAppAgentKey     Boolean                   @default(false) @map("is_in_app_agent_key")
+  projectId           String?                   @map("project_id")
+  project             Project?                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  orgId               String?                   @map("organization_id")
+  organization        Organization?             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  scope               ApiKeyScope               @default(PROJECT) @map("scope")
+  createdByUserId     String?                   @map("created_by_user_id")
+  createdByUser       User?                     @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByApiKeyId   String?                   @map("created_by_api_key_id")
+  createdByApiKey     ApiKey?                   @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
+  apiKeysCreated      ApiKey[]                  @relation("ApiKeyCreatedByApiKey")
+  gatewayAssociation  GatewayApiKeyAssociation?
+  roleAssignments     RoleAssignment[]
+
+  deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentApiKey") @ignore
 
   @@index(orgId)
   @@index(projectId)
@@ -231,26 +264,135 @@ model ApiKey {
   @@map("api_keys")
 }
 
+enum SystemRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+  NONE
+  LEGACY_PROJECT_API_KEY
+  LEGACY_ORGANIZATION_API_KEY
+  SCORES_INGEST
+  INGEST
+  AI_GATEWAY
+}
+
+model RoleAssignment {
+  id           String       @id @default(cuid())
+  ownerId      String       @map("owner_id")
+  projectId    String?      @map("project_id")
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  orgId        String       @map("org_id")
+  organization Organization @relation("RoleAssignmentTenant", fields: [orgId], references: [id], onDelete: Cascade)
+  principalId  String       @map("principal_id")
+  userId       String?      @map("user_id")
+  user         User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKeyId     String?      @map("api_key_id")
+  apiKey       ApiKey?      @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  roleId       String       @map("role_id")
+  systemRole   SystemRole   @map("system_role")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @default(now()) @updatedAt @map("updated_at")
+
+  deprecatedOwnerOrgId        String?       @map("owner_org_id") @ignore
+  deprecatedOwnerOrg          Organization? @relation("DeprecatedRoleAssignmentOrganization", fields: [deprecatedOwnerOrgId], references: [id], onDelete: Cascade) @ignore
+  deprecatedOwnerProjectId    String?       @map("owner_project_id") @ignore
+  deprecatedOwnerProject      Project?      @relation("DeprecatedRoleAssignmentProject", fields: [deprecatedOwnerProjectId], references: [id], onDelete: Cascade) @ignore
+  deprecatedPrincipalUserId   String?       @map("principal_user_id") @ignore
+  deprecatedPrincipalUser     User?         @relation("DeprecatedRoleAssignmentUser", fields: [deprecatedPrincipalUserId], references: [id], onDelete: Cascade) @ignore
+  deprecatedPrincipalApiKeyId String?       @map("principal_api_key_id") @ignore
+  deprecatedPrincipalApiKey   ApiKey?       @relation("DeprecatedRoleAssignmentApiKey", fields: [deprecatedPrincipalApiKeyId], references: [id], onDelete: Cascade) @ignore
+
+  @@unique([deprecatedPrincipalUserId, deprecatedOwnerOrgId, systemRole], map: "role_assignments_user_org_role_key")
+  @@unique([deprecatedPrincipalUserId, deprecatedOwnerProjectId, systemRole], map: "role_assignments_user_project_role_key")
+  @@unique([deprecatedPrincipalApiKeyId, deprecatedOwnerOrgId, systemRole], map: "role_assignments_api_key_org_role_key")
+  @@unique([deprecatedPrincipalApiKeyId, deprecatedOwnerProjectId, systemRole], map: "role_assignments_api_key_project_role_key")
+  @@unique([ownerId, principalId, roleId])
+  @@index([deprecatedOwnerOrgId], map: "role_assignments_owner_org_id_idx")
+  @@index([deprecatedOwnerProjectId], map: "role_assignments_owner_project_id_idx")
+  @@index([orgId])
+  @@index([projectId])
+  @@index([principalId])
+  @@index([userId])
+  @@index([apiKeyId])
+  @@map("role_assignments")
+}
+
+enum GatewayIngestionMode {
+  USAGE @map("usage")
+  FULL  @map("full")
+}
+
+enum GatewayProvider {
+  OPENAI    @map("openai")
+  ANTHROPIC @map("anthropic")
+}
+
+enum GatewayConnectionStatus {
+  ENABLED  @map("enabled")
+  DISABLED @map("disabled")
+  ERROR    @map("error")
+}
+
+model GatewayConfig {
+  organizationId            String               @id @map("organization_id")
+  organization              Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  defaultIngestionProjectId String?              @map("default_ingestion_project_id")
+  defaultIngestionProject   Project?             @relation("GatewayDefaultIngestionProject", fields: [defaultIngestionProjectId], references: [id], onDelete: SetNull)
+  ingestionMode             GatewayIngestionMode @default(USAGE) @map("ingestion_mode")
+  createdAt                 DateTime             @default(now()) @map("created_at")
+  updatedAt                 DateTime             @default(now()) @updatedAt @map("updated_at")
+
+  @@map("gateway_configs")
+}
+
+model GatewayAiConnection {
+  id                  String                  @id @default(cuid())
+  organizationId      String                  @map("organization_id")
+  organization        Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name                String
+  provider            GatewayProvider
+  encryptedCredential String                  @map("encrypted_credentials")
+  displaySecret       String                  @map("display_secret_key")
+  createdById         String?                 @map("created_by_id")
+  routingPriority     Int                     @map("routing_priority")
+  status              GatewayConnectionStatus @default(ENABLED)
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([organizationId, routingPriority])
+  @@index([organizationId, status, routingPriority])
+  @@map("gateway_ai_connections")
+}
+
+model GatewayApiKeyAssociation {
+  apiKeyId String @id @map("api_key_id")
+  apiKey   ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  metadata Json   @default("{}") @db.JsonB
+
+  @@map("gateway_api_key_associations")
+}
+
 enum InAppAgentConversationVisibilityScope {
   PERSONAL
   PROJECT
 }
 
 model InAppAgentConversation {
-  id                String
-  projectId         String                                @map("project_id")
-  project           Project                               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdByUserId   String?                               @map("created_by_user_id")
-  createdByUser     User?                                 @relation("InAppAgentConversationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  title             String?
-  renamedByUserAt   DateTime?                             @map("renamed_by_user_at")
-  visibilityScope   InAppAgentConversationVisibilityScope @default(PERSONAL) @map("visibility_scope")
-  providerSessionId String?                               @map("provider_session_id")
+  id                 String
+  projectId          String                                @map("project_id")
+  project            Project                               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdByUserId    String?                               @map("created_by_user_id")
+  createdByUser      User?                                 @relation("InAppAgentConversationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  title              String?
+  renamedByUserAt    DateTime?                             @map("renamed_by_user_at")
+  visibilityScope    InAppAgentConversationVisibilityScope @default(PERSONAL) @map("visibility_scope")
+  providerSessionId  String?                               @map("provider_session_id")
   // Prefixed tool grants are revalidated against the registry and owner's role each run.
-  alwaysAllowedTools String[]                             @default([]) @map("always_allowed_tools")
-  deletedAt         DateTime?                             @map("deleted_at")
-  createdAt         DateTime                              @default(now()) @map("created_at")
-  updatedAt         DateTime                              @default(now()) @updatedAt @map("updated_at")
+  alwaysAllowedTools String[]                              @default([]) @map("always_allowed_tools")
+  deletedAt          DateTime?                             @map("deleted_at")
+  createdAt          DateTime                              @default(now()) @map("created_at")
+  updatedAt          DateTime                              @default(now()) @updatedAt @map("updated_at")
 
   events               InAppAgentEvent[]
   runs                 InAppAgentRun[]
@@ -258,6 +400,7 @@ model InAppAgentConversation {
 
   @@id([id, projectId])
   @@index([projectId, createdByUserId, deletedAt, updatedAt, id], map: "in_app_agent_conversations_project_user_list_idx")
+  @@index([projectId, updatedAt], map: "in_app_agent_conversations_project_updated_at_idx")
   @@map("in_app_agent_conversations")
 }
 
@@ -365,6 +508,9 @@ model LlmApiKeys {
   projectId       String            @map("project_id")
   project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   DefaultLlmModel DefaultLlmModel[] @relation("LlmApiKeyId")
+  topicSummaryConfigs    TopicConfig[] @relation("TopicConfigSummaryLlmApiKey")
+  topicEmbeddingConfigs  TopicConfig[] @relation("TopicConfigEmbeddingLlmApiKey")
+  topicClusteringConfigs TopicConfig[] @relation("TopicConfigClusteringLlmApiKey")
 
   @@unique([projectId, provider])
   @@map("llm_api_keys")
@@ -780,6 +926,70 @@ model PromptProtectedLabels {
   @@map("prompt_protected_labels")
 }
 
+model Skill {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdBy     String      @map("created_by")
+  name          String
+  description   String
+  frontmatter   Json        @default("{}")
+  version       Int
+  tags          String[]    @default([])
+  labels        String[]    @default([])
+  commitMessage String?     @map("commit_message")
+  files         SkillFile[]
+
+  @@unique([projectId, name, version])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([tags(ops: ArrayOps)], type: Gin)
+  @@index([labels(ops: ArrayOps)], type: Gin)
+  @@map("skills")
+}
+
+model SkillFile {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  skillId String @map("skill_id")
+  skill   Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  blobId String    @map("blob_id")
+  blob   SkillBlob @relation(fields: [blobId], references: [id], onDelete: Restrict)
+
+  path String
+
+  @@unique([projectId, skillId, path])
+  @@index([projectId, blobId])
+  @@map("skill_files")
+}
+
+model SkillBlob {
+  id         String    @id @default(cuid())
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  sha256Hash    String @map("sha_256_hash") @db.Char(44)
+  contentType   String @map("content_type")
+  contentLength Int @map("content_length")
+  content       String @db.Text
+
+  files SkillFile[]
+
+  @@unique([projectId, sha256Hash])
+  @@map("skill_blobs")
+}
+
 // Update ObservationView below when making changes to this model!
 model Model {
   id        String   @id @default(cuid())
@@ -876,6 +1086,22 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// Outbox for audit events on their way to the ClickHouse `audit_logs` table.
+// A row is deleted once ClickHouse has acknowledged its insert, so the table
+// stays near-empty. `payload` holds an `AuditLogStagingPayload`.
+model AuditLogStaging {
+  id        String    @id @db.Uuid // UUIDv7, so id order follows creation time
+  createdAt DateTime  @default(now()) @map("created_at")
+  payload   Json
+  // Set when the relay could not map `payload` to a ClickHouse row. The row
+  // stays and is retried after a delay, e.g. once a newer worker that knows
+  // its schema is deployed.
+  failedAt  DateTime? @map("failed_at")
+  lastError String?   @map("last_error")
+
+  @@map("audit_log_staging")
+}
+
 model EvalTemplate {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
@@ -915,6 +1141,7 @@ model Evaluator {
 
   name            String
   type            EvalTemplateType
+  isBuiltIn       Boolean              @default(false) @map("is_built_in")
   description     String?
   createdByUserId String?               @map("created_by_user_id")
   createdByUser   User?                 @relation("EvaluatorCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -941,6 +1168,7 @@ model EvaluatorVersion {
   createdByUser   User?   @relation("EvaluatorVersionCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   prompt             String?
+  promptMessages     Json?                        @map("prompt_messages")
   partner            String?
   model              String?
   provider           String?
@@ -950,6 +1178,9 @@ model EvaluatorVersion {
   outputDefinition   Json?                        @map("output_definition")
   sourceCode         String?                      @map("source_code") @db.VarChar(262144)
   sourceCodeLanguage EvaluatorSourceCodeLanguage? @map("source_code_language")
+  questions          Json?
+
+  topicClusteringRuns TopicClusteringRun[]
 
   @@unique([evaluatorId, version(sort: Desc)])
   @@map("evaluator_versions")
@@ -958,6 +1189,8 @@ model EvaluatorVersion {
 enum EvalTemplateType {
   LLM_AS_JUDGE
   CODE
+  DECISION_MODEL
+  FACET
 }
 
 enum EvalTemplateSourceCodeLanguage {
@@ -1014,7 +1247,7 @@ model JobConfiguration {
   variableMapping Json     @map("variable_mapping")
   sampling        Decimal // ratio of jobs that are executed for sampling (0..1)
   delay           Int // delay in milliseconds
-  timeScope       String[]       @default(["NEW"]) @map("time_scope")
+  timeScope       String[] @default(["NEW"]) @map("time_scope")
 
   @@index([projectId, id])
   @@map("job_configurations")
@@ -1036,12 +1269,35 @@ model EvaluationRule {
   filter          Json
   sampling        Decimal
   delay           Int
+  // Unused; kept until no deployed version selects it, then dropped.
+  idleTime        Int?           @map("idle_time") // milliseconds
   timeScope       String[]       @default(["NEW"]) @map("time_scope")
 
   assignments EvaluationRuleEvaluatorAssignment[]
 
   @@index([projectId, updatedAt(sort: Desc)])
   @@map("evaluation_rules")
+}
+
+// When tracing data is ready for downstream work (Topics, trace-level
+// evaluations). One row per project; null columns fall back to the deployment
+// default. Session settings join as their own nullable columns.
+model TracingReadinessSettings {
+  projectId String   @id @map("project_id")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  createdBy     String? @map("created_by")
+  createdByUser User?   @relation("CreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedBy     String? @map("updated_by")
+  updatedByUser User?   @relation("UpdatedByUser", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  // A trace is due this long after its latest event. Null uses
+  // LANGFUSE_TRACE_BATCH_IDLE_MS. Bounds are enforced on write, not in the DB.
+  traceIdleMs Int? @map("trace_idle_ms")
+
+  @@map("tracing_readiness_settings")
 }
 
 model EvaluationRuleEvaluatorAssignment {
@@ -1129,6 +1385,48 @@ model DefaultLlmModel {
   @@map("default_llm_models")
 }
 
+// Per-project Topics configuration: the switch, pause state, and the three model
+// slots, each referencing one of the project's LLM connections.
+model TopicConfig {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  createdBy     String? @map("created_by")
+  createdByUser User?   @relation("CreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedBy     String? @map("updated_by")
+  updatedByUser User?   @relation("UpdatedByUser", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  projectId String  @unique @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Kill switch for automatic trace processing; facet rules are kept while off.
+  enabled Boolean @default(false)
+  // Same columns as Evaluator, set when a configured connection is no longer valid.
+  blockedAt    DateTime?             @map("blocked_at")
+  blockReason  EvaluatorBlockReason? @map("block_reason")
+  blockMessage String?               @map("block_message")
+
+  summaryLlmApiKeyId String?     @map("summary_llm_api_key_id")
+  summaryLlmApiKey   LlmApiKeys? @relation("TopicConfigSummaryLlmApiKey", fields: [summaryLlmApiKeyId], references: [id], onDelete: SetNull)
+  summaryModel       String?     @map("summary_model")
+
+  embeddingLlmApiKeyId String?     @map("embedding_llm_api_key_id")
+  embeddingLlmApiKey   LlmApiKeys? @relation("TopicConfigEmbeddingLlmApiKey", fields: [embeddingLlmApiKeyId], references: [id], onDelete: SetNull)
+  embeddingModel       String?     @map("embedding_model")
+  embeddingDimensions  Int         @default(1024) @map("embedding_dimensions")
+
+  // Names and describes each cluster during Update topics.
+  clusteringLlmApiKeyId String?     @map("clustering_llm_api_key_id")
+  clusteringLlmApiKey   LlmApiKeys? @relation("TopicConfigClusteringLlmApiKey", fields: [clusteringLlmApiKeyId], references: [id], onDelete: SetNull)
+  clusteringModel       String?     @map("clustering_model")
+
+  @@index([summaryLlmApiKeyId])
+  @@index([embeddingLlmApiKeyId])
+  @@index([clusteringLlmApiKeyId])
+  @@map("topic_configs")
+}
+
 // Single Sign-On configuration for a domain
 // This feature is part of the Enterprise Edition
 model SsoConfig {
@@ -1176,6 +1474,11 @@ model PosthogIntegration {
   createdAt              DateTime                         @default(now()) @map("created_at")
   exportSource           AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
 
+  // True while the integration is exporting history (new, re-enabled, or export
+  // mode reset), so the export staleness gauge can separate it from steady
+  // state. Cleared by the worker once a run lands within an hour of its start.
+  backfill               Boolean                          @default(true)
+
   // Last deterministic customer-config fault (bad hostname) that disabled the
   // integration. Written by the worker, surfaced in the integration settings
   // status section, and cleared on a successful run.
@@ -1194,6 +1497,11 @@ model MixpanelIntegration {
   enabled                       Boolean
   createdAt                     DateTime                         @default(now()) @map("created_at")
   exportSource                  AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
+
+  // True while the integration is exporting history (new, re-enabled, or export
+  // mode reset), so the export staleness gauge can separate it from steady
+  // state. Cleared by the worker once a run lands within an hour of its start.
+  backfill                      Boolean                          @default(true)
 
   @@map("mixpanel_integrations")
 }
@@ -1232,6 +1540,11 @@ model BlobStorageIntegration {
   // Run tracking
   runStartedAt DateTime? @map("run_started_at")
 
+  // True while the integration is exporting history (new, re-enabled, or export
+  // mode reset), so the export staleness gauge can separate it from steady
+  // state. Cleared by the worker once a run lands within an hour of its start.
+  backfill     Boolean   @default(true)
+
   // Error tracking
   lastError   String?   @map("last_error")
   lastErrorAt DateTime? @map("last_error_at")
@@ -1243,6 +1556,25 @@ model BlobStorageIntegration {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("blob_storage_integrations")
+}
+
+model ExternalMediaStorageIntegration {
+  projectId String  @id @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  type            ExternalMediaStorageIntegrationType @map("type")
+  bucketName      String                              @map("bucket_name")
+  prefix          String?                             @map("prefix")
+  accessKeyId     String?                             @map("access_key_id")
+  secretAccessKey String?                             @map("secret_access_key")
+  region          String                              @map("region")
+  endpoint        String?                             @map("endpoint")
+  forcePathStyle  Boolean                             @map("force_path_style")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("external_media_storage_integrations")
 }
 
 model WebCalloutEndpoint {
@@ -1278,8 +1610,14 @@ enum BlobStorageIntegrationType {
   S3
   S3_COMPATIBLE
   AZURE_BLOB_STORAGE
+  GOOGLE_CLOUD_STORAGE
 
   @@map("BlobStorageIntegrationType")
+}
+
+enum ExternalMediaStorageIntegrationType {
+  S3
+  S3_COMPATIBLE
 }
 
 enum BlobStorageExportMode {
@@ -1880,4 +2218,23 @@ model CloudSpendAlert {
 
   @@index([orgId])
   @@map("cloud_spend_alerts")
+}
+
+model TopicClusteringRun {
+  id              String           @id @default(cuid())
+  projectId       String           @map("project_id")
+  facetId         String           @map("facet_id")
+  facetVersion    Int              @map("facet_version")
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  facet           EvaluatorVersion @relation(fields: [facetId, facetVersion], references: [evaluatorId, version], onDelete: Cascade)
+  status          String           @default("pending")
+  config          Json             @default("{}")
+  error           String?
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  startedAt       DateTime?        @map("started_at") @db.Timestamptz(3)
+  finishedAt      DateTime?        @map("finished_at") @db.Timestamptz(3)
+  topicVersionIds String[]         @default([]) @map("topic_version_ids")
+
+  @@index([projectId, facetId, status, facetVersion(sort: Desc), createdAt(sort: Desc), id(sort: Desc)], map: "topic_clustering_runs_serving_map_idx")
+  @@map("topic_clustering_runs")
 }

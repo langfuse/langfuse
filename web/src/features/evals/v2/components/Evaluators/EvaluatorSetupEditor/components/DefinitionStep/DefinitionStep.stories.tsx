@@ -31,3 +31,15 @@ export const Code = meta.story({
     codeEditor: <div className="rounded-md border p-3">Code editor</div>,
   },
 });
+
+export const DecisionModel = meta.story({
+  args: {
+    open: true,
+    onOpenChange: fn(),
+    type: "DECISION_MODEL",
+    onTypeChange: fn(),
+    isEditing: false,
+    typeConfiguration: <button type="button">typesafe: jev-1.13.0</button>,
+    questionsEditor: <div className="rounded-md border p-3">Question list</div>,
+  },
+});

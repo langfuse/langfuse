@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   CloudWatchClient,
   PutMetricDataCommand,
@@ -6,6 +7,7 @@ import * as opentelemetry from "@opentelemetry/api";
 import * as dd from "dd-trace";
 import { env } from "../../env";
 import { logger } from "../logger";
+import { CLICKHOUSE_ROUTE_CONTEXT_KEY } from "../clickhouse/queryTags";
 
 export type TCarrier = {
   traceparent?: string;
@@ -29,12 +31,7 @@ export async function instrumentAsync<T>(
   callback: AsyncCallbackFn<T>,
 ): Promise<T> {
   const activeContext = ctx.startNewTrace
-    ? // Sever the parent trace but carry baggage onto the new root.
-      opentelemetry.propagation.setBaggage(
-        opentelemetry.ROOT_CONTEXT,
-        opentelemetry.propagation.getBaggage(opentelemetry.context.active()) ??
-          opentelemetry.propagation.createBaggage(),
-      )
+    ? newTraceRootContext()
     : ctx.traceContext
       ? opentelemetry.propagation.extract(
           opentelemetry.context.active(),
@@ -71,6 +68,23 @@ export async function instrumentAsync<T>(
   );
 }
 
+/**
+ * Severs the parent trace but carries baggage and the ClickHouse route onto the
+ * new root, so queries in the new trace keep their attribution.
+ */
+const newTraceRootContext = () => {
+  const active = opentelemetry.context.active();
+  const root = opentelemetry.propagation.setBaggage(
+    opentelemetry.ROOT_CONTEXT,
+    opentelemetry.propagation.getBaggage(active) ??
+      opentelemetry.propagation.createBaggage(),
+  );
+  const route = active.getValue(CLICKHOUSE_ROUTE_CONTEXT_KEY);
+  return route === undefined
+    ? root
+    : root.setValue(CLICKHOUSE_ROUTE_CONTEXT_KEY, route);
+};
+
 type SyncCallbackFn<T> = (span: opentelemetry.Span) => T;
 
 /** instrumentSync runs a callback inside a fresh OTel span. */
@@ -79,12 +93,7 @@ export function instrumentSync<T>(
   callback: SyncCallbackFn<T>,
 ): T {
   const activeContext = ctx.startNewTrace
-    ? // Sever the parent trace but carry baggage onto the new root.
-      opentelemetry.propagation.setBaggage(
-        opentelemetry.ROOT_CONTEXT,
-        opentelemetry.propagation.getBaggage(opentelemetry.context.active()) ??
-          opentelemetry.propagation.createBaggage(),
-      )
+    ? newTraceRootContext()
     : ctx.traceContext
       ? opentelemetry.propagation.extract(
           opentelemetry.context.active(),
@@ -122,6 +131,14 @@ export function instrumentSync<T>(
 }
 
 export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
+
+export const getActiveTraceId = () => {
+  const span = opentelemetry.trace.getActiveSpan();
+  // Only return a trace id for sampled/recording spans. An unsampled span still
+  // carries a valid traceId in its context but is never exported, so that id
+  // would resolve to nothing in the tracing backend.
+  return span?.isRecording() ? span.spanContext().traceId : undefined;
+};
 
 export const addTagsToCurrentSpan = (
   attributes: Parameters<opentelemetry.Span["setAttributes"]>[0],
@@ -264,7 +281,7 @@ const sendCloudWatchMetric = (key: string, value: number, replace: boolean) => {
 };
 
 // Flush all cached metrics in a single API call
-const flushMetricsToCloudWatch = () => {
+export const flushMetricsToCloudWatch = () => {
   if (Object.keys(metricCache).length === 0) return;
 
   lastFlushTime = Date.now();
@@ -290,8 +307,12 @@ const flushMetricsToCloudWatch = () => {
 };
 
 // Metrics ending with these suffixes have their tags flattened into the
-// CloudWatch metric name (excluding "unit"). Other metrics are unaffected.
+// CloudWatch metric name (excluding CW_UNFLATTENED_TAGS). Other metrics are
+// unaffected.
 const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate", ".dlq_oldest_age"];
+// "reason" is a Datadog-only breakdown; flattening it would rename existing
+// CloudWatch series.
+const CW_UNFLATTENED_TAGS = new Set(["unit", "reason"]);
 
 function buildCloudWatchKey(
   stat: string,
@@ -301,7 +322,7 @@ function buildCloudWatchKey(
     return stat;
   }
   const suffix = Object.entries(tags)
-    .filter(([k]) => k !== "unit")
+    .filter(([k]) => !CW_UNFLATTENED_TAGS.has(k))
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}_${v}`)
     .join(".");

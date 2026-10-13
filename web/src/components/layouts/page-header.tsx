@@ -1,20 +1,15 @@
 /* eslint-disable @repo/no-style-props */
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import { type LangfuseItemType } from "@/src/components/ItemBadge";
+import { EntityTitle } from "@/src/components/EntityTitle";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { TopbarBrand } from "@/src/components/nav/topbar-brand";
 import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import {
   PageTabs,
   type PageTabsProps,
@@ -31,26 +26,34 @@ const containerLayoutClassName =
 
 export type PageHeaderProps = {
   title: string;
-  /** Rich title rendering (e.g. inline-editable); replaces the plain title
-   * span inside the heading. `title` stays the canonical string. */
-  titleContent?: ReactNode;
   breadcrumb?: { name: string; href?: string }[];
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRightClassName?: string;
+  /** Mobile-only primary action rendered directly beside the page title. Use
+   * this when collapsing the action would add an unnecessary overflow menu. */
+  mobileActionButtons?: ReactNode;
   /** Mobile-only: the same actions rendered as full-width labeled menu rows
    * (icon + label), for the compact header's `⋯` overflow. Pages pass a
    * `layout="menu"` variant of their actions here (mirrors the table peek's
    * `actionsMenu`). When omitted, the mobile header falls back to folding the
    * inline `actionButtonsRight`/`actionButtonsLeft` nodes as-is. Desktop
-   * `PageHeader` ignores this. */
-  actionButtonsMenu?: React.ReactNode;
+   * `PageHeader` ignores this. The render callback can hand off focus through the stable menu trigger
+   * before opening another panel, without delayed trigger focus restoration. */
+  actionButtonsMenu?:
+    | ReactNode
+    | ((control: {
+        closeMenu: (options?: { handoffFocus?: boolean }) => void;
+      }) => ReactNode);
   help?: { description: React.ReactNode; href?: string; className?: string };
   titleTooltip?: string;
   itemType?: LangfuseItemType;
   container?: boolean;
   tabsProps?: PageTabsProps;
   className?: string;
+  /** Bottom border and bottom padding; pages whose own strip follows the
+   * header directly turn both off so title and strip read as one block. */
+  divider?: boolean;
   showSidebarTrigger?: boolean;
   leadingControl?: ReactNode;
   titleBadges?: ReactNode;
@@ -59,7 +62,6 @@ export type PageHeaderProps = {
 
 const PageHeader = ({
   title,
-  titleContent,
   itemType,
   actionButtonsLeft,
   actionButtonsRight,
@@ -70,6 +72,7 @@ const PageHeader = ({
   tabsProps,
   container = false,
   className,
+  divider = true,
   showSidebarTrigger = true,
   leadingControl,
   titleBadges,
@@ -77,6 +80,7 @@ const PageHeader = ({
 }: PageHeaderProps) => {
   const hasAppSidebar = useHasAppSidebar();
   const envLabel = useEnvLabel();
+  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   // The sidebar trigger + brand mark only make sense where a real AppSidebar
   // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
   // trace and session views) show the page's own leadingControl instead — no
@@ -85,7 +89,8 @@ const PageHeader = ({
   return (
     <div
       className={cn([
-        "top-banner-offset bg-background sticky z-30 w-full border-b shadow-xs",
+        "top-banner-offset bg-background sticky z-30 w-full",
+        divider && "border-b",
         className,
       ])}
       id="page-header"
@@ -101,19 +106,15 @@ const PageHeader = ({
         >
           <div
             className={cn(
-              // No extra vertical padding: min-h-11 + border-b already is
-              // the 44px box. Extra py would grow the row past the sidebar
-              // strip (border-box counts padding inside min-height, then
-              // 32px controls no longer fit). justify-between (not ml-auto
-              // on the slot) so the controls sit right when the row fits on
-              // one line but fall back to the LEFT edge when they wrap to
-              // their own line on narrow viewports (a line with a single
-              // flex item renders as flex-start).
-              "flex h-full w-full flex-wrap items-center justify-between gap-3 px-3 leading-none",
+              // Each flex line is 43px plus the shared 1px border. A single
+              // line therefore stays aligned with the sidebar's 44px row,
+              // while wrapped controls form a second full-height row instead
+              // of looking squeezed between the header edges.
+              "flex h-full w-full flex-wrap items-center justify-between gap-x-3 gap-y-px px-3 leading-none",
               container && containerLayoutClassName,
             )}
           >
-            <div className="flex min-h-5 min-w-0 flex-wrap items-center gap-3">
+            <div className="flex min-h-[43px] min-w-0 flex-wrap items-center gap-2">
               {showSidebarChrome ? (
                 <>
                   <SidebarTrigger />
@@ -127,15 +128,8 @@ const PageHeader = ({
                   <div className="flex items-center">{leadingControl}</div>
                 )
               )}
-              <div>
-                {envLabel.visible && (
-                  <EnvLabelBadge
-                    region={envLabel.region}
-                    onClick={envLabel.dismiss}
-                  />
-                )}
-              </div>
-              <div className="flex translate-y-px items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {envLabel.visible && <EnvLabelBadge region={envLabel.region} />}
                 <BreadcrumbComponent items={breadcrumb} />
                 {breadcrumbBadges}
               </div>
@@ -143,9 +137,9 @@ const PageHeader = ({
             {/* Slot for page-level controls (time range, auto-refresh)
                 hoisted from a list table via PageHeaderControlsPortal.
                 Empty on pages that don't use it. */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex min-h-[43px] flex-wrap items-center gap-2">
               <PageHeaderControlsSlotTarget />
-              <InAppAiAgentButton />
+              {isInAppAgentLauncherVisible && <InAppAiAgentButton />}
             </div>
           </div>
         </div>
@@ -154,63 +148,23 @@ const PageHeader = ({
         <div>
           <div
             className={cn(
-              "flex min-h-11 w-full flex-wrap items-center justify-between gap-1 px-3 py-1 md:flex-nowrap",
+              "flex w-full flex-wrap items-center justify-between gap-1 px-4 md:flex-nowrap",
+              divider ? "min-h-11 py-1" : "min-h-0 pt-3 pb-0",
               container && containerLayoutClassName,
             )}
           >
             {/* Left side content */}
-            <div className="flex grow flex-wrap items-center md:grow-0">
-              <div className="mr-2 flex items-center gap-1">
-                {itemType && (
-                  <div className="flex items-center">
-                    <ItemBadge type={itemType} showLabel />
-                  </div>
-                )}
-                <div className="relative inline-block max-w-md md:max-w-none">
-                  {/* Explicit color: the SidebarProvider shell sets
-                      text-sidebar-foreground (60% grey in dark) on the whole
-                      app, so unstyled text here would inherit the dimmed
-                      sidebar tint. text-primary is the emphasis tier —
-                      brighter than body text-foreground in dark. */}
-                  <h2 className="text-primary line-clamp-1 text-lg leading-7 font-bold">
-                    {titleContent ? (
-                      titleContent
-                    ) : titleTooltip ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span
-                              className="cursor-help wrap-break-word"
-                              data-testid="page-header-title"
-                            >
-                              {title}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" className="max-w-xs">
-                            {titleTooltip}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
-                      <span
-                        className="wrap-break-word"
-                        title={title}
-                        data-testid="page-header-title"
-                      >
-                        {title}
-                      </span>
-                    )}
-                    {help && (
-                      <span className="whitespace-nowrap">
-                        &nbsp;
-                        <DocPopup
-                          description={help.description}
-                          href={help.href}
-                          className={help.className}
-                        />
-                      </span>
-                    )}
-                  </h2>
+            <div className="flex min-w-0 grow flex-wrap items-center md:grow-0">
+              <div className="mr-2 flex min-w-0 items-center gap-2">
+                <div className="max-w-md min-w-0 md:max-w-none">
+                  <EntityTitle
+                    as="h2"
+                    type={itemType}
+                    title={title}
+                    tooltip={titleTooltip}
+                    help={help}
+                    data-testid="page-header-title"
+                  />
                 </div>
                 {titleBadges && (
                   <div className="ml-1 flex items-center gap-1">
@@ -237,12 +191,7 @@ const PageHeader = ({
             </div>
           </div>
 
-          {tabsProps && (
-            <PageTabs
-              {...tabsProps}
-              className={cn("ml-2", tabsProps.className)}
-            />
-          )}
+          {tabsProps && <PageTabs {...tabsProps} />}
         </div>
       </div>
     </div>

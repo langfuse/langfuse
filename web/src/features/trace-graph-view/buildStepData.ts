@@ -5,16 +5,15 @@ import {
   LANGFUSE_END_NODE_NAME,
 } from "./types";
 
-function buildStepGroups(
+function takeNextStepGroup(
   observations: AgentGraphDataResponse[],
   timestampCache: Map<string, { start: number; end: number }>,
-): AgentGraphDataResponse[][] {
-  if (observations.length === 0) return [];
-
-  const stepGroups: AgentGraphDataResponse[][] = [];
-
+): {
+  cleanedGroup: AgentGraphDataResponse[];
+  unprocessed: AgentGraphDataResponse[];
+} {
   // create observation group and put the beginning observation in it
-  let currentGroup = [observations[0]];
+  const currentGroup = [observations[0]];
   const remainingObs = observations.slice(1);
 
   // Track max end time for early termination optimization
@@ -67,23 +66,42 @@ function buildStepGroups(
   });
 
   // Inverted or otherwise invalid time ranges can cause cleanup to remove every
-  // observation, which would recurse with identical input until the stack overflows.
-  // To prevent this, if the cleaned group is empty, we will use the original group as a fallback
-  // and mark all of its observations as processed to avoid infinite recursion.
+  // observation. Keep the original group so grouping always makes progress.
   if (cleanedGroup.length === 0) {
     cleanedGroup.push(...currentGroup);
     currentGroup.forEach((o) => processedIds.add(o.id));
   }
 
-  stepGroups.push(cleanedGroup);
+  return {
+    cleanedGroup,
+    unprocessed: observations.filter((obs) => !processedIds.has(obs.id)),
+  };
+}
 
-  // Optimization: use incrementally built processedIds set
-  const unprocessed = observations.filter((obs) => !processedIds.has(obs.id));
+function buildStepGroups(
+  observations: AgentGraphDataResponse[],
+  timestampCache: Map<string, { start: number; end: number }>,
+): AgentGraphDataResponse[][] {
+  const stepGroups: AgentGraphDataResponse[][] = [];
+  let remaining = observations;
 
-  // process remaining observations in recursion
-  if (unprocessed.length > 0) {
-    const remainingStepGroups = buildStepGroups(unprocessed, timestampCache);
-    stepGroups.push(...remainingStepGroups);
+  // Iterative so a long sequential chain (one group per observation) cannot
+  // overflow the call stack.
+  while (remaining.length > 0) {
+    const remainingCount = remaining.length;
+    const { cleanedGroup, unprocessed } = takeNextStepGroup(
+      remaining,
+      timestampCache,
+    );
+
+    if (cleanedGroup.length === 0 || unprocessed.length >= remainingCount) {
+      stepGroups.push([remaining[0]]);
+      remaining = remaining.slice(1);
+      continue;
+    }
+
+    stepGroups.push(cleanedGroup);
+    remaining = unprocessed;
   }
 
   return stepGroups;

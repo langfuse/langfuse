@@ -1,4 +1,5 @@
 import { JobExecutionStatus } from "@prisma/client";
+import type { EvalExecutionContext } from "@langfuse/shared";
 import {
   logger,
   traceException,
@@ -6,6 +7,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { buildEvalScoreWritePayloads } from "./evalScoreEvent";
 import { type EvalExecutionDeps } from "./evalExecutionDeps";
+import {
+  recordEvalScorePersistenceOutcome,
+  type ObservationEvalExecutionType,
+} from "./evalExecutionMetrics";
 
 /**
  * Common result returned by every evaluator executor (LLM-as-judge,
@@ -16,6 +21,7 @@ export type EvalExecutionResult = {
   scores: CodeEvalScoreWithName[];
   executionTraceId: string;
   metadata: Record<string, string>;
+  evaluationContext: EvalExecutionContext;
 };
 
 export async function completeEvalExecution({
@@ -25,6 +31,7 @@ export async function completeEvalExecution({
   traceId,
   observationId,
   environment,
+  executionType,
   deps,
 }: {
   projectId: string;
@@ -33,6 +40,7 @@ export async function completeEvalExecution({
   traceId: string | null;
   observationId: string | null;
   environment: string;
+  executionType: ObservationEvalExecutionType;
   deps: EvalExecutionDeps;
 }): Promise<{ scoreCount: number }> {
   const scoreWritePayloads = buildEvalScoreWritePayloads({
@@ -43,6 +51,7 @@ export async function completeEvalExecution({
     environment,
     executionTraceId: result.executionTraceId,
     executionMetadata: result.metadata,
+    evaluationContext: result.evaluationContext,
   });
   const [firstScorePayload] = scoreWritePayloads;
 
@@ -69,6 +78,11 @@ export async function completeEvalExecution({
       }),
     );
   } catch (e) {
+    recordEvalScorePersistenceOutcome(
+      executionType,
+      "failure",
+      scoreWritePayloads.length,
+    );
     logger.error(`Failed to persist score: ${e}`, e);
     traceException(e);
     throw new Error(
@@ -76,6 +90,11 @@ export async function completeEvalExecution({
     );
   }
 
+  recordEvalScorePersistenceOutcome(
+    executionType,
+    "success",
+    scoreWritePayloads.length,
+  );
   logger.debug(
     `Persisted ${scoreWritePayloads.length} score(s) for job ${jobExecutionId}`,
   );

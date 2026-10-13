@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 // Search-bar query language: tolerant hand-rolled lexer + recursive-descent
 // parser and the canonical serializer.
 //
@@ -28,8 +29,6 @@ import { NEEDS_QUOTES, quote, unquote } from "./quoting";
 
 // Re-exported for back-compat: quoting primitives now live in the shared
 // dependency-free `quoting.ts` (so `fields.ts` can use them too).
-export { NEEDS_QUOTES };
-
 export type Diagnostic = {
   from: number;
   to: number;
@@ -880,7 +879,7 @@ const OP_SYMBOL: Partial<Record<CompareOp, string>> = {
   "<=": "<=",
 };
 
-export function serializeFilter(node: FilterNode): string {
+function serializeFilter(node: FilterNode): string {
   // Prefer the user's typed key (alias/casing) — surgery fallbacks shouldn't
   // canonicalize untouched filters.
   const key = node.rawKey ?? node.key;
@@ -891,8 +890,15 @@ export function serializeFilter(node: FilterNode): string {
   // Text-match ops render as positional `*` globs around the value.
   if (node.op === "~" || node.op === "^" || node.op === "$") {
     const v = serializeValue(node.values[0] ?? "");
-    const wrapped =
-      node.op === "~" ? `*${v}*` : node.op === "^" ? `${v}*` : `*${v}`;
+    const wrapped = (() => {
+      if (node.op === "~") {
+        return `*${v}*`;
+      }
+      if (node.op === "^") {
+        return `${v}*`;
+      }
+      return `*${v}`;
+    })();
     return `${key}:${wrapped}`;
   }
   return `${key}:${OP_SYMBOL[node.op] ?? ""}${node.values.map(serializeValue).join(",")}`;

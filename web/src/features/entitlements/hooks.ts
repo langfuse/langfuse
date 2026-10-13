@@ -76,7 +76,7 @@ export const useHasEntitlement = (entitlement: Entitlement): boolean => {
  * Hook to get the entitlement limits of the current organization or self-hosted instance.
  * @returns the entitlement limits of the current organization or self-hosted instance, including values of limits and false if unlimited.
  */
-export const useEntitlementLimits = (): EntitlementLimits => {
+const useEntitlementLimits = (): EntitlementLimits => {
   const plan = usePlan();
   return entitlementAccess[plan ?? "oss"].entitlementLimits;
 };

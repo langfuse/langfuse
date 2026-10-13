@@ -1,7 +1,7 @@
 import { CalendarDays } from "lucide-react";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import Link from "next/link";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 export const BookACallButton = () => {
   const capture = usePostHogClientCapture();
@@ -16,7 +16,7 @@ export const BookACallButton = () => {
           capture("sidebar:book_a_call_clicked");
         }}
       >
-        <CalendarDays className="h-4 w-4" />
+        <CalendarDays className="icon-base" />
         Book a call
       </Link>
     </SidebarMenuButton>

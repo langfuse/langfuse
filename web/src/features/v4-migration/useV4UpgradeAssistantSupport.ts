@@ -1,4 +1,5 @@
-import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+/* eslint-disable no-nested-ternary */
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
 import { useProjectV4SdkData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { api } from "@/src/utils/api";
 
@@ -36,10 +37,7 @@ ${V4_CODING_AGENT_PROMPT}
 """
 Also ask me whether I would instead like to complete the upgrade by deactivating or deleting all deprecated evaluators — if I say yes, help me do that here, confirming each one with me first.`;
 
-export type V4UpgradeAssistantMode =
-  | "evals-ready"
-  | "sdk-first-choice"
-  | "outside";
+type V4UpgradeAssistantMode = "evals-ready" | "sdk-first-choice" | "outside";
 
 /**
  * Plans how the in-app assistant participates in the v4 upgrade:

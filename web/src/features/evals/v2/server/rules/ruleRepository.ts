@@ -4,7 +4,9 @@ import {
   type PrismaClient,
 } from "@langfuse/shared/src/db";
 import {
+  coerceLegacyEmptyMetadataFilters,
   EvalTargetObject,
+  EvalTemplateType,
   type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -29,6 +31,10 @@ export type RulePrisma = PrismaClient | Prisma.TransactionClient;
 
 const MAX_REUSABLE_FILTER_CANDIDATES = 20;
 
+const visibleRuleWhere = {
+  assignments: { none: { evaluator: { type: EvalTemplateType.FACET } } },
+} satisfies Prisma.EvaluationRuleWhereInput;
+
 const latestVersion = {
   orderBy: { version: "desc" as const },
   take: 1,
@@ -50,7 +56,7 @@ const assignmentInclude = {
 };
 
 const ruleInclude = {
-  createdByUser: { select: { name: true, email: true } },
+  createdByUser: { select: { id: true, name: true, email: true } },
   assignments: assignmentInclude,
 } satisfies Prisma.EvaluationRuleInclude;
 
@@ -109,6 +115,7 @@ function ruleWhere(params: {
 
   return {
     projectId: params.projectId,
+    ...visibleRuleWhere,
     ...(params.search
       ? { name: { contains: params.search, mode: "insensitive" as const } }
       : {}),
@@ -134,10 +141,16 @@ export async function listRules(params: {
   input: ListRulesInput;
 }) {
   const where = ruleWhere(params.input);
+  const requestedOrder = params.input.orderBy;
+  const orderColumn =
+    requestedOrder?.column === "enabled"
+      ? "status"
+      : (requestedOrder?.column ?? "createdAt");
+  const orderDirection = requestedOrder?.order.toLowerCase() ?? "desc";
   const [rules, totalItems] = await Promise.all([
     params.prisma.evaluationRule.findMany({
       where,
-      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      orderBy: [{ [orderColumn]: orderDirection }, { id: "desc" }],
       skip: (params.input.page - 1) * params.input.limit,
       take: params.input.limit,
       include: ruleInclude,
@@ -147,6 +160,45 @@ export async function listRules(params: {
   return { rules, totalItems };
 }
 
+export async function listRulesCursor(params: {
+  prisma: PrismaClient;
+  input: Omit<ListRulesInput, "page"> & {
+    cursor?: { createdAt: Date; id: string };
+  };
+}) {
+  const baseWhere = ruleWhere(params.input);
+  const where: Prisma.EvaluationRuleWhereInput = params.input.cursor
+    ? {
+        AND: [
+          baseWhere,
+          {
+            OR: [
+              { createdAt: { lt: params.input.cursor.createdAt } },
+              {
+                createdAt: params.input.cursor.createdAt,
+                id: { lt: params.input.cursor.id },
+              },
+            ],
+          },
+        ],
+      }
+    : baseWhere;
+  const records = await params.prisma.evaluationRule.findMany({
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: params.input.limit + 1,
+    include: ruleInclude,
+  });
+  const hasMore = records.length > params.input.limit;
+  const rules = records.slice(0, params.input.limit);
+  const last = rules.at(-1);
+  return {
+    rules,
+    nextCursor:
+      hasMore && last ? { createdAt: last.createdAt, id: last.id } : undefined,
+  };
+}
+
 export async function listReusableFilterCandidates(params: {
   prisma: PrismaClient;
   projectId: string;
@@ -154,6 +206,7 @@ export async function listReusableFilterCandidates(params: {
   const rules = await params.prisma.evaluationRule.findMany({
     where: {
       projectId: params.projectId,
+      ...visibleRuleWhere,
       targetObject: {
         in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
       },
@@ -186,15 +239,16 @@ export async function listRuleFilterOptions(params: {
 }) {
   const [rules, upgradeRequiredRule] = await Promise.all([
     params.prisma.evaluationRule.findMany({
-      where: { projectId: params.projectId },
+      where: { projectId: params.projectId, ...visibleRuleWhere },
       select: {
         name: true,
-        createdByUser: { select: { name: true, email: true } },
+        createdByUser: { select: { id: true, name: true, email: true } },
       },
     }),
     params.prisma.evaluationRule.findFirst({
       where: {
         projectId: params.projectId,
+        ...visibleRuleWhere,
         ...upgradeRequiredRuleCondition,
       },
       select: { id: true },
@@ -221,7 +275,11 @@ export function findRule(params: {
   ruleId: string;
 }) {
   return params.prisma.evaluationRule.findFirst({
-    where: { id: params.ruleId, projectId: params.projectId },
+    where: {
+      id: params.ruleId,
+      projectId: params.projectId,
+      ...visibleRuleWhere,
+    },
     include: ruleInclude,
   });
 }
@@ -235,6 +293,7 @@ export async function findActiveRuleWithMatchingFilterAndSampling(params: {
   const rules = await params.prisma.evaluationRule.findMany({
     where: {
       projectId: params.projectId,
+      ...visibleRuleWhere,
       status: JobConfigState.ACTIVE,
       targetObject: EvalTargetObject.EVENT,
       sampling: params.sampling,
@@ -249,7 +308,10 @@ export async function findActiveRuleWithMatchingFilterAndSampling(params: {
 
   return (
     rules.find((rule) =>
-      filtersMatch(rule.filter as FilterState, params.filter),
+      filtersMatch(
+        coerceLegacyEmptyMetadataFilters(rule.filter) as FilterState,
+        params.filter,
+      ),
     ) ?? null
   );
 }
@@ -291,7 +353,11 @@ export function updateRule(params: {
   filter?: Prisma.InputJsonValue;
 }) {
   return params.prisma.evaluationRule.update({
-    where: { id: params.input.ruleId, projectId: params.input.projectId },
+    where: {
+      id: params.input.ruleId,
+      projectId: params.input.projectId,
+      ...visibleRuleWhere,
+    },
     data: {
       ...(params.targetObject === undefined
         ? {}
@@ -327,6 +393,7 @@ export function setRuleStatus(params: {
   return params.prisma.evaluationRule.updateMany({
     where: {
       projectId: params.projectId,
+      ...visibleRuleWhere,
       ...(params.ruleIds === undefined ? {} : { id: { in: params.ruleIds } }),
       ...(params.unassignedOnly ? { assignments: { none: {} } } : {}),
       ...(params.sampling === undefined ? { status: { not: status } } : {}),
@@ -343,15 +410,53 @@ export async function deleteRule(params: {
   projectId: string;
   ruleId: string;
 }) {
+  const result = await params.prisma.evaluationRule.deleteMany({
+    where: {
+      id: params.ruleId,
+      projectId: params.projectId,
+      ...visibleRuleWhere,
+    },
+  });
+  if (result.count === 0) return false;
+
   // Executions carry no foreign key to the rule, so they have to go explicitly
   // or they keep showing up in the eval log of a deleted rule.
   await params.prisma.jobExecution.deleteMany({
     where: { projectId: params.projectId, jobConfigurationId: params.ruleId },
   });
-  const result = await params.prisma.evaluationRule.deleteMany({
-    where: { id: params.ruleId, projectId: params.projectId },
+  return true;
+}
+
+export async function deleteRules(params: {
+  prisma: RulePrisma;
+  projectId: string;
+  ruleIds: string[];
+}) {
+  const visibleIds = await params.prisma.evaluationRule.findMany({
+    where: {
+      projectId: params.projectId,
+      id: { in: params.ruleIds },
+      ...visibleRuleWhere,
+    },
+    select: { id: true },
   });
-  return result.count > 0;
+  const ruleIds = visibleIds.map(({ id }) => id);
+  if (ruleIds.length === 0) return 0;
+
+  const result = await params.prisma.evaluationRule.deleteMany({
+    where: {
+      projectId: params.projectId,
+      id: { in: ruleIds },
+      ...visibleRuleWhere,
+    },
+  });
+  await params.prisma.jobExecution.deleteMany({
+    where: {
+      projectId: params.projectId,
+      jobConfigurationId: { in: ruleIds },
+    },
+  });
+  return result.count;
 }
 
 export async function listSelectedRuleIds(params: {
@@ -363,6 +468,7 @@ export async function listSelectedRuleIds(params: {
       where: {
         projectId: params.input.projectId,
         id: { in: params.input.ruleIds },
+        ...visibleRuleWhere,
       },
       select: { id: true },
     });
@@ -461,6 +567,8 @@ export async function countRulesForEvaluators(params: {
     where: {
       projectId: params.projectId,
       evaluatorId: { in: params.evaluatorIds },
+      evaluator: { type: { not: EvalTemplateType.FACET } },
+      evaluationRule: visibleRuleWhere,
     },
     _count: { _all: true },
   });
@@ -480,8 +588,14 @@ export async function listRulesForEvaluator(params: {
       where: {
         projectId: params.projectId,
         evaluatorId: params.evaluatorId,
-        evaluator: { projectId: params.projectId },
-        evaluationRule: { projectId: params.projectId },
+        evaluator: {
+          projectId: params.projectId,
+          type: { not: EvalTemplateType.FACET },
+        },
+        evaluationRule: {
+          projectId: params.projectId,
+          ...visibleRuleWhere,
+        },
       },
       orderBy: { createdAt: "desc" },
       select: {

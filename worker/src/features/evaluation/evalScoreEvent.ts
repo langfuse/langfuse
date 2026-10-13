@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { ScoreSourceEnum } from "@langfuse/shared";
+import { ScoreSourceEnum, type EvalExecutionContext } from "@langfuse/shared";
 import {
   buildDeterministicEvalScoreIds,
   eventTypes,
@@ -10,7 +10,12 @@ import {
 export type EvalScoreWritePayload = {
   eventId: string;
   scoreId: string;
-  event: ScoreEventType;
+  event: ScoreEventType & {
+    body: ScoreEventType["body"] & {
+      evaluatorId?: string;
+      evaluationRuleId?: string;
+    };
+  };
 };
 
 export function buildEvalScoreWritePayloads(params: {
@@ -21,6 +26,7 @@ export function buildEvalScoreWritePayloads(params: {
   environment: string;
   executionTraceId: string;
   executionMetadata: Record<string, string>;
+  evaluationContext: EvalExecutionContext;
 }): EvalScoreWritePayload[] {
   const scoreIds = buildDeterministicEvalScoreIds({
     scores: params.scores,
@@ -30,7 +36,6 @@ export function buildEvalScoreWritePayloads(params: {
   return params.scores.map((score, index) => {
     const eventId = randomUUID();
     const scoreId = scoreIds[index]!;
-
     return {
       eventId,
       scoreId,
@@ -48,13 +53,15 @@ export function buildEvalScoreWritePayloads(params: {
             ...(score.metadata ?? {}),
             ...params.executionMetadata,
           },
+          evaluatorId: params.evaluationContext.evaluatorId,
+          evaluationRuleId: params.evaluationContext.evaluationRuleId,
           configId: score.configId,
           source: ScoreSourceEnum.EVAL,
           environment: params.environment,
           executionTraceId: params.executionTraceId,
           value: score.value,
           dataType: score.dataType,
-        } as ScoreEventType["body"],
+        } as EvalScoreWritePayload["event"]["body"],
       },
     };
   });
