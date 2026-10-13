@@ -19,7 +19,7 @@ export async function gatewayResolveApiHandler({
   res: NextApiResponse;
   fastHashedSecretKey: string;
   apiFormat: GatewayApiFormat;
-  model?: string;
+  model: string;
 }) {
   try {
     const context = await new GatewayApiKeyAuthenticator(

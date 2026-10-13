@@ -60,6 +60,58 @@ fn model_rewrite_preserves_bodies_without_a_valid_top_level_model() {
 }
 
 #[tokio::test]
+async fn missing_provider_model_fails_before_capture_delivery() {
+    use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
+
+    let web = FakeServer::start(|_| async {
+        let bytes = to_bytes(
+            crate::test_support::resolution_response("provider-secret").into_body(),
+            4096,
+        )
+        .await
+        .unwrap();
+        let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        body["connection"]
+            .as_object_mut()
+            .unwrap()
+            .remove("provider_model");
+        Response::new(Body::from(body.to_string()))
+    })
+    .await;
+    let context = web
+        .control_plane()
+        .resolve(
+            "gateway-secret",
+            ApiFormat::OpenAiResponses,
+            Some("Production key:gpt-4o"),
+            "test-request-id",
+        )
+        .await
+        .unwrap();
+    let sink = FakeServer::start(|_| async { Response::new(Body::from("{}")) }).await;
+    let telemetry =
+        Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
+    let upstream = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
+
+    let result = relay
+        .forward(
+            relay.try_admit().unwrap(),
+            context,
+            &HeaderMap::new(),
+            Bytes::from_static(br#"{"model":"gpt-4o"}"#),
+        )
+        .await;
+
+    assert!(matches!(result, Err(ProviderError::Configuration)));
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(1))
+        .await;
+    assert_eq!(sink.calls(), 0);
+    assert_eq!(upstream.calls(), 0);
+}
+
+#[tokio::test]
 async fn rewrites_the_model_and_isolates_request_and_response_headers() {
     const REQUEST: &[u8] =
         br#"{ "model": "opaque", "future_field": {"model":"opaque","values":[true,3]} }"#;

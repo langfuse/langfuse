@@ -44,8 +44,37 @@ export class GatewayApiKeyAuthenticator {
   async authenticateRequest(params: {
     fastHashedSecretKey: string;
     apiFormat: GatewayApiFormat;
-    model?: string;
+    model: string;
   }): Promise<GatewayApiKeyAuthContext> {
+    const context = await this.authenticateKey(params);
+    const route = resolveGatewayModelRoute(params.model, context.connections);
+    if (!route) {
+      throw new GatewayControlPlaneError("Invalid gateway model", 400);
+    }
+
+    return {
+      ...context,
+      providerModel: route.providerModel,
+      connection: route.connection,
+    };
+  }
+
+  async authenticateModelsRequest(params: {
+    fastHashedSecretKey: string;
+    apiFormat: GatewayApiFormat;
+  }): Promise<GatewayApiKeyAuthContext> {
+    const context = await this.authenticateKey(params);
+    return {
+      ...context,
+      providerModel: null,
+      connection: null,
+    };
+  }
+
+  private async authenticateKey(params: {
+    fastHashedSecretKey: string;
+    apiFormat: GatewayApiFormat;
+  }): Promise<CachedResolveContext> {
     const cacheParams = {
       fastHashedSecretKey: params.fastHashedSecretKey,
       apiFormat: params.apiFormat,
@@ -65,16 +94,7 @@ export class GatewayApiKeyAuthenticator {
         403,
       );
     }
-    const route = resolveGatewayModelRoute(params.model, context.connections);
-    if (!route) {
-      throw new GatewayControlPlaneError("Invalid gateway model", 400);
-    }
-
-    return {
-      ...context,
-      providerModel: route.providerModel,
-      connection: route.connection,
-    };
+    return context;
   }
 
   private async loadAndCacheContext(params: {

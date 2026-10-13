@@ -23,12 +23,12 @@ describe("resolveGatewayModelRoute", () => {
     {
       model: "gpt-6-sol",
       connectionId: "openai-primary",
-      providerModel: null,
+      providerModel: "gpt-6-sol",
     },
     {
       model: "claude-sonnet-4-5",
       connectionId: "anthropic",
-      providerModel: null,
+      providerModel: "claude-sonnet-4-5",
     },
   ])(
     "routes $model to $connectionId",
@@ -57,7 +57,7 @@ describe("resolveGatewayModelRoute", () => {
       resolveGatewayModelRoute("claude-sonnet-4-5", connections.slice(0, 1)),
     ).toEqual({
       connection: null,
-      providerModel: null,
+      providerModel: "claude-sonnet-4-5",
     });
   });
 });
