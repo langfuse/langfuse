@@ -51,7 +51,7 @@ import {
 } from "@langfuse/shared/topics/server";
 import {
   summarizeTopicTraceFacets,
-  embedTopicSummary,
+  embedTopicSummaries,
 } from "../features/topics/models";
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -108,7 +108,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
 
 vi.mock("../features/topics/models", () => ({
   summarizeTopicTraceFacets: vi.fn(),
-  embedTopicSummary: vi.fn(),
+  embedTopicSummaries: vi.fn(),
 }));
 
 vi.mock("../features/evaluation/observationEval", async (importOriginal) => ({
@@ -1447,9 +1447,11 @@ describe("trace micro-batch scheduling with Redis", () => {
         ...usage,
       }),
     );
-    vi.mocked(embedTopicSummary).mockImplementation(
-      async (_model, _text, dimensions) => ({
-        embedding: Array.from({ length: dimensions }, () => 0.1),
+    vi.mocked(embedTopicSummaries).mockImplementation(
+      async (_model, summaries, dimensions) => ({
+        embeddings: summaries.map(() =>
+          Array.from({ length: dimensions }, () => 0.1),
+        ),
         ...usage,
       }),
     );

@@ -174,8 +174,7 @@ const EnvSchema = z.object({
   LANGFUSE_TOPICS_TRACE_CONCURRENCY: z.coerce
     .number()
     .int()
-    .min(1)
-    .max(40)
+    .positive()
     .default(20),
   LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
     .number()

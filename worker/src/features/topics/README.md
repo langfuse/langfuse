@@ -142,7 +142,7 @@ from ClickHouse again. Projects outside
 `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` are skipped. A finished facet version is
 skipped on retry. A failing trace does not stop the batch: every trace is
 processed, up to `LANGFUSE_TOPICS_TRACE_CONCURRENCY` traces at once (default
-20, at most 40; manual processing uses the same limit per queue job), and outcomes are counted once per job (`langfuse.topics.trace_outcomes`
+20; manual processing uses the same limit per queue job), and outcomes are counted once per job (`langfuse.topics.trace_outcomes`
 by outcome and reason). Failed traces are not retried, because a retry would
 read the shared batch from ClickHouse again. Only a failed batch read fails the
 job. Summaries and embeddings use the same project models as manual
