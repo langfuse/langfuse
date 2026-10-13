@@ -65,10 +65,13 @@ Processing is unavailable until all three are set. Any connection whose save-tim
 test call succeeds can serve summaries and clustering, including Anthropic.
 Embeddings need OpenAI (including OpenAI-compatible base URLs), Azure OpenAI,
 Amazon Bedrock, Google AI Studio or Vertex AI; Anthropic has no embeddings API,
-so its embedding test call fails. Summary and clustering calls go through `generateLLMText`;
-embeddings go through `embedLLMText`. Both retry 429 and 5xx responses twice
-with backoff. On Cloud, Bedrock and Vertex connections need explicit
-credentials; the default credential chain is self-hosted only.
+so its embedding test call fails. Summary and clustering calls normally go through
+`generateLLMText`; embeddings go through `embedLLMText`. Both retry 429 and 5xx
+responses twice with backoff. Cached Bedrock GPT-5.6+ summaries use a single
+InvokeModel request with explicit cache breakpoints. On Cloud, Bedrock and Vertex
+connections need explicit credentials, except operator-provisioned Bedrock
+connections in the runtime-credential allowlist; self-hosted deployments can use
+the default credential chain.
 
 Saving the settings makes one real call per configured slot (structured output
 for summaries and clustering, one embedding whose length must equal the
@@ -82,6 +85,28 @@ fails and must be started again. Deleting a connection that a slot uses turns
 automatic processing off and records why. Usage is retained for any model, but
 cost estimates are only available for the model IDs priced in
 [models.ts](models.ts).
+
+Summary and naming calls emit one generation each to the configured internal
+AI-features project (`LANGFUSE_AI_FEATURES_PROJECT_ID`) only when the source
+project is listed in `LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS` and its
+organization enables AI features and AI analytics. The tracing allowlist is
+comma-separated, trims whitespace, and defaults to empty (tracing off). It is
+independent of the processing allowlist; projects can run Topics without tracing.
+Multi-facet summaries share one generation. Both connection-based SDK calls and
+cached Bedrock InvokeModel calls record inputs, outputs, models, usage, and errors;
+embeddings are untraced.
+Trace costs use the destination project's model catalog. Unmatched connection
+model IDs retain their usage but have no trace cost, independently of Topics'
+own estimates in `models.ts`.
+Traces use `langfuse-topics`. Topics excludes all `langfuse`-prefixed environments
+and `llm-as-a-judge` through the shared eval exclusion predicate, preventing loops
+from these internal traces. Manual selection checks matching root observations
+within the requested time range; workers also check the source environment they
+load. If an OpenRouter connection broadcasts requests back
+to a Topics-enabled project, use a dedicated Topics API key excluded from that
+Broadcast destination. OpenRouter's separate public traces do not retain the
+reserved internal environment and can otherwise trigger more Topics calls.
+
 Numerical fitting uses the worker's existing Node runtime and compiled
 `@langfuse/native` addon, with no extra runtime or service.
 Summary and assignment records use `trace_id` as their source when present;
@@ -113,10 +138,16 @@ On Bedrock, Cohere Embed v4 uses `eu.cohere.embed-v4:0` for EU routing or
 `us.cohere.embed-v4:0` for US routing. Avoid the global profile when geographic
 residency matters. Every provider is asked for clustering vectors of the
 configured size (Cohere `clustering` input type with truncation disabled, Google
-`CLUSTERING` task type, OpenAI `dimensions`). Default: 1,024
+`CLUSTERING` task type, OpenAI `dimensions`). Fixed-size models such as `text-embedding-ada-002` reject
+the size option; a request rejected with HTTP 400 is retried once without it, and
+the vector must still have the configured length. Default: 1,024
 dimensions; any whole number from 64 to 4,096 is accepted, and a provider that
-returns a vector of another length fails the call. Calls embed one summary at a
-time, retaining per-summary Redis checkpointing.
+returns a vector of another length fails the call. Embeddings are batched per trace: each trace's
+applicable facets are embedded in one call, in trace-batch and in embedding jobs
+(which run up to `LANGFUSE_TOPICS_TRACE_CONCURRENCY` traces at once). The call's
+usage is recorded on the trace's first row; one failure fails that trace's call,
+and a retry embeds the traces that are left. Saving the models requires the
+embedding model to embed two texts in one call.
 Embedding settings are independent of immutable facet versions; changing them
 with stored-summary reuse enabled regenerates vectors without summarization inference. This PoC does
 not use `aiEmbed` or change ingestion. It accepts traces already stored in v4
@@ -138,7 +169,8 @@ call's usage is recorded on the first facet's row. It does not load the trace
 from ClickHouse again. Projects outside
 `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` are skipped. A finished facet version is
 skipped on retry. A failing trace does not stop the batch: every trace is
-processed and outcomes are counted once per job (`langfuse.topics.trace_outcomes`
+processed, up to `LANGFUSE_TOPICS_TRACE_CONCURRENCY` traces at once (default
+20; manual processing uses the same limit per queue job), and outcomes are counted once per job (`langfuse.topics.trace_outcomes`
 by outcome and reason). Failed traces are not retried, because a retry would
 read the shared batch from ClickHouse again. Only a failed batch read fails the
 job. Summaries and embeddings use the same project models as manual

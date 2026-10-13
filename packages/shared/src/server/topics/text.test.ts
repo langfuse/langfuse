@@ -3,10 +3,73 @@ import { z } from "zod";
 import { encrypt } from "../../encryption";
 import { env } from "../../env";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "../../interfaces/customLLMProviderConfigSchemas";
-import { LLMAdapter } from "../llm/types";
-import { generateTopicEmbedding } from "./embeddings";
+import { LLMAdapter, type TraceSinkParams } from "../llm/types";
+import type { ResourceSpan } from "../otel/OtelIngestionProcessor";
+import { generateTopicEmbeddings } from "./embeddings";
 import type { TopicsModel } from "./model-config";
 import { generateTopicText } from "./text";
+
+const { publishToOtelIngestionQueue, processorConstructor } = vi.hoisted(
+  () => ({
+    publishToOtelIngestionQueue:
+      vi.fn<(spans: ResourceSpan[]) => Promise<void>>(),
+    processorConstructor: vi.fn(),
+  }),
+);
+
+vi.mock("../otel/OtelIngestionProcessor", () => ({
+  OtelIngestionProcessor: class {
+    constructor(config: unknown) {
+      processorConstructor(config);
+    }
+    publishToOtelIngestionQueue = publishToOtelIngestionQueue;
+  },
+}));
+
+const trace: TraceSinkParams = {
+  targetProjectId: "ai-features-project",
+  traceId: "0af7651916cd43dd8448eb211c80319c",
+  traceName: "topics-summary",
+  environment: "langfuse-topics",
+  metadata: { project_id: "source-project" },
+};
+
+function tracedGeneration() {
+  expect(processorConstructor).toHaveBeenCalledWith(
+    expect.objectContaining({
+      projectId: trace.targetProjectId,
+      isLangfuseInternal: true,
+      ingestionVersion: "4",
+    }),
+  );
+  expect(publishToOtelIngestionQueue).toHaveBeenCalledTimes(1);
+  const spans = publishToOtelIngestionQueue.mock.calls[0][0].flatMap(
+    (resource) =>
+      resource.scopeSpans?.flatMap((scope) => scope.spans ?? []) ?? [],
+  );
+  expect(spans).toHaveLength(1);
+  const span = spans[0];
+  expect(span.traceId).toBe(trace.traceId);
+  expect(span.parentSpanId ?? "").toBe("");
+  expect(span.name).toBe(trace.traceName);
+  const attributes = Object.fromEntries(
+    (span.attributes ?? []).map(({ key, value }) => [
+      key,
+      value.stringValue ?? value,
+    ]),
+  );
+  expect(attributes).toMatchObject({
+    "langfuse.observation.type": "generation",
+    "langfuse.environment": "langfuse-topics",
+    "langfuse.trace.metadata": JSON.stringify(trace.metadata),
+  });
+  return attributes;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  publishToOtelIngestionQueue.mockResolvedValue(undefined);
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -29,51 +92,85 @@ function bedrockModel(slot: TopicsModel["slot"], model: string): TopicsModel {
 }
 
 describe("generateTopicText", () => {
-  it("sends structured output through the project's Bedrock connection", async () => {
-    const output = { summary: "Account access" };
-    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
-      Response.json({
-        output: {
-          message: {
-            role: "assistant",
-            content: [
-              { toolUse: { toolUseId: "json-1", name: "json", input: output } },
-            ],
+  it.each(["us.openai.gpt-6-luna", "openai.gpt-oss-120b"])(
+    "sends structured output through the project's Bedrock connection: %s",
+    async (modelId) => {
+      const output = { summary: "Account access" };
+      const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+        Response.json({
+          output: {
+            message: {
+              role: "assistant",
+              content: [
+                {
+                  toolUse: { toolUseId: "json-1", name: "json", input: output },
+                },
+              ],
+            },
           },
-        },
-        stopReason: "tool_use",
-        usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
-        metrics: { latencyMs: 1 },
-      }),
-    );
-    vi.stubGlobal("fetch", fetch);
-    // Connection credentials must win over ambient worker credentials.
-    vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "ambient-bearer-token");
+          stopReason: "tool_use",
+          usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+          metrics: { latencyMs: 1 },
+        }),
+      );
+      vi.stubGlobal("fetch", fetch);
+      // Connection credentials must win over ambient worker credentials.
+      vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "ambient-bearer-token");
 
-    const result = await generateTopicText({
-      model: bedrockModel("summary", "us.openai.gpt-6-luna"),
-      system: [{ text: "Summarize the user's request." }],
-      input: "I cannot sign in.",
-      schema: z.object({ summary: z.string() }),
-      maxOutputTokens: 256,
-    });
+      const result = await generateTopicText({
+        model: bedrockModel("summary", modelId),
+        system: [
+          {
+            text: "Summarize the user's request.",
+            cache: modelId.includes("oss"),
+          },
+        ],
+        input: "I cannot sign in.",
+        schema: z.object({ summary: z.string() }),
+        maxOutputTokens: 256,
+        trace,
+      });
 
-    expect(fetch).toHaveBeenCalledTimes(1);
-    const request = new Request(...fetch.mock.calls[0]);
-    expect(request.url).toBe(
-      "https://bedrock-runtime.eu-central-1.amazonaws.com/model/us.openai.gpt-6-luna/converse",
-    );
-    expect(request.headers.get("authorization")).toMatch(
-      /^AWS4-HMAC-SHA256 Credential=AKIATOPICS\//,
-    );
-    expect(await request.json()).toMatchObject({
-      system: [{ text: "Summarize the user's request." }],
-      inferenceConfig: { maxTokens: 256 },
-      additionalModelRequestFields: { reasoning: { effort: "none" } },
-      toolConfig: { toolChoice: { any: {} } },
-    });
-    expect(result.output).toEqual(output);
-  });
+      expect(fetch).toHaveBeenCalledTimes(1);
+      const request = new Request(...fetch.mock.calls[0]);
+      expect(request.url).toBe(
+        `https://bedrock-runtime.eu-central-1.amazonaws.com/model/${modelId}/converse`,
+      );
+      expect(request.headers.get("authorization")).toMatch(
+        /^AWS4-HMAC-SHA256 Credential=AKIATOPICS\//,
+      );
+      const body = await request.json();
+      expect(body).toMatchObject({
+        system: [{ text: "Summarize the user's request." }],
+        inferenceConfig: { maxTokens: 256 },
+        toolConfig: { toolChoice: { any: {} } },
+      });
+      expect(result.output).toEqual(output);
+      if (modelId.includes("oss")) {
+        expect(body).not.toHaveProperty("additionalModelRequestFields");
+      } else {
+        expect(body).toHaveProperty(
+          "additionalModelRequestFields.reasoning.effort",
+          "none",
+        );
+      }
+      expect(tracedGeneration()).toMatchObject({
+        "langfuse.observation.input": JSON.stringify([
+          { role: "system", content: "Summarize the user's request." },
+          { role: "user", content: "I cannot sign in." },
+        ]),
+        "langfuse.observation.output": JSON.stringify(output),
+        "langfuse.observation.model.name": modelId,
+        "langfuse.observation.usage_details": JSON.stringify({
+          input: 12,
+          output: 4,
+          total: 16,
+          input_cached_tokens: 0,
+          input_cache_creation: 0,
+        }),
+      });
+    },
+  );
 
   it("sends cached prompts through InvokeModel with the connection's credentials and region", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(async () =>
@@ -103,6 +200,7 @@ describe("generateTopicText", () => {
       input: "I cannot sign in.",
       schema: z.object({ summary: z.string() }),
       maxOutputTokens: 256,
+      trace,
     });
 
     const request = new Request(...fetch.mock.calls[0]);
@@ -132,6 +230,18 @@ describe("generateTopicText", () => {
       { role: "user", content: [{ type: "text", text: "I cannot sign in." }] },
     ]);
     expect(body.prompt_cache_options).toEqual({ mode: "explicit", ttl: "30m" });
+    expect(tracedGeneration()).toMatchObject({
+      "langfuse.observation.output": JSON.stringify({
+        summary: "Account access",
+      }),
+      "langfuse.observation.usage_details": JSON.stringify({
+        input: 813,
+        output: 275,
+        total: 3928,
+        input_cached_tokens: 2840,
+        input_cache_creation: 0,
+      }),
+    });
     expect(result.usage).toEqual({
       inputTokens: 3653,
       outputTokens: 275,
@@ -153,88 +263,255 @@ describe("generateTopicText", () => {
         input: "Hi",
         schema: z.object({ summary: z.string() }),
         maxOutputTokens: 256,
+        trace,
       }),
     ).rejects.toMatchObject({ status: 429 });
+    expect(tracedGeneration()).toMatchObject({
+      "langfuse.observation.level": "ERROR",
+      "langfuse.observation.status_message": expect.stringContaining("429"),
+    });
   });
 
-  it("reports cached prompt tokens from providers that cache automatically", async () => {
+  it.each([
+    { model: "gpt-6-luna", baseURL: undefined },
+    { model: "gpt-6-luna", baseURL: "https://eu.api.openai.com/v1" },
+    { model: "gpt-5.6-terra", baseURL: "https://eu.api.openai.com/v1" },
+    { model: "gpt-5-mini", baseURL: "https://eu.api.openai.com/v1" },
+    { model: "gpt-6-luna", baseURL: "https://us.api.openai.com/v1" },
+  ])(
+    "sends the completion token limit, records cache usage, and tolerates tracing failures for $model at $baseURL",
+    async ({ model, baseURL }) => {
+      publishToOtelIngestionQueue.mockRejectedValueOnce(
+        new Error("queue down"),
+      );
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json({
+            id: "chatcmpl-1",
+            object: "chat.completion",
+            created: 1,
+            model,
+            choices: [
+              {
+                index: 0,
+                finish_reason: "stop",
+                message: {
+                  role: "assistant",
+                  content: JSON.stringify({ summary: "Account access" }),
+                },
+              },
+            ],
+            usage: {
+              prompt_tokens: 3000,
+              completion_tokens: 200,
+              total_tokens: 3200,
+              prompt_tokens_details: { cached_tokens: 2560 },
+            },
+          }),
+        ),
+      );
+
+      const result = await generateTopicText({
+        model: {
+          slot: "summary",
+          provider: "openai-topics",
+          adapter: LLMAdapter.OpenAI,
+          model,
+          connection: { secretKey: encrypt("sk-test"), baseURL },
+        },
+        system: [{ text: "System prompt and facets.", cache: true }],
+        input: "I cannot sign in.",
+        schema: z.object({ summary: z.string() }),
+        maxOutputTokens: 256,
+        trace,
+      });
+
+      expect(tracedGeneration()).toMatchObject({
+        "langfuse.observation.output": JSON.stringify({
+          summary: "Account access",
+        }),
+        "langfuse.observation.model.name": model,
+        "langfuse.observation.usage_details": JSON.stringify({
+          input: 440,
+          output: 200,
+          total: 3200,
+          input_cached_tokens: 2560,
+        }),
+      });
+      expect(result.usage).toMatchObject({
+        inputTokens: 3000,
+        cacheReadTokens: 2560,
+      });
+      const fetch = vi.mocked(globalThis.fetch);
+      const request = new Request(...fetch.mock.calls[0]);
+      expect(request.url).toBe(
+        `${baseURL ?? "https://api.openai.com/v1"}/chat/completions`,
+      );
+      const body = (await request.json()) as Record<string, unknown>;
+      expect(body.max_tokens).toBeUndefined();
+      expect(body.max_completion_tokens).toBe(256);
+    },
+  );
+  it("retains SDK usage when no output is generated", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
         Response.json({
-          id: "chatcmpl-1",
+          id: "chatcmpl-empty",
           object: "chat.completion",
           created: 1,
           model: "gpt-6-luna",
           choices: [
             {
               index: 0,
-              finish_reason: "stop",
-              message: {
-                role: "assistant",
-                content: JSON.stringify({ summary: "Account access" }),
-              },
+              finish_reason: "length",
+              message: { role: "assistant", content: null },
             },
           ],
-          usage: {
-            prompt_tokens: 3000,
-            completion_tokens: 200,
-            total_tokens: 3200,
-            prompt_tokens_details: { cached_tokens: 2560 },
-          },
+          usage: { prompt_tokens: 12, completion_tokens: 4, total_tokens: 16 },
         }),
       ),
     );
 
-    const result = await generateTopicText({
-      model: {
-        slot: "summary",
-        provider: "openai-topics",
-        adapter: LLMAdapter.OpenAI,
-        model: "gpt-6-luna",
-        connection: { secretKey: encrypt("sk-test") },
-      },
-      system: [{ text: "System prompt and facets.", cache: true }],
-      input: "I cannot sign in.",
-      schema: z.object({ summary: z.string() }),
-      maxOutputTokens: 256,
-    });
-
-    expect(result.usage).toMatchObject({
-      inputTokens: 3000,
-      cacheReadTokens: 2560,
+    await expect(
+      generateTopicText({
+        model: {
+          slot: "summary",
+          provider: "openai-topics",
+          adapter: LLMAdapter.OpenAI,
+          model: "gpt-6-luna",
+          connection: { secretKey: encrypt("sk-test") },
+        },
+        system: [{ text: "Summarize." }],
+        input: "Hi",
+        schema: z.object({ summary: z.string() }),
+        maxOutputTokens: 256,
+        trace,
+      }),
+    ).rejects.toMatchObject({ name: "AI_NoOutputGeneratedError" });
+    expect(tracedGeneration()).toMatchObject({
+      "langfuse.observation.level": "ERROR",
+      "langfuse.observation.usage_details": JSON.stringify({
+        input: 12,
+        output: 4,
+        total: 16,
+        input_cached_tokens: 0,
+      }),
     });
   });
+
+  it.each([false, true])(
+    "traces invalid structured output with its paid usage (cached: %s)",
+    async (cache) => {
+      const output = { summary: 42 };
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json(
+            cache
+              ? {
+                  choices: [
+                    {
+                      finish_reason: "stop",
+                      message: { content: JSON.stringify(output) },
+                    },
+                  ],
+                  usage: {
+                    prompt_tokens: 12,
+                    completion_tokens: 4,
+                    total_tokens: 16,
+                  },
+                }
+              : {
+                  output: {
+                    message: {
+                      role: "assistant",
+                      content: [
+                        {
+                          toolUse: {
+                            toolUseId: "json-1",
+                            name: "json",
+                            input: output,
+                          },
+                        },
+                      ],
+                    },
+                  },
+                  stopReason: "tool_use",
+                  usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+                  metrics: { latencyMs: 1 },
+                },
+          ),
+        ),
+      );
+      const response = generateTopicText({
+        model: bedrockModel("summary", "us.openai.gpt-6-luna"),
+        system: [{ text: "Summarize.", cache }],
+        input: "Hi",
+        schema: z.object({ summary: z.string() }),
+        maxOutputTokens: 256,
+        trace,
+      });
+      if (cache) {
+        await expect(response).resolves.toMatchObject({
+          output,
+          usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+        });
+      } else {
+        await expect(response).rejects.toThrow();
+      }
+      const attributes = tracedGeneration();
+      expect(attributes).toMatchObject({
+        "langfuse.observation.level": "ERROR",
+        "langfuse.observation.usage_details": JSON.stringify({
+          input: 12,
+          output: 4,
+          total: 16,
+          ...(cache ? {} : { input_cached_tokens: 0, input_cache_creation: 0 }),
+        }),
+      });
+      expect(
+        JSON.parse(attributes["langfuse.observation.output"] as string),
+      ).toEqual(cache ? output : JSON.stringify(output));
+    },
+  );
 });
 
-describe("generateTopicEmbedding", () => {
-  it("requests clustering vectors of the configured size from Cohere on Bedrock", async () => {
+describe("generateTopicEmbeddings", () => {
+  it("embeds every summary in one Cohere request on Bedrock", async () => {
     const vector = Array.from({ length: 512 }, (_, index) => index + 1);
+    const other = vector.map((value) => -value);
     const fetch = vi.fn<typeof globalThis.fetch>(async () =>
       Response.json(
-        { embeddings: { float: [vector] }, texts: ["Account access"] },
+        {
+          embeddings: { float: [vector, other] },
+          texts: ["Account access", "Refund request"],
+        },
         { headers: { "x-amzn-bedrock-input-token-count": "3" } },
       ),
     );
     vi.stubGlobal("fetch", fetch);
 
-    const result = await generateTopicEmbedding({
+    const result = await generateTopicEmbeddings({
       model: bedrockModel("embedding", "eu.cohere.embed-v4:0"),
-      summary: "Account access",
+      summaries: ["Account access", "Refund request"],
       dimensions: 512,
     });
 
+    expect(fetch).toHaveBeenCalledTimes(1);
     const request = new Request(...fetch.mock.calls[0]);
     expect(decodeURIComponent(request.url)).toBe(
       "https://bedrock-runtime.eu-central-1.amazonaws.com/model/eu.cohere.embed-v4:0/invoke",
     );
     expect(await request.json()).toEqual({
       input_type: "clustering",
-      texts: ["Account access"],
+      texts: ["Account access", "Refund request"],
       truncate: "NONE",
       output_dimension: 512,
     });
-    expect(result.embedding).toEqual(vector);
+    expect(result.embeddings).toEqual([vector, other]);
+    expect(publishToOtelIngestionQueue).not.toHaveBeenCalled();
   });
 
   it("asks OpenAI for any configured size", async () => {
@@ -247,7 +524,7 @@ describe("generateTopicEmbedding", () => {
     );
     vi.stubGlobal("fetch", fetch);
 
-    const result = await generateTopicEmbedding({
+    const result = await generateTopicEmbeddings({
       model: {
         slot: "embedding",
         provider: "openai-topics",
@@ -255,7 +532,7 @@ describe("generateTopicEmbedding", () => {
         model: "text-embedding-3-small",
         connection: { secretKey: encrypt("sk-test") },
       },
-      summary: "Account access",
+      summaries: ["Account access"],
       dimensions: 768,
     });
 
@@ -266,7 +543,88 @@ describe("generateTopicEmbedding", () => {
       input: ["Account access"],
       dimensions: 768,
     });
-    expect(result.embedding).toHaveLength(768);
+    expect(result.embeddings[0]).toHaveLength(768);
+  });
+
+  it("retries without the size option when a fixed-size model rejects it", async () => {
+    const vector = Array.from({ length: 1536 }, () => 0.5);
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_url, init) =>
+      JSON.parse(String(init?.body)).dimensions
+        ? Response.json(
+            {
+              error: {
+                message: "This model does not support specifying dimensions.",
+              },
+            },
+            { status: 400 },
+          )
+        : Response.json({
+            data: [{ embedding: vector, index: 0 }],
+            usage: { prompt_tokens: 3 },
+          }),
+    );
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await generateTopicEmbeddings({
+      model: {
+        slot: "embedding",
+        provider: "openai-topics",
+        adapter: LLMAdapter.OpenAI,
+        model: "text-embedding-ada-002",
+        connection: { secretKey: encrypt("sk-test") },
+      },
+      summaries: ["Account access"],
+      dimensions: 1536,
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(await new Request(...fetch.mock.calls[1]).json()).not.toHaveProperty(
+      "dimensions",
+    );
+    expect(result.embeddings[0]).toHaveLength(1536);
+  });
+
+  it("falls back when a rate-limit retry precedes the size rejection", async () => {
+    const vector = Array.from({ length: 1536 }, () => 0.5);
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_url, init) => {
+      if (fetch.mock.calls.length === 1)
+        return Response.json(
+          { error: { message: "Rate limit exceeded" } },
+          { status: 429 },
+        );
+      if (JSON.parse(String(init?.body)).dimensions)
+        return Response.json(
+          {
+            error: {
+              message: "This model does not support specifying dimensions.",
+            },
+          },
+          { status: 400 },
+        );
+      return Response.json({
+        data: [{ embedding: vector, index: 0 }],
+        usage: { prompt_tokens: 3 },
+      });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await generateTopicEmbeddings({
+      model: {
+        slot: "embedding",
+        provider: "openai-topics",
+        adapter: LLMAdapter.OpenAI,
+        model: "text-embedding-ada-002",
+        connection: { secretKey: encrypt("sk-test") },
+      },
+      summaries: ["Account access"],
+      dimensions: 1536,
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(await new Request(...fetch.mock.calls[2]).json()).not.toHaveProperty(
+      "dimensions",
+    );
+    expect(result.embeddings[0]).toHaveLength(1536);
   });
 });
 
@@ -332,6 +690,7 @@ describe("allowlisted Cloud Bedrock runtime credentials", () => {
       generateTopicText({ ...input, model: runtimeModel("summary", "other") }),
     ).rejects.toThrow("Invalid Bedrock credentials");
     expect(fetch).toHaveBeenCalledTimes(1);
+    expect(publishToOtelIngestionQueue).not.toHaveBeenCalled();
   });
 
   it("uses the existing project allowlist for embeddings", async () => {
@@ -343,15 +702,15 @@ describe("allowlisted Cloud Bedrock runtime credentials", () => {
       ),
     );
     vi.stubGlobal("fetch", fetch);
-    const input = { summary: "Account access", dimensions: 512 };
+    const input = { summaries: ["Account access"], dimensions: 512 };
 
-    await generateTopicEmbedding({
+    await generateTopicEmbeddings({
       ...input,
       model: runtimeModel("embedding", "allowed"),
     });
     expect(fetch).toHaveBeenCalledTimes(1);
     await expect(
-      generateTopicEmbedding({
+      generateTopicEmbeddings({
         ...input,
         model: runtimeModel("embedding", "other"),
       }),

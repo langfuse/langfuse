@@ -30,9 +30,14 @@
   Transcript assembly is shared with web through `loadTopicTranscript`, returning
   `Transcript | null`; serialize it for inference and skip inference on null.
   Token counting and its WASM dependency stay in `src/features/topics/models.ts`.
-  Model calls use `generateTopicText` and `generateTopicEmbedding` from
+  Model calls use `generateTopicText` and `generateTopicEmbeddings` from
   `@langfuse/shared/topics/server` with the project's resolved `TopicsModels`
   (summary, embedding, clustering LLM connections from `topic_configs`).
+  Text tracing requires the source project in
+  `LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS` (empty by default) and checks
+  organization `aiFeaturesEnabled` and `aiTelemetryEnabled` in `models.ts`;
+  embeddings are untraced. Use `isInternalEvalEnvironment`
+  to exclude internal sources.
   Pass models explicitly; never put them on execution or batch state, which is
   persisted. Trace-batch jobs load enabled settings for all allowlisted batch
   projects in one query (`getEnabledTopicsModels`) and pause a project on
@@ -83,6 +88,12 @@
   summaries reduce it to that threshold or below. The client idle timeout must
   account for these pauses. Drain accepted summaries even on read failure. Never flush a failed
   stream's partial final trace; completion covers the query window, not future arrivals.
+- Audit log relay: `src/features/audit-log-relay/index.ts` moves Postgres
+  `audit_log_staging` rows into ClickHouse `audit_logs`, deleting them only
+  after ClickHouse acknowledged the insert. It starts only in cloud
+  deployments (`NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` set). Rows whose payload
+  fails the staging schema stay with `failed_at` set and are retried after
+  10 minutes.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
 - `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues

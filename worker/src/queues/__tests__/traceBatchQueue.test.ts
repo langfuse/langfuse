@@ -594,7 +594,7 @@ describe("trace batch queue", () => {
       }
     },
   );
-  it("resumes streaming below the payload cap while a later Topics summary is pending", async () => {
+  it("summarizes traces concurrently and resumes streaming when any summary brings payloads below the cap", async () => {
     const originalCap = env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES;
     env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES = 1_000;
     const payload = "x".repeat(600);
@@ -666,15 +666,16 @@ describe("trace batch queue", () => {
       );
       expect(reachedEnd).toBe(false);
       await vi.waitFor(() =>
-        expect(summarizeAssembledTrace).toHaveBeenCalledTimes(1),
-      );
-      resolveFirst();
-      await vi.waitFor(() => expect(reachedEnd).toBe(true));
-      await vi.waitFor(() =>
         expect(summarizeAssembledTrace).toHaveBeenCalledTimes(2),
       );
-      expect(settled).toBe(false);
+      // The later trace finishing first releases its payload.
       resolveSecond();
+      await vi.waitFor(() => expect(reachedEnd).toBe(true));
+      await vi.waitFor(() =>
+        expect(summarizeAssembledTrace).toHaveBeenCalledTimes(3),
+      );
+      expect(settled).toBe(false);
+      resolveFirst();
       await expect(processing).resolves.toEqual(
         expect.objectContaining({ traceCount: 3 }),
       );
@@ -919,17 +920,17 @@ describe("trace batch queue", () => {
     );
   });
 
-  it("assembles each tenant's trace at the boundary and EOF", async () => {
+  it("assembles each tenant's trace with its latest environment at the boundary and EOF", async () => {
     const userMessage = { role: "user", content: "first question" };
     const answer = { role: "assistant", content: "first answer" };
     const row = {
       project_id: "a",
       trace_id: "shared-trace",
-      environment: "production",
+      environment: "langfuse-topics",
       span_id: "first",
       parent_span_id: null,
       start_time: "2026-09-11 00:00:00.000000",
-      event_ts: "2026-09-11 00:00:00.000000",
+      event_ts: "2026-09-11 00:00:00.000002",
       type: "GENERATION",
       name: "generation",
       input: JSON.stringify([userMessage]),
@@ -946,6 +947,8 @@ describe("trace batch queue", () => {
       yield {
         ...row,
         span_id: "second",
+        environment: "production",
+        event_ts: "2026-09-11 00:00:00.000001",
         start_time: "2026-09-11 00:01:00.000000",
         input: JSON.stringify([
           userMessage,
@@ -954,18 +957,19 @@ describe("trace batch queue", () => {
         ]),
         output: JSON.stringify({ role: "assistant", content: "second answer" }),
       };
+      // The newer internal event has an earlier start time and smaller span ID.
       yield row;
       expect(tokenCountAsync).not.toHaveBeenCalled();
       yield {
         ...row,
         project_id: "b",
-        environment: "staging",
+        environment: "langfuse-topics",
         type: "SPAN",
       };
       yield {
         ...row,
         project_id: "b",
-        environment: "staging",
+        environment: "production",
         type: "SPAN",
         span_id: "second",
       };
@@ -993,8 +997,8 @@ describe("trace batch queue", () => {
         environment: input.environment,
       })),
     ).toEqual([
-      { projectId: "a", environment: "production" },
-      { projectId: "b", environment: "staging" },
+      { projectId: "a", environment: "langfuse-topics" },
+      { projectId: "b", environment: "production" },
     ]);
     const estimates = vi.mocked(tokenCountAsync).mock.calls;
     expect(estimates).toHaveLength(5);

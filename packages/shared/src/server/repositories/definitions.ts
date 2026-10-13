@@ -2,6 +2,7 @@ import z from "zod";
 import type { IngestionAttribution } from "../ingestion/ingestionAttribution";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../ingestion/types";
 import { toClickhouseDateTime } from "../clickhouse/client";
+import type { AuditLogStagingPayload } from "../../domain/auditLogs";
 
 export const clickhouseStringDateSchema = z
   .string()
@@ -581,3 +582,36 @@ export const eventRecordInsertSchema = eventRecordBaseSchema.extend({
   event_ts: z.string(),
 });
 export type EventRecordInsertType = z.infer<typeof eventRecordInsertSchema>;
+
+// One row of the ClickHouse `audit_logs` table. Empty strings and zero stand in
+// for absent values, matching the column defaults. `project_id = ''` marks
+// organisation-level events.
+export type AuditLogRecordInsertType = {
+  id: string;
+  timestamp: string;
+  org_id: string;
+  project_id: string;
+  event_kind: AuditLogStagingPayload["kind"];
+  outcome: AuditLogStagingPayload["outcome"];
+  outcome_reason: string;
+  actor_type: AuditLogStagingPayload["actor"]["type"];
+  user_id: string;
+  api_key_id: string;
+  actor_name: string;
+  actor_email: string;
+  user_org_role: string;
+  user_project_role: string;
+  resource_type: string;
+  resource_id: string;
+  resource_refs: string[];
+  action: string;
+  surface: string;
+  route: string;
+  params: string;
+  result_count: number;
+  before: string;
+  after: string;
+  ip: string;
+  user_agent: string;
+  request_id: string;
+};

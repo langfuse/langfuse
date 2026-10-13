@@ -13,6 +13,7 @@ import {
 } from "@/src/features/sessions/sessionDetailPageTypes";
 
 type ModernSessionProps = {
+  headerDividerTone?: ComponentProps<typeof ModernSessionHeader>["dividerTone"];
   isTimelineEnabled: boolean;
   session: Pick<
     EventSession,
@@ -49,6 +50,7 @@ type ModernSessionProps = {
 };
 
 export function ModernSession({
+  headerDividerTone,
   isTimelineEnabled,
   session,
   tracesState,
@@ -93,6 +95,7 @@ export function ModernSession({
         {(metadataJsonPaths) => (
           <SessionReviewLeading>
             <ModernSessionHeader
+              dividerTone={headerDividerTone ?? "default"}
               projectId={projectId}
               countTraces={session.countTraces}
               minTimestamp={session.minTimestamp}

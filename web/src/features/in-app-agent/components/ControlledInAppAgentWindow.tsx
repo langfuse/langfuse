@@ -8,6 +8,8 @@ import {
   type InAppAgentWindowExecutionUi,
 } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
+import { InAppAgentInternalSessionMenu } from "./InAppAgentInternalSessionMenu";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
 import { getDrawerMessages } from "./utils/utils";
 import { getInAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
@@ -48,6 +50,7 @@ export function ControlledInAppAgentWindow(
   props: ControlledInAppAgentWindowProps,
 ) {
   const router = useRouter();
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const {
     activityByConversationId,
     conversations,
@@ -56,6 +59,7 @@ export function ControlledInAppAgentWindow(
     isLoadingMoreConversations,
     isRunning,
     isSelectedConversationHydrating,
+    isSelectedConversationPersisted,
     execution,
     isSubmitting,
     invalidateConversations,
@@ -164,6 +168,21 @@ export function ControlledInAppAgentWindow(
     ],
   );
 
+  const projectId =
+    typeof router.query.projectId === "string"
+      ? router.query.projectId
+      : undefined;
+  const titleActions =
+    internalFeaturesEnabled &&
+    projectId &&
+    selectedConversationId &&
+    isSelectedConversationPersisted ? (
+      <InAppAgentInternalSessionMenu
+        projectId={projectId}
+        conversationId={selectedConversationId}
+      />
+    ) : null;
+
   const closeButtonProps =
     props.showCloseButton === false
       ? ({ showCloseButton: false } as const)
@@ -190,6 +209,7 @@ export function ControlledInAppAgentWindow(
       isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}
       selectedConversationTitle={selectedConversationTitle}
+      titleActions={titleActions}
       onLoadMoreConversations={loadMoreConversations}
       onOpenConversationHistory={invalidateConversations}
       onDeleteConversation={props.onDeleteConversation}

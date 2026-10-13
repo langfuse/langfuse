@@ -46,12 +46,13 @@ import { traceBatchQueueProcessor } from "../queues/traceBatchQueue";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import {
   ensureDefaultTopicFacets,
+  isTopicsProcessingActive,
   listTopicSummaries,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
 import {
   summarizeTopicTraceFacets,
-  embedTopicSummary,
+  embedTopicSummaries,
 } from "../features/topics/models";
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -74,6 +75,9 @@ const topicsProjects = vi.hoisted(() => new Set<string>());
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
   isTopicsProjectEnabled: (projectId: string) => topicsProjects.has(projectId),
+  isTopicsProcessingActive: vi.fn(async (projectId: string) =>
+    topicsProjects.has(projectId),
+  ),
   getEnabledTopicsModels: async (projectIds: string[]) =>
     new Map(
       projectIds
@@ -108,7 +112,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
 
 vi.mock("../features/topics/models", () => ({
   summarizeTopicTraceFacets: vi.fn(),
-  embedTopicSummary: vi.fn(),
+  embedTopicSummaries: vi.fn(),
 }));
 
 vi.mock("../features/evaluation/observationEval", async (importOriginal) => ({
@@ -1447,9 +1451,11 @@ describe("trace micro-batch scheduling with Redis", () => {
         ...usage,
       }),
     );
-    vi.mocked(embedTopicSummary).mockImplementation(
-      async (_model, _text, dimensions) => ({
-        embedding: Array.from({ length: dimensions }, () => 0.1),
+    vi.mocked(embedTopicSummaries).mockImplementation(
+      async (_model, summaries, dimensions) => ({
+        embeddings: summaries.map(() =>
+          Array.from({ length: dimensions }, () => 0.1),
+        ),
         ...usage,
       }),
     );
@@ -1749,14 +1755,33 @@ describe("trace micro-batch scheduling with Redis", () => {
     const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0;
     topicsProjects.add("topics-project");
+    topicsProjects.add("inactive-project");
     try {
       vi.mocked(recordIncrement).mockClear();
       await trackTraceBatchActivity("other-project", [event("other-trace")]);
+      vi.mocked(isTopicsProcessingActive).mockResolvedValueOnce(false);
+      await trackTraceBatchActivity("inactive-project", [
+        event("inactive-trace"),
+      ]);
       expect(recordIncrement).not.toHaveBeenCalled();
       await trackTraceBatchActivity("topics-project", [event("topics-trace")]);
-      expect(await client().hkeys(stateKey)).toEqual([
-        member("topics-project", "topics-trace"),
+      // An unreadable gate falls back to the allowlist.
+      vi.mocked(isTopicsProcessingActive).mockRejectedValueOnce(
+        new Error("postgres down"),
+      );
+      await trackTraceBatchActivity("topics-project", [
+        event("fallback-trace"),
       ]);
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.trace_batch.topics_gate_failures",
+        1,
+      );
+      expect((await client().hkeys(stateKey)).sort()).toEqual(
+        [
+          member("topics-project", "topics-trace"),
+          member("topics-project", "fallback-trace"),
+        ].sort(),
+      );
     } finally {
       topicsProjects.clear();
       env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = samplingRate;

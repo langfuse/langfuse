@@ -452,7 +452,7 @@ export const eventsRouter = createTRPCRouter({
       const isSessionTimelineEnabled =
         getContextualFeatureFlags(ctx.session?.user, {
           projectId: input.projectId,
-        })?.sessionTimeline === true;
+        })?.sessionViewV2Timeline === true;
       if (
         !isSessionTimelineEnabled &&
         !hasInternalAccess({

@@ -1,3 +1,4 @@
+import { cn } from "@/src/utils/tailwind";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 import { groupScoresByName } from "@/src/components/grouped-score-badge";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
@@ -39,6 +40,7 @@ import { numberFormatter } from "@/src/utils/numbers";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 type ModernSessionHeaderProps = {
+  dividerTone: "default" | "orange";
   projectId: string;
   countTraces: number;
   minTimestamp: Date;
@@ -269,6 +271,7 @@ const MetadataJsonPathEditorContent = ({
 };
 
 export function ModernSessionHeader({
+  dividerTone,
   projectId,
   countTraces,
   minTimestamp,
@@ -434,7 +437,13 @@ export function ModernSessionHeader({
     });
   });
   return (
-    <div className="border-b px-4 pt-1 pb-1.5 font-mono">
+    <div
+      className={cn(
+        "border-b px-4 pt-1 pb-1.5 font-mono",
+        dividerTone === "orange" &&
+          "border-orange-200/50 dark:border-orange-900/50",
+      )}
+    >
       <SingleLineOverflowList
         spacing="comfortable"
         items={pills}

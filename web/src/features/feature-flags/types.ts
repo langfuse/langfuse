@@ -8,16 +8,16 @@ export type Flags = {
   [key in Exclude<
     Flag,
     | "externalMediaStorage"
-    | "modernSession"
+    | "sessionViewV2"
     | "aiGateway"
-    | "sessionTimeline"
+    | "sessionViewV2Timeline"
     | typeof INTERNAL_FEATURE_FLAG
   >]: boolean;
 } & {
   // Optional while older sessions and test fixtures roll across new flags.
   externalMediaStorage?: boolean;
-  modernSession?: boolean;
+  sessionViewV2?: boolean;
   aiGateway?: boolean;
-  sessionTimeline?: boolean;
+  sessionViewV2Timeline?: boolean;
   [INTERNAL_FEATURE_FLAG]?: boolean;
 };

@@ -658,6 +658,16 @@ export const env = createEnv({
       .positive()
       .default(150_000),
 
+    // Reverse proxies in front of the web container that append the client
+    // address to X-Forwarded-For. Audit events take the client IP from the
+    // N-th entry from the right, since entries further left are client-supplied.
+    // 0 ignores X-Forwarded-For and uses the socket peer address.
+    LANGFUSE_TRUSTED_PROXY_COUNT: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(0),
+
     // Background-migration env gates. Mirror worker/src/env.ts (names, defaults)
     // so the background-migrations status endpoint can tell dormant, env-gated
     // rows apart from migrations the worker will actually pick up. The worker
@@ -1229,6 +1239,7 @@ export const env = createEnv({
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
+    LANGFUSE_TRUSTED_PROXY_COUNT: process.env.LANGFUSE_TRUSTED_PROXY_COUNT,
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL:
       process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL,
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES:
