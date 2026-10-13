@@ -541,7 +541,16 @@ export class LlmConnectionService {
     input: LlmConnectionWriteInput;
     actor: AuditLogActor;
   }): Promise<{ connection: SafeLlmConnection; created: boolean }> {
-    await validateBaseUrlForWrite(params.input);
+    const storedConnection = await this.repository.findByProvider({
+      owner: params.owner,
+      provider: params.input.provider,
+    });
+    if (
+      !storedConnection ||
+      params.input.baseURL !== storedConnection.baseURL
+    ) {
+      await validateBaseUrlForWrite(params.input);
+    }
     validateSecret(params.input);
 
     const encryptedSecretKey = encrypt(params.input.secretKey);

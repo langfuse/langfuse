@@ -126,9 +126,6 @@ export class LlmConnectionRepository {
           { projectId: params.projectId },
           { organizationId: params.organizationId },
         ],
-        ...(params.includeDecisionModels
-          ? {}
-          : { adapter: { notIn: [...DECISION_MODEL_ADAPTERS] } }),
       },
       orderBy: { createdAt: "desc" },
     });
@@ -137,8 +134,16 @@ export class LlmConnectionRepository {
         .filter((connection) => connection.projectId === params.projectId)
         .map((connection) => connection.provider),
     );
+    const visibleConnections = params.includeDecisionModels
+      ? connections
+      : connections.filter(
+          (connection) =>
+            !DECISION_MODEL_ADAPTERS.some(
+              (adapter) => adapter === connection.adapter,
+            ),
+        );
 
-    return connections.filter(
+    return visibleConnections.filter(
       (connection) =>
         connection.projectId === params.projectId ||
         !projectProviders.has(connection.provider),

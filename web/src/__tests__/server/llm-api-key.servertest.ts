@@ -24,6 +24,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { AuthMethod } from "@/src/features/llm-api-key/types";
+import { LlmConnectionService } from "@/src/features/llm-api-key/server/llmConnectionService";
 import {
   createOrgProjectAndApiKey,
   DefaultEvalModelService,
@@ -233,6 +234,41 @@ describe("llmApiKey.all RPC", () => {
     await expect(
       prisma.llmApiKeys.count({ where: { projectId, provider } }),
     ).resolves.toBe(1);
+  });
+
+  it("should rotate a secret without revalidating an unchanged stored base URL", async () => {
+    const provider = `operator-provisioned-${randomUUID()}`;
+    const connection = await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: encrypt("old-secret"),
+        displaySecretKey: "...cret",
+        baseURL: "http://localhost:11434/v1",
+      },
+    });
+
+    const result = await new LlmConnectionService().upsert({
+      owner: {
+        type: "project",
+        projectId,
+        organizationId: orgId,
+      },
+      input: {
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "rotated-secret",
+        baseURL: connection.baseURL,
+      },
+      actor: { userId: session.user!.id, orgId, projectId },
+    });
+
+    expect(result.created).toBe(false);
+    const updatedConnection = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: { id: connection.id },
+    });
+    expect(decrypt(updatedConnection.secretKey)).toBe("rotated-secret");
   });
 
   it("should create a Bedrock llm api key with a Bedrock API key", async () => {

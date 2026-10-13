@@ -183,6 +183,42 @@ describe("organization LLM connections", () => {
     );
   });
 
+  it("does not list an organization connection overridden by a project decision model", async () => {
+    const setup = await createOrgProjectAndApiKey();
+    await prisma.llmApiKeys.createMany({
+      data: [
+        {
+          organizationId: setup.orgId,
+          provider: "shared-provider",
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "encrypted-organization-openai",
+          displaySecretKey: "...open",
+        },
+        {
+          projectId: setup.projectId,
+          provider: "shared-provider",
+          adapter: LLMAdapter.TypeSafe,
+          secretKey: "encrypted-project-typesafe",
+          displaySecretKey: "...safe",
+        },
+      ],
+    });
+    const caller = createCaller(
+      createSession({
+        orgId: setup.orgId,
+        projectId: setup.projectId,
+        orgRole: "MEMBER",
+        projectRole: "VIEWER",
+      }),
+    );
+
+    const effective = await caller.llmApiKey.effective({
+      projectId: setup.projectId,
+    });
+
+    expect(effective.data).toEqual([]);
+  });
+
   it("rejects organization access across tenants", async () => {
     const [ownSetup, otherSetup] = await Promise.all([
       createOrgProjectAndApiKey(),
