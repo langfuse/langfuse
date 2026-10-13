@@ -1,22 +1,21 @@
 name: AWS preview build
 
-# Build the PR's web + worker images and push them to ECR as pr-<n>-<sha>.
-# The Argo CD ApplicationSet in the infrastructure repo deploys whichever image
-# tag exists for a labeled PR; this workflow only builds and pushes, then posts
-# the preview URL on the PR — as the marker-tagged status comment, as a native
-# GitHub deployment (the "View deployment" button), and as a machine-managed
-# block pinned atop the PR description. All PR deployments
-# share one GitHub environment; Argo CD still owns the real preview lifecycle.
+# Build the PR's web, worker, and AI gateway images and push them to ECR as
+# pr-<n>-<sha>. The Argo CD ApplicationSet in the infrastructure repo deploys
+# the web and worker tags for a labeled PR; the gateway image is pushed for a
+# later deploy and is not referenced by the chart yet. This workflow only
+# builds and pushes, then posts the preview URL on the PR — as the
+# marker-tagged status comment, as a native GitHub deployment (the "View
+# deployment" button), and as a machine-managed block pinned atop the PR
+# description. All PR deployments share one GitHub environment; Argo CD still
+# owns the real preview lifecycle.
 #
-# The two images are independent artifacts pushed to two independent ECR repos
-# under the same tag, with no ordering dependency between them. They therefore
-# build in PARALLEL: a `meta` job resolves the tags and posts the "building"
-# comment once, a matrix `build` job builds web and worker concurrently on
-# separate runners (so each gets a full runner's CPU/memory rather than sharing
-# one — their heavy stages, turbo prune/pnpm install/turbo build, are
-# scope-specific and share no layer cache anyway, so serializing them bought
-# nothing), and a `notify` job posts the single success/failure comment once
-# both builds finish. Wall-clock is now ~max(web, worker) instead of the sum.
+# The images are independent artifacts pushed to independent ECR repos under
+# the same tag, with no ordering dependency between them. They therefore build
+# in PARALLEL: a `meta` job resolves the tags and posts the "building" comment
+# once, a matrix `build` job builds web, worker, and the gateway concurrently
+# on separate runners, and a `notify` job posts the single success/failure
+# comment once every build finishes. Wall-clock is ~max(web, worker, gateway).
 #
 # Builds every SAME-REPO PR on open/update (write access is the gate — opening a
 # same-repo PR requires push access). It deliberately does NOT trigger on the
@@ -74,6 +73,7 @@ jobs:
       commit_sha: ${{ steps.meta.outputs.commit_sha }}
       web_image: ${{ steps.meta.outputs.web_image }}
       worker_image: ${{ steps.meta.outputs.worker_image }}
+      ai_gateway_image: ${{ steps.meta.outputs.ai_gateway_image }}
       preview_host: ${{ steps.meta.outputs.preview_host }}
       namespace: ${{ steps.meta.outputs.namespace }}
       login_email: ${{ steps.meta.outputs.login_email }}
@@ -102,6 +102,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           WEB_REPO: ${{ vars.AWS_PREVIEW_WEB_ECR_REPOSITORY_URL }}
           WORKER_REPO: ${{ vars.AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL }}
+          AI_GATEWAY_REPO: ${{ vars.AWS_PREVIEW_AI_GATEWAY_ECR_REPOSITORY_URL }}
           DOMAIN_NAME: ${{ vars.AWS_PREVIEW_DOMAIN_NAME }}
         run: |
           set -euo pipefail
@@ -114,6 +115,7 @@ jobs:
             echo "commit_sha=${commit_sha}"
             echo "web_image=${WEB_REPO}:${image_tag}"
             echo "worker_image=${WORKER_REPO}:${image_tag}"
+            echo "ai_gateway_image=${AI_GATEWAY_REPO}:${image_tag}"
             echo "preview_host=pr-${PR_NUMBER}.${DOMAIN_NAME}"
             # k8s namespace/release for this PR (web+worker deploys are
             # <namespace>-web / <namespace>-worker) — used for the log commands
@@ -141,12 +143,15 @@ jobs:
             ### 🟡 AWS preview building
 
             Building images for `${{ steps.meta.outputs.commit_sha }}` (~5 min).
-            Argo CD deploys the preview once both images finish pushing; it may
-            briefly show `ImagePullBackOff` until they propagate.
+            Argo CD deploys web and worker once those images finish pushing; it
+            may briefly show `ImagePullBackOff` until they propagate. The
+            gateway image is pushed alongside them and is not deployed yet.
 
-  # web and worker build concurrently, each on its own runner. fail-fast: false
-  # so one failing build does not cancel the other — the notify job below reports
-  # the aggregate result.
+  # web, worker, and the gateway build concurrently, each on its own runner.
+  # fail-fast: false so one failing build does not cancel the others — the
+  # notify job below reports the aggregate result. The gateway leg skips
+  # itself until AWS_PREVIEW_AI_GATEWAY_ECR_REPOSITORY_URL is set, so web and
+  # worker previews keep building before that repository variable exists.
   build:
     name: Build and push ${{ matrix.target }}
     needs: meta
@@ -166,6 +171,7 @@ jobs:
           - target: web
             image: ${{ needs.meta.outputs.web_image }}
             dockerfile: web/Dockerfile
+            context: .
             # Signup is on (Mailpit catches mail and does not relay). The cloud
             # region must be baked at build time (NEXT_PUBLIC_* is inlined into
             # the client bundle) so previews render the cloud-only AI features;
@@ -177,6 +183,14 @@ jobs:
           - target: worker
             image: ${{ needs.meta.outputs.worker_image }}
             dockerfile: worker/Dockerfile
+            context: .
+            extra_build_args: ""
+          - target: ai-gateway
+            image: ${{ needs.meta.outputs.ai_gateway_image }}
+            dockerfile: Dockerfile
+            # Context is the crate directory: ai-gateway/Dockerfile copies
+            # Cargo.toml from the build context, matching the staging deploy.
+            context: ai-gateway
             extra_build_args: ""
     steps:
       # The PR head is the Docker build context — the exact commit the image tag
@@ -202,6 +216,7 @@ jobs:
           COMMIT_SHA: ${{ needs.meta.outputs.commit_sha }}
           IMAGE: ${{ matrix.image }}
           DOCKERFILE: ${{ matrix.dockerfile }}
+          CONTEXT: ${{ matrix.context }}
           # Static, workflow-defined literal (per-target flags) — no user input.
           EXTRA_BUILD_ARGS: ${{ matrix.extra_build_args }}
           TARGET: ${{ matrix.target }}
@@ -212,6 +227,14 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           set -euo pipefail
+
+          # Until the preview ECR repo exists and its URL is copied into this
+          # variable, skip the gateway leg so web and worker previews still
+          # publish. An empty repository renders the image as ":<tag>".
+          if [ "${TARGET}" = "ai-gateway" ] && [ -z "${IMAGE%%:*}" ]; then
+            echo "AWS_PREVIEW_AI_GATEWAY_ECR_REPOSITORY_URL is unset — skipping gateway image."
+            exit 0
+          fi
 
           # The preview ECR repos are tag-IMMUTABLE, so re-pushing an existing
           # tag fails. Tags embed the commit SHA, so an existing tag is byte-for-
@@ -255,6 +278,13 @@ jobs:
             )
           fi
 
+          # Staging's gateway image is the runtime stage, with BUILD_ID set to
+          # the commit. Web and worker ignore these.
+          gateway_build_args=()
+          if [ "${TARGET}" = "ai-gateway" ]; then
+            gateway_build_args+=(--target runtime --build-arg "BUILD_ID=${COMMIT_SHA}")
+          fi
+
           # EXTRA_BUILD_ARGS is a trusted workflow literal and must word-split
           # into separate flags, so it is intentionally left unquoted.
           # shellcheck disable=SC2086
@@ -262,12 +292,13 @@ jobs:
             --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
             ${EXTRA_BUILD_ARGS} \
             "${preview_meta_args[@]}" \
+            "${gateway_build_args[@]}" \
             -f "${DOCKERFILE}" \
             -t "${IMAGE}" \
-            .
+            "${CONTEXT:-.}"
           docker push "${IMAGE}"
 
-  # Single authoritative status comment once both builds settle, updating the
+  # Single authoritative status comment once every build settles, updating the
   # same marker-tagged comment the meta job posted. Runs on always() so it still
   # reports after a failure, but each step keys on a definite success/failure
   # result (see the per-step guards) so a cancelled run — e.g. superseded by a
