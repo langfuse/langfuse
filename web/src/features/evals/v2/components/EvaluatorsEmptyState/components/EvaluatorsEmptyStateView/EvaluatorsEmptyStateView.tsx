@@ -80,7 +80,7 @@ function BrowseLibraryCard({
       <EvaluatorRecommendedCardSurface>
         <EvaluatorRecommendedCardContent
           preview={
-            <div className="bg-muted-gray/70 dot-grid flex h-20 items-center justify-center rounded-sm">
+            <div className="bg-muted-gray dot-grid flex h-20 items-center justify-center rounded-sm">
               <LayoutGrid className="text-muted-foreground icon-lg" />
             </div>
           }
