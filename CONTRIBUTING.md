@@ -200,7 +200,9 @@ in the Cloud Agents dashboard; Linear MCP OAuth does not complete in Cloud.
 After local verification, a Cursor agent should open a same-repo reviewable
 PR (not a draft), apply the GitHub `cursor` label, and test its
 `pr-<N>.preview.langfuse.com` deployment.
-Use Linear's git branch name (`lfe-XXXX-short-title`), not a `cursor/` prefix.
+When the agent can choose, use Linear's git branch name
+(`lfe-XXXX-short-title`). Cursor Cloud assigns a `cursor/` prefix; leave
+that prefix in place.
 When handing work to a human, give a one-sentence TL;DR, a preview URL with
 exact test steps (including how to seed or hit the same path on
 `http://localhost:3000`), and proof of the fix for user-visible changes
