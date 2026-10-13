@@ -187,7 +187,7 @@ export const ObservationDetailViewHeader = memo(
         : undefined;
 
     const renderCostBadge = () => {
-      if (showsNoCost) return <NoCostBadge />;
+      if (showsNoCost) return <NoCostBadge projectId={projectId} />;
       if (displayedTotalCost == null || !displayedCostDetails) return null;
       return (
         <CostBadge
