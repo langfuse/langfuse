@@ -285,6 +285,7 @@ export const handleCloudSpendAlertJob = async (job: Job<{ orgId: string }>) => {
   // unknown to CHB, so this is a hard fork rather than a fallback chain.
   const billingProvider = getBillingProvider(org, {
     cutoff: env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
+    optInOrgIds: env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS,
   });
 
   try {
