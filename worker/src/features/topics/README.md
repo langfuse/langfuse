@@ -100,7 +100,9 @@ model IDs retain their usage but have no trace cost, independently of Topics'
 own estimates in `models.ts`.
 Traces use `langfuse-topics`. Topics excludes all `langfuse`-prefixed environments
 and `llm-as-a-judge` through the shared eval exclusion predicate, preventing loops
-from these internal traces. If an OpenRouter connection broadcasts requests back
+from these internal traces. Manual selection checks matching root observations
+within the requested time range; workers also check the source environment they
+load. If an OpenRouter connection broadcasts requests back
 to a Topics-enabled project, use a dedicated Topics API key excluded from that
 Broadcast destination. OpenRouter's separate public traces do not retain the
 reserved internal environment and can otherwise trigger more Topics calls.

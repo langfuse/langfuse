@@ -15,43 +15,7 @@ import { logger } from "../logger";
 import { writeInternalTraceViaOtelIngestion } from "../otel/internalTraceOtelWriter";
 import type { TopicsModel } from "./model-config";
 
-/** A system prompt segment; `cache` ends a reusable prefix with a cache breakpoint. */
-export type TopicPromptPart = { text: string; cache?: boolean };
-
-type TopicTextResult = {
-  output: unknown;
-  usage: {
-    inputTokens?: number;
-    outputTokens?: number;
-    totalTokens?: number;
-    cacheReadTokens?: number;
-    cacheWriteTokens?: number;
-  };
-};
-
 const TIMEOUT_MS = 60_000;
-
-function isBedrockGPT(model: TopicsModel): boolean {
-  if (model.adapter !== LLMAdapter.Bedrock) return false;
-  // Opaque application inference profiles cannot identify the underlying model.
-  const version = /(?:^|[/.])openai\.gpt-(\d+)(?:\.(\d+))?(?:[-:]|$)/.exec(
-    model.model,
-  );
-  return Boolean(
-    version &&
-    (Number(version[1]) > 5 ||
-      (Number(version[1]) === 5 && Number(version[2] ?? 0) >= 6)),
-  );
-}
-
-type TopicTextParams<T> = {
-  model: TopicsModel;
-  system: TopicPromptPart[];
-  input: string;
-  schema: z.ZodType<T>;
-  maxOutputTokens: number;
-  trace?: TraceSinkParams;
-};
 
 /**
  * Structured Topics text through the project's LLM connection. GPT-5.6+ models
@@ -73,7 +37,6 @@ export async function generateTopicText<T>(
       isBedrockGPT(params.model) && params.system.some((part) => part.cache)
         ? await invokeWithCache(params, recordResponse)
         : await generateWithConnection(params, recordResponse);
-    result.output = params.schema.parse(result.output);
     return result;
   } catch (error) {
     failure = error;
@@ -82,79 +45,85 @@ export async function generateTopicText<T>(
     }
     throw error;
   } finally {
-    if (params.trace) {
-      const { trace } = params;
-      const usage = result?.usage;
-      // Standard input excludes cached tokens, which have their own prices.
-      const usageDetails = usage
-        ? {
-            input:
-              usage.inputTokens === undefined
-                ? undefined
-                : Math.max(
-                    0,
-                    usage.inputTokens -
-                      (usage.cacheReadTokens ?? 0) -
-                      (usage.cacheWriteTokens ?? 0),
-                  ),
-            output: usage.outputTokens,
-            total: usage.totalTokens,
-            input_cached_tokens: usage.cacheReadTokens,
-            input_cache_creation: usage.cacheWriteTokens,
-          }
-        : undefined;
-      try {
-        await writeInternalTraceViaOtelIngestion({
-          rootSpanId: trace.traceId,
-          eventInputs: [
-            {
-              projectId: trace.targetProjectId,
-              traceId: trace.traceId,
-              spanId: trace.traceId,
-              name: trace.traceName,
-              traceName: trace.traceName,
-              type: "GENERATION",
-              environment: trace.environment,
-              startTimeISO,
-              endTimeISO: new Date().toISOString(),
-              modelName: params.model.model,
-              modelParameters: { maxOutputTokens: params.maxOutputTokens },
-              input: JSON.stringify(topicMessages(params)),
-              output:
-                result?.output === undefined
-                  ? undefined
-                  : JSON.stringify(result.output),
-              providedUsageDetails: usageDetails
-                ? Object.fromEntries(
-                    Object.entries(usageDetails).filter(
-                      (entry): entry is [string, number] =>
-                        entry[1] !== undefined,
-                    ),
-                  )
-                : undefined,
-              metadata: trace.metadata ?? {},
-              userId: trace.userId,
-              sessionId: trace.sessionId,
-              ...(failure !== undefined
-                ? {
-                    level: "ERROR",
-                    statusMessage:
-                      failure instanceof Error
-                        ? failure.message
-                        : String(failure),
-                  }
-                : {}),
-            },
-          ],
-        });
-      } catch (error) {
-        logger.error("Failed to publish Topics model trace", {
-          error,
-          traceId: trace.traceId,
-        });
-      }
-    }
+    await writeTopicTrace(params, startTimeISO, result, failure);
   }
+}
+
+async function writeTopicTrace<T>(
+  params: TopicTextParams<T>,
+  startTimeISO: string,
+  result: TopicTextResult | undefined,
+  failure: unknown,
+) {
+  const { trace } = params;
+  if (!trace) return;
+  try {
+    /** Validation marks the trace; the caller validates after accounting for usage. */
+    const validation = params.schema.safeParse(result?.output);
+    await writeInternalTraceViaOtelIngestion({
+      rootSpanId: trace.traceId,
+      eventInputs: [
+        {
+          projectId: trace.targetProjectId,
+          traceId: trace.traceId,
+          spanId: trace.traceId,
+          name: trace.traceName,
+          traceName: trace.traceName,
+          type: "GENERATION",
+          environment: trace.environment,
+          startTimeISO,
+          endTimeISO: new Date().toISOString(),
+          modelName: params.model.model,
+          modelParameters: { maxOutputTokens: params.maxOutputTokens },
+          input: JSON.stringify(topicMessages(params)),
+          output: JSON.stringify(result?.output),
+          providedUsageDetails: topicTraceUsage(result?.usage),
+          metadata: trace.metadata ?? {},
+          userId: trace.userId,
+          sessionId: trace.sessionId,
+          ...topicTraceError(failure ?? validation.error),
+        },
+      ],
+    });
+  } catch (error) {
+    logger.error("Failed to publish Topics model trace", {
+      error,
+      traceId: trace.traceId,
+    });
+  }
+}
+
+function topicTraceUsage(usage: TopicTextResult["usage"] | undefined) {
+  if (!usage) return undefined;
+  const details: Record<string, number | undefined> = {
+    input: undefined,
+    output: usage.outputTokens,
+    total: usage.totalTokens,
+    input_cached_tokens: usage.cacheReadTokens,
+    input_cache_creation: usage.cacheWriteTokens,
+  };
+  /** Standard input excludes cached tokens, which have their own prices. */
+  if (usage.inputTokens !== undefined) {
+    details.input = Math.max(
+      0,
+      usage.inputTokens -
+        (usage.cacheReadTokens ?? 0) -
+        (usage.cacheWriteTokens ?? 0),
+    );
+  }
+  return Object.fromEntries(
+    Object.entries(details).filter(
+      (entry): entry is [string, number] => entry[1] !== undefined,
+    ),
+  );
+}
+
+function topicTraceError(failure: unknown) {
+  if (failure === undefined) return {};
+  return {
+    level: "ERROR" as const,
+    statusMessage: failure instanceof Error ? failure.message : String(failure),
+  };
 }
 
 function topicMessages(params: { system: TopicPromptPart[]; input: string }) {
@@ -214,6 +183,19 @@ async function generateWithConnection<T>(
     output: result.output,
     usage,
   };
+}
+
+function isBedrockGPT(model: TopicsModel): boolean {
+  if (model.adapter !== LLMAdapter.Bedrock) return false;
+  /** Opaque application inference profiles cannot identify the underlying model. */
+  const version = /(?:^|[/.])openai\.gpt-(\d+)(?:\.(\d+))?(?:[-:]|$)/.exec(
+    model.model,
+  );
+  return Boolean(
+    version &&
+    (Number(version[1]) > 5 ||
+      (Number(version[1]) === 5 && Number(version[2] ?? 0) >= 6)),
+  );
 }
 
 function signingCredentials(
@@ -363,3 +345,26 @@ async function invokeWithCache(
     );
   return { ...result, output: JSON.parse(message.content) as unknown };
 }
+
+/** A system prompt segment; `cache` ends a reusable prefix with a cache breakpoint. */
+export type TopicPromptPart = { text: string; cache?: boolean };
+
+type TopicTextResult = {
+  output: unknown;
+  usage: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+  };
+};
+
+type TopicTextParams<T> = {
+  model: TopicsModel;
+  system: TopicPromptPart[];
+  input: string;
+  schema: z.ZodType<T>;
+  maxOutputTokens: number;
+  trace?: TraceSinkParams;
+};

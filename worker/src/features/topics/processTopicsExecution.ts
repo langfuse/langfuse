@@ -285,8 +285,13 @@ async function releaseCompletedSummaries(state: TopicProcessBatchState) {
   )
     return;
   try {
+    const refs = state.summaries.concat(
+      state.failedTraceIds.flatMap(({ facetId, facetVersion, traceIds }) =>
+        traceIds.map((traceId) => ({ facetId, facetVersion, traceId })),
+      ),
+    );
     await Promise.all(
-      state.summaries.map((ref) =>
+      refs.map((ref) =>
         deleteStagedTopicSummary(
           {
             projectId: state.execution.projectId,
@@ -907,28 +912,16 @@ async function processTraces(
                 aborted = true;
                 throw error;
               }
-              let failed = state.failedTraceIds.find(
-                (entry) =>
-                  entry.facetId === facet.facetId &&
-                  entry.facetVersion === facet.version,
-              );
-              if (!failed) {
-                failed = {
+              recordTraceFailure(
+                state,
+                progress,
+                {
                   facetId: facet.facetId,
                   facetVersion: facet.version,
-                  traceIds: [],
-                };
-                state.failedTraceIds.push(failed);
-              }
-              failed.traceIds.push(traceId);
-              progress.counts.failed = failed.traceIds.length;
-              const message = errorMessage(error);
-              if (
-                !execution.traceErrors.some(
-                  (item) => item.traceId === traceId && item.error === message,
-                )
-              )
-                execution.traceErrors.push({ traceId, error: message });
+                  traceId,
+                },
+                error,
+              );
               await saveInOrder();
             }
           }
@@ -947,7 +940,7 @@ async function processTraces(
     state.assignedAt = new Date().toISOString();
     await save("assigning");
   }
-  const summaries = await Promise.all(
+  const stagedSummaries = await Promise.all(
     state.summaries
       .filter((ref) =>
         facets.some(
@@ -962,17 +955,30 @@ async function processTraces(
         );
         if (!staged)
           throw new TopicEmbeddingFailure(TOPIC_EMBEDDING_EXPIRED_ERROR);
-        if (isInternalEvalEnvironment(staged.summary.environment))
-          throw new TopicEmbeddingFailure(
-            "Topics does not process internal Langfuse traces.",
-          );
-        if (staged.summary.state === "summarized")
-          throw new TopicEmbeddingFailure(
-            "Topics embedding batch has an unfinished result.",
-          );
-        return staged.summary;
+        return { ref, summary: staged.summary };
       }),
   );
+  const summaries: TopicSummary[] = [];
+  for (const { ref, summary } of stagedSummaries) {
+    if (isInternalEvalEnvironment(summary.environment)) {
+      const { progress } = facets.find(
+        ({ facet }) =>
+          facet.facetId === ref.facetId && facet.version === ref.facetVersion,
+      )!;
+      const error = new Error(
+        "Topics does not process internal Langfuse traces.",
+      );
+      metrics.error("summary", error);
+      recordTraceFailure(state, progress, ref, error);
+      state.summaries = state.summaries.filter((entry) => entry !== ref);
+      continue;
+    }
+    if (summary.state === "summarized")
+      throw new TopicEmbeddingFailure(
+        "Topics embedding batch has an unfinished result.",
+      );
+    summaries.push(summary);
+  }
   for (const { facet, progress, run } of facets) {
     try {
       const selected = summaries.filter(
@@ -1008,6 +1014,30 @@ async function processTraces(
     }
     await save("processing");
   }
+}
+
+function recordTraceFailure(
+  state: TopicProcessBatchState,
+  progress: TopicFacetProgress,
+  { facetId, facetVersion, traceId }: TopicEmbeddingRef,
+  error: unknown,
+) {
+  let failed = state.failedTraceIds.find(
+    (entry) => entry.facetId === facetId && entry.facetVersion === facetVersion,
+  );
+  if (!failed) {
+    failed = { facetId, facetVersion, traceIds: [] };
+    state.failedTraceIds.push(failed);
+  }
+  if (!failed.traceIds.includes(traceId)) failed.traceIds.push(traceId);
+  progress.counts.failed = failed.traceIds.length;
+  const message = errorMessage(error);
+  if (
+    !state.execution.traceErrors.some(
+      (item) => item.traceId === traceId && item.error === message,
+    )
+  )
+    state.execution.traceErrors.push({ traceId, error: message });
 }
 
 /** Each unpublished attempt fits the current compatible summaries from scratch. */

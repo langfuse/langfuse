@@ -102,7 +102,7 @@ export async function loadTopicTranscript(params: {
     )
     .orderByColumns([
       { column: "e.event_ts", direction: "DESC" },
-      // Keep source environment selection aligned with Topics discovery on equal timestamps.
+      /** Use the same environment tie-breakers as Topics root discovery. */
       { column: "e.span_id", direction: "DESC" },
       { column: "e.environment", direction: "DESC" },
       // Equal storage timestamps need a stable choice; they do not establish causal order.

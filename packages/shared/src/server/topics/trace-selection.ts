@@ -3,10 +3,7 @@ import type { PrismaClient } from "../../db";
 import { eventsTableTraceNameSelectSql } from "../../eventsTable";
 import type { topicTraceSelectionCriteriaSchema } from "../../topics";
 import { applyCommentFilters } from "../services/commentFilterService";
-import {
-  CTEQueryBuilder,
-  EventsQueryBuilder,
-} from "../queries/clickhouse-sql/event-query-builder";
+import { CTEQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
 import { queryClickhouse } from "../repositories/clickhouse";
 import {
@@ -31,7 +28,7 @@ type SelectionRows = {
   };
 };
 
-/** Matching observations select trace identities; processing reads each full trace. */
+/** Select trace identities from matching root observations. */
 export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
   input: z.infer<typeof topicTraceSelectionCriteriaSchema> & {
     projectId: string;
@@ -75,13 +72,10 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
     .selectRaw(
       "e.trace_id AS id",
       "e.start_time AS start_time",
-      ...(preview
-        ? [
-            "e.span_id AS span_id",
-            "e.event_ts AS event_ts",
-            `${eventsTableTraceNameSelectSql} AS trace_name`,
-          ]
-        : []),
+      "e.span_id AS span_id",
+      "e.event_ts AS event_ts",
+      "e.environment AS environment",
+      ...(preview ? [`${eventsTableTraceNameSelectSql} AS trace_name`] : []),
     )
     .whereRaw("e.trace_id != ''")
     .buildWithParams();
@@ -91,7 +85,10 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       schema: [
         "id",
         "start_time",
-        ...(preview ? (["span_id", "event_ts", "trace_name"] as const) : []),
+        "span_id",
+        "event_ts",
+        "environment",
+        ...(preview ? (["trace_name"] as const) : []),
       ] as const,
     })
     .from("matching_observations", "m")
@@ -99,6 +96,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       "m.id AS id",
       "min(m.start_time) AS timestamp",
       "max(m.start_time) AS latest_match",
+      "argMax(m.environment, tuple(m.event_ts, m.span_id, m.environment)) AS environment",
       ...(preview
         ? [
             "argMaxIf(m.trace_name, tuple(m.event_ts, m.span_id, m.trace_name), m.trace_name != '') AS name",
@@ -106,33 +104,6 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
         : []),
     )
     .groupBy("m.id")
-    .buildWithParams();
-  // Only candidate identities are time-filtered: processing reads every observation
-  // of each trace, including newer children outside the selected root's window.
-  const candidateEvents = new EventsQueryBuilder({ projectId: input.projectId })
-    .selectRaw(
-      "e.trace_id AS id",
-      "e.event_ts AS event_ts",
-      "e.span_id AS span_id",
-      "e.environment AS environment",
-    )
-    .forceFullTable()
-    .whereRaw("e.trace_id IN (SELECT id FROM matching_traces)")
-    .whereRaw(
-      "xxHash32(e.trace_id) IN (SELECT xxHash32(id) FROM matching_traces)",
-    )
-    .buildWithParams();
-  const environments = new CTEQueryBuilder()
-    .withCTE("candidate_events", {
-      ...candidateEvents,
-      schema: ["id", "event_ts", "span_id", "environment"],
-    })
-    .from("candidate_events", "c")
-    .select(
-      "c.id AS id",
-      "argMax(c.environment, tuple(c.event_ts, c.span_id, c.environment)) AS environment",
-    )
-    .groupBy("c.id")
     .havingRaw(
       "NOT startsWith(environment, {internalEnvironmentPrefix:String}) AND environment != {publicLlmJudgeEnvironment:String}",
       {
@@ -148,15 +119,11 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
         "id",
         "timestamp",
         "latest_match",
+        "environment",
         ...(preview ? (["name"] as const) : []),
       ] as const,
     })
-    .withCTE("eligible_environments", {
-      ...environments,
-      schema: ["id", "environment"],
-    })
     .from("matching_traces", "t")
-    .innerJoin("eligible_environments", "v", "ON v.id = t.id")
     .select(
       "t.id AS id",
       ...(mode === "ids"
@@ -165,7 +132,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
             "toUnixTimestamp64Milli(t.timestamp) AS timestampMs",
             "count() OVER () AS matchedTraceCount",
             ...(preview
-              ? ["t.name AS name", "v.environment AS environment"]
+              ? ["t.name AS name", "t.environment AS environment"]
               : ["toUnixTimestamp64Milli(t.latest_match) AS latestMs"]),
           ]),
     )

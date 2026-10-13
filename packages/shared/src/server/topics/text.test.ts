@@ -426,16 +426,22 @@ describe("generateTopicText", () => {
           ),
         ),
       );
-      await expect(
-        generateTopicText({
-          model: bedrockModel("summary", "us.openai.gpt-6-luna"),
-          system: [{ text: "Summarize.", cache }],
-          input: "Hi",
-          schema: z.object({ summary: z.string() }),
-          maxOutputTokens: 256,
-          trace,
-        }),
-      ).rejects.toThrow();
+      const response = generateTopicText({
+        model: bedrockModel("summary", "us.openai.gpt-6-luna"),
+        system: [{ text: "Summarize.", cache }],
+        input: "Hi",
+        schema: z.object({ summary: z.string() }),
+        maxOutputTokens: 256,
+        trace,
+      });
+      if (cache) {
+        await expect(response).resolves.toMatchObject({
+          output,
+          usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+        });
+      } else {
+        await expect(response).rejects.toThrow();
+      }
       const attributes = tracedGeneration();
       expect(attributes).toMatchObject({
         "langfuse.observation.level": "ERROR",

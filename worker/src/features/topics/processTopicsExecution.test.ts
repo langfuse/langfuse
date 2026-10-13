@@ -609,38 +609,55 @@ describe("Topics execution", () => {
     },
   );
 
-  it("rejects internal staged summaries when assignment resumes after embedding", async () => {
-    await processSelection("source", 100);
-    await updateSelection("first-map");
-    state.deferEmbeddings = true;
-    await processSelection("resumed", 1, ["trace100"]);
-    const saved = state.batches.get("resumed")!;
-    expect(saved.summarized).toBe(true);
-    const staged = [...state.staged.values()][0];
-    staged.summary = {
-      ...staged.summary,
-      environment: "langfuse-topics",
-      state: "complete",
-      embedding: Array(256).fill(0.25),
-    };
-    saved.assignedAt = "2026-01-01T00:01:00.000Z";
-    state.summarize.mockClear();
-    state.embed.mockClear();
-    state.assignmentWrites.mockClear();
+  it.each([false, true])(
+    "resumes mixed internal staged summaries without repeating paid work (embedded: %s)",
+    async (embedded) => {
+      state.deferEmbeddings = true;
+      await processSelection("resumed", 2);
+      const saved = state.batches.get("resumed")!;
+      expect(saved.summarized).toBe(true);
+      const staged = [...state.staged.values()];
+      staged[0].summary.environment = "langfuse-topics";
+      if (embedded) {
+        for (const row of staged) {
+          row.summary.state = "complete";
+          row.summary.embedding = Array(256).fill(0.25);
+        }
+        saved.assignedAt = "2026-01-01T00:01:00.000Z";
+      }
+      state.deferEmbeddings = false;
+      state.summarize.mockClear();
+      state.embed.mockClear();
 
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: "resumed",
-    });
-
-    expect(state.executions.get("resumed")).toMatchObject({
-      status: "failed",
-      error: "Topics does not process internal Langfuse traces.",
-    });
-    expect(state.summarize).not.toHaveBeenCalled();
-    expect(state.embed).not.toHaveBeenCalled();
-    expect(state.assignmentWrites).not.toHaveBeenCalled();
-  });
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await processTopicsExecution({
+          projectId: "project",
+          executionId: "resumed",
+        });
+        expect(state.executions.get("resumed")).toMatchObject({
+          status: "completed_with_errors",
+          error: null,
+          facets: [{ counts: { complete: 1, failed: 1 } }],
+          traceErrors: [
+            {
+              traceId: staged[0].summary.traceId,
+              error: "Topics does not process internal Langfuse traces.",
+            },
+          ],
+        });
+        expect(state.batches.get("resumed")?.summaries).toEqual([
+          expect.objectContaining({ traceId: staged[1].summary.traceId }),
+        ]);
+        expect(state.staged.size).toBe(0);
+      }
+      expect(state.summarize).not.toHaveBeenCalled();
+      expect(state.embed).toHaveBeenCalledTimes(embedded ? 0 : 1);
+      if (!embedded)
+        expect([...state.summaries.values()]).toMatchObject([
+          { traceId: staged[1].summary.traceId, state: "complete" },
+        ]);
+    },
+  );
 
   it("records null transcripts as insufficient input without inference", async () => {
     state.loadTranscript.mockResolvedValueOnce(traceInput("trace0", null));

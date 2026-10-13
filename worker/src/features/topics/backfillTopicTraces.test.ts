@@ -141,7 +141,7 @@ describe("Topics trace selection and backfill", () => {
     expect(options.jobId).toMatch(/^[a-f0-9]{64}$/);
   });
 
-  it("uses the full trace's latest environment before counting and limiting matches", async () => {
+  it("filters latest matching root environments before counting and limiting", async () => {
     const mixedProject = randomUUID();
     const source = {
       project_id: mixedProject,
@@ -151,32 +151,45 @@ describe("Topics trace selection and backfill", () => {
     };
     await createEventsCh(
       [
-        ["latest-public", "langfuse-topics", "production"],
+        ["public-root", "production", "langfuse-topics"],
         ["equal-timestamp", "production", "langfuse-topics"],
-        ["latest-internal", "production", "langfuse-topics"],
-      ].flatMap(([traceId, rootEnvironment, latestEnvironment], index) => [
-        createEvent({
-          ...source,
-          trace_id: traceId,
-          span_id: "a-root",
-          start_time: new Date(Date.UTC(2026, 8, 23, 9 + index)),
-          event_ts: new Date("2026-09-24T12:00:00Z"),
-          environment: rootEnvironment,
-        }),
-        createEvent({
-          ...source,
-          trace_id: traceId,
-          span_id: "z-child",
-          parent_span_id: "a-root",
-          start_time: new Date(Date.UTC(2026, 8, 24, 9 + index)),
-          event_ts: new Date(
-            traceId === "equal-timestamp"
-              ? "2026-09-24T12:00:00Z"
-              : "2026-09-24T13:00:00Z",
+        ["internal-root", "langfuse-topics", "production"],
+      ]
+        .flatMap(([traceId, rootEnvironment, latestEnvironment], index) => [
+          createEvent({
+            ...source,
+            trace_id: traceId,
+            span_id: "a-root",
+            start_time: new Date(Date.UTC(2026, 8, 23, 9 + index)),
+            event_ts: new Date("2026-09-24T12:00:00Z"),
+            environment: rootEnvironment,
+          }),
+          createEvent({
+            ...source,
+            trace_id: traceId,
+            span_id: "z-child",
+            parent_span_id: "a-root",
+            start_time: new Date(Date.UTC(2026, 8, 24, 9 + index)),
+            event_ts: new Date(
+              traceId === "equal-timestamp"
+                ? "2026-09-24T12:00:00Z"
+                : "2026-09-24T13:00:00Z",
+            ),
+            environment: latestEnvironment,
+          }),
+        ])
+        .concat(
+          ["production", "langfuse-topics"].map((environment, index) =>
+            createEvent({
+              ...source,
+              trace_id: "updated-root",
+              span_id: "a-root",
+              start_time: new Date("2026-09-23T12:00:00Z"),
+              event_ts: new Date(Date.UTC(2026, 8, 24, 12 + index)),
+              environment,
+            }),
           ),
-          environment: latestEnvironment,
-        }),
-      ]),
+        ),
     );
     const input = { ...selection, projectId: mixedProject, limit: 1 };
     const [preview, ids, backfill] = await Promise.all([
@@ -186,18 +199,19 @@ describe("Topics trace selection and backfill", () => {
     ]);
     expect(preview).toEqual([
       expect.objectContaining({
-        id: "latest-public",
+        id: "equal-timestamp",
         environment: "production",
       }),
     ]);
-    expect(Number(preview[0].matchedTraceCount)).toBe(1);
-    expect(ids).toEqual([{ id: "latest-public" }]);
-    expect(backfill.map(({ id }) => id)).toEqual(["latest-public"]);
-    expect(Number(backfill[0].matchedTraceCount)).toBe(1);
+    expect(Number(preview[0].matchedTraceCount)).toBe(2);
+    expect(ids).toEqual([{ id: "equal-timestamp" }]);
+    expect(backfill.map(({ id }) => id)).toEqual(["equal-timestamp"]);
+    expect(Number(backfill[0].matchedTraceCount)).toBe(2);
     for (const [traceId, environment] of [
-      ["latest-internal", "langfuse-topics"],
-      ["latest-public", "production"],
+      ["public-root", "langfuse-topics"],
+      ["internal-root", "production"],
       ["equal-timestamp", "langfuse-topics"],
+      ["updated-root", "langfuse-topics"],
     ]) {
       expect(
         await loadTopicTranscript({ projectId: mixedProject, traceId }),

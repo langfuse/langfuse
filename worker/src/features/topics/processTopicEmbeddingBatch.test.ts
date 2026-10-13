@@ -128,7 +128,7 @@ beforeEach(() => {
 
 describe("Topics embedding handoff", () => {
   it.each(["summarized", "complete"] as const)(
-    "rejects internal staged summaries before embedding or persistence (%s)",
+    "skips internal staged summaries in a mixed batch (%s)",
     async (state) => {
       const row: TopicSummary = {
         ...summary(),
@@ -136,16 +136,24 @@ describe("Topics embedding handoff", () => {
         environment: "langfuse-topics",
         embedding: state === "complete" ? Array(256).fill(0.25) : [],
       };
+      const allowed = summary("allowed");
       staged.set(topicSourceKey(row), row);
+      staged.set(topicSourceKey(allowed), allowed);
 
-      await expect(processTopicEmbeddingBatch(batch(row))).rejects.toThrow(
-        new UnrecoverableError(
-          "Topics does not process internal Langfuse traces.",
-        ),
+      await processTopicEmbeddingBatch(batch(row, allowed));
+
+      expect(mocks.embed).toHaveBeenCalledExactlyOnceWith(
+        expect.anything(),
+        [allowed.summary],
+        256,
       );
-      expect(mocks.embed).not.toHaveBeenCalled();
-      expect(mocks.update).not.toHaveBeenCalled();
-      expect(mocks.write).not.toHaveBeenCalled();
+      expect(mocks.update).toHaveBeenCalledTimes(1);
+      expect(mocks.write).toHaveBeenCalledExactlyOnceWith([
+        expect.objectContaining({
+          traceId: allowed.traceId,
+          state: "complete",
+        }),
+      ]);
     },
   );
 
