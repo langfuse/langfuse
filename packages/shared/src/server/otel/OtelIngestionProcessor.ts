@@ -254,6 +254,19 @@ export interface ResourceSpan {
 
 const observationTypeMapper = new ObservationTypeMapperRegistry();
 
+/** GenAI semconv per-modality token counts, each a subset of its input, cache-read or output aggregate */
+const GEN_AI_INPUT_MODALITY_USAGE_KEYS = new Set(
+  ["text", "image", "audio"].map((modality) => `${modality}.input_tokens`),
+);
+const GEN_AI_CACHE_READ_MODALITY_USAGE_KEYS = new Set(
+  ["text", "image", "audio"].map(
+    (modality) => `${modality}.cache_read.input_tokens`,
+  ),
+);
+const GEN_AI_OUTPUT_MODALITY_USAGE_KEYS = new Set(
+  ["text", "image", "audio"].map((modality) => `${modality}.output_tokens`),
+);
+
 /**
  * Processor class that encapsulates all logic for converting OpenTelemetry
  * resource spans into Langfuse ingestion events.
@@ -3236,6 +3249,18 @@ export class OtelIngestionProcessor {
             "completion_details.reasoning",
             "completion_details.audio",
           ].includes(key)
+        ) {
+          return acc;
+        }
+
+        /** Per-modality counts stay as buckets only when their aggregate is absent */
+        if (
+          (GEN_AI_INPUT_MODALITY_USAGE_KEYS.has(key) &&
+            inputTokens !== undefined) ||
+          (GEN_AI_CACHE_READ_MODALITY_USAGE_KEYS.has(key) &&
+            (inputTokens !== undefined || cacheReadTokens !== undefined)) ||
+          (GEN_AI_OUTPUT_MODALITY_USAGE_KEYS.has(key) &&
+            outputTokens !== undefined)
         ) {
           return acc;
         }
