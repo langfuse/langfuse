@@ -289,16 +289,6 @@ const getMetricsFilterColumnSpecs = ({
       },
       {
         column: {
-          name: "Skill Resources (Loaded)",
-          id: "loadedSkillResources",
-          type: "arrayOptions",
-          options: [],
-          internal: "internalValue",
-        },
-        customSelect: true,
-      },
-      {
-        column: {
           name: "Tool Names (Available)",
           id: "toolNames",
           type: "arrayOptions",

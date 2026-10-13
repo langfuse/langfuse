@@ -526,22 +526,6 @@ export const observationsView: ViewDeclarationType = {
       description:
         "Managed skill version IDs made available to the generation.",
     },
-    loadedSkillResourceIds: {
-      sql: "arrayDistinct(arrayMap(resource -> toJSONString([resource.langfuseSkillId, resource.filePath]), observations.skills_resource_loaded))",
-      alias: "loadedSkillResourceIds",
-      type: "arrayString",
-      explodeArray: true,
-      description:
-        "Loaded resources as JSON-encoded [langfuseSkillId, filePath] pairs.",
-    },
-    loadedSkillResources: {
-      sql: "arrayDistinct(arrayMap(resource -> toJSONString([resource.skillName, resource.filePath]), observations.skills_resource_loaded))",
-      alias: "loadedSkillResources",
-      type: "arrayString",
-      explodeArray: true,
-      description:
-        "Loaded resources as JSON-encoded [skillName, filePath] pairs.",
-    },
     toolNames: {
       sql: "mapKeys(observations.tool_definitions)",
       alias: "toolNames",
@@ -721,28 +705,6 @@ export const observationsView: ViewDeclarationType = {
       unit: "loads",
       defaultAggregation: "sum",
       description: "Resource loads per skill name, including repeated reads.",
-    },
-    langfuseSkillResourceLoads: {
-      sql: "countEqual(@@AGG1@@(arrayMap(resource -> toJSONString([resource.langfuseSkillId, resource.filePath]), observations.skills_resource_loaded)), loadedSkillResourceIds)",
-      aggs: { agg1: "any" },
-      alias: "langfuseSkillResourceLoads",
-      type: "integer",
-      requiresDimension: "loadedSkillResourceIds",
-      unit: "loads",
-      defaultAggregation: "sum",
-      description:
-        "Loads per managed skill version and file path, including repeated reads.",
-    },
-    skillResourceLoads: {
-      sql: "countEqual(@@AGG1@@(arrayMap(resource -> toJSONString([resource.skillName, resource.filePath]), observations.skills_resource_loaded)), loadedSkillResources)",
-      aggs: { agg1: "any" },
-      alias: "skillResourceLoads",
-      type: "integer",
-      requiresDimension: "loadedSkillResources",
-      unit: "loads",
-      defaultAggregation: "sum",
-      description:
-        "Loads per skill name and file path, including repeated reads.",
     },
     toolCallInvocations: {
       sql: "countEqual(@@AGG1@@(observations.tool_call_names), calledToolNames)",
@@ -1468,22 +1430,6 @@ export const eventsObservationsView: ViewDeclarationType = {
       description:
         "Managed skill version IDs made available to the generation.",
     },
-    loadedSkillResourceIds: {
-      sql: "arrayDistinct(arrayMap(resource -> toJSONString([resource.langfuseSkillId, resource.filePath]), events_observations.skills_resource_loaded))",
-      alias: "loadedSkillResourceIds",
-      type: "arrayString",
-      explodeArray: true,
-      description:
-        "Loaded resources as JSON-encoded [langfuseSkillId, filePath] pairs.",
-    },
-    loadedSkillResources: {
-      sql: "arrayDistinct(arrayMap(resource -> toJSONString([resource.skillName, resource.filePath]), events_observations.skills_resource_loaded))",
-      alias: "loadedSkillResources",
-      type: "arrayString",
-      explodeArray: true,
-      description:
-        "Loaded resources as JSON-encoded [skillName, filePath] pairs.",
-    },
     toolNames: {
       sql: "mapKeys(events_observations.tool_definitions)",
       alias: "toolNames",
@@ -1729,28 +1675,6 @@ export const eventsObservationsView: ViewDeclarationType = {
       unit: "loads",
       defaultAggregation: "sum",
       description: "Resource loads per skill name, including repeated reads.",
-    },
-    langfuseSkillResourceLoads: {
-      sql: "countEqual(@@AGG1@@(arrayMap(resource -> toJSONString([resource.langfuseSkillId, resource.filePath]), events_observations.skills_resource_loaded)), loadedSkillResourceIds)",
-      aggs: { agg1: "any" },
-      alias: "langfuseSkillResourceLoads",
-      type: "integer",
-      requiresDimension: "loadedSkillResourceIds",
-      unit: "loads",
-      defaultAggregation: "sum",
-      description:
-        "Loads per managed skill version and file path, including repeated reads.",
-    },
-    skillResourceLoads: {
-      sql: "countEqual(@@AGG1@@(arrayMap(resource -> toJSONString([resource.skillName, resource.filePath]), events_observations.skills_resource_loaded)), loadedSkillResources)",
-      aggs: { agg1: "any" },
-      alias: "skillResourceLoads",
-      type: "integer",
-      requiresDimension: "loadedSkillResources",
-      unit: "loads",
-      defaultAggregation: "sum",
-      description:
-        "Loads per skill name and file path, including repeated reads.",
     },
     toolCallInvocations: {
       sql: "countEqual(@@AGG1@@(events_observations.tool_call_names), calledToolNames)",
