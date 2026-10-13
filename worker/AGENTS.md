@@ -91,9 +91,11 @@
 - Audit log relay: `src/features/audit-log-relay/index.ts` moves Postgres
   `audit_log_staging` rows into ClickHouse `audit_logs`, deleting them only
   after ClickHouse acknowledged the insert. It starts only in cloud
-  deployments (`NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` set). Rows whose payload
-  fails the staging schema stay with `failed_at` set and are retried after
-  10 minutes.
+  deployments (`NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` set). One worker task keeps
+  the Redis lease and relays; the others check for a free lease every half
+  lease TTL, so run count does not grow with the number of tasks. Rows whose
+  payload fails the staging schema stay with `failed_at` set and are retried
+  after 10 minutes.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
 - `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues

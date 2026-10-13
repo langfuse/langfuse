@@ -1,9 +1,10 @@
 import { randomUUID } from "crypto";
 import { v7 as uuidv7 } from "uuid";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   queryClickhouse,
+  redis,
   stageAuditLogEvents,
 } from "@langfuse/shared/src/server";
 import {
@@ -46,6 +47,9 @@ const auditLogIds = async (orgId: string): Promise<string[]> =>
   ).map((row) => row.id);
 
 const sorted = (ids: string[]) => [...ids].sort();
+
+// A lease of its own keeps a test clear of other tests and of a local worker.
+const testLockKey = () => `langfuse:test:audit-log-relay:${randomUUID()}`;
 
 describe("AuditLogRelay", () => {
   // The relay claims every staged row, not only the ones a test staged.
@@ -224,10 +228,34 @@ describe("AuditLogRelay", () => {
 
   it("runs again right away while batches come back full", async () => {
     await stageChangeEvents(randomUUID(), 3);
-    const relay = new AuditLogRelay({ batchSize: 2 });
+    const relay = new AuditLogRelay({ batchSize: 2, lockKey: testLockKey() });
 
     await expect(relay.processBatch()).resolves.toBe(0);
     await expect(relay.processBatch()).resolves.toBeUndefined();
     expect(await stagedIds()).toEqual([]);
+    relay.stop();
+  });
+
+  it("relays only on the task that holds the lease", async (ctx) => {
+    if (!redis) ctx.skip("Redis must be available for the lease");
+    const lockKey = testLockKey();
+    const leader = new AuditLogRelay({ lockKey, lockTtlSeconds: 10 });
+    const follower = new AuditLogRelay({ lockKey, lockTtlSeconds: 10 });
+
+    await expect(leader.processBatch()).resolves.toBeUndefined();
+    const ids = await stageChangeEvents(randomUUID(), 1);
+
+    // Checks the lease again after half its TTL, without relaying.
+    await expect(follower.processBatch()).resolves.toBe(5_000);
+    expect(await stagedIds()).toEqual(ids);
+
+    await expect(leader.processBatch()).resolves.toBeUndefined();
+    expect(await stagedIds()).toEqual([]);
+
+    leader.stop();
+    await vi.waitFor(async () => {
+      await expect(follower.processBatch()).resolves.toBeUndefined();
+    });
+    follower.stop();
   });
 });
