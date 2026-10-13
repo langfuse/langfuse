@@ -21,6 +21,7 @@ import {
   invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import { transferRoleAssignments } from "@langfuse/shared/rbac/server";
+import { getTopicsModels } from "@langfuse/shared/topics/server";
 import { randomUUID } from "crypto";
 import { LangfuseConflictError, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
@@ -343,6 +344,9 @@ export const projectsRouter = createTRPCRouter({
         // drop its user assignments, matching the membership wipe above.
         await transferRoleAssignments(tx, input.projectId, input.targetOrgId);
       });
+
+      // Re-resolve inherited credentials against the destination organization.
+      await getTopicsModels(input.projectId);
 
       // API keys need to be deleted from cache. Otherwise, they will still be valid.
       // It has to be called after the db is done to prevent new API keys from being cached.
