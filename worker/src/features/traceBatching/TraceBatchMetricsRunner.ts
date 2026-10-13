@@ -7,7 +7,6 @@ import {
 import { env } from "../../env";
 import { recordTraceBatchActiveReads } from "../../queues/traceBatchQueue";
 import { PeriodicRunner } from "../../utils/PeriodicRunner";
-import { RedisLock } from "../../utils/RedisLock";
 import {
   getTraceBatchFirstKeys,
   getTraceBatchReadinessKeys,
@@ -15,8 +14,6 @@ import {
 
 const METRIC_PREFIX = "langfuse.trace_batch";
 const MEMORY_INTERVAL_MS = 60_000;
-// Outlives two missed samples, so a busy holder keeps the lease.
-const SHARD_REPORTER_TTL_SECONDS = (3 * MEMORY_INTERVAL_MS) / 1_000;
 // EVAL applies the shared client's key prefix and routes keys to their
 // cluster slot. Raw MEMORY commands do not identify keys in ioredis metadata.
 const MEMORY_SCRIPT = `
@@ -39,15 +36,6 @@ return result
 
 export class TraceBatchMetricsRunner extends PeriodicRunner {
   private lastMemorySampleAt: number | null = null;
-  private isShardReporter = false;
-  private readonly shardReporterLease = new RedisLock(
-    "{trace-batch}:shard-metrics-reporter",
-    {
-      ttlSeconds: SHARD_REPORTER_TTL_SECONDS,
-      name: "TraceBatchShardMetricsReporter",
-      onUnavailable: "fail",
-    },
-  );
 
   constructor() {
     super("trace_batch_metrics");
@@ -134,10 +122,8 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
 
   private async collectMemory(): Promise<void> {
     if (!redis) throw new Error("Trace batch metrics require Redis");
-    const reportShards = await this.holdShardReporterLease();
     const clock = await redis.time();
     const now = Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000);
-    const shardValues: [string, number[]][] = [];
     const totals = [0, 0, 0, 0, 0, 0];
     for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
       const { due, state } = getTraceBatchReadinessKeys(shard);
@@ -149,33 +135,14 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
         state,
         ...first.keys,
       )) as number[];
-      shardValues.push([String(shard), values]);
       values.forEach((value, index) => (totals[index] += Number(value)));
     }
-    if (reportShards) {
-      for (const [shard, values] of shardValues) {
-        this.recordMapMemory(values, shard);
-      }
-    }
-    this.recordMapMemory(totals, "total");
+    // Per-shard series would multiply custom metrics by the shard count on
+    // every reporting worker; only the summed totals are emitted.
+    this.recordMapMemory(totals);
   }
 
-  /**
-   * Every worker reports `shard:total`; only the lease holder adds per-shard
-   * series. Datadog tags each series with the emitting task, so the holder
-   * renews its lease instead of letting it rotate, which keeps per-shard
-   * series to about one task at a time.
-   */
-  private async holdShardReporterLease(): Promise<boolean> {
-    if (this.isShardReporter && (await this.shardReporterLease.extend())) {
-      return true;
-    }
-    this.isShardReporter =
-      (await this.shardReporterLease.acquire()) === "acquired";
-    return this.isShardReporter;
-  }
-
-  private recordMapMemory(values: number[], shard: string): void {
+  private recordMapMemory(values: number[]): void {
     const [
       dueBytes,
       dueEntries,
@@ -184,7 +151,7 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
       firstBytes,
       firstEntries,
     ] = values;
-    // These are global snapshots and every worker emits the totals. Aggregate
+    // These are global snapshots emitted by each eligible worker. Aggregate
     // duplicate reporters with max/latest, never sum their identical gauges.
     for (const { key, bytes, entries } of [
       { key: "due", bytes: dueBytes, entries: dueEntries },
@@ -193,12 +160,12 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
     ]) {
       recordGauge(`${METRIC_PREFIX}.redis_key_bytes`, bytes, {
         key,
-        shard,
+        shard: "total",
         unit: "bytes",
       });
       recordGauge(`${METRIC_PREFIX}.redis_key_entries`, entries, {
         key,
-        shard,
+        shard: "total",
         unit: "records",
       });
     }

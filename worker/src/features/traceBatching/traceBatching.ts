@@ -1143,9 +1143,8 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         });
       }
     }
-    // The lease moves between workers after every run and Datadog tags each
-    // series with the emitting task, so keep these untagged. Per-shard due
-    // depth comes from `redis_key_entries` on the single shard reporter.
+    // The lease moves between workers after every run, so per-shard series
+    // would multiply custom metrics by the shard count on each dispatcher.
     recordGauge("langfuse.trace_batch.pending_traces", totals.pending);
     recordGauge("langfuse.trace_batch.ready_traces", totals.ready);
     recordGauge("langfuse.trace_batch.oldest_due_age_ms", totals.oldestAge);
