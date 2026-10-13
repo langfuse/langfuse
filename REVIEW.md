@@ -23,6 +23,12 @@ Use their technical rules, not their implementation or handoff workflows.
 
 ## Team rules
 
+These rules state required content and behavior. Where a rule illustrates a
+form, the illustration shows what the rule means, not an additional requirement;
+do not raise a Convention finding on an illustrated form alone. Formatting meant
+to be enforced belongs in `packages/eslint-plugin`, where CI reports it
+deterministically.
+
 ### Architecture
 
 - One responsibility and abstraction level per function. The main export reads
@@ -66,7 +72,9 @@ Use their technical rules, not their implementation or handoff workflows.
   Replace conditionals deeper than two levels with early returns.
 - Handle every switch variant explicitly. Compare `.length` explicitly.
 - Comments must add information beyond the name. Keep them terse, without
-  commentary or speculation, using `/** X does Y [for Z] */`.
+  commentary or speculation; `/** X does Y [for Z] */` illustrates that length
+  and content, not a required marker. `//` and `/** */` are equally acceptable,
+  and comment syntax alone is not a violation.
 - Put callers above callees. Order `.ts`/`.tsx` files: imports, module constants
   or lookup tables, main export, private subcomponents, custom hooks, helpers,
   helper types, then `export const __test = { ... }` if needed.
