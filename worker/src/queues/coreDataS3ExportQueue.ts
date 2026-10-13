@@ -115,18 +115,20 @@ const allowlisted = (value: unknown, allowlist: Set<string>): string | null => {
 type DashboardWidgetCoreDataInput = {
   dimensions: unknown;
   metrics: unknown;
-  filters: unknown;
   chartConfig: unknown;
+  // Accepted so a caller that still has the column cannot leak it through
+  // the rest spread. The export select does not load this column.
+  filters?: unknown;
 } & Record<string, unknown>;
 
-// Widget filters carry customer-entered values (user ids, metadata values,
-// tool names, ...). Analytics only needs which columns/operators are used, so
-// the values (and metadata keys) are stripped before export; every other
-// string field is allowlisted (see above).
+// Widget filters and chartConfig.type are customer-authored and are not
+// exported. Dimensions and metrics are allowlisted against the query model.
+// chartConfig keeps only numeric row_limit and bins; other keys, including
+// defaultSort, stay out.
 export const mapDashboardWidgetToCoreDataRow = ({
   dimensions,
   metrics,
-  filters,
+  filters: _filters,
   chartConfig,
   ...widget
 }: DashboardWidgetCoreDataInput) => {
@@ -144,17 +146,7 @@ export const mapDashboardWidgetToCoreDataRow = ({
           agg: allowlisted(metric.agg, KNOWN_WIDGET_AGGREGATIONS),
         }))
       : [],
-    filters: Array.isArray(filters)
-      ? filters.map((filter: Record<string, unknown>) => ({
-          column: filter.column ?? null,
-          operator: filter.operator ?? null,
-          type: filter.type ?? null,
-        }))
-      : [],
-    // Explicit safe scalars only; defaultSort.column is a free string and is
-    // deliberately not exported.
     chartConfig: {
-      type: typeof config.type === "string" ? config.type : null,
       row_limit: typeof config.row_limit === "number" ? config.row_limit : null,
       bins: typeof config.bins === "number" ? config.bins : null,
     },
@@ -660,9 +652,9 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "evaluatorVersions",
-      // Evaluator definitions (prompt, code, model params, and output
-      // definitions) may contain customer data. Export metadata and mapping
-      // shape only, matching the legacy job-configuration export.
+      // Evaluator definitions (prompt, code, model params, output
+      // definitions, variable names, and variable mappings) may contain
+      // customer data. Export version metadata only.
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.evaluatorVersion.findMany({
           take,
@@ -676,8 +668,6 @@ export const coreDataTableExports: Array<
             partner: true,
             model: true,
             provider: true,
-            vars: true,
-            variableMapping: true,
             sourceCodeLanguage: true,
             createdAt: true,
           },
@@ -687,6 +677,7 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "evaluationRules",
+      // The filter JSON holds customer-authored values and is excluded.
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.evaluationRule.findMany({
           take,
@@ -699,7 +690,6 @@ export const coreDataTableExports: Array<
             name: true,
             status: true,
             targetObject: true,
-            filter: true,
             sampling: true,
             delay: true,
             timeScope: true,
@@ -713,6 +703,7 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "evaluationRuleEvaluatorAssignments",
+      // variableMapping holds customer-authored template paths and is excluded.
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.evaluationRuleEvaluatorAssignment.findMany({
           take,
@@ -723,7 +714,6 @@ export const coreDataTableExports: Array<
             projectId: true,
             evaluationRuleId: true,
             evaluatorId: true,
-            variableMapping: true,
             createdAt: true,
             updatedAt: true,
           },
@@ -756,11 +746,10 @@ export const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "dashboardWidgets",
-      // Customer-authored name/description are free text and intentionally
-      // excluded; filter values are stripped in the mapper. The remaining
-      // shape (view, metrics, dimensions, chart type) is what dashboard
-      // product decisions need (e.g. which aggregation users pair with a
-      // measure). projectId NULL marks Langfuse-owned template widgets.
+      // Customer-authored name, description, and filters are excluded.
+      // Dimensions and metrics are allowlisted in the mapper. chartConfig
+      // keeps numeric row_limit and bins only; chartType is the enum column.
+      // projectId NULL marks Langfuse-owned template widgets.
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.dashboardWidget.findMany({
           take,
@@ -773,7 +762,6 @@ export const coreDataTableExports: Array<
             view: true,
             dimensions: true,
             metrics: true,
-            filters: true,
             chartType: true,
             chartConfig: true,
             minVersion: true,

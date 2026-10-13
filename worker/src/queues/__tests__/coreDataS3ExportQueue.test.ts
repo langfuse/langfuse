@@ -165,13 +165,46 @@ describe("coreDataTableExports", () => {
         "core/dashboardWidgets.jsonl",
       ]),
     );
+
+    const selectFor = (findMany: {
+      mock: { calls: Array<[{ select?: Record<string, unknown> }?]> };
+    }) => findMany.mock.calls[0]?.[0]?.select;
+
+    const evaluatorVersionSelect = selectFor(
+      vi.mocked(prisma.evaluatorVersion.findMany),
+    );
+    expect(evaluatorVersionSelect).not.toHaveProperty("variableMapping");
+    expect(evaluatorVersionSelect).not.toHaveProperty("vars");
+    expect(evaluatorVersionSelect).toMatchObject({
+      id: true,
+      evaluatorId: true,
+      version: true,
+    });
+
+    expect(
+      selectFor(vi.mocked(prisma.evaluationRule.findMany)),
+    ).not.toHaveProperty("filter");
+    expect(
+      selectFor(vi.mocked(prisma.evaluationRuleEvaluatorAssignment.findMany)),
+    ).not.toHaveProperty("variableMapping");
+
+    const widgetSelect = selectFor(vi.mocked(prisma.dashboardWidget.findMany));
+    expect(widgetSelect).not.toHaveProperty("filters");
+    expect(widgetSelect).toMatchObject({
+      dimensions: true,
+      metrics: true,
+      chartType: true,
+      chartConfig: true,
+    });
   });
 });
 
 describe("mapDashboardWidgetToCoreDataRow", () => {
-  it("allowlists dimensions/metrics and replaces unknown strings with a sentinel", () => {
+  it("allowlists dimensions and metrics and drops filters and chart type", () => {
     const row = mapDashboardWidgetToCoreDataRow({
       id: "widget-1",
+      projectId: "project-1",
+      view: "OBSERVATIONS",
       dimensions: [
         { field: "calledToolNames" },
         { field: "customer entered free text" },
@@ -180,41 +213,6 @@ describe("mapDashboardWidgetToCoreDataRow", () => {
         { measure: "toolCalls", agg: "sum" },
         { measure: "leaked customer string", agg: "not-an-agg" },
       ],
-      filters: [],
-      chartConfig: {
-        type: "PIVOT_TABLE",
-        row_limit: 20,
-        defaultSort: { column: "customer column text", order: "DESC" },
-      },
-    });
-
-    expect(row.dimensions).toStrictEqual([
-      { field: "calledToolNames" },
-      { field: "__invalid__" },
-    ]);
-    expect(row.metrics).toStrictEqual([
-      { measure: "toolCalls", agg: "sum" },
-      { measure: "__invalid__", agg: "__invalid__" },
-    ]);
-    expect(row.chartConfig).toStrictEqual({
-      type: "PIVOT_TABLE",
-      row_limit: 20,
-      bins: null,
-    });
-    const serialized = JSON.stringify(row);
-    expect(serialized).not.toContain("customer entered free text");
-    expect(serialized).not.toContain("leaked customer string");
-    expect(serialized).not.toContain("customer column text");
-  });
-
-  it("keeps filter shape but strips customer-entered values and keys", () => {
-    const row = mapDashboardWidgetToCoreDataRow({
-      id: "widget-1",
-      projectId: "project-1",
-      view: "OBSERVATIONS",
-      dimensions: [],
-      metrics: [{ measure: "toolCalls", agg: "sum" }],
-      chartConfig: { type: "LINE_TIME_SERIES" },
       filters: [
         {
           column: "userId",
@@ -230,19 +228,40 @@ describe("mapDashboardWidgetToCoreDataRow", () => {
           type: "stringObject",
         },
       ],
+      chartConfig: {
+        type: "PIVOT_TABLE",
+        row_limit: 20,
+        bins: 8,
+        defaultSort: { column: "customer column text", order: "DESC" },
+      },
     });
 
-    expect(row.filters).toStrictEqual([
-      { column: "userId", operator: "any of", type: "stringOptions" },
-      { column: "metadata", operator: "=", type: "stringObject" },
+    expect(row).not.toHaveProperty("filters");
+    expect(row.dimensions).toStrictEqual([
+      { field: "calledToolNames" },
+      { field: "__invalid__" },
     ]);
+    expect(row.metrics).toStrictEqual([
+      { measure: "toolCalls", agg: "sum" },
+      { measure: "__invalid__", agg: "__invalid__" },
+    ]);
+    expect(row.chartConfig).toStrictEqual({
+      row_limit: 20,
+      bins: 8,
+    });
     const serialized = JSON.stringify(row);
+    expect(serialized).not.toContain("customer entered free text");
+    expect(serialized).not.toContain("leaked customer string");
+    expect(serialized).not.toContain("customer column text");
     expect(serialized).not.toContain("customer-user-42");
     expect(serialized).not.toContain("customer-secret-key");
     expect(serialized).not.toContain("customer-value");
+    expect(serialized).not.toContain("userId");
+    expect(serialized).not.toContain("PIVOT_TABLE");
+    expect(serialized).not.toContain("stringOptions");
   });
 
-  it("normalizes a non-array filters column to an empty list", () => {
+  it("normalizes missing dimensions, metrics, and chart config without a filters field", () => {
     const row = mapDashboardWidgetToCoreDataRow({
       id: "widget-2",
       dimensions: null,
@@ -251,9 +270,13 @@ describe("mapDashboardWidgetToCoreDataRow", () => {
       chartConfig: null,
     });
 
-    expect(row.filters).toStrictEqual([]);
+    expect(row).not.toHaveProperty("filters");
     expect(row.dimensions).toStrictEqual([]);
     expect(row.metrics).toStrictEqual([]);
+    expect(row.chartConfig).toStrictEqual({
+      row_limit: null,
+      bins: null,
+    });
   });
 });
 
