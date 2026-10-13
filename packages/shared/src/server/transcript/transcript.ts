@@ -1,4 +1,4 @@
-import { partition } from "lodash";
+import { get, partition } from "lodash";
 import type { OrderedObservation } from "./ordering";
 import { normalizeIO } from "../normalized-io";
 import type { Transcript, TranscriptOptions } from "./types";
@@ -13,11 +13,32 @@ import {
 } from "./threads";
 import { createToolCallRegistry } from "./tool-calls";
 
+/** Managed session turns carry messages that their model-request spans omit. */
+function isManagedAgentTurn(observation: OrderedObservation) {
+  if (observation.type !== "AGENT") return false;
+  const metadata = observation.metadata;
+  const scope = metadata?.["scope.name"] ?? get(metadata, ["scope", "name"]);
+  const operation =
+    metadata?.["attributes.gen_ai.operation.name"] ??
+    get(metadata, ["attributes", "gen_ai.operation.name"]);
+  const sessionId =
+    metadata?.["attributes.anthropic.session.id"] ??
+    get(metadata, ["attributes", "anthropic.session.id"]);
+  return (
+    scope === "com.anthropic.claude-platform" &&
+    operation === "invoke_agent" &&
+    typeof sessionId === "string" &&
+    sessionId.length > 0
+  );
+}
+
 /** Check if an observation is relevant for the transcript. */
 const isRelevantObservation = (
   observation: OrderedObservation,
 ): observation is OrderedObservation & { traceId: string } =>
-  (observation.type === "GENERATION" || observation.type === "TOOL") &&
+  (observation.type === "GENERATION" ||
+    observation.type === "TOOL" ||
+    isManagedAgentTurn(observation)) &&
   observation.traceId !== null;
 
 /** Normalize original I/O without interpreting provider-specific envelopes. */
@@ -59,11 +80,39 @@ export function assembleTranscript(
   let normalizationMs = 0;
   const threads: ThreadState[] = [];
   const toolCalls = createToolCallRegistry();
-
-  for (const observation of orderedObservations.filter(isRelevantObservation)) {
+  const observations = orderedObservations.filter(isRelevantObservation);
+  const normalizeWithTiming = (observation: OrderedObservation) => {
     const normalizationStart = onTimings ? performance.now() : 0;
-    const [input, output] = normalize(observation);
+    const result = normalize(observation);
     if (onTimings) normalizationMs += performance.now() - normalizationStart;
+    return result;
+  };
+  const normalizedGenerations = new Map<
+    OrderedObservation,
+    ReturnType<typeof normalize>
+  >();
+  const tracesWithGenerationMessages = new Set<string>();
+  // Decide fallback per trace before emitting an agent's aggregate output.
+  // Ordinary generation-led traces keep their single-pass normalization.
+  if (observations.some((observation) => observation.type === "AGENT")) {
+    for (const observation of observations) {
+      if (observation.type !== "GENERATION") continue;
+      const messages = normalizeWithTiming(observation);
+      normalizedGenerations.set(observation, messages);
+      if (messages.some((part) => part.length > 0))
+        tracesWithGenerationMessages.add(observation.traceId);
+    }
+  }
+
+  for (const observation of observations) {
+    if (
+      observation.type === "AGENT" &&
+      tracesWithGenerationMessages.has(observation.traceId)
+    )
+      continue;
+    const [input, output] =
+      normalizedGenerations.get(observation) ??
+      normalizeWithTiming(observation);
     if (observation.type === "TOOL") {
       toolCalls.attachToolOutput(observation, output);
       continue;

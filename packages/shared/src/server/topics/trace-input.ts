@@ -12,7 +12,7 @@ import {
 } from "../transcript";
 
 /** Historical summaries are reusable only with the same transcript producer. */
-export const TOPICS_TRANSCRIPT_VERSION = "shared-transcript-v3";
+export const TOPICS_TRANSCRIPT_VERSION = "shared-transcript-v4";
 
 const MAX_OBSERVATIONS = 2_000;
 const MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024;

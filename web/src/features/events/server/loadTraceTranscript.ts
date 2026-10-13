@@ -8,9 +8,9 @@ import {
   type Transcript,
 } from "@langfuse/shared/src/server";
 
-/** Generations and tools whose I/O one transcript reads at most. */
+/** Observations whose I/O one transcript reads at most. */
 const MAX_TRANSCRIPT_OBSERVATIONS = 1_000;
-const TRANSCRIPT_OBSERVATION_TYPES = new Set(["GENERATION", "TOOL"]);
+const TRANSCRIPT_OBSERVATION_TYPES = new Set(["GENERATION", "TOOL", "AGENT"]);
 
 type Observation = Awaited<
   ReturnType<typeof getObservationsForTraceFromEventsTable>
@@ -39,7 +39,7 @@ export async function loadTraceTranscript(trace: {
   traceId: string;
   /** Trace timestamp; observations from one hour before it onwards are read. */
   timestamp: Date;
-  /** Use root observation I/O when no generation/tool transcript exists. */
+  /** Use root observation I/O when shared transcript assembly yields no messages. */
   fallbackToRootIO?: boolean;
 }): Promise<{ transcript: SessionTranscript | null; cutoff: boolean }> {
   const [structure, content] = await Promise.all([
@@ -47,12 +47,12 @@ export async function loadTraceTranscript(trace: {
     getObservationsForTraceFromEventsTable({
       ...trace,
       selectIOAndMetadata: true,
-      types: ["GENERATION", "TOOL"],
+      types: ["GENERATION", "TOOL", "AGENT"],
       limit: MAX_TRANSCRIPT_OBSERVATIONS,
     }),
   ]);
   const contentById = new Map(content.observations.map((o) => [o.id, o]));
-  // Generations and tools past the content cap have no I/O to show; leaving
+  // Observations past the content cap have no I/O to show; leaving
   // them out beats rendering them as empty turns. `cutoff` tells the caller.
   const observations = structure.observations.flatMap((o) => {
     const withContent = contentById.get(o.id);

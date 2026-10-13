@@ -32,6 +32,66 @@ beforeEach(() => {
   mocks.root.mockReset();
 });
 
+it("loads Claude Managed Agent messages when generation I/O is absent", async () => {
+  const agent = {
+    id: "managed-agent",
+    traceId: "trace",
+    parentObservationId: null,
+    nestingLevel: 0,
+    type: "AGENT" as const,
+    name: "anthropic.session.turn",
+    startTime: new Date(0),
+    endTime: new Date(1000),
+    input: [{ role: "user", parts: [{ type: "text", content: "Hello" }] }],
+    output: [{ role: "assistant", parts: [{ type: "text", content: "Hi" }] }],
+    metadata: {
+      "scope.name": "com.anthropic.claude-platform",
+      "attributes.gen_ai.operation.name": "invoke_agent",
+      "attributes.anthropic.session.id": "synthetic-session",
+    },
+  };
+  const generation = {
+    ...agent,
+    id: "generation",
+    parentObservationId: agent.id,
+    type: "GENERATION" as const,
+    input: null,
+    output: null,
+  };
+  const observations = [agent, generation];
+  mocks.observations.mockImplementation(
+    async ({ selectIOAndMetadata, types }) => {
+      const selected = selectIOAndMetadata
+        ? observations.filter((observation) => types.includes(observation.type))
+        : observations.map((observation) => ({
+            ...observation,
+            input: null,
+            output: null,
+            metadata: {},
+          }));
+      return { observations: selected, totalCount: selected.length };
+    },
+  );
+  mocks.assemble.mockImplementation(assembleTranscript);
+
+  const result = await loadTraceTranscript(trace);
+
+  expect(result.transcript?.threads[0].currentTurn.messages).toMatchObject([
+    {
+      observationId: agent.id,
+      role: "user",
+      parts: [{ type: "text", text: "Hello" }],
+    },
+    {
+      observationId: agent.id,
+      role: "assistant",
+      parts: [{ type: "text", text: "Hi" }],
+    },
+  ]);
+  expect(result.cutoff).toBe(false);
+  expect(mocks.root).not.toHaveBeenCalled();
+});
+
 it.each(
   ["ERROR", "WARNING"].flatMap((level) =>
     [null, "", []].map((output) => ({ level, output })),
@@ -225,7 +285,7 @@ it.each([
     expect(mocks.observations).toHaveBeenNthCalledWith(2, {
       ...trace,
       selectIOAndMetadata: true,
-      types: ["GENERATION", "TOOL"],
+      types: ["GENERATION", "TOOL", "AGENT"],
       limit: 1000,
     });
   },
