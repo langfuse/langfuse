@@ -70,6 +70,13 @@ vi.mock("./TopicPipelineForm", () => ({
     };
   },
 }));
+vi.mock("./RegenerateTopicsDialog", () => ({
+  useRegenerateTopics: () => ({
+    action: null,
+    menuRow: () => null,
+    dialog: null,
+  }),
+}));
 vi.mock("./TopicModelSettings", () => ({
   useTopicModelSettings: () => ({ action: null, notice: null }),
 }));

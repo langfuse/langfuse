@@ -39,6 +39,7 @@ import {
   type TopicOperation,
 } from "@langfuse/shared/topics";
 import { useTopicPipelineForm } from "./TopicPipelineForm";
+import { useRegenerateTopics } from "./RegenerateTopicsDialog";
 import { useTopicModelSettings } from "./TopicModelSettings";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsFilters } from "./TopicsFilters";
@@ -253,6 +254,14 @@ function TopicsWorkspaceView({
     onTriggered: openExecution,
     timeRange: validTimeRange ? currentTimeRange : null,
   });
+  const regenerate = useRegenerateTopics({
+    projectId,
+    facets: facets.data ?? [],
+    canWrite,
+    timeRange: validTimeRange ? currentTimeRange : null,
+    executions: executions.data,
+    onTriggered: openExecution,
+  });
   const modelSettings = useTopicModelSettings({
     projectId,
     canWrite,
@@ -263,6 +272,7 @@ function TopicsWorkspaceView({
     <div className="ph-no-capture flex items-center justify-end gap-1">
       {modelSettings.automaticProcessing}
       {modelSettings.action}
+      {regenerate.action}
       {primaryAction}
       <DropdownMenu
         ariaLabel="Topics actions"
@@ -308,7 +318,9 @@ function TopicsWorkspaceView({
             closeMenu={closeMenu}
             onOpenHistory={openHistory}
             onRefresh={refreshResults}
-          />
+          >
+            {regenerate.menuRow(closeMenu)}
+          </TopicsActionsMenu>
         ),
       }}
     >
@@ -336,6 +348,7 @@ function TopicsWorkspaceView({
         )}
         {modelSettings.notice}
         {configuration}
+        {regenerate.dialog}
         <Sheet
           open={historyOpen || executionId !== null}
           onOpenChange={showExecutionList}
