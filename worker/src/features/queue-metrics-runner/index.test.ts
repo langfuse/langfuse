@@ -1,10 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   flushMetricsToCloudWatch: vi.fn(),
   getFailed: vi.fn(),
   getJobCounts: vi.fn(),
   recordGauge: vi.fn(),
+  recordIncrement: vi.fn(),
   redisSet: vi.fn(),
   updateActiveIngestFailureProjectsMetric: vi.fn(),
   emitV4LegacyApiUsageFreshnessMetrics: vi.fn(),
@@ -17,7 +18,10 @@ vi.mock("@langfuse/shared/src/server", () => ({
   convertQueueNameToMetricName: (queueName: string) =>
     `langfuse.queue.${queueName.replace(/-/g, "_").replace(/_queue$/, "")}`,
   flushMetricsToCloudWatch: mocks.flushMetricsToCloudWatch,
-  instrumentAsync: vi.fn(),
+  instrumentAsync: (
+    _options: unknown,
+    fn: (span: { setAttribute: () => void }) => Promise<unknown>,
+  ) => fn({ setAttribute: vi.fn() }),
   logger: {
     debug: vi.fn(),
     error: vi.fn(),
@@ -26,7 +30,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   },
   recordDistribution: vi.fn(),
   recordGauge: mocks.recordGauge,
-  recordIncrement: vi.fn(),
+  recordIncrement: mocks.recordIncrement,
   redis: { set: mocks.redisSet },
   traceException: vi.fn(),
   updateActiveIngestFailureProjectsMetric:
@@ -86,6 +90,10 @@ describe("QueueMetricsRunner", () => {
     });
     mocks.updateActiveIngestFailureProjectsMetric.mockResolvedValue(undefined);
     mocks.emitV4LegacyApiUsageFreshnessMetrics.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("emits only the canonical gauges for a non-sharded queue", async () => {
@@ -151,6 +159,43 @@ describe("QueueMetricsRunner", () => {
     ).not.toHaveBeenCalled();
     expect(mocks.recordGauge).not.toHaveBeenCalled();
     expect(mocks.flushMetricsToCloudWatch).not.toHaveBeenCalled();
+  });
+
+  it("polls without a claim and records a failed run when the claim errors", async () => {
+    mocks.redisSet.mockRejectedValue(new Error("OOM command not allowed"));
+    const runner = new QueueMetricsRunner();
+
+    runner.start();
+    await vi.waitFor(() =>
+      expect(mocks.recordIncrement).toHaveBeenCalledWith(
+        "langfuse.periodic_runner.completed",
+        1,
+        { runner: "queue_metrics_runner", outcome: "failed" },
+      ),
+    );
+    runner.stop();
+
+    expect(mocks.getJobCounts).toHaveBeenCalledTimes(1);
+    expect(mocks.recordGauge).toHaveBeenCalledWith(
+      "langfuse.queue.trace_delete.depth",
+      12,
+      { type: "waiting", unit: "records" },
+    );
+  });
+
+  it("flushes CloudWatch at most once per flush floor", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    const runner = new TestQueueMetricsRunner();
+
+    await runner.executeOnce();
+    vi.setSystemTime(new Date("2026-01-01T00:00:09Z"));
+    await runner.executeOnce();
+    expect(mocks.flushMetricsToCloudWatch).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(new Date("2026-01-01T00:00:10Z"));
+    await runner.executeOnce();
+    expect(mocks.flushMetricsToCloudWatch).toHaveBeenCalledTimes(2);
   });
 
   it("claims separately for workers that consume different queues", async () => {

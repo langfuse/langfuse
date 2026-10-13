@@ -24,6 +24,10 @@ import { emitTopicStagingMetrics } from "@langfuse/shared/topics/server";
 
 type DepthType = "waiting" | "failed" | "active" | "delayed";
 const INTERVAL_CLAIM_KEY_PREFIX = "langfuse:queue-metrics-runner:claim";
+/** Claim TTL as a fraction of the interval, below 1 so a single worker never skips its own tick */
+const CLAIM_TTL_INTERVAL_FRACTION = 0.9;
+/** Minimum gap between this runner's CloudWatch flushes, so a short interval does not send one PutMetricData request per tick */
+const CLOUDWATCH_FLUSH_FLOOR_MS = 10_000;
 const TOPICS_QUEUES = new Set([
   QueueName.Topics,
   QueueName.TopicsUpdate,
@@ -92,6 +96,7 @@ function emitDepth(
 
 export class QueueMetricsRunner extends PeriodicRunner {
   private readonly instanceId = randomUUID();
+  private lastCloudWatchFlushAt = 0;
 
   constructor() {
     super("queue_metrics_runner");
@@ -331,16 +336,16 @@ export class QueueMetricsRunner extends PeriodicRunner {
 
     await Promise.allSettled(promises);
 
-    // The next interval usually runs on another worker, so publish now rather
-    // than when this process next records a metric.
-    flushMetricsToCloudWatch();
+    this.flushToCloudWatch();
   }
 
   /**
    * Queue depth and DLQ age read the same from every worker, so workers that
    * consume the same queues share one poll per interval. The claim is never
    * released: it expires, and the next worker whose timer fires polls. Workers
-   * that consume different queues hold separate claims.
+   * that consume different queues hold separate claims. A failed claim still
+   * polls, because Redis can reject writes (e.g. full under `noeviction`)
+   * while serving the reads that produce these gauges.
    */
   private async claimInterval(registeredNames: Set<string>): Promise<boolean> {
     if (!redis) return true;
@@ -355,15 +360,26 @@ export class QueueMetricsRunner extends PeriodicRunner {
         `${INTERVAL_CLAIM_KEY_PREFIX}:${queueSetHash}`,
         this.instanceId,
         "PX",
-        // Shorter than the interval so a single worker never skips its own tick.
-        Math.floor(this.defaultIntervalMs * 0.9),
+        Math.floor(this.defaultIntervalMs * CLAIM_TTL_INTERVAL_FRACTION),
         "NX",
       );
       return result === "OK";
     } catch (err) {
       this.markRunFailed(err);
-      logger.error("Queue metrics: failed to claim the polling interval", err);
-      return false;
+      logger.error(
+        "Queue metrics: failed to claim the polling interval, polling without a claim",
+        err,
+      );
+      return true;
     }
+  }
+
+  /** Publishes this tick's gauges without waiting for the 30s CloudWatch batch, since the next tick may run on another worker */
+  private flushToCloudWatch(): void {
+    const now = Date.now();
+    if (now - this.lastCloudWatchFlushAt < CLOUDWATCH_FLUSH_FLOOR_MS) return;
+
+    this.lastCloudWatchFlushAt = now;
+    flushMetricsToCloudWatch();
   }
 }
