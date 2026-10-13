@@ -113,10 +113,6 @@ export function GatewayConnectionModelsPage({
           </Alert.Description>
         </Alert>
       )}
-      <p className="text-muted-foreground text-xs">
-        Disabling a model here does not affect other provider credentials that
-        also offer it.
-      </p>
     </div>
   );
 }
