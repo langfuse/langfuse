@@ -245,13 +245,14 @@ export class ScoresApiService {
         })
       : undefined;
 
+    const { timestamp, ...scoreBody } = body;
     const result = await processEventBatch(
       [
         {
           id: randomUUID(),
           type: eventTypes.SCORE_CREATE,
-          timestamp: new Date().toISOString(),
-          body: { ...body, id: scoreId },
+          timestamp: timestamp ?? new Date().toISOString(),
+          body: { ...scoreBody, id: scoreId },
         },
       ],
       auth,
@@ -289,12 +290,21 @@ export class ScoresApiService {
     auth: AuthHeaderValidVerificationResultIngestion;
     attribution: IngestionAttribution;
   }) {
-    const events = bodies.map((body) => ({
-      id: randomUUID(),
-      type: eventTypes.SCORE_CREATE,
-      timestamp: new Date().toISOString(),
-      body,
-    }));
+    const events = bodies.map((body) => {
+      const isRecord =
+        typeof body === "object" && body !== null && !Array.isArray(body);
+      // Batch items are unvalidated here; an invalid timestamp fails event
+      // validation in processEventBatch and rejects only that item.
+      const { timestamp, ...scoreBody } = isRecord
+        ? (body as Record<string, unknown>)
+        : {};
+      return {
+        id: randomUUID(),
+        type: eventTypes.SCORE_CREATE,
+        timestamp: timestamp ?? new Date().toISOString(),
+        body: isRecord ? scoreBody : body,
+      };
+    });
 
     const result = await processEventBatch(events, auth, { attribution });
 

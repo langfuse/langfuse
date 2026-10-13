@@ -271,6 +271,156 @@ describe("/api/public/scores API Endpoint", () => {
       });
     });
 
+    it("should use the provided timestamp for a single score", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const scoreId = v4();
+      const timestamp = "2026-01-15T10:20:30.123Z";
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          id: scoreId,
+          traceId: v4(),
+          name: "timestamped-score",
+          value: 1,
+          timestamp,
+        },
+        auth,
+      );
+      expect(response.status).toBe(200);
+
+      await waitForExpect(async () => {
+        const score = await getScoreById({ projectId, scoreId });
+        expect(score?.timestamp).toEqual(new Date(timestamp));
+      });
+    });
+
+    it("should default the score timestamp to now", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const scoreId = v4();
+      const before = Date.now();
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        { id: scoreId, traceId: v4(), name: "untimestamped-score", value: 1 },
+        auth,
+      );
+      expect(response.status).toBe(200);
+
+      await waitForExpect(async () => {
+        const score = await getScoreById({ projectId, scoreId });
+        expect(score?.timestamp.getTime()).toBeGreaterThanOrEqual(before);
+        expect(score?.timestamp.getTime()).toBeLessThanOrEqual(Date.now());
+      });
+    });
+
+    it("should reject a single score with an invalid timestamp", async () => {
+      const { auth } = await createOrgProjectAndApiKey();
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          traceId: v4(),
+          name: "bad-timestamp",
+          value: 1,
+          timestamp: "2026-01-15 10:20:30",
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should apply per-item timestamps in a batch with mixed timestamps", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      const [firstId, secondId, defaultId] = [v4(), v4(), v4()];
+      const firstTimestamp = "2026-01-15T10:20:30.123Z";
+      const secondTimestamp = "2025-06-01T08:00:00.000+02:00";
+      const before = Date.now();
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        [
+          {
+            id: firstId,
+            traceId,
+            name: "batch-ts",
+            value: 1,
+            timestamp: firstTimestamp,
+          },
+          {
+            id: secondId,
+            traceId,
+            name: "batch-ts",
+            value: 2,
+            timestamp: secondTimestamp,
+          },
+          { id: defaultId, traceId, name: "batch-ts", value: 3 },
+        ],
+        auth,
+      );
+
+      expect(response.status).toBe(202);
+
+      await waitForExpect(async () => {
+        const scores = await getScoresByIds(projectId, [
+          firstId,
+          secondId,
+          defaultId,
+        ]);
+        const timestampById = new Map(
+          scores.map((score) => [score.id, score.timestamp.getTime()]),
+        );
+        expect(timestampById.get(firstId)).toBe(
+          new Date(firstTimestamp).getTime(),
+        );
+        expect(timestampById.get(secondId)).toBe(
+          new Date(secondTimestamp).getTime(),
+        );
+        expect(timestampById.get(defaultId)).toBeGreaterThanOrEqual(before);
+      });
+    });
+
+    it("should reject only the batch item with an invalid timestamp", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const validId = v4();
+
+      const response = await makeAPICall<{
+        accepted: number;
+        rejected: number;
+        errors: { message: string }[];
+      }>(
+        "POST",
+        "/api/public/scores",
+        [
+          { id: validId, traceId: v4(), name: "valid", value: 1 },
+          {
+            traceId: v4(),
+            name: "invalid-timestamp",
+            value: 1,
+            timestamp: "not-a-date",
+          },
+        ],
+        auth,
+      );
+
+      expect(response.status).toBe(207);
+      expect(response.body).toEqual({
+        accepted: 1,
+        rejected: 1,
+        errors: [{ message: expect.stringContaining("timestamp") }],
+      });
+      await waitForExpect(async () => {
+        const scores = await getScoresByIds(projectId, [validId]);
+        expect(scores).toHaveLength(1);
+      });
+    });
+
     it("should summarize accepted and rejected scores in a partially failed batch", async () => {
       const { auth } = await createOrgProjectAndApiKey();
       const response = await makeAPICall<{
