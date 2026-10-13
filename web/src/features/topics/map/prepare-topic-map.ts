@@ -547,11 +547,16 @@ export function zoneHalo(
   };
 }
 
+type MapHoverRectangle = MapRectangle & {
+  anchorY: number;
+  anchorFraction: 0 | 0.5 | 1;
+};
+
 function hoverRectangle(
   anchor: MapRectangle,
   size: Size,
   desired: Size,
-): MapRectangle | null {
+): MapHoverRectangle | null {
   if (size.width <= 0 || size.height <= 0) return null;
   const margin = Math.min(12, size.width / 4, size.height / 4);
   const width = Math.min(desired.width, size.width - margin * 2);
@@ -565,12 +570,27 @@ function hoverRectangle(
     top: number,
     w = width,
     h = height,
-  ): MapRectangle => ({
-    x: Math.min(Math.max(margin, left), size.width - w - margin),
-    y: Math.min(Math.max(margin, top), size.height - h - margin),
-    width: w,
-    height: h,
-  });
+  ): MapHoverRectangle => {
+    const x = Math.min(Math.max(margin, left), size.width - w - margin);
+    const y = Math.min(Math.max(margin, top), size.height - h - margin);
+    let anchorY = center.y;
+    let anchorFraction: MapHoverRectangle["anchorFraction"] = 0.5;
+    if (y + h <= anchor.y - 4) {
+      anchorY = y + h;
+      anchorFraction = 1;
+    } else if (y >= anchor.y + anchor.height + 4) {
+      anchorY = y;
+      anchorFraction = 0;
+    }
+    return {
+      x,
+      y,
+      width: w,
+      height: h,
+      anchorY,
+      anchorFraction,
+    };
+  };
   const candidates = [
     [anchor.x + anchor.width + 12, center.y - height / 2],
     [anchor.x - width - 12, center.y - height / 2],
@@ -590,13 +610,13 @@ function hoverRectangle(
   const regions = [
     {
       x: anchor.x + anchor.width + 12,
-      y: margin,
+      y: center.y - height / 2,
       width: size.width - margin - anchor.x - anchor.width - 12,
       height: size.height - margin * 2,
     },
     {
       x: margin,
-      y: margin,
+      y: center.y - height / 2,
       width: anchor.x - margin - 12,
       height: size.height - margin * 2,
     },
@@ -608,7 +628,7 @@ function hoverRectangle(
     },
     {
       x: margin,
-      y: margin,
+      y: anchor.y - height - 12,
       width: size.width - margin * 2,
       height: anchor.y - margin - 12,
     },
@@ -630,13 +650,13 @@ type TraceHover = {
   topicName: string | undefined;
   node: TopicMapNode;
   position: MapPosition;
-  card: MapRectangle;
+  card: MapHoverRectangle;
   excerpt: string;
   reading: boolean;
 };
 type ZoneHover = MapZone & {
   position: MapPosition;
-  label: MapRectangle;
+  label: MapHoverRectangle;
   detail: string;
 };
 export function prepareMapHover(

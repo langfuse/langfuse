@@ -15,6 +15,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   QueueName: {
     TraceDelete: "trace-delete",
   },
+  contextWithLangfuseProps: vi.fn(),
   convertQueueNameToMetricName: (queueName: string) =>
     `langfuse.queue.${queueName.replace(/-/g, "_").replace(/_queue$/, "")}`,
   flushMetricsToCloudWatch: mocks.flushMetricsToCloudWatch,

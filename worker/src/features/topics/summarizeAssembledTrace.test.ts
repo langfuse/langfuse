@@ -34,7 +34,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
 }));
 vi.mock("./models", () => ({
   summarizeTopicTraceFacets: (...args: unknown[]) => state.summarize(...args),
-  embedTopicSummary: (...args: unknown[]) => state.embed(...args),
+  embedTopicSummaries: (...args: unknown[]) => state.embed(...args),
 }));
 
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
@@ -123,13 +123,13 @@ beforeEach(() => {
     },
     ...usage,
   });
-  state.embed.mockResolvedValue({
-    embedding: [0.25],
+  state.embed.mockImplementation(async (_model, summaries: string[]) => ({
+    embeddings: summaries.map(() => [0.25]),
     providedUsageDetails: { embedding_input: 4 },
     usageDetails: { embedding_input: 4, total: 4 },
     providedCostDetails: {},
     costDetails: { embedding_input: 0.00000048, total: 0.00000048 },
-  });
+  }));
 });
 
 describe("summarizeAssembledTrace", () => {
@@ -221,18 +221,25 @@ describe("summarizeAssembledTrace", () => {
     expect(state.stored).toHaveBeenCalledTimes(3);
   });
 
-  it("summarizes all pending facets in one call and records its usage once", async () => {
+  it("summarizes and embeds all pending facets in one call each and records their usage once", async () => {
     const issues: TopicFacet = {
       ...facet,
       id: "facet-2",
       name: "Issues",
       versions: [{ ...facet.versions[0], facetId: "facet-2", version: 1 }],
     };
-    state.facets.mockReturnValue([facet, issues]);
+    const outcome: TopicFacet = {
+      ...facet,
+      id: "facet-3",
+      name: "Outcome",
+      versions: [{ ...facet.versions[0], facetId: "facet-3", version: 1 }],
+    };
+    state.facets.mockReturnValue([facet, issues, outcome]);
     state.summarize.mockResolvedValue({
       output: {
         intent_1: { summary: "Export monthly sales.", status: "applicable" },
         issues_2: { summary: "", status: "not_applicable" },
+        outcome_3: { summary: "Export completed.", status: "applicable" },
       },
       ...usage,
     });

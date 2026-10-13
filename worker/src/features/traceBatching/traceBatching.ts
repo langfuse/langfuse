@@ -13,7 +13,10 @@ import {
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
-import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
+import {
+  isTopicsProcessingActive,
+  isTopicsProjectEnabled,
+} from "@langfuse/shared/topics/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 import {
@@ -817,8 +820,8 @@ export async function trackTraceBatchActivity(
   )
     return;
   const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
-  // Topics summarizes every trace of an enabled project, so those bypass sampling.
-  const topicsProject = isTopicsProjectEnabled(projectId);
+  // Topics summarizes every trace of an active project, so those bypass sampling.
+  const topicsProject = await resolveTopicsProcessingActive(projectId);
   // Rate 0 admits only Topics projects; skip all tracking work for the rest.
   if (samplingRate === 0 && !topicsProject) return;
 
@@ -973,6 +976,23 @@ export async function trackTraceBatchActivity(
     // This optional load experiment must not fail normal event ingestion.
     recordIncrement("langfuse.trace_batch.tracking_errors", 1);
     logger.error("Failed to track trace batch activity", { error });
+  }
+}
+
+async function resolveTopicsProcessingActive(
+  projectId: string,
+): Promise<boolean> {
+  try {
+    return await isTopicsProcessingActive(projectId);
+  } catch (error) {
+    // The allowlist keeps Topics traces during an outage; the consumer still
+    // loads each project's models and skips projects without them.
+    recordIncrement("langfuse.trace_batch.topics_gate_failures", 1);
+    logger.warn("Failed to read Topics processing state, using allowlist", {
+      projectId,
+      error,
+    });
+    return isTopicsProjectEnabled(projectId);
   }
 }
 

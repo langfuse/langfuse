@@ -31,6 +31,7 @@ import {
   type NormalizedClickHouseQueryTags,
 } from "../clickhouse/queryTags";
 import {
+  CLICKHOUSE_NETWORK_ERROR_PATTERNS,
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
   clickHouseQueryShape,
   clickHouseQueryTableLabel,
@@ -688,17 +689,9 @@ function isRetryableError(error: unknown): boolean {
   const errorMessage = (error as Error).message?.toLowerCase() || "";
 
   // Check for socket hang up and other network-related errors
-  const retryablePatterns = [
-    "socket hang up",
-    "broken pipe",
-    "connection reset",
-    "econnreset",
-    "network_error",
-    "etimedout",
-    "econnrefused",
-  ];
-
-  return retryablePatterns.some((pattern) => errorMessage.includes(pattern));
+  return CLICKHOUSE_NETWORK_ERROR_PATTERNS.some((pattern) =>
+    errorMessage.includes(pattern),
+  );
 }
 
 export async function queryClickhouse<T>(
@@ -777,6 +770,7 @@ export async function queryClickhouse<T>(
           table,
           shape,
           clickhouseService,
+          error,
         );
         throw wrapped;
       });

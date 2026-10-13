@@ -657,9 +657,11 @@ function MapLabels({
             )}
             style={{
               left: rect.x,
-              top: rect.y,
+              top: rect.anchorY,
               width: rect.width,
-              height: rect.height,
+              maxHeight: rect.height,
+              // Percentages use the rendered height; clamp keeps the card inside its reserved bounds.
+              translate: `0 clamp(${rect.y - rect.anchorY}px, ${-100 * rect.anchorFraction}%, calc(${rect.y + rect.height - rect.anchorY}px - 100%))`,
               borderLeftColor: trace?.point.color ?? zone!.color,
               borderLeftWidth: 2,
             }}

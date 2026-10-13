@@ -170,6 +170,12 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(100 * 1024 * 1024),
+  // Traces summarized and embedded at once per Topics job, in both trace-batch and manual processing.
+  LANGFUSE_TOPICS_TRACE_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20),
   LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
     .number()
     .int()

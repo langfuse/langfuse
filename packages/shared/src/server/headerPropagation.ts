@@ -3,6 +3,7 @@ import type { IncomingHttpHeaders } from "http";
 import { env } from "../env";
 import {
   CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS,
+  CLICKHOUSE_ROUTE_CONTEXT_KEY,
   type ClickHouseQuerySurface,
 } from "./clickhouse/queryTags";
 import { extractPublicApiCallerAttribution } from "./ingestion/ingestionAttribution";
@@ -120,5 +121,9 @@ export const contextWithLangfuseProps = (
     }
   }
 
-  return opentelemetry.propagation.setBaggage(ctx, baggage);
+  const withBaggage = opentelemetry.propagation.setBaggage(ctx, baggage);
+  const route = props.clickhouse?.route?.trim();
+  return route
+    ? withBaggage.setValue(CLICKHOUSE_ROUTE_CONTEXT_KEY, route)
+    : withBaggage;
 };

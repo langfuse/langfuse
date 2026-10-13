@@ -39,6 +39,8 @@ import {
   sameTopicGeometry,
   topicTimeRangeSchema,
 } from "@langfuse/shared/topics";
+import pLimit from "p-limit";
+import { env } from "../../env";
 import { summarizeTopicTrace, nameTopicGroup } from "./models";
 import {
   isRejectedConnection,
@@ -820,79 +822,102 @@ async function processTraces(
       )
         throw new TopicEmbeddingFailure(TOPIC_EMBEDDING_EXPIRED_ERROR);
     }
-    for (const traceId of execution.input.traceIds) {
-      let input: ReturnType<typeof loadTopicTranscript> | undefined;
-      const getTranscript = () => {
-        if (!input)
-          input = metrics.measure(
-            "transcript",
-            () =>
-              loadTopicTranscript({ projectId: execution.projectId, traceId }),
-            "trace_load",
-          );
-        return input;
-      };
-      for (const { facet, progress } of facets) {
-        if (
-          state.summaries.some(
-            (ref) =>
-              ref.facetId === facet.facetId &&
-              ref.facetVersion === facet.version &&
-              ref.traceId === traceId,
-          ) ||
-          state.failedTraceIds.some(
-            (entry) =>
-              entry.facetId === facet.facetId &&
-              entry.facetVersion === facet.version &&
-              entry.traceIds.includes(traceId),
-          )
-        )
-          continue;
-        try {
-          await summarizeTrace(
-            metrics,
-            models,
-            execution,
-            facet,
-            traceId,
-            cached.get(facet)!,
-            getTranscript,
-          );
-          state.summaries.push({
-            facetId: facet.facetId,
-            facetVersion: facet.version,
-            traceId,
-          });
-          await save("summarizing");
-        } catch (error) {
-          metrics.error("summary", error);
-          if (isExecutionFailure(error)) throw error;
-          let failed = state.failedTraceIds.find(
-            (entry) =>
-              entry.facetId === facet.facetId &&
-              entry.facetVersion === facet.version,
-          );
-          if (!failed) {
-            failed = {
-              facetId: facet.facetId,
-              facetVersion: facet.version,
-              traceIds: [],
-            };
-            state.failedTraceIds.push(failed);
-          }
-          failed.traceIds.push(traceId);
-          progress.counts.failed = failed.traceIds.length;
-          const message = errorMessage(error);
-          if (
-            !execution.traceErrors.some(
-              (item) => item.traceId === traceId && item.error === message,
+    // Traces run concurrently; a trace's facets share its transcript and run in order.
+    const limit = pLimit(env.LANGFUSE_TOPICS_TRACE_CONCURRENCY);
+    let saving = Promise.resolve();
+    // Saves write the whole state, so they must not land out of order.
+    const saveInOrder = () => {
+      const saved = saving.then(() => save("summarizing"));
+      saving = saved.catch(() => {});
+      return saved;
+    };
+    let aborted = false;
+    const results = await Promise.allSettled(
+      execution.input.traceIds.map((traceId) =>
+        limit(async () => {
+          if (aborted) return;
+          let input: ReturnType<typeof loadTopicTranscript> | undefined;
+          const getTranscript = () => {
+            if (!input)
+              input = metrics.measure(
+                "transcript",
+                () =>
+                  loadTopicTranscript({
+                    projectId: execution.projectId,
+                    traceId,
+                  }),
+                "trace_load",
+              );
+            return input;
+          };
+          for (const { facet, progress } of facets) {
+            if (
+              state.summaries.some(
+                (ref) =>
+                  ref.facetId === facet.facetId &&
+                  ref.facetVersion === facet.version &&
+                  ref.traceId === traceId,
+              ) ||
+              state.failedTraceIds.some(
+                (entry) =>
+                  entry.facetId === facet.facetId &&
+                  entry.facetVersion === facet.version &&
+                  entry.traceIds.includes(traceId),
+              )
             )
-          )
-            execution.traceErrors.push({ traceId, error: message });
-          await save("summarizing");
-        }
-      }
-    }
+              continue;
+            try {
+              await summarizeTrace(
+                metrics,
+                models,
+                execution,
+                facet,
+                traceId,
+                cached.get(facet)!,
+                getTranscript,
+              );
+              state.summaries.push({
+                facetId: facet.facetId,
+                facetVersion: facet.version,
+                traceId,
+              });
+              await saveInOrder();
+            } catch (error) {
+              metrics.error("summary", error);
+              if (isExecutionFailure(error)) {
+                aborted = true;
+                throw error;
+              }
+              let failed = state.failedTraceIds.find(
+                (entry) =>
+                  entry.facetId === facet.facetId &&
+                  entry.facetVersion === facet.version,
+              );
+              if (!failed) {
+                failed = {
+                  facetId: facet.facetId,
+                  facetVersion: facet.version,
+                  traceIds: [],
+                };
+                state.failedTraceIds.push(failed);
+              }
+              failed.traceIds.push(traceId);
+              progress.counts.failed = failed.traceIds.length;
+              const message = errorMessage(error);
+              if (
+                !execution.traceErrors.some(
+                  (item) => item.traceId === traceId && item.error === message,
+                )
+              )
+                execution.traceErrors.push({ traceId, error: message });
+              await saveInOrder();
+            }
+          }
+        }),
+      ),
+    );
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure) throw failure.reason;
     state.summarized = true;
     await save("embedding");
   }
