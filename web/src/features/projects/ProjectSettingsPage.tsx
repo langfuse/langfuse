@@ -23,6 +23,7 @@ import { useHasEntitlement } from "@/src/features/entitlements";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { ActionButton } from "@/src/components/ActionButton";
+import { Webhook } from "lucide-react";
 import { BatchExportsSettingsPage } from "@/src/features/batch-exports";
 import { BatchActionsSettingsPage } from "@/src/features/batch-actions";
 import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer";
@@ -37,10 +38,19 @@ import { env } from "@/src/env.mjs";
 import { PersonalNotificationSettings } from "@/src/features/notifications/components/PersonalNotificationSettings";
 import { ProjectNotificationChannels } from "@/src/features/notifications/components/ProjectNotificationChannels";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { WebCalloutIntegrationCard } from "@/src/features/web-callouts";
+import { useWebCallouts } from "@/src/features/web-callouts";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { api } from "@/src/utils/api";
+import {
+  StatusBadge,
+  type Status,
+} from "@/src/components/ui/StatusBadge/StatusBadge";
+import { usePostHogIntegration } from "@/src/features/posthog-integration/usePostHogIntegration";
+import { useMixpanelIntegration } from "@/src/features/mixpanel-integration/useMixpanelIntegration";
+import { useBlobStorageIntegration } from "@/src/features/blobstorage-integration/useBlobStorageIntegration";
+import { useExternalMediaStorage } from "@/src/features/external-media-storage/useExternalMediaStorage";
+import { useSlackIntegration } from "@/src/features/slack/useSlackIntegration";
 
 type ProjectSettingsPageEntry = {
   title: string;
@@ -402,27 +412,36 @@ function ProjectMembersSettings({
   );
 }
 
+const IntegrationCardHeader = (props: {
+  status: Status | undefined;
+  children: React.ReactNode;
+}) => (
+  <div className="mb-4 flex items-center justify-between gap-2">
+    <div className="flex items-center gap-2">{props.children}</div>
+    {props.status && <StatusBadge type={props.status} />}
+  </div>
+);
+
 const Integrations = (props: { projectId: string }) => {
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "integrations:CRUD",
   });
-  const showExternalMediaStorage =
-    api.externalMediaStorage.isFeatureEnabled.useQuery({
-      projectId: props.projectId,
-    }).data === true;
-
-  const allowBlobStorageIntegration = useHasEntitlement(
-    "scheduled-blob-exports",
-  );
+  const posthog = usePostHogIntegration(props.projectId);
+  const mixpanel = useMixpanelIntegration(props.projectId);
+  const blobStorage = useBlobStorageIntegration(props.projectId);
+  const externalMediaStorage = useExternalMediaStorage(props.projectId);
+  const slack = useSlackIntegration(props.projectId);
+  const webCallouts = useWebCallouts(props.projectId);
 
   return (
     <div>
       <Header title="Integrations" />
       <div className="space-y-6">
         <Card className="p-3">
-          {}
-          <PostHogLogo className="text-foreground mb-4 w-40" />
+          <IntegrationCardHeader status={posthog.status}>
+            <PostHogLogo className="text-foreground w-40" />
+          </IntegrationCardHeader>
           <p className="text-primary mb-4 text-sm">
             We have teamed up with PostHog (OSS product analytics) to make
             Langfuse Events/Metrics available in your Posthog Dashboards.
@@ -447,7 +466,9 @@ const Integrations = (props: { projectId: string }) => {
         </Card>
 
         <Card className="p-3">
-          <MixpanelLogo className="text-foreground mb-4 w-20" />
+          <IntegrationCardHeader status={mixpanel.status}>
+            <MixpanelLogo className="text-foreground w-20" />
+          </IntegrationCardHeader>
           <p className="text-primary mb-4 text-sm">
             Integrate with Mixpanel to sync your Langfuse traces, generations,
             and scores for advanced product analytics and insights.
@@ -472,7 +493,9 @@ const Integrations = (props: { projectId: string }) => {
         </Card>
 
         <Card className="p-3">
-          <span className="font-bold">Blob Storage</span>
+          <IntegrationCardHeader status={blobStorage.status}>
+            <span className="font-bold">Blob Storage</span>
+          </IntegrationCardHeader>
           <p className="text-primary mb-4 text-sm">
             Configure scheduled exports of your trace data to S3 compatible
             storages, Azure Blob Storage, or Google Cloud Storage. Set up a
@@ -483,7 +506,7 @@ const Integrations = (props: { projectId: string }) => {
             <ActionButton
               variant="secondary"
               hasAccess={hasAccess}
-              hasEntitlement={allowBlobStorageIntegration}
+              hasEntitlement={blobStorage.hasEntitlement}
               href={`/project/${props.projectId}/settings/integrations/blobstorage`}
             >
               Configure
@@ -499,9 +522,11 @@ const Integrations = (props: { projectId: string }) => {
           </div>
         </Card>
 
-        {showExternalMediaStorage ? (
+        {externalMediaStorage.isFeatureEnabled ? (
           <Card className="p-3">
-            <span className="font-bold">External Media Storage</span>
+            <IntegrationCardHeader status={externalMediaStorage.status}>
+              <span className="font-bold">External Media Storage</span>
+            </IntegrationCardHeader>
             <p className="text-primary mb-4 text-sm">
               Resolve media referenced by s3:// URIs from your own Amazon S3 or
               S3-compatible bucket.
@@ -527,10 +552,10 @@ const Integrations = (props: { projectId: string }) => {
         ) : null}
 
         <Card className="p-3">
-          <div className="mb-4 flex items-center gap-2">
+          <IntegrationCardHeader status={slack.status}>
             <SiSlack className="text-foreground icon-lg" />
             <span className="font-bold">Slack</span>
-          </div>
+          </IntegrationCardHeader>
           <p className="text-primary mb-4 text-sm">
             Connect a Slack workspace and create channel automations to receive
             Langfuse alerts natively in Slack.
@@ -546,10 +571,23 @@ const Integrations = (props: { projectId: string }) => {
           </div>
         </Card>
 
-        <WebCalloutIntegrationCard
-          projectId={props.projectId}
-          hasAccess={hasAccess}
-        />
+        <Card className="p-3">
+          <IntegrationCardHeader status={webCallouts.status}>
+            <Webhook className="text-foreground icon-lg" />
+            <span className="font-bold">Web Callouts</span>
+          </IntegrationCardHeader>
+          <p className="text-primary mb-4 text-sm">
+            Send backend callouts from trace, observation, and session detail
+            views to your own application.
+          </p>
+          <ActionButton
+            variant="secondary"
+            hasAccess={hasAccess}
+            href={`/project/${props.projectId}/settings/integrations/web-callouts`}
+          >
+            Configure
+          </ActionButton>
+        </Card>
       </div>
     </div>
   );
