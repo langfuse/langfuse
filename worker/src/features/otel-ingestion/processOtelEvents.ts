@@ -30,7 +30,6 @@ type ProcessOtelEventsParams = {
   shouldWriteToEventsTable: boolean;
   earlyBatch?: EarlyOtelBatch;
   mediaPath?: "early" | "reference";
-  onMediaPresence?: (presence: OtelMediaPresence) => void;
 };
 
 /**
@@ -51,8 +50,7 @@ export async function processOtelEvents({
   shouldWriteToEventsTable,
   earlyBatch,
   mediaPath,
-  onMediaPresence,
-}: ProcessOtelEventsParams): Promise<void> {
+}: ProcessOtelEventsParams): Promise<OtelMediaPresence | undefined> {
   // Process events for observation evals and direct event writes
   // This phase handles two independent concerns:
   // 1. Scheduling observation-level evals (if eval configs exist)
@@ -91,16 +89,16 @@ export async function processOtelEvents({
     });
   }
 
+  let mediaPresence: OtelMediaPresence | undefined;
   if (
     env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true" &&
     shouldWriteToEventsTable
   ) {
-    await processOtelEventMedia({
+    mediaPresence = await processOtelEventMedia({
       targets: createDirectOtelMediaTargets(eventInputs),
       writePath: "direct",
       earlyBatch,
       mediaPath,
-      onMediaPresence,
       projectId,
       fileKey,
       mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
@@ -195,4 +193,5 @@ export async function processOtelEvents({
     // The writer has accepted these records; its flush completes separately.
     await trackTraceBatchActivity(projectId, traceBatchEvents);
   }
+  return mediaPresence;
 }

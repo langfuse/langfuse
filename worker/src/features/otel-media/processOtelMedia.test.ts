@@ -320,7 +320,7 @@ describe("processOtelEventMedia", () => {
         fileKey: "file-key",
         processMedia,
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe("unknown");
 
     expect(mocks.recordDistribution).not.toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.batch_byte_length",

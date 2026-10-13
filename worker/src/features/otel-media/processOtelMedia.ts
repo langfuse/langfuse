@@ -52,9 +52,8 @@ export async function processOtelEventMedia(params: {
   fileKey: string;
   mediaBucket?: string;
   mediaPrefix: string;
-  onMediaPresence?: (presence: OtelMediaPresence) => void;
   processMedia?: typeof processOtelMedia;
-}): Promise<void> {
+}): Promise<OtelMediaPresence | undefined> {
   const {
     targets,
     writePath,
@@ -75,99 +74,93 @@ export async function processOtelEventMedia(params: {
     return;
   }
 
-  if (targets.length === 0) {
-    params.onMediaPresence?.("absent");
-    return;
-  }
+  if (targets.length === 0) return "absent";
 
+  let mediaPresence: OtelMediaPresence = "unknown";
   try {
     await instrumentAsync(
       { name: "langfuse.ingestion.otel.media.process" },
       async (span) => {
-        let mediaPresence: OtelMediaPresence = "unknown";
         span.setAttributes({
           "langfuse.ingestion.otel.media_path": mediaPath,
         });
-        try {
-          // Scan media still inline, including values below native's 1 KiB cutoff.
-          // References from native extraction are resolved separately below.
-          const result = await processMedia({
+        // Scan media still inline, including values below native's 1 KiB cutoff.
+        // References from native extraction are resolved separately below.
+        const result = await processMedia({
+          targets,
+          projectId,
+          writePath,
+          mediaPath,
+          mediaBucket,
+          mediaPrefix,
+          uploadMedia: (uploadParams) =>
+            uploadMediaForTrace({
+              ...uploadParams,
+              origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+            }),
+        });
+
+        if (params.earlyBatch) {
+          const early = await resolveExtractedMedia({
+            batch: params.earlyBatch,
             targets,
             projectId,
-            writePath,
-            mediaPath,
             mediaBucket,
             mediaPrefix,
-            uploadMedia: (uploadParams) =>
-              uploadMediaForTrace({
-                ...uploadParams,
-                origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
-              }),
+            writePath,
           });
-
-          if (params.earlyBatch) {
-            const early = await resolveExtractedMedia({
-              batch: params.earlyBatch,
-              targets,
-              projectId,
-              mediaBucket,
-              mediaPrefix,
-              writePath,
-            });
-            result.uploaded += early.uploaded;
-            result.reused += early.reused;
-            result.failed += early.failed;
-            result.candidates += early.candidates;
-            result.bytesProcessed += early.bytesProcessed;
-            result.bytesRemoved += early.bytesRemoved;
-          }
-          // Classify the same completed stage that contributes a duration sample.
-          mediaPresence =
-            result.candidates > 0 || result.failed > 0 ? "present" : "absent";
-
-          span.setAttributes({
-            "langfuse.ingestion.otel.media.uploaded": result.uploaded,
-            "langfuse.ingestion.otel.media.reused": result.reused,
-            "langfuse.ingestion.otel.media.invalid": result.invalid,
-            "langfuse.ingestion.otel.media.ignored": result.ignored,
-            "langfuse.ingestion.otel.media.failed": result.failed,
-            "langfuse.ingestion.otel.media.write_path": writePath,
-            "langfuse.ingestion.otel.media.candidates": result.candidates,
-            "langfuse.ingestion.otel.media.bytes_processed":
-              result.bytesProcessed,
-            "langfuse.ingestion.otel.media.bytes_removed": result.bytesRemoved,
-            "langfuse.ingestion.otel.media.detection_checks.data_uri":
-              result.detectionChecks.data_uri,
-            "langfuse.ingestion.otel.media.detection_checks.stringified_json":
-              result.detectionChecks.stringified_json,
-            "langfuse.ingestion.otel.media.detection_checks.structured_payload":
-              result.detectionChecks.structured_payload,
-            "langfuse.ingestion.otel.media.detection_checked_bytes.data_uri":
-              result.detectionCheckedBytes.data_uri,
-            "langfuse.ingestion.otel.media.detection_checked_bytes.stringified_json":
-              result.detectionCheckedBytes.stringified_json,
-            "langfuse.ingestion.otel.media.detection_checked_bytes.structured_payload":
-              result.detectionCheckedBytes.structured_payload,
-          });
-
-          recordDistribution(
-            "langfuse.ingestion.otel.media.batch_byte_length",
-            result.bytesProcessed,
-            { write_path: writePath, media_path: mediaPath },
-          );
-          recordDistribution(
-            "langfuse.ingestion.otel.media.batch_checked_byte_length",
-            Object.values(result.detectionCheckedBytes).reduce(
-              (total, bytes) => total + bytes,
-              0,
-            ),
-            { write_path: writePath, media_path: mediaPath },
-          );
-        } finally {
-          params.onMediaPresence?.(mediaPresence);
+          result.uploaded += early.uploaded;
+          result.reused += early.reused;
+          result.failed += early.failed;
+          result.candidates += early.candidates;
+          result.bytesProcessed += early.bytesProcessed;
+          result.bytesRemoved += early.bytesRemoved;
         }
+        // Classify this stage for the complete-attempt latency cohort.
+        mediaPresence =
+          result.candidates > 0 || result.failed > 0 ? "present" : "absent";
+
+        span.setAttributes({
+          "langfuse.ingestion.otel.media.uploaded": result.uploaded,
+          "langfuse.ingestion.otel.media.reused": result.reused,
+          "langfuse.ingestion.otel.media.invalid": result.invalid,
+          "langfuse.ingestion.otel.media.ignored": result.ignored,
+          "langfuse.ingestion.otel.media.failed": result.failed,
+          "langfuse.ingestion.otel.media.write_path": writePath,
+          "langfuse.ingestion.otel.media.candidates": result.candidates,
+          "langfuse.ingestion.otel.media.bytes_processed":
+            result.bytesProcessed,
+          "langfuse.ingestion.otel.media.bytes_removed": result.bytesRemoved,
+          "langfuse.ingestion.otel.media.detection_checks.data_uri":
+            result.detectionChecks.data_uri,
+          "langfuse.ingestion.otel.media.detection_checks.stringified_json":
+            result.detectionChecks.stringified_json,
+          "langfuse.ingestion.otel.media.detection_checks.structured_payload":
+            result.detectionChecks.structured_payload,
+          "langfuse.ingestion.otel.media.detection_checked_bytes.data_uri":
+            result.detectionCheckedBytes.data_uri,
+          "langfuse.ingestion.otel.media.detection_checked_bytes.stringified_json":
+            result.detectionCheckedBytes.stringified_json,
+          "langfuse.ingestion.otel.media.detection_checked_bytes.structured_payload":
+            result.detectionCheckedBytes.structured_payload,
+        });
+
+        recordDistribution(
+          "langfuse.ingestion.otel.media.batch_byte_length",
+          result.bytesProcessed,
+          { write_path: writePath, media_path: mediaPath },
+        );
+        recordDistribution(
+          "langfuse.ingestion.otel.media.batch_checked_byte_length",
+          Object.values(result.detectionCheckedBytes).reduce(
+            (total, bytes) => total + bytes,
+            0,
+          ),
+          { write_path: writePath, media_path: mediaPath },
+        );
       },
     );
+    return mediaPresence;
   } catch (error) {
     if (params.earlyBatch) {
       // Unexpected detector failures must not leave pending references in persisted payloads.
@@ -183,6 +176,7 @@ export async function processOtelEventMedia(params: {
       "OTEL media processing failed; continuing ingestion with original span values",
       { projectId, fileKey, error },
     );
+    return "unknown";
   }
 }
 

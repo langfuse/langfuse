@@ -450,9 +450,6 @@ export const otelIngestionQueueProcessorBuilder = (
     let mediaPresence: OtelMediaPresence | undefined;
     let inputByteLength: number | undefined;
     let completed = false;
-    const onMediaPresence = (presence: OtelMediaPresence) => {
-      mediaPresence = combineOtelMediaPresence(mediaPresence, presence);
-    };
     try {
       const projectId = job.data.payload.authCheck.scope.projectId;
       const publicKey = job.data.payload.data.publicKey ?? "";
@@ -799,17 +796,22 @@ export const otelIngestionQueueProcessorBuilder = (
           // Process the exact normalized representation written by the legacy
           // path. Targets retain body references, so replacements also reach
           // events-table forwarding when that destination is enabled.
-          await processOtelEventMedia({
+          const legacyMediaPresence = await processOtelEventMedia({
             targets: createLegacyOtelMediaTargets(traces.concat(observations)),
             writePath: "legacy",
             earlyBatch,
             mediaPath,
-            onMediaPresence,
             projectId,
             fileKey,
             mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
             mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
           });
+          if (legacyMediaPresence) {
+            mediaPresence = combineOtelMediaPresence(
+              mediaPresence,
+              legacyMediaPresence,
+            );
+          }
         }
 
         // Running everything concurrently might be detrimental to the event loop, but has probably
@@ -847,7 +849,7 @@ export const otelIngestionQueueProcessorBuilder = (
       // Determine what processing is needed
       const shouldWriteToEventsTable =
         v4WritesToEventsTable(env) && useDirectEventWrite;
-      await processOtelEvents({
+      const directMediaPresence = await processOtelEvents({
         processor,
         resourceSpans: parsedSpans,
         ingestionService,
@@ -856,8 +858,13 @@ export const otelIngestionQueueProcessorBuilder = (
         shouldWriteToEventsTable,
         earlyBatch,
         mediaPath,
-        onMediaPresence,
       });
+      if (directMediaPresence) {
+        mediaPresence = combineOtelMediaPresence(
+          mediaPresence,
+          directMediaPresence,
+        );
+      }
       completed = true;
     } catch (e) {
       const fileKey = job.data.payload.data.fileKey;
@@ -900,8 +907,8 @@ function combineOtelMediaPresence(
   current: OtelMediaPresence | undefined,
   next: OtelMediaPresence,
 ): OtelMediaPresence {
-  if (current === "present" || next === "present") return "present";
   if (current === "unknown" || next === "unknown") return "unknown";
+  if (current === "present" || next === "present") return "present";
   return "absent";
 }
 
