@@ -81,11 +81,11 @@ export function VirtualizedTreeNodeWrapper(
   // so its child spine would dangle next to nothing — suppress it.
   const childrenAreCapped = depth >= maxVisualDepth;
 
+  const surface = isSelected ? "muted" : "muted-on-hover";
+
   return (
     <div
-      data-surface={
-        loaded ? (isSelected ? "muted" : "muted-on-hover") : undefined
-      }
+      data-surface={loaded ? surface : undefined}
       className={cn(
         "group relative flex w-full px-0",
         loaded && "cursor-pointer",
