@@ -24,57 +24,13 @@ const FAILED_ROW_RETRY_DELAY = Prisma.sql`INTERVAL '10 minutes'`;
 const MAX_FAILURE_BACKOFF_MS = 30_000;
 
 // Counting the staging table scans it, so the gauges are refreshed at most
-// this often while a backlog drains batch after batch.
+// this often while a backlog drains batch after batch, and the scan is cut
+// off well within the lease.
 const STAGING_METRICS_INTERVAL_MS = 10_000;
+const STAGING_METRICS_STATEMENT_TIMEOUT_MS = 5_000;
 
 const LAST_ERROR_MAX_LENGTH = 1_000;
 const LOGGED_FAILURES_MAX = 10;
-
-export type AuditLogRecordInserter = (
-  records: AuditLogRecordInsertType[],
-  abortSignal: AbortSignal,
-) => Promise<void>;
-
-/**
- * Inserts synchronously, outside ClickhouseWriter. The client waits for the
- * async insert to be flushed, so a resolved promise means ClickHouse has
- * stored the rows.
- */
-export const insertAuditLogRecords: AuditLogRecordInserter = async (
-  records,
-  abortSignal,
-) => {
-  await clickhouseClient().insert({
-    table: "audit_logs",
-    values: records,
-    format: "JSONEachRow",
-    abort_signal: abortSignal,
-  });
-};
-
-export type AuditLogRelayBatchResult = {
-  claimed: number;
-  relayed: number;
-  failed: number;
-};
-
-type ClaimedStagingRow = {
-  id: string;
-  created_at: Date;
-  payload: Prisma.JsonValue;
-};
-
-type StagingMetricsRow = {
-  pending: bigint;
-  failed: bigint;
-  oldest_pending: Date | null;
-};
-
-const describeError = (error: unknown): string =>
-  (error instanceof Error ? error.message : String(error)).slice(
-    0,
-    LAST_ERROR_MAX_LENGTH,
-  );
 
 /**
  * Moves rows from the Postgres `audit_log_staging` outbox into the ClickHouse
@@ -142,22 +98,16 @@ export class AuditLogRelay extends PeriodicExclusiveRunner {
   protected async execute(): Promise<number | void> {
     return await this.withLock(
       async () => {
-        await this.recordStagingMetrics();
-
-        const result = await this.relayBatch();
-        this.consecutiveFailures = 0;
-
-        // A full batch means more rows are waiting, so run again right away.
-        return result.claimed === this.batchSize ? 0 : undefined;
+        try {
+          const result = await this.relayBatch();
+          this.consecutiveFailures = 0;
+          // A full batch means more rows are waiting, so run again right away.
+          return result.claimed === this.batchSize ? 0 : undefined;
+        } finally {
+          await this.recordStagingMetrics();
+        }
       },
-      () => {
-        recordIncrement(`${METRIC_PREFIX}.relay_errors`, 1);
-        this.consecutiveFailures += 1;
-        return Math.min(
-          this.intervalMs * 2 ** this.consecutiveFailures,
-          MAX_FAILURE_BACKOFF_MS,
-        );
-      },
+      () => this.backOffAfterFailure(),
     );
   }
 
@@ -166,82 +116,69 @@ export class AuditLogRelay extends PeriodicExclusiveRunner {
    * row left in place, when the ClickHouse insert or the transaction fails.
    */
   public async relayBatch(): Promise<AuditLogRelayBatchResult> {
-    const result = await prisma.$transaction(
-      async (tx) => {
-        const rows = await tx.$queryRaw<ClaimedStagingRow[]>`
-          SELECT id, created_at, payload
-          FROM audit_log_staging
-          WHERE failed_at IS NULL
-            OR failed_at < CURRENT_TIMESTAMP - ${FAILED_ROW_RETRY_DELAY}
-          ORDER BY id
-          LIMIT ${this.batchSize}
-          FOR UPDATE SKIP LOCKED
-        `;
-
-        const records: AuditLogRecordInsertType[] = [];
-        const failures: { id: string; error: string }[] = [];
-        for (const row of rows) {
-          try {
-            records.push(
-              convertAuditLogStagingRowToClickhouse({
-                id: row.id,
-                createdAt: row.created_at,
-                payload: row.payload,
-              }),
-            );
-          } catch (error) {
-            failures.push({ id: row.id, error: describeError(error) });
-          }
-        }
-
-        if (records.length > 0) {
-          await this.insertRecords(
-            records,
-            AbortSignal.timeout(this.transactionTimeoutMs),
-          );
-          await tx.auditLogStaging.deleteMany({
-            where: { id: { in: records.map((record) => record.id) } },
-          });
-        }
-
-        if (failures.length > 0) {
-          await tx.$executeRaw`
-            UPDATE audit_log_staging AS staging
-            SET failed_at = CURRENT_TIMESTAMP, last_error = failure.error
-            FROM unnest(
-              ${failures.map((failure) => failure.id)}::uuid[],
-              ${failures.map((failure) => failure.error)}::text[]
-            ) AS failure(id, error)
-            WHERE staging.id = failure.id
-          `;
-        }
-
-        return { rows: rows.length, relayed: records.length, failures };
-      },
+    const outcome = await prisma.$transaction(
+      (tx) => this.relayClaimedRows(tx),
       { timeout: this.transactionTimeoutMs },
     );
-
-    if (result.relayed > 0) {
-      recordIncrement(`${METRIC_PREFIX}.rows_relayed`, result.relayed);
-    }
-    if (result.failures.length > 0) {
-      recordIncrement(`${METRIC_PREFIX}.rows_failed`, result.failures.length);
-      // The payload can hold before/after state, so only ids and errors are
-      // logged.
-      logger.warn(
-        `${this.instanceName}: Staged audit events could not be mapped, retrying later`,
-        {
-          count: result.failures.length,
-          failures: result.failures.slice(0, LOGGED_FAILURES_MAX),
-        },
-      );
-    }
-
+    this.reportBatch(outcome);
     return {
-      claimed: result.rows,
-      relayed: result.relayed,
-      failed: result.failures.length,
+      claimed: outcome.claimed,
+      relayed: outcome.relayed,
+      failed: outcome.failures.length,
     };
+  }
+
+  private async relayClaimedRows(
+    tx: Prisma.TransactionClient,
+  ): Promise<BatchOutcome> {
+    const rows = await claimStagingRows(tx, this.batchSize);
+    const { records, failures } = mapStagingRows(rows);
+    await this.relayRecords(tx, records);
+    await markFailedRows(tx, failures);
+    return { claimed: rows.length, relayed: records.length, failures };
+  }
+
+  /** Inserts the records into ClickHouse, then deletes them from staging. */
+  private async relayRecords(
+    tx: Prisma.TransactionClient,
+    records: AuditLogRecordInsertType[],
+  ): Promise<void> {
+    if (records.length === 0) return;
+    await this.insertRecords(
+      records,
+      AbortSignal.timeout(this.transactionTimeoutMs),
+    );
+    await tx.auditLogStaging.deleteMany({
+      where: { id: { in: records.map((record) => record.id) } },
+    });
+  }
+
+  /** Records metrics and logs for a committed batch. */
+  private reportBatch(outcome: BatchOutcome): void {
+    if (outcome.relayed > 0) {
+      recordIncrement(`${METRIC_PREFIX}.rows_relayed`, outcome.relayed);
+    }
+    if (outcome.failures.length === 0) return;
+
+    recordIncrement(`${METRIC_PREFIX}.rows_failed`, outcome.failures.length);
+    // The payload can hold before/after state, so only ids and errors are
+    // logged.
+    logger.warn(
+      `${this.instanceName}: Staged audit events could not be mapped, retrying later`,
+      {
+        count: outcome.failures.length,
+        failures: outcome.failures.slice(0, LOGGED_FAILURES_MAX),
+      },
+    );
+  }
+
+  private backOffAfterFailure(): number {
+    recordIncrement(`${METRIC_PREFIX}.relay_errors`, 1);
+    this.consecutiveFailures += 1;
+    return Math.min(
+      this.intervalMs * 2 ** this.consecutiveFailures,
+      MAX_FAILURE_BACKOFF_MS,
+    );
   }
 
   private async recordStagingMetrics(): Promise<void> {
@@ -253,13 +190,7 @@ export class AuditLogRelay extends PeriodicExclusiveRunner {
 
     // Metrics must not stop the relay, so a failed query is only logged.
     try {
-      const [metrics] = await prisma.$queryRaw<StagingMetricsRow[]>`
-        SELECT
-          count(*) FILTER (WHERE failed_at IS NULL) AS pending,
-          count(*) FILTER (WHERE failed_at IS NOT NULL) AS failed,
-          min(created_at) FILTER (WHERE failed_at IS NULL) AS oldest_pending
-        FROM audit_log_staging
-      `;
+      const metrics = await readStagingMetrics();
       recordGauge(`${METRIC_PREFIX}.staging_rows`, Number(metrics.pending));
       recordGauge(`${METRIC_PREFIX}.failed_rows`, Number(metrics.failed));
       recordGauge(
@@ -278,3 +209,126 @@ export class AuditLogRelay extends PeriodicExclusiveRunner {
     }
   }
 }
+
+/**
+ * Inserts synchronously, outside ClickhouseWriter. The client waits for the
+ * async insert to be flushed, so a resolved promise means ClickHouse has
+ * stored the rows.
+ */
+export async function insertAuditLogRecords(
+  records: AuditLogRecordInsertType[],
+  abortSignal: AbortSignal,
+): Promise<void> {
+  await clickhouseClient().insert({
+    table: "audit_logs",
+    values: records,
+    format: "JSONEachRow",
+    abort_signal: abortSignal,
+  });
+}
+
+/** Locks the oldest due rows; concurrent claims skip each other's rows. */
+function claimStagingRows(
+  tx: Prisma.TransactionClient,
+  batchSize: number,
+): Promise<ClaimedStagingRow[]> {
+  return tx.$queryRaw<ClaimedStagingRow[]>`
+    SELECT id, created_at, payload
+    FROM audit_log_staging
+    WHERE failed_at IS NULL
+      OR failed_at < CURRENT_TIMESTAMP - ${FAILED_ROW_RETRY_DELAY}
+    ORDER BY id
+    LIMIT ${batchSize}
+    FOR UPDATE SKIP LOCKED
+  `;
+}
+
+function mapStagingRows(rows: ClaimedStagingRow[]): {
+  records: AuditLogRecordInsertType[];
+  failures: FailedStagingRow[];
+} {
+  const records: AuditLogRecordInsertType[] = [];
+  const failures: FailedStagingRow[] = [];
+  for (const row of rows) {
+    try {
+      records.push(
+        convertAuditLogStagingRowToClickhouse({
+          id: row.id,
+          createdAt: row.created_at,
+          payload: row.payload,
+        }),
+      );
+    } catch (error) {
+      failures.push({ id: row.id, error: describeError(error) });
+    }
+  }
+  return { records, failures };
+}
+
+async function markFailedRows(
+  tx: Prisma.TransactionClient,
+  failures: FailedStagingRow[],
+): Promise<void> {
+  if (failures.length === 0) return;
+  await tx.$executeRaw`
+    UPDATE audit_log_staging AS staging
+    SET failed_at = CURRENT_TIMESTAMP, last_error = failure.error
+    FROM unnest(
+      ${failures.map((failure) => failure.id)}::uuid[],
+      ${failures.map((failure) => failure.error)}::text[]
+    ) AS failure(id, error)
+    WHERE staging.id = failure.id
+  `;
+}
+
+async function readStagingMetrics(): Promise<StagingMetricsRow> {
+  const [, [metrics]] = await prisma.$transaction([
+    prisma.$queryRaw`SELECT set_config('statement_timeout', ${String(STAGING_METRICS_STATEMENT_TIMEOUT_MS)}, true)`,
+    prisma.$queryRaw<StagingMetricsRow[]>`
+      SELECT
+        count(*) FILTER (WHERE failed_at IS NULL) AS pending,
+        count(*) FILTER (WHERE failed_at IS NOT NULL) AS failed,
+        min(created_at) FILTER (WHERE failed_at IS NULL) AS oldest_pending
+      FROM audit_log_staging
+    `,
+  ]);
+  return metrics;
+}
+
+function describeError(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error)).slice(
+    0,
+    LAST_ERROR_MAX_LENGTH,
+  );
+}
+
+export type AuditLogRecordInserter = (
+  records: AuditLogRecordInsertType[],
+  abortSignal: AbortSignal,
+) => Promise<void>;
+
+export type AuditLogRelayBatchResult = {
+  claimed: number;
+  relayed: number;
+  failed: number;
+};
+
+type ClaimedStagingRow = {
+  id: string;
+  created_at: Date;
+  payload: Prisma.JsonValue;
+};
+
+type FailedStagingRow = { id: string; error: string };
+
+type BatchOutcome = {
+  claimed: number;
+  relayed: number;
+  failures: FailedStagingRow[];
+};
+
+type StagingMetricsRow = {
+  pending: bigint;
+  failed: bigint;
+  oldest_pending: Date | null;
+};
