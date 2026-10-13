@@ -15,6 +15,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { CredentialFields } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/CredentialFields";
 import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/ProviderSelect";
+import { DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR } from "@/src/features/ai-gateway/constants/gatewayConnection";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import type {
   GatewayConnection,
@@ -26,8 +27,6 @@ import {
   reportTrpcErrorWithoutToast,
 } from "@/src/utils/api";
 
-const DUPLICATE_CONNECTION_NAME_ERROR =
-  "A provider credential with this name already exists.";
 const INVALID_CONNECTION_NAME_ERROR =
   "Connection names cannot contain a colon.";
 
@@ -66,10 +65,13 @@ export function ProviderDialogController({
   const isPending = test.isPending || isSaving;
   const saveError = create.error ?? update.error;
   const isNameMutationError =
-    saveError?.message === DUPLICATE_CONNECTION_NAME_ERROR;
+    saveError?.message === DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR;
   const isError =
     test.isError ||
     ((create.isError || update.isError) && !isNameMutationError);
+  const errorTitle = test.isError
+    ? "Provider validation failed"
+    : "Provider credential could not be saved";
 
   const reset = () => {
     setProvider("OPENAI");
@@ -133,9 +135,9 @@ export function ProviderDialogController({
     } catch (error) {
       if (
         error instanceof Error &&
-        error.message === DUPLICATE_CONNECTION_NAME_ERROR
+        error.message === DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR
       ) {
-        setNameError(DUPLICATE_CONNECTION_NAME_ERROR);
+        setNameError(DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR);
         return;
       }
       reportNonTrpcError(error, "ai-gateway-providers");
@@ -193,11 +195,7 @@ export function ProviderDialogController({
             ) : null}
             {isError ? (
               <Alert variant="destructive">
-                <Alert.Title>
-                  {test.isError
-                    ? "Provider validation failed"
-                    : "Provider credential could not be saved"}
-                </Alert.Title>
+                <Alert.Title>{errorTitle}</Alert.Title>
                 <Alert.Description>
                   {test.error?.message ??
                     create.error?.message ??
