@@ -595,6 +595,99 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
     });
   });
 
+  describe("user, session and tags sent as per-key metadata", () => {
+    const compatAttributes = (
+      domain: "observation" | "trace",
+      encode: boolean,
+    ): OtelAttribute[] =>
+      Object.entries({
+        langfuse_user_id: "u1",
+        langfuse_session_id: "s1",
+        langfuse_tags: "a",
+      }).map(([key, value]) => ({
+        key: `langfuse.${domain}.metadata.${key}`,
+        value: {
+          stringValue:
+            encode || typeof value !== "string" ? JSON.stringify(value) : value,
+        },
+      }));
+
+    const processTraceAttributes = async (
+      path: "v3" | "v4",
+      attributes: OtelAttribute[],
+      scopeVersion: string,
+    ) => {
+      const batch = buildBatch(attributes);
+      batch[0].scopeSpans![0].scope!.version = scopeVersion;
+      const processor = new OtelIngestionProcessor({
+        projectId: PROJECT_ID,
+        publicKey: "pk-test",
+        sdkName: "python",
+        sdkVersion: scopeVersion,
+      });
+      if (path === "v4") {
+        const event = processor.processToEvent(batch).at(-1);
+        return {
+          userId: event?.userId,
+          sessionId: event?.sessionId,
+          tags: event?.tags,
+        };
+      }
+      const trace = (await processor.processToIngestionEvents(batch)).find(
+        (event) => event.type === "trace-create",
+      )?.body as
+        | { userId?: string; sessionId?: string; tags?: string[] }
+        | undefined;
+      return {
+        userId: trace?.userId,
+        sessionId: trace?.sessionId,
+        tags: trace?.tags,
+      };
+    };
+
+    it.each([
+      { path: "v3", domain: "observation" },
+      { path: "v3", domain: "trace" },
+      { path: "v4", domain: "observation" },
+      { path: "v4", domain: "trace" },
+    ] as const)(
+      "decodes JSON-encoded values from a structured-metadata major ($path, $domain)",
+      async ({ path, domain }) => {
+        expect(
+          await processTraceAttributes(
+            path,
+            compatAttributes(domain, true),
+            "5.0.0",
+          ),
+        ).toEqual({ userId: "u1", sessionId: "s1", tags: ["a"] });
+      },
+    );
+
+    it("keeps the exact digits of a numeric ID beyond 2^53", async () => {
+      const result = await processTraceAttributes(
+        "v4",
+        [
+          {
+            key: "langfuse.observation.metadata.langfuse_user_id",
+            value: { stringValue: "1234567890123456789" },
+          },
+        ],
+        "5.0.0",
+      );
+      expect(result.userId).toBe("1234567890123456789");
+    });
+
+    it("keeps raw string values from the current major", async () => {
+      expect(
+        await processTraceAttributes(
+          "v4",
+          compatAttributes("observation", false),
+          "4.15.6",
+        ),
+      ).toEqual({ userId: "u1", sessionId: "s1", tags: ["a"] });
+    });
+  });
+
   it("falls back to telemetry.sdk.language without a Langfuse SDK header", async () => {
     const result = await processMetadata(
       "v4",
