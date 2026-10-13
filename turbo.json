@@ -104,17 +104,6 @@
       "outputLogs": "errors-only",
       "outputs": []
     },
-    "build:check": {
-      "dependsOn": ["db:generate", "^build"],
-      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
-      "outputs": [
-        ".next-check/**",
-        "!.next-check/cache/**",
-        "!.next-check/dev/**"
-      ],
-      "cache": true,
-      "outputLogs": "errors-only"
-    },
     "test": {
       "dependsOn": ["^test", "db:generate"],
       "cache": true

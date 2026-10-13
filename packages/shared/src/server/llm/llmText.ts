@@ -77,6 +77,8 @@ export type LLMModelRef = {
 };
 
 export type LLMConnection = {
+  /** Project from the stored credential's DB row, never from a raw credential request. */
+  projectId?: string;
   /** Encrypted credential. It is decrypted only inside the execution boundary. */
   secretKey: string;
   /** Encrypted JSON object of additional headers. */
@@ -331,6 +333,7 @@ async function prepareLLMTextCall<
     baseURL: options.connection.baseURL,
     extraHeaders,
     config: options.connection.config,
+    projectId: options.connection.projectId,
     credentialSource,
     createFetch,
   });

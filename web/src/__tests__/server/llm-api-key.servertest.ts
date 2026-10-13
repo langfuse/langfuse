@@ -815,6 +815,7 @@ describe("llmApiKey.all RPC", () => {
     const connection = mockGenerateLLMText.mock.calls[0][0].connection;
     expect(connection.baseURL).toBe("https://api.openai.com/v1");
     expect(decrypt(connection.secretKey)).toBe("sk-original");
+    expect(connection.projectId).toBe(existingKey.projectId);
     const encryptedExtraHeaders = connection.extraHeaders;
     expect(encryptedExtraHeaders).toBeTruthy();
     if (!encryptedExtraHeaders) {
@@ -922,6 +923,7 @@ describe("llmApiKey.all RPC", () => {
     const connection = mockGenerateLLMText.mock.calls[0][0].connection;
     expect(connection.baseURL).toBe("https://example.net/v1");
     expect(decrypt(connection.secretKey)).toBe("sk-rotated");
+    expect(connection.projectId).toBeUndefined();
     expect(connection.extraHeaders).toBeUndefined();
   });
 

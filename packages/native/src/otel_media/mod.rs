@@ -89,6 +89,7 @@ impl WalkStats {
 }
 
 pub use payload::{validate, EarlyMediaResult, ExtractedMedia, ValidatedPayload};
+pub(crate) use rules::may_contain_media_candidate;
 
 #[cfg(test)]
 pub fn extract_media(input: &[u8]) -> Result<EarlyMediaResult, payload::EarlyMediaError> {

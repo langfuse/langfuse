@@ -25,7 +25,7 @@ import {
   writeInternalTraceViaOtelIngestion,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
-import { getEvalS3StorageClient } from "./s3StorageClient";
+import { getEvalScoreS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 
@@ -200,7 +200,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
       });
       const bucketPath = `${bucketPrefix}${params.eventId}.json`;
 
-      await getEvalS3StorageClient().uploadJson(bucketPath, [
+      await getEvalScoreS3StorageClient().uploadJson(bucketPath, [
         params.event as unknown as Record<string, unknown>,
       ]);
     },

@@ -6,6 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as EnvModule from "@/src/env.mjs";
 
 const {
   mutateAsyncMock,
@@ -59,6 +60,16 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 vi.mock("@/src/features/organizations/hooks", () => ({
   useLangfuseCloudRegion: () => useLangfuseCloudRegionMock(),
 }));
+
+vi.mock("@/src/env.mjs", async () => {
+  const actual = await vi.importActual<typeof EnvModule>("@/src/env.mjs");
+  return {
+    env: {
+      ...actual.env,
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: undefined,
+    },
+  };
+});
 
 vi.mock(
   "@/src/features/auth-credentials/components/ResetPasswordButton",

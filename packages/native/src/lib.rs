@@ -19,7 +19,7 @@ mod topics;
 
 pub use topics::{cluster_topic_embeddings, TopicClusteringResult, TopicClusteringSettings};
 
-pub use otel_input::{validate_otel_json, EarlyOtelBatch, ValidatedOtelJson};
+pub use otel_input::{extract_otel_media, validate_otel_json, EarlyOtelBatch, ValidatedOtelJson};
 
 use std::sync::Arc;
 use std::time::Duration;
