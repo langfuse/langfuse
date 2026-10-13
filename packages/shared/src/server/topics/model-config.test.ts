@@ -267,7 +267,9 @@ describe("reconcileTopicsConnectionsForProject", () => {
       embeddingLlmApiKey: sourceConnection,
       clusteringLlmApiKey: sourceConnection,
     });
-    mocks.keys.mockResolvedValue([]);
+    mocks.keys.mockImplementation(async ({ where }) =>
+      where.adapter === targetConnection.adapter ? [targetConnection] : [],
+    );
 
     await reconcileTopicsConnectionsForProject("project");
 
