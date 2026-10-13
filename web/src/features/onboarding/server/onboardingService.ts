@@ -239,7 +239,7 @@ const resolveOnboardingRedirectTargetWithFallback = async ({
  * Off when `LANGFUSE_DISABLE_SIGNUP_ONBOARDING=true`: status reports the step as
  * completed and completion writes nothing.
  */
-const isSignupOnboardingEnabled = () =>
+export const isSignupOnboardingEnabled = () =>
   env.LANGFUSE_DISABLE_SIGNUP_ONBOARDING !== "true";
 
 export const getSignupOnboardingStatus = async ({

@@ -1,6 +1,7 @@
 export {
   completeSignupOnboarding,
   getSignupOnboardingStatus,
+  isSignupOnboardingEnabled,
   provisionStarterOrganizationForNewUser,
   resolveOnboardingRedirectTarget,
   type RealOrganizationMembership,

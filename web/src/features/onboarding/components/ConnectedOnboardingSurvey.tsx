@@ -9,7 +9,10 @@ import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { reportError } from "@/src/utils/reportError";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import { getDemoCallbackRedirectPath } from "../lib/demoCallbackRedirect";
+import {
+  getDeepLinkCallbackRedirectPath,
+  getDemoCallbackRedirectPath,
+} from "../lib/demoCallbackRedirect";
 import {
   getSurveySubmittedEvent,
   shuffleBuildIntentOptions,
@@ -37,9 +40,13 @@ export function ConnectedOnboardingSurvey() {
   const completeOnboardingMutation = api.onboarding.complete.useMutation(
     isLangfuseCloud ? undefined : { onError: () => undefined },
   );
+  /** Cloud forwards demo links only; self-hosted forwards any same-origin deep link. */
+  const getQueryRedirectPath = isLangfuseCloud
+    ? getDemoCallbackRedirectPath
+    : getDeepLinkCallbackRedirectPath;
   const queryRedirectPath = router.isReady
-    ? (getDemoCallbackRedirectPath(router.query.targetPath) ??
-      getDemoCallbackRedirectPath(router.query.callbackUrl))
+    ? (getQueryRedirectPath(router.query.targetPath) ??
+      getQueryRedirectPath(router.query.callbackUrl))
     : undefined;
   const [hasStartedOnboardingCompletion, setHasStartedOnboardingCompletion] =
     useState(false);
