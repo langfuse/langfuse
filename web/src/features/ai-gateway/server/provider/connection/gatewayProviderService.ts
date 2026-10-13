@@ -10,6 +10,7 @@ import { LLMAdapter, testModelCall } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { auditLog } from "@/src/features/audit-logs/server";
+import { DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR } from "@/src/features/ai-gateway/constants/gatewayConnection";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
   type GatewayProviderName,
@@ -23,6 +24,16 @@ type CredentialValidator = (params: {
   provider: GatewayProviderName;
   credential: string;
 }) => Promise<void>;
+
+function rethrowConnectionMutationError(error: unknown): never {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  ) {
+    throw new InvalidRequestError(DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR);
+  }
+  throw error;
+}
 
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
@@ -85,15 +96,7 @@ export class GatewayProviderService {
         status: "ENABLED",
       });
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
-        throw new InvalidRequestError(
-          "A provider credential with this name already exists.",
-        );
-      }
-      throw error;
+      rethrowConnectionMutationError(error);
     }
     await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     await auditLog(
@@ -153,15 +156,7 @@ export class GatewayProviderService {
           : undefined,
       });
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
-        throw new InvalidRequestError(
-          "A provider credential with this name already exists.",
-        );
-      }
-      throw error;
+      rethrowConnectionMutationError(error);
     }
     await this.modelCatalogService.clearModelCache(
       params.organizationId,
