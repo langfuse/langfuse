@@ -20,20 +20,20 @@ export function EvaluatorTemplateRow({
     >
       <span className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @3xl:grid-cols-[minmax(10rem,18rem)_minmax(0,1fr)_12rem_9rem]">
         <span
-          className="col-start-1 row-start-1 min-w-0 truncate text-sm font-bold"
+          className="col-start-1 row-start-1 min-w-0 truncate text-xs font-bold"
           title={template.name}
         >
           {template.name}
         </span>
         <span
-          className="text-muted-foreground col-span-2 col-start-1 row-start-2 min-w-0 truncate text-sm @3xl:col-span-1 @3xl:col-start-2 @3xl:row-start-1"
+          className="text-muted-foreground col-span-2 col-start-1 row-start-2 min-w-0 truncate text-xs @3xl:col-span-1 @3xl:col-start-2 @3xl:row-start-1"
           title={description}
         >
           {description}
         </span>
         {attribution ? (
           <span
-            className="text-muted-foreground/80 col-span-2 col-start-1 row-start-3 min-w-0 text-xs leading-5 whitespace-normal @3xl:col-span-1 @3xl:col-start-3 @3xl:row-start-1 @3xl:truncate @3xl:text-sm"
+            className="text-muted-foreground/80 col-span-2 col-start-1 row-start-3 min-w-0 text-xs leading-5 whitespace-normal @3xl:col-span-1 @3xl:col-start-3 @3xl:row-start-1 @3xl:truncate"
             title={attribution}
           >
             {attribution}
