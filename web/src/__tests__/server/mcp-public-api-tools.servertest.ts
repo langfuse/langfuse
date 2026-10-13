@@ -443,9 +443,14 @@ describe("MCP public API tools", () => {
     });
   });
 
-  it.each([0, 2])(
-    "attributes comments through %i parent API keys",
-    async (depth) => {
+  it.each([
+    { depth: 0, hasAuthor: true },
+    { depth: 2, hasAuthor: true },
+    { depth: 10, hasAuthor: true },
+    { depth: 11, hasAuthor: false },
+  ])(
+    "resolves comment authors through $depth parent API keys",
+    async ({ depth, hasAuthor }) => {
       const { context, projectId, orgId } = await createMcpTestSetup();
       const user = await createProjectUser({ projectId, orgId });
       const prompt = await createPromptInDb({
@@ -480,7 +485,7 @@ describe("MCP public API tools", () => {
 
       await expect(
         handleGetComment({ commentId: created.id }, context),
-      ).resolves.toMatchObject({ authorUserId: user.id });
+      ).resolves.toMatchObject({ authorUserId: hasAuthor ? user.id : null });
 
       const sessionUserId = uuidv4();
       const sessionComment = (await handleCreateComment(

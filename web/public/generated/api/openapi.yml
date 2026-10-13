@@ -9190,8 +9190,8 @@ components:
           nullable: true
           description: >-
             Deprecated and ignored. Attribution uses the API key's creator,
-            following parent API keys until a user is found. If no creator is
-            found, the comment has no author.
+            following up to 10 parent API keys. If no creator is found, the
+            comment has no author.
           deprecated: true
       required:
         - projectId

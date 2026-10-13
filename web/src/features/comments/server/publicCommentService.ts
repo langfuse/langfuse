@@ -9,7 +9,9 @@ import type {
   PostCommentsV1Body,
 } from "@/src/features/public-api/types/comments";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma, type ApiKey } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
+
+const maxApiKeyCreatorDepth = 10;
 
 type ListCommentsInput = z.infer<typeof GetCommentsV1Query> & {
   projectId: string;
@@ -156,29 +158,33 @@ const resolveApiKeyCreator = async ({
   projectId,
   orgId,
 }: CommentAuditScope): Promise<string | null> => {
-  const visited = new Set<string>();
-  let currentId: string | null = apiKeyId;
+  const [creator] = await prisma.$queryRaw<{ userId: string }[]>`
+    WITH RECURSIVE creator_keys AS (
+      SELECT id, created_by_user_id, created_by_api_key_id, 0 AS depth
+      FROM api_keys
+      WHERE id = ${apiKeyId}
+        AND (
+          (scope = 'PROJECT' AND project_id = ${projectId})
+          OR (scope = 'ORGANIZATION' AND organization_id = ${orgId})
+        )
+      UNION ALL
+      SELECT parent.id, parent.created_by_user_id, parent.created_by_api_key_id, child.depth + 1
+      FROM api_keys parent
+      JOIN creator_keys child ON parent.id = child.created_by_api_key_id
+      WHERE child.created_by_user_id IS NULL
+        AND child.depth < ${maxApiKeyCreatorDepth}
+        AND (
+          (parent.scope = 'PROJECT' AND parent.project_id = ${projectId})
+          OR (parent.scope = 'ORGANIZATION' AND parent.organization_id = ${orgId})
+        )
+    )
+    SELECT created_by_user_id AS "userId"
+    FROM creator_keys
+    WHERE created_by_user_id IS NOT NULL
+    LIMIT 1
+  `;
 
-  while (currentId && !visited.has(currentId)) {
-    visited.add(currentId);
-    const key: Pick<ApiKey, "createdByUserId" | "createdByApiKeyId"> | null =
-      await prisma.apiKey.findFirst({
-        where: {
-          id: currentId,
-          OR: [
-            { scope: "PROJECT", projectId },
-            { scope: "ORGANIZATION", orgId },
-          ],
-        },
-        select: { createdByUserId: true, createdByApiKeyId: true },
-      });
-
-    if (!key) return null;
-    if (key.createdByUserId) return key.createdByUserId;
-    currentId = key.createdByApiKeyId;
-  }
-
-  return null;
+  return creator?.userId ?? null;
 };
 
 type CommentAuditScope = {
