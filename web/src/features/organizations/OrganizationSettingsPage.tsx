@@ -1,5 +1,6 @@
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
 import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
@@ -208,16 +209,20 @@ const getOrganizationSettingsPages = ({
     cmdKKeywords: ["llm", "models", "providers", "credentials"],
     content: (
       <div>
-        <Header title="Organization LLM Connections" />
-        <p className="text-muted-foreground mb-4 text-sm">
-          Connections are available to all current and future projects. Project
-          connections with the same provider take precedence.
-        </p>
         <ConnectedLLMApiKeySettingsTable
           owner={{
             scope: "organization",
             organizationId: organization.id,
           }}
+          toolbarContent={
+            <div className="flex items-center gap-1">
+              <Header title="Organization LLM Connections" className="mb-0!" />
+              <InfoTooltip label="About organization connections">
+                Connections are available to all current and future projects.
+                Project connections with the same provider take precedence.
+              </InfoTooltip>
+            </div>
+          }
           emptyState={
             <LlmConnectionEmptyState
               icon={Building2}
