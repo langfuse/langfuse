@@ -27,7 +27,6 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
-  LangfuseConflictError,
   LangfuseNotFoundError,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
@@ -377,38 +376,25 @@ export const llmApiKeyRouter = createTRPCRouter({
           }
         }
 
-        let key;
-        try {
-          key = await ctx.prisma.llmApiKeys.create({
-            data: {
-              projectId: input.projectId,
-              secretKey: encrypt(input.secretKey),
-              extraHeaders: input.extraHeaders
-                ? encrypt(JSON.stringify(input.extraHeaders))
-                : undefined,
-              extraHeaderKeys: input.extraHeaders
-                ? Object.keys(input.extraHeaders)
-                : undefined,
-              adapter: input.adapter,
-              displaySecretKey: getDisplaySecretKey(input.secretKey),
-              provider: input.provider,
-              baseURL: input.baseURL,
-              withDefaultModels: input.withDefaultModels,
-              customModels: input.customModels,
-              config: input.config,
-            },
-          });
-        } catch (error) {
-          if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === "P2002"
-          ) {
-            throw new LangfuseConflictError(
-              "There already exists an API key for this provider.",
-            );
-          }
-          throw error;
-        }
+        const key = await ctx.prisma.llmApiKeys.create({
+          data: {
+            projectId: input.projectId,
+            secretKey: encrypt(input.secretKey),
+            extraHeaders: input.extraHeaders
+              ? encrypt(JSON.stringify(input.extraHeaders))
+              : undefined,
+            extraHeaderKeys: input.extraHeaders
+              ? Object.keys(input.extraHeaders)
+              : undefined,
+            adapter: input.adapter,
+            displaySecretKey: getDisplaySecretKey(input.secretKey),
+            provider: input.provider,
+            baseURL: input.baseURL,
+            withDefaultModels: input.withDefaultModels,
+            customModels: input.customModels,
+            config: input.config,
+          },
+        });
 
         await auditLog({
           session: ctx.session,
@@ -417,9 +403,16 @@ export const llmApiKeyRouter = createTRPCRouter({
           action: "create",
         });
       } catch (e) {
-        if (!(e instanceof LangfuseConflictError)) {
-          logger.error(e);
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === "P2002"
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "There already exists an API key for this provider.",
+          });
         }
+        logger.error(e);
         throw e;
       }
     }),
