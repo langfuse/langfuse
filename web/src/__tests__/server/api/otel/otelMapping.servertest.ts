@@ -5780,6 +5780,123 @@ describe("OTel Resource Span Mapping", () => {
       ).toBeUndefined();
     });
 
+    it.each([
+      {
+        scenario: "maps platform session creation to a span",
+        expectedType: "SPAN",
+        expectedModel: undefined,
+      },
+      {
+        scenario: "maps SDK session creation to a span",
+        scopeName: "com.anthropic.sdk.typescript",
+        expectedType: "SPAN",
+        expectedModel: undefined,
+      },
+      {
+        scenario: "preserves other instrumentation scopes",
+        scopeName: "other-sdk",
+        expectedType: "GENERATION",
+        expectedModel: "claude-test-model",
+      },
+      {
+        scenario: "requires a managed session ID",
+        sessionId: null,
+        expectedType: "GENERATION",
+        expectedModel: "claude-test-model",
+      },
+      {
+        scenario: "preserves other model spans",
+        spanName: "anthropic.messages.create",
+        expectedType: "GENERATION",
+        expectedModel: "claude-test-model",
+      },
+      {
+        scenario: "respects an explicit generation type",
+        extraAttributes: { "langfuse.observation.type": "generation" },
+        expectedType: "GENERATION",
+        expectedModel: "claude-test-model",
+      },
+      {
+        scenario: "preserves model fields on explicitly typed chat spans",
+        extraAttributes: {
+          "langfuse.observation.type": "span",
+          "gen_ai.operation.name": "chat",
+        },
+        expectedType: "SPAN",
+        expectedModel: "claude-test-model",
+      },
+    ])(
+      "CMA session creation: $scenario",
+      async ({
+        scopeName = "com.anthropic.claude-platform",
+        spanName = "anthropic.sessions.create",
+        sessionId = "session-example",
+        extraAttributes = {},
+        expectedType,
+        expectedModel,
+      }) => {
+        const attributes: Record<string, string> = {
+          "gen_ai.request.model": "claude-test-model",
+        };
+        Object.assign(attributes, extraAttributes);
+        if (sessionId !== null) {
+          attributes["anthropic.session.id"] = sessionId;
+        }
+        const resourceSpan: ResourceSpan = {
+          scopeSpans: [
+            {
+              scope: { name: scopeName },
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  traceId: Buffer.from(defaultSpanProps.traceId.data),
+                  spanId: Buffer.from(defaultSpanProps.spanId.data),
+                  name: spanName,
+                  attributes: Object.entries(attributes).map(
+                    ([key, value]) => ({
+                      key,
+                      value: { stringValue: value },
+                    }),
+                  ),
+                },
+              ],
+            },
+          ],
+        };
+
+        const events = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const observation = events.find(
+          (event) => event.type !== "trace-create",
+        );
+        expect(observation).toMatchObject({
+          type: `${expectedType.toLowerCase()}-create`,
+          body: {
+            model: expectedModel,
+            metadata: {
+              attributes: { "gen_ai.request.model": "claude-test-model" },
+            },
+          },
+        });
+
+        const eventInputs = createTestOtelProcessor().processToEvent([
+          resourceSpan,
+        ]);
+        expect(eventInputs).toHaveLength(1);
+        expect(eventInputs[0]).toMatchObject({
+          type: expectedType,
+          modelName: expectedModel,
+          metadata: {
+            attributes: { "gen_ai.request.model": "claude-test-model" },
+          },
+        });
+        expect(eventInputs[0].providedUsageDetails).toBeUndefined();
+        expect(eventInputs[0].providedCostDetails).toEqual({});
+      },
+    );
+
     it("should filter all input/output attribute patterns from metadata.attributes while preserving custom attributes", async () => {
       // This test verifies that extractInputAndOutput's filteredAttributes correctly removes
       // all known input/output attribute patterns from multiple frameworks
