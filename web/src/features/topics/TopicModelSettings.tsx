@@ -54,7 +54,10 @@ export function useTopicModelSettings({
     settings.data.clustering,
   );
   const rule = rules.data?.length === 1 ? rules.data[0] : null;
-  const [configureOpen, setConfigureOpen] = useState(false);
+  const dataKey = `${settings.dataUpdatedAt}-${rules.dataUpdatedAt}-${readinessSettings.dataUpdatedAt}`;
+  // Pins the key while Configure is open so a refetch cannot reset unsaved edits.
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const setConfigureOpen = (open: boolean) => setOpenKey(open ? dataKey : null);
   const automaticProcessing = useAutomaticProcessing({
     canWrite,
     projectId,
@@ -161,7 +164,7 @@ export function useTopicModelSettings({
   );
   const action = ready ? (
     <ConfigureTopicsSettings
-      key={`${settings.dataUpdatedAt}-${rules.dataUpdatedAt}-${readinessSettings.dataUpdatedAt}`}
+      key={openKey ?? dataKey}
       projectId={projectId}
       canWrite={canWrite}
       stored={settings.data!}
@@ -169,7 +172,7 @@ export function useTopicModelSettings({
       connections={connections.data!.data}
       facets={facets}
       rule={rule}
-      open={configureOpen}
+      open={openKey !== null}
       onOpenChange={setConfigureOpen}
     />
   ) : (

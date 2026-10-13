@@ -108,7 +108,6 @@ function automaticProcessingState(
 ): AutomaticProcessingState {
   if (!stored || stored.enabled === null || !rule)
     return { status: "unconfigured" };
-  if (!stored.processingAvailable) return { status: "unavailable" };
   if (stored.blockMessage)
     return {
       status: "paused",
@@ -117,5 +116,7 @@ function automaticProcessingState(
         : "Paused",
     };
   if (stored.enabled) return { status: "on" };
+  // Only turning on needs the allowlist, so a running setup can still be turned off.
+  if (!stored.processingAvailable) return { status: "unavailable" };
   return { status: "off" };
 }
