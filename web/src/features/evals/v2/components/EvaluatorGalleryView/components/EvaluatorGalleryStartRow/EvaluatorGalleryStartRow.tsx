@@ -2,6 +2,7 @@ import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 
+import { EvaluatorGallerySectionHeader } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySectionHeader/EvaluatorGallerySectionHeader";
 import { EvaluatorMethodTile } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
 
 const EVALUATOR_START_OPTIONS = [
@@ -35,9 +36,7 @@ export function EvaluatorGalleryStartRow({
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <h4 className="text-foreground text-base font-bold">
-        Start from scratch
-      </h4>
+      <EvaluatorGallerySectionHeader label="Start from scratch" sticky />
       <div className="grid grid-cols-1 gap-3 @2xl:grid-cols-3">
         {EVALUATOR_START_OPTIONS.map((option) => (
           <button

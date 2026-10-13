@@ -1,6 +1,7 @@
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
+import { EvaluatorGallerySectionHeader } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySectionHeader/EvaluatorGallerySectionHeader";
 import { EvaluatorRecommendedCard } from "./components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
 import { EvaluatorRecommendedCards } from "./components/EvaluatorRecommendedCards/EvaluatorRecommendedCards";
 import { EvaluatorTemplateRow } from "./components/EvaluatorTemplateRow/EvaluatorTemplateRow";
@@ -47,7 +48,7 @@ export function EvaluatorGallerySection({
   return (
     <section className="flex scroll-mt-1 flex-col gap-3">
       {isRecommended ? (
-        <EvaluatorRecommendedCards label={section.label}>
+        <EvaluatorRecommendedCards label={section.label} stickyHeader>
           {shownManagedTemplates.map((template) => (
             <EvaluatorRecommendedCard
               key={template.key}
@@ -58,18 +59,13 @@ export function EvaluatorGallerySection({
         </EvaluatorRecommendedCards>
       ) : (
         <>
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <h4 className="text-foreground text-base font-bold">
-                {section.label}
-              </h4>
-              {isSafety ? (
-                <InfoTooltip label={`About ${section.label}`}>
-                  {EVALUATOR_GALLERY_SAFETY_CALLOUT}
-                </InfoTooltip>
-              ) : null}
-            </div>
-          </div>
+          <EvaluatorGallerySectionHeader label={section.label} sticky>
+            {isSafety ? (
+              <InfoTooltip label={`About ${section.label}`}>
+                {EVALUATOR_GALLERY_SAFETY_CALLOUT}
+              </InfoTooltip>
+            ) : null}
+          </EvaluatorGallerySectionHeader>
           {isProject ? (
             <div className="bg-background flex flex-col overflow-hidden rounded-md border">
               {shownTemplates.map((template) => (
