@@ -3947,6 +3947,17 @@ export class OtelIngestionProcessor {
     skillsAvailable?: SkillsAvailable;
     skillsResourceLoaded?: SkillsResourceLoaded;
   } {
+    //temp gate for release testing, do not store any skills if
+    //LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE was not set
+    if (!attributes[LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE]) {
+      return {};
+    }
+    if (
+      observationType !== ObservationType.GENERATION &&
+      observationType !== ObservationType.TOOL
+    ) {
+      return {};
+    }
     const available = SkillsAvailableSchema.safeParse(
       this.parseJsonPayload(
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE],
@@ -3976,11 +3987,11 @@ export class OtelIngestionProcessor {
     );
     if (!loaded.success) return {};
 
-    const skillName = loaded.data.skillName.replace(/^inline\//, "");
-    if (!skillName) return {};
     return {
       ...(available.success ? { skillsAvailable: available.data } : {}),
-      skillsResourceLoaded: [{ skillName, filePath: loaded.data.filePath }],
+      skillsResourceLoaded: [
+        { skillName: loaded.data.skillName, filePath: loaded.data.filePath },
+      ],
     };
   }
 
