@@ -6,25 +6,22 @@ type TagProps = {
   text: string;
   /** Muted text after the value, e.g. `(current)`. */
   secondaryText?: string;
-  title?: string;
   /** Shows a remove button after the text. */
-  onRemove?: () => void;
-  removeDisabled?: boolean;
+  remove?: { onRemove: () => void; disabled?: boolean };
 };
 
 /** A selected value or label: filled, mono, with an optional remove button. */
-export function Tag({
-  text,
-  secondaryText,
-  title,
-  onRemove,
-  removeDisabled,
-}: TagProps) {
+export function Tag({ text, secondaryText, remove }: TagProps) {
+  const handleRemoveClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    remove?.onRemove();
+  };
+
   return (
-    <BadgeShell color="filled" font="mono" size="md" title={title}>
+    <BadgeShell color="filled" font="mono" size="md">
       <span
         className="min-w-0 truncate py-0.5"
-        title={title ? undefined : text}
+        title={[text, secondaryText].filter(Boolean).join(" ")}
       >
         {text}
       </span>
@@ -33,16 +30,13 @@ export function Tag({
           {secondaryText}
         </span>
       )}
-      {onRemove && (
+      {remove && (
         <button
           type="button"
-          disabled={removeDisabled}
+          disabled={remove.disabled}
           aria-label={`Remove ${text}`}
           className="text-foreground-tertiary hover:text-foreground -mr-0.5 flex shrink-0 items-center rounded-sm disabled:cursor-not-allowed"
-          onClick={(event) => {
-            event.stopPropagation();
-            onRemove();
-          }}
+          onClick={handleRemoveClick}
         >
           <X className="icon-sm" />
         </button>

@@ -243,11 +243,10 @@ export function MultiSelectTagInput<V extends string>({
                       <Tag
                         text={option.label}
                         secondaryText={option.secondaryLabel}
-                        title={[option.label, option.secondaryLabel]
-                          .filter(Boolean)
-                          .join(" ")}
-                        removeDisabled={disabled || option.disabled}
-                        onRemove={() => removeValue(option.value)}
+                        remove={{
+                          onRemove: () => removeValue(option.value),
+                          disabled: disabled || option.disabled,
+                        }}
                       />
                     </span>
                   ))

@@ -15,7 +15,7 @@ export const Default = meta.story({});
 
 export const Removable = meta.story({
   args: {
-    onRemove: fn(),
+    remove: { onRemove: fn() },
   },
 });
 
@@ -28,9 +28,13 @@ export const Variants = meta.story({
   render: () => (
     <div className="flex flex-wrap items-center gap-2">
       <Tag text="default" />
-      <Tag text="gpt-5" onRemove={() => {}} />
-      <Tag text="Regression" secondaryText="(current)" onRemove={() => {}} />
-      <Tag text="locked" onRemove={() => {}} removeDisabled />
+      <Tag text="gpt-5" remove={{ onRemove: fn() }} />
+      <Tag
+        text="Regression"
+        secondaryText="(current)"
+        remove={{ onRemove: fn() }}
+      />
+      <Tag text="locked" remove={{ onRemove: fn(), disabled: true }} />
     </div>
   ),
 });
