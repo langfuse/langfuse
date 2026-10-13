@@ -239,23 +239,46 @@ export function nodeDetailBlend(zoom: number) {
   return smoothStep(3, 10, zoom);
 }
 
-// Reading nodes and hover cards are blocks of wrapped text inside fixed
-// padding, so their height belongs to the text rather than to a constant: a
-// one-line summary in a box sized for six lines is mostly empty space. The
-// constants below mirror the Tailwind classes their DOM twins carry in
-// TopicMapExplorer, and must move together with them.
+/** Constants mirror the Tailwind classes in TopicMapExplorer; move together. */
 const TEXT_LINE_HEIGHT = 1.625; // leading-relaxed
-// A deliberately wide average glyph. Over-estimating a line count only
-// reserves a little slack; under-estimating clips the text.
-const TEXT_GLYPH_WIDTH = 0.55;
 const NODE_WIDTH = 264;
 const NODE_PADDING_X = 16; // px-2
 const NODE_PADDING_Y = 12; // py-1.5
 const NODE_MAX_LINES = 6; // line-clamp-6
+/** Fixed footprint used by the clearance solver; drawn height only ever shrinks inside it. */
+const NODE_FOOTPRINT_HEIGHT = 144;
 const CARD_WIDTH = 264;
 const CARD_PADDING_X = 24; // px-3
 const CARD_PADDING_Y = 20; // py-2.5
+/** Card border-box: 1px border + 2px accent eat into usable height. */
+const CARD_BORDER_X = 3;
+const CARD_BORDER_Y = 2;
 const CARD_BLOCK_GAP = 4; // mb-1
+
+/**
+ * Approximate display width of a string in em units.
+ * CJK and other full-width scripts count as 1.0em; Latin scripts as ~0.55em.
+ */
+function textDisplayWidth(text: string): number {
+  let w = 0;
+  for (const ch of text) {
+    const c = ch.codePointAt(0) ?? 0;
+    w +=
+      (c >= 0x1100 && c <= 0x115f) || // Hangul Jamo
+      (c >= 0x2e80 && c <= 0x303f) || // CJK Radicals + Symbols
+      (c >= 0x3040 && c <= 0x33ff) || // Hiragana, Katakana, Bopomofo
+      (c >= 0x3400 && c <= 0x4dbf) || // CJK Extension A
+      (c >= 0x4e00 && c <= 0x9fff) || // CJK Unified Ideographs
+      (c >= 0xa960 && c <= 0xa97f) || // Hangul Jamo Extended-A
+      (c >= 0xac00 && c <= 0xd7ff) || // Hangul Syllables
+      (c >= 0xf900 && c <= 0xfaff) || // CJK Compatibility Ideographs
+      (c >= 0xfe30 && c <= 0xfe4f) || // CJK Compatibility Forms
+      (c >= 0xff01 && c <= 0xff60) // Fullwidth Forms
+        ? 1.0
+        : 0.55;
+  }
+  return w;
+}
 
 type TextBlock = {
   text: string;
@@ -264,19 +287,17 @@ type TextBlock = {
   gap?: number;
 };
 
+/** Counts wrapped lines for a block of text at a given pixel width and font size. */
 function wrappedLineCount(
   text: string,
   width: number,
   fontSize: number,
   maxLines: number,
 ) {
-  const perLine = Math.max(
-    1,
-    Math.floor(width / Math.max(1, fontSize * TEXT_GLYPH_WIDTH)),
-  );
+  const emWidth = Math.max(1, width / fontSize);
   return Math.max(
     1,
-    Math.min(maxLines, Math.ceil(text.trim().length / perLine)),
+    Math.min(maxLines, Math.ceil(textDisplayWidth(text.trim()) / emWidth)),
   );
 }
 
@@ -307,7 +328,7 @@ function readingNodeWidth(size: Size) {
 }
 
 function readingNodeFontSize(width: number) {
-  return 9 + smoothStep(100, 264, width) * 3;
+  return 9 + smoothStep(100, NODE_WIDTH, width) * 3;
 }
 
 function readingNodeHeight(summary: string, width: number) {
@@ -324,15 +345,6 @@ function readingNodeHeight(summary: string, width: number) {
   );
 }
 
-// The broad phase below scans one cell in each direction, so its grid has to
-// stay as tall as the tallest node any summary can produce.
-function maxReadingNodeHeight(width: number) {
-  return Math.ceil(
-    NODE_PADDING_Y +
-      NODE_MAX_LINES * readingNodeFontSize(width) * TEXT_LINE_HEIGHT,
-  );
-}
-
 export function prepareMapNodes(
   model: TopicMapModel,
   camera: Camera,
@@ -342,11 +354,10 @@ export function prepareMapNodes(
   matchingTraceIds?: ReadonlySet<string>,
 ): TopicMapNodeFrame {
   const fullWidth = readingNodeWidth(size);
-  const fullHeight = maxReadingNodeHeight(fullWidth);
   const blend = nodeDetailBlend(camera.zoom);
   const cells = new Map<string, number[]>();
   const cellWidth = fullWidth + 8;
-  const cellHeight = fullHeight + 8;
+  const cellHeight = NODE_FOOTPRINT_HEIGHT + 8;
   const prepared = model.points.map((point, index) => {
     const worldPosition = { x: point.x, y: point.y };
     const projected = screenPoint(worldPosition, camera, model.bounds, size);
@@ -361,7 +372,7 @@ export function prepareMapNodes(
       (!matchingTraceIds || matchingTraceIds.has(point.traceId));
     const growth = matchesFilters ? blend : 0;
     const growWidth = (fullWidth - diameter) * growth;
-    const growHeight = Math.max(0, fullHeight - diameter) * growth;
+    const growHeight = (NODE_FOOTPRINT_HEIGHT - diameter) * growth;
     const cellX = Math.floor(center.x / cellWidth);
     const cellY = Math.floor(center.y / cellHeight);
     const key = `${cellX},${cellY}`;
@@ -422,27 +433,17 @@ export function prepareMapNodes(
     }
     const width = item.diameter + item.growWidth * clearance;
     const fontSize = readingNodeFontSize(width);
-    // The box is the smaller of the footprint it was allowed before and the
-    // space its own summary needs at the width it actually got. Shrinking can
-    // never bring two nodes together, so the clearance above still holds; a
-    // crowded node keeps the room its reflowed text wants, and an uncrowded
-    // one stops reserving five lines to show two.
-    const target = Math.min(
-      fullHeight,
-      readingNodeHeight(item.point.summary, width),
-    );
+    const footprintHeight = item.diameter + item.growHeight * clearance;
+    /** Height of the drawn box; never exceeds footprint. */
     const height = Math.min(
-      item.diameter + item.growHeight * clearance,
-      Math.max(item.diameter, target),
+      footprintHeight,
+      Math.max(item.diameter, readingNodeHeight(item.point.summary, width)),
     );
     const expansion = item.growth * clearance;
     const smaller = Math.min(width, height);
-    // Gate the text on how far the box has opened towards the height it is
-    // converging on, so a one-line node becomes readable at the same zoom as a
-    // six-line one instead of waiting for an absolute pixel height it will
-    // never reach.
+    /** Fade keyed to footprint, not drawn box, so line count doesn't affect when text appears. */
     const textOpacity =
-      smoothStep(76, 132, width) * smoothStep(0.21, 0.45, height / target);
+      smoothStep(76, 132, width) * smoothStep(30, 64, footprintHeight);
     const node: TopicMapNode = {
       point: item.point,
       matchesFilters: item.matchesFilters,
@@ -461,9 +462,7 @@ export function prepareMapNodes(
       strokeOpacity: textOpacity,
       textOpacity,
       fontSize,
-      // A crowded node settles below its full size, where its summary no
-      // longer fits. Clamping to the lines the box has room for ends it with
-      // an ellipsis instead of a half-painted row of glyphs.
+      /** Lines the box has room for; clamps text to an ellipsis rather than a clipped row. */
       lineClamp: Math.max(
         1,
         Math.floor(
@@ -808,8 +807,8 @@ export function prepareMapHover(
               gap: topicName?.trim() ? CARD_BLOCK_GAP : 0,
             },
           ],
-          width - CARD_PADDING_X,
-          CARD_PADDING_Y,
+          width - CARD_PADDING_X - CARD_BORDER_X,
+          CARD_PADDING_Y + CARD_BORDER_Y,
         ),
     });
     return {
@@ -858,8 +857,8 @@ export function prepareMapHover(
               gap: CARD_BLOCK_GAP,
             },
           ],
-          width - CARD_PADDING_X,
-          CARD_PADDING_Y,
+          width - CARD_PADDING_X - CARD_BORDER_X,
+          CARD_PADDING_Y + CARD_BORDER_Y,
         ),
     },
   );

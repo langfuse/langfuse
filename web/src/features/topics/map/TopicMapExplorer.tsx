@@ -674,7 +674,7 @@ function MapLabels({
           >
             {trace ? (
               <>
-                {trace.topicName && (
+                {trace.topicName?.trim() && (
                   <span
                     className="mb-1 line-clamp-2"
                     style={{ color: trace.point.color }}
@@ -687,7 +687,7 @@ function MapLabels({
             ) : (
               <>
                 <span
-                  className="line-clamp-2 text-xs font-bold"
+                  className="line-clamp-2 font-bold"
                   style={{ color: zone!.color }}
                 >
                   {zone!.name}

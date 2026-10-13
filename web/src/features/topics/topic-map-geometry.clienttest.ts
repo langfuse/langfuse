@@ -658,6 +658,27 @@ describe("text blocks sized to their content", () => {
     expect(tall.textOpacity).toBe(1);
   });
 
+  it("keeps crowding and visibility independent of the summary", () => {
+    // Vertical separation, so the y term of the clearance solver is the one
+    // that binds — the case where letting content feed back into the layout
+    // would quietly widen a node and take its hover card away.
+    const pair = (summary: string) =>
+      frameAt([
+        { x: 500, y: 240, summary },
+        { x: 500, y: 320, summary },
+      ]).nodes;
+    const short = pair(brief);
+    const tall = pair(wordy);
+    expect(short).toHaveLength(2);
+    for (let i = 0; i < short.length; i++) {
+      expect(short[i].rect.width).toBeCloseTo(tall[i].rect.width, 10);
+      expect(short[i].textOpacity).toBeCloseTo(tall[i].textOpacity, 10);
+      expect(short[i].textOpacity).toBeGreaterThan(0);
+      // Only the drawn height follows the text.
+      expect(short[i].rect.height).toBeLessThan(tall[i].rect.height);
+    }
+  });
+
   it("clamps a crowded node to the rows its box still has", () => {
     const roomy = frameAt([{ x: 500, y: 300, summary: wordy }]).nodes[0];
     const crowded = frameAt([
