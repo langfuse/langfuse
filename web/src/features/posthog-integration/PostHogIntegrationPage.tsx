@@ -23,7 +23,7 @@ import {
 } from "@/src/features/analytics-integrations";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useQueryProject } from "@/src/features/projects";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogIntegration } from "@/src/features/posthog-integration/usePostHogIntegration";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { Card } from "@/src/components/ui/card";
@@ -35,33 +35,9 @@ export default function PostHogIntegrationPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "integrations:CRUD",
-  });
-  const state = api.posthogIntegration.get.useQuery(
-    { projectId },
-    {
-      enabled: hasAccess,
-    },
-  );
+  const { hasAccess, query: state, status } = usePostHogIntegration(projectId);
 
   const { project } = useQueryProject();
-
-  // A persisted fault outranks active/inactive: it is the state the admin has
-  // to act on, and it is cleared by the next successful sync.
-  const status = (() => {
-    if (state.isLoading || !hasAccess) {
-      return undefined;
-    }
-    if (state.data?.config?.lastError) {
-      return "error";
-    }
-    if (state.data?.config?.enabled) {
-      return "active";
-    }
-    return "inactive";
-  })();
 
   return (
     <ContainerPage
