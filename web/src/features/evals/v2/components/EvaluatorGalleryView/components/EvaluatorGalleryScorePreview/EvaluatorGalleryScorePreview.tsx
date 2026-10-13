@@ -41,10 +41,10 @@ export function EvaluatorGalleryScorePreview({
           </span>
         ) : null}
       </div>
-      <div className="bg-foreground/20 text-background absolute inset-0 hidden items-center justify-center backdrop-blur-sm group-hover/card:flex">
+      <div className="bg-foreground/20 text-background absolute inset-0 hidden items-center justify-center backdrop-blur-xs group-hover/card:flex">
         <span
           aria-hidden="true"
-          className="bg-foreground/50 absolute h-12 w-36 rounded-full blur-xl"
+          className="bg-foreground/50 absolute h-12 w-36 rounded-full blur-lg"
         />
         <span className="relative flex items-center gap-1 text-sm font-bold">
           Use template
