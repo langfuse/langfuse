@@ -88,6 +88,12 @@
   summaries reduce it to that threshold or below. The client idle timeout must
   account for these pauses. Drain accepted summaries even on read failure. Never flush a failed
   stream's partial final trace; completion covers the query window, not future arrivals.
+- Audit log relay: `src/features/audit-log-relay/index.ts` moves Postgres
+  `audit_log_staging` rows into ClickHouse `audit_logs`, deleting them only
+  after ClickHouse acknowledged the insert. It starts only in cloud
+  deployments (`NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` set). Rows whose payload
+  fails the staging schema stay with `failed_at` set and are retried after
+  10 minutes.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
 - `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues

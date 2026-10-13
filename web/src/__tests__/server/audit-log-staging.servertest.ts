@@ -209,4 +209,24 @@ describe("audit log staging", () => {
       resource_refs: ["trace:trace-�-1"],
     });
   });
+
+  it("rejects staged payloads with fields it does not know", () => {
+    // A newer web version may stage a field before this version maps it.
+    expect(() =>
+      convertAuditLogStagingRowToClickhouse({
+        id: randomUUID(),
+        createdAt: new Date(),
+        payload: {
+          kind: "change",
+          orgId: randomUUID(),
+          actor: { type: "USER", userId: "user-1", sessionId: "session-1" },
+          resourceType: "prompt",
+          resourceRefs: [],
+          action: "delete",
+          outcome: "success",
+          dataSubject: "subject-1",
+        },
+      }),
+    ).toThrow("actor.sessionId, dataSubject");
+  });
 });
