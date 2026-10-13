@@ -18,4 +18,7 @@ readonly OUTPUT="${2:?usage: write-web-test-env.sh <env example> <output>}"
   echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test"
   echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true"
   echo "LANGFUSE_ENABLE_SCORES_V3_API=true"
+  # The started worker shares the test database, and its relay would delete
+  # staged audit rows that server tests read back.
+  echo "LANGFUSE_AUDIT_LOG_RELAY_ENABLED=false"
 } > "$OUTPUT"

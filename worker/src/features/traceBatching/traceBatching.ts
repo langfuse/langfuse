@@ -1110,17 +1110,6 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         recordIncrement("langfuse.trace_batch.expired_traces", expired, {
           source: "dispatcher",
         });
-        recordGauge("langfuse.trace_batch.pending_traces", pending, {
-          shard: String(shard),
-        });
-        recordGauge("langfuse.trace_batch.ready_traces", ready, {
-          shard: String(shard),
-        });
-        recordGauge(
-          "langfuse.trace_batch.oldest_due_age_ms",
-          Math.max(0, now - oldest),
-          { shard: String(shard) },
-        );
         if (expired < CLEANUP_SIZE) {
           totals.pending += pending;
           totals.ready += ready;
@@ -1154,6 +1143,8 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         });
       }
     }
+    // The lease moves between workers after every run, so per-shard series
+    // would multiply custom metrics by the shard count on each dispatcher.
     recordGauge("langfuse.trace_batch.pending_traces", totals.pending);
     recordGauge("langfuse.trace_batch.ready_traces", totals.ready);
     recordGauge("langfuse.trace_batch.oldest_due_age_ms", totals.oldestAge);

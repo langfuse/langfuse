@@ -73,8 +73,10 @@
   still pools 1,000 candidates. Drain the old layout before upgrade
   or shard-count/retention changes. The trace-batch consumer checks existing
   summaries against the job enqueue time so retries skip completed facets while
-  later redispatches append updated summaries. Map gauges include shard and
-  total series; never sum duplicate reporters or add totals to shard series.
+  later redispatches append updated summaries. Map and dispatcher gauges are
+  summed across shards before emission; do not add per-shard series, which
+  multiply custom metrics on every reporting worker. Never sum duplicate
+  reporters.
   `src/features/traceBatching/traceBatchTranscript.ts` measures per-trace assembly
   phases, thread count, current-turn/history token estimates and their sum. Each
   admitted trace records full assembled-transcript JSON lengths, renders the
@@ -88,6 +90,14 @@
   summaries reduce it to that threshold or below. The client idle timeout must
   account for these pauses. Drain accepted summaries even on read failure. Never flush a failed
   stream's partial final trace; completion covers the query window, not future arrivals.
+- Audit log relay: `src/features/audit-log-relay/index.ts` moves Postgres
+  `audit_log_staging` rows into ClickHouse `audit_logs`, deleting them only
+  after ClickHouse acknowledged the insert. It starts only in cloud
+  deployments (`NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` set). One worker task keeps
+  the Redis lease and relays; the others check for a free lease every half
+  lease TTL, so run count does not grow with the number of tasks. Rows whose
+  payload fails the staging schema stay with `failed_at` set and are retried
+  after 10 minutes.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
 - `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues

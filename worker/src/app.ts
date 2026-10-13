@@ -107,6 +107,7 @@ import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
 import { MonitorRunner } from "./features/monitor-runner";
 import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
+import { AuditLogRelay } from "./features/audit-log-relay";
 import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-action-runner";
 import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
 import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
@@ -858,6 +859,17 @@ export let deletedMaskCleaner: DeletedMaskCleaner | null = null;
 if (env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_ENABLED === "true") {
   deletedMaskCleaner = new DeletedMaskCleaner();
   deletedMaskCleaner.start();
+}
+
+// Moves staged audit events from Postgres into ClickHouse audit_logs
+export let auditLogRelay: AuditLogRelay | null = null;
+
+if (
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && // Only in cloud deployments
+  env.LANGFUSE_AUDIT_LOG_RELAY_ENABLED === "true"
+) {
+  auditLogRelay = new AuditLogRelay();
+  auditLogRelay.start();
 }
 
 // Queue metrics background reporter
