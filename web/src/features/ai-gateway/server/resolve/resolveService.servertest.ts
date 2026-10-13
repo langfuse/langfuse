@@ -76,6 +76,7 @@ const row = (overrides: {
           name: "Production OpenAI",
           provider: "OPENAI",
           encryptedCredential: "encrypted-credential",
+          allowedModels: null,
         },
       ],
     },
