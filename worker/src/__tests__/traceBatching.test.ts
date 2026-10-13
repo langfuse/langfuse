@@ -846,6 +846,39 @@ describe("trace micro-batch scheduling with Redis", () => {
     }
   });
 
+  it.each(["project", "locality"] as const)(
+    "packs one project's traces across readiness shards with %s",
+    async (strategy) => {
+      env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 16;
+      env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
+      const traceIds = Array.from(
+        { length: 60 },
+        (_, index) => `cross-shard-${index}`,
+      );
+      await trackTraceBatchActivity(
+        "project",
+        traceIds.map((traceId) => event(traceId)),
+      );
+      for (const traceId of traceIds) {
+        const entry = member("project", traceId);
+        await client().zadd(
+          getTraceBatchReadinessKeys(getTraceBatchShard(entry)).due,
+          Date.now() - 1_000,
+          entry,
+        );
+      }
+      await runner().processBatch();
+      const jobs = await queue.getJobs(["wait"]);
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0].data.payload.traces).toHaveLength(60);
+      for (let shard = 0; shard < 16; shard++) {
+        const { due, state } = getTraceBatchReadinessKeys(shard);
+        expect(await client().zcard(due)).toBe(0);
+        expect(await client().hlen(state)).toBe(0);
+      }
+    },
+  );
+
   it("samples prefixed map memory and paused/delayed queue work, then reports drained zeros", async () => {
     const now = Date.now();
     const clock = vi.spyOn(Date, "now").mockReturnValue(now);

@@ -1061,88 +1061,94 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
   }
 
   private async dispatchDue(): Promise<void> {
+    if (!redis) throw new Error("Trace batching requires Redis");
+    const queue = TraceBatchQueue.getInstance();
+    if (!queue) throw new Error("Trace batch queue is unavailable");
     const totals = { pending: 0, ready: 0, oldestAge: 0 };
+    const members: {
+      member: string;
+      projectId: string;
+      shard: number;
+      cutoff: string;
+      due: number;
+    }[] = [];
     for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
       if (this.stopping) return;
-      await this.dispatchShard(shard, totals);
+      const { due, state } = getTraceBatchReadinessKeys(shard);
+      let cutoff = "";
+      let now = 0;
+      while (!this.stopping) {
+        await this.extendLockOnProgress();
+        const snapshot = (await evalReadiness(
+          SNAPSHOT_SCRIPT,
+          [due, state],
+          [env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS, cutoff],
+        )) as (string | number)[];
+        const [clock, , pending, ready, oldest, expired] = snapshot.map(Number);
+        now = clock;
+        cutoff = String(snapshot[1]);
+        recordIncrement("langfuse.trace_batch.expired_traces", expired, {
+          source: "dispatcher",
+        });
+        recordGauge("langfuse.trace_batch.pending_traces", pending, {
+          shard: String(shard),
+        });
+        recordGauge("langfuse.trace_batch.ready_traces", ready, {
+          shard: String(shard),
+        });
+        recordGauge(
+          "langfuse.trace_batch.oldest_due_age_ms",
+          Math.max(0, now - oldest),
+          { shard: String(shard) },
+        );
+        if (expired < CLEANUP_SIZE) {
+          totals.pending += pending;
+          totals.ready += ready;
+          totals.oldestAge = Math.max(
+            totals.oldestAge,
+            Math.max(0, now - oldest),
+          );
+          break;
+        }
+      }
+      if (this.stopping) return;
+      const dueMembers = await redis.zrange(
+        due,
+        `(${now - env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS}`,
+        cutoff,
+        "BYSCORE",
+        "WITHSCORES",
+      );
+      recordDistribution(
+        "langfuse.trace_batch.snapshot_size",
+        dueMembers.length / 2,
+      );
+      for (let index = 0; index < dueMembers.length; index += 2) {
+        const member = dueMembers[index];
+        members.push({
+          member,
+          projectId: (JSON.parse(member) as [string, string])[0],
+          shard,
+          cutoff,
+          due: Number(dueMembers[index + 1]),
+        });
+      }
     }
     recordGauge("langfuse.trace_batch.pending_traces", totals.pending);
     recordGauge("langfuse.trace_batch.ready_traces", totals.ready);
     recordGauge("langfuse.trace_batch.oldest_due_age_ms", totals.oldestAge);
-  }
-
-  private async dispatchShard(
-    shard: number,
-    totals: { pending: number; ready: number; oldestAge: number },
-  ): Promise<void> {
-    if (!redis) throw new Error("Trace batching requires Redis");
-    const { due: DUE_KEY, state: STATE_KEY } =
-      getTraceBatchReadinessKeys(shard);
-    const queue = TraceBatchQueue.getInstance();
-    if (!queue) throw new Error("Trace batch queue is unavailable");
-    let cutoff = "";
-    let now = 0;
-    while (!this.stopping) {
-      await this.extendLockOnProgress();
-      const snapshot = (await evalReadiness(
-        SNAPSHOT_SCRIPT,
-        [DUE_KEY, STATE_KEY],
-        [env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS, cutoff],
-      )) as (string | number)[];
-      const [clock, , pending, ready, oldest, expired] = snapshot.map(Number);
-      now = clock;
-      cutoff = String(snapshot[1]);
-      recordIncrement("langfuse.trace_batch.expired_traces", expired, {
-        source: "dispatcher",
-      });
-      recordGauge("langfuse.trace_batch.pending_traces", pending, {
-        shard: String(shard),
-      });
-      recordGauge("langfuse.trace_batch.ready_traces", ready, {
-        shard: String(shard),
-      });
-      recordGauge(
-        "langfuse.trace_batch.oldest_due_age_ms",
-        Math.max(0, now - oldest),
-        { shard: String(shard) },
-      );
-      if (expired < CLEANUP_SIZE) {
-        totals.pending += pending;
-        totals.ready += ready;
-        totals.oldestAge = Math.max(
-          totals.oldestAge,
-          Math.max(0, now - oldest),
-        );
-        break;
-      }
-    }
     if (this.stopping) return;
 
-    // One range read captures all due IDs without cursor races or loading every
-    // trace's state. Memory and the Redis response size grow with the due cohort.
+    // Each range read captures one shard's due IDs. Pack the combined cohort so
+    // Redis placement does not determine the ClickHouse query boundaries.
     const strategy = env.LANGFUSE_TRACE_BATCH_STRATEGY;
-    const members = (
-      await redis.zrange(
-        DUE_KEY,
-        `(${now - env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS}`,
-        cutoff,
-        "BYSCORE",
-      )
-    ).map((member) => ({
-      member,
-      projectId: (JSON.parse(member) as [string, string])[0],
-    }));
-    // Stable sorting keeps Redis readiness order within each project.
-    members.sort((a, b) => {
-      if (a.projectId < b.projectId) {
-        return -1;
-      }
-      if (a.projectId > b.projectId) {
-        return 1;
-      }
-      return 0;
-    });
-    recordDistribution("langfuse.trace_batch.snapshot_size", members.length);
+    // Project packing needs due order within each project, including across shards.
+    members.sort(
+      (a, b) =>
+        compareStrings(a.projectId, b.projectId) ||
+        compareNumbers(a.due, b.due) ||
+        compareStrings(a.member, b.member),
+    );
     const batchWeightLimits: TraceBatchWeightLimits = {
       maxEventUpdates: toLimit(
         env.LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES,
@@ -1163,30 +1169,48 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     const acknowledge = async (
       batch: readonly PendingTrace[],
     ): Promise<boolean[]> => {
-      const removed: boolean[] = [];
-      for (let offset = 0; offset < batch.length; offset += REDIS_CHUNK_SIZE) {
-        const clock = await redis!.time();
-        const first = getTraceBatchFirstKeys(
-          shard,
-          Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000),
-        );
-        const flags = (await evalReadiness(
-          ACKNOWLEDGE_SCRIPT,
-          [DUE_KEY, STATE_KEY, ...first.keys],
-          [
-            env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
-            first.width,
-            first.firstBucket,
-            ...batch
-              .slice(offset, offset + REDIS_CHUNK_SIZE)
-              .flatMap(({ member, trace }) => [
+      const removed = Array<boolean>(batch.length).fill(false);
+      const groups = new Map<
+        number,
+        { entry: PendingTrace; index: number }[]
+      >();
+      batch.forEach((entry, index) => {
+        const shard = getTraceBatchShard(entry.member);
+        const group = groups.get(shard) ?? [];
+        group.push({ entry, index });
+        groups.set(shard, group);
+      });
+      for (const [shard, group] of groups) {
+        const { due, state } = getTraceBatchReadinessKeys(shard);
+        for (
+          let offset = 0;
+          offset < group.length;
+          offset += REDIS_CHUNK_SIZE
+        ) {
+          const chunk = group.slice(offset, offset + REDIS_CHUNK_SIZE);
+          const clock = await redis!.time();
+          const first = getTraceBatchFirstKeys(
+            shard,
+            Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000),
+          );
+          const flags = (await evalReadiness(
+            ACKNOWLEDGE_SCRIPT,
+            [due, state, ...first.keys],
+            [
+              env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
+              first.width,
+              first.firstBucket,
+              ...chunk.flatMap(({ entry: { member, trace } }) => [
                 member,
                 trace.revision,
                 getTraceBatchFirstMember(member),
               ]),
-          ],
-        )) as number[];
-        removed.push(...flags.map((flag) => Number(flag) === 1));
+            ],
+          )) as number[];
+          chunk.forEach(({ index }, position) => {
+            removed[index] = Number(flags[position]) === 1;
+          });
+        }
       }
       return removed;
     };
@@ -1328,43 +1352,54 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     ) {
       await this.extendLockOnProgress();
       const candidates = members.slice(offset, offset + CHUNK_SIZE);
-      const hydrated: string[] = [];
-      for (
-        let start = 0;
-        start < candidates.length;
-        start += REDIS_CHUNK_SIZE
-      ) {
-        await this.extendLockOnProgress();
-        const part = (await evalReadiness(
-          HYDRATE_SCRIPT,
-          [DUE_KEY, STATE_KEY],
-          [
-            cutoff,
-            env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
-            ...candidates
-              .slice(start, start + REDIS_CHUNK_SIZE)
-              .map(({ member }) => member),
-          ],
-        )) as string[];
-        hydrated.push(...part);
+      const byShard = new Map<number, typeof candidates>();
+      for (const candidate of candidates) {
+        const group = byShard.get(candidate.shard) ?? [];
+        group.push(candidate);
+        byShard.set(candidate.shard, group);
+      }
+      const hydratedByMember = new Map<string, [string, string]>();
+      for (const [shard, group] of byShard) {
+        const { due, state } = getTraceBatchReadinessKeys(shard);
+        for (let start = 0; start < group.length; start += REDIS_CHUNK_SIZE) {
+          await this.extendLockOnProgress();
+          const part = (await evalReadiness(
+            HYDRATE_SCRIPT,
+            [due, state],
+            [
+              group[0].cutoff,
+              env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+              ...group
+                .slice(start, start + REDIS_CHUNK_SIZE)
+                .map(({ member }) => member),
+            ],
+          )) as string[];
+          for (let index = 0; index < part.length; index += 3) {
+            hydratedByMember.set(part[index], [
+              part[index + 1],
+              part[index + 2],
+            ]);
+          }
+        }
       }
       recordIncrement(
         "langfuse.trace_batch.skipped_traces",
-        candidates.length - hydrated.length / 3,
+        candidates.length - hydratedByMember.size,
       );
       const hydratedCandidates: PendingTrace[] = [];
       const excluded: {
         entry: PendingTrace;
         reason: TraceExclusionReason;
       }[] = [];
-      for (let i = 0; i < hydrated.length; i += 3) {
+      for (const { member } of candidates) {
         if (this.stopping) return;
-        const member = hydrated[i];
+        const hydrated = hydratedByMember.get(member);
+        if (!hydrated) continue;
         const [projectId, traceId] = JSON.parse(member) as [string, string];
-        const state = JSON.parse(hydrated[i + 1]);
+        const state = JSON.parse(hydrated[0]);
         const entry: PendingTrace = {
           member,
-          due: Number(hydrated[i + 2]),
+          due: Number(hydrated[1]),
           estimates:
             Number.isSafeInteger(state.eventUpdateCount) &&
             state.eventUpdateCount >= 0 &&

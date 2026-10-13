@@ -80,7 +80,7 @@ processing, and the shared queue accessor, including admin queue inspection.
 Sharding uses the shared SHA-256 shard helper on the complete project/trace pair,
 so a large project spreads across shards. Every Lua call uses only keys with
 one shard's hash tag. The single dispatcher lease covers all shards; batch
-packing operates within each shard. Queue slots are unchanged.
+packing combines ready traces from every shard. Queue slots are unchanged.
 
 When pending state is absent or has no bucket pointer, tracking looks up the
 bounded set of live time buckets (26 keys for the default TTL), never scans their
@@ -169,11 +169,12 @@ this pipeline's delivery contract. There is no reconciler.
 
 ## Dispatch and reads
 
-One dispatcher holds the renewable lease and processes each shard in turn. It
-selects the complete due cohort at that shard's cutoff; there is no per-run trace
-limit. The due-ID range read and its response grow with that cohort, even though
-subsequent Lua calls and candidate pools are bounded. It sorts ready IDs by
-project, then hydrates and revalidates state in calls of up to 50. Locality
+One dispatcher holds the renewable lease and snapshots each shard in turn. It
+selects the complete due cohort at each shard's cutoff; there is no per-run trace
+limit. Each due-ID range read and the combined in-memory candidate list grow
+with the due cohort, even though subsequent Lua calls and selection pools are
+bounded. It sorts ready IDs by project and due time across shards, then hydrates
+and revalidates state in single-slot calls of up to 50. Locality
 selection combines those calls into pools of up to 1,000. Jobs contain up
 to the configured trace cap and weight budgets; project leftovers can share a job. The dispatcher
 enqueues before acknowledging matching revisions, so concurrent intake stays
