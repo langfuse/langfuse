@@ -4,7 +4,9 @@ import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Command as CommandPrimitive } from "cmdk";
 import { X } from "lucide-react";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { Tag } from "@/src/components/design-system/Tag/Tag";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
@@ -233,34 +235,20 @@ export function MultiSelectTagInput<V extends string>({
                         tagRefs.current.delete(option.value);
                       }}
                       data-value={option.value}
-                      title={[option.label, option.secondaryLabel]
-                        .filter(Boolean)
-                        .join(" ")}
                       className={cn(
-                        "bg-muted flex h-6 max-w-48 min-w-10 shrink-0 items-center gap-1 rounded px-2",
+                        "flex max-w-48 min-w-10 shrink-0",
                         !fullyVisibleValues.has(option.value) && "invisible",
                       )}
                     >
-                      <span className="min-w-0 truncate" title={option.label}>
-                        {option.label}
-                      </span>
-                      {option.secondaryLabel ? (
-                        <span className="text-muted-foreground shrink-0">
-                          {option.secondaryLabel}
-                        </span>
-                      ) : null}
-                      <button
-                        type="button"
-                        disabled={disabled || option.disabled}
-                        aria-label={`Remove ${option.label}`}
-                        className="text-muted-foreground hover:text-foreground -mr-1 flex shrink-0 items-center rounded-sm disabled:cursor-not-allowed"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          removeValue(option.value);
-                        }}
-                      >
-                        <X className="icon-base" />
-                      </button>
+                      <Tag
+                        text={option.label}
+                        secondaryText={option.secondaryLabel}
+                        title={[option.label, option.secondaryLabel]
+                          .filter(Boolean)
+                          .join(" ")}
+                        removeDisabled={disabled || option.disabled}
+                        onRemove={() => removeValue(option.value)}
+                      />
                     </span>
                   ))
                 )}
@@ -270,10 +258,12 @@ export function MultiSelectTagInput<V extends string>({
                   data-overflow-count={hiddenOptionCount}
                   aria-label={`${hiddenOptionCount} more selected`}
                   title={`${hiddenOptionCount} more selected`}
-                  className="bg-muted flex h-6 shrink-0 items-center rounded px-1.5 text-xs tabular-nums"
+                  className="flex shrink-0"
                   style={{ transform: `translateX(-${trailingHiddenWidth}px)` }}
                 >
-                  +{hiddenOptionCount}
+                  <BadgeShell color="filled" font="mono" size="md">
+                    +{hiddenOptionCount}
+                  </BadgeShell>
                 </span>
               )}
               {value.length === 0 && <DropdownIndicator />}
