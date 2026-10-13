@@ -512,20 +512,6 @@ export const observationsView: ViewDeclarationType = {
       type: "string",
       description: "Month of the observation start_time in YYYY-MM format.",
     },
-    skillName: {
-      sql: "arrayDistinct(arrayConcat(observations.skills_available.skillName, observations.skills_resource_loaded.skillName))",
-      alias: "skillName",
-      type: "arrayString",
-      explodeArray: true,
-      description: "Names of skills made available or loaded, across versions.",
-    },
-    availableSkillIds: {
-      sql: "arrayDistinct(observations.skills_available.langfuseSkillId)",
-      alias: "availableSkillIds",
-      type: "arrayString",
-      description:
-        "Managed skill version IDs made available to the generation.",
-    },
     toolNames: {
       sql: "mapKeys(observations.tool_definitions)",
       alias: "toolNames",
@@ -685,26 +671,6 @@ export const observationsView: ViewDeclarationType = {
         "Number of tool calls made by the observation, including parallel calls. Use the Sum aggregation to get the total number of tool calls.",
       unit: "calls",
       defaultAggregation: "sum",
-    },
-    skillAvailability: {
-      sql: "toUInt8(has(@@AGG1@@(observations.skills_available.skillName), skillName))",
-      aggs: { agg1: "any" },
-      alias: "skillAvailability",
-      type: "integer",
-      requiresDimension: "skillName",
-      unit: "generations",
-      defaultAggregation: "sum",
-      description: "Generations offering the skill, once per generation/name.",
-    },
-    skillLoads: {
-      sql: "countEqual(@@AGG1@@(observations.skills_resource_loaded.skillName), skillName)",
-      aggs: { agg1: "any" },
-      alias: "skillLoads",
-      type: "integer",
-      requiresDimension: "skillName",
-      unit: "loads",
-      defaultAggregation: "sum",
-      description: "Resource loads per skill name, including repeated reads.",
     },
     toolCallInvocations: {
       sql: "countEqual(@@AGG1@@(observations.tool_call_names), calledToolNames)",

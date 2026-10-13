@@ -64,8 +64,6 @@ export const observationRecordBaseSchema = z.object({
   tool_definitions: z.record(z.string(), z.string()).optional(),
   tool_calls: z.array(z.string()).optional(),
   tool_call_names: z.array(z.string()).optional(),
-  skills_available: SkillsAvailableSchema.optional(),
-  skills_resource_loaded: SkillsResourceLoadedSchema.optional(),
   is_deleted: z.number(),
 });
 
@@ -124,6 +122,8 @@ export const eventsObservationRecordBaseSchema =
 
 export const eventsObservationRecordReadSchema =
   observationRecordReadSchema.extend({
+    skills_available: SkillsAvailableSchema.optional(),
+    skills_resource_loaded: SkillsResourceLoadedSchema.optional(),
     user_id: z.string().nullish(),
     session_id: z.string().nullish(),
     is_root_observation: z.boolean().optional(),

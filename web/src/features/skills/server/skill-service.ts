@@ -19,6 +19,7 @@ import {
   type SkillSelector,
 } from "@langfuse/shared";
 import type { Prisma, PrismaClient, SkillBlob } from "@langfuse/shared/src/db";
+import { SkillCacheService, redis } from "@langfuse/shared/src/server";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 import type { AuthorizationContext } from "@/src/features/auth/policy/types";
 import { auditLog } from "@/src/features/audit-logs/server";
@@ -123,7 +124,11 @@ function serializeVersion(skill: SkillWithRelations) {
 }
 
 export class SkillService {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly skillCacheService: SkillCacheService;
+
+  constructor(private readonly prisma: PrismaClient) {
+    this.skillCacheService = new SkillCacheService(prisma, redis);
+  }
 
   async skillVersions(params: {
     projectId: string;
@@ -243,6 +248,9 @@ export class SkillService {
       return skill.id;
     });
 
+    await this.skillCacheService.invalidateCache({
+      projectId: params.projectId,
+    });
     return this.getById({ projectId: params.projectId, skillId });
   }
 
@@ -622,6 +630,9 @@ export class SkillService {
       );
       await tx.skill.deleteMany({ where });
     });
+    await this.skillCacheService.invalidateCache({
+      projectId: params.projectId,
+    });
   }
 
   async deleteVersion(params: {
@@ -690,6 +701,9 @@ export class SkillService {
           );
         }
       }
+    });
+    await this.skillCacheService.invalidateCache({
+      projectId: params.projectId,
     });
   }
 

@@ -1,3 +1,29 @@
+ALTER TABLE events_full {CLICKHOUSE_CLUSTER_CLAUSE}
+  ADD COLUMN IF NOT EXISTS skills_available Array(JSON(
+    langfuseSkillId Nullable(String),
+    langfuseSkillVersion Nullable(UInt32),
+    skillName String
+  )) DEFAULT [],
+  ADD COLUMN IF NOT EXISTS skills_resource_loaded Array(JSON(
+    langfuseSkillId Nullable(String),
+    langfuseSkillVersion Nullable(UInt32),
+    skillName String,
+    filePath String
+  )) DEFAULT []
+  SETTINGS enable_full_text_index = 1{CLICKHOUSE_CLUSTERED_ONLY:, alter_sync = 2};
+ALTER TABLE events_core {CLICKHOUSE_CLUSTER_CLAUSE}
+  ADD COLUMN IF NOT EXISTS skills_available Array(JSON(
+    langfuseSkillId Nullable(String),
+    langfuseSkillVersion Nullable(UInt32),
+    skillName String
+  )) DEFAULT [],
+  ADD COLUMN IF NOT EXISTS skills_resource_loaded Array(JSON(
+    langfuseSkillId Nullable(String),
+    langfuseSkillVersion Nullable(UInt32),
+    skillName String,
+    filePath String
+  )) DEFAULT []
+  SETTINGS enable_full_text_index = 1{CLICKHOUSE_CLUSTERED_ONLY:, alter_sync = 2};
 ALTER TABLE events_core_mv {CLICKHOUSE_CLUSTER_CLAUSE} MODIFY QUERY
 SELECT
     project_id,
@@ -36,6 +62,8 @@ SELECT
     tool_definitions,
     tool_calls,
     tool_call_names,
+    skills_available,
+    skills_resource_loaded,
     leftUTF8(input, 200) as input,
     leftUTF8(output, 200) as output,
     metadata_names,
@@ -74,19 +102,3 @@ SELECT
     ingestion_sdk_version
 FROM events_full
 SETTINGS enable_full_text_index = 1;
-ALTER TABLE events_core {CLICKHOUSE_CLUSTER_CLAUSE}
-  DROP COLUMN IF EXISTS skills_resource_loaded,
-  DROP COLUMN IF EXISTS skills_available
-  SETTINGS enable_full_text_index = 1{CLICKHOUSE_CLUSTERED_ONLY:, alter_sync = 2};
-ALTER TABLE events_full {CLICKHOUSE_CLUSTER_CLAUSE}
-  DROP COLUMN IF EXISTS skills_resource_loaded,
-  DROP COLUMN IF EXISTS skills_available
-  SETTINGS enable_full_text_index = 1{CLICKHOUSE_CLUSTERED_ONLY:, alter_sync = 2};
-ALTER TABLE observations_batch_staging {CLICKHOUSE_CLUSTER_CLAUSE}
-  DROP COLUMN IF EXISTS skills_resource_loaded,
-  DROP COLUMN IF EXISTS skills_available
- {CLICKHOUSE_CLUSTERED_ONLY: SETTINGS alter_sync = 2};
-ALTER TABLE observations {CLICKHOUSE_CLUSTER_CLAUSE}
-  DROP COLUMN IF EXISTS skills_resource_loaded,
-  DROP COLUMN IF EXISTS skills_available
- {CLICKHOUSE_CLUSTERED_ONLY: SETTINGS alter_sync = 2};

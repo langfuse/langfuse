@@ -1,11 +1,19 @@
 /* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
 import {
+  MAX_SKILLS_PER_OBSERVATION,
   SkillsAvailableSchema,
   SkillsResourceLoadedSchema,
   type SkillsAvailable,
   type SkillsResourceLoaded,
 } from "../../features/skills/trace";
+import {
+  MAX_SKILL_CATALOG_JSON_BYTES,
+  MAX_SKILL_ERROR_JSON_BYTES,
+  MAX_SKILL_PATH_LENGTH,
+  MAX_SKILL_TOOL_ARGS_JSON_BYTES,
+  SKILL_RESOURCE_TOOL_NAMES,
+} from "../../features/skills/constants";
 
 import {
   ForbiddenError,
@@ -56,15 +64,6 @@ import { safeJsonParse } from "../../utils/json";
 import { defineOwnValue } from "../../utils/objects";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
-
-const SKILL_RESOURCE_TOOL_NAMES = new Set([
-  "skill",
-  "Skill",
-  "loadSkill",
-  "skill_read",
-  "readFile",
-  "Read",
-]);
 
 // Foreign level vocabularies observed from OTel senders (OTel severity
 // names, python logging, loguru, console) mapped onto the Langfuse enum.
@@ -3947,48 +3946,58 @@ export class OtelIngestionProcessor {
     skillsAvailable?: SkillsAvailable;
     skillsResourceLoaded?: SkillsResourceLoaded;
   } {
-    //temp gate for release testing, do not store any skills if
-    //LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE was not set
-    if (!attributes[LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE]) {
-      return {};
-    }
+    const manifest =
+      attributes[LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE];
+    // Skill inference is enabled only when an availability attribute is reported.
+    if (!manifest) return {};
     if (
       observationType !== ObservationType.GENERATION &&
-      observationType !== ObservationType.TOOL
-    ) {
-      return {};
-    }
-    const available = SkillsAvailableSchema.safeParse(
-      this.parseJsonPayload(
-        attributes[LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE],
-      ),
-    );
-    if (observationType === ObservationType.GENERATION) {
-      if (available.success) return { skillsAvailable: available.data };
-      return {};
-    }
-    if (
-      observationType !== ObservationType.TOOL ||
-      statusCode === 2 ||
-      parseObservationLevel(
-        attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL],
-      ) === ObservationLevel.ERROR
+      (observationType !== ObservationType.TOOL ||
+        !SKILL_RESOURCE_TOOL_NAMES.has(toolName) ||
+        output == null ||
+        statusCode === 2 ||
+        parseObservationLevel(
+          attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL],
+        ) === ObservationLevel.ERROR)
     ) {
       return {};
     }
 
-    const loaded = SkillsResourceLoadedSchema.element.safeParse(
-      this.extractSkillResource(
-        toolName,
-        input,
-        output,
-        available.success ? available.data : [],
-      ),
+    const parsedManifest =
+      Array.isArray(manifest) && manifest.length > MAX_SKILLS_PER_OBSERVATION
+        ? undefined
+        : this.parseJsonPayloadWithMaxSize(
+            manifest,
+            MAX_SKILL_CATALOG_JSON_BYTES,
+          );
+    const available =
+      Array.isArray(parsedManifest) &&
+      parsedManifest.length <= MAX_SKILLS_PER_OBSERVATION
+        ? SkillsAvailableSchema.safeParse(parsedManifest)
+        : undefined;
+    if (observationType === ObservationType.GENERATION) {
+      if (available?.success) return { skillsAvailable: available.data };
+      return {};
+    }
+
+    const candidate = this.extractSkillResource(
+      toolName,
+      input,
+      output,
+      available?.success ? available.data : [],
     );
+    if (
+      !candidate ||
+      (typeof candidate.filePath === "string" &&
+        candidate.filePath.length > MAX_SKILL_PATH_LENGTH)
+    ) {
+      return {};
+    }
+    const loaded = SkillsResourceLoadedSchema.element.safeParse(candidate);
     if (!loaded.success) return {};
 
     return {
-      ...(available.success ? { skillsAvailable: available.data } : {}),
+      ...(available?.success ? { skillsAvailable: available.data } : {}),
       skillsResourceLoaded: [
         { skillName: loaded.data.skillName, filePath: loaded.data.filePath },
       ],
@@ -4001,10 +4010,20 @@ export class OtelIngestionProcessor {
     output: unknown,
     available: SkillsAvailable,
   ) {
-    if (output == null || !SKILL_RESOURCE_TOOL_NAMES.has(toolName)) return;
-
-    const args = this.parseJsonPayload(input);
+    const args = this.parseJsonPayloadWithMaxSize(
+      input,
+      MAX_SKILL_TOOL_ARGS_JSON_BYTES,
+    );
     if (!OtelIngestionProcessor.isPlainObject(args)) return;
+    if (
+      [args.path, args.file_path].some(
+        (path) =>
+          typeof path === "string" &&
+          path.length > MAX_SKILL_TOOL_ARGS_JSON_BYTES,
+      )
+    ) {
+      return;
+    }
 
     switch (toolName) {
       case "skill":
@@ -4016,14 +4035,12 @@ export class OtelIngestionProcessor {
           filePath: "SKILL.md",
         };
       case "skill_read":
-        if (this.isFailedResourceRead(output)) return;
         return {
           skillName: args.skillName,
           filePath: args.path,
         };
       case "readFile":
       case "Read":
-        if (this.isFailedResourceRead(output)) return;
         return this.extractSkillResourceFromPath(
           args.path ?? args.file_path,
           available,
@@ -4051,24 +4068,33 @@ export class OtelIngestionProcessor {
   }
 
   private isFailedSkillActivation(output: unknown): boolean {
-    const result = this.parseJsonPayload(output);
+    const result = this.parseJsonPayloadWithMaxSize(
+      output,
+      MAX_SKILL_ERROR_JSON_BYTES,
+    );
+    const text = typeof result === "string" ? result : output;
     return (
-      this.isFailedResourceRead(output) ||
       (OtelIngestionProcessor.isPlainObject(result) &&
-        (result.isError === true || result.error !== undefined))
+        (result.isError === true || result.error !== undefined)) ||
+      (typeof text === "string" &&
+        /^(?:Skill|File) ".*" not found/.test(
+          text.slice(0, MAX_SKILL_ERROR_JSON_BYTES),
+        ))
     );
   }
 
-  private isFailedResourceRead(output: unknown): boolean {
-    if (OtelIngestionProcessor.isPlainObject(output)) {
-      return output.isError === true || output.error !== undefined;
+  private parseJsonPayloadWithMaxSize(
+    payload: unknown,
+    maxBytes: number,
+  ): unknown {
+    if (
+      typeof payload === "string" &&
+      (payload.length > maxBytes ||
+        Buffer.byteLength(payload, "utf8") > maxBytes)
+    ) {
+      return undefined;
     }
-    // Resource contents can be JSON documents containing an "error" field.
-    const parsed = this.parseJsonPayload(output);
-    const text = typeof parsed === "string" ? parsed : output;
-    return (
-      typeof text === "string" && /^(?:Skill|File) ".*" not found/.test(text)
-    );
+    return this.parseJsonPayload(payload);
   }
 
   /**

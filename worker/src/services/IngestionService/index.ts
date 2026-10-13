@@ -6,6 +6,7 @@ import {
   InvalidRequestError,
   LangfuseNotFoundError,
   Model,
+  MAX_SKILLS_PER_OBSERVATION,
   ObservationLevel,
   PrismaClient,
   Prompt,
@@ -33,6 +34,7 @@ import {
   ObservationRecordInsertType,
   observationRecordReadSchema,
   PromptService,
+  SkillCacheService,
   QueueJobs,
   recordIncrement,
   ScoreEventType,
@@ -227,6 +229,7 @@ const immutableEntityKeys: {
 
 export class IngestionService {
   private promptService: PromptService;
+  private skillCacheService: SkillCacheService;
 
   constructor(
     private redis: Redis | Cluster,
@@ -235,6 +238,7 @@ export class IngestionService {
     private clickhouseClient: ClickhouseClientType,
   ) {
     this.promptService = new PromptService(prisma, redis);
+    this.skillCacheService = new SkillCacheService(prisma, redis);
   }
 
   public async mergeAndWrite(params: MergeAndWriteParams): Promise<void> {
@@ -1234,16 +1238,6 @@ export class IngestionService {
     const parsedObservationRecord =
       observationRecordInsertSchema.parse(mergedRecord);
 
-    const skills = await this.resolveSkillReferences({
-      projectId: params.projectId,
-      type: parsedObservationRecord.type,
-      available: parsedObservationRecord.skills_available,
-      loaded: parsedObservationRecord.skills_resource_loaded,
-    });
-    parsedObservationRecord.skills_available = skills.skills_available;
-    parsedObservationRecord.skills_resource_loaded =
-      skills.skills_resource_loaded;
-
     // Override endTimes that are before startTimes with the startTime
     if (
       parsedObservationRecord.end_time &&
@@ -1262,30 +1256,25 @@ export class IngestionService {
     loaded = [],
   }: {
     projectId: string;
-    type: ObservationRecordInsertType["type"];
+    type: EventRecordInsertType["type"];
     available?: SkillsAvailable;
     loaded?: SkillsResourceLoaded;
   }): Promise<{
     skills_available: SkillsAvailable;
     skills_resource_loaded: SkillsResourceLoaded;
   }> {
-    const skillVersions: { name: string; version: number }[] = [];
-    for (const skill of available) {
-      if (skill.langfuseSkillVersion != null) {
-        skillVersions.push({
-          name: skill.skillName,
-          version: skill.langfuseSkillVersion,
-        });
-      }
-    }
-
-    const skills =
-      skillVersions.length === 0
+    // Bound internal callers too, before building the lookup or its cache key.
+    available = available.slice(0, MAX_SKILLS_PER_OBSERVATION);
+    loaded = loaded.slice(0, MAX_SKILLS_PER_OBSERVATION);
+    const versions = available.flatMap(({ skillName, langfuseSkillVersion }) =>
+      langfuseSkillVersion == null
         ? []
-        : await this.prisma.skill.findMany({
-            where: { projectId, OR: skillVersions },
-            select: { id: true, name: true, version: true },
-          });
+        : [{ name: skillName, version: langfuseSkillVersion }],
+    );
+    const skills = await this.skillCacheService.getReferences({
+      projectId,
+      versions,
+    });
 
     const availableSkills = available.map(
       ({ skillName, langfuseSkillVersion }) => {
@@ -2187,8 +2176,6 @@ export class IngestionService {
         prompt_id: prompt?.id,
         prompt_name: prompt?.name,
         prompt_version: prompt?.version,
-        skills_available: obs.body.skillsAvailable,
-        skills_resource_loaded: obs.body.skillsResourceLoaded,
         created_at: toClickhouseDateTime(),
         updated_at: toClickhouseDateTime(),
         event_ts: toClickhouseDateTime(obs.timestamp),

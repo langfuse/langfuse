@@ -234,9 +234,19 @@ const getMetricsFilterColumnSpecs = ({
 
   if (selectedView === "observations") {
     filterColumns.push(
-      // v2-only filter columns (experiment data only exists in events table)
+      // These filters require the v2 events view.
       ...(viewVersion === "v2"
         ? [
+            {
+              column: {
+                name: "Skill Name",
+                id: "skillName",
+                type: "arrayOptions",
+                options: skillNameOptions,
+                internal: "internalValue",
+              },
+              customSelect: true,
+            } satisfies MetricsFilterColumnSpec,
             {
               column: {
                 name: "Experiment Name",
@@ -277,16 +287,6 @@ const getMetricsFilterColumnSpecs = ({
             } satisfies MetricsFilterColumnSpec,
           ]
         : []),
-      {
-        column: {
-          name: "Skill Name",
-          id: "skillName",
-          type: "arrayOptions",
-          options: skillNameOptions,
-          internal: "internalValue",
-        },
-        customSelect: true,
-      },
       {
         column: {
           name: "Tool Names (Available)",

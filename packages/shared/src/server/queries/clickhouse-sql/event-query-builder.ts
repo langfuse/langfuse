@@ -277,8 +277,6 @@ const FIELD_SETS = {
     "promptId",
     "promptName",
     "promptVersion",
-    "skillsAvailable",
-    "skillsResourceLoaded",
     "internalModelId",
     "userId",
     "sessionId",
@@ -319,8 +317,6 @@ const FIELD_SETS = {
     "promptId",
     "promptName",
     "promptVersion",
-    "skillsAvailable",
-    "skillsResourceLoaded",
     "internalModelId",
     "userId",
     "sessionId",
@@ -361,8 +357,6 @@ const FIELD_SETS = {
   ],
   // getById field sets (reuse the same fields - all queries use `FROM events_<type> e`)
   byIdBase: [
-    "skillsAvailable",
-    "skillsResourceLoaded",
     "id",
     "traceId",
     "projectId",
@@ -386,6 +380,8 @@ const FIELD_SETS = {
     "toolDefinitions",
     "toolCalls",
     "toolCallNames",
+    "skillsAvailable",
+    "skillsResourceLoaded",
   ],
   byIdModel: [
     "providedModelName",

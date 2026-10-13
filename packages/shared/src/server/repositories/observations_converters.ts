@@ -291,14 +291,6 @@ export function convertObservationPartial(
         : null,
     }),
 
-    // Skill fields
-    ...(record.skills_available !== undefined && {
-      skillsAvailable: record.skills_available,
-    }),
-    ...(record.skills_resource_loaded !== undefined && {
-      skillsResourceLoaded: record.skills_resource_loaded,
-    }),
-
     // Pricing tier fields
     ...(record.usage_pricing_tier_id !== undefined && {
       usagePricingTierId: record.usage_pricing_tier_id ?? null,
@@ -370,8 +362,6 @@ export function convertObservationPartial(
     promptId: partial.promptId ?? null,
     promptName: partial.promptName ?? null,
     promptVersion: partial.promptVersion ?? null,
-    skillsAvailable: partial.skillsAvailable ?? [],
-    skillsResourceLoaded: partial.skillsResourceLoaded ?? [],
     latency: partial.latency ?? null,
     timeToFirstToken: partial.timeToFirstToken ?? null,
     providedUsageDetails: partial.providedUsageDetails ?? {},
@@ -418,6 +408,14 @@ export function convertEventsObservation(
   renderingProps: RenderingProps = DEFAULT_RENDERING_PROPS,
   complete: boolean,
 ): EventsObservation | PartialEventsObservation {
+  const skills = {
+    ...(record.skills_available !== undefined && {
+      skillsAvailable: record.skills_available,
+    }),
+    ...(record.skills_resource_loaded !== undefined && {
+      skillsResourceLoaded: record.skills_resource_loaded,
+    }),
+  };
   if (complete) {
     const baseObservation = convertObservationPartial(
       record as ObservationRecordReadType,
@@ -426,6 +424,7 @@ export function convertEventsObservation(
     );
     return {
       ...baseObservation,
+      ...skills,
       userId: record.user_id ?? null,
       sessionId: record.session_id ?? null,
       ...(record.is_root_observation !== undefined && {
@@ -446,6 +445,7 @@ export function convertEventsObservation(
   );
   return {
     ...baseObservation,
+    ...skills,
     ...(record.user_id !== undefined && { userId: record.user_id }),
     ...(record.session_id !== undefined && { sessionId: record.session_id }),
     ...(record.is_root_observation !== undefined && {
