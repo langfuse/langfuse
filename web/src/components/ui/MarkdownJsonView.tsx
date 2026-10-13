@@ -5,10 +5,12 @@ import {
   type OpenAIOutputAudioType,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media";
-import { Check, Copy } from "lucide-react";
+import { Check, ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
@@ -46,7 +48,7 @@ export function MarkdownJsonViewHeader({
   );
 
   return (
-    <div className="io-message-header flex flex-row items-center justify-between px-1 py-1 text-base font-bold capitalize">
+    <div className="io-message-header bg-surface sticky top-0 z-10 flex flex-row items-center justify-between px-1 py-1 text-base font-bold capitalize">
       {/* Masked from session recordings: the title can be a customer-provided
           message `name` (or tool name) rather than a fixed role string. */}
       <div className="ph-no-capture flex items-center gap-2">
@@ -84,6 +86,32 @@ export function MarkdownJsonViewHeader({
         )}
       </div>
     </div>
+  );
+}
+
+/** Hover-revealed header toggle for sections with a collapsed state. */
+export function SectionCollapseButton({
+  isCollapsed,
+  onToggle,
+  label,
+}: {
+  isCollapsed: boolean;
+  onToggle: () => void;
+  label: string;
+}) {
+  const text = `${isCollapsed ? "Expand" : "Collapse"} ${label}`;
+  return (
+    <CustomTooltip content={<span>{text}</span>} hoverableContent={false}>
+      {({ getTriggerProps }) => (
+        <IconButton
+          {...getTriggerProps()}
+          icon={isCollapsed ? ChevronsUpDown : ChevronsDownUp}
+          label={text}
+          size="sm"
+          onClick={onToggle}
+        />
+      )}
+    </CustomTooltip>
   );
 }
 

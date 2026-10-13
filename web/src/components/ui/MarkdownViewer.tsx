@@ -38,7 +38,10 @@ import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import {
+  MarkdownJsonViewHeader,
+  SectionCollapseButton,
+} from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
@@ -590,18 +593,30 @@ export function MarkdownView({
     </Button>
   ) : null;
 
+  const headerCollapseButton = shouldBeCollapsible ? (
+    <SectionCollapseButton
+      isCollapsed={isCollapsed}
+      onToggle={() => toggleCollapsed("header")}
+      label="system prompt"
+    />
+  ) : null;
+
   return (
-    <div className="group/iosection overflow-hidden" key={theme}>
+    // overflow-clip (not hidden) so the sticky header can track the panel scroll.
+    <div className="group/iosection overflow-clip" key={theme}>
       {title ? (
-        <>
-          <MarkdownJsonViewHeader
-            title={title}
-            titleIcon={titleIcon}
-            handleOnCopy={handleOnCopy}
-            hoverRevealControls
-            controlButtons={controlButtons}
-          />
-        </>
+        <MarkdownJsonViewHeader
+          title={title}
+          titleIcon={titleIcon}
+          handleOnCopy={handleOnCopy}
+          hoverRevealControls
+          controlButtons={
+            <>
+              {controlButtons}
+              {headerCollapseButton}
+            </>
+          }
+        />
       ) : null}
       {afterHeader}
       <div

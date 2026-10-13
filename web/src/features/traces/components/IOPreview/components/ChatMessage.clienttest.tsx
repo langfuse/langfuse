@@ -135,10 +135,11 @@ describe("ChatMessage system prompt collapse", () => {
       content: longSystemPrompt,
     } as ChatMlMessage);
 
-    // One control only, and it sits with the prompt body rather than being
-    // duplicated into the message header.
-    expect(expandButtons()).toHaveLength(1);
-    expect(expandButtons()[0].closest(".io-message-header")).toBeNull();
+    // Inline control with the prompt body plus the hover-revealed header icon.
+    expect(expandButtons()).toHaveLength(2);
+    expect(
+      expandButtons().filter((b) => b.closest(".io-message-header")),
+    ).toHaveLength(1);
   });
 
   it("collapses a long system message that carries a name", () => {
@@ -182,9 +183,9 @@ describe("ChatMessage system prompt collapse", () => {
       content: longSystemPrompt,
     } as ChatMlMessage);
 
-    // rendered expanded, with a single collapse control still offered
+    // rendered expanded, with inline and header collapse controls offered
     expect(expandButtons()).toHaveLength(0);
-    expect(collapseButtons()).toHaveLength(1);
+    expect(collapseButtons()).toHaveLength(2);
 
     fireEvent.click(collapseButton()!);
 

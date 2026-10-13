@@ -14,7 +14,11 @@ import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type MediaReturnType } from "@/src/features/media";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import {
+  MarkdownJsonViewHeader,
+  SectionCollapseButton,
+} from "@/src/components/ui/MarkdownJsonView";
+import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
@@ -1185,6 +1189,11 @@ export function PrettyJsonView(props: {
   const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
   const isPrettyView = actualCurrentView === "pretty";
   const isMarkdownMode = isMarkdown && isPrettyView;
+  // Mirrors the inline toggle of the title-less MarkdownView rendered below.
+  const systemPrompt = useCollapsibleSystemPrompt({
+    isSystemPrompt: !!props.isSystemPrompt && isMarkdownMode,
+    content: markdownContent ?? "",
+  });
   const standaloneMediaReferenceStrings =
     typeof markdownContent === "string"
       ? getStandaloneMediaReferenceStrings(markdownContent)
@@ -1431,6 +1440,13 @@ export function PrettyJsonView(props: {
             <>
               {expandCollapseButton}
               {props.controlButtons}
+              {systemPrompt.shouldBeCollapsible && (
+                <SectionCollapseButton
+                  isCollapsed={systemPrompt.isCollapsed}
+                  onToggle={() => systemPrompt.toggleCollapsed("header")}
+                  label="system prompt"
+                />
+              )}
             </>
           }
         />
