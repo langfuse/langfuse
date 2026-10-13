@@ -195,8 +195,6 @@ const defaultArgs = {
   onSelectTemplate: fn(),
   onCreateFromScratch: fn(),
   isLoading: false,
-  decisionModelBannerDismissed: true,
-  onDismissDecisionModelBanner: fn(),
 };
 
 export const Default = meta.story({
@@ -247,7 +245,6 @@ export const DecisionModels = meta.story({
   args: {
     ...defaultArgs,
     sections: sectionsWithDecisionModelCard,
-    decisionModelBannerDismissed: false,
   },
   render: StatefulEvaluatorGalleryView,
 });
@@ -264,15 +261,6 @@ export const DecisionModelsNarrow = meta.story({
       },
     },
   },
-  args: {
-    ...defaultArgs,
-    sections: sectionsWithDecisionModelCard,
-    decisionModelBannerDismissed: false,
-  },
-  render: StatefulEvaluatorGalleryView,
-});
-
-export const DecisionModelsBannerDismissed = meta.story({
   args: {
     ...defaultArgs,
     sections: sectionsWithDecisionModelCard,

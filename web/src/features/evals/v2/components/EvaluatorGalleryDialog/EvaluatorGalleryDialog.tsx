@@ -15,7 +15,6 @@ import {
   EVALUATOR_GALLERY_ALL_SECTION_KEY,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
 } from "@/src/features/evals/v2/constants/evaluatorGallery";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getEvaluatorCreationAnalyticsProperties } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { getTemplateSelectionAnalyticsProperties } from "@/src/features/evals/v2/fns/templateGallery/getTemplateSelectionAnalyticsProperties";
@@ -58,10 +57,6 @@ export function EvaluatorGalleryDialog({
     queryLength: number;
   } | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const [bannerDismissed, setBannerDismissed] = useLocalStorage(
-    "evaluatorGallery:decisionModelBannerDismissed:v1",
-    false,
-  );
   const projectEvaluators = api.evalsV2.listGallery.useInfiniteQuery(
     {
       projectId,
@@ -257,8 +252,6 @@ export function EvaluatorGalleryDialog({
               ? projectEvaluators.error.message
               : undefined
           }
-          decisionModelBannerDismissed={bannerDismissed}
-          onDismissDecisionModelBanner={() => setBannerDismissed(true)}
           onBuildWithAi={
             isAssistantLauncherVisible ? handleBuildWithAi : undefined
           }

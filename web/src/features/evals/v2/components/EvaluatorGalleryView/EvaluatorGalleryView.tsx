@@ -1,11 +1,10 @@
 /* eslint-disable no-nested-ternary */
 import { useCallback, type RefObject } from "react";
-import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
+import type { EvalTemplateType } from "@langfuse/shared";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EvaluatorGalleryAiBox } from "./components/EvaluatorGalleryAiBox/EvaluatorGalleryAiBox";
 import { EvaluatorGalleryStartRow } from "./components/EvaluatorGalleryStartRow/EvaluatorGalleryStartRow";
-import { EvaluatorGalleryDecisionModelBanner } from "./components/EvaluatorGalleryDecisionModelBanner/EvaluatorGalleryDecisionModelBanner";
 import { EvaluatorGallerySection } from "./components/EvaluatorGallerySection/EvaluatorGallerySection";
 import { EvaluatorGallerySidebar } from "./components/EvaluatorGallerySidebar/EvaluatorGallerySidebar";
 import type {
@@ -53,8 +52,6 @@ export function EvaluatorGalleryView({
   isLoadingMoreProjectTemplates = false,
   onLoadMoreProjectTemplates,
   errorMessage,
-  decisionModelBannerDismissed,
-  onDismissDecisionModelBanner,
   onBuildWithAi,
 }: {
   search: string;
@@ -74,8 +71,6 @@ export function EvaluatorGalleryView({
   isLoadingMoreProjectTemplates?: boolean;
   onLoadMoreProjectTemplates?: () => void;
   errorMessage?: string;
-  decisionModelBannerDismissed: boolean;
-  onDismissDecisionModelBanner: () => void;
   /** Omitted when the in-app assistant is unavailable. */
   onBuildWithAi?: (prompt: string) => void;
 }) {
@@ -148,20 +143,8 @@ export function EvaluatorGalleryView({
             className="min-h-0 flex-1 overflow-y-auto"
           >
             <div className="flex flex-col gap-10 px-4 py-4">
-              {onBuildWithAi || !decisionModelBannerDismissed ? (
-                <div className="flex flex-col gap-3">
-                  {onBuildWithAi ? (
-                    <EvaluatorGalleryAiBox onSubmit={onBuildWithAi} />
-                  ) : null}
-                  {!decisionModelBannerDismissed ? (
-                    <EvaluatorGalleryDecisionModelBanner
-                      onTry={() =>
-                        onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
-                      }
-                      onDismiss={onDismissDecisionModelBanner}
-                    />
-                  ) : null}
-                </div>
+              {onBuildWithAi ? (
+                <EvaluatorGalleryAiBox onSubmit={onBuildWithAi} />
               ) : null}
               {!isSingleSection && !search.trim() ? (
                 <EvaluatorGalleryStartRow

@@ -1,7 +1,10 @@
 import type { EvalTemplateType } from "@langfuse/shared";
 
 import { EvaluatorMethodTile } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
-import { EVALUATOR_START_OPTIONS } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryStartMenu/EvaluatorGalleryStartMenu";
+import {
+  EVALUATOR_START_OPTIONS,
+  EvaluatorNewBadge,
+} from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryStartMenu/EvaluatorGalleryStartMenu";
 
 /** The three blank evaluator types, always visible above the templates. */
 export function EvaluatorGalleryStartRow({
@@ -24,7 +27,10 @@ export function EvaluatorGalleryStartRow({
           >
             <EvaluatorMethodTile type={option.type} size="lg" />
             <span className="flex min-w-0 flex-col">
-              <span className="text-xs font-bold">{option.title}</span>
+              <span className="flex items-center gap-1.5 text-xs font-bold">
+                {option.title}
+                {"isNew" in option ? <EvaluatorNewBadge /> : null}
+              </span>
               <span
                 className="text-muted-foreground truncate text-xs"
                 title={option.description}

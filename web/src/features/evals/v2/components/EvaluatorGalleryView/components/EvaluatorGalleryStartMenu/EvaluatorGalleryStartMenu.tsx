@@ -1,6 +1,7 @@
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
 import { EvaluatorMethodTile } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
@@ -14,6 +15,7 @@ export const EVALUATOR_START_OPTIONS = [
   {
     type: EvalTemplateTypeEnum.DECISION_MODEL,
     title: "Decision model",
+    isNew: true,
     description: "Fast and cheap for simple questions.",
   },
   {
@@ -22,6 +24,10 @@ export const EVALUATOR_START_OPTIONS = [
     description: "Exact rules, no model call.",
   },
 ] as const;
+
+export function EvaluatorNewBadge() {
+  return <Badge text="NEW" color="green" font="mono" size="sm" />;
+}
 
 export function EvaluatorGalleryStartMenu({
   onCreateFromScratch,
@@ -38,6 +44,7 @@ export function EvaluatorGalleryStartMenu({
         title: option.title,
         description: option.description,
         leadingVisual: <EvaluatorMethodTile type={option.type} size="lg" />,
+        badge: "isNew" in option ? <EvaluatorNewBadge /> : undefined,
         onClick: () => onCreateFromScratch(option.type),
       }))}
     >
