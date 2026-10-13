@@ -9,10 +9,12 @@ import {
   canUseBedrockDefaultCredentials,
   resolveBedrockProviderAuth,
 } from "../llm/ai-sdk/providers/bedrock";
-import { generateLLMText } from "../llm/llmText";
+import { isOpenAICompatibleEndpoint } from "../llm/ai-sdk/providers/openai";
+import { generateLLMText, type GenerateLLMTextOptions } from "../llm/llmText";
 import { LLMAdapter, type TraceSinkParams } from "../llm/types";
 import { logger } from "../logger";
 import { writeInternalTraceViaOtelIngestion } from "../otel/internalTraceOtelWriter";
+import { parseOutboundUrl } from "../outbound-url/validation";
 import type { TopicsModel } from "./model-config";
 
 const TIMEOUT_MS = 60_000;
@@ -159,19 +161,8 @@ async function generateWithConnection<T>(
     // caching can reuse it across traces.
     messages: topicMessages(params),
     output: Output.object({ schema: params.schema }),
-    maxOutputTokens: params.maxOutputTokens,
+    ...topicGenerationOptions(params.model, params.maxOutputTokens),
     reasoning: "none",
-    // Bedrock ignores portable reasoning for OpenAI models; their default effort
-    // is not none.
-    ...(isBedrockGPT(params.model)
-      ? {
-          providerOptions: {
-            bedrock: {
-              additionalModelRequestFields: { reasoning: { effort: "none" } },
-            },
-          },
-        }
-      : {}),
     // The AI SDK retries 429 and 5xx responses with exponential backoff.
     maxRetries: 2,
     timeout: TIMEOUT_MS,
@@ -183,6 +174,47 @@ async function generateWithConnection<T>(
     output: result.output,
     usage,
   };
+}
+
+function topicGenerationOptions(
+  model: TopicsModel,
+  maxOutputTokens: number,
+): Pick<GenerateLLMTextOptions, "maxOutputTokens" | "providerOptions"> {
+  /** The compatible SDK serializes maxOutputTokens as legacy max_tokens. */
+  if (usesRegionalOpenAIChat(model))
+    return {
+      providerOptions: { openai: { max_completion_tokens: maxOutputTokens } },
+    };
+
+  /** Bedrock OpenAI models need a provider-specific reasoning setting. */
+  if (isBedrockGPT(model))
+    return {
+      maxOutputTokens,
+      providerOptions: {
+        bedrock: {
+          additionalModelRequestFields: { reasoning: { effort: "none" } },
+        },
+      },
+    };
+
+  return { maxOutputTokens };
+}
+
+function usesRegionalOpenAIChat(model: TopicsModel): boolean {
+  const { baseURL, config } = model.connection;
+  if (
+    model.adapter !== LLMAdapter.OpenAI ||
+    config?.useResponsesApi === true ||
+    !isOpenAICompatibleEndpoint(baseURL)
+  )
+    return false;
+
+  try {
+    const url = parseOutboundUrl(baseURL.replace("{model}", model.model));
+    return url.hostname.replace(/\.$/, "").endsWith(".api.openai.com");
+  } catch {
+    return false;
+  }
 }
 
 function isBedrockGPT(model: TopicsModel): boolean {
