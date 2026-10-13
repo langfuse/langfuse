@@ -306,6 +306,49 @@ describe("generateTopicEmbedding", () => {
     );
     expect(result.embedding).toHaveLength(1536);
   });
+
+  it("falls back when a rate-limit retry precedes the size rejection", async () => {
+    const vector = Array.from({ length: 1536 }, () => 0.5);
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_url, init) => {
+      if (fetch.mock.calls.length === 1)
+        return Response.json(
+          { error: { message: "Rate limit exceeded" } },
+          { status: 429 },
+        );
+      if (JSON.parse(String(init?.body)).dimensions)
+        return Response.json(
+          {
+            error: {
+              message: "This model does not support specifying dimensions.",
+            },
+          },
+          { status: 400 },
+        );
+      return Response.json({
+        data: [{ embedding: vector, index: 0 }],
+        usage: { prompt_tokens: 3 },
+      });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await generateTopicEmbedding({
+      model: {
+        slot: "embedding",
+        provider: "openai-topics",
+        adapter: LLMAdapter.OpenAI,
+        model: "text-embedding-ada-002",
+        connection: { secretKey: encrypt("sk-test") },
+      },
+      summary: "Account access",
+      dimensions: 1536,
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(await new Request(...fetch.mock.calls[2]).json()).not.toHaveProperty(
+      "dimensions",
+    );
+    expect(result.embedding).toHaveLength(1536);
+  });
 });
 
 describe("allowlisted Cloud Bedrock runtime credentials", () => {
