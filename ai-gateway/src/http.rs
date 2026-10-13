@@ -122,18 +122,12 @@ async fn handle_models(
         .extensions_mut()
         .remove::<RequestCorrelation>()
         .unwrap_or_default();
-    let result = async {
-        let (inference, gateway_key) = prepare_request(&state, request.headers(), api_format)?;
-        let resolution_permit = inference
-            .try_reserve_resolution()
-            .map_err(InferenceHttpError::from)?;
-        let body = inference
-            .models(resolution_permit, &gateway_key, api_format, &correlation)
-            .await
-            .map_err(InferenceHttpError::Resolution)?;
-        Ok(([(header::CONTENT_TYPE, "application/json")], body).into_response())
-    }
-    .await;
+    let result = match prepare_request(&state, request.headers(), api_format) {
+        Ok((inference, gateway_key)) => {
+            models(&inference, &gateway_key, api_format, &correlation).await
+        }
+        Err(error) => Err(error),
+    };
     finish_response(result, api_format, &correlation)
 }
 
@@ -164,6 +158,22 @@ fn finish_response(
     correlation.apply_generation_headers(response.headers_mut());
     correlation.apply_resolution_headers(response.headers_mut());
     response
+}
+
+async fn models(
+    inference: &InferenceService,
+    gateway_key: &str,
+    api_format: ApiFormat,
+    correlation: &RequestCorrelation,
+) -> Result<Response, InferenceHttpError> {
+    let resolution_permit = inference
+        .try_reserve_resolution()
+        .map_err(InferenceHttpError::from)?;
+    let body = inference
+        .models(resolution_permit, gateway_key, api_format, correlation)
+        .await
+        .map_err(InferenceHttpError::Resolution)?;
+    Ok(([(header::CONTENT_TYPE, "application/json")], body).into_response())
 }
 
 async fn relay(
