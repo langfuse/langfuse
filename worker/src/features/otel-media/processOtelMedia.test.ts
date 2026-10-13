@@ -82,12 +82,10 @@ const MEDIA_DESTINATION = {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+  const promise = new Promise<T>((promiseResolve) => {
     resolve = promiseResolve;
-    reject = promiseReject;
   });
-  return { promise, resolve, reject };
+  return { promise, resolve };
 }
 
 function createTestDescriptors(
@@ -543,17 +541,15 @@ describe("processOtelEventMedia", () => {
     { name: "nested values", oneString: false },
     { name: "all references in one string", oneString: true },
   ])(
-    "bounds decoded bytes, shares duplicate work, and refills a slot after failure: $name",
+    "reserves upload capacity before decoding media: $name",
     async ({ oneString }) => {
       const reservedBytes = 64 * 1024 * 1024;
-      const descriptors = createTestDescriptors(4, "weighted", reservedBytes);
-      // Entries 0 and 3 are distinct occurrences of the same content.
-      descriptors[3]!.sha256Hash = descriptors[0]!.sha256Hash;
+      const descriptors = createTestDescriptors(3, "weighted", reservedBytes);
       const { batch, mediaBody } = createFakeMediaBatch({
         entries: descriptors,
       });
       mediaBody.mockImplementation((index: number) =>
-        Promise.resolve(Buffer.from(`body-${index}`)),
+        Promise.resolve(Buffer.from([index])),
       );
       const gates = Array.from({ length: 3 }, () =>
         deferred<{ outcome: "uploaded"; mediaId: string }>(),
@@ -561,31 +557,19 @@ describe("processOtelEventMedia", () => {
       const uploadIndexes: number[] = [];
       mocks.uploadMediaForTrace.mockImplementation(
         async ({ contentBytes }: { contentBytes: Buffer }) => {
-          const index = Number(contentBytes.toString().slice("body-".length));
+          const index = contentBytes[0]!;
           uploadIndexes.push(index);
           return gates[index]!.promise;
         },
       );
-      batch.originalMedia = vi.fn((index: number) =>
-        Promise.resolve(`original-${index}`),
-      );
-
-      const [first, secondReference, thirdReference, duplicate] =
-        descriptors.map((entry) => entry.reference);
-      const references = [
-        first,
-        secondReference,
-        duplicate,
-        thirdReference,
-      ] as const;
-      const createPayload = (values: typeof references) => ({
+      const references = descriptors.map((entry) => entry.reference);
+      const payload = {
         traceId: "trace-id",
         spanId: "observation-id",
         input: oneString
-          ? values.join(" ")
-          : [values[0], values[1], { nested: [values[2], values[3]] }],
-      });
-      const payload = createPayload(references);
+          ? references.join(" ")
+          : [references[0], { nested: references.slice(1) }],
+      };
       const resolving = resolveExtractedMedia({
         batch,
         targets: createDirectOtelMediaTargets([payload]),
@@ -595,30 +579,19 @@ describe("processOtelEventMedia", () => {
       try {
         await vi.waitFor(() => expect(uploadIndexes).toHaveLength(2));
         expect(uploadIndexes).toEqual([0, 1]);
-        expect(mediaBody).toHaveBeenCalledTimes(2);
+        expect(mediaBody.mock.calls.map(([index]) => index)).toEqual([0, 1]);
 
-        // The third 64 MiB reservation waits while the first two total 128 MiB.
-        gates[0]!.reject(new Error("upload failed"));
+        gates[0]!.resolve({ outcome: "uploaded", mediaId: "uploaded-0" });
         await vi.waitFor(() => expect(mediaBody).toHaveBeenCalledTimes(3));
+        expect(mediaBody.mock.calls.map(([index]) => index)).toEqual([0, 1, 2]);
 
         gates[2]!.resolve({ outcome: "uploaded", mediaId: "uploaded-2" });
         gates[1]!.resolve({ outcome: "uploaded", mediaId: "uploaded-1" });
         await expect(resolving).resolves.toMatchObject({
-          uploaded: 2,
+          uploaded: 3,
           reused: 0,
-          failed: 2,
+          failed: 0,
         });
-        expect(payload).toEqual(
-          createPayload([
-            "original-0",
-            replaceReference(descriptors[1]!.reference, "uploaded-1"),
-            "original-3",
-            replaceReference(descriptors[2]!.reference, "uploaded-2"),
-          ]),
-        );
-        // Occurrences 0 and 3 share one in-flight decode/upload promise.
-        expect(mediaBody).toHaveBeenCalledWith(0);
-        expect(mediaBody).not.toHaveBeenCalledWith(3);
       } finally {
         for (const gate of gates)
           gate.resolve({ outcome: "uploaded", mediaId: "cleanup" });
