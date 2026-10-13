@@ -1,4 +1,5 @@
 import { UnrecoverableError } from "bullmq";
+import pLimit from "p-limit";
 import type { TopicSummary } from "@langfuse/shared/topics";
 import {
   getTopicsModels,
@@ -8,6 +9,7 @@ import {
   writeTopicSummaries,
   type TopicEmbeddingBatch,
 } from "@langfuse/shared/topics/server";
+import { env } from "../../env";
 import { embedTopicSummaries } from "./models";
 import { TopicMetrics } from "./metrics";
 import { mergeTopicModelUsage } from "./summaryResult";
@@ -53,39 +55,54 @@ export async function processTopicEmbeddingBatch(
     const unembedded = rows.filter(
       ({ summary }) => summary.state === "summarized",
     );
-    if (!unembedded.length) return;
-    // One batched call; a retry re-embeds the whole remainder.
-    const result = await metrics.measure("embedding", async () => {
-      try {
-        return await embedTopicSummaries(
-          models.embedding,
-          unembedded.map(({ summary }) => summary.summary),
-          dimensions,
-        );
-      } catch (error) {
-        throw error instanceof TopicsProviderUnavailable
-          ? error
-          : topicProviderError(error, models.embedding);
-      }
-    });
-    const processedAt = new Date().toISOString();
-    for (const [index, row] of unembedded.entries()) {
-      const { ref, summary } = row;
-      const embedded: TopicSummary = {
-        ...summary,
-        state: "complete",
-        embedding: result.embeddings[index],
-        // The batched call's usage is recorded once, on its first summary.
-        ...(index === 0 ? mergeTopicModelUsage(summary, result) : {}),
-        processedAt,
-      };
-      metrics.result("embedding", "generated");
-      // All overlapping attempts must persist the same accepted result.
-      const accepted = await updateStagedTopicSummary(batch, ref, embedded);
-      if (!accepted)
-        throw new UnrecoverableError(TOPIC_EMBEDDING_EXPIRED_ERROR);
-      row.summary = accepted;
-    }
+    // One call per trace (at most one text per facet), so each call keeps its own
+    // deadline and finished traces stay staged when another trace fails.
+    const limit = pLimit(env.LANGFUSE_TOPICS_TRACE_CONCURRENCY);
+    const results = await Promise.allSettled(
+      [...Map.groupBy(unembedded, ({ ref }) => ref.traceId).values()].map(
+        (traceRows) =>
+          limit(async () => {
+            const result = await metrics.measure("embedding", async () => {
+              try {
+                return await embedTopicSummaries(
+                  models.embedding,
+                  traceRows.map(({ summary }) => summary.summary),
+                  dimensions,
+                );
+              } catch (error) {
+                throw error instanceof TopicsProviderUnavailable
+                  ? error
+                  : topicProviderError(error, models.embedding);
+              }
+            });
+            const processedAt = new Date().toISOString();
+            for (const [index, row] of traceRows.entries()) {
+              const embedded: TopicSummary = {
+                ...row.summary,
+                state: "complete",
+                embedding: result.embeddings[index],
+                // The call's usage is recorded once, on the trace's first summary.
+                ...(index === 0
+                  ? mergeTopicModelUsage(row.summary, result)
+                  : {}),
+                processedAt,
+              };
+              metrics.result("embedding", "generated");
+              // All overlapping attempts must persist the same accepted result.
+              const accepted = await updateStagedTopicSummary(
+                batch,
+                row.ref,
+                embedded,
+              );
+              if (!accepted)
+                throw new UnrecoverableError(TOPIC_EMBEDDING_EXPIRED_ERROR);
+              row.summary = accepted;
+            }
+          }),
+      ),
+    );
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure) throw failure.reason;
   } catch (error) {
     if (isRejectedConnection(error))
       await pauseForRejectedConnection(batch.projectId, error);

@@ -200,37 +200,41 @@ describe("Topics embedding handoff", () => {
     expect(mocks.write).not.toHaveBeenCalled();
   });
 
-  it("embeds every unfinished summary in one call and retries them together", async () => {
-    const rows = [summary("first"), summary("second")];
-    for (const row of rows) staged.set(topicSourceKey(row), row);
+  it("embeds each trace's facets in one call and keeps finished traces when another fails", async () => {
+    const intent = summary("first");
+    const outcome: TopicSummary = {
+      ...intent,
+      facetId: "outcome",
+      summary: "An outcome of first.",
+    };
+    const other = summary("second");
+    for (const row of [intent, outcome, other])
+      staged.set(topicSourceKey(row), row);
     const failure = new TopicsProviderUnavailable(
       "Topics provider call failed (HTTP 429).",
       "rate_limit",
     );
-    mocks.embed.mockRejectedValueOnce(failure);
-    await expect(processTopicEmbeddingBatch(batch(...rows))).rejects.toBe(
-      failure,
-    );
-    expect(mocks.write).not.toHaveBeenCalled();
-    await processTopicEmbeddingBatch(batch(...rows));
+    mocks.embed.mockImplementation(async (_model, summaries: string[]) => {
+      if (summaries.includes("A summary of second.")) throw failure;
+      return {
+        ...embeddingUsage,
+        embeddings: summaries.map(() => Array(256).fill(0.25)),
+      };
+    });
+    await expect(
+      processTopicEmbeddingBatch(batch(intent, outcome, other)),
+    ).rejects.toBe(failure);
     expect(mocks.embed).toHaveBeenCalledTimes(2);
-    expect(mocks.embed.mock.calls[1][1]).toEqual([
+    expect(mocks.embed.mock.calls.map((call) => call[1])).toContainEqual([
       "A summary of first.",
-      "A summary of second.",
+      "An outcome of first.",
     ]);
-    // The batched call's usage is recorded once.
+    // The finished trace is stored with the call's usage recorded once.
     expect(mocks.write.mock.calls[0][0]).toMatchObject([
-      {
-        traceId: "trace-first",
-        state: "complete",
-        usageDetails: { total: 38 },
-      },
-      {
-        traceId: "trace-second",
-        state: "complete",
-        usageDetails: { total: 30 },
-      },
+      { facetId: "facet", state: "complete", usageDetails: { total: 38 } },
+      { facetId: "outcome", state: "complete", usageDetails: { total: 30 } },
     ]);
+    expect(staged.get(topicSourceKey(other))?.state).toBe("summarized");
   });
 
   it("does not retry provider authentication failures", async () => {

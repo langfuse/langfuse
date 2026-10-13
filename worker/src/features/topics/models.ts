@@ -355,7 +355,7 @@ export async function embedTopicSummaries(
   dimensions: number,
 ): Promise<TopicModelUsage & { embeddings: number[][] }> {
   if (
-    !summaries.length ||
+    summaries.length === 0 ||
     summaries.some((summary) => !summary.trim()) ||
     !topicEmbeddingConfigSchema.safeParse({ embeddingDimensions: dimensions })
       .success

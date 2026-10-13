@@ -187,7 +187,7 @@ async function summarizeEnabledTrace(
       .filter(({ output }) => output.status === "applicable")
       .map(({ output }) => output.summary.trim());
     let embedded: Awaited<ReturnType<typeof embedTopicSummaries>> | undefined;
-    if (applicable.length) {
+    if (applicable.length > 0) {
       try {
         embedded = await metrics.measure("embedding", () =>
           embedTopicSummaries(
@@ -206,7 +206,7 @@ async function summarizeEnabledTrace(
     rows = [];
     let embeddingIndex = 0;
     for (const { base, output } of accepted) {
-      const rowUsage = rows.length ? NO_USAGE : traceUsage;
+      const rowUsage = rows.length > 0 ? NO_USAGE : traceUsage;
       if (output.status !== "applicable")
         rows.push({
           ...base,
