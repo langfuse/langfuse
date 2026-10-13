@@ -115,8 +115,12 @@ residency matters. Every provider is asked for clustering vectors of the
 configured size (Cohere `clustering` input type with truncation disabled, Google
 `CLUSTERING` task type, OpenAI `dimensions`). Default: 1,024
 dimensions; any whole number from 64 to 4,096 is accepted, and a provider that
-returns a vector of another length fails the call. Calls embed one summary at a
-time, retaining per-summary Redis checkpointing.
+returns a vector of another length fails the call. Embeddings are batched per trace: each trace's
+applicable facets are embedded in one call, in trace-batch and in embedding jobs
+(which run up to `LANGFUSE_TOPICS_TRACE_CONCURRENCY` traces at once). The call's
+usage is recorded on the trace's first row; one failure fails that trace's call,
+and a retry embeds the traces that are left. Saving the models requires the
+embedding model to embed two texts in one call.
 Embedding settings are independent of immutable facet versions; changing them
 with stored-summary reuse enabled regenerates vectors without summarization inference. This PoC does
 not use `aiEmbed` or change ingestion. It accepts traces already stored in v4
@@ -138,7 +142,8 @@ call's usage is recorded on the first facet's row. It does not load the trace
 from ClickHouse again. Projects outside
 `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` are skipped. A finished facet version is
 skipped on retry. A failing trace does not stop the batch: every trace is
-processed and outcomes are counted once per job (`langfuse.topics.trace_outcomes`
+processed, up to `LANGFUSE_TOPICS_TRACE_CONCURRENCY` traces at once (default
+20; manual processing uses the same limit per queue job), and outcomes are counted once per job (`langfuse.topics.trace_outcomes`
 by outcome and reason). Failed traces are not retried, because a retry would
 read the shared batch from ClickHouse again. Only a failed batch read fails the
 job. Summaries and embeddings use the same project models as manual

@@ -315,8 +315,17 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
 vi.mock("./models", () => ({
   summarizeTopicTrace: (_models: unknown, ...args: unknown[]) =>
     state.summarize(...args),
-  embedTopicSummary: (_model: unknown, ...args: unknown[]) =>
-    state.embed(...args),
+  // `state.embed` sees each summary; one failure fails the whole batched call.
+  embedTopicSummaries: async (
+    _model: unknown,
+    summaries: string[],
+    dimensions: number,
+  ) => {
+    const results = [];
+    for (const summary of summaries)
+      results.push(await state.embed(summary, dimensions));
+    return { ...results[0], embeddings: results.map((r) => r.embedding) };
+  },
   nameTopicGroup: (_models: unknown, ...args: unknown[]) => state.name(...args),
 }));
 vi.mock("./numeric", async (importOriginal) => ({
@@ -816,7 +825,8 @@ describe("Topics execution", () => {
         ),
       );
     await processSelection("partial", 3);
-    expect(state.batches.get("partial")?.summaries).toHaveLength(1);
+    // Traces run concurrently, so the third finishes while the second fails.
+    expect(state.batches.get("partial")?.summaries).toHaveLength(2);
     expect(state.executions.get("partial")?.status).toBe("failed");
     const accepted = [...state.staged.values()][0].summary;
     accepted.transcriptVersion = "older-transcript";

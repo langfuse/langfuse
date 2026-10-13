@@ -19,7 +19,7 @@ import {
   type TopicsModelSlotName,
 } from "../../topics";
 import { hasTopicEmbeddings } from "./clickhouse";
-import { generateTopicEmbedding } from "./embeddings";
+import { generateTopicEmbeddings } from "./embeddings";
 import { invalidateTopicsProcessingActive } from "./processing-gate";
 import { z } from "zod";
 
@@ -337,14 +337,22 @@ async function testTopicsModelSlots(
           errors[name] = "LLM connection not found in this project.";
           return;
         }
-        const { embedding } = await generateTopicEmbedding({
+        // Two texts, because processing embeds a trace's facets in one call.
+        const { embeddings } = await generateTopicEmbeddings({
           model: resolved,
-          summary: "Topics model check",
+          summaries: ["Topics model check", "Topics batch check"],
           dimensions: settings.embeddingDimensions,
         });
-        if (embedding.length !== settings.embeddingDimensions)
+        if (embeddings.length !== 2)
           throw new Error(
-            `The model returned ${embedding.length} dimensions instead of ${settings.embeddingDimensions}. Choose a size this model supports.`,
+            "The model must embed several texts in one request. Choose an embedding model or endpoint that supports batched input.",
+          );
+        const wrong = embeddings.find(
+          (vector) => vector.length !== settings.embeddingDimensions,
+        );
+        if (wrong)
+          throw new Error(
+            `The model returned ${wrong.length} dimensions instead of ${settings.embeddingDimensions}. Choose a size this model supports.`,
           );
       } catch (error) {
         errors[name] =
