@@ -159,7 +159,7 @@ export const ObservationDetailViewHeader = memo(
     const showsOwnObservationCost = !subtreeMetrics;
     const showsNoCost = isGenerationMissingCost({
       type: observation.type,
-      totalUsage: subtreeMetrics ? subtreeMetrics.totalUsage : totalUsage,
+      totalUsage,
       totalCost: displayedTotalCost,
       costDetails: displayedCostDetails,
     });
