@@ -32,6 +32,7 @@ import {
 } from "@langfuse/shared";
 
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
+import { Prisma } from "@langfuse/shared/src/db";
 import {
   ChatMessageType,
   createTypeSafeDecisionModelClient,
@@ -402,6 +403,15 @@ export const llmApiKeyRouter = createTRPCRouter({
           action: "create",
         });
       } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === "P2002"
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "There already exists an API key for this provider.",
+          });
+        }
         logger.error(e);
         throw e;
       }
