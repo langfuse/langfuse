@@ -173,6 +173,8 @@ async fn models(
         .models(resolution_permit, gateway_key, api_format, correlation)
         .await
         .map_err(InferenceHttpError::Resolution)?;
+    let body = crate::providers::model_list::provider_response(&body, api_format)
+        .map_err(InferenceHttpError::Resolution)?;
     Ok(([(header::CONTENT_TYPE, "application/json")], body).into_response())
 }
 

@@ -575,7 +575,7 @@ async fn compact_rewrites_model_and_models_come_from_the_control_plane() {
             return Response::builder()
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    r#"{"data":[{"id":"Production key:gpt-4.1","provider":"OPENAI"}]}"#,
+                    r#"{"data":[{"id":"Production key:gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"1970-01-01T00:00:10.000Z"}]}"#,
                 ))
                 .unwrap();
         }
@@ -628,7 +628,7 @@ async fn compact_rewrites_model_and_models_come_from_the_control_plane() {
     assert_eq!(models.status(), StatusCode::OK);
     assert_eq!(
         models.text().await.unwrap(),
-        r#"{"data":[{"id":"Production key:gpt-4.1","provider":"OPENAI"}]}"#
+        r#"{"object":"list","data":[{"id":"Production key:gpt-4.1","object":"model","created":10,"owned_by":"openai"}]}"#
     );
     assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 1);
@@ -644,9 +644,18 @@ async fn model_routes_request_the_matching_control_plane_catalog() {
             .unwrap()
             .strip_prefix("api_format=")
             .unwrap();
+        let body = match api_format {
+            "openai.responses" => {
+                r#"{"data":[{"id":"Production key:gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"1970-01-01T00:00:10.000Z"}]}"#
+            }
+            "anthropic.messages" => {
+                r#"{"data":[{"id":"Production key:claude-sonnet-4-5","provider":"ANTHROPIC","canonicalSlug":"claude-sonnet-4-5","displayName":"Claude Sonnet 4.5","createdAt":"2026-01-01T00:00:00.000Z"}]}"#
+            }
+            other => panic!("unexpected API format {other}"),
+        };
         Response::builder()
             .header("content-type", "application/json")
-            .body(Body::from(format!(r#"{{"api_format":"{api_format}"}}"#)))
+            .body(Body::from(body))
             .unwrap()
     })
     .await;
@@ -659,12 +668,12 @@ async fn model_routes_request_the_matching_control_plane_catalog() {
         (
             "openai/v1/models",
             ("authorization", "Bearer gateway-openai"),
-            r#"{"api_format":"openai.responses"}"#,
+            r#"{"object":"list","data":[{"id":"Production key:gpt-4.1","object":"model","created":10,"owned_by":"openai"}]}"#,
         ),
         (
             "anthropic/v1/models",
             ("x-api-key", "gateway-anthropic"),
-            r#"{"api_format":"anthropic.messages"}"#,
+            r#"{"data":[{"type":"model","id":"Production key:claude-sonnet-4-5","display_name":"Claude Sonnet 4.5","created_at":"2026-01-01T00:00:00.000Z"}],"has_more":false,"first_id":"Production key:claude-sonnet-4-5","last_id":"Production key:claude-sonnet-4-5"}"#,
         ),
     ] {
         let response = reqwest::Client::new()
