@@ -36,7 +36,7 @@ import {
   TopicsProviderUnavailable,
 } from "../features/topics/provider-error";
 import { TopicMetrics } from "../features/topics/metrics";
-import { isRetryableClickhouseError } from "../services/ClickhouseWriter";
+import { isRetryableClickhouseInsertError } from "../services/ClickhouseWriter";
 import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 
@@ -186,13 +186,13 @@ async function writeBatchSummaries(
       () =>
         backOff(() => writeTopicSummaries(rows), {
           numOfAttempts: env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS,
-          retry: isRetryableClickhouseError,
+          retry: isRetryableClickhouseInsertError,
         }),
       "storage",
     );
   } catch (error) {
     // Splitting cannot fix an outage or a single bad row.
-    if (rows.length === 1 || isRetryableClickhouseError(error)) {
+    if (rows.length === 1 || isRetryableClickhouseInsertError(error)) {
       logger.warn("Topics summary write failed for trace batch", {
         rowCount: rows.length,
         error: error instanceof Error ? error.message : String(error),

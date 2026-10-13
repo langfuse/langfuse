@@ -27,7 +27,7 @@ export { TableName } from "./types";
 
 const MULTI_PROJECT_LOG_COMMENT_PROJECT_ID = "MULTI_PROJECT";
 
-export function isRetryableClickhouseError(error: unknown): boolean {
+export function isRetryableClickhouseInsertError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
 
   const errorMessage = (error as Error).message?.toLowerCase() || "";
@@ -344,7 +344,7 @@ export class ClickhouseWriter<
         {
           numOfAttempts: env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS,
           retry: (error: Error, attemptNumber: number) => {
-            const isRetryable = isRetryableClickhouseError(error);
+            const isRetryable = isRetryableClickhouseInsertError(error);
             const isSizeError = this.isSizeError(error);
             const isStringLengthError = this.isStringLengthError(error);
 
