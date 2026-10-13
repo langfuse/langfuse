@@ -35,7 +35,7 @@ export const TagButton: React.FC<{
   }
 
   return (
-    <BadgeShell asChild>
+    <BadgeShell asChild color="filled" font="mono" size="md">
       <button
         key={tag}
         type="button"

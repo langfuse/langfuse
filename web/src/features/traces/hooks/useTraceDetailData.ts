@@ -1,4 +1,5 @@
 import { api, shouldRetryResourceQuery } from "@/src/utils/api";
+import { keepPreviousData } from "@tanstack/react-query";
 import { useEventsTraceData, useReadPath } from "@/src/features/events";
 import { useSession } from "next-auth/react";
 
@@ -52,6 +53,7 @@ export function useTraceDetailData({
         !useEventsTraceSource,
       retry: shouldRetryResourceQuery,
       staleTime: 60 * 1000,
+      placeholderData: keepPreviousData,
     },
   );
 
@@ -77,6 +79,7 @@ export function useTraceDetailData({
       isNotFound: false,
       isUnauthorized: false,
       truncatedAtObservations: undefined,
+      isPlaceholderData: false,
     };
   }
 
@@ -101,6 +104,7 @@ export function useTraceDetailData({
         !eventsData.isLoading && !eventsData.data && !eventsData.error,
       isUnauthorized,
       truncatedAtObservations: eventsData.truncatedAtObservations,
+      isPlaceholderData: eventsData.isPlaceholderData,
     };
   }
 
@@ -113,5 +117,6 @@ export function useTraceDetailData({
     isUnauthorized: tracesQuery.error?.data?.code === "UNAUTHORIZED",
     // The traces-table read path has no row cap.
     truncatedAtObservations: undefined,
+    isPlaceholderData: tracesQuery.isPlaceholderData,
   };
 }

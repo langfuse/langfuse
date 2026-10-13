@@ -57,6 +57,7 @@ import {
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
@@ -125,6 +126,7 @@ export function useCopyMigrationPrompt() {
     await copyTextToClipboard(V4_CODING_AGENT_PROMPT);
     capture("v4_migration:coding_agent_prompt_copied");
     showSuccessToast({
+      operation: "prompt.copy",
       title: "Prompt copied",
       description: "Paste it into Cursor, Codex, or another coding agent.",
     });
@@ -1392,6 +1394,7 @@ export function V4MigrationAgentUpgradeSection({
         showErrorToast(
           "Could not create API keys",
           "Something went wrong. Please try again.",
+          classifyTrpcToastError(error, "project_api_key.create"),
         );
       });
   };

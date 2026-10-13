@@ -87,7 +87,7 @@ export function ChoiceOptionsEditor({
                   : `Keep at least ${DECISION_MODEL_LIMITS.minChoiceOptions} options`
               }
             >
-              <Trash2 className="icon-sm" />
+              <Trash2 className="text-icon-foreground icon-sm" />
             </Button>
           </div>
         )}

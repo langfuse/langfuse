@@ -1,5 +1,4 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import Header from "@/src/components/layouts/header";
 import { Card } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
@@ -28,13 +27,11 @@ import {
 import { useSession } from "next-auth/react";
 import { signOutCleanly } from "@/src/features/auth/lib/signOut";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
-import ContainerPage from "@/src/components/layouts/container-page";
-import { useRouter } from "next/router";
 import { StringNoHTML } from "@langfuse/shared";
 import Link from "next/link";
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
-import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 const displayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -60,6 +57,7 @@ function UpdateDisplayName() {
       await utils.invalidate();
       form.reset();
       showSuccessToast({
+        operation: "account.display_name_update",
         title: "Display Name Updated",
         description: "Your display name has been successfully updated.",
       });
@@ -151,6 +149,7 @@ function DeleteAccountButton() {
     try {
       await deleteAccount.mutateAsync();
       showSuccessToast({
+        operation: "account.delete",
         title: "Account Deleted",
         description: "Your account has been successfully deleted.",
       });
@@ -161,6 +160,7 @@ function DeleteAccountButton() {
       showErrorToast(
         "Failed to Delete Account",
         error instanceof Error ? error.message : "An unexpected error occurred",
+        classifyTrpcToastError(error, "account.delete"),
       );
     }
   };
@@ -247,6 +247,7 @@ function SignOutAllSessionsButton() {
     try {
       await signOutAllSessions.mutateAsync();
       showSuccessToast({
+        operation: "account.revoke_sessions",
         title: "Signed Out of All Sessions",
         description: "All sessions have been invalidated.",
       });
@@ -255,6 +256,7 @@ function SignOutAllSessionsButton() {
       showErrorToast(
         "Failed to Sign Out of All Sessions",
         error instanceof Error ? error.message : "An unexpected error occurred",
+        classifyTrpcToastError(error, "account.revoke_sessions"),
       );
       throw error;
     }
@@ -296,17 +298,14 @@ type AccountSettingsPage = {
 export function useAccountSettingsPages(): AccountSettingsPage[] {
   const { data: session } = useSession();
   const userEmail = session?.user?.email ?? "";
-  const showV4Migration = useV4UpgradeUiFlag();
 
-  return getAccountSettingsPages({ userEmail, showV4Migration });
+  return getAccountSettingsPages({ userEmail });
 }
 
 const getAccountSettingsPages = ({
   userEmail,
-  showV4Migration,
 }: {
   userEmail: string;
-  showV4Migration: boolean;
 }): AccountSettingsPage[] => [
   {
     title: "General",
@@ -364,28 +363,4 @@ const getAccountSettingsPages = ({
       </div>
     ),
   },
-  {
-    title: "v4 Migration",
-    slug: "v4-migration",
-    href: "/v4-migration",
-    show: showV4Migration,
-  },
 ];
-
-export default function AccountSettingsPage() {
-  const router = useRouter();
-  const pages = useAccountSettingsPages();
-
-  return (
-    <ContainerPage
-      headerProps={{
-        title: "Account Settings",
-      }}
-    >
-      <PagedSettingsContainer
-        activeSlug={router.query.page as string | undefined}
-        pages={pages}
-      />
-    </ContainerPage>
-  );
-}

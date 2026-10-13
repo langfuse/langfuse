@@ -6,6 +6,7 @@ import { useModelParams } from "@/src/features/playground";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications";
+import type { ToastOperation } from "@/src/features/notifications/toastAnalytics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";
 import { DeleteEvaluationModelButton } from "@/src/components/deleteButton";
@@ -22,6 +23,7 @@ import { Pencil } from "lucide-react";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 type DefaultEvalModelSuccessMessage = {
+  operation: ToastOperation;
   title: string;
   description: string;
 };
@@ -145,6 +147,7 @@ export function DefaultEvalModelSetup({
       onSuccess?.();
     },
     successMessage: {
+      operation: "evaluation_model.update",
       title: "Default evaluation model updated",
       description: "All running evaluators will use the new model.",
     },
@@ -261,6 +264,7 @@ export function InlineDefaultEvalModelSetup({
     projectId,
     onSuccess,
     successMessage: {
+      operation: "evaluation_model.set",
       title: "Default evaluation model set",
       description: "LLM-as-a-judge evaluators can now use this model.",
     },

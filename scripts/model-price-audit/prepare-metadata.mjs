@@ -7,6 +7,7 @@ import {
   collectTypeModelChanges,
   mergeModelChanges,
   normalizeReportedModel,
+  reportedProviderMatches,
   validateChangedModelRow,
   validateOfficialSources,
 } from "./audit-output-contract.mjs";
@@ -111,7 +112,7 @@ const changedRowsByModel = new Map(
 );
 for (const change of typeModelChanges) {
   const row = changedRowsByModel.get(normalize(change.modelName));
-  if (row && normalize(row.provider) !== normalize(change.provider)) {
+  if (row && !reportedProviderMatches(row.provider, change.provider)) {
     throw new Error(
       `${change.arrayName} changes require provider ${change.provider}: ${change.modelName}`,
     );

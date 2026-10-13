@@ -23,6 +23,7 @@ import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { useModelParams } from "@/src/features/playground";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
@@ -264,6 +265,7 @@ export const MultiStepExperimentForm = ({
       showErrorToast(
         error.message || "Failed to trigger dataset run",
         "Please try again.",
+        classifyTrpcToastError(error, "experiment.create"),
       );
     },
     onSettled: handleExperimentSettled ?? (() => {}),
@@ -322,6 +324,11 @@ export const MultiStepExperimentForm = ({
       showErrorToast(
         PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
         "Disable structured output or choose a prompt without tools.",
+        {
+          operation: "experiment.create",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
       );
       return;
     }

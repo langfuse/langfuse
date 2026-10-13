@@ -90,7 +90,7 @@ export function ScoreLevelsEditor({
                   : `Keep at least ${DECISION_MODEL_LIMITS.minScoreLevels} levels`
               }
             >
-              <Trash2 className="icon-sm" />
+              <Trash2 className="text-icon-foreground icon-sm" />
             </Button>
           </div>
         )}

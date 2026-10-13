@@ -14,12 +14,11 @@ environment variables. The configured user needs to read the `events_full`
 schema and create, insert into, select from, and drop the test tables. An
 unavailable ClickHouse server fails the run.
 
-The corpus, integration, and property suites serialize their fixtures to S3
-document bytes and pass those bytes to the production OTEL queue processor. The
-queue performs the normal download and JSON decoding; normalization, enrichment,
-tokenization, media and overflow handling, and ClickHouse persistence use the
-TypeScript implementations. Model and prompt lookups, media uploads, and
-evaluation scheduling use controlled test doubles.
+The corpus, integration, and property suites replay identical stored JSON bytes
+through the production OTEL queue with early Rust media extraction off and on.
+Both runs retain TypeScript normalization, enrichment, tokenization, remaining
+media detection, overflow handling, and the production JSON writer. Model and
+prompt lookups, media uploads, and evaluation scheduling use test doubles.
 
 Each replay creates isolated Memory tables from the live schema and uses the
 production JSON writer singleton. A thin client adapter substitutes the

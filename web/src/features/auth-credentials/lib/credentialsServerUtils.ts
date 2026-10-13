@@ -3,9 +3,9 @@ import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/create
 import { advanceSessionsExpiredAtForEmail } from "@/src/features/auth/lib/sessionExpiration";
 import type { AdClickIds } from "@/src/features/auth";
 import { env } from "@/src/env.mjs";
+import { hashPassword } from "@/src/features/auth-credentials/lib/passwordHash";
 import { prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
-import { compare, hash } from "bcryptjs";
 
 function hashEmailOtpToken(token: string) {
   if (!env.NEXTAUTH_SECRET) {
@@ -104,7 +104,7 @@ export async function consumeEmailOtpAndUpdatePassword({
     await tx.verificationToken.deleteMany({ where: { identifier } });
 
     // Keep password hashing behind successful OTP validation so unauthenticated
-    // invalid attempts cannot trigger expensive bcrypt work.
+    // invalid attempts cannot trigger expensive hashing work.
     const hashedPassword = await hashPassword(password);
     const updated = await tx.user.updateMany({
       where: { email: identifier },
@@ -127,16 +127,6 @@ export async function consumeEmailOtpAndUpdatePassword({
       message: "Invalid or expired verification code.",
     });
   }
-}
-
-export async function hashPassword(password: string) {
-  const hashedPassword = await hash(password, 12);
-  return hashedPassword;
-}
-
-export async function verifyPassword(password: string, hashedPassword: string) {
-  const isValid = await compare(password, hashedPassword);
-  return isValid;
 }
 
 function isValidPassword(password: string) {

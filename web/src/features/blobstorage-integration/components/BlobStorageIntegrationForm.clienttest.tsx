@@ -159,6 +159,26 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     expect(bucketInput()).toHaveValue("mid-save-typing");
   });
 
+  it("switching from GCS to S3 drops a typed GCS service account key", async () => {
+    render(
+      ui(
+        "p1:new",
+        buildBlobStorageFormValues(
+          { type: BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE },
+          exportSourceCtx,
+        ),
+      ),
+    );
+    fireEvent.change(screen.getByLabelText("GCP Service Account Key (JSON)"), {
+      target: { value: '{"type":"service_account"}' },
+    });
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Storage Provider" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Amazon S3" }));
+
+    expect(await screen.findByLabelText(/Secret Access Key/)).toHaveValue("");
+  });
+
   it("submit passes the draft values through unchanged", async () => {
     const onSubmit = vi.fn();
     render(

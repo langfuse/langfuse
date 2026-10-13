@@ -9,20 +9,8 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { LangfuseNotFoundError, StringNoHTML } from "@langfuse/shared";
-import {
-  apiKeyRolesAcceptedForScope,
-  ProjectId,
-  SystemRoleId,
-  UserId,
-} from "@langfuse/shared/rbac";
-import { SystemRole } from "@langfuse/shared/src/db";
-
-import { assertApiKeyRoleForMigration } from "@/src/features/public-api/server/assertApiKeyRoleForMigration";
-
-const projectApiKeyRoles = apiKeyRolesAcceptedForScope("project") as [
-  SystemRole,
-  ...SystemRole[],
-];
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
 
 export const projectApiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -77,7 +65,7 @@ export const projectApiKeysRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         name: StringNoHTML.optional(),
-        role: z.enum(projectApiKeyRoles).default(SystemRole.ADMIN),
+        role: apiKeyCreationRoleSchema("project"),
         expiresAt: z
           .date()
           .nullish()
@@ -92,8 +80,6 @@ export const projectApiKeysRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "apiKeys:CUD",
       });
-
-      assertApiKeyRoleForMigration(input.role);
 
       const apiKeyMeta = await createApiKey(ctx.prisma, {
         owner: ProjectId(input.projectId),

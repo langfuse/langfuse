@@ -8,7 +8,10 @@ import {
   SettingsTable,
   type SettingsTableProps,
 } from "@/src/components/SettingsTable/SettingsTable";
-import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
+import {
+  resolveRowHeightRendering,
+  type RowHeight,
+} from "@/src/components/table/data-table-row-height-switch";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
@@ -157,7 +160,7 @@ export function ModelDefinitionsTable({
       enableHiding: true,
       size: 120,
       getCell: (value) => value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
     }),
     createDateTableColumn<ModelTableRow>({
       accessorFn: () => undefined,

@@ -48,7 +48,7 @@ export function CreateApiKeyButton(props: {
         .mutateAsync({
           projectId: props.entityId,
           name: values.name || undefined,
-          role: values.role,
+          ...(values.role === undefined ? {} : { role: values.role }),
           expiresAt: values.expiresAt,
         })
         .then(({ secretKey, publicKey }) => {
@@ -64,7 +64,7 @@ export function CreateApiKeyButton(props: {
         .mutateAsync({
           orgId: props.entityId,
           name: values.name || undefined,
-          role: values.role,
+          ...(values.role === undefined ? {} : { role: values.role }),
           expiresAt: values.expiresAt,
         })
         .then(({ secretKey, publicKey }) => {

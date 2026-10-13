@@ -7,6 +7,7 @@ import {
 } from "@/src/features/analytics-integrations";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   type V4WriteMode,
   type BlobStorageIntegration,
@@ -30,7 +31,9 @@ export const BlobStorageIntegrationContainer = ({
   projectId,
   writeMode,
 }: {
-  config: Partial<BlobStorageIntegration> | null;
+  config:
+    | (Partial<BlobStorageIntegration> & { hasSecretAccessKey?: boolean })
+    | null;
   projectId: string;
   writeMode: V4WriteMode;
 }) => {
@@ -63,7 +66,11 @@ export const BlobStorageIntegrationContainer = ({
       utils.blobStorageIntegration.invalidate();
     },
     onError: (error) => {
-      showErrorToast("Failed to save integration", error.message);
+      showErrorToast(
+        "Failed to save integration",
+        error.message,
+        classifyTrpcToastError(error, "blob_storage.save"),
+      );
     },
   });
   const mutDelete = api.blobStorageIntegration.delete.useMutation({
@@ -79,12 +86,17 @@ export const BlobStorageIntegrationContainer = ({
   const mutValidate = api.blobStorageIntegration.validate.useMutation({
     onSuccess: (data) => {
       showSuccessToast({
+        operation: "blob_storage.validate",
         title: data.message,
         description: `Test file: ${data.testFileName}`,
       });
     },
     onError: (error) => {
-      showErrorToast("Validation failed", error.message);
+      showErrorToast(
+        "Validation failed",
+        error.message,
+        classifyTrpcToastError(error, "blob_storage.validate"),
+      );
     },
   });
 

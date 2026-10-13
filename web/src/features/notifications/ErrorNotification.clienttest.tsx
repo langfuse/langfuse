@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import { ErrorNotification } from "@/src/features/notifications/ErrorNotification";
 
@@ -40,6 +40,14 @@ describe("ErrorNotification", () => {
       source: "trpc" as const,
       path: "traces.byId",
       traceId: "0123456789abcdef",
+      analytics: {
+        operation: "traces.byId" as const,
+        trpcPath: "traces.byId" as const,
+        errorOrigin: "backend" as const,
+        errorCategory: "internal" as const,
+        trpcCode: "INTERNAL_SERVER_ERROR" as const,
+        httpStatus: 500,
+      },
     };
 
     const view = render(<ErrorNotification {...props} />);
@@ -48,9 +56,15 @@ describe("ErrorNotification", () => {
       expect(mocks.capture).toHaveBeenCalledWith("toast:shown", {
         toastType: "ERROR",
         source: "trpc",
+        operation: "traces.byId",
         path: "traces.byId",
         hasErrorId: true,
+        isOperationFallback: false,
         errorId: props.traceId,
+        errorOrigin: "backend",
+        errorCategory: "internal",
+        trpcCode: "INTERNAL_SERVER_ERROR" as const,
+        httpStatus: 500,
       });
     });
 
@@ -77,6 +91,11 @@ describe("ErrorNotification", () => {
         type="WARNING"
         dismissToast={vi.fn()}
         toast="toast-2"
+        analytics={{
+          operation: "project_api_key.create",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        }}
       />,
     );
 
@@ -85,6 +104,10 @@ describe("ErrorNotification", () => {
         toastType: "WARNING",
         source: "application",
         hasErrorId: false,
+        isOperationFallback: false,
+        operation: "project_api_key.create",
+        errorOrigin: "frontend",
+        errorCategory: "user_input",
       });
     });
     expect(mocks.capture.mock.calls[0]?.[1]).not.toHaveProperty("errorId");
@@ -99,6 +122,11 @@ describe("ErrorNotification", () => {
         source="trpc"
         dismissToast={vi.fn()}
         toast="toast-3"
+        analytics={{
+          operation: "project_api_key.create",
+          errorOrigin: "network",
+          errorCategory: "transient",
+        }}
       />,
     );
 
@@ -107,7 +135,55 @@ describe("ErrorNotification", () => {
         toastType: "WARNING",
         source: "trpc",
         hasErrorId: false,
+        isOperationFallback: false,
+        operation: "project_api_key.create",
+        errorOrigin: "network",
+        errorCategory: "transient",
       });
     });
+  });
+
+  it("uses the same bounded dimensions for error interactions", async () => {
+    const dismissToast = vi.fn();
+    render(
+      <ErrorNotification
+        error="Sensitive error"
+        description="Sensitive details"
+        type="ERROR"
+        dismissToast={dismissToast}
+        toast="toast-4"
+        analytics={{
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+          operation: "project_api_key.create",
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(mocks.capture).toHaveBeenCalledTimes(1));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Report issue to Langfuse team" }),
+    );
+
+    expect(mocks.capture).toHaveBeenLastCalledWith("toast:report_issue", {
+      toastType: "ERROR",
+      source: "application",
+      errorOrigin: "frontend",
+      errorCategory: "user_input",
+      operation: "project_api_key.create",
+      isOperationFallback: false,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(mocks.capture).toHaveBeenLastCalledWith("toast:dismiss", {
+      toastType: "ERROR",
+      source: "application",
+      errorOrigin: "frontend",
+      errorCategory: "user_input",
+      operation: "project_api_key.create",
+      isOperationFallback: false,
+    });
+    expect(dismissToast).toHaveBeenCalledWith("toast-4");
+    expect(JSON.stringify(mocks.capture.mock.calls)).not.toContain("Sensitive");
   });
 });

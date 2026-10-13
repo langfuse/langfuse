@@ -1,10 +1,7 @@
 import { type RouterOutputs } from "@/src/utils/api";
 import { useState, useRef, useEffect } from "react";
 import { PromptVersionDiffDialogContent } from "./PromptVersionDiffDialog";
-import {
-  Timeline,
-  TimelineItem,
-} from "@/src/features/prompts/components/timeline";
+import { Timeline } from "@/src/components/design-system/Timeline/Timeline";
 import { Badge } from "@/src/components/ui/badge";
 import { CommandItem } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
@@ -60,7 +57,7 @@ const PromptHistoryTraceNode = (props: {
         cursor: "pointer",
       }}
     >
-      <TimelineItem
+      <Timeline.Item
         key={prompt.id}
         isActive={props.currentPromptVersion === prompt.version}
         onMouseEnter={() => setIsHovered(true)}
@@ -177,7 +174,7 @@ const PromptHistoryTraceNode = (props: {
             </div>
           </div>
         </div>
-      </TimelineItem>
+      </Timeline.Item>
     </CommandItem>
   );
 };

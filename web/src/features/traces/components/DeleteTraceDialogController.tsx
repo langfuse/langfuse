@@ -57,6 +57,7 @@ export function DeleteTraceDialogController({
         await deleteMutation.mutateAsync({ traceIds: [traceId], projectId });
         setIsDeleted(true);
         showSuccessToast({
+          operation: "trace.delete",
           title: "Trace deleted",
           description:
             "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 24 hours.",

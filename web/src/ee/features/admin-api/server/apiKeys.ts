@@ -2,6 +2,8 @@ import { z } from "zod/v4";
 
 import { type SystemRole } from "@langfuse/shared/src/db";
 
+import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
+
 const apiKeyCreationFields = {
   name: z.string().optional(),
   note: z.string().optional(),
@@ -16,18 +18,12 @@ const apiKeyCreationFields = {
 
 export const organizationApiKeyCreationSchema = z.object({
   ...apiKeyCreationFields,
-  role: z
-    .enum(["LEGACY_ORGANIZATION_API_KEY", ""])
-    .nullish()
-    .transform((role) => role || "LEGACY_ORGANIZATION_API_KEY"),
+  role: apiKeyCreationRoleSchema("organization"),
 });
 
 export const projectApiKeyCreationSchema = z.object({
   ...apiKeyCreationFields,
-  role: z
-    .enum(["LEGACY_PROJECT_API_KEY", ""])
-    .nullish()
-    .transform((role) => role || "LEGACY_PROJECT_API_KEY"),
+  role: apiKeyCreationRoleSchema("project"),
   publicKey: z.string().optional(),
   secretKey: z.string().optional(),
 });

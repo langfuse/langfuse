@@ -24,6 +24,7 @@ import {
 } from "@/src/features/feature-flags/available-flags";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 type ProposedChange = {
   flag: FeaturePreviewFlag;
@@ -57,6 +58,7 @@ export function OrganizationFeaturePreviewsSettings({
         session.update(),
       ]);
       showSuccessToast({
+        operation: "organization_feature_preview.update",
         title: "Feature preview default updated",
         description: `${featurePreviewLabels[variables.flag]} was ${
           variables.enabled ? "enabled" : "disabled"
@@ -65,7 +67,11 @@ export function OrganizationFeaturePreviewsSettings({
     },
     onError: (error) => {
       setProposedChange(null);
-      showErrorToast("Failed to update feature preview", error.message);
+      showErrorToast(
+        "Failed to update feature preview",
+        error.message,
+        classifyTrpcToastError(error, "organization_feature_preview.update"),
+      );
     },
   });
 

@@ -1385,6 +1385,18 @@ jobs:
           exit "$(cat /tmp/playwright-install.exit)"
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
+      # Playwright writes a screenshot, an error context and a trace for every
+      # failure, and the reporter prints the command to open them — but they
+      # die with the runner, so a flake here is reported with no way to see
+      # what the browser was actually showing.
+      - name: Upload Playwright failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: web/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
 
   e2e-server-tests:
     runs-on: blacksmith-8vcpu-ubuntu-2404
@@ -1637,7 +1649,6 @@ jobs:
         if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
         uses: ./.github/actions/notify-slack-failure
         with:
-          title: "❌ CI Failed"
           message: "❌ CI failed on ${{ github.ref_name }}"
           webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
       - name: Output job results
@@ -1985,6 +1996,5 @@ jobs:
         if: failure()
         uses: ./.github/actions/notify-slack-failure
         with:
-          title: "❌ Docker Release Failed"
           message: "❌ Docker release failed on ${{ github.ref_name }}"
           webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}

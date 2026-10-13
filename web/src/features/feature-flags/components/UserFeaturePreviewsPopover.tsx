@@ -13,6 +13,7 @@ import {
 } from "@/src/features/feature-flags/available-flags";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 type FeaturePreviewManagement = {
   allowed: boolean;
@@ -52,17 +53,19 @@ export function UserFeaturePreviewsControl({
         await session.update();
       }
       showSuccessToast({
+        operation: "user_feature_preview.update",
         title: "Feature preview updated",
         description: `${featurePreviewLabels[variables.flag]} was ${
           variables.enabled ? "enabled" : "disabled"
         } for this user.`,
       });
     },
-    onError: async () => {
+    onError: async (error) => {
       await utils.members.allFromOrg.invalidate();
       showErrorToast(
         "Failed to update feature preview",
         "Your access may have changed. Refresh and try again.",
+        classifyTrpcToastError(error, "user_feature_preview.update"),
       );
     },
   });
