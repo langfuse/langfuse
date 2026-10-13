@@ -34,10 +34,14 @@ import {
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
 import {
   CostBadge,
+  NoCostBadge,
   UsageBadge,
   hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
-import { resolveObservationCostSource } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
+import {
+  isGenerationMissingCost,
+  resolveObservationCostSource,
+} from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
 import {
   type WithStringifiedMetadata,
@@ -153,6 +157,12 @@ export const ObservationDetailViewHeader = memo(
     const displayedCostDetails =
       subtreeMetrics?.costDetails ?? observation.costDetails;
     const showsOwnObservationCost = !subtreeMetrics;
+    const showsNoCost = isGenerationMissingCost({
+      type: observation.type,
+      totalUsage: subtreeMetrics ? subtreeMetrics.totalUsage : totalUsage,
+      totalCost: displayedTotalCost,
+      costDetails: displayedCostDetails,
+    });
     const hasProvidedCostDetails =
       Object.keys(observation.providedCostDetails).length > 0;
     const costSource = resolveObservationCostSource({
@@ -494,13 +504,18 @@ export const ObservationDetailViewHeader = memo(
                   projectId={projectId}
                 />
               )}
-            {displayedTotalCost != null && displayedCostDetails && (
-              <CostBadge
-                totalCost={displayedTotalCost}
-                costDetails={displayedCostDetails}
-                costSource={costSource}
-                priceSource={priceSource}
-              />
+            {showsNoCost ? (
+              <NoCostBadge />
+            ) : (
+              displayedTotalCost != null &&
+              displayedCostDetails && (
+                <CostBadge
+                  totalCost={displayedTotalCost}
+                  costDetails={displayedCostDetails}
+                  costSource={costSource}
+                  priceSource={priceSource}
+                />
+              )
             )}
             {subtreeMetrics
               ? subtreeMetrics.hasGenerationLike &&
