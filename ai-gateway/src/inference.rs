@@ -17,6 +17,7 @@ use crate::{
 pub struct InferenceService {
     control_plane: ControlPlaneClient,
     provider: ProviderTransport,
+    request_body_capacity: Semaphore,
     resolution_capacity: Semaphore,
     telemetry: Option<crate::telemetry::Telemetry>,
 }
@@ -27,6 +28,10 @@ pub(crate) enum RequestPreparationError {
 }
 
 pub(crate) struct ResolutionPermit<'a> {
+    _permit: SemaphorePermit<'a>,
+}
+
+pub(crate) struct RequestBodyPermit<'a> {
     _permit: SemaphorePermit<'a>,
 }
 
@@ -50,6 +55,7 @@ impl InferenceService {
             provider: ProviderTransport::new(max_active_requests)
                 .map_err(|_| ResolutionError::Configuration)?
                 .with_telemetry(telemetry.clone()),
+            request_body_capacity: Semaphore::new(max_concurrent_resolutions),
             resolution_capacity: Semaphore::new(max_concurrent_resolutions),
             telemetry: Some(telemetry),
         })
@@ -69,6 +75,16 @@ impl InferenceService {
         Ok(ResolutionPermit { _permit: permit })
     }
 
+    pub(crate) fn try_reserve_request_body(
+        &self,
+    ) -> Result<RequestBodyPermit<'_>, RequestPreparationError> {
+        let permit = self.request_body_capacity.try_acquire().map_err(|_| {
+            crate::observability::rejected("request_body");
+            RequestPreparationError::Resolution(ResolutionError::Unavailable)
+        })?;
+        Ok(RequestBodyPermit { _permit: permit })
+    }
+
     pub(crate) async fn models(
         &self,
         _resolution_permit: ResolutionPermit<'_>,
@@ -82,9 +98,9 @@ impl InferenceService {
             .await
     }
 
-    /// Authenticate with the permit reserved before the request body was buffered, then reserve
-    /// execution capacity. The API format comes from the public route, so Web selects a compatible
-    /// connection. A successful resolution is recorded even if execution admission then fails.
+    /// Authenticate, then reserve execution capacity. The API format comes from the public route,
+    /// so Web selects a compatible connection. A successful resolution is recorded even if
+    /// execution admission then fails.
     pub(crate) async fn resolve_and_admit(
         &self,
         resolution_permit: ResolutionPermit<'_>,
@@ -174,6 +190,7 @@ impl InferenceService {
         Self {
             control_plane,
             provider,
+            request_body_capacity: Semaphore::new(resolutions),
             resolution_capacity: Semaphore::new(resolutions),
             telemetry: None,
         }
