@@ -17,6 +17,14 @@ import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecation
 import { randomUUID } from "crypto";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "4.5mb",
+    },
+  },
+};
+
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Score",

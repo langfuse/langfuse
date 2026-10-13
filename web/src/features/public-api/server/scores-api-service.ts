@@ -220,7 +220,7 @@ function determineTraceJoinRequirement(
 function toScoreCreateEvent(body: unknown) {
   const isRecord =
     typeof body === "object" && body !== null && !Array.isArray(body);
-    
+
   const { timestamp, ...scoreBody } = isRecord
     ? (body as Record<string, unknown>)
     : {};
