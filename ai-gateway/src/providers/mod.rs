@@ -209,6 +209,12 @@ impl ProviderTransport {
         let api_format = route.api_format();
         let (credential_name, mut credential) = provider_credential(&context)?;
         credential.set_sensitive(true);
+        let provider_model = context.connection().provider_model();
+        let body = if route.requires_model_rewrite() {
+            rewrite_model(body, provider_model.ok_or(ProviderError::Configuration)?)
+        } else {
+            body
+        };
         let mut capture = if route.captures_generation() {
             let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
             if let Some(telemetry) = &self.telemetry {
@@ -218,13 +224,7 @@ impl ProviderTransport {
         } else {
             ExecutionCapture::unobserved()
         };
-        let provider_model = context.connection().provider_model();
-        let body = if route.requires_model_rewrite() {
-            rewrite_model(body, provider_model.ok_or(ProviderError::Configuration)?)
-        } else {
-            body
-        };
-        // The capture keeps the caller's own request; only the upstream copy asks for usage.
+        // Capture the provider model, but keep stream-usage augmentation upstream-only.
         let body = match route {
             Route::OpenAiChatCompletions => {
                 chat_completions::request_stream_usage(headers, &body).unwrap_or(body)
