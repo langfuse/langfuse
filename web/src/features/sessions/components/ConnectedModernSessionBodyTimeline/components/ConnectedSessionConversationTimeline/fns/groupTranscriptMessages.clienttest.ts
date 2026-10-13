@@ -31,12 +31,23 @@ const message = (parts: NormalizedMessagePart[]): NormalizedMessage => ({
 });
 
 describe("groupTranscriptMessages", () => {
-  it("keeps a media-only result and its omission metadata inside the tool row", () => {
+  it("keeps a media-only result inside the tool row", () => {
     const toolCall = call("a");
     const toolResult: ToolResultPart = {
       ...result("a"),
-      output: null,
-      omittedContent: [{ kind: "media", count: 2 }],
+      output: {
+        type: "content",
+        value: [
+          {
+            type: "file",
+            content: { kind: "url", url: "https://example.com/a.png" },
+          },
+          {
+            type: "file",
+            content: { kind: "url", url: "https://example.com/b.png" },
+          },
+        ],
+      },
     };
     const response = { ...message([toolResult]), role: "tool" as const };
 

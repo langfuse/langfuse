@@ -32,9 +32,13 @@ beforeEach(() => {
   mocks.root.mockReset();
 });
 
-it.each(["ERROR", "WARNING"] as const)(
-  "retains %s tool status with null output without metadata recovery",
-  async (level) => {
+it.each(
+  ["ERROR", "WARNING"].flatMap((level) =>
+    [null, "", []].map((output) => ({ level, output })),
+  ),
+)(
+  "retains tool status with empty output without metadata recovery: %j",
+  async ({ level, output }) => {
     const generation = {
       id: "generation",
       traceId: "trace",
@@ -65,7 +69,7 @@ it.each(["ERROR", "WARNING"] as const)(
       parentObservationId: generation.id,
       startTime: new Date(2),
       input: {},
-      output: null,
+      output,
       level,
       statusMessage: "Search unavailable",
       metadata: { callID: "conflicting" },

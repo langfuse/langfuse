@@ -61,10 +61,17 @@ export async function loadTraceTranscript(trace: {
       // matching without recovering IDs from metadata or inventing calls.
       if (
         withContent.type === "TOOL" &&
-        withContent.output === null &&
         (withContent.level === "ERROR" ||
           withContent.level === "WARNING" ||
-          withContent.statusMessage)
+          withContent.statusMessage) &&
+        normalizeIO({
+          kind: "io",
+          io: {
+            input: undefined,
+            output: withContent.output,
+            metadata: withContent.metadata,
+          },
+        }).messages.every((message) => message.parts.length === 0)
       ) {
         return [
           {
