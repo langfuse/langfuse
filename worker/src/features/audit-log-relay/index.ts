@@ -27,6 +27,10 @@ const FAILED_ROW_RETRY_DELAY = Prisma.sql`INTERVAL '10 minutes'`;
 
 const MAX_FAILURE_BACKOFF_MS = 30_000;
 
+// A task whose batches keep failing gives up the lease, so a fault local to
+// it, such as a broken connection pool, does not stall the relay.
+const LEASE_HANDOVER_AFTER_FAILURES = 3;
+
 // Counting the staging table scans it, so the gauges are refreshed at most
 // this often while a backlog drains batch after batch, and the scan is cut
 // off well within the lease.
@@ -46,7 +50,8 @@ const LOGGED_FAILURES_MAX = 10;
  *
  * One worker task keeps the Redis lease and relays every interval. The other
  * tasks check for a free lease every half lease TTL, so a lease left by a
- * crashed task is taken over within 1.5 lease TTLs. Concurrent batches claim
+ * crashed task is taken over within 1.5 lease TTLs, and a task whose batches
+ * keep failing hands it over. Concurrent batches claim
  * disjoint rows (FOR UPDATE SKIP LOCKED), so the lease only keeps tasks from
  * competing for the same rows. When Redis is unavailable, every task relays
  * at the slower cadence.
@@ -59,6 +64,7 @@ export class AuditLogRelay extends PeriodicExclusiveRunner {
   private readonly leaseCheckIntervalMs: number;
   private readonly insertRecords: AuditLogRecordInserter;
   private holdsLease = false;
+  private stopped = false;
   private consecutiveFailures = 0;
   private lastStagingMetricsAt = 0;
 
@@ -98,6 +104,7 @@ export class AuditLogRelay extends PeriodicExclusiveRunner {
   }
 
   public override start(): void {
+    this.stopped = false;
     logger.info(`Starting ${this.instanceName}`, {
       intervalMs: this.intervalMs,
       lockTtlSeconds: this.lockTtlSeconds,
@@ -113,14 +120,18 @@ export class AuditLogRelay extends PeriodicExclusiveRunner {
    */
   public override stop(): void {
     super.stop();
-    if (!this.holdsLease) return;
-    this.holdsLease = false;
-    // Logs instead of rejecting, and stop() cannot await it.
-    this.lock.release();
+    this.stopped = true;
+    this.releaseLease();
   }
 
   protected async execute(): Promise<number | void> {
     const lease = await this.holdLease();
+    // stop() may have run while the lease was being taken.
+    if (this.stopped) {
+      this.releaseLease();
+      this.markRunSkipped();
+      return;
+    }
     if (lease === "held_by_other") {
       this.markRunSkipped();
       return this.leaseCheckIntervalMs;
@@ -143,24 +154,40 @@ export class AuditLogRelay extends PeriodicExclusiveRunner {
 
   /**
    * Renews a held lease at most every third of its TTL, or tries to take a
-   * free one. "skipped" means Redis is unavailable.
+   * free one. "skipped" means Redis is unavailable; a task that held the
+   * lease keeps counting it as held and renews it once Redis is back.
    */
   private async holdLease(): Promise<LockAcquireResult> {
-    if (this.holdsLease) {
-      try {
-        await this.extendLockOnProgress();
-        return "acquired";
-      } catch (error) {
-        if (!(error instanceof PeriodicExclusiveRunnerLeaseLostError)) {
-          throw error;
-        }
-        this.holdsLease = false;
-      }
-    }
+    if (this.holdsLease && (await this.renewLease())) return "acquired";
 
     const result = await this.lock.acquire();
-    this.holdsLease = result === "acquired";
-    return result;
+    if (result === "skipped") return result;
+    if (result === "acquired") {
+      this.holdsLease = true;
+      return result;
+    }
+    // A renewal that failed on a Redis error leaves this task's own lease in
+    // place, which SET NX refuses.
+    this.holdsLease =
+      this.holdsLease && (await this.lock.isHeldByCurrentProcess());
+    return this.holdsLease ? "acquired" : "held_by_other";
+  }
+
+  private async renewLease(): Promise<boolean> {
+    try {
+      await this.extendLockOnProgress();
+      return true;
+    } catch (error) {
+      if (error instanceof PeriodicExclusiveRunnerLeaseLostError) return false;
+      throw error;
+    }
+  }
+
+  private releaseLease(): void {
+    if (!this.holdsLease) return;
+    this.holdsLease = false;
+    // Logs instead of rejecting, and stop() cannot await it.
+    this.lock.release();
   }
 
   /**
@@ -227,6 +254,11 @@ export class AuditLogRelay extends PeriodicExclusiveRunner {
   private backOffAfterFailure(): number {
     recordIncrement(`${METRIC_PREFIX}.relay_errors`, 1);
     this.consecutiveFailures += 1;
+    if (this.consecutiveFailures >= LEASE_HANDOVER_AFTER_FAILURES) {
+      this.consecutiveFailures = 0;
+      this.releaseLease();
+      return this.leaseCheckIntervalMs;
+    }
     return Math.min(
       this.intervalMs * 2 ** this.consecutiveFailures,
       MAX_FAILURE_BACKOFF_MS,

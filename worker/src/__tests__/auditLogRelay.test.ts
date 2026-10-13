@@ -226,7 +226,8 @@ describe("AuditLogRelay", () => {
     expect(await auditLogIds(orgId)).toEqual(sorted([validId, failingId]));
   });
 
-  it("runs again right away while batches come back full", async () => {
+  it("runs again right away while batches come back full", async (ctx) => {
+    if (!redis) ctx.skip("Redis must be available for the lease");
     await stageChangeEvents(randomUUID(), 3);
     const relay = new AuditLogRelay({ batchSize: 2, lockKey: testLockKey() });
 
@@ -257,5 +258,68 @@ describe("AuditLogRelay", () => {
       await expect(follower.processBatch()).resolves.toBeUndefined();
     });
     follower.stop();
+  });
+
+  it("hands the lease over after repeated failed batches", async (ctx) => {
+    if (!redis) ctx.skip("Redis must be available for the lease");
+    const lockKey = testLockKey();
+    const failing = new AuditLogRelay({
+      lockKey,
+      lockTtlSeconds: 10,
+      intervalMs: 1_000,
+      insertRecords: async () => {
+        throw new Error("ClickHouse unreachable from this task");
+      },
+    });
+    const healthy = new AuditLogRelay({ lockKey, lockTtlSeconds: 10 });
+    await stageChangeEvents(randomUUID(), 1);
+
+    // Backs off while keeping the lease, then waits like a follower.
+    await expect(failing.processBatch()).resolves.toBe(2_000);
+    await expect(failing.processBatch()).resolves.toBe(4_000);
+    await expect(healthy.processBatch()).resolves.toBe(5_000);
+    await expect(failing.processBatch()).resolves.toBe(5_000);
+
+    await expect(healthy.processBatch()).resolves.toBeUndefined();
+    expect(await stagedIds()).toEqual([]);
+    failing.stop();
+    healthy.stop();
+  });
+
+  it("keeps its lease when a renewal fails but Redis still holds it", async (ctx) => {
+    if (!redis) ctx.skip("Redis must be available for the lease");
+    const lockKey = testLockKey();
+    const leader = new AuditLogRelay({ lockKey, lockTtlSeconds: 10 });
+    const follower = new AuditLogRelay({ lockKey, lockTtlSeconds: 10 });
+    await expect(leader.processBatch()).resolves.toBeUndefined();
+    await stageChangeEvents(randomUUID(), 1);
+    // RedisLock.extend() reports a Redis error during renewal as false.
+    vi.spyOn(leader["lock"], "extend").mockResolvedValueOnce(false);
+
+    await expect(leader.processBatch()).resolves.toBeUndefined();
+    expect(await stagedIds()).toEqual([]);
+    await expect(follower.processBatch()).resolves.toBe(5_000);
+    leader.stop();
+    follower.stop();
+  });
+
+  it("releases a lease it acquires while being stopped", async (ctx) => {
+    if (!redis) ctx.skip("Redis must be available for the lease");
+    const lockKey = testLockKey();
+    const stopping = new AuditLogRelay({ lockKey, lockTtlSeconds: 10 });
+    const next = new AuditLogRelay({ lockKey, lockTtlSeconds: 10 });
+    const lock = stopping["lock"];
+    const acquire = lock.acquire.bind(lock);
+    vi.spyOn(lock, "acquire").mockImplementationOnce(async () => {
+      stopping.stop();
+      return acquire();
+    });
+
+    await stopping.processBatch();
+
+    await vi.waitFor(async () => {
+      await expect(next.processBatch()).resolves.toBeUndefined();
+    });
+    next.stop();
   });
 });
