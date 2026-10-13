@@ -1,10 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  AlertTriangle,
-  ExternalLinkIcon,
-  Info,
-  RefreshCcw,
-} from "lucide-react";
+import { AlertTriangle, ExternalLinkIcon, Info } from "lucide-react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -82,6 +77,7 @@ export type ConfigureTopicsSaveDraft = {
   filters: FilterState;
   sampling: number;
   idleSeconds: string;
+  enabled: boolean;
 };
 
 export type ConfigureTopicsDraft = {
@@ -94,6 +90,8 @@ export type ConfigureTopicsDraft = {
   sampling: number;
   idleSeconds: string;
   embeddingLocked: boolean;
+  /** Automatic processing of new traces (`topic_configs.enabled`). */
+  enabled: boolean;
 };
 
 type ConfigureTopicsDialogProps = {
@@ -177,6 +175,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
   const [browsing, setBrowsing] = useState(facets[0]?.id ?? ADD_FACET_TAB);
   const [idleSeconds, setIdleSeconds] = useState(draft.idleSeconds);
   const [filters, setFilters] = useState(draft.filters);
+  const [enabled, setEnabled] = useState(draft.enabled);
   const [samplingStore] = useState(() =>
     createRuleSetupStore({
       name: "",
@@ -192,12 +191,10 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
     (["summary", "embedding", "clustering"] as const).every(
       (slot) => slotChecks[slot]?.status === "ok",
     );
+  const modelsPass = modelsReady && testsReady;
+  // Saving with automatic processing off skips the model tests on the server.
   const canSave =
-    canWrite &&
-    !saving &&
-    modelsReady &&
-    enabledFacets.length > 0 &&
-    testsReady;
+    canWrite && !saving && enabledFacets.length > 0 && (!enabled || modelsPass);
   const browsed = facets.find((facet) => facet.id === browsing) ?? null;
   const atFacetCap = enabledFacets.length >= MAX_ENABLED_FACETS;
   const commitSlot = (
@@ -257,6 +254,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                   filters,
                   sampling: samplingStore.getState().sampling,
                   idleSeconds,
+                  enabled,
                 }),
               )
                 .then(() => setOpen(false))
@@ -272,7 +270,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               </Alert>
               {paused ? (
                 <PausedNotice
-                  canReactivate={canSave}
                   shortLabel={paused.shortLabel}
                   pausedAgo={paused.pausedAgo}
                   message={paused.message}
@@ -377,6 +374,20 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                     samplingStore={samplingStore}
                   />
                 ) : null}
+              </Stepper>
+              <Stepper
+                number={4}
+                title="Automatic processing"
+                description="Summarize new traces once they are idle. Manual runs work either way."
+                compactBottomSpacing
+              >
+                <AutomaticProcessing
+                  enabled={enabled}
+                  disabled={!canWrite}
+                  modelsPass={modelsPass}
+                  pausedLabel={paused?.shortLabel ?? null}
+                  onEnabledChange={setEnabled}
+                />
               </Stepper>
             </div>
             {saveError ? (
@@ -1037,14 +1048,71 @@ function TraceScopeFrame({
   );
 }
 
+function automaticProcessingHint({
+  enabled,
+  modelsPass,
+  paused,
+}: {
+  enabled: boolean;
+  modelsPass: boolean;
+  paused: boolean;
+}) {
+  if (enabled && !modelsPass)
+    return "Choose three models that pass their test to save with this on.";
+  if (enabled && paused)
+    return "Saving tests the models again and clears the pause.";
+  if (enabled) return "New traces are summarized once they are idle.";
+  if (paused)
+    return "Fix the connection, turn this on, and save to resume. Saving with it off keeps Topics off and clears the pause.";
+  return "New traces are not processed. Saving with this off does not test the models.";
+}
+
+function AutomaticProcessing({
+  disabled,
+  enabled,
+  modelsPass,
+  onEnabledChange,
+  pausedLabel,
+}: {
+  disabled: boolean;
+  enabled: boolean;
+  modelsPass: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+  pausedLabel: string | null;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <Switch
+            checked={enabled}
+            disabled={disabled}
+            aria-label="Process new traces automatically"
+            onCheckedChange={onEnabledChange}
+          />
+          Process new traces automatically
+        </label>
+        {pausedLabel && !enabled ? (
+          <Badge text={`Paused: ${pausedLabel}`} color="yellow" size="sm" />
+        ) : null}
+      </div>
+      <p className="text-muted-foreground text-xs">
+        {automaticProcessingHint({
+          enabled,
+          modelsPass,
+          paused: pausedLabel !== null,
+        })}
+      </p>
+    </div>
+  );
+}
+
 function PausedNotice({
-  canReactivate,
   message,
   onConfigureProviders,
   pausedAgo,
   shortLabel,
 }: {
-  canReactivate: boolean;
   message: string;
   onConfigureProviders: () => void;
   pausedAgo: string;
@@ -1074,16 +1142,6 @@ function PausedNotice({
             >
               <ExternalLinkIcon className="icon-base text-icon-foreground mr-1.5" />
               Open LLM connections
-            </LegacyButton>
-            {/* Saving re-runs the model tests and clears the pause. */}
-            <LegacyButton
-              type="submit"
-              variant="outline"
-              size="sm"
-              disabled={!canReactivate}
-            >
-              <RefreshCcw className="icon-base text-icon-foreground mr-1.5" />
-              Reactivate
             </LegacyButton>
           </div>
         </div>

@@ -42,6 +42,7 @@ const emptyDraft = {
   sampling: 1,
   idleSeconds: "600",
   embeddingLocked: false,
+  enabled: true,
 } satisfies ConfigureTopicsDraft;
 
 const filledDraft = {
@@ -65,6 +66,7 @@ const filledDraft = {
   ],
   sampling: 0.4,
   embeddingLocked: true,
+  enabled: true,
 } satisfies ConfigureTopicsDraft;
 
 const meta = preview.meta({
@@ -129,13 +131,41 @@ export const SavesTheSheet = meta.story({
 
 export const Paused = meta.story({
   args: {
-    draft: filledDraft,
+    draft: { ...filledDraft, enabled: false },
     defaultOpen: true,
     notice: "paused",
     shortLabel: "LLM connection missing",
     pausedAgo: "3 days ago",
     message:
-      "No LLM connection found for the provider used by facet summaries. Add or restore the LLM connection, then reactivate Topics.",
+      'The LLM connection "Amazon Bedrock" was deleted. Choose another connection, then turn on "Process new traces automatically" in Configure Topics.',
     triggerVariant: "primary",
+  },
+});
+
+export const SavesTurnedOffWithoutModelTests = meta.story({
+  name: "(Test) Save with automatic processing off ignores failing model tests",
+  args: {
+    draft: filledDraft,
+    defaultOpen: true,
+    notice: "none",
+    triggerVariant: "secondary",
+    slotChecks: {
+      summary: { status: "ok" },
+      embedding: { status: "ok" },
+      clustering: { status: "error", message: "Invalid API key." },
+    },
+  },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    const save = body.getByRole("button", { name: "Save" });
+    await expect(save).toBeDisabled();
+    await userEvent.click(
+      body.getByRole("switch", { name: "Process new traces automatically" }),
+    );
+    await expect(save).toBeEnabled();
+    await userEvent.click(save);
+    await expect(args.onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
   },
 });

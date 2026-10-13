@@ -17,6 +17,7 @@ const draft: ConfigureTopicsSaveDraft = {
   clustering: null,
   idleSeconds: "120",
   sampling: 0.25,
+  enabled: true,
   filters: [
     { column: "name", type: "string", operator: "=", value: "billing" },
   ],
@@ -50,6 +51,20 @@ describe("topicsSetupPayload", () => {
         name: facet.name,
         enabled: index !== 1,
       })),
+    });
+  });
+
+  it("saves automatic processing turned off, even without models", () => {
+    expect(
+      topicsSetupPayload(
+        { ...draft, enabled: false },
+        { ...slots, summary: null, embedding: null, clustering: null },
+      ),
+    ).toMatchObject({
+      enabled: false,
+      summary: null,
+      embedding: null,
+      clustering: null,
     });
   });
 

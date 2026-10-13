@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -108,6 +109,7 @@ export function useTopicModelSettings({
         sampling: 1,
         idleSeconds: "600",
         embeddingLocked: false,
+        enabled: true,
       }}
       defaultOpen={false}
       onConfigureProviders={() => undefined}
@@ -118,7 +120,45 @@ export function useTopicModelSettings({
     />
   );
 
-  return { action, notice };
+  const status = settings.data ? (
+    <TopicsStatusBadge
+      enabled={settings.data.enabled ?? false}
+      paused={Boolean(settings.data.blockMessage)}
+    />
+  ) : null;
+
+  return { action, notice, status };
+}
+
+function topicsStatus({
+  enabled,
+  paused,
+}: {
+  enabled: boolean;
+  paused: boolean;
+}) {
+  if (paused) return { text: "Paused", color: "yellow" } as const;
+  if (enabled) return { text: "On", color: "green" } as const;
+  return { text: "Off", color: "primary" } as const;
+}
+
+function TopicsStatusBadge({
+  enabled,
+  paused,
+}: {
+  enabled: boolean;
+  paused: boolean;
+}) {
+  const { text, color } = topicsStatus({ enabled, paused });
+  return (
+    <Badge
+      label="Topics"
+      text={text}
+      color={color}
+      size="md"
+      title={`Automatic processing of new traces is ${text.toLowerCase()}`}
+    />
+  );
 }
 
 function ConfigureTopicsSettings({
@@ -181,6 +221,7 @@ function ConfigureTopicsSettings({
     sampling: rule?.sampling ?? 1,
     idleSeconds: String((traceIdleMs ?? 600_000) / 1000),
     embeddingLocked: false,
+    enabled: stored.enabled ?? true,
   };
   const paused = stored.blockMessage
     ? {
@@ -300,7 +341,7 @@ function ConfigureTopicsSettings({
       stored.clustering?.llmApiKeyId,
       "chat",
     );
-    if (!summary || !embedding || !clustering)
+    if (value.enabled && (!summary || !embedding || !clustering))
       throw new Error("Choose a model from a connection in this project.");
     try {
       await save.mutateAsync({

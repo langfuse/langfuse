@@ -12,7 +12,7 @@ export function topicsSetupPayload(
 ): TopicsSetup {
   const parsed = topicsSetupSchema.safeParse({
     ...slots,
-    enabled: true,
+    enabled: value.enabled,
     facets: value.facets
       .filter((facet) => facet.builtIn)
       .map((facet) => ({ name: facet.name, enabled: facet.enabled })),

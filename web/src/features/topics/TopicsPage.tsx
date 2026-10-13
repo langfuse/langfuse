@@ -264,6 +264,7 @@ function TopicsWorkspaceView({
   });
   const actions = (
     <div className="ph-no-capture flex items-center justify-end gap-1">
+      {modelSettings.status}
       {modelSettings.action}
       {primaryAction}
       <DropdownMenu
