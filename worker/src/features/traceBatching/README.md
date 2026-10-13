@@ -547,7 +547,8 @@ disabled performs no new aggregation or Redis calls.
 | `queue_depth`                                              | Gauge; `type:delayed`                            | Delayed BullMQ jobs. Waiting, active, and failed depth stay on `langfuse.queue.trace_batch.depth`. Request rate, wait time, and processing time use the generic `langfuse.queue.trace_batch` series, the same as every other queue. Processing time is recorded when the processor returns. Discard reasons stay on `discarded_jobs`. |
 | `queue_waiting_head_age_ms`                                | Gauge                                            | Maximum creation age of the next FIFO jobs in waiting/paused lists. Zero when empty.                                                                                                                                                                                                                                                  |
 | `redis_key_bytes`                                          | Gauge; `key:due\|state\|first`, `shard:N\|total` | Estimated memory of each readiness key, including Redis overhead.                                                                                                                                                                                                                                                                     |
-| `redis_key_entries`                                        | Gauge; `key:due\|state\|first`, `shard:N\|total` | `ZCARD` / `HLEN` at the memory snapshot.                                                                                                                                                                                                                                                                                              |
+| `redis_key_entries`                                        | Gauge; `key:due\|state\|first`, `shard:N\|total` | `ZCARD` / `HLEN` at the memory snapshot. `key:due` per shard is that shard's pending count.                                                                                                                                                                                                                                           |
+| `pending_traces`, `ready_traces`, `oldest_due_age_ms`      | Gauges, untagged                                 | Dispatcher snapshot summed (age: maximum) across shards, emitted by the current dispatcher lease holder.                                                                                                                                                                                                                              |
 
 The eligible and recorded counters reuse the already-computed serialized size and
 per-trace aggregates. Recorded volume is emitted after each acknowledged Lua
@@ -570,6 +571,16 @@ Memory collection uses bounded per-shard Lua calls with `MEMORY USAGE ...
 SAMPLES 5`, preserving the shared key prefix and Redis Cluster slot routing.
 Missing keys report zero; there is no keyspace scan or exact full-hash traversal.
 Memory sampling estimates storage, not process RSS or event payload size.
+
+Datadog tags every series with the emitting ECS task, so each shard-tagged
+gauge costs one custom metric per reporting task. Every worker emits only
+`shard:total`. One worker holds the renewable
+`{trace-batch}:shard-metrics-reporter` lease (3 minute TTL, renewed at each
+memory sample) and additionally emits the `shard:N` series. The holder keeps it
+until it stops sampling, so per-shard series come from about one task per hour.
+After the holder exits, per-shard series pause until the lease expires. The
+dispatcher lease is released after every run and moves between workers, so the
+dispatcher emits only untagged totals.
 
 Queue/map snapshots are global and can be emitted by several workers: use
 max/latest across reporters, never sum duplicates. For map totals, first

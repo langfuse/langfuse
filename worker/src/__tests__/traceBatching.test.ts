@@ -638,8 +638,21 @@ describe("trace micro-batch scheduling with Redis", () => {
         ...getTraceBatchFirstKeys(shard, Date.now()).keys,
       );
     }
-    await client().del("{trace-batch}:dispatcher");
+    await client().del(
+      "{trace-batch}:dispatcher",
+      "{trace-batch}:shard-metrics-reporter",
+    );
   }
+
+  const gaugeSeries = () =>
+    new Set(
+      vi
+        .mocked(recordGauge)
+        .mock.calls.map(([name, , tags]) => `${name} ${JSON.stringify(tags)}`),
+    );
+  const memorySamples = (evaluate: { mock: { calls: unknown[][] } }) =>
+    evaluate.mock.calls.filter(([script]) => String(script).includes("MEMORY"))
+      .length;
 
   beforeEach(async () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
@@ -903,8 +916,19 @@ describe("trace micro-batch scheduling with Redis", () => {
       );
     }
     const evaluate = vi.spyOn(client(), "evalsha");
+    vi.mocked(recordGauge).mockClear();
     await runner().processBatch();
     expect(await queue.getWaitingCount()).toBe(4);
+    // The dispatcher lease rotates, so readiness gauges carry no shard series.
+    expect(
+      [...gaugeSeries()].filter((entry) =>
+        /pending_traces|ready_traces|oldest_due_age_ms/.test(entry),
+      ),
+    ).toEqual([
+      "langfuse.trace_batch.pending_traces undefined",
+      "langfuse.trace_batch.ready_traces undefined",
+      "langfuse.trace_batch.oldest_due_age_ms undefined",
+    ]);
     const acknowledgements = evaluate.mock.calls.filter(
       ([, keyCount]) => Number(keyCount) > 2,
     );
@@ -971,13 +995,13 @@ describe("trace micro-batch scheduling with Redis", () => {
 
     clock.mockReturnValue(now + 30_000);
     await metrics["execute"]();
-    expect(evaluate).toHaveBeenCalledTimes(1);
+    expect(memorySamples(evaluate)).toBe(1);
     await clearReadiness();
     await queue.drain(true);
     vi.mocked(recordGauge).mockClear();
     clock.mockReturnValue(now + 60_000);
     await metrics["execute"]();
-    expect(evaluate).toHaveBeenCalledTimes(2);
+    expect(memorySamples(evaluate)).toBe(2);
     expect(recordGauge).toHaveBeenCalledWith(
       "langfuse.trace_batch.active_reads",
       0,
@@ -986,6 +1010,47 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(
       vi.mocked(recordGauge).mock.calls.every(([, value]) => value === 0),
     ).toBe(true);
+  });
+
+  it("emits per-shard map gauges from one sticky reporter and only totals from other workers", async () => {
+    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 16;
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    const reporter = new TraceBatchMetricsRunner();
+    const other = new TraceBatchMetricsRunner();
+    const totalSeries = ["due", "state", "first"].flatMap((key) => [
+      `langfuse.trace_batch.redis_key_bytes ${JSON.stringify({ key, shard: "total", unit: "bytes" })}`,
+      `langfuse.trace_batch.redis_key_entries ${JSON.stringify({ key, shard: "total", unit: "records" })}`,
+    ]);
+    const workerSeries = [
+      ...totalSeries,
+      `langfuse.trace_batch.active_reads undefined`,
+      `langfuse.trace_batch.queue_depth ${JSON.stringify({ type: "delayed", unit: "records" })}`,
+      `langfuse.trace_batch.queue_waiting_head_age_ms ${JSON.stringify({ unit: "milliseconds" })}`,
+    ];
+    const shardSeries = (series: Set<string>) =>
+      [...series].filter((entry) => /"shard":"\d+"/.test(entry));
+    const sample = async (runner: TraceBatchMetricsRunner) => {
+      vi.mocked(recordGauge).mockClear();
+      await runner["execute"]();
+      return gaugeSeries();
+    };
+
+    const first = await sample(reporter);
+    expect(shardSeries(first)).toHaveLength(16 * 3 * 2);
+    expect(first).toEqual(new Set([...workerSeries, ...shardSeries(first)]));
+    expect(await sample(other)).toEqual(new Set(workerSeries));
+
+    // The holder renews instead of rotating to whichever worker ticks first.
+    clock.mockReturnValue(now + 60_000);
+    expect(await sample(other)).toEqual(new Set(workerSeries));
+    expect(shardSeries(await sample(reporter))).toHaveLength(16 * 3 * 2);
+
+    // An expired lease hands per-shard reporting to the next sampling worker.
+    await client().del("{trace-batch}:shard-metrics-reporter");
+    clock.mockReturnValue(now + 120_000);
+    expect(shardSeries(await sample(other))).toHaveLength(16 * 3 * 2);
+    expect(await sample(reporter)).toEqual(new Set(workerSeries));
   });
 
   it("awaits failed telemetry collections while preserving independent queue measurements", async () => {

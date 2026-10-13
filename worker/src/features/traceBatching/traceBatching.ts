@@ -1110,17 +1110,6 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         recordIncrement("langfuse.trace_batch.expired_traces", expired, {
           source: "dispatcher",
         });
-        recordGauge("langfuse.trace_batch.pending_traces", pending, {
-          shard: String(shard),
-        });
-        recordGauge("langfuse.trace_batch.ready_traces", ready, {
-          shard: String(shard),
-        });
-        recordGauge(
-          "langfuse.trace_batch.oldest_due_age_ms",
-          Math.max(0, now - oldest),
-          { shard: String(shard) },
-        );
         if (expired < CLEANUP_SIZE) {
           totals.pending += pending;
           totals.ready += ready;
@@ -1154,6 +1143,9 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         });
       }
     }
+    // The lease moves between workers after every run and Datadog tags each
+    // series with the emitting task, so keep these untagged. Per-shard due
+    // depth comes from `redis_key_entries` on the single shard reporter.
     recordGauge("langfuse.trace_batch.pending_traces", totals.pending);
     recordGauge("langfuse.trace_batch.ready_traces", totals.ready);
     recordGauge("langfuse.trace_batch.oldest_due_age_ms", totals.oldestAge);
