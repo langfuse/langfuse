@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 /**
  * Section title for the gallery. `sticky` pins it to the top of the gallery's
- * scroll pane over a blurred backdrop that fades out below it.
+ * scroll pane on an opaque backdrop that fades out below it.
  */
 export function EvaluatorGallerySectionHeader({
   label,
@@ -23,7 +23,7 @@ export function EvaluatorGallerySectionHeader({
   if (!sticky) return title;
 
   return (
-    <div className="bg-modal/80 after:from-modal/80 sticky top-0 z-10 -mx-4 -my-2 backdrop-blur-sm after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-3 after:bg-linear-to-b after:to-transparent">
+    <div className="bg-modal after:from-modal sticky top-0 z-10 -mx-4 -my-2 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-linear-to-b after:to-transparent">
       <div className="bg-muted/30 px-4 py-2">{title}</div>
     </div>
   );
