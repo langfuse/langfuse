@@ -1384,7 +1384,7 @@ model DefaultLlmModel {
 }
 
 // Per-project Topics configuration: the switch, pause state, and the three model
-// slots, each referencing one of the project's LLM connections.
+// slots. Providers are resolved to the project's effective connection at runtime.
 model TopicConfig {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
@@ -1405,16 +1405,19 @@ model TopicConfig {
   blockReason  EvaluatorBlockReason? @map("block_reason")
   blockMessage String?               @map("block_message")
 
+  summaryProvider    String?     @map("summary_provider")
   summaryLlmApiKeyId String?     @map("summary_llm_api_key_id")
   summaryLlmApiKey   LlmApiKeys? @relation("TopicConfigSummaryLlmApiKey", fields: [summaryLlmApiKeyId], references: [id], onDelete: SetNull)
   summaryModel       String?     @map("summary_model")
 
+  embeddingProvider    String?     @map("embedding_provider")
   embeddingLlmApiKeyId String?     @map("embedding_llm_api_key_id")
   embeddingLlmApiKey   LlmApiKeys? @relation("TopicConfigEmbeddingLlmApiKey", fields: [embeddingLlmApiKeyId], references: [id], onDelete: SetNull)
   embeddingModel       String?     @map("embedding_model")
   embeddingDimensions  Int         @default(1024) @map("embedding_dimensions")
 
   // Names and describes each cluster during Update topics.
+  clusteringProvider    String?     @map("clustering_provider")
   clusteringLlmApiKeyId String?     @map("clustering_llm_api_key_id")
   clusteringLlmApiKey   LlmApiKeys? @relation("TopicConfigClusteringLlmApiKey", fields: [clusteringLlmApiKeyId], references: [id], onDelete: SetNull)
   clusteringModel       String?     @map("clustering_model")

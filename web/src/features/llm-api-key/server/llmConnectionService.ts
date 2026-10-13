@@ -45,7 +45,7 @@ import {
 import { prisma, Prisma, type LlmApiKeys } from "@langfuse/shared/src/db";
 import {
   invalidateTopicsProcessingActive,
-  pauseTopicsModelsUsingConnection,
+  pauseTopicsModelsUsingProvider,
 } from "@langfuse/shared/topics/server";
 
 import {
@@ -823,19 +823,19 @@ export class LlmConnectionService {
 
         const topicConfigs = await tx.topicConfig.findMany({
           where: {
+            projectId: { in: providerProjectIds },
             OR: [
-              { summaryLlmApiKeyId: connection.id },
-              { embeddingLlmApiKeyId: connection.id },
-              { clusteringLlmApiKeyId: connection.id },
+              { summaryProvider: connection.provider },
+              { embeddingProvider: connection.provider },
+              { clusteringProvider: connection.provider },
             ],
           },
           select: { projectId: true },
         });
         for (const { projectId } of topicConfigs) {
-          await pauseTopicsModelsUsingConnection(
+          await pauseTopicsModelsUsingProvider(
             {
               projectId,
-              llmApiKeyId: connection.id,
               provider: connection.provider,
             },
             tx,

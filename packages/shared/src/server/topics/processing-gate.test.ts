@@ -56,8 +56,10 @@ describe("isTopicsProcessingActive", () => {
     expect(mocks.configFind.mock.calls[0][0].where).toMatchObject({
       projectId: "project-a",
       enabled: true,
+      summaryProvider: { not: null },
       summaryModel: { not: null },
-      embeddingLlmApiKeyId: { not: null },
+      embeddingProvider: { not: null },
+      clusteringProvider: { not: null },
       clusteringModel: { not: null },
     });
     expect(mocks.ruleFind.mock.calls[0][0].where.AND[1]).toEqual({

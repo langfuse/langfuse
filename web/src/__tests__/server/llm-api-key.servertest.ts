@@ -1888,7 +1888,6 @@ describe("llmApiKey.all RPC", () => {
           model: "gpt-4o",
         },
       });
-
       await caller.llmApiKey.delete({ projectId, id: connection.id });
 
       expect(mockFinalizeEvaluatorBlocks).toHaveBeenCalledOnce();
@@ -1967,6 +1966,21 @@ describe("llmApiKey.all RPC", () => {
           model: "gpt-4o",
         },
       });
+      await prisma.topicConfig.create({
+        data: {
+          projectId,
+          enabled: true,
+          summaryProvider: PROVIDER,
+          summaryLlmApiKeyId: projectConnection.id,
+          summaryModel: "gpt-4o",
+          embeddingProvider: PROVIDER,
+          embeddingLlmApiKeyId: projectConnection.id,
+          embeddingModel: "text-embedding-3-small",
+          clusteringProvider: PROVIDER,
+          clusteringLlmApiKeyId: projectConnection.id,
+          clusteringModel: "gpt-4o",
+        },
+      });
 
       await caller.llmApiKey.delete({
         projectId,
@@ -1995,6 +2009,22 @@ describe("llmApiKey.all RPC", () => {
         provider: PROVIDER,
         adapter: LLMAdapter.OpenAI,
         model: "gpt-4o",
+      });
+      expect(
+        await prisma.topicConfig.findUniqueOrThrow({
+          where: { projectId },
+          select: {
+            enabled: true,
+            summaryProvider: true,
+            embeddingProvider: true,
+            clusteringProvider: true,
+          },
+        }),
+      ).toEqual({
+        enabled: true,
+        summaryProvider: PROVIDER,
+        embeddingProvider: PROVIDER,
+        clusteringProvider: PROVIDER,
       });
     });
 
@@ -2068,10 +2098,13 @@ describe("llmApiKey.all RPC", () => {
         data: {
           projectId,
           enabled: true,
+          summaryProvider: PROVIDER,
           summaryLlmApiKeyId: connection.id,
           summaryModel: "gpt-6-luna",
+          embeddingProvider: PROVIDER,
           embeddingLlmApiKeyId: connection.id,
           embeddingModel: "text-embedding-3-small",
+          clusteringProvider: PROVIDER,
           clusteringLlmApiKeyId: connection.id,
           clusteringModel: "gpt-5.6-terra",
         },
