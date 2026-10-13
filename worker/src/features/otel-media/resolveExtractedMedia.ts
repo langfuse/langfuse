@@ -1,4 +1,5 @@
 import type { EarlyOtelBatch, ExtractedOtelMedia } from "@langfuse/native";
+import pLimit from "p-limit";
 import {
   defineOwnValue,
   isMediaContentType,
@@ -8,6 +9,8 @@ import {
 } from "@langfuse/shared";
 import {
   logger,
+  mediaDispatchConcurrency,
+  otelMediaUploads,
   recordDistribution,
   recordIncrement,
   type OtelMediaTarget,
@@ -83,6 +86,7 @@ export async function uploadExtractedMediaOnce(params: {
   mediaPrefix: string;
   sha256Hash: string;
   contentType: MediaContentType;
+  byteLengthUpperBound: number;
   loadBody: () => Promise<Buffer>;
 }): Promise<CachedMediaUpload> {
   const {
@@ -123,30 +127,32 @@ export async function uploadExtractedMediaOnce(params: {
     return { ...result, outcome: "reused" };
   }
 
-  const uploadPromise = (async (): Promise<CachedMediaUpload> => {
-    const contentBytes = await loadBody();
-    return {
-      ...(await uploadMediaForTrace({
-        projectId,
-        traceId,
-        observationId,
-        field,
-        contentType,
-        contentBytes,
-        sha256Hash,
-        mediaBucket,
-        mediaPrefix,
-        origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
-      })),
-      byteLength: contentBytes.length,
-    };
-  })();
+  const uploadPromise = otelMediaUploads.run(
+    params.byteLengthUpperBound,
+    async (): Promise<CachedMediaUpload> => {
+      const contentBytes = await loadBody();
+      return {
+        ...(await uploadMediaForTrace({
+          projectId,
+          traceId,
+          observationId,
+          field,
+          contentType,
+          contentBytes,
+          sha256Hash,
+          mediaBucket,
+          mediaPrefix,
+          origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+        })),
+        byteLength: contentBytes.length,
+      };
+    },
+  );
   cache.set(key, uploadPromise);
   try {
     return await uploadPromise;
   } catch (error) {
-    // A failed upload must not poison another occurrence or a later path that
-    // can retry the same asset with a fresh decoded body.
+    // Evict a failed attempt so later calls can retry.
     if (cache.get(key) === uploadPromise) cache.delete(key);
     throw error;
   }
@@ -202,6 +208,8 @@ export async function resolveExtractedMedia(params: {
   const media = await batchMedia(batch);
   if (media.size === 0) return stats;
   const rewrite = createMediaReferenceRewriter(batch, media);
+  // Share dispatch slots across strings so nested traversals cannot multiply links.
+  const dispatch = pLimit(mediaDispatchConcurrency());
 
   async function resolveReference(
     entry: ExtractedOtelMedia,
@@ -222,6 +230,8 @@ export async function resolveExtractedMedia(params: {
         traceId: target.traceId,
         observationId: target.observationId,
         field,
+        // Native retains encoded source spelling, which bounds the decoded body.
+        byteLengthUpperBound: entry.originalByteLength,
         loadBody: () => batch.mediaBody(entry.index),
       });
       const replacement = entry.reference.replace(
@@ -266,7 +276,10 @@ export async function resolveExtractedMedia(params: {
       target.payload[field] = await rewriteMediaValues(
         target.payload[field],
         (text) =>
-          rewrite(text, (entry) => resolveReference(entry, target, field)),
+          rewrite(text, (entry) =>
+            dispatch(() => resolveReference(entry, target, field)),
+          ),
+        true,
       );
     }
   }
