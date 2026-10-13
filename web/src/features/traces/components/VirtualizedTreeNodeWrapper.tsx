@@ -90,7 +90,8 @@ export function VirtualizedTreeNodeWrapper(
         // out, an accepted light/dark inconsistency.
         loaded &&
           (isSelected
-            ? "bg-muted text-foreground"
+            ? // Filled chips share bg-muted, so they take the panel background here.
+              "bg-muted text-foreground [&_.bg-muted]:bg-background"
             : "hover:bg-accent dark:text-muted-foreground"),
         loaded?.className,
       )}
