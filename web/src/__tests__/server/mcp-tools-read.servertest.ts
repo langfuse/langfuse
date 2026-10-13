@@ -1086,7 +1086,7 @@ describe("MCP Read Tools", () => {
                   ...(includeType ? { type: "datetime" } : {}),
                 },
               ],
-            },
+            } as unknown as Parameters<typeof handleListObservations>[0],
             mockServerContext(),
           ),
         ).rejects.toThrow('Invalid observation filter column "startTime"');
