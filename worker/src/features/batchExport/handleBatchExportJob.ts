@@ -37,9 +37,11 @@ const tableToCommentType: Record<string, CommentObjectType | undefined> = {
 
 const BATCH_EXPORT_CLICKHOUSE_SERVICE: PreferredClickhouseService = "ReadOnly";
 
-// Checks whether `target` produced `error`. Used to tell a read/transform
-// failure (whose error the uploader rethrows as its cause) apart from a genuine
-// storage failure that merely aborts the stream as a side effect.
+/**
+ * Checks whether `target` produced `error`, telling a read/transform failure
+ * (rethrown by the uploader as its cause) apart from a storage failure that
+ * merely aborts the stream as a side effect.
+ */
 const isCausedBy = (error: unknown, target: unknown): boolean =>
   findInCauseChain(error, (link) => link === target) !== undefined;
 

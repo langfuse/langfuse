@@ -1,5 +1,4 @@
-// Walks an error's `cause` chain and returns the first link matching
-// `predicate`. Guards against cause cycles.
+/** Returns the first link of `error`'s cause chain matching `predicate`; cycle-safe. */
 export const findInCauseChain = (
   error: unknown,
   predicate: (link: object) => boolean,

@@ -31,11 +31,11 @@ const rejectWithReadError = (message: string) => {
   const resourceError = ClickHouseResourceError.wrapIfResourceError(
     new Error(`${message} [query_id: q-1]`),
   );
-  mocks.handleBatchExportJob.mockRejectedValue(
-    new Error("[BATCH EXPORT] Reading export data failed", {
-      cause: resourceError,
-    }),
-  );
+  const handlerError = new Error("[BATCH EXPORT] Reading export data failed", {
+    cause: resourceError,
+  });
+  mocks.handleBatchExportJob.mockRejectedValue(handlerError);
+  return handlerError;
 };
 
 describe("batchExportQueueProcessor", () => {
@@ -45,6 +45,7 @@ describe("batchExportQueueProcessor", () => {
 
   it.each([
     "Timeout exceeded: elapsed 185002.1 ms, maximum: 185000 ms.",
+    "(for query) memory limit exceeded: would use 10.00 GiB, maximum: 9.31 GiB.",
     "Memory limit (for query) exceeded: would use 10.00 GiB, maximum: 9.31 GiB.",
   ])("fails without retry on a query-bound limit: %s", async (message) => {
     rejectWithReadError(message);
@@ -64,13 +65,19 @@ describe("batchExportQueueProcessor", () => {
 
   it.each([
     "Timeout error.",
+    "Timeout exceeded while reading from socket (10.0.0.1:8443, 30000 ms)",
     "(total) memory limit exceeded: would use 212.42 GiB, maximum: 212.40 GiB. OvercommitTracker decision: Query was selected to stop by OvercommitTracker.",
   ])("keeps retrying a load-dependent failure: %s", async (message) => {
-    rejectWithReadError(message);
+    const handlerError = rejectWithReadError(message);
 
     const thrown = await batchExportQueueProcessor(job).catch((e) => e);
 
-    expect(thrown.name).not.toBe("UnrecoverableError");
+    expect(thrown).toBe(handlerError);
+    expect(mocks.updateBatchExport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ log: "An internal error occurred" }),
+      }),
+    );
   });
 
   it("rethrows other errors so BullMQ retries them", async () => {

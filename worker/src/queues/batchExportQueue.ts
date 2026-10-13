@@ -16,13 +16,19 @@ import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
 import { findInCauseChain } from "../features/batchExport/findInCauseChain";
 
-// Server-side kills of this query alone (TIMEOUT_EXCEEDED, per-query
-// MEMORY_LIMIT_EXCEEDED). Client/socket timeouts and total, per-user or
-// overcommit memory kills depend on concurrent load and stay retryable.
-const QUERY_BOUND_RESOURCE_ERROR_PHRASES = [
-  "timeout exceeded",
-  "memory limit (for query) exceeded",
-];
+/**
+ * Server-side kills of this query alone: TIMEOUT_EXCEEDED and the per-query
+ * MEMORY_LIMIT_EXCEEDED, in both the older and newer ClickHouse wording.
+ * Client/socket timeouts and total, per-user or overcommit memory kills depend
+ * on concurrent load and stay retryable.
+ */
+const QUERY_BOUND_RESOURCE_ERROR_PATTERNS: Partial<
+  Record<ClickHouseResourceError["errorType"], RegExp>
+> = {
+  TIMEOUT: /\btimeout exceeded: elapsed\b/i,
+  MEMORY_LIMIT:
+    /memory limit \(for query\) exceeded|\(for query\) memory limit exceeded/i,
+};
 
 export const batchExportQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.BatchExport]>,
@@ -68,16 +74,17 @@ export const batchExportQueueProcessor = async (
   }
 };
 
-// Read-stream failures reach the processor as the cause of the handler's own
-// error, so the resource error can sit anywhere in the cause chain.
+/** Searches the whole cause chain, since the handler wraps read-stream failures. */
 const hasQueryBoundResourceErrorCause = (error: unknown): boolean =>
-  findInCauseChain(error, (link) => {
-    if (!ClickHouseResourceError.is(link)) return false;
-    const message = link.message.toLowerCase();
-    return QUERY_BOUND_RESOURCE_ERROR_PHRASES.some((phrase) =>
-      message.includes(phrase),
-    );
-  }) !== undefined;
+  findInCauseChain(
+    error,
+    (link) =>
+      ClickHouseResourceError.is(link) &&
+      (QUERY_BOUND_RESOURCE_ERROR_PATTERNS[link.errorType]?.test(
+        link.message,
+      ) ??
+        false),
+  ) !== undefined;
 
 const getDisplayError = (
   e: unknown,
