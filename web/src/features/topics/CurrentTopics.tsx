@@ -60,10 +60,7 @@ function CurrentFacet({
   tracePanelRef,
   traceFilters,
 }: CurrentFacetProps) {
-  const mapResult = api.topics.map.useQuery(
-    { projectId, runId: facet.map?.runId ?? "", timeRange },
-    { enabled: Boolean(facet.map) },
-  );
+  const mapResult = useCurrentTopicMap(projectId, facet.map?.runId, timeRange);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
@@ -134,6 +131,17 @@ export function useCurrentTopics({
     enabled: isValidTopicTimeRange(timeRange),
     meta: { toastOperation: "topics.load" },
   });
+}
+
+function useCurrentTopicMap(
+  projectId: string,
+  runId: string | undefined,
+  timeRange: TopicTimeRange,
+) {
+  return api.topics.map.useQuery(
+    { projectId, runId: runId ?? "", timeRange },
+    { enabled: Boolean(runId) },
+  );
 }
 
 type CurrentTopicsProps = {
