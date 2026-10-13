@@ -157,7 +157,7 @@ export type TopicsSetup = z.infer<typeof topicsSetupSchema>;
  */
 export const topicsAutomaticProcessingSchema = z.object({
   enabled: z.boolean(),
-  sampling: z.number().gt(0).max(1).optional(),
+  sampling: z.number().min(0).max(1).optional(),
 });
 export type TopicsAutomaticProcessing = z.infer<
   typeof topicsAutomaticProcessingSchema
