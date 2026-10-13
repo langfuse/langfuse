@@ -2600,6 +2600,8 @@ export class OtelIngestionProcessor {
       return prefix + attributes[operationIdAttribute];
     }
 
+    // Agent-name fallback is limited to Claude Managed Agents (CMA) traces.
+    // The Claude Platform scope alone is also used by regular API calls.
     const sessionId = attributes["anthropic.session.id"];
     const isClaudeManagedAgent =
       observationType === ObservationType.AGENT &&

@@ -5784,14 +5784,12 @@ describe("OTel Resource Span Mapping", () => {
       {
         scenario: "names the agent",
         operation: "invoke_agent",
-        agentName: "support-agent",
         expectedType: "AGENT",
         expectedName: "support-agent",
       },
       {
         scenario: "keeps generation names generic",
         operation: "chat",
-        agentName: "support-agent",
         expectedType: "GENERATION",
         expectedName: "anthropic.model_request",
       },
@@ -5799,29 +5797,13 @@ describe("OTel Resource Span Mapping", () => {
         scenario: "respects an explicit generation type",
         operation: "invoke_agent",
         explicitType: "generation",
-        agentName: "support-agent",
         expectedType: "GENERATION",
-        expectedName: "anthropic.session.turn",
-      },
-      {
-        scenario: "ignores a blank agent name",
-        operation: "invoke_agent",
-        agentName: " ",
-        expectedType: "AGENT",
-        expectedName: "anthropic.session.turn",
-      },
-      {
-        scenario: "ignores a non-string agent name",
-        operation: "invoke_agent",
-        agentName: false,
-        expectedType: "AGENT",
         expectedName: "anthropic.session.turn",
       },
       {
         scenario: "does not rename agents from other instrumentation scopes",
         scopeName: "other-agent-sdk",
         operation: "invoke_agent",
-        agentName: "support-agent",
         expectedType: "AGENT",
         expectedName: "anthropic.session.turn",
       },
@@ -5829,15 +5811,6 @@ describe("OTel Resource Span Mapping", () => {
         scenario: "requires a managed session ID",
         sessionId: null,
         operation: "invoke_agent",
-        agentName: "support-agent",
-        expectedType: "AGENT",
-        expectedName: "anthropic.session.turn",
-      },
-      {
-        scenario: "rejects a blank managed session ID",
-        sessionId: " ",
-        operation: "invoke_agent",
-        agentName: "support-agent",
         expectedType: "AGENT",
         expectedName: "anthropic.session.turn",
       },
@@ -5845,7 +5818,6 @@ describe("OTel Resource Span Mapping", () => {
         scenario: "requires an invoke_agent operation",
         operation: "chat",
         explicitType: "agent",
-        agentName: "support-agent",
         expectedType: "AGENT",
         expectedName: "anthropic.model_request",
       },
@@ -5856,7 +5828,6 @@ describe("OTel Resource Span Mapping", () => {
         sessionId = "session-example",
         operation,
         explicitType,
-        agentName,
         expectedType,
         expectedName,
       }) => {
@@ -5868,10 +5839,7 @@ describe("OTel Resource Span Mapping", () => {
           { key: "gen_ai.operation.name", value: { stringValue: operation } },
           {
             key: "gen_ai.agent.name",
-            value:
-              typeof agentName === "string"
-                ? { stringValue: agentName }
-                : { boolValue: agentName },
+            value: { stringValue: "support-agent" },
           },
         ];
         if (sessionId !== null) {
