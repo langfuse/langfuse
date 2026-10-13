@@ -83,6 +83,9 @@ export function VirtualizedTreeNodeWrapper(
 
   return (
     <div
+      data-surface={
+        loaded ? (isSelected ? "muted" : "muted-on-hover") : undefined
+      }
       className={cn(
         "group relative flex w-full px-0",
         loaded && "cursor-pointer",
@@ -90,8 +93,7 @@ export function VirtualizedTreeNodeWrapper(
         // out, an accepted light/dark inconsistency.
         loaded &&
           (isSelected
-            ? // Filled chips share bg-muted, so they take the panel background here.
-              "bg-muted text-foreground [&_.bg-muted]:bg-background"
+            ? "bg-muted text-foreground"
             : "hover:bg-accent dark:text-muted-foreground"),
         loaded?.className,
       )}

@@ -24,7 +24,9 @@ const badgeVariants = cva(
         teal: "border-transparent bg-light-teal text-dark-teal",
         green: "border-transparent bg-light-green text-dark-green",
         ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
-        filled: "border-transparent bg-muted text-foreground-secondary",
+        /** On a `data-surface="muted"` row (or `muted-on-hover` while hovered) the fill flips to the background so it stays visible. */
+        filled:
+          "border-transparent bg-muted text-foreground-secondary [[data-surface=muted]_&]:bg-background [[data-surface=muted-on-hover]:hover_&]:bg-background",
         violetTint:
           "border-category-violet/40 bg-category-violet/10 text-foreground-secondary",
         skyTint:
