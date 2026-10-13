@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { SplashScreen } from "@/src/components/ui/splash-screen";
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -22,12 +24,13 @@ import {
   type TopicSlotCheck,
 } from "./ConfigureTopicsDialog";
 import { topicsSetupPayload } from "./topics-setup";
+import { useAutomaticProcessing } from "./useAutomaticProcessing";
 
 type StoredSettings = RouterOutputs["topics"]["modelSettings"];
 type Connection = RouterOutputs["llmApiKey"]["all"]["data"][number];
 type SlotValue = { llmApiKeyId: string; model: string } | null;
 
-/** Topics setup: one sheet for models, facets, and which traces to include. */
+/** Topics setup: one dialog for models, facets, and which traces to include. */
 export function useTopicModelSettings({
   projectId,
   canWrite,
@@ -50,7 +53,32 @@ export function useTopicModelSettings({
     settings.data.embedding &&
     settings.data.clustering,
   );
+  const rule = rules.data?.length === 1 ? rules.data[0] : null;
+  const dataKey = `${settings.dataUpdatedAt}-${rules.dataUpdatedAt}-${readinessSettings.dataUpdatedAt}`;
+  // Pins the key while Configure is open so a refetch cannot reset unsaved edits.
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const setConfigureOpen = (open: boolean) => setOpenKey(open ? dataKey : null);
+  const automaticProcessing = useAutomaticProcessing({
+    canWrite,
+    projectId,
+    rule,
+    stored: settings.data,
+    traceIdleMs: readinessSettings.data?.traceIdleMs ?? null,
+  });
 
+  const unavailable = settings.data && !settings.data.processingAvailable && (
+    <Alert variant="info">
+      <Alert.Title>
+        Topics processing is not enabled for this project
+      </Alert.Title>
+      <Alert.Description>
+        <p>
+          You can configure Topics, but processing traces and automatic
+          processing stay unavailable until Topics is enabled for this project.
+        </p>
+      </Alert.Description>
+    </Alert>
+  );
   let notice = null;
   if (settings.data?.blockMessage)
     notice = (
@@ -58,8 +86,60 @@ export function useTopicModelSettings({
         <Alert.Title>Automatic Topics processing is paused</Alert.Title>
         <Alert.Description>
           <p className="break-words">{settings.data.blockMessage}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button
+              text="Turn back on"
+              variant="secondary"
+              size="sm"
+              disabled={!canWrite}
+              onClick={automaticProcessing.openEnable}
+            />
+            <Button
+              text="Keep off"
+              variant="secondary"
+              size="sm"
+              disabled={!canWrite}
+              onClick={automaticProcessing.clearPause}
+            />
+          </div>
         </Alert.Description>
       </Alert>
+    );
+  else if (settings.data && !configured && facetsReady && !facets.length)
+    notice = (
+      <div className="mx-auto w-full max-w-xl pt-12">
+        <SplashScreen
+          title="Find patterns across your traces"
+          description="Topics analyzes each trace along the questions you choose, called facets, and clusters similar answers, so you can see what users ask for, how runs end, and which issues come up along the way."
+          steps={[
+            {
+              title: "Set up Topics",
+              description:
+                "Pick the models Topics runs on and the facets to analyze, such as intent, outcome, and issues.",
+            },
+            {
+              title: "Analyze traces",
+              description:
+                "Topics summarizes new traces automatically, and past traces whenever you process them.",
+            },
+            {
+              title: "Gather insights",
+              description:
+                "Similar summaries are clustered into topics, on demand or continuously, so patterns across your traces show up here.",
+            },
+          ]}
+          primaryAction={{
+            label: "Configure Topics",
+            component: (
+              <Button
+                text="Configure Topics"
+                disabled={!canWrite}
+                onClick={() => setConfigureOpen(true)}
+              />
+            ),
+          }}
+        />
+      </div>
     );
   else if (settings.data && !configured)
     notice = (
@@ -82,10 +162,9 @@ export function useTopicModelSettings({
     rules.isSuccess &&
     facetsReady,
   );
-  const rule = rules.data?.length === 1 ? rules.data[0] : null;
   const action = ready ? (
     <ConfigureTopicsSettings
-      key={`${settings.dataUpdatedAt}-${rules.dataUpdatedAt}-${readinessSettings.dataUpdatedAt}`}
+      key={openKey ?? dataKey}
       projectId={projectId}
       canWrite={canWrite}
       stored={settings.data!}
@@ -93,6 +172,8 @@ export function useTopicModelSettings({
       connections={connections.data!.data}
       facets={facets}
       rule={rule}
+      open={openKey !== null}
+      onOpenChange={setConfigureOpen}
     />
   ) : (
     <ConfigureTopicsDialog
@@ -105,9 +186,9 @@ export function useTopicModelSettings({
         clustering: null,
         facets: [],
         filters: [],
-        sampling: 1,
         idleSeconds: "600",
         embeddingLocked: false,
+        automaticProcessing: false,
       }}
       defaultOpen={false}
       onConfigureProviders={() => undefined}
@@ -118,7 +199,16 @@ export function useTopicModelSettings({
     />
   );
 
-  return { action, notice };
+  return {
+    action,
+    notice: (
+      <>
+        {unavailable}
+        {notice}
+      </>
+    ),
+    automaticProcessing: automaticProcessing.control,
+  };
 }
 
 function ConfigureTopicsSettings({
@@ -129,6 +219,8 @@ function ConfigureTopicsSettings({
   connections,
   facets,
   rule,
+  open,
+  onOpenChange,
 }: {
   projectId: string;
   canWrite: boolean;
@@ -137,6 +229,8 @@ function ConfigureTopicsSettings({
   connections: Connection[];
   facets: TopicFacet[];
   rule: TopicRule | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const utils = api.useUtils();
   const requests = useRef({ summary: 0, embedding: 0, clustering: 0 });
@@ -178,9 +272,9 @@ function ConfigureTopicsSettings({
     clustering: judgeModel(stored.clustering, connections),
     facets: facetDrafts(facets, rule ? new Set(rule.facetIds) : null),
     filters: [],
-    sampling: rule?.sampling ?? 1,
     idleSeconds: String((traceIdleMs ?? 600_000) / 1000),
     embeddingLocked: false,
+    automaticProcessing: stored.enabled ?? false,
   };
   const paused = stored.blockMessage
     ? {
@@ -247,7 +341,6 @@ function ConfigureTopicsSettings({
           ? parsedDimensions.data
           : stored.embeddingDimensions,
         clustering: slot === "clustering" ? value : null,
-        enabled: false,
       })
       .then((errors) => {
         if (requests.current[slot] !== request) return;
@@ -300,7 +393,7 @@ function ConfigureTopicsSettings({
       stored.clustering?.llmApiKeyId,
       "chat",
     );
-    if (!summary || !embedding || !clustering)
+    if (stored.enabled && (!summary || !embedding || !clustering))
       throw new Error("Choose a model from a connection in this project.");
     try {
       await save.mutateAsync({
@@ -328,6 +421,8 @@ function ConfigureTopicsSettings({
       embeddingProviderGroups={embeddingGroups}
       draft={draft}
       defaultOpen={false}
+      open={open}
+      onOpenChange={onOpenChange}
       canWrite={canWrite}
       saving={save.isPending}
       saveError={saveError}

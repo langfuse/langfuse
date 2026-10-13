@@ -153,9 +153,6 @@ function TopicsWorkspaceView({
           : false,
     },
   );
-  const initialize = api.topics.initialize.useMutation({
-    onSuccess: () => utils.topics.facets.invalidate({ projectId }),
-  });
   const executionId =
     typeof router.query.executionId === "string"
       ? router.query.executionId
@@ -264,6 +261,7 @@ function TopicsWorkspaceView({
   });
   const actions = (
     <div className="ph-no-capture flex items-center justify-end gap-1">
+      {modelSettings.automaticProcessing}
       {modelSettings.action}
       {primaryAction}
       <DropdownMenu
@@ -434,23 +432,6 @@ function TopicsWorkspaceView({
           )}
           {facets.isLoading && <p>Loading facets…</p>}
           {facets.error && <ErrorMessage message={facets.error.message} />}
-          {facets.data?.length === 0 && (
-            <section className="flex flex-col items-start gap-3">
-              <h2 className="font-bold">Start with a question</h2>
-              <p className="text-muted-foreground text-sm">
-                Create built-in facets for intent, outcome, and issues, then add
-                custom facets for your own questions.
-              </p>
-              <Button
-                text="Create starter facets"
-                disabled={!canWrite || initialize.isPending}
-                onClick={() => initialize.mutate({ projectId })}
-              />
-              {initialize.error && (
-                <ErrorMessage message={initialize.error.message} />
-              )}
-            </section>
-          )}
         </div>
       </div>
     </Page>
