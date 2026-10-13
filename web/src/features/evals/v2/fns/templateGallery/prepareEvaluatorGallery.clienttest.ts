@@ -22,9 +22,8 @@ describe("prepareEvaluatorGallery", () => {
       key: "custom",
       count: 12,
     });
-    expect(gallery.sections[0]?.totalCount).toBe(12);
+    expect(gallery.sections.at(-1)?.totalCount).toBe(12);
     expect(gallery.sections.map(({ key }) => key)).toEqual([
-      "custom",
       "recommended",
       "conversation",
       "quality",
@@ -32,6 +31,7 @@ describe("prepareEvaluatorGallery", () => {
       "retrieval",
       "safety",
       "coding-agents",
+      "custom",
     ]);
 
     const recommendedSection = gallery.sections.find(

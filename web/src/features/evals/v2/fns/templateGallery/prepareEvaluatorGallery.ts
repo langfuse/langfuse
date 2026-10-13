@@ -86,7 +86,21 @@ export function prepareEvaluatorGallery({
       count: managedByCategory.get(category.key)?.length ?? 0,
     })),
   ];
+  // Own templates last: catalog sections lead the browse view.
   const sections: GallerySection[] = [
+    ...managedCatalog.categories.flatMap((category) => {
+      const templates = managedByCategory.get(category.key) ?? [];
+      return templates.length
+        ? [
+            {
+              key: category.key,
+              label: category.label,
+              description: category.description,
+              templates,
+            },
+          ]
+        : [];
+    }),
     ...(filteredCustom.length
       ? [
           {
@@ -101,19 +115,6 @@ export function prepareEvaluatorGallery({
           },
         ]
       : []),
-    ...managedCatalog.categories.flatMap((category) => {
-      const templates = managedByCategory.get(category.key) ?? [];
-      return templates.length
-        ? [
-            {
-              key: category.key,
-              label: category.label,
-              description: category.description,
-              templates,
-            },
-          ]
-        : [];
-    }),
   ];
 
   return { navigationItems, sections };
