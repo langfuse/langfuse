@@ -17,6 +17,15 @@ describe("getGatewayBaseUrl", () => {
     ).toBe("https://gateway-pr-123.preview.langfuse.com/v1");
   });
 
+  it.each([
+    "pr-abc.preview.langfuse.com",
+    "pr-123.preview.langfuse.com.example.org",
+  ])("keeps the standard prefix for non-preview host %s", (hostname) => {
+    expect(getGatewayBaseUrl(new URL(`https://${hostname}/`))).toBe(
+      `https://gateway.${hostname}/v1`,
+    );
+  });
+
   it("points localhost at the local gateway port", () => {
     expect(getGatewayBaseUrl(new URL("http://localhost:3000/"))).toBe(
       "http://localhost:8080/v1",
