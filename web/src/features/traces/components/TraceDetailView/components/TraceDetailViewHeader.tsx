@@ -22,10 +22,8 @@ import {
 } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { EntityTitle } from "@/src/components/EntityTitle";
-import {
-  DetailViewHeaderShell,
-  DetailViewHeaderTitleRow,
-} from "@/src/features/traces/components/DetailViewHeaderShell";
+import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailViewHeaderShell";
+import { DetailViewHeaderTitleRow } from "@/src/features/traces/components/DetailViewHeaderTitleRow";
 import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
@@ -88,15 +86,14 @@ function TraceDetailViewHeaderLoading() {
     <DetailViewHeaderShell>
       <DetailViewHeaderTitleRow
         alwaysFold={isMobile}
-        renderTitle={({ actionsFolded }) => (
+        title={
           <>
             <Skeleton className="size-6 rounded-sm" />
             <Skeleton className="h-4 w-48" />
-            {actionsFolded && (
-              <Skeleton className="ml-auto size-8 rounded-md" />
-            )}
           </>
-        )}
+        }
+        options={null}
+        foldedActions={<Skeleton className="ml-auto size-8 rounded-md" />}
         actionsKey="loading"
         actions={
           // Sized to the loaded cluster (Add to · Annotate · Comment), so the
@@ -162,146 +159,140 @@ function LoadedTraceDetailViewHeader({
       <DetailViewHeaderTitleRow
         alwaysFold={isMobile}
         actionsKey={`${trace.id}|${commentCount ?? 0}|${commentDrawerControl.disabled}|${isAnnotationMode}`}
-        renderTitle={({ actionsFolded }) => (
-          <>
-            <EntityTitle
-              as="span"
-              type="TRACE"
-              title={trace.name || trace.id}
-            />
-            {!actionsFolded && (
-              <ConnectedDetailHeaderActionsMenuController
-                idItems={[{ id: trace.id, name: "Trace ID" }]}
-                projectId={projectId}
-                webCallout={{
-                  traceId: trace.id,
-                  sessionId: trace.sessionId ?? null,
-                }}
-              >
-                {({ getTriggerProps }) => (
-                  <HeaderActionButton
-                    label="Options"
-                    icon={
-                      <EllipsisVertical className="icon-base text-icon-foreground" />
-                    }
-                    {...getTriggerProps()}
-                  />
-                )}
-              </ConnectedDetailHeaderActionsMenuController>
-            )}
-            {actionsFolded && (
-              <ConnectedTraceObservationAddToDropdownMenuController
-                analyticsData={{ source: "TraceDetail", isV4 }}
-                projectId={projectId}
-                traceId={trace.id}
-                variant="trace"
-                input={trace.input}
-                output={trace.output}
-                metadata={trace.metadata}
-                renderMenu={(addToItems) => (
-                  <AnnotateDrawerController projectId={projectId}>
-                    {({ disabled: annotationDisabled, openDrawer }) => (
-                      <ConnectedDetailHeaderActionsMenuController
-                        idItems={[{ id: trace.id, name: "Trace ID" }]}
-                        projectId={projectId}
-                        webCallout={{
-                          traceId: trace.id,
-                          sessionId: trace.sessionId ?? null,
-                        }}
-                        renderMenu={(utilityItems) => (
-                          <DropdownMenu
-                            placement="bottom-end"
-                            maxHeight="min(24rem, calc(100dvh - 2rem))"
-                            items={[
-                              ...(!isAnnotationMode
-                                ? [
-                                    {
-                                      type: "item" as const,
-                                      id: "annotate",
-                                      title: "Annotate",
-                                      icon: annotationDisabled
-                                        ? LockIcon
-                                        : SquarePen,
-                                      disabled: annotationDisabled
-                                        ? {
-                                            reason:
-                                              "You don't have permission to annotate.",
-                                          }
-                                        : undefined,
-                                      onClick: () => {
-                                        mobileActionsTriggerRef.current?.focus({
-                                          preventScroll: true,
-                                        });
-                                        openDrawer(
-                                          prepareTraceAnnotation({
-                                            traceId: trace.id,
-                                            projectId,
-                                            environment: trace.environment,
-                                            scores: traceScores,
-                                            isV4,
-                                          }),
-                                        );
-                                      },
-                                    },
-                                  ]
-                                : []),
-                              {
-                                type: "item",
-                                id: "comments",
-                                title: mobileCommentActionLabel,
-                                icon: commentDrawerControl.disabled
-                                  ? MessageSquareOff
-                                  : MessageSquare,
-                                disabled: commentDrawerControl.disabled
-                                  ? {
-                                      reason:
-                                        "You don't have permission to comment.",
-                                    }
-                                  : undefined,
-                                onClick: () => {
-                                  mobileActionsTriggerRef.current?.focus({
-                                    preventScroll: true,
-                                  });
-                                  commentDrawerControl.openDrawer();
-                                },
-                              },
-                              {
-                                type: "submenu" as const,
-                                id: "add-to",
-                                title: "Add to",
-                                icon: PlusIcon,
-                                items: addToItems,
-                              },
-                              {
-                                id: "review-actions-separator",
-                                type: "separator",
-                              },
-                              ...utilityItems,
-                            ]}
-                          >
-                            {({ getTriggerProps }) => (
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                aria-label="More actions"
-                                className="ml-auto shrink-0"
-                                {...getTriggerProps({
-                                  ref: mobileActionsTriggerRef,
-                                })}
-                              >
-                                <EllipsisVertical className="icon-base text-icon-foreground" />
-                              </Button>
-                            )}
-                          </DropdownMenu>
-                        )}
-                      />
-                    )}
-                  </AnnotateDrawerController>
-                )}
+        title={
+          <EntityTitle as="span" type="TRACE" title={trace.name || trace.id} />
+        }
+        options={
+          <ConnectedDetailHeaderActionsMenuController
+            idItems={[{ id: trace.id, name: "Trace ID" }]}
+            projectId={projectId}
+            webCallout={{
+              traceId: trace.id,
+              sessionId: trace.sessionId ?? null,
+            }}
+          >
+            {({ getTriggerProps }) => (
+              <HeaderActionButton
+                label="Options"
+                icon={
+                  <EllipsisVertical className="icon-base text-icon-foreground" />
+                }
+                {...getTriggerProps()}
               />
             )}
-          </>
-        )}
+          </ConnectedDetailHeaderActionsMenuController>
+        }
+        foldedActions={
+          <ConnectedTraceObservationAddToDropdownMenuController
+            analyticsData={{ source: "TraceDetail", isV4 }}
+            projectId={projectId}
+            traceId={trace.id}
+            variant="trace"
+            input={trace.input}
+            output={trace.output}
+            metadata={trace.metadata}
+            renderMenu={(addToItems) => (
+              <AnnotateDrawerController projectId={projectId}>
+                {({ disabled: annotationDisabled, openDrawer }) => (
+                  <ConnectedDetailHeaderActionsMenuController
+                    idItems={[{ id: trace.id, name: "Trace ID" }]}
+                    projectId={projectId}
+                    webCallout={{
+                      traceId: trace.id,
+                      sessionId: trace.sessionId ?? null,
+                    }}
+                    renderMenu={(utilityItems) => (
+                      <DropdownMenu
+                        placement="bottom-end"
+                        maxHeight="min(24rem, calc(100dvh - 2rem))"
+                        items={[
+                          ...(!isAnnotationMode
+                            ? [
+                                {
+                                  type: "item" as const,
+                                  id: "annotate",
+                                  title: "Annotate",
+                                  icon: annotationDisabled
+                                    ? LockIcon
+                                    : SquarePen,
+                                  disabled: annotationDisabled
+                                    ? {
+                                        reason:
+                                          "You don't have permission to annotate.",
+                                      }
+                                    : undefined,
+                                  onClick: () => {
+                                    mobileActionsTriggerRef.current?.focus({
+                                      preventScroll: true,
+                                    });
+                                    openDrawer(
+                                      prepareTraceAnnotation({
+                                        traceId: trace.id,
+                                        projectId,
+                                        environment: trace.environment,
+                                        scores: traceScores,
+                                        isV4,
+                                      }),
+                                    );
+                                  },
+                                },
+                              ]
+                            : []),
+                          {
+                            type: "item",
+                            id: "comments",
+                            title: mobileCommentActionLabel,
+                            icon: commentDrawerControl.disabled
+                              ? MessageSquareOff
+                              : MessageSquare,
+                            disabled: commentDrawerControl.disabled
+                              ? {
+                                  reason:
+                                    "You don't have permission to comment.",
+                                }
+                              : undefined,
+                            onClick: () => {
+                              mobileActionsTriggerRef.current?.focus({
+                                preventScroll: true,
+                              });
+                              commentDrawerControl.openDrawer();
+                            },
+                          },
+                          {
+                            type: "submenu" as const,
+                            id: "add-to",
+                            title: "Add to",
+                            icon: PlusIcon,
+                            items: addToItems,
+                          },
+                          {
+                            id: "review-actions-separator",
+                            type: "separator",
+                          },
+                          ...utilityItems,
+                        ]}
+                      >
+                        {({ getTriggerProps }) => (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            aria-label="More actions"
+                            className="ml-auto shrink-0"
+                            {...getTriggerProps({
+                              ref: mobileActionsTriggerRef,
+                            })}
+                          >
+                            <EllipsisVertical className="icon-base text-icon-foreground" />
+                          </Button>
+                        )}
+                      </DropdownMenu>
+                    )}
+                  />
+                )}
+              </AnnotateDrawerController>
+            )}
+          />
+        }
         actions={
           <>
             <ConnectedTraceObservationAddToDropdownMenuController

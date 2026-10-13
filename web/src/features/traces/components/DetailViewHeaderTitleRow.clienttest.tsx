@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import { DetailViewHeaderTitleRow } from "@/src/features/traces/components/DetailViewHeaderShell";
+import { DetailViewHeaderTitleRow } from "@/src/features/traces/components/DetailViewHeaderTitleRow";
 
 // jsdom lays nothing out, so the two measurements the row takes are stubbed:
 // the row reports `headerWidth` from its bounding rect, and the action cluster
@@ -58,14 +58,9 @@ function Row({ actionsKey }: { actionsKey: string }) {
     <DetailViewHeaderTitleRow
       alwaysFold={false}
       actionsKey={actionsKey}
-      renderTitle={({ actionsFolded }) => (
-        <>
-          <span data-testid="title-marker">
-            {actionsFolded ? "folded" : "inline"}
-          </span>
-          {actionsFolded && <button aria-label="More actions" />}
-        </>
-      )}
+      title={<span data-testid="title-marker">title</span>}
+      options={<button aria-label="Options" />}
+      foldedActions={<button aria-label="More actions" />}
       actions={
         <span data-testid="cluster-marker">
           <button aria-label="Annotate" />
@@ -86,7 +81,7 @@ describe("DetailViewHeaderTitleRow", () => {
 
     render(<Row actionsKey="a" />);
 
-    expect(screen.getByTestId("title-marker")).toHaveTextContent("folded");
+    expect(screen.getByLabelText("More actions")).toBeInTheDocument();
     expect(screen.queryByTestId("cluster-marker")).not.toBeInTheDocument();
   });
 
@@ -95,7 +90,7 @@ describe("DetailViewHeaderTitleRow", () => {
     clusterWidth = 344;
 
     const { rerender } = render(<Row actionsKey="a" />);
-    expect(screen.getByTestId("title-marker")).toHaveTextContent("folded");
+    expect(screen.getByLabelText("More actions")).toBeInTheDocument();
 
     // Moving to an entity whose cluster fits — no comment count, say. A folded
     // cluster is unmounted and cannot be measured, so without the key change
@@ -103,7 +98,7 @@ describe("DetailViewHeaderTitleRow", () => {
     clusterWidth = 312;
     rerender(<Row actionsKey="b" />);
 
-    expect(screen.getByTestId("title-marker")).toHaveTextContent("inline");
+    expect(screen.getByLabelText("Options")).toBeInTheDocument();
     expect(screen.getByTestId("cluster-marker")).toBeInTheDocument();
   });
 
@@ -120,7 +115,7 @@ describe("DetailViewHeaderTitleRow", () => {
     clusterWidth = 344;
     rerender(<Row actionsKey="b" />);
 
-    expect(screen.getByTestId("title-marker")).toHaveTextContent("folded");
+    expect(screen.getByLabelText("More actions")).toBeInTheDocument();
     expect(document.activeElement).toBe(screen.getByLabelText("More actions"));
   });
 
@@ -130,7 +125,7 @@ describe("DetailViewHeaderTitleRow", () => {
 
     render(<Row actionsKey="a" />);
 
-    expect(screen.getByTestId("title-marker")).toHaveTextContent("inline");
+    expect(screen.getByLabelText("Options")).toBeInTheDocument();
     expect(screen.getByTestId("cluster-marker")).toBeInTheDocument();
   });
 });
