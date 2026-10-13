@@ -36,9 +36,10 @@ export function useBlobStorageIntegration(projectId: string) {
       },
     },
   );
-  const status = query.data
-    ? getBlobStorageStatus(query.data.config)
-    : undefined;
+  const status =
+    hasAccess && hasEntitlement && query.data
+      ? getBlobStorageStatus(query.data.config)
+      : undefined;
 
   return { hasAccess, hasEntitlement, query, status };
 }

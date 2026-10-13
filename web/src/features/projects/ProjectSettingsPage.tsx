@@ -439,7 +439,9 @@ const Integrations = (props: { projectId: string }) => {
       <Header title="Integrations" />
       <div className="space-y-6">
         <Card className="p-3">
-          <IntegrationCardHeader status={posthog.status}>
+          <IntegrationCardHeader
+            status={posthog.isConfigured ? posthog.status : undefined}
+          >
             <PostHogLogo className="text-foreground w-40" />
           </IntegrationCardHeader>
           <p className="text-primary mb-4 text-sm">
@@ -466,7 +468,9 @@ const Integrations = (props: { projectId: string }) => {
         </Card>
 
         <Card className="p-3">
-          <IntegrationCardHeader status={mixpanel.status}>
+          <IntegrationCardHeader
+            status={mixpanel.isConfigured ? mixpanel.status : undefined}
+          >
             <MixpanelLogo className="text-foreground w-20" />
           </IntegrationCardHeader>
           <p className="text-primary mb-4 text-sm">
@@ -552,7 +556,9 @@ const Integrations = (props: { projectId: string }) => {
         ) : null}
 
         <Card className="p-3">
-          <IntegrationCardHeader status={slack.status}>
+          <IntegrationCardHeader
+            status={slack.isConfigured ? slack.status : undefined}
+          >
             <SiSlack className="text-foreground icon-lg" />
             <span className="font-bold">Slack</span>
           </IntegrationCardHeader>

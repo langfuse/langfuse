@@ -1,28 +1,23 @@
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 
-// A stored workspace that fails validation is an error the admin has to fix
-// by reconnecting, not an unconfigured integration.
-export function getSlackStatus(integration: {
-  isConnected: boolean;
-  teamId: string | null;
-}): Status | undefined {
-  if (integration.isConnected) return "active";
-  return integration.teamId ? "error" : undefined;
+// A stored workspace that fails validation reads as inactive, same as no
+// workspace; the overview card hides the badge when none is stored (see
+// `isConfigured`).
+export function getSlackStatus(
+  integration: { isConnected: boolean } | undefined,
+): Status {
+  return integration?.isConnected ? "active" : "inactive";
 }
 
 /** Shared by the integration page and the integrations overview card. */
 export function useSlackIntegration(projectId: string) {
-  const hasReadAccess = useHasProjectAccess({
-    projectId,
-    scope: "automations:read",
-  });
   const query = api.slack.getIntegrationStatus.useQuery(
     { projectId },
-    { enabled: Boolean(projectId) && hasReadAccess },
+    { enabled: Boolean(projectId) },
   );
-  const status = query.data ? getSlackStatus(query.data) : undefined;
+  const status = query.isLoading ? undefined : getSlackStatus(query.data);
+  const isConfigured = Boolean(query.data?.teamId);
 
-  return { query, status };
+  return { query, status, isConfigured };
 }

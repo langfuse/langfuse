@@ -4,7 +4,7 @@ import { getMixpanelStatus } from "./useMixpanelIntegration";
 
 describe("getMixpanelStatus", () => {
   it.each([
-    [null, undefined],
+    [null, "inactive"],
     [{ enabled: true }, "active"],
     [{ enabled: false }, "inactive"],
   ])("maps %o to %s", (config, expected) => {
