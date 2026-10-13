@@ -12,6 +12,7 @@ import {
   EvaluatorBlockReason,
   GCPServiceAccountKeySchema,
   InvalidRequestError,
+  InternalServerError,
   isDecisionModelAdapter,
   LangfuseConflictError,
   LangfuseNotFoundError,
@@ -228,19 +229,26 @@ async function validateBaseUrl(params: {
   if (params.adapter === LLMAdapter.TypeSafe) {
     const url = new URL(params.baseURL);
     if (/\/systemone\/?$/.test(url.pathname)) {
-      throw new InvalidRequestError(
+      throw new Error(
         "Remove /systemone from the end of the base URL. Langfuse appends it.",
       );
     }
     if (url.search || url.hash) {
-      throw new InvalidRequestError(
+      throw new Error(
         "Remove the query string from the base URL. Langfuse appends /systemone to it.",
       );
     }
   }
 
+  await validateLlmConnectionBaseURL(params.baseURL);
+}
+
+async function validateBaseUrlForWrite(params: {
+  adapter: LLMAdapter;
+  baseURL?: string | null;
+}): Promise<void> {
   try {
-    await validateLlmConnectionBaseURL(params.baseURL);
+    await validateBaseUrl(params);
   } catch (error) {
     throw new InvalidRequestError(
       `Invalid base URL: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -275,10 +283,11 @@ function validateSecret(params: {
   }
 
   if (!env.ENCRYPTION_KEY) {
+    if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      throw new InternalServerError("Internal server error");
+    }
     throw new InvalidRequestError(
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-        ? "Internal server error"
-        : "Missing environment variable: `ENCRYPTION_KEY`. Please consult our docs: https://langfuse.com/self-hosting",
+      "Missing environment variable: `ENCRYPTION_KEY`. Please consult our docs: https://langfuse.com/self-hosting",
     );
   }
 }
@@ -478,7 +487,7 @@ export class LlmConnectionService {
     input: LlmConnectionWriteInput;
     actor: AuditLogActor;
   }): Promise<SafeLlmConnection> {
-    await validateBaseUrl(params.input);
+    await validateBaseUrlForWrite(params.input);
     validateSecret(params.input);
 
     let key: LlmApiKeys;
@@ -532,7 +541,7 @@ export class LlmConnectionService {
     input: LlmConnectionWriteInput;
     actor: AuditLogActor;
   }): Promise<{ connection: SafeLlmConnection; created: boolean }> {
-    await validateBaseUrl(params.input);
+    await validateBaseUrlForWrite(params.input);
     validateSecret(params.input);
 
     const encryptedSecretKey = encrypt(params.input.secretKey);
@@ -628,7 +637,7 @@ export class LlmConnectionService {
       );
     }
     if (isBaseURLChanged) {
-      await validateBaseUrl(params.input);
+      await validateBaseUrlForWrite(params.input);
     }
     if (params.input.secretKey) {
       validateSecret({

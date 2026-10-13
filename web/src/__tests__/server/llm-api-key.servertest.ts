@@ -125,7 +125,7 @@ describe("llmApiKey.all RPC", () => {
     const baseURL = "https://example.com/v1";
     const withDefaultModels = false;
 
-    await caller.llmApiKey.create({
+    const result = await caller.llmApiKey.create({
       projectId,
       secretKey: secret,
       provider,
@@ -134,6 +134,7 @@ describe("llmApiKey.all RPC", () => {
       customModels,
       withDefaultModels,
     });
+    expect(result).toBeUndefined();
 
     const llmApiKeys = await prisma.llmApiKeys.findMany({
       where: {
@@ -277,6 +278,26 @@ describe("llmApiKey.all RPC", () => {
     ).rejects.toThrow("Invalid Bedrock credentials");
   });
 
+  it("should report a missing cloud encryption key as an internal error", async () => {
+    const originalEncryptionKey = env.ENCRYPTION_KEY;
+    (env as any).ENCRYPTION_KEY = undefined;
+
+    try {
+      await expect(
+        caller.llmApiKey.create({
+          projectId,
+          secretKey: "test-secret",
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+        }),
+      ).rejects.toMatchObject({
+        code: "INTERNAL_SERVER_ERROR",
+      });
+    } finally {
+      (env as any).ENCRYPTION_KEY = originalEncryptionKey;
+    }
+  });
+
   it("should block creating an llm api key with a localhost base URL", async () => {
     await expect(
       caller.llmApiKey.create({
@@ -377,7 +398,7 @@ describe("llmApiKey.all RPC", () => {
       },
     });
 
-    await caller.llmApiKey.update({
+    const result = await caller.llmApiKey.update({
       id: existingKey.id,
       projectId,
       provider: "openai-responses",
@@ -387,6 +408,7 @@ describe("llmApiKey.all RPC", () => {
       withDefaultModels: false,
       config: { useResponsesApi: false },
     });
+    expect(result).toBeUndefined();
 
     const { data: llmApiKeys } = await caller.llmApiKey.all({
       projectId,
@@ -557,7 +579,10 @@ describe("llmApiKey.all RPC", () => {
         adapter: LLMAdapter.TypeSafe,
         baseURL: "http://localhost:8080/v1",
       }),
-    ).resolves.toMatchObject({ success: false });
+    ).resolves.toEqual({
+      success: false,
+      error: "Blocked hostname detected",
+    });
 
     const { data: llmApiKeys } = await caller.llmApiKey.all({
       projectId,

@@ -21,7 +21,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         scope: "llmApiKeys:create",
       });
       const { projectId, ...connectionInput } = input;
-      return new LlmConnectionService().create({
+      await new LlmConnectionService().create({
         owner: {
           type: "project",
           projectId,
@@ -164,7 +164,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         scope: "llmApiKeys:update",
       });
       const { projectId, ...connectionInput } = input;
-      return new LlmConnectionService().update({
+      await new LlmConnectionService().update({
         owner: {
           type: "project",
           projectId,
