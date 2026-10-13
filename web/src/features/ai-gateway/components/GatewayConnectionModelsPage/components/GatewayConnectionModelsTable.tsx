@@ -4,7 +4,6 @@ import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
 
 import { DataTable } from "@/src/components/table/data-table";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
-import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { TableSelectionManager } from "@/src/features/table";
 import { GatewayConnectionModelsToolbar } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsToolbar";
@@ -55,12 +54,17 @@ export function GatewayConnectionModelsTable({
   const columns = useMemo<LangfuseColumnDef<GatewayConnectionModelRow>[]>(
     () => [
       selectActionColumn,
-      createTextTableColumn<GatewayConnectionModelRow>({
+      {
         accessorKey: "id",
         id: "name",
         header: "Model",
         enableSorting: true,
-      }),
+        cell: ({ row }) => (
+          <span className="block truncate" title={row.original.id}>
+            {row.original.id}
+          </span>
+        ),
+      },
       {
         accessorKey: "enabled",
         id: "status",
@@ -91,10 +95,10 @@ export function GatewayConnectionModelsTable({
     }));
   const sortedModels = filteredModels.toSorted((left, right) => {
     const comparison =
-      orderBy.column === "status"
+      orderBy?.column === "status"
         ? Number(left.enabled) - Number(right.enabled)
         : left.id.localeCompare(right.id);
-    return orderBy.order === "DESC" ? -comparison : comparison;
+    return orderBy?.order === "DESC" ? -comparison : comparison;
   });
   const filteredModelIds = filteredModels.map((model) => model.id);
   const lastPageIndex = Math.max(
