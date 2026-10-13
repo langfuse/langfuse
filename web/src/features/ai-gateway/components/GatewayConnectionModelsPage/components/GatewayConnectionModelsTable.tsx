@@ -57,14 +57,23 @@ export function GatewayConnectionModelsTable({
   );
   const columns = useMemo<LangfuseColumnDef<GatewayConnectionModelRow>[]>(
     () => [
-      selectActionColumn,
+      {
+        ...selectActionColumn,
+        size: 32,
+        minSize: 32,
+        maxSize: 32,
+        enableResizing: false,
+      },
       {
         accessorKey: "id",
         id: "name",
         header: "Model",
+        size: 240,
+        minSize: 180,
+        isFlexWidth: true,
         enableSorting: true,
         cell: ({ row }) => (
-          <span className="block truncate" title={row.original.id}>
+          <span className="block truncate font-bold" title={row.original.id}>
             {row.original.id}
           </span>
         ),
@@ -72,19 +81,19 @@ export function GatewayConnectionModelsTable({
       {
         accessorKey: "enabled",
         id: "status",
-        header: "Status",
+        header: "Enabled",
         enableSorting: true,
-        size: 160,
+        size: 90,
+        minSize: 90,
+        maxSize: 90,
+        enableResizing: false,
         cell: ({ row }) => (
-          <div className="flex items-center justify-between gap-2">
-            <span>{row.original.enabled ? "Enabled" : "Disabled"}</span>
-            <ModelEnabledSwitch
-              model={row.original.id}
-              enabled={row.original.enabled}
-              disabled={isSaving}
-              onToggle={toggleModel}
-            />
-          </div>
+          <ModelEnabledSwitch
+            model={row.original.id}
+            enabled={row.original.enabled}
+            disabled={isSaving}
+            onToggle={toggleModel}
+          />
         ),
       },
     ],
@@ -164,6 +173,7 @@ export function GatewayConnectionModelsTable({
             options: [PAGE_SIZE],
           }}
           selectionStore={selectionStore}
+          rowHeight="s"
           orderBy={orderBy}
           setOrderBy={handleOrderByChange}
           noResultsMessage="No models match the current search."

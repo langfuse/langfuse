@@ -16,11 +16,14 @@ export function ModelEnabledSwitch({
   const handleCheckedChange = (checked: boolean) => onToggle(model, checked);
 
   return (
-    <Switch
-      checked={enabled}
-      disabled={disabled}
-      aria-label={`${enabled ? "Disable" : "Enable"} ${model}`}
-      onCheckedChange={handleCheckedChange}
-    />
+    <div onClick={(event) => event.stopPropagation()}>
+      <Switch
+        color="green"
+        checked={enabled}
+        disabled={disabled}
+        aria-label={`${enabled ? "Disable" : "Enable"} ${model}`}
+        onCheckedChange={handleCheckedChange}
+      />
+    </div>
   );
 }
