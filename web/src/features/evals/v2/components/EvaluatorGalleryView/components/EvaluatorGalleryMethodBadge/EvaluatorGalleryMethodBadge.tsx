@@ -63,7 +63,7 @@ export function EvaluatorGalleryMethodBadge({
   const { label } = METHOD_BADGES[type];
 
   return (
-    <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1.5 text-sm whitespace-nowrap">
+    <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap">
       <EvaluatorMethodTile type={type} />
       {label}
     </span>
