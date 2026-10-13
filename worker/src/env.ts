@@ -372,14 +372,16 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  // Optional opt-outs for split-role workers. Unset follows
-  // LANGFUSE_IN_APP_AGENT_ENABLED; "false" skips that surface.
+  // Run execution follows LANGFUSE_IN_APP_AGENT_ENABLED unless opted out.
   QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .optional(),
   LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
     .enum(["true", "false"])
     .optional(),
+  LANGFUSE_IN_APP_AGENT_RETENTION_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),

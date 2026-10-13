@@ -2,7 +2,7 @@ import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { logger, recordIncrement, redis } from "@langfuse/shared/src/server";
 import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
-import { isMissingInAppAgentMcpApiKeyError } from "@langfuse/shared/in-app-agent/server/runLifecycle";
+import { cleanupRunMcpApiKey } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
 const BATCH_LIMIT = 100;
@@ -44,7 +44,7 @@ export class InAppAgentRetentionCleaner extends PeriodicExclusiveRunner {
           AND c.updated_at < NOW() - p.retention_days * INTERVAL '1 day'
           ${
             this.cursor
-              ? Prisma.sql`AND (c.project_id, c.id) > (${this.cursor.projectId}, ${this.cursor.id})`
+              ? Prisma.sql`AND (c.id, c.project_id) > (${this.cursor.id}, ${this.cursor.projectId})`
               : Prisma.empty
           }
           AND NOT EXISTS (
@@ -52,7 +52,7 @@ export class InAppAgentRetentionCleaner extends PeriodicExclusiveRunner {
             WHERE r.project_id = c.project_id AND r.conversation_id = c.id
               AND r.finished_at IS NULL
           )
-        ORDER BY c.project_id, c.id
+        ORDER BY c.id, c.project_id
         LIMIT ${BATCH_LIMIT}
       `;
 
@@ -79,22 +79,19 @@ export class InAppAgentRetentionCleaner extends PeriodicExclusiveRunner {
         if (!run.mcpApiKeyId) continue;
         await this.extendLockOnProgress();
         try {
-          await deleteInAppAgentMcpApiKeyFromDb({
+          await cleanupRunMcpApiKey({
             prisma,
-            id: run.mcpApiKeyId,
             projectId: run.projectId,
-            redis,
-          }).catch((error: unknown) => {
-            if (!isMissingInAppAgentMcpApiKeyError(error)) throw error;
-          });
-          // Keep the pointer on failure so a later sweep can retry revocation.
-          await prisma.inAppAgentRun.updateMany({
-            where: {
-              id: run.id,
-              projectId: run.projectId,
-              mcpApiKeyId: run.mcpApiKeyId,
+            runId: run.id,
+            apiKeyId: run.mcpApiKeyId,
+            deleteApiKey: async (id) => {
+              await deleteInAppAgentMcpApiKeyFromDb({
+                prisma,
+                id,
+                projectId: run.projectId,
+                redis,
+              });
             },
-            data: { mcpApiKeyId: null },
           });
           cleanedRuns++;
         } catch (error) {

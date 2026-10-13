@@ -795,9 +795,12 @@ if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
 }
 
 // Assistant retention runs independently of ingestion retention mode and
-// assistant enablement, so stored conversations still expire after opt-out.
-export const inAppAgentRetentionCleaner = new InAppAgentRetentionCleaner();
-inAppAgentRetentionCleaner.start();
+// assistant enablement. Conversations with unfinished runs still need reconciliation.
+export let inAppAgentRetentionCleaner: InAppAgentRetentionCleaner | null = null;
+if (env.LANGFUSE_IN_APP_AGENT_RETENTION_CLEANER_ENABLED === "true") {
+  inAppAgentRetentionCleaner = new InAppAgentRetentionCleaner();
+  inAppAgentRetentionCleaner.start();
+}
 
 // Media retention cleaner for media files and blob storage
 export let mediaRetentionCleaner: MediaRetentionCleaner | null = null;
@@ -849,11 +852,9 @@ if (env.LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_ENABLED === "true") {
 // Reconciles stale in-app agent runs that nobody reopened, then reports remainders.
 export let inAppAgentIntegrityRunner: InAppAgentIntegrityRunner | null = null;
 
-if (
-  isInAppAgentWorkerSurfaceEnabled(
-    env.LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED,
-  )
-) {
+// Reconciliation must continue after assistant opt-out so unfinished runs
+// cannot prevent retention forever. This runner never executes agent work.
+if (env.LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED !== "false") {
   inAppAgentIntegrityRunner = new InAppAgentIntegrityRunner();
   inAppAgentIntegrityRunner.start();
 }

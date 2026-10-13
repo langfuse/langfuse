@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InAppAgentRetentionCleaner } from "./index";
+import { Prisma } from "@prisma/client";
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
@@ -9,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   deleteKey: vi.fn(),
   licensed: vi.fn(),
   extend: vi.fn(),
-  missingKey: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/db", async () => {
@@ -38,9 +38,6 @@ vi.mock("@langfuse/shared/src/server/ee/licenseCheck", () => ({
 }));
 vi.mock("@langfuse/shared/src/server/auth/apiKeys", () => ({
   deleteInAppAgentMcpApiKeyFromDb: mocks.deleteKey,
-}));
-vi.mock("@langfuse/shared/in-app-agent/server/runLifecycle", () => ({
-  isMissingInAppAgentMcpApiKeyError: mocks.missingKey,
 }));
 vi.mock("../../utils/RedisLock", () => ({
   RedisLock: class {
@@ -145,7 +142,7 @@ describe("InAppAgentRetentionCleaner", () => {
     mocks.query.mockImplementation(
       (_strings: TemplateStringsArray, cursor: { values: string[] }) => {
         if (cursor.values.length === 0) return blockedConversations;
-        if (cursor.values[0] === "blocked-project") {
+        if (cursor.values[0] === "conversation-099") {
           return [{ id: "healthy-conversation", projectId: "healthy-project" }];
         }
         return [];
@@ -178,8 +175,12 @@ describe("InAppAgentRetentionCleaner", () => {
   });
 
   it("continues cleanup when the key was already removed", async () => {
-    mocks.deleteKey.mockRejectedValue(new Error("Missing key"));
-    mocks.missingKey.mockReturnValue(true);
+    mocks.deleteKey.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("Missing key", {
+        code: "P2025",
+        clientVersion: "test",
+      }),
+    );
     await new InAppAgentRetentionCleaner().processBatch();
     expect(mocks.updateRuns).toHaveBeenCalledOnce();
     expect(mocks.execute).toHaveBeenCalledOnce();
