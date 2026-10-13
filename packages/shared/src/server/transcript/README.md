@@ -4,10 +4,10 @@ PLEASE DO NOT USE IN PRODUCTION YET. This is a v1 implementation of the transcri
 
 Builds a conversation transcript from the observations of one trace.
 
-Status: generation-led builder with tool responses matched by ID or name and order.
+Status: generation-led builder with managed-agent fallback and tool responses matched by ID or name and order.
 
-- Tool outputs contribute only when matched to a preceding generation output's tool call in the same trace.
-- Root span I/O and unmatched tool observations are excluded.
+- Tool outputs contribute only when matched to a preceding generation or fallback agent output's tool call in the same trace.
+- Root wrapper I/O and unmatched tool observations are excluded.
 
 ## Interface
 
@@ -50,10 +50,10 @@ Consumers load observations themselves. `TranscriptObservation` requires only
 `Observation`s also satisfy it.
 Order them with `orderObservations` and hand them to
 `assembleTranscript`, which consumes the given order and returns `null` when
-no eligible generations produce messages. For one trace, read it through
+no eligible observations produce messages. For one trace, read it through
 `getObservationsForTraceFromEventsTable`, the same repository function and
 time bounds the trace tree uses: once for the structure of every observation
-without I/O, once for the `GENERATION` and `TOOL` observations with I/O, then
+without I/O, once for the `GENERATION`, `TOOL` and `AGENT` observations with I/O, then
 merge the two by id so the walk order comes from the structure and the
 messages from the content.
 
@@ -63,7 +63,7 @@ messages from the content.
 trace. It retains the messages and minimal observation references needed to
 connect them, but does not retain the fields a trace-level view needs:
 
-- A root `SPAN` or `AGENT` can carry the trace input and final application
+- A root `SPAN` or wrapper `AGENT` can carry the trace input and final application
   output, including output produced after the last model or tool call. Those
   fields are absent from the assembled conversation.
 - Non-generation operations, unmatched tool observations, and observation
@@ -127,7 +127,7 @@ to and including the last assistant or tool message before the trace's first
 output, is `conversationHistory` without provenance; everything after it is
 `currentTurn`, each message with the observation that emitted it.
 
-`currentTurn.nestingLevel` is the tree depth of its first contributing generation,
+`currentTurn.nestingLevel` is the tree depth of its first contributing generation or fallback agent,
 with fetched roots at zero. It is not a parent/child relationship between threads;
 later, deeper generations do not change it. Missing parents make observations roots.
 
@@ -143,6 +143,14 @@ output:  Assistant: Within five business days.
 ## Which observations contribute?
 
 - `GENERATION` observations with a non-null trace ID establish threads.
+- When a trace has no normalized generation messages, Claude Managed Agent
+  session turns establish threads instead. These require type `AGENT`, scope
+  `com.anthropic.claude-platform`, operation `invoke_agent` and a nonempty
+  `anthropic.session.id`. Both flat and nested metadata are supported. This
+  excludes application wrappers and other operations sharing the platform scope.
+  Parent turns and subagents retain their own messages, provenance and depth.
+  Any generation messages in the same trace take precedence over this fallback;
+  partial generation transcripts are not supplemented with aggregate agent I/O.
 - Include `TOOL` observations in the supplied observations to recover responses.
   Match normalized tool-result IDs first. Without an ID, match the observation's
   exact name to the earliest preceding call not yet claimed by a tool observation
@@ -152,7 +160,8 @@ output:  Assistant: Within five business days.
   payload interpretation belongs to normalized IO, not the transcript builder.
 - The caller supplies one trace's observations, already in transcript order
   (see Ordering).
-- Each observation is normalized once in this ordered pass. Generations
+- Each eligible observation is normalized at most once. Traces with managed
+  agents first normalize their generations to decide whether fallback applies. Generations
   establish threads and register output tool-call IDs; tools enrich registered
   calls. Input messages are processed before output messages for generations.
 - Generations producing no messages are skipped and do not create empty threads.
@@ -251,7 +260,7 @@ are included.
 ## Preliminary decisions
 
 - Tool observations contribute to thread messages rather than just enriching generation messages with tool responses. In some cases, the generations messages do not contain any reference of the tool call or the tool result, but tool-observations can provide this information. Recommendation: let tool observations only enrich generation messages with tool responses. Sampled production data does not show strong enough evidence to support this change. Should we find more evidence in production data, this decision should be revisited.
-- Root span I/O does not contribute to the transcript, unless it is of type `GENERATION`.
+- Root span I/O contributes only for `GENERATION` observations and eligible managed-agent fallback turns.
 - Do not include status messages and errors in the transcript for v1. Only revisit should we find strong evidence in production data that this is a valuable feature, or if consumers (e.g. Topics, Session UI) require this information.
 - Expose a helper method to get the first user message and final assistant message from a given thread. This is useful for consumers (e.g. Topics, Session UI) to display the user question and final assistant answer. Consumers must assess for which thread they want to display this information, and how to handle multiple threads.
 
@@ -295,7 +304,7 @@ Run the fixture and ordering regressions:
 pnpm --filter @langfuse/shared run test src/server/transcript
 ```
 
-`currentTurn.nestingLevel` is the observation-tree depth of the first GENERATION
+`currentTurn.nestingLevel` is the observation-tree depth of the first GENERATION (or fallback AGENT)
 that contributes retained messages to the current turn. All ancestor types count;
 fetched roots and observations with missing parents are level 0. Cyclic rows
 that cannot be reached by the tree walk also use level 0. Earlier conversation

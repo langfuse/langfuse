@@ -24,8 +24,8 @@
 - Server cache utilities: `src/server/cache/*`
 - Transcript assembly: pass the enriched result of `orderObservations` into
   `assembleTranscript`. `currentTurn.nestingLevel` uses the first contributing
-  generation after history is split off; it is not the depth of the first
-  generation in the full thread.
+  generation or managed-agent fallback after history is split off; it is not
+  the depth of the first observation in the full thread.
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`

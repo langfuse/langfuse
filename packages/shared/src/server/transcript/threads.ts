@@ -260,8 +260,8 @@ export function splitTurn({
       (message) => message.observationId === id && message.traceId === traceId,
     ),
   );
-  const firstGeneration = currentContributors.find(
-    ({ type }) => type === "GENERATION",
+  const firstConversationObservation = currentContributors.find(
+    ({ type }) => type === "GENERATION" || type === "AGENT",
   );
   return {
     conversationHistory: messages
@@ -272,7 +272,7 @@ export function splitTurn({
       ),
     currentTurn: {
       messages: current.map(({ key: _key, ...message }) => message),
-      nestingLevel: firstGeneration?.nestingLevel ?? 0,
+      nestingLevel: firstConversationObservation?.nestingLevel ?? 0,
       observations: currentContributors.map(({ id, traceId }) => ({
         id,
         traceId,

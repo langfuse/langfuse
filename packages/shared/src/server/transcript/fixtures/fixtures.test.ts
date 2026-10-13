@@ -4,6 +4,7 @@ import { createObservation } from "../../test-utils";
 import { convertObservation } from "../../repositories/observations_converters";
 import { orderObservations } from "../ordering";
 import { assembleTranscript } from "../transcript";
+import type { OrderedObservation } from "../ordering";
 describe("transcript fixtures", () => {
   const traceId = "trace";
   const generation = (id: string, input: string[], output: string[]) => ({
@@ -32,6 +33,183 @@ describe("transcript fixtures", () => {
     expect(transcript?.threads[0].currentTurn.observations).toEqual([
       { id: "2", traceId },
     ]);
+  });
+
+  const managedAgent = (id = "agent"): OrderedObservation => ({
+    ...generation("1", [], []),
+    id,
+    type: "AGENT",
+    name: "anthropic.session.turn",
+    parentObservationId: "wrapper",
+    metadata: {
+      "scope.name": "com.anthropic.claude-platform",
+      "attributes.gen_ai.operation.name": "invoke_agent",
+      "attributes.anthropic.session.id": "synthetic-session",
+    },
+    input: JSON.stringify([
+      { role: "user", parts: [{ type: "text", content: "Read the example." }] },
+    ]),
+    output: JSON.stringify([
+      {
+        role: "assistant",
+        parts: [
+          {
+            type: "tool_call",
+            id: "read-call",
+            name: "read",
+            arguments: { file_path: "/workspace/example.txt" },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        parts: [
+          {
+            type: "tool_call_response",
+            id: "read-call",
+            response: [{ type: "text", text: "Example content." }],
+          },
+        ],
+      },
+      {
+        role: "assistant",
+        parts: [{ type: "text", content: "Example read." }],
+      },
+    ]),
+  });
+
+  it.each(["flat", "nested"])(
+    "falls back to Claude Managed Agent turns with %s metadata and empty generations",
+    (metadataShape) => {
+      const agent = managedAgent();
+      if (metadataShape === "nested") {
+        agent.metadata = {
+          scope: { name: "com.anthropic.claude-platform" },
+          attributes: {
+            "gen_ai.operation.name": "invoke_agent",
+            "anthropic.session.id": "synthetic-session",
+          },
+        };
+      }
+      const wrapper = {
+        ...agent,
+        id: "wrapper",
+        parentObservationId: null,
+        name: "application-agent",
+        metadata: {},
+      };
+      const emptyGeneration = {
+        ...generation("2", [], []),
+        parentObservationId: agent.id,
+        input: null,
+        output: null,
+      };
+      const tool: OrderedObservation = {
+        ...generation("3", [], []),
+        type: "TOOL",
+        name: "read",
+        parentObservationId: agent.id,
+        input: { file_path: "/workspace/example.txt" },
+        output: JSON.stringify([{ type: "text", text: "Example content." }]),
+      };
+      const subagent = {
+        ...agent,
+        id: "subagent",
+        parentObservationId: agent.id,
+        startTime: new Date("2026-01-01T12:00:04Z"),
+        input: [
+          { role: "user", parts: [{ type: "text", content: "Check it." }] },
+        ],
+        output: [
+          { role: "assistant", parts: [{ type: "text", content: "Valid." }] },
+        ],
+      };
+      const observations = [tool, subagent, emptyGeneration, agent, wrapper];
+      const snapshot = structuredClone(observations);
+      const transcript = assembleTranscript(orderObservations(observations));
+
+      expect(transcript?.threads).toHaveLength(2);
+      expect(transcript?.threads[0].currentTurn).toMatchObject({
+        nestingLevel: 1,
+        messages: [
+          {
+            observationId: agent.id,
+            role: "user",
+            parts: [{ type: "text", text: "Read the example." }],
+          },
+          {
+            observationId: agent.id,
+            role: "assistant",
+            parts: [
+              { type: "tool-call", toolCallId: "read-call", toolName: "read" },
+            ],
+          },
+          {
+            observationId: tool.id,
+            role: "tool",
+            parts: [{ type: "tool-result", toolCallId: "read-call" }],
+          },
+          {
+            observationId: agent.id,
+            role: "assistant",
+            parts: [{ type: "text", text: "Example read." }],
+          },
+        ],
+      });
+      expect(transcript?.threads[1].currentTurn).toMatchObject({
+        nestingLevel: 2,
+        observations: [{ id: subagent.id, traceId }],
+        messages: [
+          { observationId: subagent.id, role: "user" },
+          { observationId: subagent.id, role: "assistant" },
+        ],
+      });
+      expect(observations).toEqual(snapshot);
+    },
+  );
+
+  it.each(["trace", "other-trace"])(
+    "prefers generation messages only within their own trace (%s)",
+    (generationTraceId) => {
+      const agent = { ...managedAgent(), parentObservationId: null };
+      const withMessages = {
+        ...generation("2", ["Another question"], []),
+        traceId: generationTraceId,
+      };
+      const transcript = assembleTranscript(
+        orderObservations([agent, withMessages]),
+      );
+      expect(transcript?.threads).toHaveLength(
+        generationTraceId === traceId ? 1 : 2,
+      );
+      expect(
+        transcript?.threads.flatMap(
+          (thread) => thread.currentTurn.observations,
+        ),
+      ).toEqual(
+        generationTraceId === traceId
+          ? [{ id: withMessages.id, traceId }]
+          : [
+              { id: agent.id, traceId },
+              { id: withMessages.id, traceId: generationTraceId },
+            ],
+      );
+    },
+  );
+
+  it.each([
+    "scope.name",
+    "attributes.gen_ai.operation.name",
+    "attributes.anthropic.session.id",
+  ])("does not treat agents missing %s as managed session turns", (key) => {
+    const agent = managedAgent();
+    delete agent.metadata[key];
+    expect(assembleTranscript(orderObservations([agent]))).toBeNull();
+  });
+
+  it("leaves managed turns without captured messages empty", () => {
+    const agent = { ...managedAgent(), input: null, output: null };
+    expect(assembleTranscript(orderObservations([agent]))).toBeNull();
   });
 
   it("preserves an unfinished generation's null end time", () => {
