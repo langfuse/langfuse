@@ -25,6 +25,7 @@ import { getDatabaseReadStreamPaginated } from "../database-read-stream/getDatab
 import { getObservationStream } from "../database-read-stream/observation-stream";
 import { getTraceStream } from "../database-read-stream/trace-stream";
 import { getEventsStream } from "../database-read-stream/event-stream";
+import { findInCauseChain } from "./findInCauseChain";
 
 // Map table names to comment object types for preprocessing
 const tableToCommentType: Record<string, CommentObjectType | undefined> = {
@@ -36,20 +37,11 @@ const tableToCommentType: Record<string, CommentObjectType | undefined> = {
 
 const BATCH_EXPORT_CLICKHOUSE_SERVICE: PreferredClickhouseService = "ReadOnly";
 
-// Walks an error's `cause` chain to check whether `target` produced it. Used to
-// tell a read/transform failure (whose error the uploader rethrows as its cause)
-// apart from a genuine storage failure that merely aborts the stream as a side
-// effect. Guards against cause cycles.
-const isCausedBy = (error: unknown, target: unknown): boolean => {
-  const seen = new Set<unknown>();
-  let current: unknown = error;
-  while (current && typeof current === "object" && !seen.has(current)) {
-    if (current === target) return true;
-    seen.add(current);
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-};
+// Checks whether `target` produced `error`. Used to tell a read/transform
+// failure (whose error the uploader rethrows as its cause) apart from a genuine
+// storage failure that merely aborts the stream as a side effect.
+const isCausedBy = (error: unknown, target: unknown): boolean =>
+  findInCauseChain(error, (link) => link === target) !== undefined;
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,

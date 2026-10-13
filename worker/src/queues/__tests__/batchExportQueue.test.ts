@@ -26,22 +26,28 @@ const job = {
   data: { payload: { projectId: "project-1", batchExportId: "export-1" } },
 } as Job<TQueueJobTypes[QueueName.BatchExport]>;
 
+// The handler rethrows read-stream failures as the cause of its own error.
+const rejectWithReadError = (message: string) => {
+  const resourceError = ClickHouseResourceError.wrapIfResourceError(
+    new Error(`${message} [query_id: q-1]`),
+  );
+  mocks.handleBatchExportJob.mockRejectedValue(
+    new Error("[BATCH EXPORT] Reading export data failed", {
+      cause: resourceError,
+    }),
+  );
+};
+
 describe("batchExportQueueProcessor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("fails without retry when a ClickHouse resource error caused the failure", async () => {
-    const resourceError = new ClickHouseResourceError(
-      "TIMEOUT",
-      new Error("Timeout exceeded: elapsed 180 seconds"),
-    );
-    // The handler rethrows read-stream failures as the cause of its own error.
-    mocks.handleBatchExportJob.mockRejectedValue(
-      new Error("[BATCH EXPORT] Reading export data failed", {
-        cause: resourceError,
-      }),
-    );
+  it.each([
+    "Timeout exceeded: elapsed 185002.1 ms, maximum: 185000 ms.",
+    "Memory limit (for query) exceeded: would use 10.00 GiB, maximum: 9.31 GiB.",
+  ])("fails without retry on a query-bound limit: %s", async (message) => {
+    rejectWithReadError(message);
 
     const thrown = await batchExportQueueProcessor(job).catch((e) => e);
 
@@ -54,6 +60,17 @@ describe("batchExportQueueProcessor", () => {
         }),
       }),
     );
+  });
+
+  it.each([
+    "Timeout error.",
+    "(total) memory limit exceeded: would use 212.42 GiB, maximum: 212.40 GiB. OvercommitTracker decision: Query was selected to stop by OvercommitTracker.",
+  ])("keeps retrying a load-dependent failure: %s", async (message) => {
+    rejectWithReadError(message);
+
+    const thrown = await batchExportQueueProcessor(job).catch((e) => e);
+
+    expect(thrown.name).not.toBe("UnrecoverableError");
   });
 
   it("rethrows other errors so BullMQ retries them", async () => {
