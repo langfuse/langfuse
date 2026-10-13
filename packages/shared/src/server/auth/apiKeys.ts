@@ -8,10 +8,10 @@ import { InvalidRequestError } from "../../errors";
 import {
   ApiKeyId,
   OrganizationId,
+  hasApiKeyKind,
   hasOrganizationKind,
   hasProjectKind,
   hasSystemRoleKind,
-  hasUserKind,
   toSystemRole,
   untag,
   type OwnerId,
@@ -168,6 +168,7 @@ export async function createApiKey(
     scope,
     expiresAt: opts.expiresAt ?? null,
     isInAppAgentKey: opts.isInAppAgentKey ?? false,
+    ...creatorColumns(opts.createdBy),
   };
 
   const created = await withTransaction(prisma, (tx) =>
@@ -176,42 +177,26 @@ export async function createApiKey(
   return { ...created, secretKey: sk };
 }
 
-/** creatorColumns preserves the creating key and inherits its user attribution. */
-async function creatorColumns(
-  tx: Prisma.TransactionClient,
+/** creatorColumns maps a key's creator to its api-key columns; "system" records none. */
+function creatorColumns(
   createdBy: ApiKeyId | UserId | "system",
-): Promise<
-  Pick<
-    Prisma.ApiKeyUncheckedCreateInput,
-    "createdByApiKeyId" | "createdByUserId"
-  >
+): Pick<
+  Prisma.ApiKeyUncheckedCreateInput,
+  "createdByApiKeyId" | "createdByUserId"
 > {
   if (createdBy === "system") return {};
-  if (hasUserKind(createdBy)) return { createdByUserId: untag(createdBy) };
-
-  const parent = await tx.apiKey.findUnique({
-    where: { id: untag(createdBy) },
-    select: { createdByUserId: true },
-  });
-  return {
-    createdByApiKeyId: untag(createdBy),
-    createdByUserId: parent?.createdByUserId ?? undefined,
-  };
+  return hasApiKeyKind(createdBy)
+    ? { createdByApiKeyId: untag(createdBy) }
+    : { createdByUserId: untag(createdBy) };
 }
 
 /** insertApiKey writes the api-key row and its one owner-keyed role assignment on a single transaction client. */
 async function insertApiKey(
   tx: Prisma.TransactionClient,
   data: Prisma.ApiKeyUncheckedCreateInput,
-  opts: {
-    owner: OwnerId;
-    role: RoleId;
-    createdBy: ApiKeyId | UserId | "system";
-  },
+  opts: { owner: OwnerId; role: RoleId },
 ) {
-  const apiKey = await tx.apiKey.create({
-    data: { ...data, ...(await creatorColumns(tx, opts.createdBy)) },
-  });
+  const apiKey = await tx.apiKey.create({ data });
   const orgId = hasOrganizationKind(opts.owner)
     ? untag(opts.owner)
     : (

@@ -459,7 +459,7 @@ describe("MCP public API tools", () => {
     { depth: 10, hasAuthor: true },
     { depth: 11, hasAuthor: false },
   ])(
-    "resolves legacy comment authors through $depth parent API keys",
+    "resolves comment authors through $depth parent API keys",
     async ({ depth, hasAuthor }) => {
       const { context, projectId, orgId } = await createMcpTestSetup();
       const user = await createProjectUser({ projectId, orgId });
@@ -480,10 +480,6 @@ describe("MCP public API tools", () => {
           owner: ProjectId(projectId),
           role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
           createdBy: ApiKeyId(key.id),
-        });
-        await prisma.apiKey.update({
-          where: { id: key.id },
-          data: { createdByUserId: null },
         });
       }
 
