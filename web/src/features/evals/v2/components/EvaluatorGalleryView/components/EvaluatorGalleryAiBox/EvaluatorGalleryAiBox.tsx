@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 
@@ -41,7 +41,7 @@ export function EvaluatorGalleryAiBox({
         <Button
           type="submit"
           variant="secondary"
-          icon={Sparkles}
+          icon={BotMessageSquare}
           text="Build with AI"
           disabled={!prompt.trim()}
         />
