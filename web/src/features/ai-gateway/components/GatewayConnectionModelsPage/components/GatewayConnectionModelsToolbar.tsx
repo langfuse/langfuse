@@ -1,4 +1,3 @@
-import { X } from "lucide-react";
 import { useStore } from "zustand";
 
 import { Button } from "@/src/components/ui/button";
@@ -19,7 +18,6 @@ export function GatewayConnectionModelsToolbar({
   onEnableAll,
   onDisableAll,
   onSearchChange,
-  onSetEnabled,
 }: {
   columns: LangfuseColumnDef<GatewayConnectionModelRow>[];
   filteredModelIds: string[];
@@ -32,85 +30,11 @@ export function GatewayConnectionModelsToolbar({
   onEnableAll: () => void;
   onDisableAll: () => void;
   onSearchChange: (value: string) => void;
-  onSetEnabled: (
-    models: string[],
-    enabled: boolean,
-    onSuccess?: () => void,
-  ) => void;
 }) {
   const rowSelection = useStore(selectionStore, (state) => state.rowSelection);
   const selectAll = useStore(selectionStore, (state) => state.selectAll);
-  const selectionActions = selectionStore.getState().actions;
-  const selectedIds = Object.keys(rowSelection).filter(
-    (id) => rowSelection[id],
-  );
+  const actions = selectionStore.getState().actions;
   const selectedPageRowIds = pageModelIds.filter((id) => rowSelection[id]);
-  const selectedCount = selectAll
-    ? filteredModelIds.length
-    : selectedIds.length;
-  const selectedModels = selectAll ? filteredModelIds : selectedIds;
-
-  const enableSelected = () =>
-    onSetEnabled(selectedModels, true, selectionActions.clearSelection);
-  const disableSelected = () =>
-    onSetEnabled(selectedModels, false, selectionActions.clearSelection);
-
-  const actionButtons =
-    selectedCount > 0
-      ? [
-          <span className="text-sm font-bold" key="selected-count">
-            {selectedCount} selected
-          </span>,
-          <Button
-            key="clear-selection"
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Clear selection"
-            disabled={isSaving}
-            onClick={selectionActions.clearSelection}
-          >
-            <X className="icon-base text-icon-foreground" />
-          </Button>,
-          <Button
-            key="enable-selected"
-            type="button"
-            variant="secondary"
-            disabled={isSaving}
-            onClick={enableSelected}
-          >
-            Enable selected
-          </Button>,
-          <Button
-            key="disable-selected"
-            type="button"
-            variant="secondary"
-            disabled={isSaving}
-            onClick={disableSelected}
-          >
-            Disable selected
-          </Button>,
-        ]
-      : [
-          <Button
-            key="enable-all"
-            type="button"
-            variant="secondary"
-            disabled={isSaving}
-            onClick={onEnableAll}
-          >
-            Enable all
-          </Button>,
-          <Button
-            key="disable-all"
-            type="button"
-            variant="secondary"
-            disabled={isSaving}
-            onClick={onDisableAll}
-          >
-            Disable all
-          </Button>,
-        ];
 
   return (
     <DataTableToolbar
@@ -122,12 +46,31 @@ export function GatewayConnectionModelsToolbar({
         currentQuery: search,
         tableAllowsFullTextSearch: false,
       }}
-      actionButtons={actionButtons}
+      actionButtons={
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={isSaving}
+            onClick={onEnableAll}
+          >
+            Enable all
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={isSaving}
+            onClick={onDisableAll}
+          >
+            Disable all
+          </Button>
+        </>
+      }
       multiSelect={{
         selectAll,
-        setSelectAll: selectionActions.setSelectAll,
+        setSelectAll: actions.setSelectAll,
         selectedRowIds: selectedPageRowIds,
-        setRowSelection: selectionActions.setRowSelection,
+        setRowSelection: actions.setRowSelection,
         pageSize,
         pageIndex,
         totalCount: filteredModelIds.length,

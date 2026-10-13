@@ -6,6 +6,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { TableSelectionManager } from "@/src/features/table";
+import { GatewayConnectionModelsSelectionBar } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsSelectionBar";
 import { GatewayConnectionModelsToolbar } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsToolbar";
 import { ModelEnabledSwitch } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ModelEnabledSwitch";
 import type { GatewayConnectionModelRow } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayConnectionModelRow";
@@ -130,36 +131,43 @@ export function GatewayConnectionModelsTable({
   };
 
   return (
-    <div className="flex max-h-[60dvh] min-h-0 flex-col overflow-hidden rounded-md border">
-      <GatewayConnectionModelsToolbar
-        columns={columns}
+    <>
+      <div className="flex max-h-[60dvh] min-h-0 flex-col overflow-hidden rounded-md border">
+        <GatewayConnectionModelsToolbar
+          columns={columns}
+          filteredModelIds={filteredModelIds}
+          isSaving={isSaving}
+          pageIndex={visiblePageIndex}
+          pageModelIds={pageModelIds}
+          pageSize={PAGE_SIZE}
+          search={search}
+          selectionStore={selectionStore}
+          onEnableAll={onEnableAll}
+          onDisableAll={onDisableAll}
+          onSearchChange={handleSearchChange}
+        />
+        <DataTable
+          tableName="gateway-connection-models"
+          columns={columns}
+          data={{ isLoading: false, isError: false, data: rows }}
+          pagination={{
+            totalCount: sortedModels.length,
+            state: { pageIndex: visiblePageIndex, pageSize: PAGE_SIZE },
+            onChange: handlePaginationChange,
+            options: [PAGE_SIZE],
+          }}
+          selectionStore={selectionStore}
+          orderBy={orderBy}
+          setOrderBy={handleOrderByChange}
+          noResultsMessage="No models match the current search."
+        />
+      </div>
+      <GatewayConnectionModelsSelectionBar
         filteredModelIds={filteredModelIds}
         isSaving={isSaving}
-        pageIndex={visiblePageIndex}
-        pageModelIds={pageModelIds}
-        pageSize={PAGE_SIZE}
-        search={search}
         selectionStore={selectionStore}
-        onEnableAll={onEnableAll}
-        onDisableAll={onDisableAll}
-        onSearchChange={handleSearchChange}
         onSetEnabled={onSetEnabled}
       />
-      <DataTable
-        tableName="gateway-connection-models"
-        columns={columns}
-        data={{ isLoading: false, isError: false, data: rows }}
-        pagination={{
-          totalCount: sortedModels.length,
-          state: { pageIndex: visiblePageIndex, pageSize: PAGE_SIZE },
-          onChange: handlePaginationChange,
-          options: [PAGE_SIZE],
-        }}
-        selectionStore={selectionStore}
-        orderBy={orderBy}
-        setOrderBy={handleOrderByChange}
-        noResultsMessage="No models match the current search."
-      />
-    </div>
+    </>
   );
 }
