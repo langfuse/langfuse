@@ -808,6 +808,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+  /** Interval at which one worker per queue set polls queue depth and DLQ age */
   LANGFUSE_QUEUE_METRICS_INTERVAL_MS: z.coerce.number().min(100).default(1000),
   LANGFUSE_QUEUE_METRICS_ENABLED: z.enum(["true", "false"]).default("true"),
   // Upper bound for a random delay before the worker registers its queues and
