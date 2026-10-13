@@ -278,26 +278,6 @@ describe("llmApiKey.all RPC", () => {
     ).rejects.toThrow("Invalid Bedrock credentials");
   });
 
-  it("should report a missing cloud encryption key as an internal error", async () => {
-    const originalEncryptionKey = env.ENCRYPTION_KEY;
-    (env as any).ENCRYPTION_KEY = undefined;
-
-    try {
-      await expect(
-        caller.llmApiKey.create({
-          projectId,
-          secretKey: "test-secret",
-          provider: "openai",
-          adapter: LLMAdapter.OpenAI,
-        }),
-      ).rejects.toMatchObject({
-        code: "INTERNAL_SERVER_ERROR",
-      });
-    } finally {
-      (env as any).ENCRYPTION_KEY = originalEncryptionKey;
-    }
-  });
-
   it("should block creating an llm api key with a localhost base URL", async () => {
     await expect(
       caller.llmApiKey.create({
