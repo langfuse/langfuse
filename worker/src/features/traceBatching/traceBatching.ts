@@ -846,9 +846,6 @@ export async function trackTraceBatchActivity(
   if (bounds.size === 0) return;
 
   try {
-    const effectiveIdleMs = idleMs ?? (await resolveTraceIdleMs(projectId));
-    if (!Number.isSafeInteger(effectiveIdleMs) || effectiveIdleMs <= 0)
-      throw new Error("Trace batch idle time must be a positive integer");
     recordTrackingVolume("eligible", bounds);
     const admitAll = samplingRate === 1 || topicsProject;
     // Sample by trace ID so later observations and retries keep the same decision.
@@ -871,6 +868,9 @@ export async function trackTraceBatchActivity(
       { decision: "excluded" },
     );
     if (entries.length === 0) return;
+    const effectiveIdleMs = idleMs ?? (await resolveTraceIdleMs(projectId));
+    if (!Number.isSafeInteger(effectiveIdleMs) || effectiveIdleMs <= 0)
+      throw new Error("Trace batch idle time must be a positive integer");
     if (!redis) throw new Error("Trace batching requires Redis");
     const shards = new Map<number, typeof entries>();
     for (const entry of entries) {
@@ -1215,6 +1215,16 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       return removed;
     };
 
+    const enqueued: PendingTrace[] = [];
+    const flushEnqueued = async () => {
+      if (enqueued.length === 0) return;
+      const removed = await acknowledge(enqueued.splice(0));
+      recordIncrement(
+        "langfuse.trace_batch.reactivated_traces",
+        removed.filter((wasRemoved) => !wasRemoved).length,
+      );
+    };
+
     // Excluded traces leave Redis like dispatched ones; activity after this
     // run's snapshot starts a fresh pending window that is evaluated again.
     // A trace whose revision changed before acknowledgement stays pending and
@@ -1265,6 +1275,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         },
         { jobId: id },
       );
+      enqueued.push(...batch);
       recordDistribution("langfuse.trace_batch.size", batch.length);
       recordDistribution(
         "langfuse.trace_batch.project_count",
@@ -1336,11 +1347,6 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           strategy,
         });
       }
-      const removed = await acknowledge(batch);
-      recordIncrement(
-        "langfuse.trace_batch.reactivated_traces",
-        removed.filter((wasRemoved) => !wasRemoved).length,
-      );
     };
 
     let projectBatchTail: PendingTrace[] = [];
@@ -1449,49 +1455,59 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         { strategy },
       );
 
-      if (strategy === "project") {
-        projectBatchTail = [];
-        if (selected.at(-1)?.length !== env.LANGFUSE_TRACE_BATCH_MAX_SIZE) {
-          projectBatchTail = selected.pop() ?? [];
+      try {
+        if (strategy === "project") {
+          projectBatchTail = [];
+          if (selected.at(-1)?.length !== env.LANGFUSE_TRACE_BATCH_MAX_SIZE) {
+            projectBatchTail = selected.pop() ?? [];
+          }
+          for (const batch of selected) {
+            if (this.stopping) return;
+            await enqueue(batch);
+          }
+          continue;
         }
-        for (const batch of selected) {
+
+        const fullBatches = selected.filter(
+          (batch) => batch.length === env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
+        );
+        const partialBatches = selected.filter(
+          (batch) => batch.length < env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
+        );
+        for (const batch of fullBatches) {
           if (this.stopping) return;
           await enqueue(batch);
         }
-        continue;
-      }
-
-      const fullBatches = selected.filter(
-        (batch) => batch.length === env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
-      );
-      const partialBatches = selected.filter(
-        (batch) => batch.length < env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
-      );
-      for (const batch of fullBatches) {
+        await this.extendLockOnProgress();
         if (this.stopping) return;
-        await enqueue(batch);
-      }
-      await this.extendLockOnProgress();
-      if (this.stopping) return;
-      const prepared = prepareLocalityPartials(
-        partialBatches,
-        env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
-        batchWeightLimits,
-      );
-      localityPartials = prepared.carry;
-      for (const batch of prepared.dispatch) {
-        if (this.stopping) return;
-        await enqueue(batch);
+        const prepared = prepareLocalityPartials(
+          partialBatches,
+          env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
+          batchWeightLimits,
+        );
+        localityPartials = prepared.carry;
+        for (const batch of prepared.dispatch) {
+          if (this.stopping) return;
+          await enqueue(batch);
+        }
+      } finally {
+        await flushEnqueued();
       }
     }
     if (this.stopping) return;
-    if (strategy === "project") {
-      if (projectBatchTail.length > 0) await enqueue(projectBatchTail);
-      return;
-    }
-    for (const batch of localityPartials.toSorted(compareBatchesByOldestDue)) {
-      if (this.stopping) return;
-      await enqueue(batch);
+    try {
+      if (strategy === "project") {
+        if (projectBatchTail.length > 0) await enqueue(projectBatchTail);
+        return;
+      }
+      for (const batch of localityPartials.toSorted(
+        compareBatchesByOldestDue,
+      )) {
+        if (this.stopping) return;
+        await enqueue(batch);
+      }
+    } finally {
+      await flushEnqueued();
     }
   }
 }

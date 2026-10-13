@@ -879,6 +879,39 @@ describe("trace micro-batch scheduling with Redis", () => {
     },
   );
 
+  it("acknowledges enqueued batches by shard across a hydration window", async () => {
+    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 16;
+    env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 30;
+    const traceIds = Array.from(
+      { length: 120 },
+      (_, index) => `trace-${index}`,
+    );
+    await trackTraceBatchActivity(
+      "project",
+      traceIds.map((traceId) => event(traceId)),
+    );
+    for (const traceId of traceIds) {
+      const entry = member("project", traceId);
+      await client().zadd(
+        getTraceBatchReadinessKeys(getTraceBatchShard(entry)).due,
+        Date.now() - 1_000,
+        entry,
+      );
+    }
+    const evaluate = vi.spyOn(client(), "evalsha");
+    await runner().processBatch();
+    expect(await queue.getWaitingCount()).toBe(4);
+    const acknowledgements = evaluate.mock.calls.filter(
+      ([, keyCount]) => Number(keyCount) > 2,
+    );
+    expect(acknowledgements.length).toBeLessThanOrEqual(16);
+    for (let shard = 0; shard < 16; shard++) {
+      const { due, state } = getTraceBatchReadinessKeys(shard);
+      expect(await client().zcard(due)).toBe(0);
+      expect(await client().hlen(state)).toBe(0);
+    }
+  });
+
   it("samples prefixed map memory and paused/delayed queue work, then reports drained zeros", async () => {
     const now = Date.now();
     const clock = vi.spyOn(Date, "now").mockReturnValue(now);
@@ -1728,6 +1761,16 @@ describe("trace micro-batch scheduling with Redis", () => {
       topicsProjects.clear();
       env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = samplingRate;
     }
+  });
+
+  it("does not load idle settings when every trace is sampled out", async () => {
+    env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = Number.MIN_VALUE;
+    vi.mocked(shared.getTracingReadinessSettings).mockClear();
+
+    await trackTraceBatchActivity("project", [event("sampled-out")]);
+
+    expect(shared.getTracingReadinessSettings).not.toHaveBeenCalled();
+    expect(await client().hlen(stateKey)).toBe(0);
   });
 
   it("keeps stable nested trace samples across replay and counts decisions once per trace in each ingestion batch", async () => {
@@ -2681,6 +2724,25 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(await client().zcard(dueKey)).toBe(0);
     },
   );
+
+  it("acknowledges successful jobs when a later enqueue fails", async () => {
+    env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 1;
+    await trackTraceBatchActivity("project", [event("first"), event("second")]);
+    await makeDue("project", "first", "second");
+    const add = queue.add.bind(queue);
+    vi.spyOn(queue, "add")
+      .mockImplementationOnce((...args) => add(...args))
+      .mockRejectedValueOnce(new Error("enqueue unavailable"));
+    const dispatcher = runner();
+    await dispatcher.processBatch();
+    expect(await queue.getWaitingCount()).toBe(1);
+    expect(await client().zcard(dueKey)).toBe(1);
+    expect(await client().hlen(stateKey)).toBe(1);
+    await dispatcher.processBatch();
+    expect(await queue.getWaitingCount()).toBe(2);
+    expect(await client().zcard(dueKey)).toBe(0);
+    expect(await client().hlen(stateKey)).toBe(0);
+  });
 
   it.each(["updated", "deleted", "expired"] as const)(
     "preserves arrivals during enqueue, including deleted/recreated state: %s",
