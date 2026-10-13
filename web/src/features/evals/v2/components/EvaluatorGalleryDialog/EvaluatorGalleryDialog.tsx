@@ -20,6 +20,11 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getEvaluatorCreationAnalyticsProperties } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { getTemplateSelectionAnalyticsProperties } from "@/src/features/evals/v2/fns/templateGallery/getTemplateSelectionAnalyticsProperties";
 import { api } from "@/src/utils/api";
+import {
+  useInAppAiAgent,
+  useIsInAppAgentLauncherVisible,
+} from "@/src/features/in-app-agent";
+import { EvaluatorGalleryStartMenu } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryStartMenu/EvaluatorGalleryStartMenu";
 
 // Search reports once the user pauses typing, so one query is one event.
 const SEARCH_CAPTURE_DELAY_MS = 1000;
@@ -38,6 +43,8 @@ export function EvaluatorGalleryDialog({
   onCreateFromScratch: (type: EvalTemplateType) => void;
 }) {
   const capture = usePostHogClientCapture();
+  const isAssistantLauncherVisible = useIsInAppAgentLauncherVisible();
+  const { openAssistant, submit } = useInAppAiAgent();
   const [search, setSearch] = useState("");
   const [activeSection, setActiveSection] = useState<string>(
     EVALUATOR_GALLERY_ALL_SECTION_KEY,
@@ -182,6 +189,22 @@ export function EvaluatorGalleryDialog({
     );
     onCreateFromScratch(evaluatorType);
   };
+  const handleBuildWithAi = (prompt: string) => {
+    flushSearchCapture();
+    const openedAssistant = openAssistant("evaluator_gallery");
+    capture("evaluators:gallery_build_with_ai", {
+      promptLength: prompt.length,
+      openedAssistant,
+    });
+    // False means the enable-AI-features dialog took over; keep the gallery.
+    if (!openedAssistant) return;
+    // The assistant window sits below dialogs, so the gallery has to close.
+    onOpenChange(false);
+    submit(prompt, {
+      newConversation: true,
+      entryPoint: "evaluator-gallery",
+    }).catch(() => undefined);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -194,13 +217,19 @@ export function EvaluatorGalleryDialog({
         }}
       >
         <DialogHeader className="p-3 sm:p-4 [&>div]:items-start [&>div]:text-left [&>div>button]:-mt-1 [&>div>button]:-mr-2 [&>div>button]:flex [&>div>button]:size-8 [&>div>button]:items-center [&>div>button]:justify-center">
-          <DialogTitle className="text-lg sm:text-xl">
-            Add an evaluator
-          </DialogTitle>
-          <DialogDescription>
-            Pick a template to start from or create a new evaluator from
-            scratch.
-          </DialogDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <DialogTitle className="text-lg sm:text-xl">
+                Add an evaluator
+              </DialogTitle>
+              <DialogDescription>
+                Pick a template or start from scratch.
+              </DialogDescription>
+            </div>
+            <EvaluatorGalleryStartMenu
+              onCreateFromScratch={handleCreateFromScratch}
+            />
+          </div>
         </DialogHeader>
         <EvaluatorGalleryView
           search={search}
@@ -226,6 +255,9 @@ export function EvaluatorGalleryDialog({
           }
           decisionModelBannerDismissed={bannerDismissed}
           onDismissDecisionModelBanner={() => setBannerDismissed(true)}
+          onBuildWithAi={
+            isAssistantLauncherVisible ? handleBuildWithAi : undefined
+          }
         />
       </DialogContent>
     </Dialog>

@@ -54,6 +54,7 @@ const managedTemplate = {
   icon: "gauge",
   description: "Assess whether the answer directly addresses the question.",
   maintainer: "langfuse",
+  previewScores: [{ name: "answer_relevance", value: "Relevant" }],
   evaluator: {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
     promptMessages: [
@@ -213,6 +214,7 @@ const topicDecisionModel = {
   description:
     "Assigns the input to one of your topics with a calibrated probability for each option, in one fast decision-model call.",
   maintainer: "langfuse",
+  previewScores: [{ name: "topic", value: "billing" }],
   evaluator: {
     type: EvalTemplateTypeEnum.DECISION_MODEL,
     questions: [

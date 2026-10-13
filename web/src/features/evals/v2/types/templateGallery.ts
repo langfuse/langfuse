@@ -22,6 +22,8 @@ export type ManagedTemplate = {
   icon: string;
   description: string;
   maintainer: string;
+  /** Sample scores shown on the gallery card, as `name: value` chips. */
+  previewScores: Array<{ name: string; value: string }>;
   evaluator:
     | {
         type: Extract<EvalTemplateType, "LLM_AS_JUDGE">;

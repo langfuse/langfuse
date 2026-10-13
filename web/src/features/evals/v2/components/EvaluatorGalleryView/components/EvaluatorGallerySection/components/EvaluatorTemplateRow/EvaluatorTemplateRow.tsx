@@ -16,9 +16,9 @@ export function EvaluatorTemplateRow({
     <button
       type="button"
       onClick={() => onSelect(template)}
-      className="hover:bg-muted/60 @container block w-full cursor-pointer rounded-md px-1 py-2.5 text-left transition-colors"
+      className="hover:bg-muted/60 @container block w-full cursor-pointer border-b px-3 py-2.5 text-left transition-colors last:border-b-0"
     >
-      <span className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @3xl:grid-cols-[minmax(10rem,18rem)_minmax(0,1fr)_max-content_max-content]">
+      <span className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @3xl:grid-cols-[minmax(10rem,18rem)_minmax(0,1fr)_12rem_9rem]">
         <span
           className="col-start-1 row-start-1 min-w-0 truncate text-sm font-bold"
           title={template.name}
@@ -33,7 +33,7 @@ export function EvaluatorTemplateRow({
         </span>
         {attribution ? (
           <span
-            className="text-muted-foreground/80 col-span-2 col-start-1 row-start-3 min-w-0 text-xs leading-5 whitespace-normal @3xl:col-span-1 @3xl:col-start-3 @3xl:row-start-1 @3xl:text-sm @3xl:whitespace-nowrap"
+            className="text-muted-foreground/80 col-span-2 col-start-1 row-start-3 min-w-0 text-xs leading-5 whitespace-normal @3xl:col-span-1 @3xl:col-start-3 @3xl:row-start-1 @3xl:truncate @3xl:text-sm"
             title={attribution}
           >
             {attribution}

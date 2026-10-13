@@ -970,6 +970,15 @@
   );
 }
 
+/* Dot grid backdrop for preview surfaces, e.g. evaluator gallery cards. */
+@utility dot-grid {
+  background-image: radial-gradient(
+    hsl(var(--line-dotted)) 1px,
+    transparent 1px
+  );
+  background-size: calc(var(--spacing) * 3.5) calc(var(--spacing) * 3.5);
+}
+
 @utility scrollbar-visible {
   &::-webkit-scrollbar {
     width: 8px;

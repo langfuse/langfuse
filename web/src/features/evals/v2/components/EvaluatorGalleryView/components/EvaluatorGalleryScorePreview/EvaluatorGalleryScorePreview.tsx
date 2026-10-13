@@ -1,0 +1,40 @@
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import type { ManagedTemplate } from "@/src/features/evals/v2/types/templateGallery";
+
+const MAX_VISIBLE_SCORES = 2;
+
+/** Sample `name: value` chips on a dot grid, styled like trace score badges. */
+export function EvaluatorGalleryScorePreview({
+  scores,
+}: {
+  scores: ManagedTemplate["previewScores"];
+}) {
+  const visibleScores = scores.slice(0, MAX_VISIBLE_SCORES);
+  const hiddenCount = scores.length - visibleScores.length;
+
+  return (
+    <div
+      aria-hidden="true"
+      className="bg-muted/40 dot-grid flex h-20 items-center justify-center gap-1 overflow-hidden rounded-sm border px-3"
+    >
+      {visibleScores.map((score) => (
+        <BadgeShell key={score.name} color="filled" size="md">
+          <span className="text-muted-foreground flex min-w-0 font-mono">
+            <span className="truncate py-0.5" title={score.name}>
+              {score.name}
+            </span>
+            <span className="py-0.5">:</span>
+          </span>
+          <span className="text-foreground py-0.5 font-mono text-nowrap">
+            {score.value}
+          </span>
+        </BadgeShell>
+      ))}
+      {hiddenCount > 0 ? (
+        <span className="text-muted-foreground shrink-0 text-xs">
+          +{hiddenCount}
+        </span>
+      ) : null}
+    </div>
+  );
+}

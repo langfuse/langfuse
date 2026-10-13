@@ -61,6 +61,22 @@ describe("managed evaluator templates catalog", () => {
             : [],
         );
       }
+
+      // Gallery chips must use the score names the evaluator really writes.
+      expect(template.previewScores.length).toBeGreaterThan(0);
+      if (template.evaluator.type === "DECISION_MODEL") {
+        const scoreNames = template.evaluator.questions.map(
+          ({ scoreName }) => scoreName,
+        );
+        for (const { name } of template.previewScores) {
+          expect(scoreNames).toContain(name);
+        }
+      }
+      if (template.evaluator.type === "CODE") {
+        for (const { name } of template.previewScores) {
+          expect(template.evaluator.source).toContain(`name: "${name}"`);
+        }
+      }
     }
   });
 

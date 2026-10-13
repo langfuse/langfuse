@@ -2,14 +2,12 @@ import type { ReactNode } from "react";
 import type { EvalTemplateType } from "@langfuse/shared";
 
 import { EvaluatorGalleryMethodBadge } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
-import { EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
-import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
-import {
-  getGalleryTemplateCategoryKey,
-  getGalleryTemplatePresentation,
-} from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
-import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
-import { cn } from "@/src/utils/tailwind";
+import { EvaluatorGalleryScorePreview } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryScorePreview/EvaluatorGalleryScorePreview";
+import { getGalleryTemplatePresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
+import type {
+  GalleryTemplate,
+  ManagedTemplate,
+} from "@/src/features/evals/v2/types/templateGallery";
 
 export function EvaluatorRecommendedCardSurface({
   children,
@@ -17,38 +15,38 @@ export function EvaluatorRecommendedCardSurface({
   children: ReactNode;
 }) {
   return (
-    <div className="bg-background hover:bg-muted/40 relative flex h-full flex-col rounded-md border p-4 text-left transition-colors">
+    <div className="bg-background hover:bg-muted/40 relative flex h-full flex-col overflow-hidden rounded-md border text-left transition-colors">
       {children}
     </div>
   );
 }
 
 export function EvaluatorRecommendedCardContent({
-  icon,
-  badge,
+  preview,
+  footer,
   title,
   description,
 }: {
-  icon: ReactNode;
-  badge: ReactNode;
+  preview: ReactNode;
+  footer: ReactNode;
   title: string;
   description: string | undefined;
 }) {
   return (
     <>
-      <div className="flex items-start justify-between gap-2">
-        {icon}
-        {badge}
+      <div className="p-2 pb-0">{preview}</div>
+      <div className="flex flex-1 flex-col px-4 pt-3 pb-4">
+        <span className="line-clamp-2 text-base font-bold" title={title}>
+          {title}
+        </span>
+        <p
+          className="text-muted-foreground mt-1 line-clamp-2 text-sm leading-relaxed"
+          title={description}
+        >
+          {description}
+        </p>
       </div>
-      <span className="mt-3 line-clamp-2 text-base font-bold" title={title}>
-        {title}
-      </span>
-      <p
-        className="text-muted-foreground mt-1 line-clamp-2 text-sm leading-relaxed"
-        title={description}
-      >
-        {description}
-      </p>
+      <div className="flex items-center border-t px-4 py-2">{footer}</div>
     </>
   );
 }
@@ -57,21 +55,17 @@ export function EvaluatorRecommendedTemplateCardContent({
   title,
   description,
   type,
-  categoryKey,
+  previewScores,
 }: {
   title: string;
   description: string | undefined;
   type: EvalTemplateType;
-  categoryKey?: string;
+  previewScores: ManagedTemplate["previewScores"];
 }) {
-  const { icon: Icon, iconClassName } = getGalleryCategoryPresentation(
-    categoryKey ?? EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
-  );
-
   return (
     <EvaluatorRecommendedCardContent
-      icon={<Icon className={cn("icon-base shrink-0", iconClassName)} />}
-      badge={<EvaluatorGalleryMethodBadge type={type} />}
+      preview={<EvaluatorGalleryScorePreview scores={previewScores} />}
+      footer={<EvaluatorGalleryMethodBadge type={type} />}
       title={title}
       description={description}
     />
@@ -82,11 +76,10 @@ export function EvaluatorRecommendedCard({
   template,
   onSelect,
 }: {
-  template: GalleryTemplate;
+  template: Extract<GalleryTemplate, { source: "managed" }>;
   onSelect: (template: GalleryTemplate) => void;
 }) {
   const { description, type } = getGalleryTemplatePresentation(template);
-  const categoryKey = getGalleryTemplateCategoryKey(template);
 
   return (
     <button
@@ -99,7 +92,7 @@ export function EvaluatorRecommendedCard({
           title={template.name}
           description={description}
           type={type}
-          categoryKey={categoryKey}
+          previewScores={template.previewScores}
         />
       </EvaluatorRecommendedCardSurface>
     </button>

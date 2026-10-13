@@ -1,11 +1,9 @@
 /* eslint-disable no-nested-ternary */
 import { useCallback, type RefObject } from "react";
-import { Code2, Scale, Search, Sparkles } from "lucide-react";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
-import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { EvaluatorGalleryAiBox } from "./components/EvaluatorGalleryAiBox/EvaluatorGalleryAiBox";
 import { EvaluatorGalleryDecisionModelBanner } from "./components/EvaluatorGalleryDecisionModelBanner/EvaluatorGalleryDecisionModelBanner";
 import { EvaluatorGallerySection } from "./components/EvaluatorGallerySection/EvaluatorGallerySection";
 import { EvaluatorGallerySidebar } from "./components/EvaluatorGallerySidebar/EvaluatorGallerySidebar";
@@ -56,6 +54,7 @@ export function EvaluatorGalleryView({
   errorMessage,
   decisionModelBannerDismissed,
   onDismissDecisionModelBanner,
+  onBuildWithAi,
 }: {
   search: string;
   onSearchChange: (search: string) => void;
@@ -76,6 +75,8 @@ export function EvaluatorGalleryView({
   errorMessage?: string;
   decisionModelBannerDismissed: boolean;
   onDismissDecisionModelBanner: () => void;
+  /** Omitted when the in-app assistant is unavailable. */
+  onBuildWithAi?: (prompt: string) => void;
 }) {
   const sidebarItems = gallerySidebarItems(navigationItems, sections);
   const resolvedSection =
@@ -132,71 +133,34 @@ export function EvaluatorGalleryView({
             items={sidebarItems}
             activeSection={resolvedSection}
             onSelectSection={selectSection}
+            search={search}
+            onSearchChange={onSearchChange}
+            searchInputRef={searchInputRef}
           />
         ) : (
           <div aria-hidden="true" className="w-56 shrink-0 border-r" />
         )}
 
-        <div className="@container flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="bg-muted/30 @container flex min-w-0 flex-1 flex-col overflow-hidden">
           <div
             ref={scrollContainerRef}
             className="min-h-0 flex-1 overflow-y-auto"
           >
-            <div className="bg-modal sticky top-0 z-10 flex flex-col items-stretch gap-2 border-b px-4 py-3 @2xl:flex-row @2xl:items-center">
-              <div className="relative min-w-0 flex-1">
-                <Search className="text-muted-foreground icon-base absolute top-1/2 left-2 -translate-y-1/2" />
-                <Input
-                  ref={searchInputRef}
-                  value={search}
-                  onChange={(event) => onSearchChange(event.target.value)}
-                  placeholder="Search what you want to measure."
-                  className="pl-8"
-                />
-              </div>
-              <div className="flex flex-col gap-2 @sm:flex-row">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="flex-1 shrink-0 gap-1.5 @2xl:flex-none"
-                  onClick={() =>
-                    onCreateFromScratch(EvalTemplateTypeEnum.LLM_AS_JUDGE)
-                  }
-                >
-                  <Sparkles className="icon-base" aria-hidden="true" />
-                  New LLM-as-a-judge
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="flex-1 shrink-0 gap-1.5 @2xl:flex-none"
-                  onClick={() => onCreateFromScratch(EvalTemplateTypeEnum.CODE)}
-                >
-                  <Code2 className="icon-base" aria-hidden="true" />
-                  New code evaluator
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="flex-1 shrink-0 gap-1.5 @2xl:flex-none"
-                  title="Ask Jev or the OpenAI Decisions API typed questions in one call."
-                  onClick={() =>
-                    onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
-                  }
-                >
-                  <Scale className="icon-base" aria-hidden="true" />
-                  New decision model evaluator
-                </Button>
-              </div>
-            </div>
-
             <div className="flex flex-col gap-10 px-4 py-4">
-              {!decisionModelBannerDismissed ? (
-                <EvaluatorGalleryDecisionModelBanner
-                  onTry={() =>
-                    onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
-                  }
-                  onDismiss={onDismissDecisionModelBanner}
-                />
+              {onBuildWithAi || !decisionModelBannerDismissed ? (
+                <div className="flex flex-col gap-3">
+                  {onBuildWithAi ? (
+                    <EvaluatorGalleryAiBox onSubmit={onBuildWithAi} />
+                  ) : null}
+                  {!decisionModelBannerDismissed ? (
+                    <EvaluatorGalleryDecisionModelBanner
+                      onTry={() =>
+                        onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
+                      }
+                      onDismiss={onDismissDecisionModelBanner}
+                    />
+                  ) : null}
+                </div>
               ) : null}
               {isLoading ? <GallerySkeleton /> : null}
               {errorMessage ? (

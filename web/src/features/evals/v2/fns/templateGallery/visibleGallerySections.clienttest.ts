@@ -17,6 +17,7 @@ const template = {
   icon: "gauge",
   description: "Assess whether the answer directly addresses the question.",
   maintainer: "langfuse",
+  previewScores: [{ name: "answer_relevance", value: "Relevant" }],
   evaluator: {
     type: "LLM_AS_JUDGE",
     promptMessages: [{ role: "user", content: "Rate relevance." }],

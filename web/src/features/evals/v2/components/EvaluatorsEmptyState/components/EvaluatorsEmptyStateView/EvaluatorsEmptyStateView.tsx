@@ -8,10 +8,7 @@ import {
 } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
 import { EvaluatorRecommendedCards } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorRecommendedCards/EvaluatorRecommendedCards";
 import { EVALUATOR_ACCENT_BUTTON_CLASSNAME } from "@/src/features/evals/v2/constants/evaluatorEmptyState";
-import {
-  getGalleryTemplateCategoryKey,
-  getGalleryTemplatePresentation,
-} from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
+import { getGalleryTemplatePresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
 import type { EvaluatorEmptyStateStartingPoint } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorEmptyState";
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import { cn } from "@/src/utils/tailwind";
@@ -43,7 +40,7 @@ function DetectTopicsStartingPointCard({
           title={startingPoint.title}
           description={startingPoint.description}
           type={type}
-          categoryKey={getGalleryTemplateCategoryKey(startingPoint.template)}
+          previewScores={startingPoint.template.previewScores}
         />
         {onDetectTopics ? (
           <div className="mt-auto flex justify-end pt-3">
@@ -82,11 +79,13 @@ function BrowseLibraryCard({
     >
       <EvaluatorRecommendedCardSurface>
         <EvaluatorRecommendedCardContent
-          icon={
-            <LayoutGrid className="text-muted-foreground icon-base shrink-0" />
+          preview={
+            <div className="bg-muted/40 dot-grid flex h-20 items-center justify-center rounded-sm border">
+              <LayoutGrid className="text-muted-foreground icon-lg" />
+            </div>
           }
-          badge={
-            <span className="bg-muted text-muted-foreground inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs">
+          footer={
+            <span className="text-muted-foreground text-sm">
               {templateCount} templates
             </span>
           }
