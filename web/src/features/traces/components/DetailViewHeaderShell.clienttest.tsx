@@ -59,11 +59,18 @@ function Row({ actionsKey }: { actionsKey: string }) {
       alwaysFold={false}
       actionsKey={actionsKey}
       renderTitle={({ actionsFolded }) => (
-        <span data-testid="title-marker">
-          {actionsFolded ? "folded" : "inline"}
-        </span>
+        <>
+          <span data-testid="title-marker">
+            {actionsFolded ? "folded" : "inline"}
+          </span>
+          {actionsFolded && <button aria-label="More actions" />}
+        </>
       )}
-      actions={<span data-testid="cluster-marker">actions</span>}
+      actions={
+        <span data-testid="cluster-marker">
+          <button aria-label="Annotate" />
+        </span>
+      }
     />
   );
 }
@@ -98,6 +105,23 @@ describe("DetailViewHeaderTitleRow", () => {
 
     expect(screen.getByTestId("title-marker")).toHaveTextContent("inline");
     expect(screen.getByTestId("cluster-marker")).toBeInTheDocument();
+  });
+
+  it("follows the keyboard from a cluster it folds to the menu that replaces it", () => {
+    headerWidth = 900;
+    clusterWidth = 312;
+
+    const { rerender } = render(<Row actionsKey="a" />);
+    screen.getByLabelText("Annotate").focus();
+    expect(document.activeElement).toBe(screen.getByLabelText("Annotate"));
+
+    // The pane narrows under it — opening the review panel does exactly this.
+    headerWidth = PANE_FLOOR_HEADER_WIDTH;
+    clusterWidth = 344;
+    rerender(<Row actionsKey="b" />);
+
+    expect(screen.getByTestId("title-marker")).toHaveTextContent("folded");
+    expect(document.activeElement).toBe(screen.getByLabelText("More actions"));
   });
 
   it("keeps the cluster beside the title when the header is wide", () => {
