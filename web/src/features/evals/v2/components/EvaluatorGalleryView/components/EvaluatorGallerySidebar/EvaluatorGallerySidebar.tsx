@@ -11,7 +11,6 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { cn } from "@/src/utils/tailwind";
-import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import type { GalleryNavigationItem } from "@/src/features/evals/v2/types/templateGallery";
 
 function GallerySearch({
@@ -71,14 +70,8 @@ export function EvaluatorGallerySidebar({
         className="hidden w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r p-4 @2xl:flex"
       >
         <div className="pb-4">{searchField(searchInputRef)}</div>
-        <div className="text-muted-foreground px-3 pb-2 text-xs font-bold tracking-wide uppercase">
-          Browse
-        </div>
         {items.map((item) => {
           const isActive = selectedSection === item.key;
-          const { icon: FallbackIcon, iconClassName } =
-            getGalleryCategoryPresentation(item.key);
-          const Icon = item.icon ?? FallbackIcon;
 
           return (
             <Button
@@ -94,7 +87,6 @@ export function EvaluatorGallerySidebar({
               aria-current={isActive ? "page" : undefined}
               onClick={() => onSelectSection(item.key)}
             >
-              <Icon className={cn("icon-base mr-2 shrink-0", iconClassName)} />
               <span className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
                 <span className="truncate" title={item.label}>
                   {item.label}

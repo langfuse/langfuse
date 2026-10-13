@@ -1,9 +1,5 @@
 import type { ReactNode } from "react";
 
-import { EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
-import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
-import { cn } from "@/src/utils/tailwind";
-
 export function EvaluatorRecommendedCards({
   label,
   count,
@@ -13,15 +9,10 @@ export function EvaluatorRecommendedCards({
   count?: number;
   children: ReactNode;
 }) {
-  const { icon: Icon, iconClassName } = getGalleryCategoryPresentation(
-    EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
-  );
-
   return (
     <div className="@container flex flex-col gap-3">
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <Icon className={cn("icon-base shrink-0", iconClassName)} />
           <h4 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
             {label}
           </h4>

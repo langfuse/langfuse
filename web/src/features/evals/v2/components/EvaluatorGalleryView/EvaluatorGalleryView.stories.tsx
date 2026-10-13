@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { User } from "lucide-react";
 import { expect, fn, userEvent, waitFor } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 import preview from "../../../../../../.storybook/preview";
@@ -183,7 +182,7 @@ const defaultArgs = {
   search: "",
   onSearchChange: fn(),
   navigationItems: [
-    { key: "custom", label: "Your templates", icon: User, count: 2 },
+    { key: "custom", label: "Your templates", count: 2 },
     { key: "recommended", label: "Recommended starting points", count: 3 },
     { key: "conversation", label: "Conversational / Chatbots", count: 2 },
     { key: "quality", label: "Quality", count: 7 },

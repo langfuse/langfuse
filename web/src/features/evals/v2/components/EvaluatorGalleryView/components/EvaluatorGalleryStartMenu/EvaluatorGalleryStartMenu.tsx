@@ -9,17 +9,17 @@ const START_OPTIONS = [
   {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
     title: "LLM-as-a-judge",
-    tooltip: "Explains each score. Best for long or nuanced inputs.",
+    description: "Explains each score. Best for long or nuanced inputs.",
   },
   {
     type: EvalTemplateTypeEnum.DECISION_MODEL,
     title: "Decision model",
-    tooltip: "Fast and cheap at high volume, for simple questions.",
+    description: "Fast and cheap at high volume, for simple questions.",
   },
   {
     type: EvalTemplateTypeEnum.CODE,
     title: "Code",
-    tooltip: "Exact rules, no model call.",
+    description: "Exact rules, no model call.",
   },
 ] as const;
 
@@ -36,7 +36,7 @@ export function EvaluatorGalleryStartMenu({
         type: "item",
         id: option.type,
         title: option.title,
-        tooltip: option.tooltip,
+        description: option.description,
         icon: getEvaluatorMethodIcon(option.type),
         onClick: () => onCreateFromScratch(option.type),
       }))}

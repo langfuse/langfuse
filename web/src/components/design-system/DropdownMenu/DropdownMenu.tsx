@@ -75,7 +75,7 @@ const menuItemIconVariants = cva("", {
 });
 
 const menuItemVariants = cva(
-  "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex h-8 w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
+  "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
   {
     variants: {
       variant: {
@@ -83,9 +83,14 @@ const menuItemVariants = cva(
         destructive:
           "text-destructive focus:bg-destructive/10 data-[active]:bg-destructive/10",
       },
+      hasDescription: {
+        true: "",
+        false: "h-8",
+      },
     },
     defaultVariants: {
       variant: "default",
+      hasDescription: false,
     },
   },
 );
@@ -97,6 +102,32 @@ const primaryActionVariants = cva(
 const secondaryActionVariants = cva(
   "hover:bg-border dark:hover:bg-white/10 mr-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded",
 );
+
+function MenuItemLabel({
+  title,
+  description,
+}: {
+  title: string;
+  description?: string;
+}) {
+  if (!description) {
+    return (
+      <span
+        className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
+        title={title}
+      >
+        {title}
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex min-w-0 flex-1 flex-col text-left">
+      <span>{title}</span>
+      <span className="text-muted-foreground text-xs">{description}</span>
+    </span>
+  );
+}
 
 function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
   return (value: T | null) => {
@@ -138,6 +169,8 @@ type DropdownMenuItem = {
   disabled?: { reason: string };
   id: string;
   title: string;
+  /** Second line under the title, e.g. when to pick this option. */
+  description?: string;
   tooltip?: string;
   badge?: React.ReactNode;
   icon?: LucideIcon;
@@ -632,7 +665,10 @@ function DropdownMenuNode({
                       }}
                       data-active={activeIndex === index ? "" : undefined}
                       data-disabled={item.disabled ? "" : undefined}
-                      className={menuItemVariants({ variant: item.variant })}
+                      className={menuItemVariants({
+                        variant: item.variant,
+                        hasDescription: Boolean(item.description),
+                      })}
                       {...getItemProps({
                         onClick: (event) => {
                           if (item.disabled) return;
@@ -687,12 +723,10 @@ function DropdownMenuNode({
                               aria-hidden="true"
                             />
                           ) : null}
-                          <span
-                            className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
+                          <MenuItemLabel
                             title={item.title}
-                          >
-                            {item.title}
-                          </span>
+                            description={item.description}
+                          />
                           {item.badge ? (
                             <span className="ml-2 shrink-0">{item.badge}</span>
                           ) : null}
@@ -716,12 +750,10 @@ function DropdownMenuNode({
                               aria-hidden="true"
                             />
                           ) : null}
-                          <span
-                            className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
+                          <MenuItemLabel
                             title={item.title}
-                          >
-                            {item.title}
-                          </span>
+                            description={item.description}
+                          />
                           {item.badge ? (
                             <span className="ml-2 shrink-0">{item.badge}</span>
                           ) : null}

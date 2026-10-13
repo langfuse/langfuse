@@ -1,4 +1,3 @@
-import type { LucideIcon } from "lucide-react";
 import type {
   DecisionModelQuestions,
   EvalTemplateSourceCodeLanguage,
@@ -71,7 +70,6 @@ export type GalleryTemplate =
 export type GalleryNavigationItem = {
   key: string;
   label: string;
-  icon?: LucideIcon;
   count?: number;
 };
 

@@ -15,9 +15,7 @@ import {
   EVALUATOR_GALLERY_SAFETY_CALLOUT,
   EVALUATOR_GALLERY_SAFETY_SECTION_KEY,
 } from "@/src/features/evals/v2/constants/evaluatorGallery";
-import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import { getGalleryTemplateId } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
-import { cn } from "@/src/utils/tailwind";
 
 export function EvaluatorGallerySection({
   section,
@@ -45,9 +43,6 @@ export function EvaluatorGallerySection({
       template.source === "managed",
   );
   const totalCount = section.totalCount ?? section.templates.length;
-  const { icon: Icon, iconClassName } = getGalleryCategoryPresentation(
-    section.key,
-  );
 
   return (
     <section className="flex scroll-mt-1 flex-col gap-3">
@@ -65,7 +60,6 @@ export function EvaluatorGallerySection({
         <>
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
-              <Icon className={cn("icon-base shrink-0", iconClassName)} />
               <h4 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
                 {section.label}
               </h4>
