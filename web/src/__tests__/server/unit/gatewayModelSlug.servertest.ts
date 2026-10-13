@@ -26,6 +26,11 @@ describe("resolveGatewayModelRoute", () => {
       providerModel: "gpt-6-sol",
     },
     {
+      model: "ft:gpt-4o-mini-2024-07-18:acme::abc123",
+      connectionId: "openai-primary",
+      providerModel: "ft:gpt-4o-mini-2024-07-18:acme::abc123",
+    },
+    {
       model: "claude-sonnet-4-5",
       connectionId: "anthropic",
       providerModel: "claude-sonnet-4-5",
