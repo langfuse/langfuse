@@ -128,6 +128,29 @@ describe("withGatewayResolveSignatureVerification", () => {
     },
   );
 
+  it.each(["production: ", "production:\t"])(
+    "rejects a whitespace-only provider model in %j",
+    async (model) => {
+      const handler = vi.fn();
+      const res = response();
+
+      await withGatewayResolveSignatureVerification(handler)(
+        request({
+          authorization: "Bearer sk-gateway",
+          body: JSON.stringify({
+            apiFormat: "openai.responses",
+            model,
+          }),
+        }),
+        res,
+      );
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: "Invalid request" });
+      expect(handler).not.toHaveBeenCalled();
+    },
+  );
+
   it("rejects a missing Bearer token on the models endpoint", async () => {
     const handler = vi.fn();
     const res = response();
