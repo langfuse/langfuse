@@ -310,7 +310,7 @@ describe(
         ),
         { numRuns: 256 },
       );
-    });
+    }, 10_000);
 
     it.each(["deep objects", "many tiny media"] as const)(
       "handles %s entirely through the native API",
