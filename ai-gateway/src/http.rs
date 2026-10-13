@@ -121,6 +121,7 @@ async fn relay(
         .filter(|_| state.lifecycle.is_ready())
         .ok_or(InferenceHttpError::Unavailable)?;
     let gateway_key = gateway_key(request.headers(), route.api_format())?.to_owned();
+    // Model extraction and upstream rewriting require an uncompressed JSON body.
     if route.method() != axum::http::Method::GET
         && !crate::transport::identity_encoding(request.headers())
     {
