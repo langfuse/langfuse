@@ -19,7 +19,7 @@ export function EvaluatorGalleryAiBox({
 
   return (
     <form
-      className="bg-background shadow-prompt focus-within:border-foreground/30 flex flex-col gap-1 rounded-xl border p-3"
+      className="bg-background shadow-prompt focus-within:border-foreground/40 focus-within:ring-foreground/5 flex flex-col gap-1 rounded-xl border p-3 focus-within:ring-4"
       onSubmit={(event) => {
         event.preventDefault();
         submit();
