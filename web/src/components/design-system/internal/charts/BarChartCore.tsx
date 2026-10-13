@@ -66,6 +66,14 @@ export function BarChartCore(
         data={props.data.map((datum) =>
           datum.color ? { ...datum, color: toChartFill(datum.color) } : datum,
         )}
+        legend={
+          props.legend && {
+            items: props.legend.items.map((item) => ({
+              ...item,
+              color: toChartFill(item.color),
+            })),
+          }
+        }
       />
     );
   }
