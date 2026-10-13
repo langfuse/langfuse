@@ -114,14 +114,14 @@ describe("saveTopicsSetup", () => {
     });
   });
 
-  it("keeps automatic processing on and tests every model", async () => {
-    modelsWork();
+  it("keeps automatic processing on without testing unchanged models", async () => {
+    modelsFail();
     const { projectId, setup } = await topicsProject({ enabled: true });
 
     await saveTopicsSetup(projectId, setup);
 
-    expect(mocks.testModelCall).toHaveBeenCalledTimes(2);
-    expect(mocks.generateTopicEmbeddings).toHaveBeenCalledOnce();
+    expect(mocks.testModelCall).not.toHaveBeenCalled();
+    expect(mocks.generateTopicEmbeddings).not.toHaveBeenCalled();
     expect(await storedConfig(projectId)).toMatchObject({ enabled: true });
   });
 
