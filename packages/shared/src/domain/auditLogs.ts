@@ -79,6 +79,9 @@ export type AuditRequestContext = z.infer<typeof AuditRequestContextSchema>;
 
 const AuditLogOutcomeSchema = z.enum(["success", "denied", "error"]);
 
+// Bounded by the UInt32 `result_count` column in ClickHouse.
+const ResultCountSchema = z.number().int().nonnegative().max(4_294_967_295);
+
 const StagedEventBaseSchema = z.object({
   orgId: z.string().min(1),
   // Absent for organisation-level events.
@@ -109,7 +112,7 @@ export const AuditLogStagingPayloadSchema = z.discriminatedUnion("kind", [
     // Serialized JSON of the validated request input, at most
     // AUDIT_LOG_PARAMS_MAX_BYTES.
     params: z.string().optional(),
-    resultCount: z.number().int().nonnegative().optional(),
+    resultCount: ResultCountSchema.optional(),
   }),
 ]);
 export type AuditLogStagingPayload = z.infer<
@@ -162,6 +165,25 @@ const serializedJson = z
     value === undefined || value === null ? undefined : JSON.stringify(value),
   );
 
+// Postgres jsonb cannot store NUL or an unpaired surrogate. Both become U+FFFD,
+// so an event whose ids carry one still stages instead of failing the request.
+// `before`, `after` and `params` are already escaped by JSON.stringify.
+const toJsonbSafeStrings = (value: unknown): unknown => {
+  if (typeof value === "string") {
+    return value.replaceAll("\u0000", "\uFFFD").toWellFormed();
+  }
+  if (Array.isArray(value)) return value.map(toJsonbSafeStrings);
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        toJsonbSafeStrings(entry),
+      ]),
+    );
+  }
+  return value;
+};
+
 const EventBaseSchema = StagedEventBaseSchema.extend({
   resourceRefs: z
     .array(AuditLogResourceRefSchema)
@@ -178,23 +200,25 @@ const EventBaseSchema = StagedEventBaseSchema.extend({
 
 /**
  * An audit event as callers record it. Parsing serializes `before`, `after`
- * and `params` to JSON and applies the size caps above, which yields an
- * `AuditLogStagingPayload`.
+ * and `params` to JSON, applies the size caps above and makes every string
+ * storable in jsonb, which yields an `AuditLogStagingPayload`.
  */
-export const AuditLogEventSchema = z.discriminatedUnion("kind", [
-  EventBaseSchema.extend({
-    kind: z.literal("change"),
-    before: serializedJson,
-    after: serializedJson,
-  }),
-  EventBaseSchema.extend({
-    kind: z.literal("access"),
-    params: serializedJson.transform((json) =>
-      json === undefined
-        ? undefined
-        : truncateUtf8(json, AUDIT_LOG_PARAMS_MAX_BYTES),
-    ),
-    resultCount: z.number().int().nonnegative().optional(),
-  }),
-]);
+export const AuditLogEventSchema = z
+  .discriminatedUnion("kind", [
+    EventBaseSchema.extend({
+      kind: z.literal("change"),
+      before: serializedJson,
+      after: serializedJson,
+    }),
+    EventBaseSchema.extend({
+      kind: z.literal("access"),
+      params: serializedJson.transform((json) =>
+        json === undefined
+          ? undefined
+          : truncateUtf8(json, AUDIT_LOG_PARAMS_MAX_BYTES),
+      ),
+      resultCount: ResultCountSchema.optional(),
+    }),
+  ])
+  .transform((event) => toJsonbSafeStrings(event) as typeof event);
 export type AuditLogEvent = z.input<typeof AuditLogEventSchema>;

@@ -158,4 +158,55 @@ describe("audit log staging", () => {
     );
     expect(accessedTrace).toEqual([{ id: ids[1] }]);
   });
+
+  it("discards staged rows when the caller's transaction rolls back", async () => {
+    const id = randomUUID();
+
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await stageAuditLogEvents(
+          [
+            {
+              id,
+              kind: "change",
+              orgId: randomUUID(),
+              actor: { type: "USER", userId: "user-1" },
+              resourceType: "prompt",
+              resourceId: "prompt-1",
+              action: "delete",
+            },
+          ],
+          tx,
+        );
+        throw new Error("audited mutation failed");
+      }),
+    ).rejects.toThrow("audited mutation failed");
+
+    expect(
+      await prisma.auditLogStaging.findUnique({ where: { id } }),
+    ).toBeNull();
+  });
+
+  it("stages ids holding characters that jsonb cannot store", async () => {
+    const [id] = await stageAuditLogEvents([
+      {
+        kind: "access",
+        orgId: randomUUID(),
+        actor: { type: "API_KEY", apiKeyId: "api-key-1" },
+        resourceType: "trace",
+        resourceId: "trace-\u0000-1",
+        resourceRefs: [toAuditLogResourceRef("trace", "trace-\uD800-1")],
+        action: "read",
+      },
+    ]);
+    stagedIds.push(id);
+
+    const row = await prisma.auditLogStaging.findUniqueOrThrow({
+      where: { id },
+    });
+    expect(convertAuditLogStagingRowToClickhouse(row)).toMatchObject({
+      resource_id: "trace-�-1",
+      resource_refs: ["trace:trace-�-1"],
+    });
+  });
 });
