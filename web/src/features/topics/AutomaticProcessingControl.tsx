@@ -68,8 +68,7 @@ function statusLabel(state: AutomaticProcessingState) {
 }
 
 function disabledReason(state: AutomaticProcessingState, canWrite: boolean) {
-  if (state.status === "unconfigured")
-    return "Save the setup in Configure Topics first.";
+  if (state.status === "unconfigured") return "Configure Topics first.";
   if (state.status === "unavailable")
     return "Topics processing is not enabled for this project.";
   if (!canWrite) return "You need permission to edit Topics.";
