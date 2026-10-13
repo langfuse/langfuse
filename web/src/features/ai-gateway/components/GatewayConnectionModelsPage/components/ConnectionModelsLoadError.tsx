@@ -1,34 +1,34 @@
 import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+
+export type ConnectionModelsLoadErrorProps = {
+  organizationId: string;
+  retry: () => void;
+};
 
 export function ConnectionModelsLoadError({
   organizationId,
   retry,
-}: {
-  organizationId: string;
-  retry: () => void;
-}) {
+}: ConnectionModelsLoadErrorProps) {
   return (
     <div className="flex flex-col gap-4">
-      <Link
-        className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm"
-        href={`/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway-providers`}
-      >
-        <ArrowLeft className="icon-sm" />
-        Provider credentials
-      </Link>
+      <TextLink
+        path={`/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway-providers`}
+        value="Provider credentials"
+        icon={ArrowLeft}
+      />
       <Alert variant="destructive">
         <Alert.Title>Provider models could not be loaded</Alert.Title>
         <Alert.Description>
           Retry to manage model access for this credential.
         </Alert.Description>
       </Alert>
-      <Button className="w-fit" variant="secondary" onClick={retry}>
-        Retry
-      </Button>
+      <div>
+        <Button text="Retry" variant="secondary" onClick={retry} />
+      </div>
     </div>
   );
 }

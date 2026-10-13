@@ -11,17 +11,11 @@ import { GatewayConnectionModelsToolbar } from "@/src/features/ai-gateway/compon
 import { ModelEnabledSwitch } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ModelEnabledSwitch";
 import type { GatewayConnectionModelRow } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayConnectionModelRow";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 
 const PAGE_SIZE = 10;
 
-export function GatewayConnectionModelsTable({
-  models,
-  allowedModels,
-  isSaving,
-  onEnableAll,
-  onDisableAll,
-  onSetEnabled,
-}: {
+export type GatewayConnectionModelsTableProps = {
   models: string[];
   allowedModels: string[] | null;
   isSaving: boolean;
@@ -32,7 +26,16 @@ export function GatewayConnectionModelsTable({
     enabled: boolean,
     onSuccess?: () => void,
   ) => void;
-}) {
+};
+
+export function GatewayConnectionModelsTable({
+  models,
+  allowedModels,
+  isSaving,
+  onEnableAll,
+  onDisableAll,
+  onSetEnabled,
+}: GatewayConnectionModelsTableProps) {
   const [search, setSearch] = useState("");
   const [pageIndex, setPageIndex] = useState(0);
   const [orderBy, setOrderBy] = useState<OrderByState>({
@@ -88,11 +91,15 @@ export function GatewayConnectionModelsTable({
     [isSaving, selectActionColumn, toggleModel],
   );
   const normalizedSearch = search.trim().toLowerCase();
+  const allowedModelsSet = useMemo(
+    () => toGatewayAllowedModelsSet(allowedModels),
+    [allowedModels],
+  );
   const filteredModels = models
     .filter((model) => model.toLowerCase().includes(normalizedSearch))
     .map((id) => ({
       id,
-      enabled: isGatewayModelAllowed(allowedModels, id),
+      enabled: isGatewayModelAllowed(allowedModelsSet, id),
     }));
   const sortedModels = filteredModels.toSorted((left, right) => {
     const comparison =

@@ -1,5 +1,6 @@
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import type { RouterOutputs } from "@/src/utils/api";
 
 type Connection = RouterOutputs["aiGateway"]["listConnections"]["data"][number];
@@ -38,6 +39,7 @@ export function aggregateModels(
     seenConnectionIds.add(connection.id);
     const result = resultsByConnectionId.get(connection.id);
     if (!result?.success) continue;
+    const allowedModels = toGatewayAllowedModelsSet(connection.allowedModels);
     for (const modelId of result.models.toSorted((left, right) =>
       left.localeCompare(right),
     )) {
@@ -45,7 +47,7 @@ export function aggregateModels(
         connectionId: connection.id,
         connectionName: connection.name,
         provider: connection.provider,
-        enabled: isGatewayModelAllowed(connection.allowedModels, modelId),
+        enabled: isGatewayModelAllowed(allowedModels, modelId),
       };
       const existing = models.get(modelId);
       if (existing) {

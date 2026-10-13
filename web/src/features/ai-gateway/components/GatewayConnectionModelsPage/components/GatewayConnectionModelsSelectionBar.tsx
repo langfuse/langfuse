@@ -5,12 +5,7 @@ import { OverviewSelectionBar } from "@/src/components/table/OverviewSelectionBa
 import type { TableSelectionStore } from "@/src/components/table/table-selection-store";
 import { Button } from "@/src/components/ui/button";
 
-export function GatewayConnectionModelsSelectionBar({
-  filteredModelIds,
-  isSaving,
-  selectionStore,
-  onSetEnabled,
-}: {
+export type GatewayConnectionModelsSelectionBarProps = {
   filteredModelIds: string[];
   isSaving: boolean;
   selectionStore: TableSelectionStore;
@@ -19,7 +14,14 @@ export function GatewayConnectionModelsSelectionBar({
     enabled: boolean,
     onSuccess?: () => void,
   ) => void;
-}) {
+};
+
+export function GatewayConnectionModelsSelectionBar({
+  filteredModelIds,
+  isSaving,
+  selectionStore,
+  onSetEnabled,
+}: GatewayConnectionModelsSelectionBarProps) {
   const rowSelection = useStore(selectionStore, (state) => state.rowSelection);
   const selectAll = useStore(selectionStore, (state) => state.selectAll);
   const selectionActions = selectionStore.getState().actions;

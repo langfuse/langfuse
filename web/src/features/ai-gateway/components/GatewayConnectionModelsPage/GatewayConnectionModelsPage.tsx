@@ -1,43 +1,36 @@
 import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { ConnectionModelsLoadError } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsLoadError";
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton";
 import { GatewayConnectionModelsTable } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsTable";
+import { useGatewayConnectionModels } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useGatewayConnectionModels";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { updateGatewayAllowedModels } from "@/src/features/ai-gateway/fns/updateGatewayAllowedModels";
-import { api, reportNonTrpcError } from "@/src/utils/api";
+
+export type GatewayConnectionModelsPageProps = {
+  organizationId: string;
+  connectionId: string;
+};
 
 export function GatewayConnectionModelsPage({
   organizationId,
   connectionId,
-}: {
-  organizationId: string;
-  connectionId: string;
-}) {
-  const utils = api.useUtils();
-  const connectionQuery = api.aiGateway.getConnection.useQuery({
-    orgId: organizationId,
-    id: connectionId,
-  });
-  const modelsQuery = api.aiGateway.getConnectionModels.useQuery({
-    orgId: organizationId,
-    id: connectionId,
-  });
-  const updateModels = api.aiGateway.updateConnectionModels.useMutation({
-    onSuccess: async (connection) => {
-      utils.aiGateway.getConnection.setData(
-        { orgId: organizationId, id: connectionId },
-        connection,
-      );
-      await Promise.all([
-        utils.aiGateway.listConnections.invalidate({ orgId: organizationId }),
-        utils.aiGateway.refreshModels.invalidate({ orgId: organizationId }),
-      ]);
-    },
-    onError: (error) =>
-      reportNonTrpcError(error, "ai-gateway-connection-models"),
+}: GatewayConnectionModelsPageProps) {
+  const {
+    connectionQuery,
+    modelsQuery,
+    isRetrying,
+    isSaving,
+    retryDiscovery,
+    retryQueries,
+    saveAllowedModels,
+  } = useGatewayConnectionModels({
+    organizationId,
+    connectionId,
   });
 
   if (connectionQuery.isPending || modelsQuery.isPending) {
@@ -47,9 +40,7 @@ export function GatewayConnectionModelsPage({
     return (
       <ConnectionModelsLoadError
         organizationId={organizationId}
-        retry={() =>
-          Promise.all([connectionQuery.refetch(), modelsQuery.refetch()])
-        }
+        retry={retryQueries}
       />
     );
   }
@@ -57,23 +48,11 @@ export function GatewayConnectionModelsPage({
   const connection = connectionQuery.data;
   const result = modelsQuery.data;
   const models = result.success ? result.models : [];
+  const allowedModelsSet = toGatewayAllowedModelsSet(connection.allowedModels);
   const enabledCount = models.filter((model) =>
-    isGatewayModelAllowed(connection.allowedModels, model),
+    isGatewayModelAllowed(allowedModelsSet, model),
   ).length;
 
-  const saveAllowedModels = (
-    allowedModels: string[] | null,
-    onSuccess?: () => void,
-  ) => {
-    updateModels.mutate(
-      {
-        orgId: organizationId,
-        id: connectionId,
-        allowedModels,
-      },
-      { onSuccess },
-    );
-  };
   const setModelsEnabled = (
     targetModels: string[],
     enabled: boolean,
@@ -94,13 +73,11 @@ export function GatewayConnectionModelsPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <Link
-        className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm"
-        href={`/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway-providers`}
-      >
-        <ArrowLeft className="icon-sm" />
-        Provider credentials
-      </Link>
+      <TextLink
+        path={`/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway-providers`}
+        value="Provider credentials"
+        icon={ArrowLeft}
+      />
       <div>
         <h2 className="text-lg font-bold">{connection.name}</h2>
         <p className="text-muted-foreground mt-2 text-sm">
@@ -112,19 +89,29 @@ export function GatewayConnectionModelsPage({
         <GatewayConnectionModelsTable
           models={models}
           allowedModels={connection.allowedModels}
-          isSaving={updateModels.isPending}
+          isSaving={isSaving}
           onEnableAll={enableAll}
           onDisableAll={disableAll}
           onSetEnabled={setModelsEnabled}
         />
       ) : (
-        <Alert variant="destructive">
-          <Alert.Title>Models could not be loaded</Alert.Title>
-          <Alert.Description>
-            The provider returned a model discovery error. Retry the connection
-            before changing model access.
-          </Alert.Description>
-        </Alert>
+        <div className="flex flex-col gap-2">
+          <Alert variant="destructive">
+            <Alert.Title>Models could not be loaded</Alert.Title>
+            <Alert.Description>
+              The provider returned a model discovery error. Retry the
+              connection before changing model access.
+            </Alert.Description>
+          </Alert>
+          <div>
+            <Button
+              text="Retry"
+              variant="secondary"
+              loading={isRetrying}
+              onClick={retryDiscovery}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

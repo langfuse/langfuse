@@ -6,6 +6,20 @@ import type { TableSelectionStore } from "@/src/components/table/table-selection
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import type { GatewayConnectionModelRow } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayConnectionModelRow";
 
+export type GatewayConnectionModelsToolbarProps = {
+  columns: LangfuseColumnDef<GatewayConnectionModelRow>[];
+  filteredModelIds: string[];
+  isSaving: boolean;
+  pageIndex: number;
+  pageModelIds: string[];
+  pageSize: number;
+  search: string;
+  selectionStore: TableSelectionStore;
+  onEnableAll: () => void;
+  onDisableAll: () => void;
+  onSearchChange: (value: string) => void;
+};
+
 export function GatewayConnectionModelsToolbar({
   columns,
   filteredModelIds,
@@ -18,19 +32,7 @@ export function GatewayConnectionModelsToolbar({
   onEnableAll,
   onDisableAll,
   onSearchChange,
-}: {
-  columns: LangfuseColumnDef<GatewayConnectionModelRow>[];
-  filteredModelIds: string[];
-  isSaving: boolean;
-  pageIndex: number;
-  pageModelIds: string[];
-  pageSize: number;
-  search: string;
-  selectionStore: TableSelectionStore;
-  onEnableAll: () => void;
-  onDisableAll: () => void;
-  onSearchChange: (value: string) => void;
-}) {
+}: GatewayConnectionModelsToolbarProps) {
   const rowSelection = useStore(selectionStore, (state) => state.rowSelection);
   const selectAll = useStore(selectionStore, (state) => state.selectAll);
   const actions = selectionStore.getState().actions;

@@ -13,6 +13,7 @@ import { ProviderDialogController } from "@/src/features/ai-gateway/components/G
 import { GatewayProvidersTable } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/GatewayProvidersTable/GatewayProvidersTable";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
@@ -28,11 +29,14 @@ export function GatewayProvidersPage({
       : undefined;
   const connectionsQuery = api.aiGateway.listConnections.useInfiniteQuery(
     { orgId: organizationId, limit: 50 },
-    { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
+    {
+      enabled: !connectionId,
+      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    },
   );
   const modelsQuery = api.aiGateway.refreshModels.useQuery(
     { orgId: organizationId },
-    { enabled: connectionsQuery.isSuccess },
+    { enabled: !connectionId && connectionsQuery.isSuccess },
   );
   const [pageIndex, setPageIndex] = useState(0);
   const utils = api.useUtils();
@@ -131,9 +135,12 @@ export function GatewayProvidersPage({
           .filter((result) => result.success)
           .map((result) => {
             const connection = connectionsById.get(result.connectionId);
+            const allowedModels = toGatewayAllowedModelsSet(
+              connection?.allowedModels,
+            );
             const enabled = connection
               ? result.models.filter((model) =>
-                  isGatewayModelAllowed(connection.allowedModels, model),
+                  isGatewayModelAllowed(allowedModels, model),
                 ).length
               : result.models.length;
             return [
