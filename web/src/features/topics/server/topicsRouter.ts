@@ -6,6 +6,7 @@ import {
   type Transcript,
 } from "@langfuse/shared/src/server";
 import {
+  topicBackfillInputSchema,
   topicEmbeddingConfigSchema,
   topicExecutionInputSchema,
   topicIdSchema,
@@ -48,6 +49,7 @@ import {
   setTopicsAutomaticProcessing,
   enqueueTopicExecution,
   getTopicExecutionQueueState,
+  scheduleTopicBackfill,
 } from "@langfuse/shared/topics/server";
 import {
   createTRPCRouter,
@@ -539,6 +541,15 @@ export const topicsRouter = createTRPCRouter({
             : undefined,
         );
       return { id: execution.id };
+    }),
+  backfill: topicsWriteProcedure
+    .input(topicBackfillInputSchema.extend({ projectId: topicIdSchema }))
+    .mutation(({ input }) => {
+      if (!isTopicsProjectEnabled(input.projectId))
+        throw new InvalidRequestError(
+          "Topics processing is not enabled for this project.",
+        );
+      return scheduleTopicBackfill(input);
     }),
   retry: topicsWriteProcedure
     .input(executionInput)
