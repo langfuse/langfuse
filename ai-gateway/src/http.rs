@@ -166,14 +166,9 @@ async fn models(
     api_format: ApiFormat,
     correlation: &RequestCorrelation,
 ) -> Result<Response, InferenceHttpError> {
-    let resolution_permit = inference
-        .try_reserve_resolution()
-        .map_err(InferenceHttpError::from)?;
     let body = inference
-        .models(resolution_permit, gateway_key, api_format, correlation)
+        .model_catalog(gateway_key, api_format, correlation)
         .await
-        .map_err(InferenceHttpError::Resolution)?;
-    let body = crate::providers::model_list::provider_response(&body, api_format)
         .map_err(InferenceHttpError::Resolution)?;
     Ok(([(header::CONTENT_TYPE, "application/json")], body).into_response())
 }
@@ -199,7 +194,7 @@ async fn relay(
     drop(body_permit);
     let resolution_permit = inference
         .try_reserve_resolution()
-        .map_err(InferenceHttpError::from)?;
+        .map_err(InferenceHttpError::Resolution)?;
     let (permit, context) = inference
         .resolve_and_admit(
             resolution_permit,
