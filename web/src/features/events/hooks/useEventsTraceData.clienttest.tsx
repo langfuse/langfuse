@@ -11,6 +11,7 @@ const { mockByTraceId, mockBatchIO, mockScoresForTrace } = vi.hoisted(() => ({
 
 vi.mock("@/src/utils/api", () => ({
   sendAsPostOption: {},
+  shouldRetryResourceQuery: vi.fn(),
   api: {
     events: {
       byTraceId: {

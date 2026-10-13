@@ -469,6 +469,19 @@ export const env = createEnv({
       .date()
       .optional()
       .transform((date) => (date ? new Date(date) : null)),
+    // Comma-separated Langfuse organization ids whose first-time upgrade routes
+    // to CHB regardless of the cutoff, for testing the CHB flow on a single org
+    // before the global rollout. Orgs already billed by Stripe stay on Stripe.
+    // Keep in sync with worker/src/env.ts.
+    LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS: z
+      .string()
+      .default("")
+      .transform((value) =>
+        value
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean),
+      ),
     // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
     // Unset disables the endpoint (it 500s) rather than leaving it open.
     CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
@@ -1146,6 +1159,8 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE:
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
+    LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS:
+      process.env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS,
     CLICKHOUSE_BILLING_METRICS_API_KEY:
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
     CLICKHOUSE_BILLING_EVENT_BUS_ARN:

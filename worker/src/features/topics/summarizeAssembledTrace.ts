@@ -1,7 +1,6 @@
 import {
   listTopicSummaries,
   TOPICS_TRANSCRIPT_VERSION,
-  writeTopicSummaries,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
 import {
@@ -13,7 +12,6 @@ import {
 import {
   instrumentAsync,
   isInternalEvalEnvironment,
-  recordIncrement,
   type Transcript,
 } from "@langfuse/shared/src/server";
 import { prepareAssembledTopicTranscript } from "./assembledTranscript";
@@ -49,15 +47,23 @@ type AssembledTraceInput = {
   facets: TopicFacet[];
 };
 
+type AssembledTraceResult = {
+  outcome: "disabled" | "unchanged" | "summarized";
+  rows: TopicSummary[];
+  // Set when some facets failed; rows still holds the valid ones.
+  failure?: unknown;
+};
+
 /**
  * Summarizes one trace from the transcript the batch job already assembled,
  * with one model call for all of its configured facets. Does not load
- * observations again.
+ * observations again or write; the batch job stores the returned rows.
  */
 export async function summarizeAssembledTrace(
   input: AssembledTraceInput,
-): Promise<"disabled" | "unchanged" | "summarized"> {
-  if (isInternalEvalEnvironment(input.environment)) return "disabled";
+): Promise<AssembledTraceResult> {
+  if (isInternalEvalEnvironment(input.environment))
+    return { outcome: "disabled", rows: [] };
   return instrumentAsync(
     { name: "topics-trace-summary", traceScope: "topics" },
     async (span) => {
@@ -66,14 +72,18 @@ export async function summarizeAssembledTrace(
         "langfuse.trace.id": input.traceId,
       });
       const metrics = new TopicMetrics();
+      let result: AssembledTraceResult | undefined;
       try {
-        const outcome = await metrics.measure("trace", () =>
-          summarizeEnabledTrace(input, metrics),
-        );
-        span.setAttribute("langfuse.topics.trace_outcome", outcome);
-        return outcome;
+        await metrics.measure("trace", async () => {
+          result = await summarizeEnabledTrace(input, metrics);
+          if (result.failure !== undefined) throw result.failure;
+        });
+        span.setAttribute("langfuse.topics.trace_outcome", result!.outcome);
+        return result!;
       } catch (error) {
         span.setAttribute("langfuse.topics.trace_outcome", "failed");
+        // A partial failure still returns the valid facets' rows.
+        if (result && result.failure === error) return result;
         throw error;
       }
     },
@@ -83,7 +93,7 @@ export async function summarizeAssembledTrace(
 async function summarizeEnabledTrace(
   input: AssembledTraceInput,
   metrics: TopicMetrics,
-): Promise<"unchanged" | "summarized"> {
+): Promise<AssembledTraceResult> {
   const { models, facets } = input;
   const embeddingModel = models.embedding.model;
   const config = topicProcessingConfigSchema.parse({
@@ -125,7 +135,7 @@ async function summarizeEnabledTrace(
       continue;
     pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
   }
-  if (!pending.length) return "unchanged";
+  if (pending.length === 0) return { outcome: "unchanged", rows: [] };
 
   const prepared = prepareAssembledTopicTranscript(input.transcript);
   const bases = pending.map(({ version }) =>
@@ -232,12 +242,7 @@ async function summarizeEnabledTrace(
         });
     }
   }
-  if (rows.length)
-    await metrics.measure("storage", () => writeTopicSummaries(rows));
-  for (const row of rows)
-    recordIncrement("langfuse.topics.facet_summaries", 1, { state: row.state });
-  if (failure) throw failure;
-  return "summarized";
+  return { outcome: "summarized", rows, failure };
 }
 
 function baseSummary(
