@@ -1,4 +1,5 @@
 mod chat_completions;
+pub(crate) mod model_list;
 
 use std::{sync::Arc, time::Duration};
 
