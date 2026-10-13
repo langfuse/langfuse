@@ -16,6 +16,16 @@ pub enum ApiFormat {
     AnthropicMessages,
 }
 
+impl ApiFormat {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::OpenAiResponses => "openai.responses",
+            Self::OpenAiChatCompletions => "openai.chat-completions",
+            Self::AnthropicMessages => "anthropic.messages",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Provider {

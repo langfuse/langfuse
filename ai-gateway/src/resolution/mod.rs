@@ -248,10 +248,13 @@ impl ControlPlaneClient {
         ))
         .map_err(|_| ResolutionError::Configuration)?;
         signature.set_sensitive(true);
+        let mut endpoint = self.config.endpoint(MODELS_PATH);
+        endpoint
+            .query_pairs_mut()
+            .append_pair("api_format", api_format.as_str());
         let response = self
             .client
-            .get(self.config.endpoint(MODELS_PATH))
-            .query(&[("api_format", api_format.as_str())])
+            .get(endpoint)
             .header(AUTHORIZATION, credential)
             .header("langfuse-gateway-authorization", signature)
             .header(REQUEST_ID_HEADER, request_id)
