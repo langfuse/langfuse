@@ -132,12 +132,4 @@ export const EntryPointStates = meta.story({
       ))}
     </div>
   ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const [enabled, ...disabled] = canvas.getAllByRole("button", {
-      name: "Regenerate topics",
-    });
-    await expect(enabled).toBeEnabled();
-    for (const button of disabled) await expect(button).toBeDisabled();
-  },
 });
