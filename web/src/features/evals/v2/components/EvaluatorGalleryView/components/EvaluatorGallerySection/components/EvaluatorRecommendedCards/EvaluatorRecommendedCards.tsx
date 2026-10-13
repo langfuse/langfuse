@@ -13,9 +13,7 @@ export function EvaluatorRecommendedCards({
     <div className="@container flex flex-col gap-3">
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <h4 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
-            {label}
-          </h4>
+          <h4 className="text-foreground text-sm font-bold">{label}</h4>
           {count != null ? (
             <span className="text-muted-foreground ml-auto font-mono text-xs tabular-nums">
               {count}

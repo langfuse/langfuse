@@ -60,7 +60,7 @@ export function EvaluatorGallerySection({
         <>
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
-              <h4 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
+              <h4 className="text-foreground text-sm font-bold">
                 {section.label}
               </h4>
               {isSafety ? (
