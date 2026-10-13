@@ -170,9 +170,10 @@ checklist is only the spine. Every run ends the same way: exactly one issue.
 - [ ] Update all memory files, including `charts/<week>.svg`, `issues.json`,
       and pruned `notes.md`.
 - [ ] Write the FULL report — both filled-in `mermaid` charts (Chart 1 and
-      Chart 2, never the bare template), tables, `## Outcome` section — as the
-      issue body. Before calling `create_issue`, confirm the message you're
-      about to submit literally contains two ` ```mermaid ` blocks ("Report
+      Chart 2, never the bare template), tables, the merge-queue failures
+      section, `## Outcome` section — as the issue body. Before calling
+      `create_issue`, confirm the message you're about to submit literally
+      contains two ` ```mermaid ` blocks ("Report
       and graph" — final gate). This holds even when you skip a fresh analysis
       (reuse the latest `history/*.json` numbers and say so); never file an
       issue with a one-line body ("Report and graph").
@@ -277,20 +278,24 @@ the successful sample below (for slow tests), and every failed merge-queue run
 
 For a sample of successful runs spread across the week — `merge_group` and
 `pull_request` events, never `push`/main runs (at least 5 runs, or all runs
-if fewer), for each sampled run read the log of the `run tests` step of the
+if fewer), for each sampled run read the log of the test step of the
 `tests-web (…)` matrix jobs, the `tests-worker (…)` matrix jobs and
-`tests-storybook` directly ("Extracting bulk data without bloating your own
-context"). The blocks below sit at the very end of the step, so pass
+`tests-storybook` directly — `run tests` for the first two, `run Storybook
+tests` for the third; the table in "Merge-queue failure analysis" has the
+rest ("Extracting bulk data without bloating your own context"). The blocks
+below sit at the very end of the step, so pass
 `get_job_logs` a `tail_lines` just large enough to cover them (~250; the
 default is 500) rather than pulling the whole log.
 
 Every job that runs the `web` or `worker` vitest config emits these blocks —
 `tests-web (…)`, `tests-web-client`, `tests-worker (…)`, `tests-storybook`,
-`e2e-server-tests`, `tests-fips (…)`, `test-worker-llm-connections`. Jobs with
-their own config do NOT (`tests-shared`, `tests-eslint-plugin`,
-`tests-in-app-agent-sandbox-runtime`), and neither does `e2e-tests`, which is
-Playwright. Our CI reporter (`scripts/vitest/ci-reporter.ts`) prints up to
-four blocks at the end of every run:
+`e2e-server-tests`, `test-worker-llm-connections`, `test-ai-gateway-e2e`, and
+`tests-fips (…)` (whose step also runs the `shared` suite, which emits
+nothing). Jobs with their own config do NOT (`tests-shared`,
+`tests-eslint-plugin`, `tests-in-app-agent-sandbox-runtime`), and neither does
+`e2e-tests`, which is Playwright. Our CI reporter
+(`scripts/vitest/ci-reporter.ts`) prints up to four blocks at the end of every
+run:
 
 - `Slowest tests (top 10):` — ranked list with durations; a test that
   needed vitest retries additionally carries ` [retries=N]` and possibly
@@ -304,14 +309,17 @@ four blocks at the end of every run:
   retried, so its absence means zero retries in that run. Use this block,
   not the slowest-tests markers, as the source of truth for *retries* — a
   flaky test that isn't among the 10 slowest appears only here.
-- `Failed tests (N):` — the authoritative, complete list of every test that
-  ended the run in a failed state, same line shape minus the suffixes
-  (`1. retries=0 <file> > <name>`). Printed only when something failed, so
-  it is absent from every green run. ⚠️ **This, not `Retried tests`, is the
-  source of truth for what broke a failed run.** A suite can opt out of
-  retries with `describe(..., { retry: 0 })`, and such a test fails with
-  `retries=0` — so it appears in no retried block at all, and in the
-  slowest-tests block only if it happens to rank in the top ten by duration.
+- `Failed tests (N):` — every test that ended the run in a failed state,
+  same line shape minus the suffixes (`1. retries=0 <file> > <name>`).
+  Printed only when something failed, so it is absent from every green run.
+  ⚠️ **This, not `Retried tests`, is the source of truth for what broke a
+  failed run.** A suite can opt out of retries with
+  `describe(..., { retry: 0 })`, and such a test fails with `retries=0` — so
+  it appears in no retried block at all, and in the slowest-tests block only
+  if it happens to rank in the top ten by duration.
+  **`N` in the header is the true total; the list below it is capped at 50**
+  and ends with a `… and K more` line when it bites. So take the count from
+  the header, never from the number of lines you parsed.
   ⚠️ `retries` says how many attempts the test was **given**, not why it
   failed. A count equal to the config's CI retry setting (3 for both `web`
   and `worker`) means it had retries and used them all — which a
@@ -327,11 +335,12 @@ Extract and keep only the parsed blocks for each run, never the raw log text:
 
 ```json
 {"runId": 123, "event": "merge_group", "conclusion": "success",
- "slowest": [{"file": "web/src/x.test.ts", "test": "name", "ms": 4210}],
- "slowestFiles": [{"file": "web/src/x.test.ts", "ms": 9100}],
- "retried": [{"file": "web/src/y.test.ts", "test": "name", "retries": 2,
+ "job": "tests-web (node24, pg15, mode, otel-worker-shadow=true)",
+ "slowest": [{"file": "src/x.test.ts", "test": "name", "ms": 4210}],
+ "slowestFiles": [{"file": "src/x.test.ts", "ms": 9100}],
+ "retried": [{"file": "src/y.test.ts", "test": "name", "retries": 2,
               "flaky": true}],
- "failed": [{"file": "web/src/z.test.ts", "test": "name", "retries": 3}]}
+ "failed": [{"file": "src/z.test.ts", "test": "name", "retries": 3}]}
 ```
 
 An empty `retried` or `failed` array means that block was absent, i.e. zero
@@ -342,20 +351,27 @@ both recorded as `unknown` rather than zero:**
   2026, so the first windows straddling it contain runs that could not have
   printed it. A *failed* run reporting zero failed tests is a contradiction —
   treat that combination as the tell, not as a quiet zero.
-- **A truncated tail.** The block is complete and uncapped, so a run with
-  hundreds of failures can be longer than your `tail_lines`. Confirm you
-  actually saw the `Failed tests (N):` header and that you parsed N entries.
-  If the header is missing or the count disagrees, widen the tail once; if it
-  still disagrees, record `unknown` and say so. A truncated block must never
-  read as a short one.
+- **A truncated tail.** Confirm you actually saw the `Failed tests (N):`
+  header, not just a run of numbered lines — one entry is not always one
+  line (a `test.each` name holding pretty-printed JSON has spanned 19), so a
+  tail can start mid-block. No header means widen the tail once, then record
+  `unknown`. A truncated block must never read as a short one.
+- And a third case where the block is **absent from a genuinely failed run**:
+  vitest can fail outside any test case — a collection or import error, a
+  `globalSetup` throw, a worker crash. The reporter only sees completed test
+  cases, so it prints nothing at all. `Test Files N failed` in the summary
+  above with no blocks beneath it is that shape: record `unknown` and read
+  the error from the log rather than filing the job as zero failures.
 
 Aggregate across the sampled runs:
 
 - Recurring slowest tests and files (name, file, median duration, how many
   sampled runs they appeared in).
-- **Retried/flaky tests**: every test that shows `[retries=N]` or `[flaky]`,
-  with occurrence counts. Track these week over week in memory — a test that
-  is flaky two weeks in a row deserves a callout.
+- **Retried/flaky tests**: every test in the `Retried tests` block, with
+  occurrence counts and whether it carried `[flaky]` (the slowest-tests
+  markers are a convenience, not the membership rule). Track these week over
+  week in memory — a test that is flaky two weeks in a row deserves a
+  callout.
 
 ## Merge-queue failure analysis
 
@@ -380,27 +396,49 @@ capped.
    would top every table in this section with no information in it.
 3. Classify each remaining job from **the failing step's name**, which is
    already in the `steps` array of the payload you just fetched — no log read
-   needed:
-   - **test failure** — the failing step is the one that runs tests
-     (`run tests`, `Run e2e tests`, `run Storybook tests`,
-     `Run <suite> tests under forced FIPS`, …). Only these feed flake
-     tracking.
+   needed. Match the step name against this table rather than guessing from
+   the word "test": several test steps do not contain it, and one step that
+   does is not a test step at all.
+
+   | Job | Its test step(s) |
+   | --- | --- |
+   | `tests-web (…)`, `e2e-server-tests` | `run tests` |
+   | `tests-worker (…)` | `run tests` **and** `run native codec tests against ClickHouse` — two of them |
+   | `tests-web-client` | `run test-client` |
+   | `tests-storybook` | `run Storybook tests` |
+   | `e2e-tests` | `Run e2e tests` |
+   | `test-worker-llm-connections` | `run llm connection tests` |
+   | `test-ai-gateway-e2e` | `Run AI Gateway end-to-end tests` |
+
+   - **test failure** — the failing step is one of the above. Only these feed
+     flake tracking.
    - **infrastructure failure** — the job died before reaching a verdict
      about the code: `install dependencies`, a checkout, a docker login or
      pull, `Run + migrate`, a compose health check, a playwright or
-     golang-migrate download. Registry and supply-chain errors
+     golang-migrate download, `Build`. Registry and supply-chain errors
      (`ERR_PNPM_META_FETCH_FAIL`, a failed lockfile policy check) and apt or
      mirror outages land here, as does a lost runner. Count and report these
      **separately**: a registry having a bad day is not a flaky week, and
      folding the two together is how a week gets misdiagnosed.
+   - ⚠️ **`tests-fips (web|worker)` cannot be classified by step name.** Its
+     single step `Run <suite> tests under forced FIPS` shells out to
+     `scripts/ci/fips-tests.sh`, which runs `pnpm install`, `db:generate` and
+     the build *inside* that step before it reaches a test. On run
+     38435646285 both fips legs failed there with `ERR_PNPM_META_FETCH_FAIL`
+     — infrastructure wearing a test step's name. Always read its tail.
    - **timed out** — the job hit its `timeout-minutes`. Record the time
      limit as the cause, and classify it by its running step where that is
      legible. Its test-level detail is `unknown`, never zero: a job killed
      mid-run never reached the end of the step, so it printed none of the
      reporter's blocks.
-   - If the step name is ambiguous, read the tail and look — but note
+   - Any other step name is **ambiguous** — read the tail and look. Budget
+     one of step 4's log tails for it. But note
      `ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL` classifies nothing by itself, it is
      pnpm relaying a child's exit code, so read the lines above it.
+
+   The step names come from the payload, so if this table drifts out of date
+   the symptom is a job falling to "ambiguous" and costing a log read — never
+   a confident wrong answer.
 4. For test failures, read the tail of the failing step and parse it
    ("Extracting bulk data without bloating your own context"):
    - vitest-backed jobs — the blocks in "Vitest output analysis";
@@ -423,20 +461,25 @@ Keep one small record per failed run, never the raw log:
 {"runId": 123, "conclusion": "failure", "createdAt": "2026-10-13T15:57:55Z",
  "failedJobs": [{"name": "tests-worker (node24, pg15, mode-redis-cluster)",
                  "kind": "test",
-                 "failed": [{"file": "worker/src/__tests__/x.test.ts",
+                 "failed": [{"file": "src/__tests__/x.test.ts",
                              "test": "name", "retries": 0}]}]}
 ```
 
 Aggregate across the week:
 
-- **Merge-queue failure rate** — failed ÷ (failed + successful) merge-group
-  runs, with the infrastructure share broken out so the test-attributable
-  rate is readable on its own. This denominator is the only place a failed
-  run touches a statistic about the pipeline's speed; keep it out of the
+- **Merge-queue failure rate** — (failed + timed-out) ÷ (failed + timed-out
+  + successful) merge-group runs, with the infrastructure share broken out
+  so the test-attributable rate is readable on its own. Record the numerator
+  split, since this figure goes into memory and a later week comparing
+  against it cannot ask what it included. This denominator is the only place
+  a failed run touches a statistic about the pipeline; keep it out of the
   timing medians.
 - **Failures by job**, most damaging first.
 - **A test-level ledger** — for each test, the number of merge-queue runs it
-  failed. This is a *failure* ranking; which entries are flakes rather than
+  failed. Key it on **job + file + test**, not file + test: the reporter
+  prints vitest's module id *relative to the package it ran from*, so a web
+  test and a worker test both read as `src/…` and would silently merge.
+  This is a *failure* ranking; which entries are flakes rather than
   regressions is a separate judgement, made on the evidence named under
   `Failed tests (N):` and not on the retry count.
 

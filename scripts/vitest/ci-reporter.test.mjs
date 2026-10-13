@@ -57,7 +57,7 @@ test("lists a failed test that no other block would have shown", () => {
   // being fast — the slowest ten.
   const slowPassing = Array.from({ length: 12 }, (_, index) =>
     testCase({
-      file: "worker/src/slow.test.ts",
+      file: "src/slow.test.ts",
       name: `slow ${index}`,
       duration: 10_000 + index,
     }),
@@ -65,7 +65,9 @@ test("lists a failed test that no other block would have shown", () => {
   const output = report([
     ...slowPassing,
     testCase({
-      file: "worker/src/__tests__/nativeOtelMedia.unit.test.ts",
+      // The reporter prints vitest's relativeModuleId, which is relative to
+      // the package the suite runs from — never package-prefixed.
+      file: "src/__tests__/nativeOtelMedia.unit.test.ts",
       name: "native media > compares generated media spellings",
       duration: 12,
       state: "failed",
@@ -73,7 +75,7 @@ test("lists a failed test that no other block would have shown", () => {
   ]);
 
   assert.deepEqual(block(output, "\nFailed tests (1):"), [
-    "1. retries=0 worker/src/__tests__/nativeOtelMedia.unit.test.ts > native media > compares generated media spellings",
+    "1. retries=0 src/__tests__/nativeOtelMedia.unit.test.ts > native media > compares generated media spellings",
   ]);
   assert.ok(
     !output.includes("Retried tests"),
@@ -90,20 +92,20 @@ test("lists a failed test that no other block would have shown", () => {
 test("separates an exhausted-retry flake from a deterministic failure", () => {
   const output = report([
     testCase({
-      file: "web/src/a.servertest.ts",
+      file: "src/a.servertest.ts",
       name: "flaked until it ran out of attempts",
       duration: 500,
       state: "failed",
       retryCount: 3,
     }),
     testCase({
-      file: "web/src/b.servertest.ts",
+      file: "src/b.servertest.ts",
       name: "broke on every attempt it was given",
       duration: 400,
       state: "failed",
     }),
     testCase({
-      file: "web/src/c.servertest.ts",
+      file: "src/c.servertest.ts",
       name: "recovered on its second attempt",
       duration: 300,
       retryCount: 1,
@@ -111,23 +113,45 @@ test("separates an exhausted-retry flake from a deterministic failure", () => {
     }),
   ]);
 
-  // Highest retry count first, so the likeliest flake leads.
+  // Highest retry count first, so whatever was given the most attempts leads.
   assert.deepEqual(block(output, "\nFailed tests (2):"), [
-    "1. retries=3 web/src/a.servertest.ts > flaked until it ran out of attempts",
-    "2. retries=0 web/src/b.servertest.ts > broke on every attempt it was given",
+    "1. retries=3 src/a.servertest.ts > flaked until it ran out of attempts",
+    "2. retries=0 src/b.servertest.ts > broke on every attempt it was given",
   ]);
   // The retried block keeps its own membership rule: retried, pass or fail.
   assert.deepEqual(block(output, "\nRetried tests (2):"), [
-    "1. retries=3 web/src/a.servertest.ts > flaked until it ran out of attempts [failed]",
-    "2. retries=1 web/src/c.servertest.ts > recovered on its second attempt [flaky]",
+    "1. retries=3 src/a.servertest.ts > flaked until it ran out of attempts [failed]",
+    "2. retries=1 src/c.servertest.ts > recovered on its second attempt [flaky]",
   ]);
+});
+
+test("caps the list but keeps the true total in the header", () => {
+  const output = report(
+    Array.from({ length: 63 }, (_, index) =>
+      testCase({
+        file: "src/mass.servertest.ts",
+        name: `case ${index}`,
+        duration: 5,
+        state: "failed",
+      }),
+    ),
+  );
+
+  // The header is the count the analyst reads, so it must stay honest even
+  // though the list below it is bounded.
+  const listed = block(output, "\nFailed tests (63):");
+  assert.equal(listed.length, 50);
+  assert.ok(
+    output.includes("\n… and 13 more"),
+    "truncation must be explicit, never silent",
+  );
 });
 
 test("omits the block when nothing failed", () => {
   const output = report([
-    testCase({ file: "web/src/a.servertest.ts", name: "passes", duration: 10 }),
+    testCase({ file: "src/a.servertest.ts", name: "passes", duration: 10 }),
     testCase({
-      file: "web/src/b.servertest.ts",
+      file: "src/b.servertest.ts",
       name: "passes after a retry",
       duration: 20,
       retryCount: 2,
@@ -146,18 +170,18 @@ test("omits the block when nothing failed", () => {
 test("ignores tests that never produced a result", () => {
   const output = report([
     testCase({
-      file: "web/src/a.servertest.ts",
+      file: "src/a.servertest.ts",
       name: "passes",
       duration: 10,
     }),
     testCase({
-      file: "web/src/b.servertest.ts",
+      file: "src/b.servertest.ts",
       name: "skipped",
       duration: 0,
       state: "skipped",
     }),
     testCase({
-      file: "web/src/c.servertest.ts",
+      file: "src/c.servertest.ts",
       name: "never ran",
       duration: 0,
       state: "failed",

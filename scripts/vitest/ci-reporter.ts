@@ -1,5 +1,12 @@
 const SLOW_TEST_LIMIT = 10;
 const SLOW_FILE_LIMIT = 10;
+// Bounded because this block prints last, so an unbounded one evicts the three
+// above it from a tail of the log. A failing job's reporter output starts ~197
+// lines from the end with ~155 lines of runner cleanup after it, and one entry
+// is not always one line — a test.each name holding pretty-printed JSON has
+// spanned 19. The header still carries the true total, and a run with more
+// than this many failures is a broken build, not a flake to attribute.
+const FAILED_TEST_LIMIT = 50;
 
 type TestCaseLike = {
   fullName: string;
@@ -179,18 +186,23 @@ export class VitestCiReporter {
     );
 
     if (failedTests.length > 0) {
-      const failedRankWidth = String(failedTests.length).length;
+      const listed = [...failedTests]
+        .sort((left, right) => right.retryCount - left.retryCount)
+        .slice(0, FAILED_TEST_LIMIT);
+      const failedRankWidth = String(listed.length).length;
 
       console.log(`\nFailed tests (${failedTests.length}):`);
-      failedTests
-        .sort((left, right) => right.retryCount - left.retryCount)
-        .forEach((test, index) => {
-          const rank = String(index + 1).padStart(failedRankWidth, " ");
+      listed.forEach((test, index) => {
+        const rank = String(index + 1).padStart(failedRankWidth, " ");
 
-          console.log(
-            `${rank}. retries=${test.retryCount} ${test.file} > ${test.name}`,
-          );
-        });
+        console.log(
+          `${rank}. retries=${test.retryCount} ${test.file} > ${test.name}`,
+        );
+      });
+
+      if (failedTests.length > listed.length) {
+        console.log(`… and ${failedTests.length - listed.length} more`);
+      }
     }
   }
 }
