@@ -8,7 +8,11 @@ import {
   type AuditLogRecordInsertType,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
+import type { LockAcquireResult } from "../../utils/RedisLock";
+import {
+  PeriodicExclusiveRunner,
+  PeriodicExclusiveRunnerLeaseLostError,
+} from "../../utils/PeriodicExclusiveRunner";
 
 const METRIC_PREFIX = "langfuse.audit_log_relay";
 
@@ -22,6 +26,10 @@ const DEFAULT_BATCH_SIZE = 5_000;
 const FAILED_ROW_RETRY_DELAY = Prisma.sql`INTERVAL '10 minutes'`;
 
 const MAX_FAILURE_BACKOFF_MS = 30_000;
+
+// A task whose batches keep failing gives up the lease, so a fault local to
+// it, such as a broken connection pool, does not stall the relay.
+const LEASE_HANDOVER_AFTER_FAILURES = 3;
 
 // Counting the staging table scans it, so the gauges are refreshed at most
 // this often while a backlog drains batch after batch, and the scan is cut
@@ -40,16 +48,23 @@ const LOGGED_FAILURES_MAX = 10;
  * back, so the rows stay and the next batch retries them. A retry can insert
  * a row a second time; `audit_logs` collapses rows by id.
  *
- * Concurrent batches claim disjoint rows (FOR UPDATE SKIP LOCKED), so the
- * Redis lease only keeps workers from competing for the same rows. When Redis
- * is unavailable, every worker relays.
+ * One worker task keeps the Redis lease and relays every interval. The other
+ * tasks check for a free lease every half lease TTL, so a lease left by a
+ * crashed task is taken over within 1.5 lease TTLs, and a task whose batches
+ * keep failing hands it over. Concurrent batches claim
+ * disjoint rows (FOR UPDATE SKIP LOCKED), so the lease only keeps tasks from
+ * competing for the same rows. When Redis is unavailable, every task relays
+ * at the slower cadence.
  */
 export class AuditLogRelay extends PeriodicExclusiveRunner {
   private readonly intervalMs: number;
   private readonly lockTtlSeconds: number;
   private readonly batchSize: number;
   private readonly transactionTimeoutMs: number;
+  private readonly leaseCheckIntervalMs: number;
   private readonly insertRecords: AuditLogRecordInserter;
+  private holdsLease = false;
+  private stopped = false;
   private consecutiveFailures = 0;
   private lastStagingMetricsAt = 0;
 
@@ -62,6 +77,7 @@ export class AuditLogRelay extends PeriodicExclusiveRunner {
       intervalMs?: number;
       lockTtlSeconds?: number;
       batchSize?: number;
+      lockKey?: string;
       insertRecords?: AuditLogRecordInserter;
     } = {},
   ) {
@@ -71,7 +87,7 @@ export class AuditLogRelay extends PeriodicExclusiveRunner {
     super({
       name: "AuditLogRelay",
       metricName: "audit_log_relay",
-      lockKey: AUDIT_LOG_RELAY_LOCK_KEY,
+      lockKey: opts.lockKey ?? AUDIT_LOG_RELAY_LOCK_KEY,
       lockTtlSeconds,
       onUnavailable: "proceed",
     });
@@ -83,32 +99,95 @@ export class AuditLogRelay extends PeriodicExclusiveRunner {
     // A batch that runs out of time rolls back before the lease can expire
     // under it.
     this.transactionTimeoutMs = (lockTtlSeconds * 1000) / 2;
+    this.leaseCheckIntervalMs = (lockTtlSeconds * 1000) / 2;
     this.insertRecords = opts.insertRecords ?? insertAuditLogRecords;
   }
 
   public override start(): void {
+    this.stopped = false;
     logger.info(`Starting ${this.instanceName}`, {
       intervalMs: this.intervalMs,
       lockTtlSeconds: this.lockTtlSeconds,
+      leaseCheckIntervalMs: this.leaseCheckIntervalMs,
       batchSize: this.batchSize,
     });
     super.start();
   }
 
+  /**
+   * Releases a held lease, so another task takes over without waiting for
+   * its TTL.
+   */
+  public override stop(): void {
+    super.stop();
+    this.stopped = true;
+    this.releaseLease();
+  }
+
   protected async execute(): Promise<number | void> {
-    return await this.withLock(
-      async () => {
-        try {
-          const result = await this.relayBatch();
-          this.consecutiveFailures = 0;
-          // A full batch means more rows are waiting, so run again right away.
-          return result.claimed === this.batchSize ? 0 : undefined;
-        } finally {
-          await this.recordStagingMetrics();
-        }
-      },
-      () => this.backOffAfterFailure(),
-    );
+    const lease = await this.holdLease();
+    // stop() may have run while the lease was being taken.
+    if (this.stopped) {
+      this.releaseLease();
+      this.markRunSkipped();
+      return;
+    }
+    if (lease === "held_by_other") {
+      this.markRunSkipped();
+      return this.leaseCheckIntervalMs;
+    }
+
+    try {
+      const result = await this.relayBatch();
+      this.consecutiveFailures = 0;
+      // A full batch means more rows are waiting, so run again right away.
+      if (result.claimed === this.batchSize) return 0;
+      return lease === "acquired" ? undefined : this.leaseCheckIntervalMs;
+    } catch (error) {
+      logger.error(`${this.instanceName}: Failed to relay a batch`, { error });
+      this.markRunFailed(error);
+      return this.backOffAfterFailure();
+    } finally {
+      await this.recordStagingMetrics();
+    }
+  }
+
+  /**
+   * Renews a held lease at most every third of its TTL, or tries to take a
+   * free one. "skipped" means Redis is unavailable; a task that held the
+   * lease keeps counting it as held and renews it once Redis is back.
+   */
+  private async holdLease(): Promise<LockAcquireResult> {
+    if (this.holdsLease && (await this.renewLease())) return "acquired";
+
+    const result = await this.lock.acquire();
+    if (result === "skipped") return result;
+    if (result === "acquired") {
+      this.holdsLease = true;
+      return result;
+    }
+    // A renewal that failed on a Redis error leaves this task's own lease in
+    // place, which SET NX refuses.
+    this.holdsLease =
+      this.holdsLease && (await this.lock.isHeldByCurrentProcess());
+    return this.holdsLease ? "acquired" : "held_by_other";
+  }
+
+  private async renewLease(): Promise<boolean> {
+    try {
+      await this.extendLockOnProgress();
+      return true;
+    } catch (error) {
+      if (error instanceof PeriodicExclusiveRunnerLeaseLostError) return false;
+      throw error;
+    }
+  }
+
+  private releaseLease(): void {
+    if (!this.holdsLease) return;
+    this.holdsLease = false;
+    // Logs instead of rejecting, and stop() cannot await it.
+    this.lock.release();
   }
 
   /**
@@ -175,6 +254,11 @@ export class AuditLogRelay extends PeriodicExclusiveRunner {
   private backOffAfterFailure(): number {
     recordIncrement(`${METRIC_PREFIX}.relay_errors`, 1);
     this.consecutiveFailures += 1;
+    if (this.consecutiveFailures >= LEASE_HANDOVER_AFTER_FAILURES) {
+      this.consecutiveFailures = 0;
+      this.releaseLease();
+      return this.leaseCheckIntervalMs;
+    }
     return Math.min(
       this.intervalMs * 2 ** this.consecutiveFailures,
       MAX_FAILURE_BACKOFF_MS,
