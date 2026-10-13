@@ -65,12 +65,10 @@ impl InferenceService {
         self.telemetry.clone()
     }
 
-    pub(crate) fn try_reserve_resolution(
-        &self,
-    ) -> Result<ResolutionPermit<'_>, RequestPreparationError> {
+    pub(crate) fn try_reserve_resolution(&self) -> Result<ResolutionPermit<'_>, ResolutionError> {
         let permit = self.resolution_capacity.try_acquire().map_err(|_| {
             crate::observability::rejected("resolution");
-            RequestPreparationError::Resolution(ResolutionError::Unavailable)
+            ResolutionError::Unavailable
         })?;
         Ok(ResolutionPermit { _permit: permit })
     }
@@ -85,17 +83,19 @@ impl InferenceService {
         Ok(RequestBodyPermit { _permit: permit })
     }
 
-    pub(crate) async fn models(
+    pub(crate) async fn model_catalog(
         &self,
-        _resolution_permit: ResolutionPermit<'_>,
         gateway_key: &str,
         api_format: ApiFormat,
         correlation: &RequestCorrelation,
     ) -> Result<Vec<u8>, ResolutionError> {
+        let _resolution_permit = self.try_reserve_resolution()?;
         let _active = crate::observability::Active::new("resolution");
-        self.control_plane
+        let body = self
+            .control_plane
             .models(gateway_key, api_format, correlation.id())
-            .await
+            .await?;
+        crate::providers::model_list::provider_response(&body, api_format)
     }
 
     /// Authenticate, then reserve execution capacity. The API format comes from the public route,
