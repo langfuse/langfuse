@@ -204,7 +204,8 @@ describe("ChatMessage system prompt collapse", () => {
     expect(headerCollapseButtons()).toHaveLength(1);
     expect(inlineCollapseButtons()).toHaveLength(1);
 
-    fireEvent.click(collapseButton()!);
+    // Click the INLINE control — the header test below covers the header path.
+    fireEvent.click(inlineCollapseButtons()[0]!);
 
     expect(expandButtons().length).toBeGreaterThan(0);
     expect(localStorage.getItem("collapseSystemPrompt")).toBe("true");

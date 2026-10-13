@@ -38,10 +38,8 @@ import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import {
-  MarkdownJsonViewHeader,
-  SystemPromptCollapseButton,
-} from "@/src/components/ui/MarkdownJsonView";
+import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { SystemPromptCollapseButton } from "@/src/components/ui/SystemPromptCollapseButton";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
@@ -65,6 +63,7 @@ import { exceedsMarkdownRenderLimits } from "@/src/components/ui/markdown-render
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import {
   classifyMediaValue,
+  splitStringByMediaReferences,
   type MediaDescriptor,
 } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
@@ -547,13 +546,17 @@ export function MarkdownView({
   const standaloneMediaDescriptor: MediaDescriptor | null =
     typeof markdown === "string" ? classifyMediaValue(markdown) : null;
 
-  // Collapse preview is built from text parts only: serialized image/audio
-  // parts (media-reference strings, base64 data URIs) neither survive the
-  // generic markdown renderer nor belong in a first-lines text preview — and
-  // media alone should not make a prompt collapsible.
+  // Collapse preview is built from text parts only: media references, base64
+  // data URIs and audio parts neither survive the generic markdown renderer nor
+  // belong in a first-lines text preview — and media alone should not make a
+  // prompt collapsible.
   const collapsibleContent =
     typeof markdown === "string"
-      ? markdown
+      ? splitStringByMediaReferences(markdown)
+          .filter((s) => s.type === "text")
+          .map((s) => s.value)
+          .join("")
+          .trim()
       : (markdown ?? [])
           .filter(isOpenAITextContentPart)
           .map((part) => part.text)
@@ -582,26 +585,24 @@ export function MarkdownView({
     getRenderedInlineMediaIds({ markdown, audio }),
   );
 
+  const handleCollapseInline = () => toggleCollapsed("inline");
+  const handleCollapseHeader = () => toggleCollapsed("header");
+
   const collapseToggle = shouldBeCollapsible ? (
-    <div className="flex">
-      <Button
-        variant="text"
-        onClick={() => toggleCollapsed("inline")}
-        text={isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
-      />
-    </div>
+    <Button
+      variant="ghost"
+      size="xs"
+      onClick={handleCollapseInline}
+      className="w-fit text-xs underline"
+    >
+      {isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
+    </Button>
   ) : null;
 
-  // Expanded only: the inline control above sits after the body, which on a
-  // multi-thousand-token prompt means scrolling the whole thing to hide it.
-  // Collapsed, the header stays control-free so the preview keeps offering
-  // exactly one way to expand.
   const headerControlButtons =
     shouldBeCollapsible && !isCollapsed ? (
       <>
-        <SystemPromptCollapseButton
-          onCollapse={() => toggleCollapsed("header")}
-        />
+        <SystemPromptCollapseButton onCollapse={handleCollapseHeader} />
         {controlButtons}
       </>
     ) : (
