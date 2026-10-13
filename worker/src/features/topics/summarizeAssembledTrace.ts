@@ -45,19 +45,25 @@ type AssembledTraceInput = {
   transcript: Transcript | null;
   models: TopicsModels;
   facets: TopicFacet[];
-  // Collects rows for the batch's single write, including a failed trace's valid facets.
-  summaries: TopicSummary[];
+};
+
+type AssembledTraceResult = {
+  outcome: "disabled" | "unchanged" | "summarized";
+  rows: TopicSummary[];
+  // Set when some facets failed; rows still holds the valid ones.
+  failure?: unknown;
 };
 
 /**
  * Summarizes one trace from the transcript the batch job already assembled,
  * with one model call for all of its configured facets. Does not load
- * observations again or write; the batch job stores the collected rows.
+ * observations again or write; the batch job stores the returned rows.
  */
 export async function summarizeAssembledTrace(
   input: AssembledTraceInput,
-): Promise<"disabled" | "unchanged" | "summarized"> {
-  if (isInternalEvalEnvironment(input.environment)) return "disabled";
+): Promise<AssembledTraceResult> {
+  if (isInternalEvalEnvironment(input.environment))
+    return { outcome: "disabled", rows: [] };
   return instrumentAsync(
     { name: "topics-trace-summary", traceScope: "topics" },
     async (span) => {
@@ -66,14 +72,18 @@ export async function summarizeAssembledTrace(
         "langfuse.trace.id": input.traceId,
       });
       const metrics = new TopicMetrics();
+      let result: AssembledTraceResult | undefined;
       try {
-        const outcome = await metrics.measure("trace", () =>
-          summarizeEnabledTrace(input, metrics),
-        );
-        span.setAttribute("langfuse.topics.trace_outcome", outcome);
-        return outcome;
+        await metrics.measure("trace", async () => {
+          result = await summarizeEnabledTrace(input, metrics);
+          if (result.failure !== undefined) throw result.failure;
+        });
+        span.setAttribute("langfuse.topics.trace_outcome", result!.outcome);
+        return result!;
       } catch (error) {
         span.setAttribute("langfuse.topics.trace_outcome", "failed");
+        // A partial failure still returns the valid facets' rows.
+        if (result && result.failure === error) return result;
         throw error;
       }
     },
@@ -83,7 +93,7 @@ export async function summarizeAssembledTrace(
 async function summarizeEnabledTrace(
   input: AssembledTraceInput,
   metrics: TopicMetrics,
-): Promise<"unchanged" | "summarized"> {
+): Promise<AssembledTraceResult> {
   const { models, facets } = input;
   const embeddingModel = models.embedding.model;
   const config = topicProcessingConfigSchema.parse({
@@ -125,7 +135,7 @@ async function summarizeEnabledTrace(
       continue;
     pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
   }
-  if (!pending.length) return "unchanged";
+  if (!pending.length) return { outcome: "unchanged", rows: [] };
 
   const prepared = prepareAssembledTopicTranscript(input.transcript);
   const bases = pending.map(({ version }) =>
@@ -232,9 +242,7 @@ async function summarizeEnabledTrace(
         });
     }
   }
-  input.summaries.push(...rows);
-  if (failure) throw failure;
-  return "summarized";
+  return { outcome: "summarized", rows, failure };
 }
 
 function baseSummary(

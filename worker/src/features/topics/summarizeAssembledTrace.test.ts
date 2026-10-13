@@ -106,14 +106,23 @@ const usage = {
   },
 };
 
-const summaries: TopicSummary[] = [];
+let summaries: TopicSummary[] = [];
+// Keeps the returned rows for assertions and rethrows a partial failure, as the batch job reports it.
+const summarize = async (
+  input: Parameters<typeof summarizeAssembledTrace>[0],
+) => {
+  const result = await summarizeAssembledTrace(input);
+  summaries = result.rows;
+  if (result.failure !== undefined) throw result.failure;
+  return result.outcome;
+};
 
 beforeEach(() => {
   vi.mocked(recordDistribution).mockClear();
   vi.mocked(recordIncrement).mockClear();
   state.facets.mockReset();
   state.stored.mockReset();
-  summaries.length = 0;
+  summaries = [];
   state.summarize.mockReset();
   state.embed.mockReset();
   state.setAttribute.mockClear();
@@ -136,7 +145,7 @@ beforeEach(() => {
 
 describe("summarizeAssembledTrace", () => {
   it("skips internal traces before reading summaries, calling models or writing", async () => {
-    const result = await summarizeAssembledTrace({
+    const result = await summarize({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -146,7 +155,6 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: [facet],
-      summaries,
     });
     expect(result).toBe("disabled");
     expect(state.stored).not.toHaveBeenCalled();
@@ -156,7 +164,7 @@ describe("summarizeAssembledTrace", () => {
   });
 
   it("skips a finished job retry but summarizes a later redispatch", async () => {
-    await summarizeAssembledTrace({
+    await summarize({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -166,7 +174,6 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
-      summaries,
     });
     expect(state.summarize).toHaveBeenCalledTimes(1);
     const submitted = state.summarize.mock.calls[0];
@@ -215,8 +222,8 @@ describe("summarizeAssembledTrace", () => {
       { ...written, processedAt: "2026-09-22T12:02:00.000Z" },
     ]);
     state.summarize.mockClear();
-    summaries.length = 0;
-    await summarizeAssembledTrace({
+    summaries = [];
+    await summarize({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -226,11 +233,10 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
-      summaries,
     });
     expect(state.summarize).not.toHaveBeenCalled();
     expect(summaries).toEqual([]);
-    await summarizeAssembledTrace({
+    await summarize({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -240,7 +246,6 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
-      summaries,
     });
     expect(state.summarize).toHaveBeenCalledOnce();
     expect(summaries).toHaveLength(1);
@@ -270,7 +275,7 @@ describe("summarizeAssembledTrace", () => {
       },
       ...usage,
     });
-    await summarizeAssembledTrace({
+    await summarize({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -280,7 +285,6 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
-      summaries,
     });
     expect(state.summarize).toHaveBeenCalledOnce();
     const [intent, issue] = summaries;
@@ -300,7 +304,7 @@ describe("summarizeAssembledTrace", () => {
       },
       ...usage,
     });
-    await summarizeAssembledTrace({
+    await summarize({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -310,7 +314,6 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
-      summaries,
     });
     const [written] = summaries;
     expect(written).toMatchObject({ state: "not_applicable" });
@@ -334,7 +337,7 @@ describe("summarizeAssembledTrace", () => {
       ...usage,
     });
     await expect(
-      summarizeAssembledTrace({
+      summarize({
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -344,7 +347,6 @@ describe("summarizeAssembledTrace", () => {
         transcript,
         models,
         facets: state.facets(),
-        summaries,
       }),
     ).rejects.toThrow(
       "Applicable facet summary must contain a concise summary.",
@@ -393,7 +395,7 @@ describe("summarizeAssembledTrace", () => {
       },
       ...usage,
     });
-    await summarizeAssembledTrace({
+    await summarize({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -403,7 +405,6 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
-      summaries,
     });
     expect(state.summarize.mock.calls[0][1]).toEqual([
       { key: "intent_1", facet: facet.versions[0], builtIn: true },
@@ -431,7 +432,7 @@ describe("summarizeAssembledTrace", () => {
     const error = new Error("embedding provider unavailable");
     state.embed.mockRejectedValueOnce(error);
     await expect(
-      summarizeAssembledTrace({
+      summarize({
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -441,7 +442,6 @@ describe("summarizeAssembledTrace", () => {
         transcript,
         models,
         facets: state.facets(),
-        summaries,
       }),
     ).rejects.toBe(error);
     expect(state.summarize).toHaveBeenCalledOnce();
@@ -474,7 +474,7 @@ describe("summarizeAssembledTrace", () => {
     const error = new Error("provider unavailable");
     state.summarize.mockRejectedValue(error);
     await expect(
-      summarizeAssembledTrace({
+      summarize({
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -484,7 +484,6 @@ describe("summarizeAssembledTrace", () => {
         transcript,
         models,
         facets: state.facets(),
-        summaries,
       }),
     ).rejects.toBe(error);
     expect(state.setAttribute).toHaveBeenCalledWith(
@@ -513,7 +512,7 @@ describe("summarizeAssembledTrace", () => {
       ...usage,
     });
     await expect(
-      summarizeAssembledTrace({
+      summarize({
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -523,7 +522,6 @@ describe("summarizeAssembledTrace", () => {
         transcript,
         models,
         facets: state.facets(),
-        summaries,
       }),
     ).rejects.toMatchObject({ reason: "invalid_output" });
     expect(state.embed).not.toHaveBeenCalled();

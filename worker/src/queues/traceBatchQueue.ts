@@ -1,5 +1,6 @@
 import { type Processor } from "bullmq";
 import pLimit from "p-limit";
+import { backOff } from "exponential-backoff";
 import { randomUUID } from "node:crypto";
 import { type Observation } from "@langfuse/shared";
 import {
@@ -35,14 +36,17 @@ import {
   TopicsProviderUnavailable,
 } from "../features/topics/provider-error";
 import { TopicMetrics } from "../features/topics/metrics";
+import { isRetryableClickhouseError } from "../services/ClickhouseWriter";
 import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 
 type TraceBatchObservation = Observation & { eventTimestamp: string };
 
-type TraceOutcome =
+// Rows include a failed trace's valid facets; the batch writes them once.
+type TraceOutcome = (
   | { outcome: "disabled" | "unchanged" | "summarized" }
-  | { outcome: "failed"; reason: string };
+  | { outcome: "failed"; reason: string }
+) & { rows: TopicSummary[] };
 
 /**
  * Topics settings of one batch, loaded with one query while the read starts.
@@ -105,7 +109,6 @@ async function summarizeTraceBatch(
   transcript: Transcript | null,
   topics: TopicsBatchProjects,
   jobEnqueuedAt: Date,
-  summaries: TopicSummary[],
 ): Promise<TraceOutcome> {
   const first = observations[0];
   const traceId = first?.traceId;
@@ -129,6 +132,7 @@ async function summarizeTraceBatch(
     if (row.id !== current.id) return row.id > current.id ? row : current;
     return row.environment > current.environment ? row : current;
   });
+  let rows: TopicSummary[] = [];
   try {
     const project = await topics.get(first.projectId);
     if (
@@ -138,21 +142,21 @@ async function summarizeTraceBatch(
         samplingRate: project.sampling,
       })
     )
-      return { outcome: "disabled" };
-    return {
-      outcome: await summarizeAssembledTrace({
-        projectId: first.projectId,
-        traceId,
-        traceTimestamp,
-        jobEnqueuedAt,
-        environment: latest.environment,
-        traceName: first.name ?? "",
-        transcript,
-        models: project.models,
-        facets: project.facets,
-        summaries,
-      }),
-    };
+      return { outcome: "disabled", rows };
+    const result = await summarizeAssembledTrace({
+      projectId: first.projectId,
+      traceId,
+      traceTimestamp,
+      jobEnqueuedAt,
+      environment: latest.environment,
+      traceName: first.name ?? "",
+      transcript,
+      models: project.models,
+      facets: project.facets,
+    });
+    rows = result.rows;
+    if (result.failure === undefined) return { outcome: result.outcome, rows };
+    throw result.failure;
   } catch (error) {
     // One trace's failure must not fail or re-read the shared batch.
     const reason =
@@ -163,35 +167,47 @@ async function summarizeTraceBatch(
       traceId,
       reason,
     });
-    return { outcome: "failed", reason };
+    return { outcome: "failed", reason, rows };
   }
 }
 
-/** One write per batch; a failed write fails its summarized traces without retrying them. */
+/**
+ * Writes the batch's rows in as few inserts as possible and returns the rows it dropped.
+ * Transient errors are retried like ClickhouseWriter does; any other error halves the
+ * rows until only the rows that fail on their own are dropped.
+ */
 async function writeBatchSummaries(
-  summaries: TopicSummary[],
-  outcomes: TraceOutcome[],
-): Promise<void> {
-  if (!summaries.length) return;
+  rows: TopicSummary[],
+): Promise<TopicSummary[]> {
+  if (!rows.length) return [];
   try {
     await new TopicMetrics().measure(
       "storage",
-      () => writeTopicSummaries(summaries),
+      () =>
+        backOff(() => writeTopicSummaries(rows), {
+          numOfAttempts: env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS,
+          retry: isRetryableClickhouseError,
+        }),
       "storage",
     );
   } catch (error) {
-    logger.warn("Topics summary write failed for trace batch", {
-      rowCount: summaries.length,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    outcomes.forEach((result, index) => {
-      if (result.outcome === "summarized")
-        outcomes[index] = { outcome: "failed", reason: "storage" };
-    });
-    return;
+    // Splitting cannot fix an outage or a single bad row.
+    if (rows.length === 1 || isRetryableClickhouseError(error)) {
+      logger.warn("Topics summary write failed for trace batch", {
+        rowCount: rows.length,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return rows;
+    }
+    const half = Math.ceil(rows.length / 2);
+    return [
+      ...(await writeBatchSummaries(rows.slice(0, half))),
+      ...(await writeBatchSummaries(rows.slice(half))),
+    ];
   }
-  for (const row of summaries)
+  for (const row of rows)
     recordIncrement("langfuse.topics.facet_summaries", 1, { state: row.state });
+  return [];
 }
 
 /** Failed traces are counted, not retried. */
@@ -280,7 +296,7 @@ export const traceBatchQueueProcessor: Processor<
     }
     const batch = event.payload;
     const topicsOutcomes: TraceOutcome[] = [];
-    const summaries: TopicSummary[] = [];
+    let droppedRows = new Set<TopicSummary>();
     const topics = new TopicsBatchProjects(
       batch.traces.map((trace) => trace.projectId),
     );
@@ -379,7 +395,6 @@ export const traceBatchQueueProcessor: Processor<
                   assembled.transcript,
                   topics,
                   event.timestamp,
-                  summaries,
                 ),
               );
           });
@@ -463,7 +478,9 @@ export const traceBatchQueueProcessor: Processor<
       try {
         // Drain and store accepted summaries even when the stream fails, so a retry skips them.
         await Promise.all(pendingSummaries);
-        await writeBatchSummaries(summaries, topicsOutcomes);
+        droppedRows = new Set(
+          await writeBatchSummaries(topicsOutcomes.flatMap(({ rows }) => rows)),
+        );
       } finally {
         activeReads--;
         recordTraceBatchActiveReads();
@@ -488,7 +505,14 @@ export const traceBatchQueueProcessor: Processor<
       batch.traces.length - foundTraces.size,
     );
 
-    recordTopicsOutcomes(topicsOutcomes);
+    recordTopicsOutcomes(
+      topicsOutcomes.map((result) =>
+        result.outcome === "summarized" &&
+        result.rows.some((row) => droppedRows.has(row))
+          ? { outcome: "failed", reason: "storage", rows: result.rows }
+          : result,
+      ),
+    );
     // Retries can repeat this read; observation payloads never enter job results.
     outcome = "success";
     return {
