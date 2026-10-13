@@ -2041,12 +2041,141 @@ const manySimpleTurnsWorkflow: WorkflowFixture[] = Array.from(
   },
 );
 
+const toolContentExamples = [
+  {
+    name: "describe_chart",
+    content: [{ type: "text", text: "Monthly revenue increased." }],
+  },
+  {
+    name: "get_chart_data",
+    content: [{ points: 12, metric: "monthly-revenue" }],
+  },
+  {
+    name: "download_chart",
+    content: [
+      {
+        type: "image_url",
+        image_url: { url: "/revenue-chart.svg" },
+      },
+    ],
+  },
+  {
+    name: "inspect_chart",
+    content: [
+      { type: "vendor-chart", value: { chartId: "chart-annotations" } },
+    ],
+  },
+  {
+    name: "download_named_chart",
+    content: [
+      {
+        type: "file",
+        mediaType: "image/svg+xml",
+        filename: "revenue.svg",
+        data: { type: "url", url: "/revenue-chart.svg" },
+      },
+    ],
+  },
+  {
+    name: "download_svg_chart",
+    content: [
+      {
+        type: "file",
+        mediaType: "image/svg+xml",
+        data: { type: "url", url: "/revenue-chart.svg" },
+      },
+    ],
+  },
+  {
+    name: "download_report",
+    content: [
+      {
+        type: "file",
+        mediaType: "application/pdf",
+        data: { type: "url", url: "/revenue-report.pdf" },
+      },
+    ],
+  },
+  {
+    name: "get_unknown_attachment",
+    content: [{ type: "file", file: { file_id: "revenue-attachment" } }],
+  },
+  {
+    name: "generate_chart",
+    content: [
+      { type: "text", text: "Monthly revenue chart generated." },
+      { points: 24, metric: "mixed-revenue" },
+      {
+        type: "image_url",
+        image_url: { url: "/revenue-chart.svg" },
+      },
+      { type: "vendor-chart", value: { chartId: "chart-revenue" } },
+    ],
+  },
+];
+
+const mixedToolContentWorkflow: WorkflowFixture[] = [
+  {
+    trace: {
+      ...trace,
+      id: "mixed-tool-content-story",
+      name: "Generate chart with attachments",
+      observationCount: toolContentExamples.length + 1,
+    },
+    turnNumber: 1,
+    observations: [
+      {
+        id: "chart-generation",
+        traceId: "mixed-tool-content-story",
+        parentObservationId: null,
+        type: "GENERATION",
+        name: "Plan chart",
+        startTime: trace.timestamp,
+        endTime: new Date(trace.timestamp.getTime() + 1000),
+        environment: "storybook",
+        metadata: {},
+        input: JSON.stringify([
+          { role: "user", content: "Generate a chart of monthly revenue." },
+        ]),
+        output: JSON.stringify({
+          role: "assistant",
+          tool_calls: toolContentExamples.map(({ name }) => ({
+            id: `${name}-call`,
+            type: "function",
+            function: {
+              name,
+              arguments: '{"metric":"revenue"}',
+            },
+          })),
+        }),
+      },
+      ...toolContentExamples.map(({ name, content }, index) => ({
+        id: `${name}-tool`,
+        traceId: "mixed-tool-content-story",
+        parentObservationId: "chart-generation",
+        type: "TOOL" as const,
+        name,
+        startTime: new Date(trace.timestamp.getTime() + (index + 1) * 1000),
+        endTime: new Date(trace.timestamp.getTime() + (index + 2) * 1000),
+        environment: "storybook",
+        metadata: {},
+        input: JSON.stringify({ metric: "revenue" }),
+        output: JSON.stringify({
+          role: "tool",
+          content,
+        }),
+      })),
+    ],
+  },
+];
+
 const workflowTranscripts = new Map(
   [
     supportAgentWorkflow,
     codingAgentWorkflow,
     langfuseAssistantWorkflow,
     manySimpleTurnsWorkflow,
+    mixedToolContentWorkflow,
   ].map((workflow) => [
     workflow,
     workflow.map((item): WorkflowTrace => {
@@ -2524,6 +2653,70 @@ const meta = preview.meta({
   parameters: { layout: "fullscreen" },
 });
 export default meta;
+
+export const MixedToolContent = meta.story({
+  name: "(Test) Mixed Tool Content",
+  args: { workflowTraces: mixedToolContentWorkflow },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const timeline = within(
+      canvas.getByLabelText("Session conversation timeline"),
+    );
+    await userEvent.click(
+      await timeline.findByRole("button", { name: /^Show tools:/ }),
+    );
+    for (const { name } of toolContentExamples) {
+      await userEvent.click(
+        timeline.getByRole("button", { name: `Expand ${name}` }),
+      );
+    }
+    await expect(
+      timeline.getByText("Monthly revenue increased."),
+    ).toBeVisible();
+    await expect(timeline.getByText(/monthly-revenue/)).toBeVisible();
+    await expect(timeline.getByText(/chart-annotations/)).toBeVisible();
+    await expect(
+      timeline.getByText(/chart-annotations/).closest("pre"),
+    ).toHaveTextContent("vendor-chart");
+    await expect(
+      timeline.getByText("Monthly revenue chart generated."),
+    ).toBeVisible();
+    await expect(timeline.getByText(/mixed-revenue/)).toBeVisible();
+    await expect(
+      timeline.getByText(/mixed-revenue/).closest("pre"),
+    ).toHaveTextContent("points");
+    const images = timeline.getAllByRole<HTMLImageElement>("img", {
+      name: /Embedded image|revenue.svg/,
+    });
+    await expect(images).toHaveLength(4);
+    for (const image of images) await expect(image).toBeVisible();
+    await waitFor(async () => {
+      for (const image of images) {
+        await expect(image.naturalWidth).toBeGreaterThan(0);
+      }
+    });
+    await expect(timeline.getByText(/chart-revenue/)).toBeVisible();
+    await expect(
+      timeline.getByText(/chart-revenue/).closest("pre"),
+    ).toHaveTextContent("vendor-chart");
+    await expect(timeline.queryByRole("note")).not.toBeInTheDocument();
+    for (const label of [
+      "revenue.svg",
+      "image/svg+xml",
+      "application/pdf",
+      "File",
+    ]) {
+      await expect(timeline.getByText(label, { exact: true })).toBeVisible();
+    }
+    await expect(
+      timeline.getByRole("link", { name: "/revenue-report.pdf" }),
+    ).toHaveAttribute("href", "/revenue-report.pdf");
+    const sidebar = within(canvas.getByRole("complementary"));
+    await expect(
+      sidebar.queryByRole("button", { name: "JSON message" }),
+    ).not.toBeInTheDocument();
+  },
+});
 
 export const ReasoningOnlyAndEmptySidebarStates = meta.story({
   name: "(Test) Reasoning-Only And Empty Sidebar States",
