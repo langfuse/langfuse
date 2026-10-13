@@ -1,8 +1,14 @@
 import { get_encoding } from "tiktoken";
 import { z } from "zod";
-import { logger } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
+import { env } from "@langfuse/shared/src/env";
 import {
-  generateTopicEmbedding,
+  logger,
+  getLangfuseAITraceSinkParams,
+  LangfuseInternalTraceEnvironment,
+} from "@langfuse/shared/src/server";
+import {
+  generateTopicEmbeddings,
   generateTopicText,
   type TopicPromptPart,
   type TopicsModel,
@@ -89,6 +95,8 @@ async function structuredCall<T>(
   outputLimit: number,
   stage: "summary" | "naming",
   model: TopicsModel,
+  projectId: string,
+  metadata?: Record<string, unknown>,
 ): Promise<ModelResult<T>> {
   // Unknown model IDs record usage without cost.
   const rates = (tokens: number): Rates | undefined =>
@@ -101,6 +109,7 @@ async function structuredCall<T>(
     input,
     schema,
     maxOutputTokens: outputLimit,
+    trace: await topicTraceSink(stage, projectId, metadata),
   }).catch((error: unknown) => {
     logger.warn("Topics model request failed", {
       model: model.model,
@@ -162,6 +171,45 @@ async function structuredCall<T>(
   return accepted;
 }
 
+async function topicTraceSink(
+  stage: "summary" | "naming",
+  projectId: string,
+  metadata?: Record<string, unknown>,
+) {
+  if (!env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS?.includes(projectId))
+    return undefined;
+  const trace = getLangfuseAITraceSinkParams({
+    feature: "topics",
+    projectId,
+    traceName: `topics-${stage}`,
+    metadata,
+  });
+  if (!trace) return undefined;
+  const project = await prisma.project
+    .findFirst({
+      where: { id: projectId, deletedAt: null },
+      select: {
+        organization: {
+          select: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
+        },
+      },
+    })
+    .catch((error: unknown) => {
+      logger.warn("Failed to check Topics tracing consent", { error });
+      return null;
+    });
+  if (
+    !project?.organization.aiFeaturesEnabled ||
+    !project.organization.aiTelemetryEnabled
+  )
+    return undefined;
+  return {
+    ...trace,
+    environment: LangfuseInternalTraceEnvironment.Topics,
+    aiFeatureOtelIngestion: false,
+  };
+}
+
 const SUMMARY_SYSTEM_PROMPT = `You describe one facet of a recorded run of an LLM application. Your description is embedded and clustered together with descriptions of many other runs. Runs that share a pattern should get similar descriptions; runs that differ in a way that matters should not.
 
 <transcript_format>
@@ -202,6 +250,7 @@ export async function summarizeTopicTrace(
   facet: TopicFacetVersion,
   text: string,
   config: TopicProcessingConfig,
+  metadata?: Record<string, unknown>,
 ) {
   requireFrozenSummaryModel(models, config);
   const system = [
@@ -227,6 +276,8 @@ export async function summarizeTopicTrace(
     config.maxOutputTokens,
     "summary",
     models.summary,
+    models.projectId,
+    { ...metadata, facet_id: facet.facetId, facet_version: facet.version },
   );
 }
 
@@ -242,6 +293,7 @@ export async function summarizeTopicTraceFacets(
   facets: { key: string; facet: TopicFacetVersion; builtIn: boolean }[],
   text: string,
   config: TopicProcessingConfig,
+  metadata?: Record<string, unknown>,
 ) {
   requireFrozenSummaryModel(models, config);
   const entry = z.object({
@@ -294,6 +346,15 @@ ${facetBlock(true)}`,
     config.maxOutputTokens * facets.length,
     "summary",
     models.summary,
+    models.projectId,
+    {
+      ...metadata,
+      facets: facets.map(({ key, facet }) => ({
+        key,
+        facet_id: facet.facetId,
+        facet_version: facet.version,
+      })),
+    },
   );
 }
 
@@ -303,6 +364,7 @@ export async function nameTopicGroup(
     members: { id: string; summary: string }[];
     contrasts: { id: string; summary: string }[];
   },
+  metadata?: Record<string, unknown>,
 ) {
   if (!group.members.length)
     throw new Error("Naming requires one non-empty effective group.");
@@ -345,16 +407,20 @@ export async function nameTopicGroup(
     1000,
     "naming",
     models.clustering,
+    models.projectId,
+    metadata,
   );
 }
 
-export async function embedTopicSummary(
+/** Embeds summaries in one batched call; the usage covers every returned vector. */
+export async function embedTopicSummaries(
   model: TopicsModel,
-  summary: string,
+  summaries: string[],
   dimensions: number,
-): Promise<TopicModelUsage & { embedding: number[] }> {
+): Promise<TopicModelUsage & { embeddings: number[][] }> {
   if (
-    !summary.trim() ||
+    summaries.length === 0 ||
+    summaries.some((summary) => !summary.trim()) ||
     !topicEmbeddingConfigSchema.safeParse({ embeddingDimensions: dimensions })
       .success
   )
@@ -362,20 +428,26 @@ export async function embedTopicSummary(
       "Topics embeddings require non-empty text and 64 to 4,096 dimensions.",
       "invalid_input",
     );
-  const result = await generateTopicEmbedding({
+  const result = await generateTopicEmbeddings({
     model,
-    summary,
+    summaries,
     dimensions,
   }).catch((error: unknown) => {
     throw topicProviderError(error, model);
   });
   recordTopicTokenUsage("embedding", { input: result.tokens });
   // ClickHouse stores Float32; calibration and future classification must use those same vectors.
-  const embedding = Array.from(new Float32Array(result.embedding));
+  const embeddings = result.embeddings.map((vector) =>
+    Array.from(new Float32Array(vector)),
+  );
   if (
-    embedding.length !== dimensions ||
-    !embedding.every(Number.isFinite) ||
-    !embedding.some((value) => value !== 0)
+    embeddings.length !== summaries.length ||
+    embeddings.some(
+      (embedding) =>
+        embedding.length !== dimensions ||
+        !embedding.every(Number.isFinite) ||
+        !embedding.some((value) => value !== 0),
+    )
   )
     throw new TopicsProviderUnavailable(
       "Topics embedding provider returned an invalid vector.",
@@ -394,7 +466,7 @@ export async function embedTopicSummary(
     });
   }
   return {
-    embedding,
+    embeddings,
     providedUsageDetails: usageDetails,
     usageDetails,
     providedCostDetails: {},

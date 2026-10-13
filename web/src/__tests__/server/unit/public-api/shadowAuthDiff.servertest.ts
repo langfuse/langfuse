@@ -106,13 +106,12 @@ describe("shadowAuthDiff — the ship-gate signal", () => {
     },
   );
 
-  it("does not log matches or net-new gates", () => {
+  it("does not log matches", () => {
     const log = vi.spyOn(logger, "info").mockImplementation(() => logger);
     const { telemetry } = capture();
     for (const [newDecision, legacyDecision] of [
       [allow, legacyAllow],
       [deny, legacyDeny],
-      [deny, { absent: true }],
     ] as const) {
       shadowAuthDiff(
         newDecision,
@@ -126,11 +125,42 @@ describe("shadowAuthDiff — the ship-gate signal", () => {
   });
 
   it.each([
+    ["both allow", allow, legacyAllow],
+    ["both deny", deny, legacyDeny],
+    [
+      "both deny with different codes",
+      { success: false, error: { httpCode: 401 } } as NewDecision,
+      legacyDeny,
+    ],
+  ] as const)(
+    "does not publish telemetry when %s",
+    (_name, newDecision, legacyDecision) => {
+      const log = vi.spyOn(logger, "info").mockImplementation(() => logger);
+      const { calls, telemetry } = capture();
+      const setAttribute = vi.fn();
+      telemetry.span = vi.fn(() => ({ setAttribute }));
+
+      expect(
+        shadowAuthDiff(
+          newDecision,
+          legacyDecision,
+          "traces:read",
+          { resource: "unknown" },
+          telemetry,
+        ),
+      ).toBe("match");
+      expect(calls).toEqual([]);
+      expect(telemetry.span).not.toHaveBeenCalled();
+      expect(setAttribute).not.toHaveBeenCalled();
+      expect(log).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
     ["both allow", allow, legacyAllow, "match"],
     ["both deny", deny, legacyDeny, "match"],
     ["new denies what legacy allows", deny, legacyAllow, "new_denies"],
     ["new allows what legacy denies", allow, legacyDeny, "new_allows"],
-    ["legacy has no gate", deny, { absent: true } as LegacyDecision, "net_new"],
   ] as const)("%s", (_name, newVerdict, legacyVerdict, result) => {
     const { calls, telemetry } = capture();
     expect(
@@ -142,7 +172,11 @@ describe("shadowAuthDiff — the ship-gate signal", () => {
         telemetry,
       ),
     ).toBe(result);
-    expect(calls[0].tags.result).toBe(result);
+    if (result === "match") {
+      expect(calls).toEqual([]);
+    } else {
+      expect(calls[0].tags.result).toBe(result);
+    }
   });
 });
 

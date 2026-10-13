@@ -83,6 +83,8 @@
     Facet versions use `(projectId, facetId, version)`. Reads require a time
     range; replacement includes the source minute, with run/origin suffixes
     for assignments. Definition bounds retain original creation dates on reuse.
+    `getLatestFacetSummaries` returns display fields; processing reads use
+    `listTopicSummaries` or `getTopicClusteringSummaries` for complete summaries.
   - `execution-store.ts`: one BatchAction per request, compact counters and run references.
     Writes accept progress only; immutable settings stay in the stored request.
     Trace inputs and paid outputs belong outside the execution store.
@@ -93,8 +95,10 @@
     Summary references carry facet/version/source fields within project and
     execution scope; exact storage reads also require facet/version scope.
   - `text.ts` and `embeddings.ts`: model transport through the project's LLM
-    connections (`generateLLMText` / `embedLLMText`); worker model calls own
-    usage, cost and vector validation.
+    connections (`generateLLMText` / `embedLLMText`), with cached Bedrock text
+    calls using InvokeModel. Text accepts optional internal generation tracing;
+    worker model calls own tracing allowlisting, organization consent, usage,
+    cost and vector validation.
   - `model-config.ts`: per-project `topic_configs` (three connection +
     model slots and the automatic-processing switch). Saving tests every slot
     with a real call; Anthropic works for summaries and clustering but fails the
@@ -102,6 +106,12 @@
     exist. `setup.ts` tests the models, then commits the single Topics rule,
     models, and per-project trace idle time together. Refresh the Redis readiness
     setting only after that transaction commits.
+  - `processing-gate.ts`: `isTopicsProcessingActive`, the ingestion gate for
+    trace batching (allowlisted, enabled with all three models, and an active
+    rule with an unblocked facet), cached in Redis both ways. Any write to a
+    project's Topics config, Topics rule or facet evaluators calls
+    `invalidateTopicsProcessingActive` after it commits;
+    `invalidateProjectEvalConfigCaches` already does.
   - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
     Returns the shared `Transcript | null`, capped at 10,000 serialized characters.
     Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results
@@ -128,7 +138,8 @@
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,
   AI SDK-native LLM execution helpers (`generateLLMText`, `streamLLMText`, and
-  `embedLLMText`), Bedrock default-credential provider auth
+  `embedLLMText`), `isInternalEvalEnvironment` for shared eval/Topics exclusions,
+  Bedrock default-credential provider auth
   (`createDefaultBedrockProviderAuth`), and server test utilities. Langfuse AI
   callers select their local profile through `getLangfuseAIAwsProfile`;
   generic Bedrock auth only uses an explicitly supplied profile or the normal

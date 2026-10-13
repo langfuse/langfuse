@@ -30,9 +30,14 @@
   Transcript assembly is shared with web through `loadTopicTranscript`, returning
   `Transcript | null`; serialize it for inference and skip inference on null.
   Token counting and its WASM dependency stay in `src/features/topics/models.ts`.
-  Model calls use `generateTopicText` and `generateTopicEmbedding` from
+  Model calls use `generateTopicText` and `generateTopicEmbeddings` from
   `@langfuse/shared/topics/server` with the project's resolved `TopicsModels`
   (summary, embedding, clustering LLM connections from `topic_configs`).
+  Text tracing requires the source project in
+  `LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS` (empty by default) and checks
+  organization `aiFeaturesEnabled` and `aiTelemetryEnabled` in `models.ts`;
+  embeddings are untraced. Use `isInternalEvalEnvironment`
+  to exclude internal sources.
   Pass models explicitly; never put them on execution or batch state, which is
   persisted. Trace-batch jobs load enabled settings for all allowlisted batch
   projects in one query (`getEnabledTopicsModels`) and pause a project on

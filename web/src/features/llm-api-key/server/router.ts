@@ -32,6 +32,7 @@ import {
 } from "@langfuse/shared";
 
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
+import { Prisma } from "@langfuse/shared/src/db";
 import {
   ChatMessageType,
   createTypeSafeDecisionModelClient,
@@ -51,7 +52,10 @@ import {
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { pauseTopicsModelsUsingConnection } from "@langfuse/shared/topics/server";
+import {
+  invalidateTopicsProcessingActive,
+  pauseTopicsModelsUsingConnection,
+} from "@langfuse/shared/topics/server";
 import { TRPCError } from "@trpc/server";
 
 export function getDisplaySecretKey(secretKey: string) {
@@ -399,6 +403,15 @@ export const llmApiKeyRouter = createTRPCRouter({
           action: "create",
         });
       } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === "P2002"
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "There already exists an API key for this provider.",
+          });
+        }
         logger.error(e);
         throw e;
       }
@@ -490,6 +503,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         throw error;
       }
 
+      await invalidateTopicsProcessingActive(input.projectId);
       await finalizeEvaluatorBlocks({
         projectId: input.projectId,
         source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
