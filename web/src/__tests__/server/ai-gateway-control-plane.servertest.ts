@@ -1007,7 +1007,7 @@ describe("AI gateway control plane", () => {
 
       Object.assign(env, { API_AUTH_MIGRATION: "enforce" });
       await expect(
-        authenticator.authenticateRequest(request),
+        authenticator.authenticateModelsRequest(request),
       ).resolves.toMatchObject({
         organizationId: org.id,
       });
@@ -1017,7 +1017,7 @@ describe("AI gateway control plane", () => {
         data: { systemRole: "INGEST", roleId: "system/INGEST" },
       });
       await expect(
-        authenticator.authenticateRequest(request),
+        authenticator.authenticateModelsRequest(request),
       ).rejects.toMatchObject({
         status: 403,
         message: "API key is not allowed to invoke the gateway",
@@ -1025,7 +1025,7 @@ describe("AI gateway control plane", () => {
 
       Object.assign(env, { API_AUTH_MIGRATION: "legacy" });
       await expect(
-        authenticator.authenticateRequest(request),
+        authenticator.authenticateModelsRequest(request),
       ).resolves.toMatchObject({
         organizationId: org.id,
       });
