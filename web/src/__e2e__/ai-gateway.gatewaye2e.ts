@@ -1,5 +1,10 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { type ChildProcess, spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
+import { createServer } from "node:net";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { Session } from "next-auth";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -72,6 +77,53 @@ const PROVIDER_FORMATS = [
   apiFormat: GatewayApiFormat;
   baseUrl: string;
   authType: "Bearer" | "x-api-key";
+}>;
+
+// Unprefixed provider model ids. A connection slug looks like "OpenAI:gpt-6-sol".
+const SLUGLESS_COMPLETIONS = [
+  {
+    provider: GatewayProvider.OPENAI,
+    apiFormat: "openai.responses",
+    model: "gpt-6-sol",
+    path: "/openai/v1/responses",
+    body: {
+      model: "gpt-6-sol",
+      input: "Reply with the word hello.",
+      max_output_tokens: 32,
+    },
+    headers: {},
+  },
+  {
+    provider: GatewayProvider.OPENAI,
+    apiFormat: "openai.chat-completions",
+    model: "gpt-6-sol",
+    path: "/openai/v1/chat/completions",
+    body: {
+      model: "gpt-6-sol",
+      messages: [{ role: "user", content: "Reply with the word hello." }],
+      max_completion_tokens: 32,
+    },
+    headers: {},
+  },
+  {
+    provider: GatewayProvider.ANTHROPIC,
+    apiFormat: "anthropic.messages",
+    model: "claude-opus-5-5",
+    path: "/anthropic/v1/messages",
+    body: {
+      model: "claude-opus-5-5",
+      max_tokens: 32,
+      messages: [{ role: "user", content: "Reply with the word hello." }],
+    },
+    headers: { "anthropic-version": "2023-06-01" },
+  },
+] as const satisfies ReadonlyArray<{
+  provider: GatewayProviderName;
+  apiFormat: GatewayApiFormat;
+  model: string;
+  path: string;
+  body: Record<string, unknown>;
+  headers: Record<string, string>;
 }>;
 
 type ConnectionSnapshot = {
@@ -362,6 +414,89 @@ describe("AI gateway live end-to-end", () => {
         );
       },
       TEST_TIMEOUT_MS,
+    );
+  });
+
+  describe("gateway process", () => {
+    let gatewayBaseUrl = "";
+    let stopGateway = async () => {};
+
+    beforeAll(async () => {
+      const gateway = await startGatewayProcess();
+      gatewayBaseUrl = gateway.url;
+      stopGateway = gateway.stop;
+    }, 30_000);
+
+    afterAll(async () => {
+      await stopGateway();
+    }, 20_000);
+
+    it.each(SLUGLESS_COMPLETIONS)(
+      "$provider / $apiFormat completes slugless $model",
+      async ({
+        provider,
+        apiFormat,
+        model,
+        path: requestPath,
+        body,
+        headers,
+      }) => {
+        await withGatewayApiKey(
+          { provider, apiFormat },
+          async ({ secretKey, providerConnectionId }) => {
+            await withAllModelsAllowed(providerConnectionId, async () => {
+              const response = await fetch(`${gatewayBaseUrl}${requestPath}`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${secretKey}`,
+                  "Content-Type": "application/json",
+                  ...headers,
+                },
+                body: JSON.stringify(body),
+              });
+              const text = await response.text();
+              expect(response.status, text).toBe(200);
+              const payload = JSON.parse(text) as { model?: string };
+              expect(payload.model).toEqual(
+                expect.stringMatching(providerModelPattern(model)),
+              );
+              expect(payload.model).not.toContain(":");
+
+              const traceId = response.headers.get("langfuse-trace-id");
+              const observationId = response.headers.get(
+                "langfuse-observation-id",
+              );
+              expect(traceId).toMatch(/^[0-9a-f]{32}$/);
+              expect(observationId).toMatch(/^[0-9a-f]{16}$/);
+
+              await waitForExpect(
+                async () => {
+                  const observation = await getObservationByIdFromEventsTable({
+                    id: observationId!,
+                    projectId: defaultProjectId,
+                    traceId: traceId!,
+                  });
+                  expect(observation.projectId).toBe(defaultProjectId);
+                  expect(observation.traceId).toBe(traceId);
+                  expect(observation.type).toBe("GENERATION");
+                  expect(observation.model).toEqual(
+                    expect.stringMatching(providerModelPattern(model)),
+                  );
+                  expect(observation.model).not.toContain(":");
+                  const usage = [
+                    ...Object.values(observation.providedUsageDetails),
+                    ...Object.values(observation.usageDetails),
+                  ];
+                  expect(usage.some((value) => value > 0)).toBe(true);
+                },
+                90_000,
+                1_000,
+              );
+            });
+          },
+        );
+      },
+      180_000,
     );
   });
 });
@@ -732,6 +867,180 @@ async function expectResponseStatus(
 
 function sha256Hex(value: string) {
   return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function providerModelPattern(model: string) {
+  return new RegExp(
+    `^${model.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:$|[-.])`,
+  );
+}
+
+async function withAllModelsAllowed(
+  connectionId: string,
+  run: () => Promise<void>,
+) {
+  const existing = await prisma.gatewayAiConnection.findUniqueOrThrow({
+    where: { id: connectionId },
+    select: { allowedModels: true },
+  });
+  const previous = Array.isArray(existing.allowedModels)
+    ? existing.allowedModels.filter(
+        (model): model is string => typeof model === "string",
+      )
+    : null;
+  await admin.caller.aiGateway.updateConnectionModels({
+    orgId: ORGANIZATION_ID,
+    id: connectionId,
+    allowedModels: null,
+  });
+  try {
+    await run();
+  } finally {
+    await admin.caller.aiGateway.updateConnectionModels({
+      orgId: ORGANIZATION_ID,
+      id: connectionId,
+      allowedModels: previous,
+    });
+  }
+}
+
+function resolveGatewayBinary() {
+  const override = process.env.LANGFUSE_AI_GATEWAY_BIN;
+  if (override) {
+    if (!existsSync(override)) {
+      throw new Error(`LANGFUSE_AI_GATEWAY_BIN does not exist: ${override}`);
+    }
+    return override;
+  }
+  const root = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../../..",
+  );
+  const binaryName =
+    process.platform === "win32" ? "ai-gateway.exe" : "ai-gateway";
+  for (const profile of ["release", "debug"]) {
+    const candidate = path.join(
+      root,
+      "ai-gateway",
+      "target",
+      profile,
+      binaryName,
+    );
+    if (existsSync(candidate)) return candidate;
+  }
+  throw new Error(
+    "Build the AI gateway before this suite (`pnpm --filter ai-gateway build`) or set LANGFUSE_AI_GATEWAY_BIN.",
+  );
+}
+
+function reserveLoopbackPort() {
+  return new Promise<number>((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        server.close();
+        reject(new Error("Could not reserve a gateway port"));
+        return;
+      }
+      const { port } = address;
+      server.close((error) => {
+        if (error) reject(error);
+        else resolve(port);
+      });
+    });
+  });
+}
+
+async function startGatewayProcess() {
+  if (!env.LANGFUSE_AI_GATEWAY_SERVICE_KEY) {
+    throw new Error(
+      "Set LANGFUSE_AI_GATEWAY_SERVICE_KEY before starting the gateway process.",
+    );
+  }
+  const binary = resolveGatewayBinary();
+  const port = await reserveLoopbackPort();
+  const stderr: string[] = [];
+  const child = spawn(binary, [], {
+    env: {
+      ...process.env,
+      LANGFUSE_AI_GATEWAY_WEB_URL: BASE_URL,
+      LANGFUSE_AI_GATEWAY_SERVICE_KEY: env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
+      LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS: `127.0.0.1:${port}`,
+      LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT: "false",
+      LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS: "5",
+      LANGFUSE_LOG_FORMAT: "json",
+      LANGFUSE_LOG_LEVEL: "info",
+    },
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk: string) => {
+    stderr.push(chunk);
+    const joined = stderr.join("");
+    if (joined.length > 16_000) {
+      stderr.splice(0, stderr.length, joined.slice(-12_000));
+    }
+  });
+  const url = `http://127.0.0.1:${port}`;
+  let startupError: Error | undefined;
+  child.once("error", (error) => {
+    startupError = error;
+  });
+  await waitForGatewayReady(child, url, stderr, () => startupError);
+  return {
+    url,
+    stop: () => stopGatewayProcess(child),
+  };
+}
+
+async function waitForGatewayReady(
+  child: ChildProcess,
+  url: string,
+  stderr: string[],
+  startupError: () => Error | undefined,
+) {
+  const deadline = Date.now() + 20_000;
+  let lastError = "gateway did not become ready";
+  while (Date.now() < deadline) {
+    const error = startupError();
+    if (error) {
+      throw new Error(
+        `AI gateway failed to start: ${error.message}\n${stderr.join("")}`,
+      );
+    }
+    if (child.exitCode != null) {
+      throw new Error(
+        `AI gateway exited ${child.exitCode} before ready.\n${stderr.join("")}`,
+      );
+    }
+    try {
+      const response = await fetch(`${url}/ready`, {
+        signal: AbortSignal.timeout(500),
+      });
+      if (response.ok) return;
+      lastError = `ready returned ${response.status}`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "connection failed";
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error(`${lastError}\n${stderr.join("")}`);
+}
+
+function stopGatewayProcess(child: ChildProcess) {
+  if (child.exitCode != null) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+    }, 15_000);
+    child.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+    child.kill("SIGTERM");
+  });
 }
 
 function assertLocalTestTarget() {

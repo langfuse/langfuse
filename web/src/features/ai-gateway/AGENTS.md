@@ -8,4 +8,5 @@
 ### Testing
 
 - When changing the core flow or model provider-specifics: ensure that the end-to-end test suite
-  remains valid: `web/src/__e2e__/ai-gateway.gatewaye2e.ts`
+  remains valid: `web/src/__e2e__/ai-gateway.gatewaye2e.ts`. Its gateway-process cases start the
+  built binary and complete slugless provider model ids through Web and the provider.
