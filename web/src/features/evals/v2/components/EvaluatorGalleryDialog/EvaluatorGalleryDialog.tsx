@@ -183,10 +183,7 @@ export function EvaluatorGalleryDialog({
       <DialogContent
         className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none flex-col gap-0 rounded-lg p-0 sm:h-[80dvh] sm:max-h-[85vh] sm:w-[70vw]"
         closeOnInteractionOutside
-        onOpenAutoFocus={(event) => {
-          event.preventDefault();
-          searchInputRef.current?.focus();
-        }}
+        onOpenAutoFocus={(event) => event.preventDefault()}
       >
         <DialogHeader className="p-3 sm:p-4 [&>div]:items-start [&>div]:text-left [&>div>button]:-mt-1 [&>div>button]:-mr-2 [&>div>button]:flex [&>div>button]:size-8 [&>div>button]:items-center [&>div>button]:justify-center">
           <div className="flex items-start justify-between gap-3">
