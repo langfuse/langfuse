@@ -644,7 +644,7 @@ export class OtelIngestionProcessor {
                   ...this.extractSkills(
                     spanAttributes,
                     observationType,
-                    name,
+                    this.extractName(span.name, spanAttributes),
                     input,
                     output,
                     span.status?.code,
