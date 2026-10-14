@@ -212,6 +212,24 @@ describe("createFilterFromFilterState filter type validation", () => {
     },
   );
 
+  it("rejects numberObject equality on a stringObject metadata column", () => {
+    expect(() =>
+      createFilterFromFilterState(
+        [
+          {
+            column: "metadata",
+            type: "numberObject",
+            operator: "=",
+            key: "timeout",
+            value: 20,
+          },
+        ],
+        [mappings.metadata],
+        columnDefinitions,
+      ),
+    ).toThrow("numberObject metadata filters support only");
+  });
+
   it("rejects filter with unrecognized column name", () => {
     expect(() =>
       createFilterFromFilterState(

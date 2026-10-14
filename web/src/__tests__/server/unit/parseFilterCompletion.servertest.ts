@@ -135,6 +135,21 @@ describe("parseGeneratedFilters", () => {
     expect(droppedCount).toBe(1);
   });
 
+  it("drops numeric equality on metadata (equality is a string match)", () => {
+    const completion = JSON.stringify([
+      {
+        type: "numberObject",
+        column: "metadata",
+        key: "timeout",
+        operator: "=",
+        value: 20,
+      },
+    ]);
+    const { filters, droppedCount } = parseGeneratedFilters(completion);
+    expect(filters).toHaveLength(0);
+    expect(droppedCount).toBe(1);
+  });
+
   it("keeps a structurally-valid filter when a sibling element is malformed", () => {
     // Weaker models drift on shape. Here element 2 has an operator that isn't in
     // the stringOptions enum ("equals" is not "any of"/"none of"), so it fails

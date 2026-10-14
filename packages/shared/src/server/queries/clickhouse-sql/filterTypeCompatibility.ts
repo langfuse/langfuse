@@ -33,6 +33,19 @@ export const isFilterColumnType = (
       (filterColumnType) => filterColumnType === type,
     ));
 
+// String-stored object columns (metadata) compare numerically only for
+// ordering; equality stays an exact string match via stringObject.
+export const NUMERIC_EQUALITY_ON_STRING_OBJECT_ERROR =
+  "numberObject metadata filters support only '>', '<', '>=', '<='; use a stringObject filter for equality.";
+
+export const isNumericEqualityOnStringObject = (
+  columnType: FilterColumnType,
+  filter: { type: string; operator: string },
+): boolean =>
+  columnType === "stringObject" &&
+  filter.type === "numberObject" &&
+  filter.operator === "=";
+
 export const getCompatibleFilterTypes = (
   columnType: FilterColumnType,
 ): readonly CompatibleFilterType[] | null =>

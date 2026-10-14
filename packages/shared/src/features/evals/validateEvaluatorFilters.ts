@@ -9,7 +9,11 @@ import {
   eventsEvalFilterColumns,
   experimentEvalFilterColumns,
 } from "./observationForEval";
-import { COMPATIBLE_FILTER_TYPES } from "../../server/queries/clickhouse-sql/filterTypeCompatibility";
+import {
+  COMPATIBLE_FILTER_TYPES,
+  isNumericEqualityOnStringObject,
+  NUMERIC_EQUALITY_ON_STRING_OBJECT_ERROR,
+} from "../../server/queries/clickhouse-sql/filterTypeCompatibility";
 import {
   EvalTargetObject,
   type EvalTargetObject as EvalTargetObjectType,
@@ -110,6 +114,19 @@ export function validateEvaluatorFiltersForTarget(params: {
       }
 
       const compatibleFilterTypes = COMPATIBLE_FILTER_TYPES[column.type];
+
+      if (isNumericEqualityOnStringObject(column.type, filter)) {
+        return [
+          {
+            code: "incompatible_filter_type" as const,
+            message: NUMERIC_EQUALITY_ON_STRING_OBJECT_ERROR,
+            index,
+            column: filter.column,
+            filterType: filter.type,
+            expectedColumnType: column.type,
+          },
+        ];
+      }
 
       if (
         compatibleFilterTypes &&
