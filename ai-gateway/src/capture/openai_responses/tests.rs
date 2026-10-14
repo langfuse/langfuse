@@ -3,6 +3,7 @@ use crate::capture::{
     ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES, ProtocolCapture,
     RelayOutcome, sse::SseDecoder,
 };
+use crate::config::ExecutionLimits;
 use crate::resolution::ApiFormat;
 use crate::{
     providers::{ProviderLimits, ProviderTransport},
@@ -513,8 +514,10 @@ async fn upstream_read_timeout_is_logged_as_timeout() {
         format!("{}/v1", upstream.url),
         ProviderLimits {
             active: 1,
-            read_timeout: Duration::from_millis(50),
-            ..ProviderLimits::default()
+            execution: ExecutionLimits {
+                stall_timeout: Duration::from_millis(50),
+                ..ExecutionLimits::default()
+            },
         },
     );
     let writer = LogWriter::default();
@@ -568,8 +571,10 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
             format!("{}/v1", upstream.url),
             ProviderLimits {
                 active: 1,
-                execution_timeout: Duration::from_secs(1),
-                ..ProviderLimits::default()
+                execution: ExecutionLimits {
+                    max_execution: Duration::from_secs(1),
+                    ..ExecutionLimits::default()
+                },
             },
         );
         let writer = LogWriter::default();
@@ -632,8 +637,10 @@ async fn provider_future_finalizes_on_timeout_and_cancellation_before_headers() 
             format!("{}/v1", upstream.url),
             ProviderLimits {
                 active: 1,
-                headers_timeout: Duration::from_millis(100),
-                ..ProviderLimits::default()
+                execution: ExecutionLimits {
+                    stall_timeout: Duration::from_millis(100),
+                    ..ExecutionLimits::default()
+                },
             },
         );
         let writer = LogWriter::default();

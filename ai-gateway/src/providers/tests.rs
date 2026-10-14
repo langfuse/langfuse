@@ -1,4 +1,5 @@
 use super::*;
+use crate::config::ExecutionLimits;
 use crate::test_support::{
     FakeServer, ingestion_token, resolved_request_context, resolved_request_context_for,
 };
@@ -69,8 +70,11 @@ async fn invalid_model_rewrite_never_reaches_the_provider() {
             relay.try_admit().unwrap(),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
-            Bytes::from_static(br#"{"model":"requested"}"#),
-            100..110,
+            RequestBody {
+                bytes: Bytes::from_static(br#"{"model":"requested"}"#),
+                model_range: 100..110,
+                streaming: true,
+            },
             Route::OpenAiResponses,
             &mut crate::correlation::RequestCorrelation::default(),
         )
@@ -412,7 +416,10 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
     let relay = ProviderTransport::for_test(
         upstream.url.clone(),
         ProviderLimits {
-            headers_timeout: Duration::from_millis(30),
+            execution: ExecutionLimits {
+                stall_timeout: Duration::from_millis(30),
+                ..ExecutionLimits::default()
+            },
             ..ProviderLimits::default()
         },
     );
@@ -432,7 +439,10 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
     let relay = ProviderTransport::for_test(
         upstream.url.clone(),
         ProviderLimits {
-            execution_timeout: Duration::from_millis(100),
+            execution: ExecutionLimits {
+                max_execution: Duration::from_millis(100),
+                ..ExecutionLimits::default()
+            },
             ..ProviderLimits::default()
         },
     );
@@ -591,8 +601,10 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
             upstream.url.clone(),
             ProviderLimits {
                 active: 1,
-                execution_timeout: Duration::from_millis(150),
-                ..ProviderLimits::default()
+                execution: ExecutionLimits {
+                    max_execution: Duration::from_millis(150),
+                    ..ExecutionLimits::default()
+                },
             },
         )
         .with_telemetry(telemetry.clone());
@@ -698,8 +710,11 @@ async fn compact_posts_compact_path_and_captures_ingestion() {
             relay.try_admit().unwrap(),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
-            Bytes::from_static(COMPACT),
-            model_range(COMPACT).unwrap(),
+            RequestBody {
+                bytes: Bytes::from_static(COMPACT),
+                model_range: model_range(COMPACT).unwrap(),
+                streaming: true,
+            },
             Route::OpenAiResponsesCompact,
             &mut crate::correlation::RequestCorrelation::default(),
         )
@@ -903,8 +918,11 @@ async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_f
                 ]
                 .concat(),
             ),
-            Bytes::from_static(REQUEST),
-            model_range(REQUEST).unwrap(),
+            RequestBody {
+                bytes: Bytes::from_static(REQUEST),
+                model_range: model_range(REQUEST).unwrap(),
+                streaming: true,
+            },
             Route::AnthropicMessages,
             &mut crate::correlation::RequestCorrelation::default(),
         )
@@ -957,8 +975,12 @@ async fn count_tokens_relays_the_body() {
             relay.try_admit().unwrap(),
             context,
             &headers(&[("content-type", "application/json")]),
-            Bytes::from_static(br#"{"model":"claude-sonnet-4-5","messages":[]}"#),
-            model_range(br#"{"model":"claude-sonnet-4-5","messages":[]}"#).unwrap(),
+            RequestBody {
+                bytes: Bytes::from_static(br#"{"model":"claude-sonnet-4-5","messages":[]}"#),
+                model_range: model_range(br#"{"model":"claude-sonnet-4-5","messages":[]}"#)
+                    .unwrap(),
+                streaming: true,
+            },
             Route::AnthropicCountTokens,
             &mut crate::correlation::RequestCorrelation::default(),
         )
@@ -1075,8 +1097,11 @@ async fn chat_completions_streams_request_usage_and_relay_the_usage_chunk() {
                     ]
                     .concat(),
                 ),
-                Bytes::from_static(request.as_bytes()),
-                model_range(request.as_bytes()).unwrap(),
+                RequestBody {
+                    bytes: Bytes::from_static(request.as_bytes()),
+                    model_range: model_range(request.as_bytes()).unwrap(),
+                    streaming: true,
+                },
                 Route::OpenAiChatCompletions,
                 &mut crate::correlation::RequestCorrelation::default(),
             )
@@ -1123,8 +1148,11 @@ async fn chat_completions_rewrite_non_streamed_models() {
             )
             .await,
             &headers(&[("content-type", "application/json")]),
-            Bytes::from_static(JSON_REQUEST.as_bytes()),
-            model_range(JSON_REQUEST.as_bytes()).unwrap(),
+            RequestBody {
+                bytes: Bytes::from_static(JSON_REQUEST.as_bytes()),
+                model_range: model_range(JSON_REQUEST.as_bytes()).unwrap(),
+                streaming: true,
+            },
             Route::OpenAiChatCompletions,
             &mut crate::correlation::RequestCorrelation::default(),
         )

@@ -1,16 +1,17 @@
 //! Resolve the caller's credential, then execute using only the trusted context.
-use std::ops::Range;
+use std::time::Duration;
 
 use axum::{
-    body::{Body, Bytes},
+    body::Body,
     http::{HeaderMap, Response},
 };
 use tokio::sync::{Semaphore, SemaphorePermit};
 use tracing::Instrument;
 
 use crate::{
+    config::{GatewayConfig, RequestLimits},
     correlation::RequestCorrelation,
-    providers::{ProviderError, ProviderTransport, RequestPermit, Route},
+    providers::{ProviderError, ProviderTransport, RequestBody, RequestPermit, Route},
     resolution::{
         ApiFormat, ControlPlaneClient, ControlPlaneConfig, ResolutionError, ResolvedRequestContext,
     },
@@ -20,6 +21,8 @@ pub struct InferenceService {
     control_plane: ControlPlaneClient,
     provider: ProviderTransport,
     request_body_capacity: Semaphore,
+    request_limits: RequestLimits,
+    request_bytes_capacity: Semaphore,
     model_catalog_capacity: Semaphore,
     resolution_capacity: Semaphore,
     telemetry: Option<crate::telemetry::Telemetry>,
@@ -30,9 +33,40 @@ pub(crate) enum RequestPreparationError {
     Provider(ProviderError),
 }
 
+/// One request-body slot plus the body bytes reserved so far from the shared budget.
 pub(crate) struct RequestBodyPermit<'a> {
-    _permit: SemaphorePermit<'a>,
+    _slot: SemaphorePermit<'a>,
+    bytes: SemaphorePermit<'a>,
+    budget: &'a Semaphore,
 }
+
+impl RequestBodyPermit<'_> {
+    /// Grow the reservation to `total` body bytes without waiting.
+    ///
+    /// # Errors
+    /// Returns [`ResolutionError::Unavailable`] when the shared budget cannot cover `total`.
+    pub(crate) fn try_reserve_bytes(&mut self, total: usize) -> Result<(), ResolutionError> {
+        let Some(missing) = total
+            .checked_sub(self.bytes.num_permits())
+            .filter(|missing| *missing > 0)
+        else {
+            return Ok(());
+        };
+        let reserved = u32::try_from(missing)
+            .ok()
+            .and_then(|missing| self.budget.try_acquire_many(missing).ok())
+            .ok_or_else(|| {
+                crate::observability::rejected("request_bytes");
+                ResolutionError::Unavailable
+            })?;
+        self.bytes.merge(reserved);
+        Ok(())
+    }
+}
+
+/// Uploads slower than 10 MiB per 30 seconds on average miss the read deadline.
+const MIN_REQUEST_UPLOAD_BYTES_PER_SECOND: usize = 10 * 1024 * 1024 / 30;
+const MIN_REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(30);
 
 impl InferenceService {
     /// Initialize pooled clients for resolution and provider requests.
@@ -40,21 +74,23 @@ impl InferenceService {
     /// # Errors
     /// Returns a sanitized configuration error for invalid capacities or client setup.
     pub fn new(
-        config: ControlPlaneConfig,
-        max_active_requests: usize,
-        max_concurrent_resolutions: usize,
-        telemetry_buffer_bytes: usize,
+        control_plane: ControlPlaneConfig,
+        config: &GatewayConfig,
     ) -> Result<Self, ResolutionError> {
+        let max_concurrent_resolutions = config.max_concurrent_resolutions;
         if !(1..=Semaphore::MAX_PERMITS).contains(&max_concurrent_resolutions) {
             return Err(ResolutionError::Configuration);
         }
-        let telemetry = crate::telemetry::Telemetry::new(&config, telemetry_buffer_bytes)?;
+        let telemetry =
+            crate::telemetry::Telemetry::new(&control_plane, config.telemetry_buffer_bytes)?;
         Ok(Self {
-            control_plane: ControlPlaneClient::new(config)?,
-            provider: ProviderTransport::new(max_active_requests)
+            control_plane: ControlPlaneClient::new(control_plane)?,
+            provider: ProviderTransport::new(config.max_active_requests, config.execution_limits)
                 .map_err(|_| ResolutionError::Configuration)?
                 .with_telemetry(telemetry.clone()),
-            request_body_capacity: Semaphore::new(max_active_requests),
+            request_body_capacity: Semaphore::new(config.max_active_requests),
+            request_limits: config.request_limits,
+            request_bytes_capacity: Semaphore::new(config.request_limits.buffer_bytes),
             model_catalog_capacity: Semaphore::new(max_concurrent_resolutions),
             resolution_capacity: Semaphore::new(max_concurrent_resolutions),
             telemetry: Some(telemetry),
@@ -75,11 +111,34 @@ impl InferenceService {
     pub(crate) fn try_reserve_request_body(
         &self,
     ) -> Result<RequestBodyPermit<'_>, RequestPreparationError> {
-        let permit = self.request_body_capacity.try_acquire().map_err(|_| {
+        let slot = self.request_body_capacity.try_acquire().map_err(|_| {
             crate::observability::rejected("request_body");
             RequestPreparationError::Resolution(ResolutionError::Unavailable)
         })?;
-        Ok(RequestBodyPermit { _permit: permit })
+        let bytes = self
+            .request_bytes_capacity
+            .try_acquire_many(0)
+            .map_err(|_| RequestPreparationError::Resolution(ResolutionError::Unavailable))?;
+        Ok(RequestBodyPermit {
+            _slot: slot,
+            bytes,
+            budget: &self.request_bytes_capacity,
+        })
+    }
+
+    pub(crate) fn max_request_bytes(&self) -> usize {
+        self.request_limits.max_request_bytes
+    }
+
+    /// The body read deadline scales with the size limit so a maximal body has the same
+    /// minimum upload rate as a small one.
+    pub(crate) fn request_read_timeout(&self) -> Duration {
+        let seconds = self
+            .request_limits
+            .max_request_bytes
+            .div_ceil(MIN_REQUEST_UPLOAD_BYTES_PER_SECOND);
+        Duration::from_secs(u64::try_from(seconds).unwrap_or(u64::MAX))
+            .max(MIN_REQUEST_READ_TIMEOUT)
     }
 
     pub(crate) async fn fetch_model_catalog(
@@ -159,30 +218,17 @@ impl InferenceService {
         Ok((permit, context))
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "each argument is a distinct per-request input passed straight through"
-    )]
     pub(crate) async fn forward(
         &self,
         permit: RequestPermit,
         context: ResolvedRequestContext,
         headers: &HeaderMap,
-        body: Bytes,
-        model_range: Range<usize>,
+        request: RequestBody,
         route: Route,
         correlation: &mut RequestCorrelation,
     ) -> Result<Response<Body>, ProviderError> {
         self.provider
-            .forward_route(
-                permit,
-                context,
-                headers,
-                body,
-                model_range,
-                route,
-                correlation,
-            )
+            .forward_route(permit, context, headers, request, route, correlation)
             .await
     }
 
@@ -196,9 +242,18 @@ impl InferenceService {
             control_plane,
             provider,
             request_body_capacity: Semaphore::new(resolutions),
+            request_limits: RequestLimits::default(),
+            request_bytes_capacity: Semaphore::new(RequestLimits::default().buffer_bytes),
             model_catalog_capacity: Semaphore::new(resolutions),
             resolution_capacity: Semaphore::new(resolutions),
             telemetry: None,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_request_limits(mut self, request_limits: RequestLimits) -> Self {
+        self.request_bytes_capacity = Semaphore::new(request_limits.buffer_bytes);
+        self.request_limits = request_limits;
+        self
     }
 }

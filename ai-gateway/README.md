@@ -81,6 +81,10 @@ do not load dotenv files:
 | `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` | `128` | Positive integer up to Tokio's semaphore capacity; buffered and active requests per instance |
 | `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` | `128` | Positive integer up to Tokio's semaphore capacity; separate model-catalog and Web-resolution budgets per instance |
 | `LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES` | `67108864` (64 MiB) | Integer from 4194304 (4 MiB) to 4294967296 (4 GiB); span and credential bytes an instance holds for upload before dropping new records |
+| `LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES` | `33554432` (32 MiB) | Integer from 1048576 (1 MiB) to 1073741824 (1 GiB); largest accepted request body |
+| `LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES` | `536870912` (512 MiB) | Integer from the request limit to 68719476736 (64 GiB); request body bytes all in-flight requests of an instance may buffer together |
+| `LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS` | `3600` | Integer from 60 to 5400; ceiling from execution admission until the response completes. Web ingestion tokens last two hours |
+| `LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS` | `120` | Integer from 1 to the execution ceiling; longest wait without progress |
 
 The gateway shares `LANGFUSE_LOG_LEVEL` with Web and worker. Values are lowercase;
 `fatal` maps to Rust's `error` level and therefore includes ordinary error logs.
@@ -372,28 +376,34 @@ error type follows the status (`authentication_error`, `permission_error`,
 `api_error`).
 
 After validating the credential header, the gateway buffers and validates the request
-under the active-request admission budget, then resolves the credential and
-model-aware route through Web under a separate budget. It holds the body slot through
-the provider request. Model catalogs use another budget so slow catalog discovery
+under the active-request admission budget and a shared request-byte budget, then resolves the credential and
+model-aware route through Web under a separate budget. A declared `Content-Length` is
+checked against the request limit and reserved from the byte budget before reading;
+chunked bodies reserve bytes as they arrive. It holds the body slot and its bytes
+until provider response headers arrive. Model catalogs use another budget so slow catalog discovery
 cannot block inference resolution.
 Execution capacity remains reserved through response completion. An exhausted budget
 returns 503 immediately without a waiting queue. Request-body and execution budgets
-use the active-request limit; model-catalog and Web-call budgets use the resolution
+use the active-request limit, and buffered bodies also share
+`LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES`; model-catalog and Web-call budgets use the resolution
 limit. Their defaults of 128 are provisional
 guardrails, not measured capacity: tune them using load tests for the instance
 resources, request sizes and stream durations. These limits bound work; they do not
 guarantee fairness between clients or tenants.
 
-Other limits are 10 MiB request bodies in both namespaces, 30 seconds to read a request, 5 seconds to
-connect, 120 seconds for provider response headers or an individual upstream read,
-and 600 seconds overall from execution admission in both namespaces. Response size is not capped: a single task pumps chunks
+Request bodies are limited to 32 MiB by default, which covers Anthropic's 32 MB Messages
+limit, in both namespaces. The body read deadline scales with that limit: at least 30
+seconds, and enough for the maximal body at 10 MiB per 30 seconds (97 seconds at 32 MiB).
+Connecting to a provider may take 5 seconds. Executions end at a one-hour ceiling from
+admission by default, and earlier when they stall: 120 seconds by default without an
+upstream chunk, without the downstream accepting a chunk, or, for streamed calls
+(`"stream": true`), without provider response headers. A non-streaming call waits for
+headers until the ceiling, because providers send nothing until the response is
+generated. Response size is not capped: a single task pumps chunks
 through a one-slot channel, with chunks at most 64 KiB. It stops reading when that
-channel fills. Completion, disconnect and deadline release admission and context;
-the deadline runs even when the downstream stops polling. A failure after headers
+channel fills. Completion, disconnect, stall and ceiling release admission and context;
+both timeouts run even when the downstream stops polling. A failure after headers
 terminates the response body without adding an error event or retrying.
-There is no separate downstream stall timeout; a client that stops reading can
-retain execution capacity until the overall deadline. A progress-based downstream
-stall policy is deferred to a separate change.
 
 Only request content type/encoding and accept cross the provider boundary, plus the
 resolved credential in its provider's header (`Authorization: Bearer` for OpenAI,

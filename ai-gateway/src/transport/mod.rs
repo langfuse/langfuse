@@ -7,6 +7,7 @@ use std::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     task::{Context, Poll},
+    time::Duration,
 };
 
 use crate::{
@@ -151,6 +152,7 @@ pub(crate) fn identity_encoding(headers: &HeaderMap) -> bool {
 pub(crate) fn relay<T: Send + 'static>(
     upstream: reqwest::Response,
     deadline: Instant,
+    stall_timeout: Duration,
     owner: T,
     capture: ExecutionCapture,
 ) -> Body {
@@ -165,14 +167,18 @@ pub(crate) fn relay<T: Send + 'static>(
             })
         }),
         deadline,
+        stall_timeout,
         owner,
         Some(capture),
     )
 }
 
+/// Relay until EOF, the overall `deadline`, or `stall_timeout` without progress
+/// in either direction: no upstream chunk, or a downstream that stopped reading.
 fn relay_stream<S, T>(
     upstream: S,
     deadline: Instant,
+    stall_timeout: Duration,
     owner: T,
     capture: Option<ExecutionCapture>,
 ) -> Body
@@ -206,7 +212,10 @@ where
     let task = tokio::spawn(async move {
         let pump = async {
             tokio::pin!(upstream);
-            while let Some(chunk) = upstream.next().await {
+            while let Some(chunk) = tokio::time::timeout(stall_timeout, upstream.next())
+                .await
+                .map_err(|_| ProviderError::Timeout)?
+            {
                 let chunk = chunk?;
                 pump_resources
                     .bytes
@@ -215,7 +224,13 @@ where
                 pump_resources.observe(|capture| capture.push_bytes(&chunk));
                 // One queued chunk plus one pending send; no per-chunk tasks.
                 for bytes in chunk.chunks(64 * 1024) {
-                    if sender.send(Bytes::copy_from_slice(bytes)).await.is_err() {
+                    let sent = tokio::time::timeout(
+                        stall_timeout,
+                        sender.send(Bytes::copy_from_slice(bytes)),
+                    )
+                    .await
+                    .map_err(|_| ProviderError::Timeout)?;
+                    if sent.is_err() {
                         return Ok(());
                     }
                 }
@@ -236,10 +251,13 @@ where
         }
         drop(sender);
         // Upstream EOF alone does not release admission: the downstream may still
-        // have queued bytes. The deadline also covers an unpolled downstream body.
-        if tokio::time::timeout_at(deadline, pump_resources.released.notified())
-            .await
-            .is_err()
+        // have queued bytes. The stall timeout also covers an unpolled downstream body.
+        if tokio::time::timeout_at(
+            deadline.min(Instant::now() + stall_timeout),
+            pump_resources.released.notified(),
+        )
+        .await
+        .is_err()
         {
             pump_resources.release(RelayOutcome::Timeout);
         }
@@ -430,6 +448,7 @@ mod tests {
                 Err(ProviderError::Transport),
             ]),
             Instant::now() + Duration::from_secs(1),
+            Duration::from_secs(10),
             Owner(released.clone()),
             None,
         );
@@ -470,6 +489,7 @@ mod tests {
         let body = relay_stream(
             upstream,
             Instant::now() + Duration::from_secs(10),
+            Duration::from_secs(10),
             Owner(released.clone()),
             None,
         );
@@ -488,6 +508,7 @@ mod tests {
         let body = relay_stream(
             stream::iter([Ok(bytes.clone()), Err(ProviderError::Transport)]),
             Instant::now() + Duration::from_secs(1),
+            Duration::from_secs(10),
             Owner(released.clone()),
             None,
         );
@@ -507,6 +528,7 @@ mod tests {
         let body = relay_stream(
             stream::once(async { Ok(Bytes::from_static(b"final bytes")) }),
             Instant::now() + Duration::from_millis(30),
+            Duration::from_secs(10),
             Owner(released.clone()),
             None,
         );
@@ -514,5 +536,44 @@ mod tests {
             .await
             .unwrap();
         assert!(to_bytes(body, 1024).await.is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_silent_upstream_stalls_out_long_before_the_deadline() {
+        let released = Arc::new(Notify::new());
+        let started = Instant::now();
+        let body = relay_stream(
+            stream::once(async { Ok(Bytes::from_static(b"first")) }).chain(stream::pending()),
+            started + Duration::from_secs(3600),
+            Duration::from_secs(120),
+            Owner(released.clone()),
+            None,
+        );
+        let mut downstream = body.into_data_stream();
+        assert_eq!(downstream.next().await.unwrap().unwrap(), "first");
+        released.notified().await;
+        assert_eq!(started.elapsed(), Duration::from_secs(120));
+        assert!(downstream.next().await.unwrap().is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_downstream_that_stops_reading_stalls_out() {
+        let released = Arc::new(Notify::new());
+        let started = Instant::now();
+        // Steady upstream progress must not keep a non-reading client's slot alive.
+        let upstream =
+            stream::repeat_with(|| Ok(Bytes::from_static(b"chunk"))).then(|chunk| async {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                chunk
+            });
+        let _body = relay_stream(
+            upstream,
+            started + Duration::from_secs(3600),
+            Duration::from_secs(120),
+            Owner(released.clone()),
+            None,
+        );
+        released.notified().await;
+        assert!(started.elapsed() < Duration::from_secs(125));
     }
 }

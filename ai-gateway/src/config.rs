@@ -12,6 +12,51 @@ pub struct GatewayConfig {
     pub max_active_requests: usize,
     pub max_concurrent_resolutions: usize,
     pub telemetry_buffer_bytes: usize,
+    pub request_limits: RequestLimits,
+    pub execution_limits: ExecutionLimits,
+}
+
+const MIB: usize = 1024 * 1024;
+pub const DEFAULT_MAX_REQUEST_BYTES: usize = 32 * MIB;
+const DEFAULT_REQUEST_BUFFER_BYTES: usize = 512 * MIB;
+const MAX_REQUEST_BYTES_CEILING: usize = 1024 * MIB;
+const MAX_REQUEST_BUFFER_BYTES: usize = 64 * 1024 * MIB;
+// Web issues ingestion tokens for two hours; this leaves time to upload the generation.
+const MAX_EXECUTION_CEILING_SECONDS: u64 = 90 * 60;
+
+/// Buffered request body bounds per instance.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RequestLimits {
+    pub max_request_bytes: usize,
+    /// Request body bytes all in-flight requests may buffer together.
+    pub buffer_bytes: usize,
+}
+
+impl Default for RequestLimits {
+    fn default() -> Self {
+        Self {
+            max_request_bytes: DEFAULT_MAX_REQUEST_BYTES,
+            buffer_bytes: DEFAULT_REQUEST_BUFFER_BYTES,
+        }
+    }
+}
+
+/// Provider execution deadlines.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExecutionLimits {
+    /// Ceiling from execution admission until the response completes.
+    pub max_execution: Duration,
+    /// Longest wait without progress: stream response headers, upstream reads, downstream writes.
+    pub stall_timeout: Duration,
+}
+
+impl Default for ExecutionLimits {
+    fn default() -> Self {
+        Self {
+            max_execution: Duration::from_hours(1),
+            stall_timeout: Duration::from_mins(2),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -50,6 +95,14 @@ impl GatewayConfig {
         )?;
         config.telemetry_buffer_bytes = telemetry_buffer_bytes(
             read_env("LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES")?.as_deref(),
+        )?;
+        config.request_limits = request_limits(
+            read_env("LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES")?.as_deref(),
+        )?;
+        config.execution_limits = execution_limits(
+            read_env("LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS")?.as_deref(),
         )?;
         if let Some(web_url) =
             read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?.filter(|url| !url.is_empty())
@@ -145,8 +198,66 @@ impl GatewayConfig {
                 "LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS must be a positive integer within the semaphore capacity",
             )?,
             telemetry_buffer_bytes: crate::telemetry::DEFAULT_RETAINED_BYTES,
+            request_limits: RequestLimits::default(),
+            execution_limits: ExecutionLimits::default(),
         })
     }
+}
+
+fn request_limits(
+    max_request_bytes: Option<&str>,
+    buffer_bytes: Option<&str>,
+) -> Result<RequestLimits, GatewayConfigError> {
+    let defaults = RequestLimits::default();
+    let max_request_bytes = max_request_bytes
+        .map_or(Some(defaults.max_request_bytes), |value| {
+            value.parse::<usize>().ok()
+        })
+        .filter(|bytes| (MIB..=MAX_REQUEST_BYTES_CEILING).contains(bytes))
+        .ok_or(GatewayConfigError(
+            "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES must be an integer from 1048576 (1 MiB) to 1073741824 (1 GiB)",
+        ))?;
+    let buffer_bytes = buffer_bytes
+        .map_or(Some(defaults.buffer_bytes), |value| {
+            value.parse::<usize>().ok()
+        })
+        .filter(|bytes| (max_request_bytes..=MAX_REQUEST_BUFFER_BYTES).contains(bytes))
+        .ok_or(GatewayConfigError(
+            "LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES must be an integer from LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES to 68719476736 (64 GiB)",
+        ))?;
+    Ok(RequestLimits {
+        max_request_bytes,
+        buffer_bytes,
+    })
+}
+
+fn execution_limits(
+    max_execution: Option<&str>,
+    stall_timeout: Option<&str>,
+) -> Result<ExecutionLimits, GatewayConfigError> {
+    let defaults = ExecutionLimits::default();
+    let seconds = |value: Option<&str>, default: Duration, range: std::ops::RangeInclusive<u64>| {
+        value
+            .map_or(Some(default.as_secs()), |value| value.parse::<u64>().ok())
+            .filter(|seconds| range.contains(seconds))
+            .map(Duration::from_secs)
+    };
+    let max_execution = seconds(
+        max_execution,
+        defaults.max_execution,
+        60..=MAX_EXECUTION_CEILING_SECONDS,
+    )
+    .ok_or(GatewayConfigError(
+        "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS must be an integer from 60 to 5400",
+    ))?;
+    let stall_timeout = seconds(stall_timeout, defaults.stall_timeout, 1..=max_execution.as_secs())
+        .ok_or(GatewayConfigError(
+            "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS must be an integer from 1 to LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
+        ))?;
+    Ok(ExecutionLimits {
+        max_execution,
+        stall_timeout,
+    })
 }
 
 fn concurrency_limit(
@@ -162,7 +273,6 @@ fn concurrency_limit(
 }
 
 fn telemetry_buffer_bytes(value: Option<&str>) -> Result<usize, GatewayConfigError> {
-    const MIB: usize = 1024 * 1024;
     let Some(value) = value else {
         return Ok(crate::telemetry::DEFAULT_RETAINED_BYTES);
     };
@@ -361,6 +471,106 @@ mod tests {
                 error.to_string(),
                 "LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES must be an integer from 4194304 (4 MiB) to 4294967296 (4 GiB)"
             );
+        }
+    }
+
+    #[test]
+    fn request_limits_require_a_buffer_that_fits_one_maximal_request() {
+        assert_eq!(
+            request_limits(None, None).unwrap(),
+            RequestLimits {
+                max_request_bytes: 32 * MIB,
+                buffer_bytes: 512 * MIB,
+            }
+        );
+        assert_eq!(
+            request_limits(Some("1048576"), Some("1048576")).unwrap(),
+            RequestLimits {
+                max_request_bytes: MIB,
+                buffer_bytes: MIB,
+            }
+        );
+        for (max, buffer, name) in [
+            (
+                Some("1048575"),
+                None,
+                "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES",
+            ),
+            (
+                Some("1073741825"),
+                None,
+                "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES",
+            ),
+            (Some("32MiB"), None, "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES"),
+            // The default buffer cannot admit a single request at the 1 GiB limit.
+            (
+                Some("1073741824"),
+                None,
+                "LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES",
+            ),
+            (
+                None,
+                Some("33554431"),
+                "LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES",
+            ),
+            (
+                None,
+                Some("68719476737"),
+                "LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES",
+            ),
+            (
+                None,
+                Some("secret-that-must-not-appear"),
+                "LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES",
+            ),
+        ] {
+            let error = request_limits(max, buffer).err().unwrap().to_string();
+            assert!(error.starts_with(name), "{error}");
+            assert!(!error.contains("secret-that-must-not-appear"));
+        }
+    }
+
+    #[test]
+    fn execution_limits_keep_the_stall_timeout_within_the_ceiling() {
+        assert_eq!(
+            execution_limits(None, None).unwrap(),
+            ExecutionLimits {
+                max_execution: Duration::from_hours(1),
+                stall_timeout: Duration::from_mins(2),
+            }
+        );
+        assert_eq!(
+            execution_limits(Some("5400"), Some("5400")).unwrap(),
+            ExecutionLimits {
+                max_execution: Duration::from_mins(90),
+                stall_timeout: Duration::from_mins(90),
+            }
+        );
+        for (max, stall, name) in [
+            (
+                Some("59"),
+                None,
+                "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
+            ),
+            (
+                Some("5401"),
+                None,
+                "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
+            ),
+            (
+                Some("60"),
+                None,
+                "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS",
+            ),
+            (None, Some("0"), "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS"),
+            (
+                None,
+                Some("1.5"),
+                "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS",
+            ),
+        ] {
+            let error = execution_limits(max, stall).err().unwrap().to_string();
+            assert!(error.starts_with(name), "{error}");
         }
     }
 }

@@ -1,27 +1,26 @@
-use std::{error::Error, ops::Range, sync::Arc, time::Duration};
+use std::{ops::Range, sync::Arc, time::Duration};
 
 use axum::{
     Json, Router,
-    body::{Body, Bytes, to_bytes},
+    body::{Body, Bytes},
     extract::{Request, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use http_body_util::BodyExt;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use tracing::Instrument;
 
 use crate::{
     correlation::{RequestCorrelation, assign_request_id},
-    inference::{InferenceService, RequestPreparationError},
-    providers::{ProviderError, Route},
+    inference::{InferenceService, RequestBodyPermit, RequestPreparationError},
+    providers::{ProviderError, RequestBody, Route},
     resolution::{ApiFormat, ResolutionError},
     server::GatewayLifecycleState,
 };
 
-const MAX_REQUEST_BYTES: usize = 10 * 1024 * 1024;
-const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_GATEWAY_KEY_BYTES: usize = 8192;
 
 #[derive(Clone)]
@@ -185,11 +184,20 @@ async fn relay(
     if !crate::transport::identity_encoding(request.headers()) {
         return Err(InferenceHttpError::UnsupportedEncoding);
     }
-    let _body_permit = inference
+    // Held until provider headers arrive; the buffered body lives until it is sent.
+    let mut body_permit = inference
         .try_reserve_request_body()
         .map_err(InferenceHttpError::from)?;
     let (parts, body) = request.into_parts();
-    let request_body = request_body_and_model(body).await?;
+    let bytes = read_request_body(
+        body,
+        &parts.headers,
+        inference.max_request_bytes(),
+        inference.request_read_timeout(),
+        &mut body_permit,
+    )
+    .await?;
+    let request_body = request_body_and_model(bytes)?;
     let (permit, context) = inference
         .resolve_and_admit(
             gateway_key,
@@ -204,8 +212,11 @@ async fn relay(
             permit,
             context,
             &parts.headers,
-            request_body.bytes,
-            request_body.model_range,
+            RequestBody {
+                bytes: request_body.bytes,
+                model_range: request_body.model_range,
+                streaming: request_body.streaming,
+            },
             route,
             correlation,
         )
@@ -217,16 +228,18 @@ struct InferenceRequestBody {
     bytes: Bytes,
     model: String,
     model_range: Range<usize>,
+    streaming: bool,
 }
 
 #[derive(Deserialize)]
 struct InferenceRequest<'a> {
     #[serde(borrow)]
     model: &'a RawValue,
+    #[serde(borrow, default)]
+    stream: Option<&'a RawValue>,
 }
 
-async fn request_body_and_model(body: Body) -> Result<InferenceRequestBody, InferenceHttpError> {
-    let bytes = read_request_body(body).await?;
+fn request_body_and_model(bytes: Bytes) -> Result<InferenceRequestBody, InferenceHttpError> {
     let request = serde_json::from_slice::<InferenceRequest<'_>>(&bytes)
         .map_err(|_| InferenceHttpError::InvalidBody)?;
     let raw_model = request.model.get();
@@ -244,36 +257,69 @@ async fn request_body_and_model(body: Body) -> Result<InferenceRequestBody, Infe
         .checked_add(raw_model.len())
         .filter(|end| *end <= bytes.len())
         .ok_or(InferenceHttpError::InvalidBody)?;
+    let streaming = request.stream.is_some_and(|stream| stream.get() == "true");
     Ok(InferenceRequestBody {
         bytes,
         model,
         model_range: start..end,
+        streaming,
     })
 }
 
-/// Buffer the client body. The wait is mostly the caller's upload, so it gets its
-/// own span and the measured size lands on the server span for aggregation.
-async fn read_request_body(body: Body) -> Result<Bytes, InferenceHttpError> {
+/// Buffer the client body, reserving its bytes from the shared budget as they arrive.
+/// A declared length is checked and reserved before reading. The wait is mostly the
+/// caller's upload, so it gets its own span and the measured size lands on the server
+/// span for aggregation.
+async fn read_request_body(
+    body: Body,
+    headers: &HeaderMap,
+    max_bytes: usize,
+    read_timeout: Duration,
+    permit: &mut RequestBodyPermit<'_>,
+) -> Result<Bytes, InferenceHttpError> {
     let server = tracing::Span::current();
     let span = tracing::info_span!(
         "request.body",
         otel.kind = "internal",
         http.request.body.size = tracing::field::Empty
     );
+    let declared = headers
+        .get(header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok()?.parse::<u64>().ok())
+        .map(|length| usize::try_from(length).unwrap_or(usize::MAX));
     let bytes = async {
-        let bytes = tokio::time::timeout(REQUEST_READ_TIMEOUT, to_bytes(body, MAX_REQUEST_BYTES))
-            .await
-            .map_err(|_| InferenceHttpError::RequestTimeout)?
-            .map_err(|error| {
-                if error
-                    .source()
-                    .is_some_and(<dyn Error + 'static>::is::<http_body_util::LengthLimitError>)
-                {
-                    InferenceHttpError::TooLarge
-                } else {
-                    InferenceHttpError::InvalidBody
+        if let Some(declared) = declared {
+            if declared > max_bytes {
+                return Err(InferenceHttpError::TooLarge);
+            }
+            permit
+                .try_reserve_bytes(declared)
+                .map_err(InferenceHttpError::Resolution)?;
+        }
+        let read = async {
+            let mut body = body;
+            let mut buffer = Vec::with_capacity(declared.unwrap_or(0));
+            while let Some(frame) = body.frame().await {
+                let Ok(data) = frame
+                    .map_err(|_| InferenceHttpError::InvalidBody)?
+                    .into_data()
+                else {
+                    continue;
+                };
+                let total = buffer.len() + data.len();
+                if total > max_bytes {
+                    return Err(InferenceHttpError::TooLarge);
                 }
-            })?;
+                permit
+                    .try_reserve_bytes(total)
+                    .map_err(InferenceHttpError::Resolution)?;
+                buffer.extend_from_slice(&data);
+            }
+            Ok(Bytes::from(buffer))
+        };
+        let bytes = tokio::time::timeout(read_timeout, read)
+            .await
+            .map_err(|_| InferenceHttpError::RequestTimeout)??;
         tracing::Span::current().record("http.request.body.size", byte_count(bytes.len()));
         Ok::<_, InferenceHttpError>(bytes)
     }
