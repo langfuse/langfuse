@@ -5837,6 +5837,8 @@ describe("OTel Resource Span Mapping", () => {
       }) => {
         const attributes: Record<string, string> = {
           "gen_ai.request.model": "claude-test-model",
+          "gen_ai.usage.input_tokens": "12",
+          "langfuse.observation.cost_details": JSON.stringify({ total: 0.12 }),
         };
         Object.assign(attributes, extraAttributes);
         if (sessionId !== null) {
@@ -5871,6 +5873,8 @@ describe("OTel Resource Span Mapping", () => {
         const observation = events.find(
           (event) => event.type !== "trace-create",
         );
+        const expectedUsage = expectedModel ? { input: 12 } : undefined;
+        const expectedCost = expectedModel ? { total: 0.12 } : {};
         expect(observation).toMatchObject({
           type: `${expectedType.toLowerCase()}-create`,
           body: {
@@ -5880,6 +5884,8 @@ describe("OTel Resource Span Mapping", () => {
             },
           },
         });
+        expect(observation?.body.usageDetails).toEqual(expectedUsage ?? {});
+        expect(observation?.body).toHaveProperty("costDetails", expectedCost);
 
         const eventInputs = createTestOtelProcessor().processToEvent([
           resourceSpan,
@@ -5892,8 +5898,131 @@ describe("OTel Resource Span Mapping", () => {
             attributes: { "gen_ai.request.model": "claude-test-model" },
           },
         });
-        expect(eventInputs[0].providedUsageDetails).toBeUndefined();
-        expect(eventInputs[0].providedCostDetails).toEqual({});
+        expect(eventInputs[0].providedUsageDetails).toEqual(expectedUsage);
+        expect(eventInputs[0].providedCostDetails).toEqual(expectedCost);
+      },
+    );
+
+    it.each([
+      {
+        scenario: "names the agent",
+        operation: "invoke_agent",
+        expectedType: "AGENT",
+        expectedName: "support-agent",
+      },
+      {
+        scenario: "preserves custom agent span names",
+        spanName: "custom-agent-run",
+        operation: "invoke_agent",
+        expectedType: "AGENT",
+        expectedName: "custom-agent-run",
+      },
+      {
+        scenario: "keeps generation names generic",
+        operation: "chat",
+        expectedType: "GENERATION",
+        expectedName: "anthropic.model_request",
+      },
+      {
+        scenario: "respects an explicit generation type",
+        operation: "invoke_agent",
+        explicitType: "generation",
+        expectedType: "GENERATION",
+        expectedName: "anthropic.session.turn",
+      },
+      {
+        scenario: "does not rename agents from other instrumentation scopes",
+        scopeName: "other-agent-sdk",
+        operation: "invoke_agent",
+        expectedType: "AGENT",
+        expectedName: "anthropic.session.turn",
+      },
+      {
+        scenario: "requires a managed session ID",
+        sessionId: null,
+        operation: "invoke_agent",
+        expectedType: "AGENT",
+        expectedName: "anthropic.session.turn",
+      },
+      {
+        scenario: "requires an invoke_agent operation",
+        spanName: "anthropic.session.turn",
+        operation: "chat",
+        explicitType: "agent",
+        expectedType: "AGENT",
+        expectedName: "anthropic.session.turn",
+      },
+    ])(
+      "Claude Managed Agents naming: $scenario",
+      async ({
+        scopeName = "com.anthropic.claude-platform",
+        sessionId = "session-example",
+        operation,
+        spanName = operation === "chat"
+          ? "anthropic.model_request"
+          : "anthropic.session.turn",
+        explicitType,
+        expectedType,
+        expectedName,
+      }) => {
+        const attributes: Array<{ key: string; value: unknown }> = [
+          { key: "gen_ai.operation.name", value: { stringValue: operation } },
+          {
+            key: "gen_ai.agent.name",
+            value: { stringValue: "support-agent" },
+          },
+        ];
+        if (sessionId !== null) {
+          attributes.push({
+            key: "anthropic.session.id",
+            value: { stringValue: sessionId },
+          });
+        }
+        if (explicitType) {
+          attributes.push({
+            key: "langfuse.observation.type",
+            value: { stringValue: explicitType },
+          });
+        }
+        const resourceSpan: ResourceSpan = {
+          scopeSpans: [
+            {
+              scope: { name: scopeName },
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  traceId: Buffer.from(defaultSpanProps.traceId.data),
+                  spanId: Buffer.from(defaultSpanProps.spanId.data),
+                  name: spanName,
+                  attributes,
+                },
+              ],
+            },
+          ],
+        };
+
+        const events = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const observation = events.find(
+          (event) => event.type !== "trace-create",
+        );
+        const trace = events.find((event) => event.type === "trace-create");
+        expect(observation).toMatchObject({
+          type: `${expectedType.toLowerCase()}-create`,
+          body: { name: expectedName },
+        });
+        expect(trace?.body.name).toBe(spanName);
+
+        const eventInputs = createTestOtelProcessor().processToEvent([
+          resourceSpan,
+        ]);
+        expect(eventInputs).toHaveLength(1);
+        expect(eventInputs[0]).toMatchObject({
+          type: expectedType,
+          name: expectedName,
+        });
       },
     );
 
