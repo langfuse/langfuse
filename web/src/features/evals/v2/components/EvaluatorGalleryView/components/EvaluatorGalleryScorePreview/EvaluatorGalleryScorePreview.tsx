@@ -1,15 +1,25 @@
 import { ChevronRight } from "lucide-react";
+import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import type { ManagedTemplate } from "@/src/features/evals/v2/types/templateGallery";
+import { cn } from "@/src/utils/tailwind";
 
 const MAX_VISIBLE_SCORES = 2;
 
-/** Sample `name: value` chips on a dot grid, styled like trace score badges. */
+const MESH_TINT: Partial<Record<EvalTemplateType, string>> = {
+  [EvalTemplateTypeEnum.LLM_AS_JUDGE]: "preview-mesh-judge",
+  [EvalTemplateTypeEnum.DECISION_MODEL]: "preview-mesh-decision-model",
+  [EvalTemplateTypeEnum.CODE]: "preview-mesh-code",
+};
+
+/** Sample `name: value` chips on a type-tinted mesh, styled like trace score badges. */
 export function EvaluatorGalleryScorePreview({
   scores,
+  type,
 }: {
   scores: ManagedTemplate["previewScores"];
+  type: EvalTemplateType;
 }) {
   const visibleScores = scores.slice(0, MAX_VISIBLE_SCORES);
   const hiddenCount = scores.length - visibleScores.length;
@@ -17,7 +27,10 @@ export function EvaluatorGalleryScorePreview({
   return (
     <div
       aria-hidden="true"
-      className="bg-muted-gray dot-grid relative flex h-20 items-center justify-center gap-1 overflow-hidden rounded-sm px-3"
+      className={cn(
+        "preview-mesh flex h-20 items-center justify-center gap-1 overflow-hidden rounded-sm px-3",
+        MESH_TINT[type],
+      )}
     >
       <div className="flex min-w-0 items-center justify-center gap-1">
         {visibleScores.map((score) => (

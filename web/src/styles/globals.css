@@ -974,14 +974,55 @@
   );
 }
 
-/* Dot grid backdrop for preview surfaces, e.g. evaluator gallery cards. */
-@utility dot-grid {
-  background-image: radial-gradient(
-    hsl(var(--muted-foreground) / 0.35) 1px,
-    transparent 1px
-  );
-  background-size: calc(var(--spacing) * 3.5) calc(var(--spacing) * 3.5);
-  background-position: center;
+/* Preview backdrop for gallery cards: muted-gray base, a faint two-tone mesh and
+   light grain. Tint it with --preview-mesh-a / --preview-mesh-b (see the
+   preview-mesh-* type utilities); untinted it stays neutral. */
+@utility preview-mesh {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(
+      70% 120% at 25% 10%,
+      color-mix(in srgb, var(--preview-mesh-a, transparent) 8%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      60% 100% at 80% 90%,
+      color-mix(in srgb, var(--preview-mesh-b, transparent) 5%, transparent),
+      transparent 70%
+    ),
+    hsl(var(--muted-gray));
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.14;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  @variant dark {
+    &::after {
+      mix-blend-mode: screen;
+      opacity: 0.06;
+    }
+  }
+}
+
+@utility preview-mesh-judge {
+  --preview-mesh-a: hsl(var(--dark-blue));
+  --preview-mesh-b: var(--color-category-indigo);
+}
+
+@utility preview-mesh-decision-model {
+  --preview-mesh-a: var(--color-category-violet);
+  --preview-mesh-b: var(--color-category-fuchsia);
+}
+
+@utility preview-mesh-code {
+  --preview-mesh-a: var(--color-category-orange);
+  --preview-mesh-b: var(--color-category-amber);
 }
 
 @utility scrollbar-visible {

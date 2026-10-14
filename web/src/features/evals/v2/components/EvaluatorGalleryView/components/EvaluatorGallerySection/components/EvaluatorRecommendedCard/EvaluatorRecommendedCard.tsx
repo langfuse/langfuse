@@ -64,7 +64,9 @@ export function EvaluatorRecommendedTemplateCardContent({
 }) {
   return (
     <EvaluatorRecommendedCardContent
-      preview={<EvaluatorGalleryScorePreview scores={previewScores} />}
+      preview={
+        <EvaluatorGalleryScorePreview scores={previewScores} type={type} />
+      }
       footer={<EvaluatorGalleryMethodBadge type={type} />}
       title={title}
       description={description}
