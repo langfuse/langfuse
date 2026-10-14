@@ -44,19 +44,42 @@ fn model_rewrite_changes_only_the_top_level_model_bytes() {
     let expected = Bytes::from_static(
         br#"{ "z": {"second":2, "first":1}, "model" : "provider-model", "number": 1.0e2, "escaped":"\u00e9" }"#,
     );
-    assert_eq!(rewrite_model(original, "provider-model"), expected);
+    assert_eq!(
+        ProviderRequestBody::with_rewritten_model(original, "provider-model").into_bytes(),
+        expected
+    );
 }
 
 #[test]
 fn model_rewrite_preserves_bodies_without_a_valid_top_level_model() {
     let missing = Bytes::from_static(br#"{"input":{"model":"nested-model"}}"#);
-    assert_eq!(rewrite_model(missing.clone(), "provider-model"), missing);
+    assert_eq!(
+        ProviderRequestBody::with_rewritten_model(missing.clone(), "provider-model").into_bytes(),
+        missing
+    );
 
     let malformed = Bytes::from_static(br#"{"model":"unterminated}"#);
     assert_eq!(
-        rewrite_model(malformed.clone(), "provider-model"),
+        ProviderRequestBody::with_rewritten_model(malformed.clone(), "provider-model").into_bytes(),
         malformed
     );
+}
+
+#[test]
+fn model_rewrite_reuses_the_original_body_storage() {
+    let original = Bytes::from_static(br#"{"model":"connection:model","input":"large"}"#);
+    let original_start = original.as_ptr();
+    let original_end = original_start.wrapping_add(original.len());
+
+    let ProviderRequestBody::Segmented([prefix, model, suffix]) =
+        ProviderRequestBody::with_rewritten_model(original, "provider-model")
+    else {
+        panic!("valid model rewrite should produce segmented body");
+    };
+
+    assert_eq!(prefix.as_ptr(), original_start);
+    assert_eq!(suffix.as_ptr().wrapping_add(suffix.len()), original_end);
+    assert_eq!(model, r#""provider-model""#);
 }
 
 #[tokio::test]
