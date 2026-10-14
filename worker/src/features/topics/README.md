@@ -191,9 +191,11 @@ switch (`TOPICS`, `TOPICS_UPDATE`, `TOPICS_EMBEDDING`, `TOPICS_AUTOMATIC`); set
 them to `false` on fleets that only run trace batches.
 
 A facet version without any map starts one automatic **Update topics** execution
-once it has 100 compatible summaries from the last seven days. It appears in
-History under the `system:topics` actor and is never restarted automatically, so
-a failed run is resumed from History. An existing map for the version, even an
+once it has 100 compatible summaries from the last seven days, while automatic
+processing is on with the embedding model those summaries used. It appears in
+History under the `system:topics` actor. A queued execution is queued again by
+the next job; a failed one is never restarted automatically and is resumed from
+History. An existing map or fit in progress for the version, even an
 incompatible one, blocks discovery; replace it with **Update topics**. Summaries
 stored while the first map is being fitted stay unassigned until the next
 **Update topics**.

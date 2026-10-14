@@ -17,9 +17,15 @@ import { processAutomaticTopicAssignments } from "./automaticTopics";
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
   enqueueTopicExecution: vi.fn(),
-  getTopicsModels: vi.fn(async () => ({
-    embedding: { model: "embed", dimensions: 64 },
-  })),
+  getEnabledTopicsModels: vi.fn(
+    async (projectIds: string[]) =>
+      new Map(
+        projectIds.map((id) => [
+          id,
+          { embedding: { model: "embed", dimensions: 64 } },
+        ]),
+      ),
+  ),
 }));
 
 const DIMENSIONS = 64;
@@ -206,5 +212,52 @@ describe("automatic Topics assignment against storage", () => {
       projectId,
       executions[0].id,
     );
+  });
+
+  it("does not start discovery while a fit for the facet is still running", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Running fit",
+      description: "",
+      prompt: "Describe the request.",
+    });
+    // A manual Update topics that has not published yet.
+    await createTopicRun({
+      projectId,
+      facetId: facet.id,
+      facetVersion: 1,
+      config: {},
+    });
+    const now = Date.now();
+    const rows = Array.from({ length: 100 }, (_, index) =>
+      summary(
+        facet.id,
+        new Date(now - (index + 1) * 60_000).toISOString(),
+        vector(1, index / 100),
+      ),
+    );
+    await writeTopicSummaries(rows);
+    const startedAt = new Date();
+
+    await processAutomaticTopicAssignments({
+      projectId,
+      traceIds: [rows[0].traceId!],
+      facets: [{ facetId: facet.id, version: 1 }],
+      embeddingConfig,
+      timeRange: {
+        from: new Date(rows[0].unitStartTime),
+        to: new Date(Date.parse(rows[0].unitStartTime) + 1),
+      },
+    });
+
+    expect(
+      await prisma.batchAction.count({
+        where: {
+          projectId,
+          userId: "system:topics",
+          createdAt: { gte: startedAt },
+        },
+      }),
+    ).toBe(0);
   });
 });

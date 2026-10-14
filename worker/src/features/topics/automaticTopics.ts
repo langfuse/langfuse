@@ -14,7 +14,7 @@ import {
   getTopicProcessingMapIds,
   getTopicRun,
   getTopicSummaryCounts,
-  getTopicsModels,
+  getEnabledTopicsModels,
   listTopicSummaries,
   readTopicAssignments,
   readTopicExecutionForRequest,
@@ -28,7 +28,6 @@ import type {
   TopicFacetRef,
   TopicRun,
   TopicSummary,
-  TopicTimeRange,
 } from "@langfuse/shared/topics";
 import { topicAssignmentRows } from "./assignments";
 import { TopicMetrics } from "./metrics";
@@ -50,13 +49,53 @@ export async function enqueueAutomaticTopicAssignments(
 ): Promise<void> {
   const queue = TopicsAutomaticQueue.getInstance();
   if (!queue) return;
-  const groups = new Map<
-    string,
-    Omit<AutomaticBatch, "traceIds" | "facets"> & {
-      traceIds: Set<string>;
-      facets: Map<string, TopicFacetRef>;
-    }
-  >();
+  for (const batch of groupStoredSummaries(rows).flatMap(splitTraces)) {
+    // Facets belong in the ID: a retry can store a facet the first attempt failed.
+    const id = hash([
+      batchId,
+      batch.projectId,
+      batch.embeddingConfig,
+      batch.facets,
+      batch.traceIds,
+    ]);
+    await queue.add(
+      QueueJobs.TopicsAutomatic,
+      {
+        id,
+        timestamp: new Date(),
+        name: QueueJobs.TopicsAutomatic,
+        payload: batch,
+      },
+      { jobId: id },
+    );
+  }
+}
+
+/**
+ * Assigns the batch's current complete summaries to each facet's compatible serving map,
+ * skipping ones already assigned, or starts the facet's first discovery once enough exist.
+ */
+export async function processAutomaticTopicAssignments(
+  batch: AutomaticBatch,
+): Promise<void> {
+  const { projectId, embeddingConfig } = batch;
+  for (const facet of batch.facets) {
+    const summaries = await currentSummaries(batch, facet);
+    if (summaries.length === 0) continue;
+    const [map] = await getTopicProcessingMapIds(
+      projectId,
+      [facet],
+      embeddingConfig,
+    );
+    const run = map?.runId ? await getTopicRun(projectId, map.runId) : null;
+    if (run?.status === "completed") await assign(batch, facet, summaries, run);
+    else await startDiscovery(projectId, facet, embeddingConfig);
+  }
+}
+
+/** One batch per project and vector space, spanning its summaries' unit start times. */
+function groupStoredSummaries(rows: TopicSummary[]): AutomaticBatch[] {
+  const groups = new Map<string, AutomaticBatch>();
   for (const row of rows) {
     if (row.state !== "complete" || row.traceId === null) continue;
     const embeddingConfig = {
@@ -70,78 +109,61 @@ export async function enqueueAutomaticTopicAssignments(
       projectId: row.projectId,
       embeddingConfig,
       timeRange: { from: start, to: end },
-      traceIds: new Set<string>(),
-      facets: new Map<string, TopicFacetRef>(),
+      traceIds: [],
+      facets: [],
     };
     if (start < group.timeRange.from) group.timeRange.from = start;
     if (end > group.timeRange.to) group.timeRange.to = end;
-    group.traceIds.add(row.traceId);
-    group.facets.set(JSON.stringify([row.facetId, row.facetVersion]), {
-      facetId: row.facetId,
-      version: row.facetVersion,
-    });
+    if (!group.traceIds.includes(row.traceId)) group.traceIds.push(row.traceId);
+    if (
+      !group.facets.some(
+        (facet) =>
+          facet.facetId === row.facetId && facet.version === row.facetVersion,
+      )
+    )
+      group.facets.push({ facetId: row.facetId, version: row.facetVersion });
     groups.set(key, group);
   }
-  for (const group of groups.values()) {
-    const traceIds = [...group.traceIds];
-    for (
-      let index = 0;
-      index < traceIds.length;
-      index += TOPICS_TRACE_BATCH_SIZE
-    ) {
-      const payload: AutomaticBatch = {
-        ...group,
-        traceIds: traceIds.slice(index, index + TOPICS_TRACE_BATCH_SIZE),
-        facets: [...group.facets.values()],
-      };
-      const id = hash([
-        batchId,
-        payload.projectId,
-        payload.embeddingConfig,
-        payload.traceIds,
-      ]);
-      await queue.add(
-        QueueJobs.TopicsAutomatic,
-        { id, timestamp: new Date(), name: QueueJobs.TopicsAutomatic, payload },
-        { jobId: id },
-      );
-    }
-  }
+  return [...groups.values()].map((group) => ({
+    ...group,
+    facets: group.facets.sort(
+      (a, b) => a.facetId.localeCompare(b.facetId) || a.version - b.version,
+    ),
+  }));
 }
 
-/**
- * Assigns the batch's current complete summaries to each facet's compatible serving map,
- * skipping ones already assigned, or starts the facet's first discovery once enough exist.
- */
-export async function processAutomaticTopicAssignments(
-  batch: AutomaticBatch,
-): Promise<void> {
-  const { projectId, traceIds, embeddingConfig, timeRange } = batch;
-  for (const facet of batch.facets) {
-    const summaries = (
-      await listTopicSummaries(
-        projectId,
-        { traceIds, facetId: facet.facetId, facetVersion: facet.version },
-        timeRange,
-      )
-    ).filter(
-      (row) =>
-        row.state === "complete" &&
-        row.traceId !== null &&
-        row.embeddingModel === embeddingConfig.embeddingModel &&
-        row.embedding.length === embeddingConfig.embeddingDimensions,
-    );
-    if (!summaries.length) continue;
-    const [map] = await getTopicProcessingMapIds(
-      projectId,
-      [facet],
-      embeddingConfig,
-    );
-    const run = map?.runId ? await getTopicRun(projectId, map.runId) : null;
-    if (run?.status === "completed")
-      await assign(batch, facet, summaries, run, timeRange);
-    else await startDiscovery(projectId, facet, embeddingConfig);
-  }
+function splitTraces(batch: AutomaticBatch): AutomaticBatch[] {
+  const batches: AutomaticBatch[] = [];
+  for (
+    let index = 0;
+    index < batch.traceIds.length;
+    index += TOPICS_TRACE_BATCH_SIZE
+  )
+    batches.push({
+      ...batch,
+      traceIds: batch.traceIds.slice(index, index + TOPICS_TRACE_BATCH_SIZE),
+    });
+  return batches;
+}
+
+async function currentSummaries(batch: AutomaticBatch, facet: TopicFacetRef) {
+  const { embeddingConfig } = batch;
+  const rows = await listTopicSummaries(
+    batch.projectId,
+    {
+      traceIds: batch.traceIds,
+      facetId: facet.facetId,
+      facetVersion: facet.version,
+    },
+    batch.timeRange,
+  );
+  return rows.filter(
+    (row) =>
+      row.state === "complete" &&
+      row.traceId !== null &&
+      row.embeddingModel === embeddingConfig.embeddingModel &&
+      row.embedding.length === embeddingConfig.embeddingDimensions,
+  );
 }
 
 async function assign(
@@ -149,7 +171,6 @@ async function assign(
   facet: TopicFacetRef,
   summaries: TopicSummary[],
   run: TopicRun,
-  timeRange: TopicTimeRange,
 ) {
   const metrics = new TopicMetrics();
   await metrics.measure("assignment", async () => {
@@ -160,14 +181,14 @@ async function assign(
           facet,
           summaries,
           run.id,
-          timeRange,
+          batch.timeRange,
         )
       ).map((row) => JSON.stringify([row.traceId, row.summaryProcessedAt])),
     );
     const pending = summaries.filter(
       (row) => !assigned.has(JSON.stringify([row.traceId, row.processedAt])),
     );
-    if (!pending.length) return;
+    if (pending.length === 0) return;
     const rows = topicAssignmentRows({
       projectId: batch.projectId,
       facet,
@@ -190,31 +211,19 @@ async function startDiscovery(
   facet: TopicFacetRef,
   embeddingConfig: TopicEmbeddingConfig,
 ) {
-  // Any map for this or a newer version, even an incompatible one, is replaced only by Update topics.
-  if (
-    await prisma.topicClusteringRun.findFirst({
-      where: {
-        projectId,
-        facetId: facet.facetId,
-        facetVersion: { gte: facet.version },
-        status: "completed",
-      },
-      select: { id: true },
-    })
-  )
-    return;
-  // Summaries from before an embedding model change would fail the execution's model check.
-  const models = await getTopicsModels(projectId);
-  if (
-    !models ||
-    models.embedding.model !== embeddingConfig.embeddingModel ||
-    models.embedding.dimensions !== embeddingConfig.embeddingDimensions
-  )
-    return;
+  if (!(await canStartDiscovery(projectId, facet, embeddingConfig))) return;
   const requestId = hash(["topics-discovery", facet, embeddingConfig]);
-  // Started before, in any state; failed or interrupted runs are resumed from History.
-  if (await readTopicExecutionForRequest(projectId, requestId, requestId))
+  const existing = await readTopicExecutionForRequest(
+    projectId,
+    requestId,
+    requestId,
+  );
+  if (existing) {
+    // Like the web trigger: a queued execution may have lost its job; failed ones resume from History.
+    if (existing.status === "queued")
+      await enqueueTopicExecution(projectId, existing.id);
     return;
+  }
   const to = new Date();
   const timeRange = { from: new Date(to.getTime() - DISCOVERY_WINDOW_MS), to };
   const [counts] = await getTopicSummaryCounts(
@@ -252,4 +261,31 @@ async function startDiscovery(
     facetId: facet.facetId,
     facetVersion: facet.version,
   });
+}
+
+/**
+ * No map or fit, finished or in progress, exists for this or a newer facet version, and
+ * automatic processing is still on with the embedding model these summaries used.
+ */
+async function canStartDiscovery(
+  projectId: string,
+  facet: TopicFacetRef,
+  embeddingConfig: TopicEmbeddingConfig,
+) {
+  const owner = await prisma.topicClusteringRun.findFirst({
+    where: {
+      projectId,
+      facetId: facet.facetId,
+      facetVersion: { gte: facet.version },
+      status: { in: ["pending", "running", "completed"] },
+    },
+    select: { id: true },
+  });
+  if (owner) return false;
+  const models = (await getEnabledTopicsModels([projectId])).get(projectId);
+  return (
+    models !== undefined &&
+    models.embedding.model === embeddingConfig.embeddingModel &&
+    models.embedding.dimensions === embeddingConfig.embeddingDimensions
+  );
 }

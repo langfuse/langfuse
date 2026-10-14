@@ -6,7 +6,7 @@ import {
   getTopicProcessingMapIds,
   getTopicRun,
   getTopicSummaryCounts,
-  getTopicsModels,
+  getEnabledTopicsModels,
   listTopicSummaries,
   readTopicAssignments,
   readTopicExecutionForRequest,
@@ -37,9 +37,10 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   getTopicProcessingMapIds: vi.fn(),
   getTopicRun: vi.fn(),
   getTopicSummaryCounts: vi.fn(),
-  getTopicsModels: vi.fn(async () => ({
-    embedding: { model: "embed", dimensions: 2 },
-  })),
+  getEnabledTopicsModels: vi.fn(
+    async () =>
+      new Map([["project", { embedding: { model: "embed", dimensions: 2 } }]]),
+  ),
   listTopicSummaries: vi.fn(),
   readTopicAssignments: vi.fn(async () => []),
   readTopicExecutionForRequest: vi.fn(async () => null),
@@ -126,6 +127,14 @@ describe("automatic Topics assignment", () => {
     ]);
     // A retried batch reuses its job IDs, so BullMQ queues nothing twice.
     expect(jobs.slice(3)).toEqual(jobs.slice(0, 3));
+
+    // A retry that stores a facet the first attempt failed queues a new job.
+    add.mockClear();
+    await enqueueAutomaticTopicAssignments("batch", [
+      summary("other", [1, 0], { projectId: "other-project" }),
+      summary("other", [1, 0], { projectId: "other-project", facetId: "b" }),
+    ]);
+    expect(add.mock.calls[0][2].jobId).not.toBe(jobs[2].jobId);
     expect(TopicsAutomaticQueue.getInstance).toHaveBeenCalled();
   });
 
@@ -193,12 +202,21 @@ describe("automatic Topics assignment", () => {
     );
     expect(enqueueTopicExecution).toHaveBeenCalledWith("project", "execution");
 
-    // Started before, or replaced by an existing map: no further discovery.
+    // Started before: a queued one is queued again, a failed one is left for Resume.
     vi.mocked(createTopicExecution).mockClear();
-    vi.mocked(readTopicExecutionForRequest).mockResolvedValueOnce(
-      {} as Awaited<ReturnType<typeof readTopicExecutionForRequest>>,
-    );
+    vi.mocked(enqueueTopicExecution).mockClear();
+    vi.mocked(readTopicExecutionForRequest)
+      .mockResolvedValueOnce({ id: "queued", status: "queued" } as Awaited<
+        ReturnType<typeof readTopicExecutionForRequest>
+      >)
+      .mockResolvedValueOnce({ id: "failed", status: "failed" } as Awaited<
+        ReturnType<typeof readTopicExecutionForRequest>
+      >);
     await processAutomaticTopicAssignments(batch);
+    await processAutomaticTopicAssignments(batch);
+    expect(vi.mocked(enqueueTopicExecution).mock.calls).toEqual([
+      ["project", "queued"],
+    ]);
     vi.mocked(prisma.topicClusteringRun.findFirst).mockResolvedValueOnce({
       id: "incompatible",
     } as never);
@@ -206,7 +224,7 @@ describe("automatic Topics assignment", () => {
     expect(createTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("does not start discovery for summaries embedded before the project changed its embedding model", async () => {
+  it("does not start discovery once automatic processing is off or the embedding model changed", async () => {
     vi.mocked(listTopicSummaries).mockResolvedValue([summary("near", [1, 0])]);
     vi.mocked(getTopicProcessingMapIds).mockResolvedValue([
       { facetId: "facet", facetVersion: 2, runId: null },
@@ -214,10 +232,15 @@ describe("automatic Topics assignment", () => {
     vi.mocked(getTopicSummaryCounts).mockResolvedValue([
       { facetId: "facet", facetVersion: 2, count: 100 },
     ]);
-    vi.mocked(getTopicsModels).mockResolvedValueOnce({
-      embedding: { model: "new-embed", dimensions: 2 },
-    } as Awaited<ReturnType<typeof getTopicsModels>>);
+    vi.mocked(getEnabledTopicsModels)
+      .mockResolvedValueOnce(new Map())
+      .mockResolvedValueOnce(
+        new Map([
+          ["project", { embedding: { model: "new-embed", dimensions: 2 } }],
+        ]) as Awaited<ReturnType<typeof getEnabledTopicsModels>>,
+      );
 
+    await processAutomaticTopicAssignments(batch);
     await processAutomaticTopicAssignments(batch);
 
     expect(createTopicExecution).not.toHaveBeenCalled();
