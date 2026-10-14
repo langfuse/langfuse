@@ -98,13 +98,15 @@ export function GatewayConnectionModelsPage({
             />
             <div className="flex items-center justify-between gap-4">
               <h2 className="text-lg font-bold">{connection.name}</h2>
-              <IconButton
-                icon={Trash2}
-                label="Delete provider credential"
-                variant="outlineDestructive"
-                disabled={isDeleting}
-                onClick={openDialog}
-              />
+              <div className="-translate-y-px">
+                <IconButton
+                  icon={Trash2}
+                  label="Delete provider credential"
+                  variant="outlineDestructive"
+                  disabled={isDeleting}
+                  onClick={openDialog}
+                />
+              </div>
             </div>
           </>
         )}
