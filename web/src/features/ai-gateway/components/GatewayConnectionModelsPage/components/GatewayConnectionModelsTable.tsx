@@ -3,6 +3,7 @@ import type { OrderByState } from "@langfuse/shared";
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
 
 import { DataTable } from "@/src/components/table/data-table";
+import type { CustomHeights } from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { TableSelectionManager } from "@/src/features/table";
@@ -15,6 +16,11 @@ import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatew
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 const DEFAULT_PAGE_SIZE = 50;
+const ROW_HEIGHTS = {
+  s: "h-12",
+  m: "h-24",
+  l: "h-64",
+} satisfies CustomHeights;
 
 export type GatewayConnectionModelsTableProps = {
   models: string[];
@@ -182,6 +188,8 @@ export function GatewayConnectionModelsTable({
             options: PAGE_SIZE_OPTIONS,
           }}
           selectionStore={selectionStore}
+          rowHeight="s"
+          customRowHeights={ROW_HEIGHTS}
           orderBy={orderBy}
           setOrderBy={handleOrderByChange}
           noResultsMessage="No models match the current search."
