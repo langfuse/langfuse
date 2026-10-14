@@ -58,7 +58,7 @@ const listSection: GallerySection = {
   key: "quality",
   label: "Quality",
   description: "Measure retrieval and answer quality.",
-  templates: Array.from({ length: 10 }, (_, index) => ({
+  templates: Array.from({ length: 7 }, (_, index) => ({
     ...template,
     key: `quality-${index + 1}`,
     name: `Evaluator example ${index + 1}`,
@@ -197,10 +197,10 @@ export const ExpandsLongCategory = meta.story({
   render: StatefulEvaluatorGallerySection,
   play: async ({ canvas, args }) => {
     await userEvent.click(
-      canvas.getByRole("button", { name: "Show all 10 templates" }),
+      canvas.getByRole("button", { name: "Show all 7 templates" }),
     );
     await expect(args.onExpandedChange).toHaveBeenCalledWith(true);
-    await expect(canvas.getByText("Evaluator example 10")).toBeInTheDocument();
+    await expect(canvas.getByText("Evaluator example 7")).toBeInTheDocument();
     await expect(
       canvas.getByRole("button", { name: "Show fewer" }),
     ).toBeInTheDocument();
