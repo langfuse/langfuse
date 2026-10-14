@@ -314,10 +314,12 @@ export const eventsSessionsAggregation = (params: {
   startTimeFrom?: string | null;
   includeMetadata?: boolean;
   includeTools?: boolean;
+  fullTable?: boolean;
 }): EventsSessionAggregationQueryBuilder => {
   return new EventsSessionAggregationQueryBuilder({
     projectId: params.projectId,
   })
+    .withFullTable(Boolean(params.fullTable))
     .selectSessionFields(params.fields)
     .when(Boolean(params.includeMetadata), (builder) =>
       builder.selectFieldSet("metadata"),

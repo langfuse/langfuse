@@ -1601,8 +1601,23 @@ export const ALL_SESSION_EVENTS_FIELDS =
 export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_SESSION_AGGREGATION_FIELDS
 > {
+  private fullTable = false;
+
   constructor(options: { projectId: string }) {
     super(EVENTS_SESSION_AGGREGATION_FIELDS, options);
+  }
+
+  /**
+   * Read events_full instead of events_core, e.g. when an outer filter is
+   * sensitive to events_core's truncated metadata values.
+   */
+  withFullTable(fullTable: boolean): this {
+    this.fullTable = fullTable;
+    return this;
+  }
+
+  protected override getTableName(): string {
+    return this.fullTable ? "events_full" : "events_core";
   }
 
   /**

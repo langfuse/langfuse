@@ -11,6 +11,7 @@ import {
   DateTimeFilter,
   FilterList,
   StringOptionsFilter,
+  filtersRequireEventsFull,
   orderByToClickhouseSql,
   type SessionEventsField,
   type SessionEventsFields,
@@ -209,6 +210,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
       : null,
     includeMetadata: requiresMetadata,
     includeTools: requiresTools,
+    fullTable: filtersRequireEventsFull(sessionFilters),
   });
 
   // Compose query using CTEQueryBuilder
