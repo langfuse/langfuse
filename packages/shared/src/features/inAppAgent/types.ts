@@ -1,5 +1,6 @@
 import z from "zod";
 import { AgUiContextSchema } from "../../in-app-agent/schema";
+import { InAppAgentQuestionnaireAnswersSchema } from "../../in-app-agent/questionnaire";
 
 /**
  * Lifecycle states of an in-app agent run (`in_app_agent_runs.status`).
@@ -101,6 +102,8 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
     continuationNumber: z.number().int().positive().optional(),
     toolCallId: z.string(),
     approved: z.boolean(),
+    /** User answers when the approved tool is the questionnaire tool. */
+    answers: InAppAgentQuestionnaireAnswersSchema.optional(),
     /** Inherited sanitized context; defaults for legacy continuation rows. */
     context: z.array(AgUiContextSchema).default([]),
   }),

@@ -10,6 +10,7 @@ import { logger } from "../../server";
 import { recordRunTerminalOutcome } from "./runMetrics";
 import { buildInAppAgentApprovalDecisionEvent } from "../approvalEvents";
 import type { AgUiEvent } from "../schema";
+import type { InAppAgentQuestionnaireAnswers } from "../questionnaire";
 import type { InAppAgentPrefixedLangfuseMcpToolName } from "./mcpPolicy";
 import {
   InAppAgentRunRequestSchema,
@@ -230,6 +231,8 @@ export async function decideToolApproval(params: {
   decidedByUserId: string;
   /** Prefixed tool resolved from the persisted interrupt, never client input. */
   alwaysAllowToolName?: InAppAgentPrefixedLangfuseMcpToolName;
+  /** Questionnaire answers, already validated against the persisted interrupt. */
+  answers?: InAppAgentQuestionnaireAnswers;
   model?: string;
 }): Promise<InAppAgentRun> {
   const outcome = await params.prisma.$transaction(async (tx) => {
@@ -379,6 +382,7 @@ export async function decideToolApproval(params: {
           continuationNumber,
           toolCallId: params.toolCallId,
           approved: params.approved,
+          ...(params.answers ? { answers: params.answers } : {}),
           context: parentRequest.success ? parentRequest.data.context : [],
         },
       }),
