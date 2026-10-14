@@ -48,11 +48,14 @@ const EMPTY_STATE_CHART_TYPES = new Set<DashboardWidgetChartType>([
 ]);
 
 /**
- * Chart types that render a breakdown as one whole, so their size is the sum of
- * its members: a stacked bar's height and a pie's circle. Only these may not
- * draw a breakdown's own aggregate alongside the components it sums — see
- * {@link prepareBreakdownSegments}. Every other type draws each member
- * independently and keeps the aggregate.
+ * Chart types whose mark is the sum of a breakdown's members: a stacked bar's
+ * height and a pie's circle. Only these may not draw a breakdown's own
+ * aggregate at full value alongside the components it sums — see
+ * {@link prepareBreakdownSegments}. Lines, areas and one-bar-per-category
+ * charts draw each member independently and keep it untouched. (A pivot table
+ * does sum its members into subtotal and grand-total rows, but it also prints
+ * every member as its own row, so the aggregate is visible rather than folded
+ * into a length, and it is left alone here.)
  */
 const BREAKDOWN_AGGREGATING_CHART_TYPES = new Set<DashboardWidgetChartType>([
   "BAR_TIME_SERIES",

@@ -1829,7 +1829,7 @@ export function getResultUnit(
 export function getDimensionAggregateValue(
   viewName: string,
   dimensionName: string | undefined,
-  version: ViewVersion = "v1",
+  version: ViewVersion,
 ): string | undefined {
   if (!dimensionName) return undefined;
   const versionViews = viewDeclarations[version];

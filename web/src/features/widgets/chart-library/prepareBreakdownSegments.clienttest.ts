@@ -61,6 +61,54 @@ describe("prepareBreakdownSegments", () => {
     expect(prepareBreakdownSegments(data, "total")).toBe(data);
   });
 
+  it("leaves standing the part of the aggregate its components do not explain", () => {
+    // One observation priced per key, one whose cost arrived already totalled
+    // (`provided_cost_details: { total: 7 }`). The aggregate row sums both, so
+    // dropping it would erase that 7 from a bucket that really cost 11.
+    const data = [
+      point("2026-10-08", "total", 11),
+      point("2026-10-08", "input", 1),
+      point("2026-10-08", "output", 3),
+    ];
+    const segments = prepareBreakdownSegments(data, "total");
+
+    expect(segments).toEqual([
+      point("2026-10-08", "total", 7),
+      point("2026-10-08", "input", 1),
+      point("2026-10-08", "output", 3),
+    ]);
+    expect(
+      segments.reduce((sum, d) => sum + (d.metric as number), 0),
+    ).toBeCloseTo(11);
+  });
+
+  it("drops an aggregate its components miss only by floating-point drift", () => {
+    const components = { input: 0.28, output: 10.65, cache_read: 46.67 };
+    const data = [
+      point("2026-10-08", "total", 0.28 + 10.65 + 46.67 + Number.EPSILON * 32),
+      ...Object.entries(components).map(([key, value]) =>
+        point("2026-10-08", key, value),
+      ),
+    ];
+
+    expect(dimensionsOf(prepareBreakdownSegments(data, "total"))).toEqual([
+      "input",
+      "output",
+      "cache_read",
+    ]);
+  });
+
+  it("drops an aggregate smaller than its components rather than drawing a negative segment", () => {
+    const data = [
+      point("2026-10-08", "total", 3),
+      point("2026-10-08", "input", 4),
+    ];
+
+    expect(dimensionsOf(prepareBreakdownSegments(data, "total"))).toEqual([
+      "input",
+    ]);
+  });
+
   it("keeps bucket markers, which carry an axis bucket rather than a segment", () => {
     const data = [
       ...costBucket("2026-10-08", { input: 1, output: 3 }),
