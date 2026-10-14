@@ -1772,9 +1772,96 @@ async fn buffered_request_bytes_share_one_budget_until_provider_headers() {
     assert_eq!(provider.calls(), 2);
 }
 
-#[tokio::test]
-async fn only_streamed_calls_time_out_waiting_for_provider_headers() {
+async fn budgeted_service() -> (FakeServer, FakeServer, InferenceService) {
     let web = FakeServer::start(|_| async { resolution_response("provider") }).await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let service = inference(&web, &provider).with_request_limits(RequestLimits {
+        max_request_bytes: 64,
+        buffer_bytes: 100,
+    });
+    (web, provider, service)
+}
+
+fn streamed_body(chunks: Vec<&'static [u8]>, stall: bool) -> Body {
+    let chunks = stream::iter(chunks.into_iter().map(Ok::<_, Infallible>));
+    if stall {
+        Body::from_stream(chunks.chain(stream::pending()))
+    } else {
+        Body::from_stream(chunks)
+    }
+}
+
+#[tokio::test]
+async fn a_stalled_upload_holds_only_the_bytes_it_sent() {
+    let (_web, _provider, service) = budgeted_service().await;
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_LENGTH, "60".parse().unwrap());
+    let mut stalled = service.try_reserve_request_body().ok().unwrap();
+    let read = read_request_body(
+        streamed_body(vec![&[b'x'; 10]], true),
+        &headers,
+        64,
+        Duration::from_secs(60),
+        &mut stalled,
+    );
+    assert!(
+        tokio::time::timeout(Duration::from_millis(50), read)
+            .await
+            .is_err()
+    );
+    let mut next = service.try_reserve_request_body().ok().unwrap();
+    assert!(next.try_reserve_bytes(90).is_ok());
+}
+
+#[tokio::test]
+async fn buffered_bytes_reserve_the_allocation_not_just_the_length() {
+    let (_web, _provider, service) = budgeted_service().await;
+    let mut held = service.try_reserve_request_body().ok().unwrap();
+    let bytes = read_request_body(
+        streamed_body(vec![&[b'x'; 32], b"x"], false),
+        &HeaderMap::new(),
+        64,
+        Duration::from_secs(60),
+        &mut held,
+    )
+    .await
+    .ok()
+    .unwrap();
+    assert_eq!(bytes.len(), 33);
+    let mut next = service.try_reserve_request_body().ok().unwrap();
+    assert!(next.try_reserve_bytes(37).is_err());
+    assert!(next.try_reserve_bytes(36).is_ok());
+}
+
+#[test]
+fn a_repeated_stream_member_is_forwarded_as_a_non_streamed_call() {
+    for (body, streaming) in [
+        (r#"{"model":"m","stream":true}"#, true),
+        (r#"{"model":"m","stream":false}"#, false),
+        (r#"{"model":"m","stream":"true"}"#, false),
+        (r#"{"model":"m","stream":true,"stream":true}"#, false),
+    ] {
+        let request = request_body_and_model(Bytes::from_static(body.as_bytes()))
+            .ok()
+            .unwrap();
+        assert_eq!(request.streaming, streaming, "{body}");
+        assert_eq!(&body.as_bytes()[request.model_range], br#""m""#);
+    }
+    for body in [
+        r#"{"model":"m","model":"n"}"#,
+        r#"{"stream":true}"#,
+        r#"["m"]"#,
+    ] {
+        assert!(request_body_and_model(Bytes::from_static(body.as_bytes())).is_err());
+    }
+}
+
+#[tokio::test]
+async fn only_non_streamed_generations_wait_past_the_stall_for_provider_headers() {
+    let web = FakeServer::start(|_| async {
+        resolution_response_for(ApiFormat::AnthropicMessages, "provider-anthropic")
+    })
+    .await;
     let provider = FakeServer::start(|_| async {
         tokio::time::sleep(Duration::from_millis(300)).await;
         Response::new(Body::from("{}"))
@@ -1795,18 +1882,35 @@ async fn only_streamed_calls_time_out_waiting_for_provider_headers() {
         128,
     );
     let gateway = Gateway::start(Some(service)).await;
-    for (body, status) in [
-        (r#"{"model":"Production key:test"}"#, StatusCode::OK),
+    let client = reqwest::Client::new();
+    for (path, body, status) in [
         (
+            "messages",
+            r#"{"model":"Production key:test"}"#,
+            StatusCode::OK,
+        ),
+        (
+            "messages",
             r#"{"model":"Production key:test","stream":false}"#,
             StatusCode::OK,
         ),
         (
+            "messages",
             r#"{"model":"Production key:test","stream":true}"#,
             StatusCode::GATEWAY_TIMEOUT,
         ),
+        (
+            "messages/count_tokens",
+            r#"{"model":"Production key:test"}"#,
+            StatusCode::GATEWAY_TIMEOUT,
+        ),
     ] {
-        let response = gateway.post().bearer_auth("key").body(body).send().await;
-        assert_eq!(response.unwrap().status(), status, "{body}");
+        let response = client
+            .post(format!("{}/anthropic/v1/{path}", gateway.url))
+            .header("x-api-key", "gateway-anthropic")
+            .body(body)
+            .send()
+            .await;
+        assert_eq!(response.unwrap().status(), status, "{path} {body}");
     }
 }

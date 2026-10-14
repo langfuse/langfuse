@@ -231,12 +231,53 @@ struct InferenceRequestBody {
     streaming: bool,
 }
 
-#[derive(Deserialize)]
+/// The top-level members routing reads. A repeated `stream` member is forwarded as a
+/// non-streamed call rather than rejected, so the provider decides what it means.
 struct InferenceRequest<'a> {
-    #[serde(borrow)]
     model: &'a RawValue,
-    #[serde(borrow, default)]
-    stream: Option<&'a RawValue>,
+    streaming: bool,
+}
+
+impl<'de> Deserialize<'de> for InferenceRequest<'de> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct RequestVisitor;
+        impl<'de> serde::de::Visitor<'de> for RequestVisitor {
+            type Value = InferenceRequest<'de>;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a JSON object")
+            }
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<Self::Value, A::Error> {
+                let mut model = None;
+                let mut streams = 0_usize;
+                let mut streaming = false;
+                while let Some(key) = map.next_key::<std::borrow::Cow<'de, str>>()? {
+                    match key.as_ref() {
+                        "model" => {
+                            if model.is_some() {
+                                return Err(serde::de::Error::duplicate_field("model"));
+                            }
+                            model = Some(map.next_value::<&'de RawValue>()?);
+                        }
+                        "stream" => {
+                            streams += 1;
+                            streaming = map.next_value::<&'de RawValue>()?.get() == "true";
+                        }
+                        _ => {
+                            map.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                Ok(InferenceRequest {
+                    model: model.ok_or_else(|| serde::de::Error::missing_field("model"))?,
+                    streaming: streaming && streams == 1,
+                })
+            }
+        }
+        deserializer.deserialize_map(RequestVisitor)
+    }
 }
 
 fn request_body_and_model(bytes: Bytes) -> Result<InferenceRequestBody, InferenceHttpError> {
@@ -257,7 +298,7 @@ fn request_body_and_model(bytes: Bytes) -> Result<InferenceRequestBody, Inferenc
         .checked_add(raw_model.len())
         .filter(|end| *end <= bytes.len())
         .ok_or(InferenceHttpError::InvalidBody)?;
-    let streaming = request.stream.is_some_and(|stream| stream.get() == "true");
+    let streaming = request.streaming;
     Ok(InferenceRequestBody {
         bytes,
         model,
@@ -266,8 +307,10 @@ fn request_body_and_model(bytes: Bytes) -> Result<InferenceRequestBody, Inferenc
     })
 }
 
-/// Buffer the client body, reserving its bytes from the shared budget as they arrive.
-/// A declared length is checked and reserved before reading. The wait is mostly the
+/// Buffer the client body, reserving its allocation from the shared budget as bytes
+/// arrive. A declared length is checked before reading and caps buffer growth, but is
+/// not reserved up front, so a client that declares a large body and stalls holds only
+/// what it actually sent. The wait is mostly the
 /// caller's upload, so it gets its own span and the measured size lands on the server
 /// span for aggregation.
 async fn read_request_body(
@@ -288,17 +331,13 @@ async fn read_request_body(
         .and_then(|value| value.to_str().ok()?.parse::<u64>().ok())
         .map(|length| usize::try_from(length).unwrap_or(usize::MAX));
     let bytes = async {
-        if let Some(declared) = declared {
-            if declared > max_bytes {
-                return Err(InferenceHttpError::TooLarge);
-            }
-            permit
-                .try_reserve_bytes(declared)
-                .map_err(InferenceHttpError::Resolution)?;
+        if declared.is_some_and(|declared| declared > max_bytes) {
+            return Err(InferenceHttpError::TooLarge);
         }
+        let capacity_limit = declared.unwrap_or(max_bytes);
         let read = async {
             let mut body = body;
-            let mut buffer = Vec::with_capacity(declared.unwrap_or(0));
+            let mut buffer = Vec::new();
             while let Some(frame) = body.frame().await {
                 let Ok(data) = frame
                     .map_err(|_| InferenceHttpError::InvalidBody)?
@@ -310,9 +349,16 @@ async fn read_request_body(
                 if total > max_bytes {
                     return Err(InferenceHttpError::TooLarge);
                 }
-                permit
-                    .try_reserve_bytes(total)
-                    .map_err(InferenceHttpError::Resolution)?;
+                if total > buffer.capacity() {
+                    let capacity = buffer
+                        .capacity()
+                        .saturating_mul(2)
+                        .clamp(total, capacity_limit.max(total));
+                    permit
+                        .try_reserve_bytes(capacity)
+                        .map_err(InferenceHttpError::Resolution)?;
+                    buffer.reserve_exact(capacity - buffer.len());
+                }
                 buffer.extend_from_slice(&data);
             }
             Ok(Bytes::from(buffer))

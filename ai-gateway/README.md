@@ -378,8 +378,9 @@ error type follows the status (`authentication_error`, `permission_error`,
 After validating the credential header, the gateway buffers and validates the request
 under the active-request admission budget and a shared request-byte budget, then resolves the credential and
 model-aware route through Web under a separate budget. A declared `Content-Length` is
-checked against the request limit and reserved from the byte budget before reading;
-chunked bodies reserve bytes as they arrive. It holds the body slot and its bytes
+checked against the request limit before reading. The byte budget covers the buffer's
+allocation and grows as bytes arrive, so a client that declares a large body and stalls
+holds only what it sent. It holds the body slot and its bytes
 until provider response headers arrive. Model catalogs use another budget so slow catalog discovery
 cannot block inference resolution.
 Execution capacity remains reserved through response completion. An exhausted budget
@@ -397,9 +398,9 @@ seconds, and enough for the maximal body at 10 MiB per 30 seconds (97 seconds at
 Connecting to a provider may take 5 seconds. Executions end at a one-hour ceiling from
 admission by default, and earlier when they stall: 120 seconds by default without an
 upstream chunk, without the downstream accepting a chunk, or, for streamed calls
-(`"stream": true`), without provider response headers. A non-streaming call waits for
-headers until the ceiling, because providers send nothing until the response is
-generated. Response size is not capped: a single task pumps chunks
+(a single `"stream": true` member) and token counting, without provider response
+headers. A non-streamed generation waits for headers until the ceiling, because
+providers send nothing until the response is generated. Response size is not capped: a single task pumps chunks
 through a one-slot channel, with chunks at most 64 KiB. It stops reading when that
 channel fills. Completion, disconnect, stall and ceiling release admission and context;
 both timeouts run even when the downstream stops polling. A failure after headers

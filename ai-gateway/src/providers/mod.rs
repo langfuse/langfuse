@@ -250,9 +250,10 @@ impl ProviderTransport {
             .header(header::ACCEPT_ENCODING, "identity")
             .header(credential_name, credential);
         upstream = upstream.body(body);
-        // A stream that goes quiet before its headers is stalled. A non-streaming
-        // provider sends nothing until the whole response is generated.
-        let headers_deadline = if streaming {
+        // A stream, or a call that does not generate, that goes quiet before its
+        // headers is stalled. A non-streamed generation sends nothing until the whole
+        // response is generated.
+        let headers_deadline = if streaming || !route.captures_generation() {
             permit
                 .deadline
                 .min(Instant::now() + self.limits.execution.stall_timeout)
