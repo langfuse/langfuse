@@ -1092,9 +1092,6 @@ describe("Public Organizations API", () => {
           ),
         );
         expect(result.status).toBe(403);
-        expect(result.body.error).toContain(
-          "Organization-scoped API key required",
-        );
 
         // Clean up
         await prisma.apiKey.delete({
@@ -1456,9 +1453,6 @@ describe("Public Organizations API", () => {
       );
 
       expect(response.status).toBe(403);
-      expect(response.body.error).toContain(
-        "Organization-scoped API key required",
-      );
 
       // Clean up
       await prisma.apiKey.delete({

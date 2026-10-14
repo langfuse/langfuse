@@ -1,6 +1,6 @@
 import { DEFAULT_TOPIC_FACETS, type TopicFacet } from "@langfuse/shared/topics";
 import { describe, expect, it } from "vitest";
-import { __test } from "./TopicModelSettings";
+import { __test } from "./ConfigureTopicsDialogController";
 
 const intentPreset = DEFAULT_TOPIC_FACETS.find(
   (facet) => facet.name === "Intent",

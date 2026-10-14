@@ -1,36 +1,34 @@
-import { useRef, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/design-system/Button/Button";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
-import { env } from "@/src/env.mjs";
-import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import {
-  getEvaluatorBlockMetadata,
-  LLMAdapter,
-  supportedModels,
-} from "@langfuse/shared";
-import {
-  DEFAULT_TOPIC_FACETS,
-  topicsModelSettingsSchema,
-  type TopicFacet,
-  type TopicRule,
-  type TopicsModelSlotName,
-} from "@langfuse/shared/topics";
-import {
-  ConfigureTopicsDialog,
-  type ConfigureTopicsSaveDraft,
-  type TopicSlotCheck,
-} from "./ConfigureTopicsDialog";
-import { topicsSetupPayload } from "./topics-setup";
+import { type TopicFacet, type TopicRule } from "@langfuse/shared/topics";
 import { useAutomaticProcessing } from "./useAutomaticProcessing";
 
 type StoredSettings = RouterOutputs["topics"]["modelSettings"];
-type Connection = RouterOutputs["llmApiKey"]["all"]["data"][number];
-type SlotValue = { llmApiKeyId: string; model: string } | null;
+type Connection = RouterOutputs["llmApiKey"]["effective"]["data"][number];
 
-/** Topics setup: one dialog for models, facets, and which traces to include. */
+export type ConfigureTopicsSettingsInput = {
+  projectId: string;
+  canWrite: boolean;
+  stored: StoredSettings;
+  traceIdleMs: number | null;
+  connections: Connection[];
+  facets: TopicFacet[];
+  rule: TopicRule | null;
+};
+
+export type TopicSetupNoticeState = {
+  unavailable: boolean;
+  status:
+    | { kind: "paused"; message: string }
+    | { kind: "setup" }
+    | { kind: "models" }
+    | null;
+};
+
+/**
+ * Topics setup state. The page wraps itself in `ConfigureTopicsDialogController`
+ * and `AutomaticProcessingDialogController` and wires their `openDialog` into
+ * the header buttons and `TopicSetupNotice`.
+ */
 export function useTopicModelSettings({
   projectId,
   canWrite,
@@ -47,539 +45,64 @@ export function useTopicModelSettings({
     projectId,
   });
   const rules = api.topics.rules.useQuery({ projectId });
-  const connections = api.llmApiKey.all.useQuery({ projectId });
+  const connections = api.llmApiKey.effective.useQuery({ projectId });
   const configured = Boolean(
     settings.data?.summary &&
     settings.data.embedding &&
     settings.data.clustering,
   );
   const rule = rules.data?.length === 1 ? rules.data[0] : null;
-  const dataKey = `${settings.dataUpdatedAt}-${rules.dataUpdatedAt}-${readinessSettings.dataUpdatedAt}`;
-  // Pins the key while Configure is open so a refetch cannot reset unsaved edits.
-  const [openKey, setOpenKey] = useState<string | null>(null);
-  const setConfigureOpen = (open: boolean) => setOpenKey(open ? dataKey : null);
   const automaticProcessing = useAutomaticProcessing({
-    canWrite,
     projectId,
     rule,
     stored: settings.data,
-    traceIdleMs: readinessSettings.data?.traceIdleMs ?? null,
   });
 
-  const unavailable = settings.data && !settings.data.processingAvailable && (
-    <Alert variant="info">
-      <Alert.Title>
-        Topics processing is not enabled for this project
-      </Alert.Title>
-      <Alert.Description>
-        <p>
-          You can configure Topics, but processing traces and automatic
-          processing stay unavailable until Topics is enabled for this project.
-        </p>
-      </Alert.Description>
-    </Alert>
-  );
-  let notice = null;
+  let status: TopicSetupNoticeState["status"] = null;
   if (settings.data?.blockMessage)
-    notice = (
-      <Alert variant="warning">
-        <Alert.Title>Automatic Topics processing is paused</Alert.Title>
-        <Alert.Description>
-          <p className="break-words">{settings.data.blockMessage}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Button
-              text="Turn back on"
-              variant="secondary"
-              size="sm"
-              disabled={!canWrite}
-              onClick={automaticProcessing.openEnable}
-            />
-            <Button
-              text="Keep off"
-              variant="secondary"
-              size="sm"
-              disabled={!canWrite}
-              onClick={automaticProcessing.clearPause}
-            />
-          </div>
-        </Alert.Description>
-      </Alert>
-    );
+    status = { kind: "paused", message: settings.data.blockMessage };
   else if (settings.data && !configured && facetsReady && !facets.length)
-    notice = (
-      <div className="mx-auto w-full max-w-xl pt-12">
-        <SplashScreen
-          title="Find patterns across your traces"
-          description="Topics analyzes each trace along the questions you choose, called facets, and clusters similar answers, so you can see what users ask for, how runs end, and which issues come up along the way."
-          steps={[
-            {
-              title: "Set up Topics",
-              description:
-                "Pick the models Topics runs on and the facets to analyze, such as intent, outcome, and issues.",
-            },
-            {
-              title: "Analyze traces",
-              description:
-                "Topics summarizes new traces automatically, and past traces whenever you process them.",
-            },
-            {
-              title: "Gather insights",
-              description:
-                "Similar summaries are clustered into topics, on demand or continuously, so patterns across your traces show up here.",
-            },
-          ]}
-          primaryAction={{
-            label: "Configure Topics",
-            component: (
-              <Button
-                text="Configure Topics"
-                disabled={!canWrite}
-                onClick={() => setConfigureOpen(true)}
-              />
-            ),
-          }}
-        />
-      </div>
-    );
-  else if (settings.data && !configured)
-    notice = (
-      <Alert variant="info">
-        <Alert.Title>Choose the models Topics runs on</Alert.Title>
-        <Alert.Description>
-          <p>
-            Topics uses your LLM connections for three jobs: facet summaries,
-            embeddings, and topic clustering. Open Configure Topics to set all
-            three.
-          </p>
-        </Alert.Description>
-      </Alert>
-    );
+    status = { kind: "setup" };
+  else if (settings.data && !configured) status = { kind: "models" };
 
-  const ready = Boolean(
+  const configureSettings: ConfigureTopicsSettingsInput | null =
     settings.data &&
     readinessSettings.data &&
     connections.data &&
     rules.isSuccess &&
-    facetsReady,
-  );
-  const action = ready ? (
-    <ConfigureTopicsSettings
-      key={openKey ?? dataKey}
-      projectId={projectId}
-      canWrite={canWrite}
-      stored={settings.data!}
-      traceIdleMs={readinessSettings.data!.traceIdleMs}
-      connections={connections.data!.data}
-      facets={facets}
-      rule={rule}
-      open={openKey !== null}
-      onOpenChange={setConfigureOpen}
-    />
-  ) : (
-    <ConfigureTopicsDialog
-      projectId={projectId}
-      providerGroups={[]}
-      draft={{
-        summary: null,
-        embedding: null,
-        embeddingDimensions: "1024",
-        clustering: null,
-        facets: [],
-        filters: [],
-        idleSeconds: "600",
-        embeddingLocked: false,
-        automaticProcessing: false,
-      }}
-      defaultOpen={false}
-      onConfigureProviders={() => undefined}
-      onSave={() => undefined}
-      canWrite={false}
-      triggerVariant="secondary"
-      notice="none"
-    />
-  );
+    facetsReady
+      ? {
+          projectId,
+          canWrite,
+          stored: settings.data,
+          traceIdleMs: readinessSettings.data.traceIdleMs,
+          connections: connections.data.data,
+          facets,
+          rule,
+        }
+      : null;
 
   return {
-    action,
-    notice: (
-      <>
-        {unavailable}
-        {notice}
-      </>
-    ),
-    automaticProcessing: automaticProcessing.control,
-  };
-}
-
-function ConfigureTopicsSettings({
-  projectId,
-  canWrite,
-  stored,
-  traceIdleMs,
-  connections,
-  facets,
-  rule,
-  open,
-  onOpenChange,
-}: {
-  projectId: string;
-  canWrite: boolean;
-  stored: StoredSettings;
-  traceIdleMs: number | null;
-  connections: Connection[];
-  facets: TopicFacet[];
-  rule: TopicRule | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const utils = api.useUtils();
-  const requests = useRef({ summary: 0, embedding: 0, clustering: 0 });
-  const [checks, setChecks] = useState<
-    Record<TopicsModelSlotName, TopicSlotCheck>
-  >(() => ({
-    summary: stored.summary ? { status: "ok" } : { status: "idle" },
-    embedding: stored.embedding ? { status: "ok" } : { status: "idle" },
-    clustering: stored.clustering ? { status: "ok" } : { status: "idle" },
-  }));
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const test = api.topics.testModelSettings.useMutation();
-  const save = api.topics.saveSetup.useMutation({
-    onSuccess: () => {
-      utils.topics.modelSettings.invalidate({ projectId });
-      utils.topics.facets.invalidate({ projectId });
-      utils.topics.rules.invalidate({ projectId });
-      utils.topics.tracingReadinessSettings.invalidate({ projectId });
+    configure: {
+      settings: configureSettings,
+      triggerVariant:
+        configureSettings && !configured
+          ? ("primary" as const)
+          : ("secondary" as const),
     },
-  });
-  const providerGroups = connections.map<[string, string[]]>((connection) => [
-    connection.provider,
-    modelsFor(connection, "chat"),
-  ]);
-  const embeddingGroups = connections.map<[string, string[]]>((connection) => [
-    connection.provider,
-    modelsFor(
-      connection,
-      "embedding",
-      stored.embedding?.llmApiKeyId === connection.id
-        ? stored.embedding.model
-        : null,
-    ),
-  ]);
-  const draft = {
-    summary: judgeModel(stored.summary, connections),
-    embedding: judgeModel(stored.embedding, connections),
-    embeddingDimensions: String(stored.embeddingDimensions),
-    clustering: judgeModel(stored.clustering, connections),
-    facets: facetDrafts(facets, rule ? new Set(rule.facetIds) : null),
-    filters: [],
-    idleSeconds: String((traceIdleMs ?? 600_000) / 1000),
-    embeddingLocked: false,
-    automaticProcessing: stored.enabled ?? false,
-  };
-  const paused = stored.blockMessage
-    ? {
-        shortLabel: stored.blockReason
-          ? getEvaluatorBlockMetadata(stored.blockReason).shortLabel
-          : "Paused",
-        pausedAgo: stored.blockedAt
-          ? formatDistanceToNow(new Date(stored.blockedAt), { addSuffix: true })
-          : "just now",
-        message: stored.blockMessage,
-      }
-    : null;
-
-  const commitSlot = (
-    slot: TopicsModelSlotName,
-    model: JudgeModel,
-    dimensions: string,
-  ) => {
-    const parsedDimensions =
-      topicsModelSettingsSchema.shape.embeddingDimensions.safeParse(
-        Number(dimensions),
-      );
-    if (slot === "embedding" && !parsedDimensions.success) {
-      setChecks((current) => ({
-        ...current,
-        embedding: {
-          status: "error",
-          message: parsedDimensions.error.issues[0]?.message,
-        },
-      }));
-      return;
-    }
-    const preferred = {
-      summary: stored.summary?.llmApiKeyId,
-      embedding: stored.embedding?.llmApiKeyId,
-      clustering: stored.clustering?.llmApiKeyId,
-    }[slot];
-    const llmApiKeyId = connectionId(
-      model,
-      connections,
-      preferred,
-      slot === "embedding" ? "embedding" : "chat",
-      slot === "embedding" ? stored.embedding?.model : null,
-    );
-    if (!llmApiKeyId) {
-      setChecks((current) => ({
-        ...current,
-        [slot]: {
-          status: "error",
-          message: "Choose a model from a connection in this project.",
-        },
-      }));
-      return;
-    }
-    const request = ++requests.current[slot];
-    setChecks((current) => ({ ...current, [slot]: { status: "testing" } }));
-    const value = { llmApiKeyId, model: model.model };
-    test
-      .mutateAsync({
-        projectId,
-        summary: slot === "summary" ? value : null,
-        embedding: slot === "embedding" ? value : null,
-        embeddingDimensions: parsedDimensions.success
-          ? parsedDimensions.data
-          : stored.embeddingDimensions,
-        clustering: slot === "clustering" ? value : null,
-      })
-      .then((errors) => {
-        if (requests.current[slot] !== request) return;
-        const message = errors[slot];
-        setChecks((current) => ({
-          ...current,
-          [slot]: message ? { status: "error", message } : { status: "ok" },
-        }));
-      })
-      .catch((error: unknown) => {
-        if (requests.current[slot] !== request) return;
-        setChecks((current) => ({
-          ...current,
-          [slot]: {
-            status: "error",
-            message:
-              error instanceof Error ? error.message : "The test call failed.",
-          },
-        }));
-      });
-  };
-
-  const onSave = async (value: ConfigureTopicsSaveDraft) => {
-    setSaveError(null);
-    const parsedDimensions =
-      topicsModelSettingsSchema.shape.embeddingDimensions.safeParse(
-        Number(value.embeddingDimensions),
-      );
-    if (!parsedDimensions.success)
-      throw new Error(
-        parsedDimensions.error.issues[0]?.message ??
-          "Check the embedding dimensions.",
-      );
-    const summary = slotValue(
-      value.summary,
-      connections,
-      stored.summary?.llmApiKeyId,
-      "chat",
-    );
-    const embedding = slotValue(
-      value.embedding,
-      connections,
-      stored.embedding?.llmApiKeyId,
-      "embedding",
-      stored.embedding?.model,
-    );
-    const clustering = slotValue(
-      value.clustering,
-      connections,
-      stored.clustering?.llmApiKeyId,
-      "chat",
-    );
-    if (stored.enabled && (!summary || !embedding || !clustering))
-      throw new Error("Choose a model from a connection in this project.");
-    try {
-      await save.mutateAsync({
-        projectId,
-        ...topicsSetupPayload(value, {
-          summary,
-          embedding,
-          embeddingDimensions: parsedDimensions.data,
-          clustering,
-        }),
-        ruleId: rule?.id,
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Could not save Topics.";
-      setSaveError(message);
-      throw error;
-    }
-  };
-
-  return (
-    <ConfigureTopicsDialog
-      projectId={projectId}
-      providerGroups={providerGroups}
-      embeddingProviderGroups={embeddingGroups}
-      draft={draft}
-      defaultOpen={false}
-      open={open}
-      onOpenChange={onOpenChange}
-      canWrite={canWrite}
-      saving={save.isPending}
-      saveError={saveError}
-      slotChecks={checks}
-      onSlotCommit={commitSlot}
-      onConfigureProviders={() => {
-        window.open(
-          `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/settings/llm-connections`,
-          "_blank",
-          "noopener,noreferrer",
-        );
-      }}
-      onSave={onSave}
-      triggerVariant={configured(stored) ? "secondary" : "primary"}
-      {...(paused
-        ? { notice: "paused" as const, ...paused }
-        : { notice: "none" as const })}
-    />
-  );
-}
-
-function configured(stored: StoredSettings) {
-  return Boolean(stored.summary && stored.embedding && stored.clustering);
-}
-
-const OPENAI_EMBEDDING_MODELS = [
-  "text-embedding-3-small",
-  "text-embedding-3-large",
-  "text-embedding-ada-002",
-];
-
-const GOOGLE_EMBEDDING_MODELS = [
-  "textembedding-gecko",
-  "textembedding-gecko-multilingual",
-];
-
-function embeddingModelsFor(adapter: string) {
-  if (adapter === LLMAdapter.OpenAI || adapter === LLMAdapter.Azure)
-    return OPENAI_EMBEDDING_MODELS;
-  if (adapter === LLMAdapter.GoogleAIStudio || adapter === LLMAdapter.VertexAI)
-    return GOOGLE_EMBEDDING_MODELS;
-  return [];
-}
-
-function modelsFor(
-  connection: Connection,
-  kind: "chat" | "embedding",
-  savedModel?: string | null,
-) {
-  const chat = connection.withDefaultModels
-    ? (supportedModels[connection.adapter as keyof typeof supportedModels] ??
-      [])
-    : [];
-  const embedding =
-    kind === "embedding" && connection.withDefaultModels
-      ? embeddingModelsFor(connection.adapter)
-      : [];
-  return Array.from(
-    new Set(
-      [savedModel, ...embedding, ...connection.customModels, ...chat].filter(
-        (model): model is string => Boolean(model),
-      ),
-    ),
-  );
-}
-
-function judgeModel(
-  slot: SlotValue,
-  connections: Connection[],
-): JudgeModel | null {
-  if (!slot) return null;
-  const connection = connections.find((item) => item.id === slot.llmApiKeyId);
-  return {
-    provider: connection?.provider ?? "Missing connection",
-    model: slot.model,
-  };
-}
-
-function connectionId(
-  model: JudgeModel,
-  connections: Connection[],
-  preferredId: string | undefined,
-  kind: "chat" | "embedding",
-  savedModel?: string | null,
-) {
-  const matches = connections.filter(
-    (connection) =>
-      connection.provider === model.provider &&
-      modelsFor(
-        connection,
-        kind,
-        connection.id === preferredId ? savedModel : null,
-      ).includes(model.model),
-  );
-  return (
-    matches.find((connection) => connection.id === preferredId)?.id ??
-    matches[0]?.id ??
-    null
-  );
-}
-
-function slotValue(
-  model: JudgeModel | null,
-  connections: Connection[],
-  preferredId: string | undefined,
-  kind: "chat" | "embedding",
-  savedModel?: string | null,
-) {
-  if (!model) return null;
-  const llmApiKeyId = connectionId(
-    model,
-    connections,
-    preferredId,
-    kind,
-    savedModel,
-  );
-  return llmApiKeyId ? { llmApiKeyId, model: model.model } : null;
-}
-
-function facetDrafts(
-  facets: TopicFacet[],
-  enabledIds: ReadonlySet<string> | null,
-) {
-  const builtInsByName = new Map(
-    facets
-      .filter((facet) => facet.isBuiltIn)
-      .map((facet) => [facet.name, facet]),
-  );
-  const builtIn = DEFAULT_TOPIC_FACETS.map((preset) => {
-    const existing = builtInsByName.get(preset.name);
-    return {
-      id: existing?.id ?? preset.name,
-      name: preset.name,
-      description: existing?.description || preset.description,
-      question: existing?.versions[0]?.prompt ?? preset.prompt,
-      builtIn: true,
-      enabled: enabledIds
-        ? Boolean(existing && enabledIds.has(existing.id))
-        : true,
-    };
-  });
-  const custom = facets.flatMap((facet) => {
-    if (facet.isBuiltIn) return [];
-    const question = facet.versions[0]?.prompt;
-    if (!question) return [];
-    return [
-      {
-        id: facet.id,
-        name: facet.name,
-        description: facet.description,
-        question,
-        builtIn: false,
-        enabled: enabledIds?.has(facet.id) ?? false,
+    automaticProcessing: {
+      ...automaticProcessing,
+      dialog: {
+        rule,
+        stored: settings.data,
+        traceIdleMs: readinessSettings.data?.traceIdleMs ?? null,
+        save: automaticProcessing.save,
+        saving: automaticProcessing.saving,
       },
-    ];
-  });
-  return [...builtIn, ...custom];
+    },
+    notice: {
+      unavailable: Boolean(settings.data && !settings.data.processingAvailable),
+      status,
+    } satisfies TopicSetupNoticeState,
+  };
 }
-
-export const __test = { facetDrafts };

@@ -20,6 +20,8 @@ import { MediaAssociationOrigin } from "@langfuse/shared";
 
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
+export type OtelMediaPresence = "present" | "absent" | "unknown";
+
 /**
  * Worker integration point for media in normalized OTEL payloads selected for
  * persistence by the ingestion queue.
@@ -53,7 +55,7 @@ export async function processOtelEventMedia(params: {
   mediaPrefix: string;
   inputByteLength?: number;
   processMedia?: typeof processOtelMedia;
-}): Promise<void> {
+}): Promise<OtelMediaPresence | undefined> {
   const {
     targets,
     writePath,
@@ -74,14 +76,14 @@ export async function processOtelEventMedia(params: {
     return;
   }
 
-  if (targets.length === 0) return;
+  if (targets.length === 0) return "absent";
 
+  let mediaPresence: OtelMediaPresence = "unknown";
   try {
     await instrumentAsync(
       { name: "langfuse.ingestion.otel.media.process" },
       async (span) => {
         const startedAt = Date.now();
-        let mediaPresence: "present" | "absent" | "unknown" = "unknown";
         span.setAttributes({
           "langfuse.ingestion.otel.media_path": mediaPath,
         });
@@ -171,6 +173,7 @@ export async function processOtelEventMedia(params: {
         }
       },
     );
+    return mediaPresence;
   } catch (error) {
     if (params.earlyBatch) {
       // Unexpected detector failures must not leave pending references in persisted payloads.
@@ -186,6 +189,7 @@ export async function processOtelEventMedia(params: {
       "OTEL media processing failed; continuing ingestion with original span values",
       { projectId, fileKey, error },
     );
+    return "unknown";
   }
 }
 

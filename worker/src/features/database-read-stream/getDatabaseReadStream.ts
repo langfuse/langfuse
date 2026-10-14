@@ -17,7 +17,7 @@ import {
   getTraceMetadataByIdsFromEvents,
   getPublicSessionsFilter,
   getSessionsWithMetrics,
-  getSessionsWithMetricsFromEvents,
+  getSessionsTableFromEvents,
   getDistinctScoreNames,
   getObservationsTableWithModelData,
   getScoresForObservations,
@@ -360,9 +360,21 @@ export const getDatabaseReadStreamPaginated = async ({
           // same filter (incl. the createdAt cutoff) and clickhouseConfigs, and
           // expose the same field names, so the row mapping below is shared.
           const sessions = useEventsTable
-            ? await getSessionsWithMetricsFromEvents({
+            ? await getSessionsTableFromEvents({
                 projectId: projectId,
                 filter: sessionsFilter,
+                fields: [
+                  "session_id",
+                  "user_ids",
+                  "trace_count",
+                  "duration",
+                  "session_input_cost",
+                  "session_output_cost",
+                  "session_total_cost",
+                  "session_total_usage",
+                  "trace_tags",
+                  "min_timestamp",
+                ],
                 orderBy: orderBy,
                 limit: pageSize,
                 page: Math.floor(offset / pageSize),
@@ -395,7 +407,7 @@ export const getDatabaseReadStreamPaginated = async ({
             const row: BatchExportSessionsRow = {
               id: s.session_id,
               userIds: s.user_ids,
-              countTraces: s.trace_ids.length,
+              countTraces: s.trace_count,
               sessionDuration: Number(s.duration) / 1000,
               inputCost: new Decimal(s.session_input_cost),
               outputCost: new Decimal(s.session_output_cost),
