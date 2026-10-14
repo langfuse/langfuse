@@ -23,8 +23,8 @@ export function EvaluatorGallerySectionHeader({
   if (!sticky) return title;
 
   return (
-    <div className="bg-modal after:from-modal sticky top-0 z-10 -mx-4 -my-2 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-linear-to-b after:to-transparent">
-      <div className="bg-muted/30 px-4 py-2">{title}</div>
+    <div className="bg-surface-sunken after:from-surface-sunken sticky top-0 z-10 -mx-4 -my-2 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-linear-to-b after:to-transparent">
+      <div className="px-4 py-2">{title}</div>
     </div>
   );
 }

@@ -63,10 +63,6 @@
   --shadow-card-hover:
     0 1px 2px 0 rgb(0 0 0 / 0.06), 0 6px 14px -2px rgb(0 0 0 / 0.12);
 
-  /* Prompt input that should read as the main entry point. */
-  --shadow-prompt:
-    0 1px 2px 0 rgb(0 0 0 / 0.04), 0 6px 20px -4px rgb(0 0 0 / 0.1);
-
   --color-primary-accent: hsl(var(--primary-accent));
   --color-primary-accent-fill: var(--primary-accent-fill);
   --color-link: hsl(var(--link));

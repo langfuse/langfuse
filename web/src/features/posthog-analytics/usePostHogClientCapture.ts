@@ -185,6 +185,9 @@ const events = {
     "duplicate_form_submit",
   ],
   session_detail: [
+    "announcement_learn_more_click",
+    "announcement_feedback_click",
+    "announcement_dismiss",
     "publish_button_click",
     "download_button_click",
     "copy_session_id_click",
@@ -227,7 +230,6 @@ const events = {
     "empty_state_template_select",
     "empty_state_browse_library",
     "empty_state_detect_topics",
-    "gallery_build_with_ai",
     "alert_create_clicked",
   ],
   evaluation_rules: [

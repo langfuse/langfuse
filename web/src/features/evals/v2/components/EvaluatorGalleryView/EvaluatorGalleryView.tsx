@@ -3,7 +3,6 @@ import { useCallback, type RefObject } from "react";
 import type { EvalTemplateType } from "@langfuse/shared";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { EvaluatorGalleryAiBox } from "./components/EvaluatorGalleryAiBox/EvaluatorGalleryAiBox";
 import { EvaluatorGalleryStartRow } from "./components/EvaluatorGalleryStartRow/EvaluatorGalleryStartRow";
 import { EvaluatorGallerySection } from "./components/EvaluatorGallerySection/EvaluatorGallerySection";
 import { EvaluatorGallerySidebar } from "./components/EvaluatorGallerySidebar/EvaluatorGallerySidebar";
@@ -52,8 +51,6 @@ export function EvaluatorGalleryView({
   isLoadingMoreProjectTemplates = false,
   onLoadMoreProjectTemplates,
   errorMessage,
-  onBuildWithAi,
-  aiInputRef,
 }: {
   search: string;
   onSearchChange: (search: string) => void;
@@ -72,9 +69,6 @@ export function EvaluatorGalleryView({
   isLoadingMoreProjectTemplates?: boolean;
   onLoadMoreProjectTemplates?: () => void;
   errorMessage?: string;
-  /** Omitted when the in-app assistant is unavailable. */
-  onBuildWithAi?: (prompt: string) => void;
-  aiInputRef?: RefObject<HTMLTextAreaElement | null>;
 }) {
   const sidebarItems = gallerySidebarItems(navigationItems, sections);
   const resolvedSection =
@@ -139,18 +133,12 @@ export function EvaluatorGalleryView({
           <div aria-hidden="true" className="w-56 shrink-0 border-r" />
         )}
 
-        <div className="bg-muted/30 @container flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="bg-surface-sunken @container flex min-w-0 flex-1 flex-col overflow-hidden">
           <div
             ref={scrollContainerRef}
             className="min-h-0 flex-1 overflow-y-auto"
           >
             <div className="flex flex-col gap-10 px-4 py-4">
-              {onBuildWithAi ? (
-                <EvaluatorGalleryAiBox
-                  onSubmit={onBuildWithAi}
-                  textareaRef={aiInputRef}
-                />
-              ) : null}
               {!isSingleSection && !search.trim() ? (
                 <EvaluatorGalleryStartRow
                   onCreateFromScratch={onCreateFromScratch}
