@@ -7,7 +7,6 @@ import { ChartContainer } from "@/src/components/design-system/internal/charts/C
 import {
   CHART_TRANSITION_DURATION,
   INACTIVE_CHART_COLOR_STRENGTH,
-  toChartFill,
 } from "@/src/components/design-system/charts/constants";
 import { CartesianChart } from "@/src/components/design-system/internal/charts/CartesianChart";
 import { CartesianLayout } from "@/src/components/design-system/internal/charts/CartesianLayout";
@@ -59,33 +58,9 @@ export function BarChartCore(
   props: SingleBarChartCoreProps | MultiSeriesBarChartCoreProps,
 ) {
   if (props.layout === "single") {
-    return (
-      <SingleBarChart
-        {...props}
-        color={toChartFill(props.color ?? "hsl(var(--chart-1))")}
-        data={props.data.map((datum) =>
-          datum.color ? { ...datum, color: toChartFill(datum.color) } : datum,
-        )}
-        legend={
-          props.legend && {
-            items: props.legend.items.map((item) => ({
-              ...item,
-              color: toChartFill(item.color),
-            })),
-          }
-        }
-      />
-    );
+    return <SingleBarChart {...props} />;
   }
-  return (
-    <MultiSeriesBarChart
-      {...props}
-      series={props.series.map((item) => ({
-        ...item,
-        color: toChartFill(item.color),
-      }))}
-    />
-  );
+  return <MultiSeriesBarChart {...props} />;
 }
 
 // Shared chart mechanics for categorical bars and histogram bins; the public
@@ -93,7 +68,7 @@ export function BarChartCore(
 function SingleBarChart({
   data,
   valueFormatter = (value) => value.toLocaleString(),
-  color = "hsl(var(--chart-1))",
+  color = "hsl(var(--chart-fill-1))",
   hideXAxisLabels = false,
   zeroBaseline = true,
   ariaLabel = "Bar chart",

@@ -3,7 +3,7 @@ import preview from "../../../../.storybook/preview";
 import { expect, spyOn, userEvent, within } from "storybook/test";
 
 import { ChartTooltip } from "../internal/charts/ChartTooltip";
-import { chartColors, toChartFill } from "./constants";
+import { chartColors, chartFillColors } from "./constants";
 
 type ChartTooltipController = Parameters<
   ComponentProps<typeof ChartTooltip>["children"]
@@ -29,9 +29,7 @@ function ChartTooltipDemo({ data }: ChartTooltipDemoProps) {
             height="120"
             rx="12"
             fill={
-              activeIndex === data.index
-                ? chartColors[0]
-                : toChartFill(chartColors[0])
+              activeIndex === data.index ? chartColors[0] : chartFillColors[0]
             }
             className="outline-hidden focus-visible:outline-2 focus-visible:outline-offset-2"
             role="graphics-symbol"
