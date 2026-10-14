@@ -3,18 +3,23 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { type TopicRule } from "@langfuse/shared/topics";
 import { type RouterOutputs } from "@/src/utils/api";
 import { AutomaticProcessingDialog } from "./AutomaticProcessingDialog";
-import {
-  automaticProcessingState,
-  useSetAutomaticProcessing,
-} from "./useAutomaticProcessing";
+import { automaticProcessingState } from "./useAutomaticProcessing";
 
 type StoredSettings = RouterOutputs["topics"]["modelSettings"];
 
 type AutomaticProcessingSettings = {
-  projectId: string;
   rule: TopicRule | null;
   stored: StoredSettings | undefined;
   traceIdleMs: number | null;
+  /** The write shared with "Keep off", so it outlives a close. */
+  save: (input: { enabled: boolean; sampling: number }) => Promise<unknown>;
+  saving: boolean;
+};
+
+type AutomaticProcessingDialogControllerProps = AutomaticProcessingSettings & {
+  children: (control: {
+    openDialog: (initialEnabled: boolean) => void;
+  }) => ReactNode;
 };
 
 /**
@@ -24,11 +29,7 @@ type AutomaticProcessingSettings = {
 export function AutomaticProcessingDialogController({
   children,
   ...settings
-}: AutomaticProcessingSettings & {
-  children: (control: {
-    openDialog: (initialEnabled: boolean) => void;
-  }) => ReactNode;
-}) {
+}: AutomaticProcessingDialogControllerProps) {
   return (
     <DialogController<boolean>
       renderDialog={({ state, closeDialog }) => (
@@ -47,8 +48,9 @@ export function AutomaticProcessingDialogController({
 function AutomaticProcessingDialogContent({
   closeDialog,
   initialEnabled,
-  projectId,
   rule,
+  save,
+  saving,
   stored,
   traceIdleMs,
 }: AutomaticProcessingSettings & {
@@ -56,16 +58,14 @@ function AutomaticProcessingDialogContent({
   initialEnabled: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
-  const mutation = useSetAutomaticProcessing(projectId);
   const state = automaticProcessingState(stored, rule);
   const paused =
     stored?.blockMessage && state.status === "paused"
       ? { shortLabel: state.shortLabel, message: stored.blockMessage }
       : null;
-  const save = (input: { enabled: boolean; sampling: number }) => {
+  const submit = (input: { enabled: boolean; sampling: number }) => {
     setError(null);
-    mutation
-      .mutateAsync({ projectId, ...input })
+    save(input)
       .then(closeDialog)
       .catch((cause: unknown) =>
         setError(
@@ -87,9 +87,9 @@ function AutomaticProcessingDialogContent({
         clustering: stored?.clustering?.model ?? null,
       }}
       paused={paused}
-      saving={mutation.isPending}
+      saving={saving}
       error={error}
-      onSave={save}
+      onSave={submit}
     />
   );
 }

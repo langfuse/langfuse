@@ -6,8 +6,8 @@ import { type AutomaticProcessingState } from "./AutomaticProcessingControl";
 type StoredSettings = RouterOutputs["topics"]["modelSettings"];
 
 /**
- * Automatic processing status plus the paused notice's "Keep off" action.
- * `AutomaticProcessingDialogController` owns the dialog that turns it on.
+ * Automatic processing status and its single write. The paused notice's
+ * "Keep off" and the dialog's Save share it, so writes never overlap.
  */
 export function useAutomaticProcessing({
   projectId,
@@ -22,11 +22,13 @@ export function useAutomaticProcessing({
   return {
     state: automaticProcessingState(stored, rule),
     clearPause: () => mutation.mutate({ projectId, enabled: false }),
-    clearingPause: mutation.isPending,
+    save: (input: { enabled: boolean; sampling: number }) =>
+      mutation.mutateAsync({ projectId, ...input }),
+    saving: mutation.isPending,
   };
 }
 
-export function useSetAutomaticProcessing(projectId: string) {
+function useSetAutomaticProcessing(projectId: string) {
   const utils = api.useUtils();
   return api.topics.setAutomaticProcessing.useMutation({
     onSuccess: () =>

@@ -38,14 +38,12 @@ import {
   type TopicFacetOutcome,
   type TopicOperation,
 } from "@langfuse/shared/topics";
-import { TopicPipelineDialogController } from "./TopicPipelineForm";
-import {
-  ConfigureTopicsDialogController,
-  TopicSetupNotice,
-  useTopicModelSettings,
-} from "./TopicModelSettings";
+import { useTopicPipelineForm } from "./TopicPipelineForm";
+import { useTopicModelSettings } from "./TopicModelSettings";
 import { AutomaticProcessingControl } from "./AutomaticProcessingControl";
 import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
+import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
+import { TopicSetupNotice } from "./TopicSetupNotice";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsFilters } from "./TopicsFilters";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
@@ -127,13 +125,63 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
   );
 }
 
-function TopicsWorkspaceView({
-  projectId,
-  facets,
-}: {
+type TopicsWorkspaceViewProps = {
   projectId: string;
   facets: UseQueryResult<TopicFacet[], { message: string }>;
-}) {
+};
+
+/**
+ * Wraps the workspace in the dialog controllers whose dialogs open from more
+ * than one place, and hands their `openDialog` to the content.
+ */
+function TopicsWorkspaceView({ projectId, facets }: TopicsWorkspaceViewProps) {
+  const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
+  const modelSettings = useTopicModelSettings({
+    projectId,
+    canWrite,
+    facets: facets.data ?? [],
+    facetsReady: facets.isSuccess,
+  });
+  return (
+    <ConfigureTopicsDialogController
+      projectId={projectId}
+      settings={modelSettings.configure.settings}
+    >
+      {({ openDialog: openConfigure }) => (
+        <AutomaticProcessingDialogController
+          {...modelSettings.automaticProcessing.dialog}
+        >
+          {({ openDialog: openAutomaticProcessing }) => (
+            <TopicsWorkspaceContent
+              projectId={projectId}
+              facets={facets}
+              canWrite={canWrite}
+              modelSettings={modelSettings}
+              openConfigure={openConfigure}
+              openAutomaticProcessing={openAutomaticProcessing}
+            />
+          )}
+        </AutomaticProcessingDialogController>
+      )}
+    </ConfigureTopicsDialogController>
+  );
+}
+
+type TopicsWorkspaceContentProps = TopicsWorkspaceViewProps & {
+  canWrite: boolean;
+  modelSettings: ReturnType<typeof useTopicModelSettings>;
+  openConfigure: () => void;
+  openAutomaticProcessing: (initialEnabled: boolean) => void;
+};
+
+function TopicsWorkspaceContent({
+  projectId,
+  facets,
+  canWrite,
+  modelSettings,
+  openConfigure,
+  openAutomaticProcessing,
+}: TopicsWorkspaceContentProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const { timeRange, setTimeRange } = useGlobalDateRange({
     allowedRanges: sharedTimeRangePresets,
@@ -149,7 +197,6 @@ function TopicsWorkspaceView({
   });
   const router = useRouter();
   const utils = api.useUtils();
-  const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
   const executions = api.topics.executions.useQuery(
     { projectId },
     {
@@ -252,26 +299,65 @@ function TopicsWorkspaceView({
   function openHistory() {
     setHistoryOpen(true);
   }
-  const modelSettings = useTopicModelSettings({
+  const { primaryAction, triggerAction, configuration } = useTopicPipelineForm({
     projectId,
-    canWrite,
     facets: facets.data ?? [],
-    facetsReady: facets.isSuccess,
+    canWrite,
+    onTriggered: openExecution,
+    timeRange: validTimeRange ? currentTimeRange : null,
   });
   const automaticProcessing = modelSettings.automaticProcessing;
-  const renderPage = ({
-    openConfigure,
-    openAutomaticProcessing,
-    triggerAction,
-  }: {
-    openConfigure: () => void;
-    openAutomaticProcessing: (initialEnabled: boolean) => void;
-    triggerAction: {
-      label: string;
-      disabled: boolean;
-      onSelect: () => void;
-    } | null;
-  }) => (
+  function openAutomaticProcessingFromHeader() {
+    openAutomaticProcessing(automaticProcessing.state.status === "on");
+  }
+  function turnAutomaticProcessingBackOn() {
+    openAutomaticProcessing(true);
+  }
+  const actions = (
+    <div className="ph-no-capture flex items-center justify-end gap-1">
+      <AutomaticProcessingControl
+        state={automaticProcessing.state}
+        canWrite={canWrite && !automaticProcessing.saving}
+        onOpen={openAutomaticProcessingFromHeader}
+      />
+      <Button
+        text="Configure Topics"
+        variant={modelSettings.configure.triggerVariant}
+        size="sm"
+        disabled={!modelSettings.configure.settings}
+        onClick={openConfigure}
+      />
+      {primaryAction}
+      <DropdownMenu
+        ariaLabel="Topics actions"
+        placement="bottom-end"
+        items={[
+          {
+            id: "history",
+            type: "item",
+            title: "History",
+            onClick: openHistory,
+          },
+          {
+            id: "refresh",
+            type: "item",
+            title: "Refresh results",
+            onClick: refreshResults,
+          },
+        ]}
+      >
+        {({ getTriggerProps }) => (
+          <IconButton
+            {...getTriggerProps()}
+            icon={MoreHorizontal}
+            label="Topics actions"
+            size="sm"
+          />
+        )}
+      </DropdownMenu>
+    </div>
+  );
+  return (
     <Page
       headerProps={{
         title: "Topics",
@@ -279,61 +365,7 @@ function TopicsWorkspaceView({
           description:
             "Explore recurring themes across traces, one facet at a time.",
         },
-        actionButtonsRight: (
-          <div className="ph-no-capture flex items-center justify-end gap-1">
-            <AutomaticProcessingControl
-              state={automaticProcessing.state}
-              canWrite={canWrite && !automaticProcessing.clearingPause}
-              onOpen={() =>
-                openAutomaticProcessing(
-                  automaticProcessing.state.status === "on",
-                )
-              }
-            />
-            <Button
-              text="Configure Topics"
-              variant={modelSettings.configure.triggerVariant}
-              size="sm"
-              disabled={!modelSettings.configure.settings}
-              onClick={openConfigure}
-            />
-            {triggerAction ? (
-              <Button
-                text={triggerAction.label}
-                size="sm"
-                disabled={triggerAction.disabled}
-                onClick={triggerAction.onSelect}
-              />
-            ) : null}
-            <DropdownMenu
-              ariaLabel="Topics actions"
-              placement="bottom-end"
-              items={[
-                {
-                  id: "history",
-                  type: "item",
-                  title: "History",
-                  onClick: openHistory,
-                },
-                {
-                  id: "refresh",
-                  type: "item",
-                  title: "Refresh results",
-                  onClick: refreshResults,
-                },
-              ]}
-            >
-              {({ getTriggerProps }) => (
-                <IconButton
-                  {...getTriggerProps()}
-                  icon={MoreHorizontal}
-                  label="Topics actions"
-                  size="sm"
-                />
-              )}
-            </DropdownMenu>
-          </div>
-        ),
+        actionButtonsRight: actions,
         actionButtonsMenu: ({ closeMenu }) => (
           <TopicsActionsMenu
             triggerAction={triggerAction}
@@ -372,8 +404,9 @@ function TopicsWorkspaceView({
           canConfigure={modelSettings.configure.settings !== null}
           onConfigure={openConfigure}
           onKeepOff={automaticProcessing.clearPause}
-          onTurnBackOn={() => openAutomaticProcessing(true)}
+          onTurnBackOn={turnAutomaticProcessingBackOn}
         />
+        {configuration}
         <Sheet
           open={historyOpen || executionId !== null}
           onOpenChange={showExecutionList}
@@ -473,33 +506,6 @@ function TopicsWorkspaceView({
         </div>
       </div>
     </Page>
-  );
-  return (
-    <ConfigureTopicsDialogController
-      settings={modelSettings.configure.settings}
-    >
-      {({ openDialog: openConfigure }) => (
-        <AutomaticProcessingDialogController {...automaticProcessing.dialog}>
-          {({ openDialog: openAutomaticProcessing }) => (
-            <TopicPipelineDialogController
-              projectId={projectId}
-              facets={facets.data ?? []}
-              canWrite={canWrite}
-              onTriggered={openExecution}
-              timeRange={validTimeRange ? currentTimeRange : null}
-            >
-              {({ triggerAction }) =>
-                renderPage({
-                  openConfigure,
-                  openAutomaticProcessing,
-                  triggerAction,
-                })
-              }
-            </TopicPipelineDialogController>
-          )}
-        </AutomaticProcessingDialogController>
-      )}
-    </ConfigureTopicsDialogController>
   );
 }
 

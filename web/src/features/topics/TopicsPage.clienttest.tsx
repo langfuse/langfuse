@@ -61,14 +61,13 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
   default: () => true,
 }));
 vi.mock("./TopicPipelineForm", () => ({
-  TopicPipelineDialogController: ({
-    children,
-    ...input
-  }: {
-    children: (control: { triggerAction: null }) => ReactNode;
-  }) => {
+  useTopicPipelineForm: (input: unknown) => {
     state.pipeline(input);
-    return children({ triggerAction: null });
+    return {
+      primaryAction: null,
+      triggerAction: null,
+      configuration: null,
+    };
   },
 }));
 vi.mock("./TopicModelSettings", () => ({
@@ -77,17 +76,19 @@ vi.mock("./TopicModelSettings", () => ({
     automaticProcessing: {
       state: { status: "unconfigured" },
       clearPause: vi.fn(),
-      clearingPause: false,
+      saving: false,
       dialog: {},
     },
     notice: { unavailable: false, status: null },
   }),
+}));
+vi.mock("./TopicSetupNotice", () => ({ TopicSetupNotice: () => null }));
+vi.mock("./ConfigureTopicsDialogController", () => ({
   ConfigureTopicsDialogController: ({
     children,
   }: {
     children: (control: { openDialog: () => void }) => ReactNode;
   }) => children({ openDialog: vi.fn() }),
-  TopicSetupNotice: () => null,
 }));
 vi.mock("./AutomaticProcessingDialogController", () => ({
   AutomaticProcessingDialogController: ({
