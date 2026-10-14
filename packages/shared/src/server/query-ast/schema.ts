@@ -13,6 +13,8 @@
  *  - `DEDUP_SPECS` — the per-table read idiom the lowering pass applies
  *    (`dedup.ts`). Each table names an existing production mechanism; the
  *    pass does not invent a new one.
+ *  - `SOFT_DELETE_COLUMNS` — the flag column the soft-delete pass filters to
+ *    `0` (`softDelete.ts`).
  *
  * Deriving every view from one declaration keeps them from drifting apart.
  *
@@ -123,11 +125,18 @@ function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
    * migrated; `none` is an explicit "do not collapse" (immutable rows).
    */
   dedup?: DedupSpec;
+  /**
+   * Column that marks a soft-deleted row. The soft-delete pass injects
+   * `<column> = 0` on every read of this table unless the select opts out
+   * with `includeDeleted()`.
+   */
+  softDelete?: keyof Cols & string;
 }) {
   return {
     columns: spec.columns,
     tenant: spec.tenant ?? true,
     dedup: spec.dedup,
+    softDelete: spec.softDelete,
   };
 }
 
@@ -235,6 +244,7 @@ const TABLE_REGISTRY = {
     columns: EVENTS_COLUMNS,
     // Immutable at read time. Do not inject LIMIT BY or FINAL.
     dedup: { strategy: "none" },
+    softDelete: "is_deleted",
   }),
   // Same projection as events_core with full I/O. Tenanted and immutable
   // for the same reasons; selected when a point-read needs untruncated
@@ -242,6 +252,7 @@ const TABLE_REGISTRY = {
   events_full: defineTable({
     columns: EVENTS_COLUMNS,
     dedup: { strategy: "none" },
+    softDelete: "is_deleted",
   }),
   scores: defineTable({
     columns: {
@@ -309,6 +320,13 @@ export const TENANTED_TABLES = new Set<string>(
 export const DEDUP_SPECS: Record<string, DedupSpec> = Object.fromEntries(
   Object.entries(TABLE_REGISTRY).flatMap(([name, spec]) =>
     spec.dedup ? [[name, spec.dedup]] : [],
+  ),
+);
+
+/** Derived soft-delete flag column, keyed by table name. */
+export const SOFT_DELETE_COLUMNS: Record<string, string> = Object.fromEntries(
+  Object.entries(TABLE_REGISTRY).flatMap(([name, spec]) =>
+    spec.softDelete ? [[name, spec.softDelete]] : [],
   ),
 );
 
