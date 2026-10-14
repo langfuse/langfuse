@@ -1,5 +1,3 @@
-import { fn } from "storybook/test";
-
 import preview from "@/.storybook/preview";
 import { ConnectedGatewayModelsTable } from "./ConnectedGatewayModelsTable";
 
@@ -38,6 +36,5 @@ export const Default = meta.story({
     hasSynced: true,
     isLoading: false,
     syncError: false,
-    onSync: fn(),
   },
 });

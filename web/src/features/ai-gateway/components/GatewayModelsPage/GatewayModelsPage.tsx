@@ -4,7 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ConnectedGatewayModelsTable } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayModelsTable/ConnectedGatewayModelsTable";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
-import { api, reportNonTrpcError } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
 import { aggregateModels } from "./aggregateModels";
 
 export function GatewayModelsPage({
@@ -12,7 +12,6 @@ export function GatewayModelsPage({
 }: {
   organizationId: string;
 }) {
-  const utils = api.useUtils();
   const canManageGateway = useHasOrganizationAccess({
     organizationId,
     scope: "gateway:manage",
@@ -24,12 +23,6 @@ export function GatewayModelsPage({
     { orgId: organizationId },
     { enabled: connectionsQuery.isSuccess },
   );
-  const syncModelsMutation = api.aiGateway.syncModels.useMutation({
-    onSuccess: (data) => {
-      utils.aiGateway.refreshModels.setData({ orgId: organizationId }, data);
-    },
-  });
-
   if (connectionsQuery.isPending) {
     return <ModelsSkeleton />;
   }
@@ -43,12 +36,6 @@ export function GatewayModelsPage({
   const rows = results ? aggregateModels(results, connections) : [];
   const failedResults = results?.filter((result) => !result.success) ?? [];
 
-  const sync = () =>
-    syncModelsMutation
-      .mutateAsync({ orgId: organizationId })
-      .then(() => undefined)
-      .catch((error) => reportNonTrpcError(error, "ai-gateway-models"));
-
   return (
     <ConnectedGatewayModelsTable
       models={rows}
@@ -58,13 +45,8 @@ export function GatewayModelsPage({
       providerCount={results?.length ?? connections.length}
       hasProviders={connections.length > 0}
       hasSynced={results !== null}
-      isLoading={
-        modelsQuery.isPending ||
-        modelsQuery.isFetching ||
-        syncModelsMutation.isPending
-      }
-      syncError={modelsQuery.isError || syncModelsMutation.isError}
-      onSync={sync}
+      isLoading={modelsQuery.isPending || modelsQuery.isFetching}
+      syncError={modelsQuery.isError}
     />
   );
 }

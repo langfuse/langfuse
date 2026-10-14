@@ -1,12 +1,10 @@
 import { useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
 
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { Button } from "@/src/components/ui/button";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import {
@@ -27,7 +25,6 @@ export function ConnectedGatewayModelsTable({
   hasSynced,
   isLoading,
   syncError,
-  onSync,
 }: {
   models: GatewayModelRow[];
   organizationId: string;
@@ -38,7 +35,6 @@ export function ConnectedGatewayModelsTable({
   hasSynced: boolean;
   isLoading: boolean;
   syncError: boolean;
-  onSync: () => void | Promise<void>;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [provider, setProvider] = useState<GatewayProvider | "all">(
@@ -87,17 +83,7 @@ export function ConnectedGatewayModelsTable({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <Header
-        title="Gateway models"
-        actionButtons={
-          canManageGateway ? (
-            <Button variant="secondary" loading={isLoading} onClick={onSync}>
-              <RefreshCw className="icon-base mr-1.5" />
-              {hasSynced ? "Retry sync" : "Sync models"}
-            </Button>
-          ) : undefined
-        }
-      />
+      <Header title="Gateway models" />
       <p className="text-muted-foreground text-sm">
         Models are discovered from enabled provider credentials and cached for
         up to five minutes.
@@ -117,7 +103,7 @@ export function ConnectedGatewayModelsTable({
         <Alert variant="destructive">
           <Alert.Title>Model sync failed</Alert.Title>
           <Alert.Description>
-            No provider results were returned. Retry the sync.
+            No provider results were returned.
           </Alert.Description>
         </Alert>
       ) : null}
@@ -195,5 +181,5 @@ function getEmptyMessage({
   if (!hasProviders)
     return "Add a provider credential before discovering models.";
   if (hasSynced) return "No models were returned by the configured providers.";
-  return "Sync models to discover what is currently available.";
+  return "Models will appear here after provider discovery completes.";
 }
