@@ -127,20 +127,6 @@ FROM traces;
 -- time it is ingested. A unit is billed in a 15-minute window of ingested_at
 -- when its id appears there and not in the 24 hours before the window starts
 -- (getBillableUnitCountsByProjectInWindow).
---
--- The table is append-only: no TTL, and no delete path (trace or project
--- deletion, retention, batch cleaners) touches it, so deleting data never
--- reduces billed usage.
---
--- PROD ROLLOUT: Cloud-only and not migration-managed. Apply the table and its
--- three MVs manually in every cloud region (eu, us, hipaa, jp) and record them
--- in the migrations doc
--- (https://docs.google.com/document/d/1bvz3FUFn3T4rfJ_U1qIh36FcJGfUVQwdAIOAHa3wPnA).
--- Never run this script against Cloud: the seed block below truncates
--- events_full and events_core. The sort key cannot change once rolled out.
--- Add columns with ALTER TABLE ... ADD COLUMN and change an MV with
--- ALTER TABLE ... MODIFY QUERY; dropping and recreating an MV loses the rows
--- inserted in between.
 CREATE TABLE IF NOT EXISTS billable_events (
     ingested_at DateTime('UTC') DEFAULT now(),
     project_id String,
@@ -169,7 +155,10 @@ SELECT
     event_bytes
 FROM events_full
 WHERE is_deleted = 0
-  AND span_id != concat('t-', trace_id)
+  AND (
+    span_id != concat('t-', trace_id)
+    AND source NOT LIKE '%-dual-write'
+  )
   AND created_at >= now() - INTERVAL 48 HOUR;
 
 -- MV: events_full -> billable_events (traces), one row per trace per insert
@@ -190,8 +179,7 @@ WHERE is_deleted = 0
   AND created_at >= now() - INTERVAL 48 HOUR
 GROUP BY project_id, trace_id;
 
--- MV: scores -> billable_events. Every score data type is billable,
--- CORRECTION included.
+-- MV: scores -> billable_events.
 CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_scores_mv
 TO billable_events AS
 SELECT
