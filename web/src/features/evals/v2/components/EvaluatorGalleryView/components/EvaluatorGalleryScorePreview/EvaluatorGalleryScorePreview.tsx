@@ -28,7 +28,7 @@ export function EvaluatorGalleryScorePreview({
     <div
       aria-hidden="true"
       className={cn(
-        "preview-mesh flex h-20 items-center justify-center gap-1 overflow-hidden rounded-md px-3",
+        "preview-mesh flex h-20 items-center justify-center gap-1 overflow-hidden rounded-sm px-3",
         MESH_TINT[type],
       )}
     >
