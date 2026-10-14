@@ -141,12 +141,6 @@ const viewFilterDefinitions: Record<
       sourceSpec("Skill Name", { uiTableId: "skillName" }),
     ),
     defineField(
-      "availableSkillIds",
-      sourceSpec("Skill Version IDs (Available)", {
-        uiTableId: "availableSkillIds",
-      }),
-    ),
-    defineField(
       "toolNames",
       sourceSpec("Tool Names (Available)", { uiTableId: "toolNames" }),
       sourceSpec("Tool Names (Available)", {

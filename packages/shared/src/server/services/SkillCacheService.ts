@@ -1,4 +1,3 @@
-import { randomBytes } from "crypto";
 import type { Redis, Cluster } from "ioredis";
 import type { PrismaClient, Skill } from "../../db";
 import { env } from "../../env";
@@ -9,7 +8,6 @@ type SkillReference = Pick<Skill, "id" | "name" | "version">;
 
 export class SkillCacheService {
   private readonly cacheEnabled: boolean;
-  private readonly epochTtlSeconds = 7 * 24 * 60 * 60;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -33,17 +31,14 @@ export class SkillCacheService {
     versions = Array.from(unique.values());
     if (versions.length === 0) return [];
 
-    let epoch: string | null = null;
     let cachedIds: (string | null)[] = [];
     if (this.cacheEnabled && this.redis) {
       try {
-        epoch = await this.getOrCreateEpoch(projectId);
         const keys = versions.map((version) =>
-          this.getCacheKey(projectId, epoch!, version),
+          this.getCacheKey(projectId, version),
         );
         cachedIds = await this.redis.mget(...keys);
       } catch (error) {
-        epoch = null;
         logger.error("[SkillCacheService] Error reading cache", error);
       }
     }
@@ -56,13 +51,12 @@ export class SkillCacheService {
         })
       : [];
 
-    if (epoch && this.redis && fetched.length) {
+    if (this.cacheEnabled && this.redis && fetched.length) {
       try {
-        // Keep the epoch captured before the DB query; mutations may rotate it.
         const pipeline = this.redis.pipeline();
         for (const skill of fetched) {
           pipeline.set(
-            this.getCacheKey(projectId, epoch, skill),
+            this.getCacheKey(projectId, skill),
             skill.id,
             "EX",
             env.LANGFUSE_CACHE_SKILL_TTL_SECONDS,
@@ -83,39 +77,28 @@ export class SkillCacheService {
     return cached.concat(fetched);
   }
 
-  async invalidateCache({ projectId }: { projectId: string }): Promise<void> {
-    if (!this.cacheEnabled || !this.redis) return;
+  async invalidateCache({
+    projectId,
+    versions,
+  }: {
+    projectId: string;
+    versions: SkillVersion[];
+  }): Promise<void> {
+    if (!this.cacheEnabled || !this.redis || versions.length === 0) return;
     try {
-      await this.redis.set(
-        this.getEpochKey(projectId),
-        randomBytes(6).toString("base64url"),
-        "EX",
-        this.epochTtlSeconds,
+      await this.redis.del(
+        ...versions.map((version) => this.getCacheKey(projectId, version)),
       );
     } catch (error) {
       logger.error("[SkillCacheService] Error invalidating cache", error);
     }
   }
 
-  private getEpochKey(projectId: string): string {
-    return `skill_reference_epoch:{${encodeURIComponent(projectId)}}`;
-  }
-
   private getCacheKey(
     projectId: string,
-    epoch: string,
     { name, version }: SkillVersion,
   ): string {
     // A project hash tag keeps batch reads and writes in one Redis Cluster slot.
-    return `skill_reference:{${encodeURIComponent(projectId)}}:${epoch}:${encodeURIComponent(name)}:version:${version}`;
-  }
-
-  private async getOrCreateEpoch(projectId: string): Promise<string> {
-    const key = this.getEpochKey(projectId);
-    const current = await this.redis!.get(key);
-    if (current) return current;
-    const epoch = randomBytes(6).toString("base64url");
-    await this.redis!.set(key, epoch, "EX", this.epochTtlSeconds, "NX");
-    return (await this.redis!.get(key)) ?? epoch;
+    return `skill_reference:{${encodeURIComponent(projectId)}}:${encodeURIComponent(name)}:version:${version}`;
   }
 }

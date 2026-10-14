@@ -147,7 +147,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(3600),
+    .default(3600), // 1h
   CLICKHOUSE_URL: z.url(),
   CLICKHOUSE_READ_ONLY_URL: z.url().optional(),
   CLICKHOUSE_EVENTS_READ_ONLY_URL: z.url().optional(),

@@ -1387,14 +1387,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "skillName",
       type: "arrayString",
       explodeArray: true,
-      description: "Names of skills made available or loaded, across versions.",
-    },
-    availableSkillIds: {
-      sql: "arrayDistinct(events_observations.skills_available.langfuseSkillId)",
-      alias: "availableSkillIds",
-      type: "arrayString",
-      description:
-        "Managed skill version IDs made available to the generation.",
+      description: "Names of skills made available or loaded.",
     },
     toolNames: {
       sql: "mapKeys(events_observations.tool_definitions)",
