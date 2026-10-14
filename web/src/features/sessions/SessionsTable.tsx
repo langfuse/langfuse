@@ -7,7 +7,7 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createLinkListTableColumn } from "@/src/components/design-system/table/columns/createLinkListTableColumn";
@@ -609,7 +609,7 @@ export default function SessionsTable({
       },
       enableSorting: true,
     }),
-    createBadgeTableColumn<SessionTableRow>({
+    createTagTableColumn<SessionTableRow>({
       accessorKey: "environment",
       header: "Environment",
       size: 150,

@@ -56,7 +56,7 @@ import {
 } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -1564,7 +1564,7 @@ export default function ObservationsEventsTable({
           : undefined;
       },
     }),
-    createBadgeTableColumn<EventsTableRow>({
+    createTagTableColumn<EventsTableRow>({
       accessorKey: "environment",
       header: getEventsColumnName("environment"),
       size: 150,

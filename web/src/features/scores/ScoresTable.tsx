@@ -16,7 +16,7 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
@@ -726,7 +726,7 @@ export default function ScoresTable({
       getCell: (value) => value || undefined,
       singleLine: compactRows,
     }),
-    createBadgeTableColumn<ScoresTableRow>({
+    createTagTableColumn<ScoresTableRow>({
       accessorKey: "environment",
       header: "Environment",
       size: 150,

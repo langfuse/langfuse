@@ -87,7 +87,7 @@ import {
 } from "@/src/features/traces";
 import { InfoIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -1022,7 +1022,7 @@ export default function ObservationsTable({
           : undefined;
       },
     }),
-    createBadgeTableColumn<ObservationsTableRow>({
+    createTagTableColumn<ObservationsTableRow>({
       accessorKey: "environment",
       header: "Environment",
       size: 150,
