@@ -13,7 +13,8 @@ import type { GatewayConnectionModelRow } from "@/src/features/ai-gateway/compon
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
+const DEFAULT_PAGE_SIZE = 50;
 
 export type GatewayConnectionModelsTableProps = {
   models: string[];
@@ -37,7 +38,10 @@ export function GatewayConnectionModelsTable({
   onSetEnabled,
 }: GatewayConnectionModelsTableProps) {
   const [search, setSearch] = useState("");
-  const [pageIndex, setPageIndex] = useState(0);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+  });
   const [orderBy, setOrderBy] = useState<OrderByState>({
     column: "name",
     order: "ASC",
@@ -73,7 +77,7 @@ export function GatewayConnectionModelsTable({
         isFlexWidth: true,
         enableSorting: true,
         cell: ({ row }) => (
-          <span className="block truncate font-bold" title={row.original.id}>
+          <span className="block truncate" title={row.original.id}>
             {row.original.id}
           </span>
         ),
@@ -120,30 +124,32 @@ export function GatewayConnectionModelsTable({
   const filteredModelIds = filteredModels.map((model) => model.id);
   const lastPageIndex = Math.max(
     0,
-    Math.ceil(sortedModels.length / PAGE_SIZE) - 1,
+    Math.ceil(sortedModels.length / pagination.pageSize) - 1,
   );
-  const visiblePageIndex = Math.min(pageIndex, lastPageIndex);
+  const visiblePageIndex = Math.min(pagination.pageIndex, lastPageIndex);
   const rows = sortedModels.slice(
-    visiblePageIndex * PAGE_SIZE,
-    (visiblePageIndex + 1) * PAGE_SIZE,
+    visiblePageIndex * pagination.pageSize,
+    (visiblePageIndex + 1) * pagination.pageSize,
   );
   const pageModelIds = rows.map((model) => model.id);
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
-    setPageIndex(0);
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
     selectionStore.getState().actions.clearSelection();
   };
   const handlePaginationChange: OnChangeFn<PaginationState> = (updater) => {
+    const currentState = {
+      ...pagination,
+      pageIndex: visiblePageIndex,
+    };
     const nextState =
-      typeof updater === "function"
-        ? updater({ pageIndex: visiblePageIndex, pageSize: PAGE_SIZE })
-        : updater;
-    setPageIndex(nextState.pageIndex);
+      typeof updater === "function" ? updater(currentState) : updater;
+    setPagination(nextState);
   };
   const handleOrderByChange = (nextOrderBy: OrderByState) => {
     setOrderBy(nextOrderBy);
-    setPageIndex(0);
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
   };
 
   return (
@@ -155,7 +161,7 @@ export function GatewayConnectionModelsTable({
           isSaving={isSaving}
           pageIndex={visiblePageIndex}
           pageModelIds={pageModelIds}
-          pageSize={PAGE_SIZE}
+          pageSize={pagination.pageSize}
           search={search}
           selectionStore={selectionStore}
           onEnableAll={onEnableAll}
@@ -168,9 +174,12 @@ export function GatewayConnectionModelsTable({
           data={{ isLoading: false, isError: false, data: rows }}
           pagination={{
             totalCount: sortedModels.length,
-            state: { pageIndex: visiblePageIndex, pageSize: PAGE_SIZE },
+            state: {
+              pageIndex: visiblePageIndex,
+              pageSize: pagination.pageSize,
+            },
             onChange: handlePaginationChange,
-            options: [PAGE_SIZE],
+            options: PAGE_SIZE_OPTIONS,
           }}
           selectionStore={selectionStore}
           rowHeight="s"
