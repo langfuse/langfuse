@@ -9,7 +9,7 @@ describe("prepareEvaluatorEmptyState", () => {
     expect(emptyState.startingPoints.map(({ key }) => key)).toEqual([
       "topic-decision-model",
       "correctness",
-      "user-disagreement",
+      "frustration-decision-model",
     ]);
   });
 });

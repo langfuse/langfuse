@@ -5,5 +5,5 @@ export const EVALUATOR_EMPTY_STATE_DOCS_HREF =
 export const EVALUATOR_EMPTY_STATE_TEMPLATE_KEYS = [
   "topic-decision-model",
   "correctness",
-  "user-disagreement",
+  "frustration-decision-model",
 ] as const;

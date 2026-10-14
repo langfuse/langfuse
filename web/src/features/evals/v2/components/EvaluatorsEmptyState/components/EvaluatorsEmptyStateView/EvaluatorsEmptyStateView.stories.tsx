@@ -28,7 +28,7 @@ export const SelectsAStartingPoint = meta.story({
   },
   play: async ({ canvas, args }) => {
     await userEvent.click(
-      canvas.getByRole("button", { name: /Detect User Disagreement/ }),
+      canvas.getByRole("button", { name: /Rate Customer Frustration/ }),
     );
     await expect(args.onSelectTemplate).toHaveBeenCalledWith(startingPoints[2]);
   },
