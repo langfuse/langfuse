@@ -122,7 +122,7 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT DISTINCT environment
       FROM events_core
-      WHERE (project_id = {p1:String}) AND (start_time >= {p2:DateTime64(3)})
+      WHERE (project_id = {p1:String}) AND (start_time >= {p2:DateTime64(6)})
     `,
     build: () =>
       db()
@@ -392,7 +392,7 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT DISTINCT environment
       FROM events_core
-      WHERE (project_id = {p1:String}) AND (start_time >= {p2:DateTime64(3)})
+      WHERE (project_id = {p1:String}) AND (start_time >= {p2:DateTime64(6)})
     `,
     build: () =>
       environmentsVariant({ writeMode: "events", fromTimestamp: FROM_TS }),
