@@ -428,11 +428,13 @@ export function WidgetContent({
         isLoading={queryResult.isPending || isExternalLoading}
         metricFormatter={chartPresentation?.metricFormatter}
         missingValue={getWidgetMissingBucketValue(metrics[0]?.agg ?? "count")}
-        breakdownAggregateValue={getDimensionAggregateValue(
+        breakdownAggregateValue={getDimensionAggregateValue({
           view,
-          dimensions[0]?.field,
           version,
-        )}
+          dimension: dimensions[0]?.field,
+          measure: metrics[0]?.measure,
+          aggregation: metrics[0]?.agg,
+        })}
         hideXAxisLabels={hideXAxisLabels}
         colorBarsByCategory={colorBarsByCategory}
         legendPosition={legendPosition}

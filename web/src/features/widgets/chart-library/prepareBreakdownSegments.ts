@@ -1,4 +1,8 @@
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  groupDataByTimeDimension,
+  timeBucketKey,
+} from "@/src/features/widgets/chart-library/utils";
 
 /**
  * How far an aggregate may exceed the components it sums before the difference
@@ -52,31 +56,34 @@ export function prepareBreakdownSegments(
   aggregateValue: string | undefined,
 ): DataPoint[] {
   if (aggregateValue === undefined) return data;
+  if (!data.some((point) => point.dimension === aggregateValue)) return data;
 
-  // Bucket -> the value its components account for. A bucket is absent from the
-  // map when it has no component carrying a value, which is what distinguishes
-  // "nothing to subtract" from "subtract zero".
-  const attributed = new Map<string | undefined, number>();
-  let hasAggregate = false;
+  // Bucket -> the value its components account for, grouped by the chart
+  // library's own bucketing so a point is matched with its components by
+  // exactly the rule the visualiser draws them by — including the shared bucket
+  // every point of a non-time-series chart falls into, and the dimension-less
+  // bucket markers it leaves out. A bucket is absent from the map when nothing
+  // in it carries a value, which is what separates "nothing to subtract" from
+  // "subtract zero".
+  const attributed = new Map<string, number>();
 
-  for (const point of data) {
-    if (point.dimension === aggregateValue) {
-      hasAggregate = true;
-      continue;
+  for (const row of groupDataByTimeDimension(data)) {
+    let accountedFor = 0;
+    let hasComponent = false;
+
+    for (const [dimension, value] of Object.entries(row)) {
+      if (dimension === "time_dimension" || dimension === aggregateValue) {
+        continue;
+      }
+      if (typeof value !== "number" || !Number.isFinite(value)) continue;
+      accountedFor += value;
+      hasComponent = true;
     }
-    // A point with no dimension is a bucket marker, not a component: it keeps an
-    // empty bucket on the time axis without contributing to the stack.
-    if (!point.dimension) continue;
-    if (typeof point.metric !== "number" || !Number.isFinite(point.metric)) {
-      continue;
-    }
-    attributed.set(
-      point.time_dimension,
-      (attributed.get(point.time_dimension) ?? 0) + point.metric,
-    );
+
+    if (hasComponent) attributed.set(row.time_dimension, accountedFor);
   }
 
-  if (!hasAggregate || attributed.size === 0) return data;
+  if (attributed.size === 0) return data;
 
   let reduced = false;
   const segments: DataPoint[] = [];
@@ -91,7 +98,7 @@ export function prepareBreakdownSegments(
       continue;
     }
 
-    const accountedFor = attributed.get(point.time_dimension);
+    const accountedFor = attributed.get(timeBucketKey(point));
     if (accountedFor === undefined) {
       segments.push(point);
       continue;

@@ -716,6 +716,7 @@ export function WidgetForm({
             <p role="alert" className="text-destructive text-xs">
               {saveDisabledReason}
             </p>
+          )}
           <Button
             className="w-full"
             size="lg"
