@@ -295,7 +295,7 @@ async fn model_policy_rejections_are_distinct_from_other_forbidden_responses() {
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
-            Some("primary:gpt-4.1"),
+            "primary:gpt-4.1",
             NOW_TIME,
             REQUEST_ID,
         )
