@@ -1,0 +1,181 @@
+import { useRef } from "react";
+import { skipToken } from "@tanstack/react-query";
+import { api, type RouterOutputs } from "@/src/utils/api";
+import {
+  type TopicExecutionStatus,
+  type TopicFacet,
+  type TopicFacetRef,
+  type TopicFacetVersion,
+  type TopicRule,
+  type TopicTimeRange,
+} from "@langfuse/shared/topics";
+
+type TopicExecutionList = RouterOutputs["topics"]["executions"];
+export type RegenerateFacet = {
+  facet: TopicFacet;
+  version: TopicFacetVersion;
+  summaries: number;
+};
+export type RegenerateLastRun = Pick<
+  TopicExecutionList[number],
+  "id" | "status" | "createdAt"
+>;
+export type RegenerateRequest = {
+  facets: TopicFacetRef[];
+  exploratory: boolean;
+  minimumTraceCount: number;
+};
+export type RegenerateTopics = ReturnType<typeof useRegenerateTopics>;
+
+const isBusy = (status: TopicExecutionStatus) =>
+  status === "queued" || status === "running";
+
+/**
+ * Data and the `topics.trigger` (`operation: "update"`) write behind the
+ * Regenerate topics dialog. Facets follow the Topics rule at their latest
+ * version, the one automatic processing summarizes with. Call it above the
+ * dialog content so the request outlives a close.
+ */
+export function useRegenerateTopics({
+  projectId,
+  facets,
+  canWrite,
+  timeRange,
+  executions,
+}: {
+  projectId: string;
+  facets: TopicFacet[];
+  canWrite: boolean;
+  timeRange: TopicTimeRange | null;
+  executions: TopicExecutionList | undefined;
+}) {
+  const settings = api.topics.modelSettings.useQuery({ projectId });
+  const rules = api.topics.rules.useQuery({ projectId });
+  const configured = Boolean(
+    settings.data?.summary &&
+    settings.data.embedding &&
+    settings.data.clustering,
+  );
+  const rule = rules.data?.length === 1 ? rules.data[0] : null;
+  const candidates = ruleFacets(facets, rule);
+  const summaryCounts = api.topics.summaryCounts.useQuery(
+    timeRange && configured && candidates.length > 0
+      ? {
+          projectId,
+          facets: candidates.map(({ facet, version }) => ({
+            facetId: facet.id,
+            version: version.version,
+          })),
+          timeRange,
+        }
+      : skipToken,
+  );
+  const regenerateFacets: RegenerateFacet[] = candidates.map((candidate) => ({
+    ...candidate,
+    summaries:
+      summaryCounts.data?.find(
+        (count) =>
+          count.facetId === candidate.facet.id &&
+          count.facetVersion === candidate.version.version,
+      )?.count ?? 0,
+  }));
+  const disabledReason = regenerateDisabledReason({
+    canWrite,
+    settings: settings.isPending
+      ? "loading"
+      : {
+          configured,
+          pausedMessage: settings.data?.blockedAt
+            ? (settings.data.blockMessage ?? "")
+            : null,
+        },
+    runInProgress: Boolean(
+      executions?.some((execution) => isBusy(execution.status)),
+    ),
+    hasTimeRange: timeRange !== null,
+    facetCount: candidates.length,
+    summaries: {
+      isPending: summaryCounts.isPending,
+      error: summaryCounts.error?.message ?? null,
+      total: regenerateFacets.reduce((sum, facet) => sum + facet.summaries, 0),
+    },
+  });
+  const lastRun =
+    executions?.find((execution) => execution.input.operation === "update") ??
+    null;
+  // Survives reopening the dialog so a retried identical request reuses its
+  // requestId and cannot start a second run.
+  const request = useRef<{ key: string; id: string } | null>(null);
+  const trigger = api.topics.trigger.useMutation();
+  async function submit(values: RegenerateRequest) {
+    if (!timeRange) throw new Error("Select a time range of at most 90 days.");
+    const input = {
+      projectId,
+      operation: "update" as const,
+      timeRange,
+      ...values,
+    };
+    const key = JSON.stringify(input);
+    if (request.current?.key !== key)
+      request.current = { key, id: crypto.randomUUID() };
+    const result = await trigger.mutateAsync({
+      ...input,
+      requestId: request.current.id,
+    });
+    request.current = null;
+    return result.id;
+  }
+  return {
+    timeRange,
+    facets: regenerateFacets,
+    lastRun,
+    disabledReason,
+    isSubmitting: trigger.isPending,
+    submit,
+  };
+}
+
+function ruleFacets(facets: TopicFacet[], rule: TopicRule | null) {
+  return facets.flatMap((facet) => {
+    const version = facet.versions[0];
+    if (!version || (rule && !rule.facetIds.includes(facet.id))) return [];
+    return [{ facet, version }];
+  });
+}
+
+function regenerateDisabledReason({
+  canWrite,
+  settings,
+  runInProgress,
+  hasTimeRange,
+  facetCount,
+  summaries,
+}: {
+  canWrite: boolean;
+  settings: "loading" | { configured: boolean; pausedMessage: string | null };
+  runInProgress: boolean;
+  hasTimeRange: boolean;
+  facetCount: number;
+  summaries: { isPending: boolean; error: string | null; total: number };
+}): string | null {
+  if (!canWrite)
+    return "You need permission to manage Topics in this project to regenerate topics.";
+  if (settings === "loading") return "Checking the Topics setup…";
+  if (settings.pausedMessage !== null)
+    return ["Topics is paused.", settings.pausedMessage]
+      .filter(Boolean)
+      .join(" ");
+  if (!settings.configured)
+    return "Choose the Topics models in Configure Topics first.";
+  if (runInProgress)
+    return "A Topics run is in progress. Regenerate when it finishes.";
+  if (!hasTimeRange) return "Select a time range of at most 90 days.";
+  if (facetCount === 0)
+    return "Turn on at least one facet in Configure Topics.";
+  if (summaries.isPending) return "Counting stored summaries…";
+  if (summaries.error !== null)
+    return `Could not count stored summaries: ${summaries.error}`;
+  if (summaries.total === 0)
+    return "No trace summaries in the selected time range yet. Summarize traces first, then regenerate.";
+  return null;
+}

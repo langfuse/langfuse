@@ -48,7 +48,8 @@ project permissions. Processing additionally requires the project allowlist.
   Process traces or Update topics opens its own run dialog. Overlay owners stay
   outside the responsive header menu.
   The header's Regenerate topics button and mobile menu row share one
-  `RegenerateTopicsDialogController` around the page, which starts the same
+  `RegenerateTopicsDialogController` around the page. `useRegenerateTopics`
+  owns the `topics.trigger` write above the dialog content and starts the same
   update run for the rule's facets at their latest version over the page time
   range. It is disabled with a reason without `topics:CUD`, while Topics is
   paused or unconfigured, while any run is queued or running, and when the
