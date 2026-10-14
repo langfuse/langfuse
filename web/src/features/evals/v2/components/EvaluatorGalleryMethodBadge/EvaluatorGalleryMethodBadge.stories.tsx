@@ -1,4 +1,4 @@
-import preview from "../../../../../../../../.storybook/preview";
+import preview from "../../../../../../.storybook/preview";
 import { EvaluatorGalleryMethodBadge } from "./EvaluatorGalleryMethodBadge";
 
 const meta = preview.meta({ component: EvaluatorGalleryMethodBadge });
