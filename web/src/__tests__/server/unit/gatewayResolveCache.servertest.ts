@@ -22,22 +22,14 @@ const context: CachedResolveContext = {
   connections: [],
 };
 
-function createStatefulRedis(onGet?: (key: string) => Promise<void>): Redis {
+function createStatefulRedis(): Redis {
   const values = new Map<string, string>();
   const sets = new Map<string, Set<string>>();
   return {
-    get: vi.fn(async (key: string) => {
-      await onGet?.(key);
-      return values.get(key) ?? null;
-    }),
+    get: vi.fn((key: string) => Promise.resolve(values.get(key) ?? null)),
     set: vi.fn((key: string, value: string) => {
       values.set(key, value);
       return Promise.resolve("OK");
-    }),
-    incr: vi.fn((key: string) => {
-      const next = Number(values.get(key) ?? "0") + 1;
-      values.set(key, String(next));
-      return Promise.resolve(next);
     }),
     sadd: vi.fn((key: string, value: string) => {
       const entries = sets.get(key) ?? new Set<string>();
@@ -79,7 +71,6 @@ describe("GatewayResolveCache", () => {
       apiFormat: "openai.responses",
       context,
       expiresAt: new Date("2026-10-09T15:00:10.000Z"),
-      mutationGeneration: 0,
     });
 
     expect(redis.set).toHaveBeenCalledWith(
@@ -106,7 +97,6 @@ describe("GatewayResolveCache", () => {
       apiFormat: "openai.responses",
       context,
       expiresAt: new Date("2026-10-09T14:59:59.000Z"),
-      mutationGeneration: 0,
     });
 
     expect(redis.set).not.toHaveBeenCalled();
@@ -114,17 +104,15 @@ describe("GatewayResolveCache", () => {
     expect(redis.expire).not.toHaveBeenCalled();
   });
 
-  it("does not repopulate stale context after organization invalidation", async () => {
+  it("invalidates cached contexts for an organization", async () => {
     const cache = new GatewayResolveCache(createStatefulRedis());
-    const mutationGeneration = await cache.getMutationGeneration();
 
+    await cache.set({
+      fastHashedSecretKey: "hashed-key",
+      apiFormat: "openai.responses",
+      context,
+    });
     await cache.invalidateOrganization(context.organizationId);
-    await cache.set({
-      fastHashedSecretKey: "hashed-key",
-      apiFormat: "openai.responses",
-      context,
-      mutationGeneration,
-    });
 
     await expect(
       cache.get({
@@ -134,48 +122,15 @@ describe("GatewayResolveCache", () => {
     ).resolves.toBeNull();
   });
 
-  it("does not repopulate stale context after API key invalidation", async () => {
+  it("invalidates cached contexts for an API key", async () => {
     const cache = new GatewayResolveCache(createStatefulRedis());
-    const mutationGeneration = await cache.getMutationGeneration();
 
+    await cache.set({
+      fastHashedSecretKey: "hashed-key",
+      apiFormat: "openai.responses",
+      context,
+    });
     await cache.invalidateApiKey("hashed-key");
-    await cache.set({
-      fastHashedSecretKey: "hashed-key",
-      apiFormat: "openai.responses",
-      context,
-      mutationGeneration,
-    });
-
-    await expect(
-      cache.get({
-        fastHashedSecretKey: "hashed-key",
-        apiFormat: "openai.responses",
-      }),
-    ).resolves.toBeNull();
-  });
-
-  it("fences invalidation that starts while a stale context is being cached", async () => {
-    let cache: GatewayResolveCache;
-    let invalidated = false;
-    const redis = createStatefulRedis(async (key) => {
-      if (
-        !invalidated &&
-        key.includes(`:org:${context.organizationId}:`) &&
-        key.endsWith(":generation")
-      ) {
-        invalidated = true;
-        await cache.invalidateOrganization(context.organizationId);
-      }
-    });
-    cache = new GatewayResolveCache(redis);
-    const mutationGeneration = await cache.getMutationGeneration();
-
-    await cache.set({
-      fastHashedSecretKey: "hashed-key",
-      apiFormat: "openai.responses",
-      context,
-      mutationGeneration,
-    });
 
     await expect(
       cache.get({
