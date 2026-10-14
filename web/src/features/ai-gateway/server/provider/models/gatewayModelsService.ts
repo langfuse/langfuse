@@ -60,7 +60,7 @@ export class GatewayModelsService {
         logger.warn("Failed to discover models for AI Gateway connection", {
           organizationId: params.context.organizationId,
           connectionId: connection.id,
-          provider: connection.provider,
+          connectionName: connection.name,
           error: catalog.error,
         });
       }
