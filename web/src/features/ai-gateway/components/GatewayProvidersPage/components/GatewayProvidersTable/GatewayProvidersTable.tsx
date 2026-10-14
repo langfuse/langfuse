@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
-import { Pencil, RefreshCw, Route, Trash2 } from "lucide-react";
+import { ListTree, Pencil, RefreshCw, Route, Trash2 } from "lucide-react";
 import { SiAnthropic, SiOpenai } from "react-icons/si";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
@@ -84,6 +84,13 @@ export function GatewayProvidersTable({
       tableName="gateway-provider-credentials"
       columns={columns}
       actions={(connection) => [
+        {
+          id: "models",
+          type: "item",
+          title: "Show models",
+          icon: ListTree,
+          onClick: () => onSelect(connection),
+        },
         {
           id: "retry",
           type: "item",
