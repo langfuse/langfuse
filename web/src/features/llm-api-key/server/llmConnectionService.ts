@@ -431,7 +431,7 @@ export class LlmConnectionService {
       });
     if (incompatibleConnection) {
       throw new InvalidRequestError(
-        "Project and organization connections with the same provider must use the same adapter.",
+        "Project and organization connections with the same provider name must use the same adapter.",
       );
     }
   }

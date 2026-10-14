@@ -234,7 +234,7 @@ describe("llmApiKey.all RPC", () => {
         secretKey: "project-secret",
       }),
     ).rejects.toThrow(
-      "Project and organization connections with the same provider must use the same adapter.",
+      "Project and organization connections with the same provider name must use the same adapter.",
     );
 
     const incompatibleProjectConnection = await prisma.llmApiKeys.create({
@@ -255,7 +255,7 @@ describe("llmApiKey.all RPC", () => {
         customModels: ["claude-sonnet-4-5"],
       }),
     ).rejects.toThrow(
-      "Project and organization connections with the same provider must use the same adapter.",
+      "Project and organization connections with the same provider name must use the same adapter.",
     );
   });
 

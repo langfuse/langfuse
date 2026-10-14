@@ -100,7 +100,7 @@ describe("CreateLLMApiKeyForm", () => {
 
   it("shows save errors in the form instead of reporting a toast", async () => {
     const error = new Error(
-      "Project and organization connections with the same provider must use the same adapter.",
+      "Project and organization connections with the same provider name must use the same adapter.",
     );
     mocks.createProject.mockRejectedValue(error);
 

@@ -117,7 +117,7 @@ describe("organization LLM connections", () => {
         secretKey: "organization-secret",
       }),
     ).rejects.toThrow(
-      "Project and organization connections with the same provider must use the same adapter.",
+      "Project and organization connections with the same provider name must use the same adapter.",
     );
 
     const incompatibleOrganizationConnection = await prisma.llmApiKeys.create({
@@ -138,7 +138,7 @@ describe("organization LLM connections", () => {
         customModels: ["gpt-5"],
       }),
     ).rejects.toThrow(
-      "Project and organization connections with the same provider must use the same adapter.",
+      "Project and organization connections with the same provider name must use the same adapter.",
     );
   });
 
