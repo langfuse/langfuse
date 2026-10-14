@@ -976,14 +976,14 @@
 
 /* Preview backdrop for gallery cards: muted-gray base, a faint two-tone mesh and
    light grain. Tint it with --preview-mesh-a / --preview-mesh-b (see the
-   preview-mesh-* type utilities); untinted it stays neutral. */
+   preview-mesh-* type utilities, one hue per type); untinted it stays neutral. */
 @utility preview-mesh {
   position: relative;
   isolation: isolate;
   background:
     radial-gradient(
       70% 120% at 25% 10%,
-      color-mix(in srgb, var(--preview-mesh-a, transparent) 9%, transparent),
+      color-mix(in srgb, var(--preview-mesh-a, transparent) 11%, transparent),
       transparent 70%
     ),
     radial-gradient(
@@ -1012,17 +1012,17 @@
 
 @utility preview-mesh-judge {
   --preview-mesh-a: hsl(var(--dark-blue));
-  --preview-mesh-b: var(--color-category-indigo);
+  --preview-mesh-b: hsl(var(--dark-blue));
 }
 
 @utility preview-mesh-decision-model {
   --preview-mesh-a: var(--color-category-violet);
-  --preview-mesh-b: var(--color-category-fuchsia);
+  --preview-mesh-b: var(--color-category-violet);
 }
 
 @utility preview-mesh-code {
   --preview-mesh-a: var(--color-category-orange);
-  --preview-mesh-b: var(--color-category-amber);
+  --preview-mesh-b: var(--color-category-orange);
 }
 
 @utility scrollbar-visible {
