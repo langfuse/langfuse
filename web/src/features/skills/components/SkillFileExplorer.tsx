@@ -132,6 +132,11 @@ export function SkillFileExplorer({
       showErrorToast(
         `Could not move ${isFolder ? "folder" : "file"}`,
         "The destination conflicts with an existing file or folder, or the move is invalid.",
+        {
+          operation: isFolder ? "skill_folder.move" : "skill_file.move",
+          errorOrigin: "frontend",
+          errorCategory: "product_state",
+        },
       );
       return;
     }
@@ -191,6 +196,14 @@ export function SkillFileExplorer({
         pendingEntry.kind === "folder"
           ? "Use a single normalized path segment."
           : validationMessage,
+        {
+          operation:
+            pendingEntry.kind === "folder"
+              ? "skill_folder.create"
+              : "skill_file.create",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
       );
       return;
     }
@@ -199,6 +212,11 @@ export function SkillFileExplorer({
       showErrorToast(
         "Could not add file",
         `A skill can contain at most ${MAX_SKILL_FILES} files.`,
+        {
+          operation: "skill_file.create",
+          errorOrigin: "frontend",
+          errorCategory: "resource_limit",
+        },
       );
       return;
     }
@@ -211,6 +229,14 @@ export function SkillFileExplorer({
       showErrorToast(
         `${pendingEntry.kind === "folder" ? "Folder" : "File"} already exists`,
         path,
+        {
+          operation:
+            pendingEntry.kind === "folder"
+              ? "skill_folder.create"
+              : "skill_file.create",
+          errorOrigin: "frontend",
+          errorCategory: "product_state",
+        },
       );
       return;
     }
@@ -312,6 +338,11 @@ export function SkillFileExplorer({
                   showErrorToast(
                     "Could not restore file",
                     `A skill can contain at most ${MAX_SKILL_FILES} files. Delete another file before restoring this one.`,
+                    {
+                      operation: "skill_file.restore",
+                      errorOrigin: "frontend",
+                      errorCategory: "resource_limit",
+                    },
                   );
                 }
               }}

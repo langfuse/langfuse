@@ -37,7 +37,6 @@ import { loadTraceTranscript } from "./loadTraceTranscript";
 import {
   instrumentAsync,
   getScoresAndCorrectionsForTraces,
-  convertDateToClickhouseDateTime,
   getAgentGraphDataFromEventsTable,
   getObservationsForTraceFromEventsTable,
   MAX_OBSERVATIONS_PER_TRACE,
@@ -445,7 +444,6 @@ export const eventsRouter = createTRPCRouter({
         projectId: zodSchema.string(),
         traceId: zodSchema.string(),
         timestamp: zodSchema.date().optional(),
-        recoverToolResponses: zodSchema.boolean().default(false),
         fallbackToRootIO: zodSchema.boolean().default(false),
       }),
     )
@@ -453,7 +451,7 @@ export const eventsRouter = createTRPCRouter({
       const isSessionTimelineEnabled =
         getContextualFeatureFlags(ctx.session?.user, {
           projectId: input.projectId,
-        })?.sessionTimeline === true;
+        })?.sessionViewV2Timeline === true;
       if (
         !isSessionTimelineEnabled &&
         !hasInternalAccess({
@@ -494,7 +492,6 @@ export const eventsRouter = createTRPCRouter({
             projectId: input.projectId,
             traceId: input.traceId,
             timestamp,
-            recoverToolResponses: input.recoverToolResponses,
             fallbackToRootIO: input.fallbackToRootIO,
           });
         },
@@ -563,18 +560,11 @@ export const eventsRouter = createTRPCRouter({
 
           const { traceId, minStartTime, maxStartTime } = input;
 
-          const chMinStartTime = convertDateToClickhouseDateTime(
-            new Date(minStartTime),
-          );
-          const chMaxStartTime = convertDateToClickhouseDateTime(
-            new Date(maxStartTime),
-          );
-
           const records = await getAgentGraphDataFromEventsTable({
             projectId: input.projectId,
             traceId,
-            chMinStartTime,
-            chMaxStartTime,
+            minStartTime: new Date(minStartTime),
+            maxStartTime: new Date(maxStartTime),
           });
 
           // Transform to AgentGraphDataResponse format

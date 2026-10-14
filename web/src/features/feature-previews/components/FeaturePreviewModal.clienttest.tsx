@@ -8,7 +8,7 @@ vi.mock("next/image", () => ({
 }));
 
 describe("FeaturePreviewModal", () => {
-  it("renders the session timeline toggle inside Compact Session View", () => {
+  it("renders the session timeline toggle inside Redesigned Session View", () => {
     const onTimelineToggle = vi.fn();
 
     render(
@@ -16,8 +16,8 @@ describe("FeaturePreviewModal", () => {
         open
         onOpenChange={vi.fn()}
         state={{
-          modernSession: { enabled: true, onToggle: vi.fn() },
-          sessionTimeline: {
+          sessionViewV2: { enabled: true, onToggle: vi.fn() },
+          sessionViewV2Timeline: {
             enabled: false,
             onToggle: onTimelineToggle,
           },
@@ -28,6 +28,10 @@ describe("FeaturePreviewModal", () => {
     const timelineToggle = screen.getByRole("switch", {
       name: "Toggle Session Timeline",
     });
+    expect(screen.getByRole("link", { name: "Give feedback" })).toHaveAttribute(
+      "href",
+      "https://github.com/orgs/langfuse/discussions/18687",
+    );
     fireEvent.click(timelineToggle);
 
     expect(onTimelineToggle).toHaveBeenCalledWith(true);

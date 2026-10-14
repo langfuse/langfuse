@@ -334,17 +334,19 @@ describe("AI gateway control plane", () => {
 
   it("creates, lists, and revokes only associated organization keys", async () => {
     const { caller, org } = await prepare();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const created = await caller.aiGateway.createApiKey({
       orgId: org.id,
       name: "Production gateway",
       metadata: { environment: "production", costCenter: 42 },
+      expiresAt,
     });
     expect(created.secretKey).toMatch(/^sk-lf-/);
 
     const listed = await caller.aiGateway.listApiKeys({ orgId: org.id });
     expect(listed.data).toHaveLength(1);
     expect(listed.data[0]).toMatchObject({
-      apiKey: { id: created.id, note: "Production gateway" },
+      apiKey: { id: created.id, note: "Production gateway", expiresAt },
       metadata: { environment: "production", costCenter: 42 },
     });
     expect(JSON.stringify(listed)).not.toContain(created.secretKey);
@@ -368,6 +370,18 @@ describe("AI gateway control plane", () => {
     await expect(
       caller.aiGateway.revokeApiKey({ orgId: org.id, id: created.id }),
     ).rejects.toThrow("Gateway API key not found");
+  });
+
+  it("rejects gateway API key expiration dates in the past", async () => {
+    const { caller, org } = await prepare();
+
+    await expect(
+      caller.aiGateway.createApiKey({
+        orgId: org.id,
+        metadata: {},
+        expiresAt: new Date(Date.now() - 1_000),
+      }),
+    ).rejects.toThrow("Expiration date must be in the future");
   });
 
   it("owns successful and failed mutation auditing in gateway services", async () => {
@@ -821,6 +835,54 @@ describe("AI gateway control plane", () => {
     // query generator against the primary.
     expect(lookup).toHaveBeenCalledOnce();
     lookup.mockRestore();
+  });
+
+  it("enforces gateway:invoke when API key role enforcement is on", async () => {
+    const originalMigration = env.API_AUTH_MIGRATION;
+    const originalCache = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED;
+    Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "false" });
+    try {
+      const { caller, org } = await prepare();
+      const gatewayKey = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        metadata: {},
+      });
+      const authenticator = new GatewayApiKeyAuthenticator(prisma);
+      const request = {
+        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+        apiFormat: "openai.responses" as const,
+      };
+
+      Object.assign(env, { API_AUTH_MIGRATION: "enforce" });
+      await expect(
+        authenticator.authenticateRequest(request),
+      ).resolves.toMatchObject({
+        organizationId: org.id,
+      });
+
+      await prisma.roleAssignment.updateMany({
+        where: { apiKeyId: gatewayKey.id },
+        data: { systemRole: "INGEST", roleId: "system/INGEST" },
+      });
+      await expect(
+        authenticator.authenticateRequest(request),
+      ).rejects.toMatchObject({
+        status: 403,
+        message: "API key is not allowed to invoke the gateway",
+      });
+
+      Object.assign(env, { API_AUTH_MIGRATION: "legacy" });
+      await expect(
+        authenticator.authenticateRequest(request),
+      ).resolves.toMatchObject({
+        organizationId: org.id,
+      });
+    } finally {
+      Object.assign(env, {
+        API_AUTH_MIGRATION: originalMigration,
+        LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: originalCache,
+      });
+    }
   });
 
   it("blocks deletion of the default ingestion project", async () => {

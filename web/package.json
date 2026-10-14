@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.56.0",
+  "version": "4.59.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -9,7 +9,6 @@
   "scripts": {
     "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build && pnpm run build:otel-worker",
     "build:test": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build --experimental-build-mode compile",
-    "build:check": "NEXT_DIST_DIR=.next-check INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build && NEXT_DIST_DIR=.next-check pnpm run build:otel-worker",
     "build:otel-worker": "DOCKER_BUILD=1 dotenv -e ../.env -- node scripts/build-otel-ingestion-worker.mjs",
     "build:json-parser-worker": "node scripts/build-json-parser-worker.mjs",
     "typecheck": "dotenv -e ../.env -- tsc -p tsconfig.json --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
@@ -61,7 +60,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.3",
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@modelcontextprotocol/sdk": "1.31.0",
     "@next-auth/prisma-adapter": "^1.0.7",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.220.0",

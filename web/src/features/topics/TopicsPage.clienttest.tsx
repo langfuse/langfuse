@@ -21,6 +21,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("use-query-params", () => ({
   StringParam: {},
+  useQueryParam: () => [undefined, vi.fn()],
   useQueryParams: () => [{ dateRange: state.dateRange }, state.setQueryParams],
 }));
 vi.mock("@/src/components/layouts/page-header-controls-slot", () => ({
@@ -64,10 +65,37 @@ vi.mock("./TopicPipelineForm", () => ({
     state.pipeline(input);
     return {
       primaryAction: null,
-      openConfiguration: vi.fn(),
+      triggerAction: null,
       configuration: null,
     };
   },
+}));
+vi.mock("./TopicModelSettings", () => ({
+  useTopicModelSettings: () => ({
+    configure: { settings: null, triggerVariant: "secondary" },
+    automaticProcessing: {
+      state: { status: "unconfigured" },
+      clearPause: vi.fn(),
+      saving: false,
+      dialog: {},
+    },
+    notice: { unavailable: false, status: null },
+  }),
+}));
+vi.mock("./TopicSetupNotice", () => ({ TopicSetupNotice: () => null }));
+vi.mock("./ConfigureTopicsDialogController", () => ({
+  ConfigureTopicsDialogController: ({
+    children,
+  }: {
+    children: (control: { openDialog: () => void }) => ReactNode;
+  }) => children({ openDialog: vi.fn() }),
+}));
+vi.mock("./AutomaticProcessingDialogController", () => ({
+  AutomaticProcessingDialogController: ({
+    children,
+  }: {
+    children: (control: { openDialog: () => void }) => ReactNode;
+  }) => children({ openDialog: vi.fn() }),
 }));
 vi.mock("./CurrentTopics", () => ({
   useCurrentTopics: (input: {
@@ -95,7 +123,6 @@ vi.mock("@/src/utils/api", () => ({
     topics: {
       facets: { useQuery: () => ({ data: [], isLoading: false }) },
       executions: { useQuery: () => ({ data: [] }) },
-      initialize: { useMutation: () => ({}) },
       execution: {
         useQuery: () => ({
           data: {

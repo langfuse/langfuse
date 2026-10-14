@@ -1,6 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import type { LanguageModel } from "ai";
+import type { EmbeddingModel, LanguageModel } from "ai";
 
 import { parseOutboundUrl } from "../../../outbound-url/validation";
 import { processOpenAIBaseURL } from "../../utils";
@@ -55,6 +55,36 @@ export function buildOpenAIModel(params: {
     : provider.chat(modelId);
 }
 
+export function buildOpenAIEmbeddingModel(params: {
+  modelId: string;
+  apiKey: string;
+  baseURL?: string | null;
+  extraHeaders?: Record<string, string>;
+  fetch: typeof fetch;
+}): EmbeddingModel {
+  const { apiKey, baseURL, extraHeaders, modelId } = params;
+  const processedBaseURL = processOpenAIBaseURL({
+    url: baseURL,
+    modelName: modelId,
+  });
+
+  if (isOpenAICompatibleEndpoint(processedBaseURL))
+    return createOpenAICompatible({
+      name: "openai",
+      apiKey,
+      baseURL: processedBaseURL,
+      headers: extraHeaders,
+      fetch: params.fetch,
+    }).embeddingModel(modelId);
+
+  return createOpenAI({
+    apiKey,
+    baseURL: processedBaseURL ?? undefined,
+    headers: extraHeaders,
+    fetch: params.fetch,
+  }).embedding(modelId);
+}
+
 export function isOpenAICompatibleEndpoint(
   baseURL: string | null | undefined,
 ): baseURL is string {
@@ -66,8 +96,11 @@ export function isOpenAICompatibleEndpoint(
       return false;
     }
 
-    const hostname = url.hostname;
-    return hostname !== "api.openai.com";
+    const hostname = url.hostname.replace(/\.$/, "");
+    // Regional OpenAI API hosts use the same native request contract.
+    return (
+      hostname !== "api.openai.com" && !hostname.endsWith(".api.openai.com")
+    );
   } catch {
     return false;
   }

@@ -835,7 +835,11 @@ export function WidgetForm({
 
   const onSubmit = form.handleSubmit((submitted) => {
     if (!queryValidation.valid) {
-      showErrorToast("Invalid query", queryValidation.reason);
+      showErrorToast("Invalid query", queryValidation.reason, {
+        operation: "widget.validate",
+        errorOrigin: "frontend",
+        errorCategory: "user_input",
+      });
       return;
     }
     const s = deriveWidgetSuggestions(submitted);

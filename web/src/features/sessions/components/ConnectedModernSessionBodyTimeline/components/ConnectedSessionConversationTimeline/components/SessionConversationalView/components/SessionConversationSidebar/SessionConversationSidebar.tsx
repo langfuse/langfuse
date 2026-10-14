@@ -1,14 +1,18 @@
 import {
+  cloneElement,
   useCallback,
   useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
+  type UIEvent,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, Search } from "lucide-react";
+import { type Observation } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
-import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
+import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
+import { SessionToolStatusCountBadge } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolStatusCountBadge/SessionToolStatusCountBadge";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import {
   formatIdleGap,
@@ -36,6 +40,8 @@ export type SessionConversationSidebarTrace = {
         label: string;
         role: "system" | "user" | "assistant" | "tool";
         toolGroupId?: string;
+        level?: Observation["level"];
+        statusMessage?: Observation["statusMessage"];
       }>
     | null
     | undefined;
@@ -138,12 +144,16 @@ export function SessionConversationSidebar(
   const autoFollowPausedUntilRef = useRef(0);
   const autoFollowTimerRef = useRef<number | undefined>(undefined);
   const resumeAutoFollowRef = useRef<(() => void) | null>(null);
+  const [isListScrolled, setIsListScrolled] = useState(false);
+  const handleListScroll = (event: UIEvent<HTMLDivElement>) =>
+    setIsListScrolled(event.currentTarget.scrollTop > 0);
   const virtualizer = useVirtualizer({
     count: traces.length,
     getScrollElement: () => listRef.current,
     estimateSize: () => 160,
     overscan: 5,
-    paddingStart: SIDEBAR_SCROLL_PADDING,
+    paddingStart:
+      props.searchVisibility === "hidden" ? SIDEBAR_SCROLL_PADDING : 0,
     paddingEnd: SIDEBAR_SCROLL_PADDING,
     scrollPaddingStart: SIDEBAR_SCROLL_PADDING,
     scrollPaddingEnd: SIDEBAR_SCROLL_PADDING,
@@ -224,7 +234,7 @@ export function SessionConversationSidebar(
       >
         <div
           className={cn(
-            "shrink-0 border-b px-2 py-2.5",
+            "shrink-0 p-4",
             props.searchVisibility === "hidden" && "hidden",
           )}
         >
@@ -239,7 +249,7 @@ export function SessionConversationSidebar(
             />
           </div>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-2 px-1 pt-0.5 pb-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-0.5 pb-4">
           {[0, 1, 2].map((index) => (
             <div
               key={index}
@@ -270,7 +280,7 @@ export function SessionConversationSidebar(
     >
       <div
         className={cn(
-          "shrink-0 border-b px-2 py-2.5",
+          "relative z-10 shrink-0 p-4",
           props.searchVisibility === "hidden" && "hidden",
         )}
       >
@@ -287,12 +297,19 @@ export function SessionConversationSidebar(
             className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
           />
         </div>
+        {isListScrolled ? (
+          <div
+            aria-hidden="true"
+            className="from-background pointer-events-none absolute inset-x-0 top-full h-6 bg-linear-to-b to-transparent"
+          />
+        ) : null}
       </div>
       <div
         ref={setListElement}
         role="region"
         aria-label="Session turns"
         className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]"
+        onScroll={handleListScroll}
         onWheel={pauseAutoFollow}
         onTouchMove={pauseAutoFollow}
         onKeyDown={(event) => {
@@ -373,16 +390,19 @@ export function SessionConversationSidebar(
                   {props.search.trim() === "" &&
                     idleGapSeconds !== null &&
                     idleGapSeconds >= IDLE_GAP_THRESHOLD_SECONDS && (
-                      <div className="my-0.5 mb-2 flex items-center bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-3 py-[5px]">
+                      <div className="mb-2 flex items-center bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-4 py-[5px]">
                         <span className="text-muted-foreground font-mono text-[11px] whitespace-nowrap">
                           +{formatIdleGap(idleGapSeconds)} idle
                         </span>
                       </div>
                     )}
-                  <div className="px-2 pb-2">
+                  <div className="px-4 pb-2">
                     <div
                       className={cn(
-                        "group border-border/50 hover:bg-muted/60 rounded-sm border p-2 transition-colors duration-150",
+                        "group border-border hover:bg-muted/60 rounded-md border p-2 transition-colors duration-150",
+                        !isCollapsed &&
+                          !!transcriptRows?.length &&
+                          "overflow-hidden pb-0",
                         isActive &&
                           "border-primary-accent/50 bg-background dark:bg-muted",
                       )}
@@ -440,7 +460,7 @@ export function SessionConversationSidebar(
                               {emptyTranscriptLabel}
                             </p>
                           )}
-                          <div className="flex flex-col">
+                          <div className="flex flex-col [&>section:last-child>button:last-child]:pb-2">
                             {Array.from(threads, ([threadIndex, rows]) => (
                               <section
                                 key={threadIndex}
@@ -474,21 +494,32 @@ export function SessionConversationSidebar(
                                 }).map((group, groupIndex, groups) => {
                                   if (group.type === "tools") {
                                     const firstTool = group.rows[0]!;
+                                    const errors = group.rows.filter(
+                                      (row) => row.level === "ERROR",
+                                    );
+                                    const warnings = group.rows.filter(
+                                      (row) => row.level === "WARNING",
+                                    );
                                     return (
-                                      <CustomTooltip
+                                      <SessionToolTooltip
                                         key={firstTool.id}
-                                        placement="right"
-                                        delay={200}
-                                        content={
-                                          <div className="flex flex-col gap-2">
-                                            <h4 className="text-sm font-bold">
-                                              Tool calls
-                                            </h4>
-                                            <div className="text-muted-foreground whitespace-pre-line">
-                                              {group.title}
-                                            </div>
-                                          </div>
-                                        }
+                                        variant="sidebar"
+                                        content={{
+                                          type: "group",
+                                          title: group.title,
+                                          errors: errors.map((row) => ({
+                                            name: row.label,
+                                            message:
+                                              row.statusMessage ||
+                                              "Tool failed",
+                                          })),
+                                          warnings: warnings.map((row) => ({
+                                            name: row.label,
+                                            message:
+                                              row.statusMessage ||
+                                              "Tool reported a warning",
+                                          })),
+                                        }}
                                       >
                                         {({ getTriggerProps }) => (
                                           <button
@@ -503,7 +534,7 @@ export function SessionConversationSidebar(
                                                 firstTool.id,
                                               )
                                             }
-                                            className="ph-no-capture text-muted-foreground hover:bg-foreground/10 -mr-2 -ml-1 flex min-w-0 items-center gap-2 rounded-sm px-1 py-1 text-left text-[13px] transition-colors duration-150"
+                                            className="ph-no-capture text-muted-foreground hover:bg-foreground/10 focus-visible:ring-ring -mx-2 flex min-w-0 items-center gap-2 px-2 py-1 text-left text-[13px] transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
                                           >
                                             <span
                                               className="min-w-0 flex-1 truncate"
@@ -514,9 +545,25 @@ export function SessionConversationSidebar(
                                                 ? group.summary
                                                 : `Tool: ${group.summary}`}
                                             </span>
+                                            {errors.length > 0 && (
+                                              <SessionToolStatusCountBadge
+                                                aria-label={`${errors.length} tool ${errors.length === 1 ? "error" : "errors"}`}
+                                                count={errors.length}
+                                                severity="error"
+                                                variant="sidebar"
+                                              />
+                                            )}
+                                            {warnings.length > 0 && (
+                                              <SessionToolStatusCountBadge
+                                                aria-label={`${warnings.length} tool ${warnings.length === 1 ? "warning" : "warnings"}`}
+                                                count={warnings.length}
+                                                severity="warning"
+                                                variant="sidebar"
+                                              />
+                                            )}
                                           </button>
                                         )}
-                                      </CustomTooltip>
+                                      </SessionToolTooltip>
                                     );
                                   }
                                   const row = group.row;
@@ -608,7 +655,13 @@ export function SessionConversationSidebar(
                                     if (end < row.label.length)
                                       excerpt.push("…");
                                   }
-                                  return (
+                                  const hasError =
+                                    row.role === "tool" &&
+                                    row.level === "ERROR";
+                                  const hasWarning =
+                                    row.role === "tool" &&
+                                    row.level === "WARNING";
+                                  const button = (
                                     <button
                                       key={row.id}
                                       type="button"
@@ -619,7 +672,7 @@ export function SessionConversationSidebar(
                                           row.id,
                                         )
                                       }
-                                      className="ph-no-capture hover:bg-foreground/10 -mr-2 -ml-1 flex min-w-0 items-center gap-2 rounded-sm px-1 py-1 text-left transition-colors duration-150"
+                                      className="ph-no-capture hover:bg-foreground/10 focus-visible:ring-ring -mx-2 flex min-w-0 items-center gap-2 px-2 py-1 text-left transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
                                       aria-label={
                                         row.role === "tool"
                                           ? `tool: ${row.label}`
@@ -649,8 +702,48 @@ export function SessionConversationSidebar(
                                           </span>
                                         )}
                                       </span>
+                                      {hasError && (
+                                        <SessionToolStatusCountBadge
+                                          severity="error"
+                                          variant="sidebar"
+                                          aria-label="Tool status: ERROR"
+                                        />
+                                      )}
+                                      {hasWarning && (
+                                        <SessionToolStatusCountBadge
+                                          severity="warning"
+                                          variant="sidebar"
+                                          aria-label="Tool status: WARNING"
+                                        />
+                                      )}
                                     </button>
                                   );
+                                  if (hasError || hasWarning) {
+                                    return (
+                                      <SessionToolTooltip
+                                        key={row.id}
+                                        variant="sidebar"
+                                        content={{
+                                          type: "status",
+                                          name: row.label,
+                                          level: hasError ? "ERROR" : "WARNING",
+                                          message:
+                                            row.statusMessage ||
+                                            (hasError
+                                              ? "Tool failed"
+                                              : "Tool reported a warning"),
+                                        }}
+                                      >
+                                        {({ getTriggerProps }) =>
+                                          cloneElement(
+                                            button,
+                                            getTriggerProps(),
+                                          )
+                                        }
+                                      </SessionToolTooltip>
+                                    );
+                                  }
+                                  return button;
                                 })}
                               </section>
                             ))}

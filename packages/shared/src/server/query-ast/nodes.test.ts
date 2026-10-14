@@ -46,6 +46,17 @@ describe("tenancy injection", () => {
     );
   });
 
+  it("has no multi-project scope", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events_core")
+      .select("environment");
+
+    expect(() =>
+      // @ts-expect-error - a query is scoped to exactly one project
+      compileClickhouseQuery(qb, { projectIds: ["proj-a", "proj-b"] }),
+    ).toThrow(/no tenancy scope/);
+  });
+
   it("refuses kysely.compile() when the tenancy pass did not run", () => {
     const qb = getClickhouseKysely()
       .selectFrom("traces")
@@ -95,6 +106,45 @@ describe("tenancy injection", () => {
       UnscopedRelationError,
     );
   });
+
+  it.each(["remote", "clusterAllReplicas", "merge"])(
+    "rejects the %s table function as a FROM source",
+    (fn) => {
+      const qb = getClickhouseKysely()
+        .selectFrom((eb) =>
+          eb
+            .fn<{
+              environment: string;
+            }>(fn, [eb.val("default"), eb.val("traces")])
+            .as("t"),
+        )
+        .select("t.environment");
+
+      expect(() => compileClickhouseQuery(qb, ctx)).toThrow(
+        UnscopedRelationError,
+      );
+    },
+  );
+
+  it.each(["remote", "clusterAllReplicas", "merge"])(
+    "rejects the %s table function as a JOIN source",
+    (fn) => {
+      const qb = getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .innerJoin(
+          (eb) =>
+            eb
+              .fn<{ id: string }>(fn, [eb.val("default"), eb.val("traces")])
+              .as("t"),
+          (join) => join.onRef("e.trace_id", "=", "t.id"),
+        )
+        .select("t.id");
+
+      expect(() => compileClickhouseQuery(qb, ctx)).toThrow(
+        UnscopedRelationError,
+      );
+    },
+  );
 
   it("rejects raw SQL fragments in SELECT and WHERE, not only FROM/JOIN", () => {
     const selectRaw = getClickhouseKysely()

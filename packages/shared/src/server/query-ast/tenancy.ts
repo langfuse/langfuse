@@ -34,7 +34,8 @@ import { ClickHouseOperationNodeTransformer } from "./transformer";
 /**
  * Compile-time tenancy scope. Every ClickHouse query compiled through
  * {@link compileClickhouseQuery} must carry one of these; the tenancy
- * injection pass keys off `projectId`.
+ * injection pass keys off `projectId`. A query is always scoped to exactly one
+ * project.
  */
 export type ExecutionContext = {
   projectId: string;
@@ -60,17 +61,15 @@ type Relation =
  * tenanted physical relation that does not already have that predicate, then
  * stamps the tree so {@link ClickHouseQueryCompiler} will compile it.
  *
- * Any `RawNode` whose SQL fragments introduce a relation (`SELECT` / `FROM` /
- * `JOIN`) is rejected — not only FROM/JOIN table sources. Kysely's own
- * keyword fragments (`asc` / `desc`) are not relations and are allowed.
+ * FROM/JOIN sources must be table references or subqueries; anything else,
+ * such as a table function, is rejected. Any `RawNode` whose SQL fragments
+ * introduce a relation (`SELECT` / `FROM` / `JOIN`) is rejected — not only
+ * FROM/JOIN table sources. Kysely's own keyword fragments (`asc` / `desc`) are
+ * not relations and are allowed.
  */
 export class TenancyInjectionPlugin implements KyselyPlugin {
   constructor(private readonly ctx: ExecutionContext) {
-    if (!ctx?.projectId) {
-      throw new QueryCompileError(
-        "ExecutionContext.projectId is required for tenancy injection",
-      );
-    }
+    requireExecutionContext(ctx);
   }
 
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
@@ -149,10 +148,8 @@ function injectSelect(
 
   let where = node.where;
   for (const table of tenantedFrom) {
-    if (
-      !predicateCovers(where?.where, table, ctx.projectId, requireQualified)
-    ) {
-      const predicate = projectIdPredicate(table, ctx.projectId);
+    if (!predicateCovers(where?.where, table, ctx, requireQualified)) {
+      const predicate = projectIdPredicate(table, ctx);
       // Prepend: the tenancy scope is the leading WHERE predicate, so its bound
       // value keeps a stable (first) parameter position regardless of the other
       // predicates a caller wrote.
@@ -168,12 +165,12 @@ function injectSelect(
     }
     const onExpr = join.on?.on;
     if (
-      predicateCovers(onExpr, relation, ctx.projectId, requireQualified) ||
-      predicateCovers(where?.where, relation, ctx.projectId, requireQualified)
+      predicateCovers(onExpr, relation, ctx, requireQualified) ||
+      predicateCovers(where?.where, relation, ctx, requireQualified)
     ) {
       return join;
     }
-    const predicate = projectIdPredicate(relation, ctx.projectId);
+    const predicate = projectIdPredicate(relation, ctx);
     if (!join.on) {
       return JoinNode.createWithOn(join.joinType, join.table, predicate);
     }
@@ -191,6 +188,11 @@ function assertRelationAllowed(relation: Relation): void {
   if (relation.kind === "raw") {
     throw new UnscopedRelationError(
       "Raw SQL table sources are rejected: they can introduce an unscoped relation that the tenancy pass cannot prove. Use a traced table reference instead.",
+    );
+  }
+  if (relation.kind === "other") {
+    throw new UnscopedRelationError(
+      "Only table references and subqueries are accepted as FROM/JOIN sources: a table function such as remote() or merge() reads a relation the tenancy pass cannot scope.",
     );
   }
 }
@@ -228,18 +230,23 @@ function identifierName(node: OperationNode): string | undefined {
   return undefined;
 }
 
-function projectIdPredicate(
+function projectIdColumn(
   table: Extract<Relation, { kind: "table" }>,
-  projectId: string,
 ): OperationNode {
   const column = ColumnNode.create(PROJECT_ID_COLUMN);
-  const left = table.alias
+  return table.alias
     ? ReferenceNode.create(column, TableNode.create(table.alias))
     : column;
+}
+
+function projectIdPredicate(
+  table: Extract<Relation, { kind: "table" }>,
+  ctx: ExecutionContext,
+): OperationNode {
   return BinaryOperationNode.create(
-    left,
+    projectIdColumn(table),
     OperatorNode.create("="),
-    ValueNode.create(projectId),
+    ValueNode.create(ctx.projectId),
   );
 }
 
@@ -255,32 +262,34 @@ function projectIdPredicate(
 function predicateCovers(
   expr: OperationNode | undefined,
   table: Extract<Relation, { kind: "table" }>,
-  projectId: string,
+  ctx: ExecutionContext,
   requireQualified: boolean,
 ): boolean {
   if (!expr) return false;
   if (AndNode.is(expr)) {
     return (
-      predicateCovers(expr.left, table, projectId, requireQualified) ||
-      predicateCovers(expr.right, table, projectId, requireQualified)
+      predicateCovers(expr.left, table, ctx, requireQualified) ||
+      predicateCovers(expr.right, table, ctx, requireQualified)
     );
   }
   if (OrNode.is(expr)) {
     return (
-      predicateCovers(expr.left, table, projectId, requireQualified) &&
-      predicateCovers(expr.right, table, projectId, requireQualified)
+      predicateCovers(expr.left, table, ctx, requireQualified) &&
+      predicateCovers(expr.right, table, ctx, requireQualified)
     );
   }
   if (ParensNode.is(expr)) {
-    return predicateCovers(expr.node, table, projectId, requireQualified);
+    return predicateCovers(expr.node, table, ctx, requireQualified);
   }
-  if (!BinaryOperationNode.is(expr)) return false;
-  if (!OperatorNode.is(expr.operator) || expr.operator.operator !== "=") {
+  if (!BinaryOperationNode.is(expr) || !OperatorNode.is(expr.operator)) {
+    return false;
+  }
+  if (!isProjectIdColumn(expr.leftOperand, table, requireQualified)) {
     return false;
   }
   return (
-    isProjectIdColumn(expr.leftOperand, table, requireQualified) &&
-    isProjectIdValue(expr.rightOperand, projectId)
+    expr.operator.operator === "=" &&
+    isProjectIdValue(expr.rightOperand, ctx.projectId)
   );
 }
 
@@ -366,5 +375,31 @@ function rejectUnscopedRawSql(node: unknown): void {
   }
   for (const value of Object.values(node)) {
     rejectUnscopedRawSql(value);
+  }
+}
+
+/**
+ * Rejects a standalone expression that reads a relation: a subquery, or a raw
+ * fragment that introduces one. Outside a query there is no tenancy scope to
+ * inject into it.
+ */
+export function assertRelationFree(node: OperationNode): void {
+  rejectUnscopedRawSql(node);
+  rejectSubqueries(node);
+}
+
+function rejectSubqueries(node: unknown): void {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const item of node) rejectSubqueries(item);
+    return;
+  }
+  if ("kind" in node && node.kind === "SelectQueryNode") {
+    throw new UnscopedRelationError(
+      "A standalone expression cannot contain a subquery: it has no tenancy scope. Compile the query through compileClickhouseQuery() instead.",
+    );
+  }
+  for (const value of Object.values(node)) {
+    rejectSubqueries(value);
   }
 }

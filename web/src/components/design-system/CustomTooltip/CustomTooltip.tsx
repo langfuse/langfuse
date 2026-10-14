@@ -7,6 +7,7 @@ import {
   offset,
   safePolygon,
   shift,
+  size,
   useDismiss,
   useFloating,
   useFocus,
@@ -16,9 +17,23 @@ import {
   type Placement,
 } from "@floating-ui/react";
 import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { cn } from "@/src/utils/tailwind";
+
+const tooltipVariants = cva(
+  "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 max-w-xs rounded-md border text-sm shadow-md",
+  {
+    variants: {
+      padding: { default: "px-3 py-1.5", uniform: "p-2" },
+      overflow: {
+        hidden: "overflow-hidden",
+        scroll: "overflow-x-hidden overflow-y-auto overscroll-contain",
+      },
+    },
+  },
+);
 
 type CustomTooltipProps = {
   children: (controls: {
@@ -30,6 +45,8 @@ type CustomTooltipProps = {
   delay?: number;
   hoverableContent?: boolean;
   placement?: Placement;
+  padding?: NonNullable<VariantProps<typeof tooltipVariants>["padding"]>;
+  overflow?: NonNullable<VariantProps<typeof tooltipVariants>["overflow"]>;
 };
 
 function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
@@ -50,6 +67,8 @@ function CustomTooltip({
   delay = 150,
   hoverableContent = true,
   placement = "top",
+  padding = "default",
+  overflow = "hidden",
 }: CustomTooltipProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const layerContainer = useLayerContainer("tooltip");
@@ -58,7 +77,21 @@ function CustomTooltip({
     onOpenChange: setIsOpen,
     placement,
     strategy: "fixed",
-    middleware: [offset(4), flip(), shift({ padding: 8 })],
+    middleware: [
+      offset(4),
+      flip(),
+      shift({ padding: 8 }),
+      ...(overflow === "scroll"
+        ? [
+            size({
+              padding: 8,
+              apply({ availableHeight, elements }) {
+                elements.floating.style.maxHeight = `${Math.max(0, availableHeight)}px`;
+              },
+            }),
+          ]
+        : []),
+    ],
     transform: false,
     whileElementsMounted: autoUpdate,
   });
@@ -90,7 +123,7 @@ function CustomTooltip({
           <div
             ref={refs.setFloating}
             className={cn(
-              "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 max-w-xs overflow-hidden rounded-md border px-3 py-1.5 text-sm shadow-md",
+              tooltipVariants({ padding, overflow }),
               !hoverableContent && "pointer-events-none",
             )}
             style={floatingStyles}

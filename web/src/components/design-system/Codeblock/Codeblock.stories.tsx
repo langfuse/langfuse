@@ -1,5 +1,5 @@
 import preview from "../../../../.storybook/preview";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { themes } from "prism-react-renderer";
 import { Codeblock as CodeBlock } from "./Codeblock";
 
@@ -137,6 +137,35 @@ export const LargeJson = meta.story({
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const source = String(args.value);
+    await expect(
+      canvas.getByRole("combobox", { name: "Example language" }),
+    ).toHaveTextContent("Auto (JSON)");
+    const highlightingIndicator = canvas.getByLabelText(
+      /syntax highlighting is disabled/i,
+    );
+    await expect(highlightingIndicator).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Syntax highlighting disabled" }),
+    ).toBeDisabled();
+    await userEvent.hover(highlightingIndicator);
+    await waitFor(async () => {
+      await expect(within(document.body).getByRole("tooltip")).toBeVisible();
+    });
+    await userEvent.unhover(highlightingIndicator);
+    await waitFor(async () => {
+      await expect(
+        within(document.body).queryByRole("tooltip"),
+      ).not.toBeInTheDocument();
+    });
+    await userEvent.click(
+      canvas.getByRole("combobox", { name: "Example language" }),
+    );
+    await userEvent.keyboard("{Escape}");
+    await userEvent.tab();
+    await expect(highlightingIndicator).toHaveFocus();
+    await waitFor(async () => {
+      await expect(within(document.body).getByRole("tooltip")).toBeVisible();
+    });
     await expect(
       canvas.getByRole("button", { name: "Pretty-print JSON" }),
     ).toHaveAttribute("aria-pressed", "true");

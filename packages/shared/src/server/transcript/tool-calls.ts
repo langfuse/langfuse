@@ -1,6 +1,8 @@
+import { toolResultOutput } from "../../utils/normalized-io/core/normalize/message-parts/tool-results";
 import type {
   NormalizedMessage,
   ToolCallPart,
+  ToolResultContentPart,
 } from "../../utils/normalized-io";
 import type { ThreadMessage } from "./types";
 import {
@@ -12,6 +14,7 @@ import {
 } from "./threads";
 
 type Call = {
+  part: ToolCallPart;
   thread: ThreadState;
   message: ThreadMessage;
   response?: ThreadMessage;
@@ -39,7 +42,7 @@ export function createToolCallRegistry() {
       : undefined;
     if (id && calls.has(id)) return;
 
-    const call: Call = { thread, message };
+    const call: Call = { part, thread, message };
     if (id) calls.set(id, call);
     if (part.toolCallId) {
       if (!callsByThread.has(thread)) callsByThread.set(thread, new Map());
@@ -185,20 +188,45 @@ export function createToolCallRegistry() {
     let hasId = false;
     for (const part of parts) {
       if (part.type !== "tool-result" || !part.toolCallId) continue;
-
       hasId = true;
       const call = calls.get(key(observation.traceId, part.toolCallId));
       if (call) setResponse(call, observation, [part]);
     }
-    if (hasId || !observation.name) return;
+    if (hasId) return;
+    if (!observation.name) return;
 
     const queue = pending.get(key(observation.traceId, observation.name));
     if (!queue) return;
-
     while (queue.calls[queue.next]?.fromTool) queue.next++;
+    // Without result IDs, assume execution order matches same-name call order.
     const call = queue.calls[queue.next];
-    if (call) {
-      queue.next++;
+    if (!call) return;
+    queue.next++;
+    // Already-normalized results retain their output; ordinary content belongs
+    // to the matched execution. Mixed call/result siblings remain separate parts.
+    if (parts.length === 1 && parts[0]!.type === "tool-result") {
+      setResponse(call, observation, [
+        {
+          ...parts[0]!,
+          toolCallId: call.part.toolCallId,
+          toolName: call.part.toolName,
+        },
+      ]);
+    } else if (
+      parts.every(
+        (part): part is ToolResultContentPart =>
+          part.type !== "tool-call" && part.type !== "tool-result",
+      )
+    ) {
+      setResponse(call, observation, [
+        {
+          type: "tool-result",
+          toolCallId: call.part.toolCallId,
+          toolName: call.part.toolName,
+          output: toolResultOutput(parts, parts),
+        },
+      ]);
+    } else {
       setResponse(call, observation, parts);
     }
   }
