@@ -45,6 +45,10 @@ import {
 } from "./OtelIngestionProcessor";
 import * as serverBarrel from "../index";
 import { flattenJsonToPathArrays } from "./utils";
+import {
+  metadataArraysToRecord,
+  parseMetadataCHRecordToDomain,
+} from "../utils/metadata_conversion";
 
 const METRIC = "langfuse.ingestion.metadata_dropped";
 const ARRAY_ATTRIBUTE_DROPPED_METRIC =
@@ -535,10 +539,48 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
       );
 
       expect(fromBlob).toMatchObject(metadata);
-      expect(fromPerKey).toEqual(fromBlob);
+      // Strings the metadata read path would parse as JSON keep their
+      // encoding, so they read back as strings. A blob cannot tell them apart.
+      const expected = { ...fromBlob, digits: '"42"', version: '"1.0"' };
+      expect(fromPerKey).toEqual(expected);
       expect(flattenJsonToPathArrays(fromPerKey)).toEqual(
-        flattenJsonToPathArrays(fromBlob),
+        flattenJsonToPathArrays(expected),
       );
+    },
+  );
+
+  it.each(["v3", "v4"] as const)(
+    "reads per-key values back with the type they were sent with (%s)",
+    async (path) => {
+      const sent = {
+        digits: "42",
+        version: "1.0",
+        quoted: '"q"',
+        jsonish: '{"a":1}',
+        flag: "true",
+        nullish: "null",
+        label: "",
+        environment: "prod",
+        retries: 3,
+        enabled: true,
+        steps: [1, "two"],
+      };
+      const stored = await processMetadata(
+        path,
+        Object.entries(sent).map(([key, value]) => ({
+          key: `langfuse.observation.metadata.${key}`,
+          value: { stringValue: JSON.stringify(value) },
+        })),
+      );
+
+      const { names, values } = flattenJsonToPathArrays(stored);
+      const read = parseMetadataCHRecordToDomain(
+        metadataArraysToRecord(names, values as string[]) ?? {},
+      );
+
+      expect(read).toMatchObject(sent);
+      // Plain strings are stored raw, so string metadata filters match them.
+      expect(stored).toMatchObject({ environment: "prod", label: "" });
     },
   );
 

@@ -42,6 +42,7 @@ import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
+import { safeJsonParse } from "../../utils/json";
 import { defineOwnValue } from "../../utils/objects";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
@@ -3580,7 +3581,14 @@ export class OtelIngestionProcessor {
         // undecodable value (e.g. cut by an attribute length limit) is kept as
         // sent so its content is not lost.
         try {
-          metadata[metadataKey] = JSON.parse(value);
+          const decoded = JSON.parse(value);
+          // Strings are stored raw and metadata reads JSON-parse every stored
+          // value, so a string such as "42" or '{"a":1}' would read back as a
+          // number or object. Keeping its encoding preserves the string type.
+          metadata[metadataKey] =
+            typeof decoded === "string" && safeJsonParse(decoded) !== undefined
+              ? value
+              : decoded;
         } catch {
           metadata[metadataKey] = value;
           recordIncrement("langfuse.ingestion.metadata_undecoded", 1, {
