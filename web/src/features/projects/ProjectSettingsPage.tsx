@@ -422,11 +422,14 @@ function ProjectMembersSettings({
 
 const IntegrationCardHeader = (props: {
   status: Status | undefined;
+  isLoading: boolean;
   children: React.ReactNode;
 }) => (
   <div className="mb-4 flex items-center justify-between gap-2">
     <div className="flex items-center gap-2">{props.children}</div>
-    <StatusBadge type={props.status ?? "not_configured"} />
+    {!props.isLoading && (
+      <StatusBadge type={props.status ?? "not_configured"} />
+    )}
   </div>
 );
 
@@ -455,6 +458,7 @@ const Integrations = (props: { projectId: string }) => {
         <Card className="p-3">
           <IntegrationCardHeader
             status={posthog.isConfigured ? posthog.status : undefined}
+            isLoading={posthog.query.isLoading}
           >
             <PostHogLogo className="text-foreground w-40" />
           </IntegrationCardHeader>
@@ -484,6 +488,7 @@ const Integrations = (props: { projectId: string }) => {
         <Card className="p-3">
           <IntegrationCardHeader
             status={mixpanel.isConfigured ? mixpanel.status : undefined}
+            isLoading={mixpanel.query.isLoading}
           >
             <MixpanelLogo className="text-foreground w-20" />
           </IntegrationCardHeader>
@@ -511,7 +516,10 @@ const Integrations = (props: { projectId: string }) => {
         </Card>
 
         <Card className="p-3">
-          <IntegrationCardHeader status={blobStorage.status}>
+          <IntegrationCardHeader
+            status={blobStorage.status}
+            isLoading={blobStorage.query.isLoading}
+          >
             <span className="font-bold">Blob Storage</span>
           </IntegrationCardHeader>
           <p className="text-primary mb-4 text-sm">
@@ -542,7 +550,10 @@ const Integrations = (props: { projectId: string }) => {
 
         {externalMediaStorage.isFeatureEnabled ? (
           <Card className="p-3">
-            <IntegrationCardHeader status={externalMediaStorage.status}>
+            <IntegrationCardHeader
+              status={externalMediaStorage.status}
+              isLoading={externalMediaStorage.query.isLoading}
+            >
               <span className="font-bold">External Media Storage</span>
             </IntegrationCardHeader>
             <p className="text-primary mb-4 text-sm">
@@ -572,6 +583,7 @@ const Integrations = (props: { projectId: string }) => {
         <Card className="p-3">
           <IntegrationCardHeader
             status={slack.isConfigured ? slack.status : undefined}
+            isLoading={slack.query.isLoading}
           >
             <SiSlack className="text-foreground icon-lg" />
             <span className="font-bold">Slack</span>
@@ -592,7 +604,10 @@ const Integrations = (props: { projectId: string }) => {
         </Card>
 
         <Card className="p-3">
-          <IntegrationCardHeader status={webCallouts.status}>
+          <IntegrationCardHeader
+            status={webCallouts.status}
+            isLoading={webCallouts.query.isLoading}
+          >
             <Webhook className="text-foreground icon-lg" />
             <span className="font-bold">Web Callouts</span>
           </IntegrationCardHeader>
