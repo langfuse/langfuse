@@ -12,7 +12,6 @@ import {
   Tailwind,
   Text,
 } from "@react-email/components";
-import { EmailPreview } from "../EmailPreview";
 
 interface BatchExportSuccessTemplateProps {
   userName: string;
@@ -29,12 +28,9 @@ export const BatchExportSuccessEmailTemplate = ({
   batchExportName,
   downloadWindowHours,
 }: BatchExportSuccessTemplateProps) => {
-  const previewText = `Download your data export from Langfuse`;
-
   return (
     <Html>
       <Head />
-      <EmailPreview>{previewText}</EmailPreview>
       <Tailwind>
         <Body className="mx-auto my-auto bg-background font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">

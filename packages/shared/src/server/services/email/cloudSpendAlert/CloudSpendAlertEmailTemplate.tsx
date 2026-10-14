@@ -14,7 +14,6 @@ import {
   Row,
   Column,
 } from "@react-email/components";
-import { EmailPreview } from "../EmailPreview";
 
 interface CloudSpendAlertEmailProps {
   organizationName: string;
@@ -38,9 +37,6 @@ export const CloudSpendAlertEmailTemplate = ({
   return (
     <Html>
       <Head />
-      <EmailPreview>
-        {`Spend alert · ${organizationName} reached $${threshold.toFixed(2)}`}
-      </EmailPreview>
       <Tailwind>
         <Body className="bg-background my-auto mx-auto font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">

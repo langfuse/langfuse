@@ -14,7 +14,6 @@ import {
   Row,
   Column,
 } from "@react-email/components";
-import { EmailPreview } from "../EmailPreview";
 
 interface UsageThresholdWarningEmailProps {
   organizationName: string;
@@ -43,10 +42,6 @@ export const UsageThresholdWarningEmailTemplate = ({
   return (
     <Html>
       <Head />
-      <EmailPreview>
-        Your Langfuse organization &quot;{organizationName}&quot; has reached{" "}
-        {currentUsage.toLocaleString()} events
-      </EmailPreview>
       <Tailwind>
         <Body className="bg-background my-auto mx-auto font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">

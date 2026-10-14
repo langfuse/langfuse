@@ -14,7 +14,6 @@ import {
   Tailwind,
   Text,
 } from "@react-email/components";
-import { EmailPreview } from "../EmailPreview";
 import { render } from "@react-email/render";
 import { type SendVerificationRequestParams } from "next-auth/providers/email";
 import { createMailTransport } from "../transport";
@@ -28,13 +27,9 @@ const ResetPasswordTemplate = ({
   token,
   isSetupMode,
 }: ResetPasswordTemplateProps) => {
-  const previewText = isSetupMode
-    ? "Verify your Langfuse email"
-    : "Your Langfuse reset code";
   return (
     <Html>
       <Head />
-      <EmailPreview>{previewText}</EmailPreview>
       <Tailwind>
         <Body className="mx-auto my-auto bg-background font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">

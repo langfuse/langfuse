@@ -431,6 +431,7 @@ export const membersRouter = createTRPCRouter({
           to: input.email,
           orgName: org.name,
           orgId: input.orgId,
+          orgRole: input.orgRole,
           userExists: true,
           env: env,
         });
@@ -479,6 +480,7 @@ export const membersRouter = createTRPCRouter({
             to: input.email,
             orgName: org.name,
             orgId: input.orgId,
+            orgRole: input.orgRole,
             userExists: false,
             env: env,
           });

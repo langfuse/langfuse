@@ -81,12 +81,12 @@ describe("sendResetPasswordVerificationRequest", () => {
     expect(mail.html).toContain("Forgot your Langfuse password?");
   });
 
-  it("renders the preheader without invisible padding characters", async () => {
+  it("renders no hidden content", async () => {
     const mail = await sentMail("http://localhost:3000/auth/reset-password");
 
-    expect(mail.html).toContain("Your Langfuse reset code");
-    // Hidden zero-width/bidi padding is a common spam-filter evasion pattern
-    // and gets transactional mail flagged as dangerous by Gmail.
+    // Hidden preheaders and zero-width/bidi padding are spam-filter evasion
+    // patterns and get transactional mail flagged as dangerous by Gmail.
+    expect(mail.html).not.toContain("display:none");
     expect(mail.html).not.toMatch(/[\u200B-\u200F\uFEFF]/);
   });
 
