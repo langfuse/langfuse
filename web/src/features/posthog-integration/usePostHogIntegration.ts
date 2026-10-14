@@ -27,7 +27,6 @@ export function usePostHogIntegration(projectId: string) {
     query.isLoading || !hasAccess
       ? undefined
       : getPostHogStatus(query.data?.config ?? null);
-  console.log("query data", query.data);
   const isConfigured = Boolean(query.data?.config);
   console.log("posthog status", status);
   return { hasAccess, query, status, isConfigured };
