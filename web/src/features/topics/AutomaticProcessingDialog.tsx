@@ -69,9 +69,9 @@ export function AutomaticProcessingDialog({
           </p>
           <p className="text-sm">
             Each summarized trace joins the closest existing topic when it is
-            similar enough; otherwise it appears under Outliers. A facet without
-            topics gets its first ones once 100 traces from the last seven days
-            are summarized. Topics are not refreshed automatically; run{" "}
+            similar; otherwise it appears under Outliers. A facet without topics
+            gets its first ones once 100 traces from the last seven days are
+            summarized. Topics are not refreshed automatically; run{" "}
             <em>Regenerate topics</em> to refresh them.
           </p>
           {paused ? (
