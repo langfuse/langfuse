@@ -24,10 +24,14 @@ const RECOMMENDED_TEMPLATE_RANK = new Map<string, number>(
 export function prepareEvaluatorGallery({
   customTemplates,
   customTemplateCount,
+  hasCustomTemplates = customTemplateCount > 0,
   search,
 }: {
   customTemplates: CustomEvaluatorTemplate[];
+  /** Saved evaluators matching the current search. */
   customTemplateCount: number;
+  /** Whether the project has any saved evaluators, ignoring the search. */
+  hasCustomTemplates?: boolean;
   search: string;
 }): {
   navigationItems: GalleryNavigationItem[];
@@ -81,7 +85,7 @@ export function prepareEvaluatorGallery({
       count: managedByCategory.get(category.key)?.length ?? 0,
     })),
     // Projects without saved evaluators get no empty "Your templates" entry.
-    ...(customTemplateCount > 0
+    ...(hasCustomTemplates
       ? [
           {
             key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,

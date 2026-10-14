@@ -69,6 +69,7 @@ describe("prepareEvaluatorGallery", () => {
     const gallery = prepareEvaluatorGallery({
       customTemplates: [customTemplate],
       customTemplateCount: 0,
+      hasCustomTemplates: true,
       search: "grounded",
     });
 
@@ -82,6 +83,7 @@ describe("prepareEvaluatorGallery", () => {
       { key: "retrieval", count: 1 },
       { key: "safety", count: 0 },
       { key: "coding-agents", count: 0 },
+      { key: "custom", count: 0 },
     ]);
     expect(gallery.sections).toHaveLength(1);
     expect(gallery.sections[0]?.templates).toEqual([

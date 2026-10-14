@@ -61,6 +61,14 @@ export function EvaluatorGalleryDialog({
       placeholderData: (previous) => previous,
     },
   );
+  // One unfiltered row: whether the project has any saved evaluators at all.
+  const anyProjectEvaluator = api.evalsV2.listGallery.useInfiniteQuery(
+    { projectId, limit: 1 },
+    {
+      enabled: open && Boolean(projectId),
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+    },
+  );
   const customTemplates = (
     projectEvaluators.data?.pages.flatMap((page) => page.evaluators) ?? []
   ).flatMap((evaluator) => {
@@ -84,6 +92,8 @@ export function EvaluatorGalleryDialog({
     customTemplates,
     customTemplateCount:
       projectEvaluators.data?.pages[0]?.totalItems ?? customTemplates.length,
+    hasCustomTemplates:
+      (anyProjectEvaluator.data?.pages[0]?.totalItems ?? 0) > 0,
     search,
   });
   const flushSearchCapture = () => {
