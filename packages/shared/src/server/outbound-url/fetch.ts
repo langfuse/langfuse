@@ -21,14 +21,15 @@ export const redactUrlCredentials = (text: string): string =>
   text.replace(URL_CREDENTIALS, "://***@");
 
 /**
- * Origin and path for logs and persisted errors. Query strings and fragments
- * are dropped because webhook destinations put shared secrets there (`sig`,
- * SAS tokens). `origin` also drops userinfo.
+ * Scheme, host, and path for logs and persisted errors. Query strings and
+ * fragments are dropped because webhook destinations put shared secrets there
+ * (`sig`, SAS tokens). Userinfo is dropped too. Built from protocol and host
+ * because `URL.origin` is the string "null" for non-special schemes.
  */
 export const urlForLog = (urlString: string): string => {
   try {
     const url = new URL(urlString);
-    return `${url.origin}${url.pathname}`;
+    return `${url.protocol}//${url.host}${url.pathname}`;
   } catch {
     const withoutFragment = urlString.split("#")[0] ?? urlString;
     const withoutQuery = withoutFragment.split("?")[0] ?? withoutFragment;

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { redactUrlCredentials, urlForLog } from "./fetch";
+import {
+  CircularRedirectError,
+  MaxRedirectsExceededError,
+  redactUrlCredentials,
+  urlForLog,
+} from "./fetch";
 
 describe("redactUrlCredentials", () => {
   it("strips a user:password userinfo", () => {
@@ -69,5 +74,45 @@ describe("urlForLog", () => {
 
   it("strips a query from a string that is not a URL", () => {
     expect(urlForLog("not a url?sig=super-secret-sig")).toBe("not a url");
+  });
+
+  it("keeps the host of a non-special scheme", () => {
+    expect(urlForLog("gopher://169.254.169.254/x?sig=super-secret-sig")).toBe(
+      "gopher://169.254.169.254/x",
+    );
+    expect(urlForLog("file:///etc/passwd")).toBe("file:///etc/passwd");
+  });
+});
+
+const signedRedirectUrl =
+  "https://exporter:hunter2@host.example/hook?sig=super-secret-sig";
+
+const expectSignedUrlRedacted = (
+  error: Error & { redirectChain: string[] },
+) => {
+  expect(error.message).toContain("https://host.example/hook");
+  expect(error.message).not.toContain("super-secret-sig");
+  expect(error.message).not.toContain("hunter2");
+  expect(error.stack).not.toContain("super-secret-sig");
+  expect(error.stack).not.toContain("hunter2");
+  expect(error.redirectChain).toEqual([
+    "https://host.example/hook",
+    "https://host.example/hook",
+  ]);
+  expect(JSON.stringify(error)).not.toContain("super-secret-sig");
+  expect(JSON.stringify(error)).not.toContain("hunter2");
+};
+
+describe("redirect error reporting", () => {
+  it("keeps a signed URL out of MaxRedirectsExceededError", () => {
+    expectSignedUrlRedacted(
+      new MaxRedirectsExceededError(5, [signedRedirectUrl, signedRedirectUrl]),
+    );
+  });
+
+  it("keeps a signed URL out of CircularRedirectError", () => {
+    expectSignedUrlRedacted(
+      new CircularRedirectError([signedRedirectUrl, signedRedirectUrl]),
+    );
   });
 });

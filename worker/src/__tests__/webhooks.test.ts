@@ -601,58 +601,62 @@ describe("Webhook Integration Tests", () => {
       const warn = vi.spyOn(logger, "warn");
       const error = vi.spyOn(logger, "error");
 
-      await executeWebhook(
-        {
-          projectId,
-          automationId,
-          executionId,
-          payload: {
-            prompt: PromptDomainSchema.parse(
-              await prisma.prompt.findUnique({ where: { id: promptId } }),
-            ),
-            action: "created",
-            type: "prompt-version",
-            user: {
-              id: "user-123",
-              name: "Test User",
-              email: "test@example.com",
+      try {
+        await executeWebhook(
+          {
+            projectId,
+            automationId,
+            executionId,
+            payload: {
+              prompt: PromptDomainSchema.parse(
+                await prisma.prompt.findUnique({ where: { id: promptId } }),
+              ),
+              action: "created",
+              type: "prompt-version",
+              user: {
+                id: "user-123",
+                name: "Test User",
+                email: "test@example.com",
+              },
             },
           },
-        },
-        { skipValidation: true },
-      );
+          { skipValidation: true },
+        );
 
-      const requests = webhookServer.getReceivedRequests();
-      expect(requests.length).toBeGreaterThan(0);
-      expect(requests.every((request) => request.url === signedUrl)).toBe(true);
+        const requests = webhookServer.getReceivedRequests();
+        expect(requests.length).toBeGreaterThan(0);
+        expect(requests.every((request) => request.url === signedUrl)).toBe(
+          true,
+        );
 
-      const execution = await prisma.automationExecution.findUnique({
-        where: { id: executionId },
-      });
-      expect(execution?.error).toContain(
-        "https://webhook-error.example.com/test",
-      );
-      expect(execution?.error).not.toContain("super-secret-sig");
+        const execution = await prisma.automationExecution.findUnique({
+          where: { id: executionId },
+        });
+        expect(execution?.error).toContain(
+          "https://webhook-error.example.com/test",
+        );
+        expect(execution?.error).not.toContain("super-secret-sig");
 
-      const logged = [info, warn, error]
-        .flatMap((spy) => spy.mock.calls)
-        .map((call) =>
-          call
-            .map((arg) => {
-              if (arg instanceof Error) {
-                return `${arg.name} ${arg.message} ${arg.stack ?? ""} ${JSON.stringify(arg)}`;
-              }
-              return typeof arg === "string" ? arg : JSON.stringify(arg);
-            })
-            .join(" "),
-        )
-        .join("\n");
-      expect(logged).toContain("https://webhook-error.example.com/test");
-      expect(logged).not.toContain("super-secret-sig");
-
-      info.mockRestore();
-      warn.mockRestore();
-      error.mockRestore();
+        const logged = [info, warn, error]
+          .flatMap((spy) => spy.mock.calls)
+          .map((call) =>
+            call
+              .map((arg) => {
+                if (arg instanceof Error) {
+                  return `${arg.name} ${arg.message} ${arg.stack ?? ""} ${JSON.stringify(arg)}`;
+                }
+                return typeof arg === "string" ? arg : JSON.stringify(arg);
+              })
+              .join(" "),
+          )
+          .join("\n");
+        expect(logged).toContain("https://webhook-error.example.com/test");
+        expect(logged).not.toContain("super-secret-sig");
+      } finally {
+        info.mockRestore();
+        warn.mockRestore();
+        error.mockRestore();
+      }
     });
 
     it("should disable trigger after 5 consecutive failures and store lastFailingExecutionId", async () => {
