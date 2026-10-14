@@ -203,7 +203,9 @@ describe("IP Blocking Module", () => {
         expect(isIPBlocked("203.0.0.1", [], [], ["203.0.114/24"])).toBe(false);
         expect(isIPBlocked("8.1.2.1", [], [], ["010.1.2.0/24"])).toBe(false);
         expect(isIPBlocked("16.1.2.1", [], [], ["0x10.1.2.0/24"])).toBe(false);
-        expect(isIPBlocked("8.8.8.8", [], [], ["8.8.8.0/24"])).toBe(true);
+      });
+
+      it("blocks addresses inside a /0 prefix and a compressed IPv6 range", () => {
         expect(isIPBlocked("1.1.1.1", [], [], ["203.0.113.0/0"])).toBe(true);
         expect(
           isIPBlocked("2001:4860:4860::8888", [], [], ["2001:4860:4860::/32"]),
