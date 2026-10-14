@@ -13,9 +13,9 @@ import {
   gatewayProviders,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
-import { resolveGatewayModelRoute } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 import {
   type CachedResolveContext,
   GATEWAY_RESOLVE_KEY_NON_EXISTENT,
@@ -38,6 +38,7 @@ type GatewayApiKeyAuthenticatorConfig = {
 export class GatewayApiKeyAuthenticator {
   private readonly repository: GatewayResolveRepository;
   private readonly cache: GatewayResolveCache;
+  private readonly modelRoutingService = new GatewayModelRoutingService();
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -53,7 +54,10 @@ export class GatewayApiKeyAuthenticator {
     model: string;
   }): Promise<GatewayApiKeyAuthContext> {
     const context = await this.authenticateKey(params);
-    const route = resolveGatewayModelRoute(params.model, context.connections);
+    const route = this.modelRoutingService.resolve(
+      params.model,
+      context.connections,
+    );
     if (!route) {
       throw new GatewayControlPlaneError("Invalid gateway model", 400);
     }

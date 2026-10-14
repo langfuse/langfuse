@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveGatewayModelRoute } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
+import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
+
+const routingService = new GatewayModelRoutingService();
 
 const connections = [
   {
@@ -23,7 +25,7 @@ const connections = [
   },
 ] as const;
 
-describe("resolveGatewayModelRoute", () => {
+describe("GatewayModelRoutingService", () => {
   it.each([
     {
       model: "OpenAI secondary:gpt-4o",
@@ -53,7 +55,7 @@ describe("resolveGatewayModelRoute", () => {
   ])(
     "routes $model to $connectionId",
     ({ model, connectionId, providerModel }) => {
-      const route = resolveGatewayModelRoute(model, connections);
+      const route = routingService.resolve(model, connections);
 
       expect(route).not.toBeNull();
       expect(route?.connection?.id).toBe(connectionId);
@@ -64,17 +66,17 @@ describe("resolveGatewayModelRoute", () => {
   it.each(["gpt", "claude", "random-model", ":model", "OpenAI primary:"])(
     "rejects unsupported model %s",
     (model) => {
-      expect(resolveGatewayModelRoute(model, connections)).toBeNull();
+      expect(routingService.resolve(model, connections)).toBeNull();
     },
   );
 
   it("returns a valid unresolved route for a missing connection", () => {
-    expect(resolveGatewayModelRoute("Unknown:gpt-4o", connections)).toEqual({
+    expect(routingService.resolve("Unknown:gpt-4o", connections)).toEqual({
       connection: null,
       providerModel: "gpt-4o",
     });
     expect(
-      resolveGatewayModelRoute("claude-sonnet-4-5", connections.slice(0, 1)),
+      routingService.resolve("claude-sonnet-4-5", connections.slice(0, 1)),
     ).toEqual({
       connection: null,
       providerModel: "claude-sonnet-4-5",
@@ -90,7 +92,7 @@ describe("resolveGatewayModelRoute", () => {
     } as const;
 
     expect(
-      resolveGatewayModelRoute("ft:claude-sonnet-4-5", [
+      routingService.resolve("ft:claude-sonnet-4-5", [
         ...connections,
         ftConnection,
       ]),
@@ -116,9 +118,7 @@ describe("resolveGatewayModelRoute", () => {
       },
     ] as const;
 
-    expect(
-      resolveGatewayModelRoute("gpt-6-sol", restrictedConnections),
-    ).toEqual({
+    expect(routingService.resolve("gpt-6-sol", restrictedConnections)).toEqual({
       connection: restrictedConnections[1],
       providerModel: "gpt-6-sol",
     });
@@ -133,7 +133,7 @@ describe("resolveGatewayModelRoute", () => {
     } as const;
 
     expect(
-      resolveGatewayModelRoute("gpt-6-sol", [
+      routingService.resolve("gpt-6-sol", [
         {
           id: "openai-restricted",
           name: "OpenAI restricted",
@@ -166,7 +166,7 @@ describe("resolveGatewayModelRoute", () => {
         },
       ] as const;
 
-      expect(resolveGatewayModelRoute(model, restrictedConnections)).toEqual({
+      expect(routingService.resolve(model, restrictedConnections)).toEqual({
         connection: restrictedConnections[0],
         providerModel: model,
       });
