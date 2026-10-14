@@ -43,7 +43,7 @@ import { SystemPromptCollapseButton } from "@/src/components/ui/SystemPromptColl
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
-import { Button } from "@/src/components/design-system/Button/Button";
+import { Button } from "@/src/components/ui/button";
 import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { env } from "@/src/env.mjs";
 import {
