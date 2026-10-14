@@ -17,6 +17,7 @@ import {
   validateWebhookURL,
   whitelistFromEnv,
   fetchWithSecureRedirects,
+  urlForLog,
   WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
   buildWebhookRequestHeaders,
 } from "@langfuse/shared/src/server";
@@ -231,7 +232,7 @@ async function executeHttpAction({
     await backOff(
       async () => {
         logger.info(
-          `Sending HTTP request to ${url} for action ${automation.action.id}`,
+          `Sending HTTP request to ${urlForLog(url)} for action ${automation.action.id}`,
         );
 
         // Create AbortController for timeout
@@ -281,10 +282,10 @@ async function executeHttpAction({
           if (redirectResult.redirectChain.length > 0) {
             logger.info("Webhook followed redirects", {
               actionId: automation.action.id,
-              initialUrl: url,
-              finalUrl: redirectResult.finalUrl,
+              initialUrl: urlForLog(url),
+              finalUrl: urlForLog(redirectResult.finalUrl),
               redirectCount: redirectResult.redirectChain.length,
-              redirectChain: redirectResult.redirectChain,
+              redirectChain: redirectResult.redirectChain.map(urlForLog),
             });
           }
 
@@ -293,19 +294,19 @@ async function executeHttpAction({
 
           if (!res.ok) {
             logger.warn(
-              `Webhook does not return 2xx status: failed with status ${res.status} for url ${url} and project ${projectId}. Body: ${responseBody}`,
+              `Webhook does not return 2xx status: failed with status ${res.status} for url ${urlForLog(url)} and project ${projectId}. Body: ${responseBody}`,
             );
             throw new Error(
-              `Webhook does not return 2xx status: failed with status ${res.status} for url ${url} and project ${projectId}`,
+              `Webhook does not return 2xx status: failed with status ${res.status} for url ${urlForLog(url)} and project ${projectId}`,
             );
           }
         } catch (error) {
           if (error instanceof Error && error.name === "AbortError") {
             logger.warn(
-              `Webhook timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${url} and project ${projectId}`,
+              `Webhook timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${urlForLog(url)} and project ${projectId}`,
             );
             throw new Error(
-              `Webhook timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${url} and project ${projectId}`,
+              `Webhook timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${urlForLog(url)} and project ${projectId}`,
             );
           }
           throw error;

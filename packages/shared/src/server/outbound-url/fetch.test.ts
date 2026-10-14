@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { redactUrlCredentials } from "./fetch";
+import { redactUrlCredentials, urlForLog } from "./fetch";
 
 describe("redactUrlCredentials", () => {
   it("strips a user:password userinfo", () => {
@@ -41,5 +41,33 @@ describe("redactUrlCredentials", () => {
     expect(redactUrlCredentials("contact user@host.example")).toBe(
       "contact user@host.example",
     );
+  });
+});
+
+describe("urlForLog", () => {
+  it("keeps the origin and path and drops a query-string secret", () => {
+    expect(
+      urlForLog(
+        "https://prod.westus.logic.azure.com/workflows/abc/triggers/manual/paths/invoke?api-version=2016-06-01&sig=super-secret-sig",
+      ),
+    ).toBe(
+      "https://prod.westus.logic.azure.com/workflows/abc/triggers/manual/paths/invoke",
+    );
+  });
+
+  it("drops userinfo and a fragment along with the query", () => {
+    expect(
+      urlForLog("https://exporter:hunter2@host.example/batch/?x=1#frag"),
+    ).toBe("https://host.example/batch/");
+  });
+
+  it("keeps a credential-free path", () => {
+    expect(urlForLog("https://webhook-error.example.com/test")).toBe(
+      "https://webhook-error.example.com/test",
+    );
+  });
+
+  it("strips a query from a string that is not a URL", () => {
+    expect(urlForLog("not a url?sig=super-secret-sig")).toBe("not a url");
   });
 });

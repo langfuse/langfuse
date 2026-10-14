@@ -20,6 +20,7 @@ import {
   WebhookInput,
   createOrgProjectAndApiKey,
   getActionByIdWithSecrets,
+  logger,
   redis,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -554,6 +555,104 @@ describe("Webhook Integration Tests", () => {
         httpStatus: 500,
         responseBody: '{"error":"Internal Server Error"}',
       });
+    });
+
+    it("sends a query-string secret and keeps it out of logs and the execution error", async () => {
+      const signedUrl =
+        "https://webhook-error.example.com/test?api-version=2016-06-01&sig=super-secret-sig";
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          projectId,
+          type: "WEBHOOK",
+          config: {
+            ...(action.config as WebhookActionConfigWithSecrets),
+            url: signedUrl,
+          },
+        },
+      });
+
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: v4(),
+          input: {
+            promptName: "test-prompt",
+            promptVersion: 1,
+            action: "created",
+            type: "prompt-version",
+          },
+        },
+      });
+
+      const info = vi.spyOn(logger, "info");
+      const warn = vi.spyOn(logger, "warn");
+      const error = vi.spyOn(logger, "error");
+
+      await executeWebhook(
+        {
+          projectId,
+          automationId,
+          executionId,
+          payload: {
+            prompt: PromptDomainSchema.parse(
+              await prisma.prompt.findUnique({ where: { id: promptId } }),
+            ),
+            action: "created",
+            type: "prompt-version",
+            user: {
+              id: "user-123",
+              name: "Test User",
+              email: "test@example.com",
+            },
+          },
+        },
+        { skipValidation: true },
+      );
+
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests.length).toBeGreaterThan(0);
+      expect(requests.every((request) => request.url === signedUrl)).toBe(true);
+
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution?.error).toContain(
+        "https://webhook-error.example.com/test",
+      );
+      expect(execution?.error).not.toContain("super-secret-sig");
+
+      const logged = [info, warn, error]
+        .flatMap((spy) => spy.mock.calls)
+        .map((call) =>
+          call
+            .map((arg) => {
+              if (arg instanceof Error) {
+                return `${arg.name} ${arg.message} ${arg.stack ?? ""} ${JSON.stringify(arg)}`;
+              }
+              return typeof arg === "string" ? arg : JSON.stringify(arg);
+            })
+            .join(" "),
+        )
+        .join("\n");
+      expect(logged).toContain("https://webhook-error.example.com/test");
+      expect(logged).not.toContain("super-secret-sig");
+
+      info.mockRestore();
+      warn.mockRestore();
+      error.mockRestore();
     });
 
     it("should disable trigger after 5 consecutive failures and store lastFailingExecutionId", async () => {
