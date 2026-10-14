@@ -27,7 +27,7 @@ import { topicsSetupPayload } from "./topics-setup";
 import { useAutomaticProcessing } from "./useAutomaticProcessing";
 
 type StoredSettings = RouterOutputs["topics"]["modelSettings"];
-type Connection = RouterOutputs["llmApiKey"]["all"]["data"][number];
+type Connection = RouterOutputs["llmApiKey"]["effective"]["data"][number];
 type SlotValue = { llmApiKeyId: string; model: string } | null;
 
 /** Topics setup: one dialog for models, facets, and which traces to include. */
@@ -47,7 +47,7 @@ export function useTopicModelSettings({
     projectId,
   });
   const rules = api.topics.rules.useQuery({ projectId });
-  const connections = api.llmApiKey.all.useQuery({ projectId });
+  const connections = api.llmApiKey.effective.useQuery({ projectId });
   const configured = Boolean(
     settings.data?.summary &&
     settings.data.embedding &&

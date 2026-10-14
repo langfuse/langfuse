@@ -14,6 +14,7 @@ import { type ComponentProps, useMemo } from "react";
 
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
@@ -35,6 +36,7 @@ export interface TableProps<TData> {
   tableName: string;
   columns: ColumnDef<TData>[];
   actions?: (row: TData) => ComponentProps<typeof DropdownMenu>["items"];
+  actionsDisabledReason?: string;
   data: AsyncTableData<TData[]>;
   orderBy?: OrderByState;
   setOrderBy?: (state: OrderByState) => void;
@@ -52,6 +54,7 @@ export function Table<TData extends object>({
   tableName,
   columns,
   actions,
+  actionsDisabledReason,
   data,
   orderBy,
   setOrderBy,
@@ -84,18 +87,37 @@ export function Table<TData extends object>({
               className="ml-auto flex size-6 items-center justify-end"
               onClick={(event) => event.stopPropagation()}
             >
-              <DropdownMenu items={items} placement="bottom-end">
-                {({ getTriggerProps }) => (
-                  <IconButton
-                    icon={MoreVertical}
-                    label="Open actions menu"
-                    size="sm"
-                    variant="subtle"
-                    {...getTriggerProps()}
-                    disabled={items.length === 0}
-                  />
-                )}
-              </DropdownMenu>
+              {items.length === 0 && actionsDisabledReason ? (
+                <Tooltip label={actionsDisabledReason}>
+                  {({ getTriggerProps }) => (
+                    <span
+                      {...getTriggerProps()}
+                      className="inline-flex cursor-not-allowed [&>button]:pointer-events-none"
+                    >
+                      <IconButton
+                        icon={MoreVertical}
+                        label="Open actions menu"
+                        size="sm"
+                        variant="subtle"
+                        disabled
+                      />
+                    </span>
+                  )}
+                </Tooltip>
+              ) : (
+                <DropdownMenu items={items} placement="bottom-end">
+                  {({ getTriggerProps }) => (
+                    <IconButton
+                      icon={MoreVertical}
+                      label="Open actions menu"
+                      size="sm"
+                      variant="subtle"
+                      {...getTriggerProps()}
+                      disabled={items.length === 0}
+                    />
+                  )}
+                </DropdownMenu>
+              )}
             </div>
           );
         },
@@ -109,7 +131,7 @@ export function Table<TData extends object>({
         ),
       },
     ];
-  }, [actions, columns]);
+  }, [actions, actionsDisabledReason, columns]);
   const table = useReactTable({
     data: data.status === "success" ? data.data : [],
     columns: tableColumns,
