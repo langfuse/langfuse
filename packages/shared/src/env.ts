@@ -1,5 +1,5 @@
-import ipaddr from "ipaddr.js";
 import { z } from "zod";
+import { parseBlockedCidr } from "./server/webhooks/parseBlockedCidr";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
 // Per-segment byte budget for S3 event keys. Off by default (2048 > 800-byte
@@ -42,17 +42,7 @@ const optionalCommaSeparatedLowercase = z
   .transform(commaSeparatedLowercase);
 
 function isCidr(value: string): boolean {
-  const [addr, bits] = value.split("/");
-  if (!addr || bits === undefined) return false;
-  const mask = Number(bits);
-  if (!Number.isInteger(mask)) return false;
-  try {
-    const parsed = ipaddr.parse(addr);
-    const maxPrefix = parsed.kind() === "ipv4" ? 32 : 128;
-    return mask >= 0 && mask <= maxPrefix;
-  } catch {
-    return false;
-  }
+  return parseBlockedCidr(value) !== undefined;
 }
 
 const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
@@ -507,7 +497,8 @@ const EnvSchema = z.object({
     ),
   // When non-empty, webhook URLs must use one of these hosts. Distinct from
   // LANGFUSE_WEBHOOK_WHITELISTED_HOST, which only exempts a host from the
-  // private-address block.
+  // private-address block. Does not apply to other callers of that exemption
+  // list. Entries are exact hostnames (no scheme or port; IPv6 in brackets).
   LANGFUSE_WEBHOOK_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS: z
     .string()
@@ -527,7 +518,8 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
-  // When non-empty, LLM connection base URLs must use one of these hosts.
+  // When non-empty, a connection with a custom base URL must use one of these
+  // hosts. Connections that use a provider's default host are unchanged.
   // Ignored on Langfuse Cloud, same as the LLM exemption list above.
   LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS: z
@@ -607,11 +599,14 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
-  // When non-empty, SSO discovery and the endpoints in the discovery document
-  // must use one of these hosts.
+  // When non-empty, OIDC discovery URLs and the endpoints in the discovery
+  // document must use one of these hosts. Checked when an SSO configuration
+  // is saved, same as the exemption list above.
   LANGFUSE_SSO_DISCOVERY_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
-  // Merged into the built-in private-address block for every outbound URL
-  // check. Exemptions in the per-surface *_WHITELISTED_* lists still win.
+  // Extra CIDR ranges merged into the private-address block for outbound URL
+  // checks that already run. Blob storage stays opt-in: these ranges apply
+  // there only when blob endpoint validation is already enabled. Exemptions
+  // in the per-surface *_WHITELISTED_* lists still win.
   LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS: optionalCommaSeparatedLowercase.refine(
     (segments) => segments.every(isCidr),
     {

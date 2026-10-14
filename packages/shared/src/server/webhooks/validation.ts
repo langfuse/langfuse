@@ -22,6 +22,16 @@ export function whitelistFromEnv(): WebhookValidationWhitelist {
     hosts: env.LANGFUSE_WEBHOOK_WHITELISTED_HOST || [],
     ips: env.LANGFUSE_WEBHOOK_WHITELISTED_IPS || [],
     ip_ranges: env.LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS || [],
+  };
+}
+
+// Positive host list for webhook delivery and webhook saves only. The
+// exemption list above is also used by analytics exports, dataset remote
+// experiments, web callouts, and GitHub dispatch, which must stay
+// default-allow when this list is set.
+export function webhookWhitelistFromEnv(): WebhookValidationWhitelist {
+  return {
+    ...whitelistFromEnv(),
     allowedHosts: env.LANGFUSE_WEBHOOK_ALLOWED_HOSTS,
   };
 }

@@ -2,6 +2,7 @@ import { afterEach, describe, it, expect } from "vitest";
 import { OutboundUrlValidationError, parseOutboundUrl } from "../outbound-url";
 import {
   assertGcsBlobStorageBucketAllowed,
+  blobStorageEndpointConnectionValidationOptions,
   validateBlobStorageEndpoint,
 } from "./blobStorageEndpointValidation";
 import { env } from "../../env";
@@ -83,6 +84,82 @@ describe("validateBlobStorageEndpoint", () => {
         allowedHosts: ["minio.internal"],
       }),
     ).resolves.toBeUndefined();
+  });
+
+  it("trusts only the virtual-hosted name of the configured bucket", () => {
+    const allowlist = {
+      hosts: [],
+      ips: [],
+      ip_ranges: [],
+      allowedHosts: ["minio.example.com"],
+    };
+    const options = blobStorageEndpointConnectionValidationOptions(allowlist, {
+      endpoint: "https://minio.example.com",
+      bucketName: "traces",
+      forcePathStyle: false,
+    });
+
+    expect(options?.whitelist?.allowedHosts).toEqual([
+      "minio.example.com",
+      "traces.minio.example.com",
+    ]);
+  });
+
+  it("trusts the regional virtual host when that AWS endpoint is allowlisted", () => {
+    const options = blobStorageEndpointConnectionValidationOptions(
+      {
+        hosts: [],
+        ips: [],
+        ip_ranges: [],
+        allowedHosts: ["s3.us-east-1.amazonaws.com"],
+      },
+      {
+        bucketName: "traces",
+        forcePathStyle: false,
+        region: "us-east-1",
+      },
+    );
+
+    expect(options?.whitelist?.allowedHosts).toEqual([
+      "s3.us-east-1.amazonaws.com",
+      "traces.s3.us-east-1.amazonaws.com",
+    ]);
+  });
+
+  it("keeps path-style requests on the endpoint host", () => {
+    const options = blobStorageEndpointConnectionValidationOptions(
+      {
+        hosts: [],
+        ips: [],
+        ip_ranges: [],
+        allowedHosts: ["minio.example.com"],
+      },
+      {
+        endpoint: "https://minio.example.com",
+        bucketName: "traces",
+        forcePathStyle: true,
+      },
+    );
+
+    expect(options?.whitelist?.allowedHosts).toEqual(["minio.example.com"]);
+  });
+
+  it("does not invent a virtual host for a dotted bucket on HTTPS", () => {
+    const options = blobStorageEndpointConnectionValidationOptions(
+      {
+        hosts: [],
+        ips: [],
+        ip_ranges: [],
+        allowedHosts: ["minio.example.com"],
+      },
+      {
+        endpoint: "https://minio.example.com",
+        bucketName: "my.bucket",
+        forcePathStyle: false,
+      },
+    );
+
+    expect(options?.whitelist?.allowedHosts).toEqual(["minio.example.com"]);
   });
 
   it("no-ops when validation is disabled (empty whitelist, non-cloud)", async () => {

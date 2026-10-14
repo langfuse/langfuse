@@ -166,7 +166,6 @@ describe("negative-suite premise", () => {
       hosts: [],
       ips: [],
       ip_ranges: [],
-      allowedHosts: [],
     });
   });
 });

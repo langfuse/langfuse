@@ -6,6 +6,10 @@ import {
   parseOutboundUrl,
   validateOutboundUrlHost,
 } from "../outbound-url";
+import {
+  type S3VirtualHostTarget,
+  withS3VirtualHostedBucket,
+} from "./s3VirtualHostedAllowlist";
 
 export const BLOB_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT =
   "Blob storage endpoint";
@@ -131,6 +135,7 @@ export function assertGcsBlobStorageBucketAllowed(bucketName: string): void {
 
 export function blobStorageEndpointConnectionValidationOptions(
   whitelist: OutboundUrlValidationWhitelist = blobStorageEndpointWhitelistFromEnv(),
+  virtualHost?: S3VirtualHostTarget,
 ): OutboundUrlConnectionValidationOptions | undefined {
   const effectiveWhitelist = getEffectiveWhitelist(whitelist);
 
@@ -139,7 +144,7 @@ export function blobStorageEndpointConnectionValidationOptions(
   }
 
   return {
-    whitelist: effectiveWhitelist,
+    whitelist: withS3VirtualHostedBucket(effectiveWhitelist, virtualHost),
     logContext: BLOB_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT,
   };
 }

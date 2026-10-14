@@ -15,7 +15,7 @@ import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   validateWebhookURL,
-  whitelistFromEnv,
+  webhookWhitelistFromEnv,
   fetchWithSecureRedirects,
   WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
   buildWebhookRequestHeaders,
@@ -241,7 +241,7 @@ async function executeHttpAction({
         }, env.LANGFUSE_WEBHOOK_TIMEOUT_MS);
 
         try {
-          const whitelist = whitelistFromEnv();
+          const whitelist = webhookWhitelistFromEnv();
 
           // Skip validation when flag is set (for tests with MSW mocking)
           if (!skipValidation) {

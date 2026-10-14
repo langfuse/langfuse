@@ -146,9 +146,14 @@ connectionValidation: blobStorageEndpointConnectionValidationOptions() })`.
   non-empty `*_ALLOWED_HOSTS` on the same surface is a positive host list:
   listed hosts are trusted (including private targets) and every other host
   is rejected. Unset and empty leave the default-allow behavior in place.
+  `LANGFUSE_WEBHOOK_ALLOWED_HOSTS` applies to webhook saves and delivery
+  only. `LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS` applies to custom base URLs
+  only. For S3 virtual-hosted addressing, connect-time validation also
+  trusts `{bucket}.{allowlisted endpoint host}` for that bucket.
 - `LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS` adds CIDR ranges to the built-in
-  private-address block for every outbound URL check. Per-surface exemptions
-  still win over those ranges.
+  private-address block for outbound URL checks that already run. Blob
+  storage stays opt-in, so these ranges do not by themselves turn blob
+  validation on. Per-surface exemptions still win over those ranges.
 - Blob storage endpoint validation is **opt-in** today on self-hosted (the
   helper is a no-op until the operator configures one of the exemption env
   vars or `LANGFUSE_BLOB_STORAGE_ENDPOINT_ALLOWED_HOSTS`). There is a

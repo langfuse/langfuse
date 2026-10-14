@@ -50,6 +50,7 @@ import {
   createAiSdkTelemetryCapture,
   type AiSdkTelemetryCapture,
 } from "./ai-sdk/telemetry";
+import { llmFetchWhitelistForBaseUrl } from "./baseUrlValidation";
 import { createSecureLlmFetch } from "./secureLlmFetch";
 import type {
   ChatMessage,
@@ -367,6 +368,7 @@ function openLLMConnection(connection: LLMConnection) {
   ) =>
     createSecureLlmFetch({
       logContext,
+      whitelist: llmFetchWhitelistForBaseUrl(connection.baseURL),
       // Connection-specific headers are encrypted at rest and can contain
       // gateway credentials. Keep them on same-origin redirects, but strip
       // them alongside provider auth headers when the origin changes.

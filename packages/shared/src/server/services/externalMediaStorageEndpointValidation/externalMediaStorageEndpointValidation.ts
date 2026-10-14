@@ -6,6 +6,10 @@ import {
   parseOutboundUrl,
   validateOutboundUrlHost,
 } from "../../outbound-url";
+import {
+  type S3VirtualHostTarget,
+  withS3VirtualHostedBucket,
+} from "../s3VirtualHostedAllowlist";
 
 const EXTERNAL_MEDIA_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT =
   "External media storage endpoint";
@@ -78,9 +82,14 @@ export async function validateExternalMediaStorageEndpoint(
   }
 }
 
-export function externalMediaStorageEndpointConnectionValidationOptions(): OutboundUrlConnectionValidationOptions {
+export function externalMediaStorageEndpointConnectionValidationOptions(
+  virtualHost?: S3VirtualHostTarget,
+): OutboundUrlConnectionValidationOptions {
   return {
-    whitelist: externalMediaStorageEndpointWhitelistFromEnv(),
+    whitelist: withS3VirtualHostedBucket(
+      externalMediaStorageEndpointWhitelistFromEnv(),
+      virtualHost,
+    ),
     logContext: EXTERNAL_MEDIA_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT,
   };
 }

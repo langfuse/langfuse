@@ -10,6 +10,7 @@ import type {
   DecisionModelEvaluation,
   DecisionModelRequestQuestion,
 } from "../../evals/decisionModelEvaluatorExecution";
+import { llmFetchWhitelistForBaseUrl } from "../baseUrlValidation";
 import { createSecureLlmFetch } from "../secureLlmFetch";
 
 /** TypeSafe reads a description per level, in order. */
@@ -63,6 +64,7 @@ export function createTypeSafeDecisionModelClient(params: {
       params.fetchImpl ??
       createSecureLlmFetch({
         logContext: "TypeSafe decision model",
+        whitelist: llmFetchWhitelistForBaseUrl(params.baseURL),
         additionalSensitiveHeaders: Object.keys(params.extraHeaders ?? {}),
       }),
   });

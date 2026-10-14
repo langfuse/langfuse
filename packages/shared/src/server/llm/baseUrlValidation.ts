@@ -28,6 +28,17 @@ export function llmBaseUrlWhitelistFromEnv(): LlmBaseUrlValidationWhitelist {
   };
 }
 
+// The positive list restricts custom base URLs. Provider default hosts
+// (and Vertex, which has no base URL) keep working when it is set.
+export function llmFetchWhitelistForBaseUrl(
+  baseURL: string | null | undefined,
+): LlmBaseUrlValidationWhitelist {
+  const whitelist = llmBaseUrlWhitelistFromEnv();
+  if (baseURL) return whitelist;
+  if ((whitelist.allowedHosts ?? []).length === 0) return whitelist;
+  return { ...whitelist, allowedHosts: [] };
+}
+
 export async function validateLlmConnectionBaseURL(
   urlString: string,
   whitelist: LlmBaseUrlValidationWhitelist = llmBaseUrlWhitelistFromEnv(),

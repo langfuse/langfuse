@@ -190,6 +190,14 @@ describe("IP Blocking Module", () => {
           false,
         );
       });
+
+      it("ignores prefixes that are not plain decimal numbers", () => {
+        expect(isIPBlocked("1.1.1.1", [], [], ["203.0.113.0/0x10"])).toBe(
+          false,
+        );
+        expect(isIPBlocked("8.8.8.8", [], [], ["8.8.8.0/"])).toBe(false);
+        expect(isIPBlocked("1.1.1.1", [], [], ["203.0.113.0/1e1"])).toBe(false);
+      });
     });
   });
 

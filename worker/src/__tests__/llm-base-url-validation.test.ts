@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import dns from "node:dns/promises";
 import {
   llmBaseUrlWhitelistFromEnv,
+  llmFetchWhitelistForBaseUrl,
   validateLlmConnectionBaseURL,
   type LlmBaseUrlValidationWhitelist,
 } from "../../../packages/shared/src/server/llm/baseUrlValidation";
@@ -246,6 +247,16 @@ describe("LLM base URL validation", () => {
     env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS = ["llm.internal"];
 
     expect(llmBaseUrlWhitelistFromEnv().allowedHosts).toEqual(["llm.internal"]);
+  });
+
+  it("applies the positive allowlist only when the connection has a base URL", () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS = ["llm.internal"];
+
+    expect(llmFetchWhitelistForBaseUrl(null).allowedHosts).toEqual([]);
+    expect(
+      llmFetchWhitelistForBaseUrl("https://llm.internal/v1").allowedHosts,
+    ).toEqual(["llm.internal"]);
   });
 
   it("should reject non-HTTPS URLs on Langfuse Cloud", async () => {
