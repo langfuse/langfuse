@@ -37,6 +37,8 @@ export interface ChatMessageProps {
   contentMode?: IOPreviewContentMode;
   /** Render the message section collapsed to its header. */
   defaultCollapsed?: boolean;
+  /** Section title; the caller decides (role, name, or Input / Output). */
+  title: string;
 }
 
 /**
@@ -56,19 +58,20 @@ export function ChatMessage({
   isOutputMessage,
   contentMode = "all",
   defaultCollapsed,
+  title,
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
 
   const renderToolResponse = (response: ChatMlMessage) => (
     <ChatMessage
       message={response}
+      title={getMessageTitle(response)}
       shouldRenderMarkdown={shouldRenderMarkdown}
       currentView={currentView}
       contentMode={contentMode}
     />
   );
 
-  const title = getMessageTitle(message);
   const toolCalls = parseToolCallsFromMessage(message);
   const hasContent = hasRenderableContent(message);
   // Collapse from the raw role: the title is the message `name` when present,

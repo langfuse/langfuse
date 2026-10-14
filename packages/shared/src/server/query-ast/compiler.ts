@@ -67,6 +67,17 @@ function canonicalParamValue(value: unknown): string {
   return `${typeof value}:${String(value)}`;
 }
 
+// A Date binds as the `YYYY-MM-DD hh:mm:ss.sss` UTC wall-clock string that
+// ingestion writes (`toClickhouseDateTime`). ClickHouse parses both in the
+// server timezone, so binds line up with stored rows on any server timezone.
+// The string form also covers instants before 1970.
+function serializeParamValue(value: unknown): unknown {
+  if (value instanceof Date) {
+    return value.toISOString().replace("T", " ").replace("Z", "");
+  }
+  return value;
+}
+
 function inferClickHouseType(value: unknown): string {
   if (value instanceof Date) return "DateTime64(3)";
   if (value instanceof TupleParam) {
@@ -643,7 +654,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.addParameter(value);
     const name = `p${this.intern.size + 1}`;
     this.intern.set(key, name);
-    this.namedParameters[name] = value;
+    this.namedParameters[name] = serializeParamValue(value);
     return `{${name}:${inferred}}`;
   }
 }

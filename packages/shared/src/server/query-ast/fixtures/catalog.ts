@@ -333,12 +333,12 @@ export const CATALOG: CatalogEntry[] = [
   },
   {
     // Metadata-map access in projection and GROUP BY. `metadata[key]` lowers to
-    // the `metadata_values[indexOf(metadata_names, {key})]` array-pair subscript
-    // (ArrayIndexNode), aliased and then grouped by that alias.
+    // a subscript of the reversed name/value map (ArrayIndexNode), so the last
+    // duplicate key wins, aliased and then grouped by that alias.
     id: "metadata_group_by",
     tier: 6,
     referenceSql: `
-      SELECT e.metadata_values[indexOf(e.metadata_names, {p1:String})] AS model, count(*) AS n
+      SELECT mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{p1:String}] AS model, count(*) AS n
       FROM events_core AS e
       WHERE e.project_id = {p2:String}
       GROUP BY model

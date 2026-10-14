@@ -77,6 +77,10 @@ vi.mock("@langfuse/shared/src/db", async () => {
 
 vi.mock("@langfuse/shared/src/server", () => ({
   redis: null,
+  instrumentAsync: vi.fn(async (_ctx, callback) =>
+    callback({ setAttribute: vi.fn() }),
+  ),
+  addUserToSpan: vi.fn(),
   logger: {
     debug: mockLoggerDebug,
     info: mockLoggerInfo,

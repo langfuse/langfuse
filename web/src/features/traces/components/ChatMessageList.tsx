@@ -13,6 +13,7 @@ import {
 import { SectionMedia } from "@/src/features/traces/components/IOPreview/components/SectionMedia";
 import {
   type ChatMlMessage,
+  getMessageTitle,
   shouldRenderMessageForContentMode,
 } from "@/src/features/traces/fns/chatMessageUtils";
 import { type MediaReturnType } from "@/src/features/media";
@@ -33,6 +34,8 @@ export interface ChatMessageListProps {
   inputMessageCount?: number;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+  /** Title messages Input / Output by side instead of by role. */
+  titleBySide?: boolean;
 }
 
 /**
@@ -55,6 +58,7 @@ export function ChatMessageList({
   inputMessageCount,
   contentMode = "all",
   showSystemPrompt,
+  titleBySide = false,
 }: ChatMessageListProps) {
   // Filter messages to only those with renderable content
   const messagesToRender = useMemo(
@@ -107,18 +111,23 @@ export function ChatMessageList({
     <div className="flex max-h-full min-h-0 flex-col gap-2">
       <div className="flex max-h-full min-h-0 flex-col gap-2">
         <div className="flex flex-col gap-2">
-          {messagesToRender.map(({ message, originalIndex }, filteredIndex) => (
-            <ChatMessage
-              key={originalIndex}
-              message={message}
-              shouldRenderMarkdown={shouldRenderMarkdown}
-              currentView={currentView}
-              toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
-              isOutputMessage={originalIndex >= (inputMessageCount ?? 0)}
-              contentMode={contentMode}
-              defaultCollapsed={startsCollapsed(filteredIndex, message)}
-            />
-          ))}
+          {messagesToRender.map(({ message, originalIndex }, filteredIndex) => {
+            const isOutputMessage = originalIndex >= (inputMessageCount ?? 0);
+            const sideTitle = isOutputMessage ? "Output" : "Input";
+            return (
+              <ChatMessage
+                key={originalIndex}
+                message={message}
+                title={titleBySide ? sideTitle : getMessageTitle(message)}
+                shouldRenderMarkdown={shouldRenderMarkdown}
+                currentView={currentView}
+                toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
+                isOutputMessage={isOutputMessage}
+                contentMode={contentMode}
+                defaultCollapsed={startsCollapsed(filteredIndex, message)}
+              />
+            );
+          })}
         </div>
 
         {/* Additional input section */}

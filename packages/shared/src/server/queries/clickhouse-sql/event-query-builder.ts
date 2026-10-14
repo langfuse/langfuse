@@ -13,7 +13,11 @@ import { renderClickhouseExpression } from "../../query-ast/compile";
 import { metadataMap, traceSessionId } from "../../query-ast/extensions";
 import type { ClickHouseDatabase } from "../../query-ast/schema";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
-import { FilterList, StringFilter } from "./clickhouse-filter";
+import {
+  FilterList,
+  StringFilter,
+  type ClickhouseFilter,
+} from "./clickhouse-filter";
 
 const eventsRef = expressionBuilder<
   { e: ClickHouseDatabase["events_core"] },
@@ -1616,8 +1620,23 @@ export const ALL_SESSION_EVENTS_FIELDS =
 export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_SESSION_AGGREGATION_FIELDS
 > {
+  private fullTable = false;
+
   constructor(options: { projectId: string }) {
     super(EVENTS_SESSION_AGGREGATION_FIELDS, options);
+  }
+
+  /**
+   * Read events_full instead of events_core, e.g. when an outer filter is
+   * sensitive to events_core's truncated metadata values.
+   */
+  withFullTable(fullTable: boolean): this {
+    this.fullTable = fullTable;
+    return this;
+  }
+
+  protected override getTableName(): string {
+    return this.fullTable ? "events_full" : "events_core";
   }
 
   /**
@@ -1654,6 +1673,33 @@ export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder
       b.whereRaw(
         `start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
         { startTimeFrom },
+      ),
+    );
+  }
+
+  /**
+   * Restricts the aggregation to sessions with at least one event matching a
+   * row-level metadata condition over alias `m`. Sound for any condition the
+   * caller re-applies to the aggregated metadata: that metadata comes from one
+   * of the session's events in the same range, so a passing session always has
+   * a matching event. Lets the metadata skip indices prune the subquery and the
+   * session_id bloom filter prune the aggregation scan.
+   */
+  withMetadataSessionPrefilter(
+    condition: ClickhouseFilter | null,
+    startTimeFrom?: string | null,
+  ): this {
+    return this.when(Boolean(condition?.query.trim()), (b) =>
+      b.whereRaw(
+        `session_id IN (
+          SELECT m.session_id
+          FROM ${this.getTableName()} m
+          WHERE m.project_id = {projectId: String}
+            ${startTimeFrom ? `AND m.start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+            AND m.session_id != ''
+            AND (${condition!.query})
+        )`,
+        { ...condition!.params, ...(startTimeFrom ? { startTimeFrom } : {}) },
       ),
     );
   }

@@ -38,10 +38,23 @@ Use their technical rules, not their implementation or handoff workflows.
 
 - Use `web/src/components/design-system/` primitives and their styling rules.
   Add variants instead of custom `className` values.
+- Importing raw primitives (`@radix-ui/*`, cmdk, etc.) in feature code is an
+  exception, only when the design system has no suitable option.
+- Compose triggers and overlay content separately. Overlay owners manage content
+  and open/close state, but must allow callers to supply or replace the trigger.
+  Trigger components must not own the overlay content. Connect triggers through
+  trigger props or controller callbacks rather than hard-coding a button inside
+  the content component. Use `DialogController` for dialogs and follow the
+  render-prop trigger APIs of `Tooltip` and `HoverCard` in
+  `web/src/components/design-system/`.
+  Support triggers nested inside child components by passing trigger props or
+  callbacks—not overlay content.
 - Export one component per file. Match the filename to the component and name
   its props type `<ComponentName>Props`.
-- Use `children` or conditionals, not `renderX` props. Extract nested JSX-returning
-  functions into components. Use a store when extracted components share state.
+- When creating new component APIs, use `children` or conditionals, not `renderX`
+  props. This does not prohibit using existing design-system render-prop APIs.
+  Extract nested JSX-returning functions into components. Use a store when
+  extracted components share state.
 - Name action handlers; no inline functions in JSX.
 - Fetch data in custom hooks, not UI components. Use `react-hook-form` for forms.
 - Do not use effects to compute derived state, handle user actions, or synchronize
