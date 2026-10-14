@@ -226,14 +226,14 @@ export function dateDiff(
   );
 }
 
-/** `map[key]` subscript with a bound key. */
+/** `map[key]` subscript with a bound key, on a map column or expression. */
 export function mapValue<V = number>(
-  column: string,
+  map: string | Expression<Record<string, V>>,
   key: string,
-): Expression<V> {
+): ChExpression<V> {
   return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
     ArrayIndexNode.create(
-      columnRef(column),
+      typeof map === "string" ? columnRef(map) : map.toOperationNode(),
       ValueNode.create(key),
     ) as unknown as OperationNode,
   );
@@ -290,11 +290,12 @@ function functionCall<T>(
 }
 
 /**
- * ClickHouse `leftUTF8(expression, length)`. The length is inlined as an
- * integer literal; it must be a positive integer.
+ * ClickHouse `leftUTF8(expression, length)`; `expression` is a column name or
+ * a string expression. The length is inlined as an integer literal; it must be
+ * a positive integer.
  */
 export function leftUTF8(
-  expression: Expression<string>,
+  expression: string | Expression<string>,
   length: number,
 ): ChExpression<string> {
   if (!Number.isInteger(length) || length < 1) {
@@ -303,7 +304,7 @@ export function leftUTF8(
     );
   }
   return functionCall("leftUTF8", [
-    expression,
+    typeof expression === "string" ? columnRef(expression) : expression,
     ValueNode.createImmediate(length),
   ]);
 }
@@ -325,6 +326,22 @@ export function toJSONString(
   expression: Expression<unknown>,
 ): ChExpression<string> {
   return functionCall("toJSONString", [expression]);
+}
+
+function dateArg(value: Expression<Date> | Date): OperationNodeSource {
+  return value instanceof Date ? ValueNode.create(value) : value;
+}
+
+/** ClickHouse `toDate(value)`; a JS `Date` is bound. */
+export function toDate(value: Expression<Date> | Date): ChExpression<Date> {
+  return functionCall("toDate", [dateArg(value)]);
+}
+
+/** ClickHouse `toStartOfMinute(value)`; a JS `Date` is bound. */
+export function toStartOfMinute(
+  value: Expression<Date> | Date,
+): ChExpression<Date> {
+  return functionCall("toStartOfMinute", [dateArg(value)]);
 }
 
 /** ClickHouse `arrayReverse(array)`. */
@@ -407,9 +424,7 @@ export function tupleIn(
 }
 
 /** `expression != ''`, with the empty string inlined rather than bound. */
-export function nonEmpty(
-  expression: Expression<string>,
-): ChExpression<SqlBool> {
+function nonEmpty(expression: Expression<string>): ChExpression<SqlBool> {
   return new ExpressionWrapper(
     BinaryOperationNode.create(
       expression.toOperationNode(),
@@ -420,7 +435,7 @@ export function nonEmpty(
 }
 
 /** ClickHouse `argMaxIf(value, by, condition)`. */
-export function argMaxIf<T>(
+function argMaxIf<T>(
   value: Expression<T>,
   by: Expression<unknown>,
   condition: Expression<SqlBool>,
@@ -435,21 +450,39 @@ export function argMaxIf<T>(
 }
 
 /**
- * Lower `metadata[key]` to a traced array-subscript + `indexOf` node.
- * The key is a bound `ValueNode`, not a SQL literal.
+ * A trace's session id from its events: the latest non-empty `session_id`,
+ * `argMaxIf(session_id, event_ts, session_id != '')`. Reads unqualified
+ * columns, for a trace-level aggregate over one events table.
+ */
+export function traceSessionId(): ChExpression<string> {
+  const sessionId = new ExpressionWrapper<
+    ClickHouseDatabase,
+    keyof ClickHouseDatabase,
+    string
+  >(columnRef("session_id"));
+  return argMaxIf(
+    sessionId,
+    new ExpressionWrapper(columnRef("event_ts")),
+    nonEmpty(sessionId),
+  );
+}
+
+/**
+ * Lower `metadata[key]` to a subscript of {@link metadataMap}, so the last
+ * entry of a duplicated key wins. The key is a bound `ValueNode`, not a SQL
+ * literal.
  */
 export function metadataValue(
   tableAlias: string,
   key: string,
-): ExpressionWrapper<ClickHouseDatabase, "events_core", string | number> {
-  return new ExpressionWrapper(
-    ArrayIndexNode.create(
-      qualifiedColumn(tableAlias, "metadata_values"),
-      FunctionNode.create("indexOf", [
-        qualifiedColumn(tableAlias, "metadata_names"),
-        ValueNode.create(key),
-      ]),
-    ) as unknown as OperationNode,
+): ChExpression<string> {
+  const column = (name: string) =>
+    new ExpressionWrapper<ClickHouseDatabase, "events_core", string[]>(
+      qualifiedColumn(tableAlias, name),
+    );
+  return mapValue<string>(
+    metadataMap(column("metadata_names"), column("metadata_values")),
+    key,
   );
 }
 

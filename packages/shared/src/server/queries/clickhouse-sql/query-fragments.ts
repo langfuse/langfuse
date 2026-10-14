@@ -7,6 +7,8 @@ import {
   EventsAggQueryBuilder,
   EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
+  type SessionEventsField,
+  type SessionEventsFields,
   ExperimentsAggregationFieldSetName,
   ExperimentsAggregationQueryBuilder,
   type CTEWithSchema,
@@ -307,15 +309,19 @@ export const eventsTracesScoresAggregationFromObservationStart = (
  */
 export const eventsSessionsAggregation = (params: {
   projectId: string;
+  fields: SessionEventsFields<SessionEventsField>;
   sessionIds?: string[];
   startTimeFrom?: string | null;
   includeMetadata?: boolean;
   includeTools?: boolean;
+  fullTable?: boolean;
+  metadataSessionPrefilter?: ClickhouseFilter | null;
 }): EventsSessionAggregationQueryBuilder => {
   return new EventsSessionAggregationQueryBuilder({
     projectId: params.projectId,
   })
-    .selectFieldSet("base")
+    .withFullTable(Boolean(params.fullTable))
+    .selectSessionFields(params.fields)
     .when(Boolean(params.includeMetadata), (builder) =>
       builder.selectFieldSet("metadata"),
     )
@@ -324,6 +330,10 @@ export const eventsSessionsAggregation = (params: {
     )
     .withSessionIds(params.sessionIds)
     .withStartTimeFrom(params.startTimeFrom)
+    .withMetadataSessionPrefilter(
+      params.metadataSessionPrefilter ?? null,
+      params.startTimeFrom,
+    )
     .whereRaw("session_id != ''");
 };
 
