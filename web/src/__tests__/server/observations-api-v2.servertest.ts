@@ -71,6 +71,175 @@ describe("/api/public/v2/observations API Endpoint", () => {
   });
 
   maybe("GET /api/public/v2/observations", () => {
+    it.each(["basic", "basic,io"])(
+      "filters whole-session duration before pagination with fields=%s",
+      async (fields) => {
+        const start = Math.floor(Date.now() / 1000) * 1000 - 10_000;
+        const longSession = randomUUID();
+        const secondSession = randomUUID();
+        const shortSession = randomUUID();
+        const otherProject = await createOrgProjectAndApiKey();
+        const event = (
+          sessionId: string,
+          offset: number,
+          tags: string[] = [],
+          eventProjectId = projectId,
+        ) => {
+          const id = randomUUID();
+          return createEvent({
+            id,
+            span_id: id,
+            trace_id: randomUUID(),
+            project_id: eventProjectId,
+            session_id: sessionId,
+            start_time: (start + offset * 1000) * 1000,
+            end_time: (start + (offset + 1) * 1000) * 1000,
+            tags,
+            input: "session-duration-fixture",
+          });
+        };
+        const first = event(longSession, 3, ["selected", "review"]);
+        const second = event(secondSession, 2, ["selected", "review"]);
+        const observations = [
+          // Each trace lasts one second; the session includes the idle gaps.
+          event(longSession, -300_000),
+          first,
+          event(longSession, 10),
+          event(secondSession, -300_000),
+          second,
+          event(secondSession, 10),
+          // This sorts first but must not consume a page of qualifying rows.
+          event(shortSession, 3.5, ["selected", "review"]),
+          // Another tenant's history must not lengthen the local short session.
+          event(shortSession, -400_000, [], otherProject.projectId),
+        ];
+        await createEventsCh(observations);
+        await waitForExpect(async () => {
+          const rows = await queryClickhouse<{ count: string }>({
+            query:
+              "SELECT count() AS count FROM events_core WHERE span_id IN ({ids: Array(String)})",
+            params: { ids: observations.map((row) => row.span_id) },
+          });
+          expect(Number(rows[0]?.count)).toBe(observations.length);
+        });
+
+        const params = new URLSearchParams({
+          fields,
+          fromStartTime: new Date(start + 2000).toISOString(),
+          toStartTime: new Date(start + 4000).toISOString(),
+          filter: JSON.stringify([
+            {
+              type: "arrayOptions",
+              column: "tags",
+              operator: "all of",
+              value: ["selected", "review"],
+            },
+          ]),
+          minSessionDuration: "300011",
+          limit: "1",
+        });
+        const url = () => `/api/public/v2/observations?${params}`;
+        const page1 = await getObservations(url());
+        expect(page1.status).toBe(200);
+        expect(page1.body.data.map((row) => row.id)).toEqual([first.span_id]);
+        expect(page1.body.data[0]?.sessionId).toBe(longSession);
+        expect(page1.body.meta.cursor).toBeDefined();
+
+        params.set("cursor", page1.body.meta.cursor!);
+        const page2 = await getObservations(url());
+        expect(page2.body.data.map((row) => row.id)).toEqual([second.span_id]);
+        expect(page2.body.meta.cursor).toBeUndefined();
+
+        params.delete("cursor");
+        params.set("minSessionDuration", "300011.1");
+        expect((await getObservations(url())).body.data).toEqual([]);
+
+        // Advanced session filters retain precedence over the simple parameter.
+        params.set("minSessionDuration", "300011");
+        params.set("sessionId", shortSession);
+        params.set(
+          "filter",
+          JSON.stringify([
+            {
+              type: "string",
+              column: "sessionId",
+              operator: "=",
+              value: longSession,
+            },
+          ]),
+        );
+        expect((await getObservations(url())).body.data[0]?.sessionId).toBe(
+          longSession,
+        );
+      },
+    );
+
+    it("preserves unfiltered results and supports zero duration and unfinished observations", async () => {
+      const now = Math.floor(Date.now() / 1000) * 1_000_000;
+      const sessionId = randomUUID();
+      const observations = [sessionId, ""].map((session_id) => {
+        const id = randomUUID();
+        return createEvent({
+          id,
+          span_id: id,
+          trace_id: randomUUID(),
+          project_id: projectId,
+          session_id,
+          start_time: now,
+          end_time: null,
+        });
+      });
+      await createEventsCh(observations);
+      const url = "/api/public/v2/observations?fields=basic";
+      await waitForExpect(async () => {
+        expect((await getObservations(url)).body.data).toHaveLength(2);
+      });
+      const zero = await getObservations(`${url}&minSessionDuration=0`);
+      expect(zero.body.data.map((row) => row.sessionId)).toEqual([sessionId]);
+      expect(
+        (await getObservations(`${url}&minSessionDuration=0.1`)).body.data,
+      ).toEqual([]);
+    });
+
+    it("excludes inaccessible history from session duration", async () => {
+      const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const sessionId = randomUUID();
+      await createEventsCh(
+        [1, 100].map((daysAgo) => {
+          const id = randomUUID();
+          const time = (Date.now() - daysAgo * 86_400_000) * 1000;
+          return createEvent({
+            id,
+            span_id: id,
+            trace_id: randomUUID(),
+            project_id: fixture.projectId,
+            session_id: sessionId,
+            start_time: time,
+            end_time: time + 1_000_000,
+          });
+        }),
+      );
+      await waitForExpect(async () => {
+        const unfiltered = await makeZodVerifiedAPICall(
+          GetObservationsV2Response,
+          "GET",
+          `/api/public/v2/observations?sessionId=${sessionId}`,
+          undefined,
+          fixture.auth,
+        );
+        expect(unfiltered.body.data).toHaveLength(1);
+      });
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        "/api/public/v2/observations?minSessionDuration=60",
+        undefined,
+        fixture.auth,
+      );
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual([]);
+    });
+
     it("clamps Hobby observation access to the last 30 days", async () => {
       const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
       const oldId = randomUUID();
