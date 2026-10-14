@@ -50,6 +50,11 @@ const DATE_WRAPPER_FNS = new Set([
   "toStartOfYear",
 ]);
 
+// Interning key for a bound value: equal keys share one placeholder within a
+// compile. E.g. `TupleParam(["a", 1])` → `t:["a",1]` and `TupleParam(["b", 2])`
+// → `t:["b",2]` bind as two placeholders. Object values need an explicit
+// branch, because `String(value)` renders every plain object as
+// `[object Object]`.
 function canonicalParamValue(value: unknown): string {
   if (value instanceof Date) return `d:${value.toISOString()}`;
   if (value instanceof TupleParam) {

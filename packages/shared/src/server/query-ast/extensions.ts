@@ -328,21 +328,36 @@ export function toJSONString(
 }
 
 /** ClickHouse `arrayReverse(array)`. */
-export function arrayReverse<T>(array: Expression<T[]>): ChExpression<T[]> {
+function arrayReverse<T>(array: Expression<T[]>): ChExpression<T[]> {
   return functionCall("arrayReverse", [array]);
 }
 
 /** ClickHouse `mapFromArrays(keys, values)`. */
-export function mapFromArrays<V>(
+function mapFromArrays<V>(
   keys: Expression<string[]>,
   values: Expression<V[]>,
 ): ChExpression<Record<string, V>> {
   return functionCall("mapFromArrays", [keys, values]);
 }
 
+/**
+ * Events metadata as a map: `mapFromArrays(arrayReverse(names),
+ * arrayReverse(values))`. Both arrays are reversed so that, for a key stored
+ * twice, the last entry wins.
+ */
+export function metadataMap(
+  names: Expression<string[]>,
+  values: Expression<string[]>,
+): ChExpression<Record<string, string>> {
+  return mapFromArrays(arrayReverse(names), arrayReverse(values));
+}
+
 // Nesting depth of `arrayMap` bodies under construction. Each nesting level
 // names its lambda parameter differently, so an inner lambda never shadows
 // an outer one. Zero outside any `arrayMap` call.
+// Module state is safe here: `body` runs synchronously inside `arrayMap`, and
+// JavaScript never interleaves another synchronous call with it, so concurrent
+// requests cannot observe each other's depth.
 let arrayMapDepth = 0;
 
 /**

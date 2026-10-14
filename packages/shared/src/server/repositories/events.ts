@@ -38,15 +38,14 @@ import { promptGenerationEvents } from "./prompt-events";
 import {
   argMaxIf,
   arrayMap,
-  arrayReverse,
   byteLength,
   count,
   dateDiff,
   leftUTF8,
   limitBy,
-  mapFromArrays,
   mapValue,
   medianExact,
+  metadataMap,
   nonEmpty,
   sumMapValuesWhereKeyContains,
   toJSONString,
@@ -1056,12 +1055,6 @@ export const getObservationByIdFromEventsTable = async ({
 
 const EVENTS_METADATA_MAP_SQL =
   "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))";
-
-/** Typed form of {@link EVENTS_METADATA_MAP_SQL} over any names/values pair. */
-const metadataMap = (
-  names: Expression<string[]>,
-  values: Expression<string[]>,
-) => mapFromArrays(arrayReverse(names), arrayReverse(values));
 
 /** ClickHouse DateTime binds stay strings; the column type is Date. */
 function dateTimeParam(value: string): Date {

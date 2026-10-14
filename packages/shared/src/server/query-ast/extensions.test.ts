@@ -172,12 +172,12 @@ describe("arrayMap", () => {
       .selectFrom("events_core as e")
       .select((eb) => [
         arrayMap<string, string[]>(
-          () =>
+          (name) =>
             arrayMap<string, string>(
-              (inner) => leftUTF8(inner, 1),
+              (tag) => eb.fn<string>("concat", [name, tag]),
               eb.ref("e.tags"),
             ),
-          eb.ref("e.metadata_values"),
+          eb.ref("e.metadata_names"),
         ).as("nested"),
         arrayMap<string, string>(
           (value) => leftUTF8(value, 2),
@@ -187,7 +187,7 @@ describe("arrayMap", () => {
 
     const { sql: compiled } = compileClickhouseQuery(qb, ctx);
     expect(compiled).toContain(
-      "arrayMap(v -> arrayMap(v1 -> leftUTF8(v1, 1), e.tags), e.metadata_values)",
+      "arrayMap(v -> arrayMap(v1 -> concat(v, v1), e.tags), e.metadata_names)",
     );
     expect(compiled).toContain("arrayMap(v -> leftUTF8(v, 2), e.tags)");
   });

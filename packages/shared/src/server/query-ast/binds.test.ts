@@ -407,7 +407,8 @@ describe("typed params from the column registry", () => {
           eb.val(new TupleParam(["b", 2])).as("second"),
         ]),
     );
-    expect(sql.match(/\{p\d+:Tuple\(String, Int64\)\}/g)).toHaveLength(2);
+    const placeholders = sql.match(/\{p\d+:Tuple\(String, Int64\)\}/g);
+    expect(new Set(placeholders)).toHaveProperty("size", 2);
     expect(Object.values(params)).toEqual(
       expect.arrayContaining([
         new TupleParam(["a", 1]),
