@@ -769,6 +769,51 @@ describe("scores trpc", () => {
 
       expect(result.scores.map(({ id }) => id)).toContain(score.id);
     });
+
+    it("matches the name of a trace older than the score window", async () => {
+      const traceId = randomUUID();
+      const score = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        name: "late-annotation-score",
+        value: 1,
+      });
+
+      await createEventsCh([
+        createEvent({
+          trace_id: traceId,
+          project_id: projectId,
+          parent_span_id: "",
+          name: "month-old-trace",
+          trace_name: "month-old-trace",
+          start_time: (Date.now() - 30 * 24 * 60 * 60 * 1000) * 1000,
+        }),
+      ]);
+      await createScoresCh([score]);
+
+      const result = await caller.scores.allFromEvents({
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            operator: ">=",
+            value: new Date(Date.now() - 24 * 60 * 60 * 1000),
+            type: "datetime",
+          },
+          {
+            column: "traceName",
+            operator: "=",
+            value: "month-old-trace",
+            type: "string",
+          },
+        ],
+        orderBy: { column: "timestamp", order: "DESC" },
+        page: 0,
+        limit: 50,
+      });
+
+      expect(result.scores.map(({ id }) => id)).toEqual([score.id]);
+    });
   });
 
   describe("scores.createAnnotationScore", () => {
