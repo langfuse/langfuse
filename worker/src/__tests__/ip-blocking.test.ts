@@ -181,6 +181,16 @@ describe("IP Blocking Module", () => {
         );
       });
     });
+
+    describe("operator blocked IP segments", () => {
+      it("blocks a public CIDR and still honors exemptions inside it", () => {
+        expect(isIPBlocked("8.8.8.8", [], [], ["8.8.8.0/24"])).toBe(true);
+        expect(isIPBlocked("1.1.1.1", [], [], ["8.8.8.0/24"])).toBe(false);
+        expect(isIPBlocked("8.8.8.8", ["8.8.8.8"], [], ["8.8.8.0/24"])).toBe(
+          false,
+        );
+      });
+    });
   });
 
   describe("isIPAddress", () => {

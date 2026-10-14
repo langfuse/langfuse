@@ -52,6 +52,7 @@ export function isIPBlocked(
   ipString: string,
   whitelistedIPs: string[],
   whiteListedIpSegments: string[],
+  blockedIpSegments: string[] = [],
 ): boolean {
   try {
     const cleanedIp = normalizeIPAddress(ipString);
@@ -76,6 +77,10 @@ export function isIPBlocked(
     for (const { network, mask, kind } of whitelistedSegments) {
       if (ip.kind() !== kind) continue;
       if (ip.match(network, mask)) return false;
+    }
+
+    for (const cidr of blockedIpSegments ?? []) {
+      if (ipMatchesCidr(ip, cidr)) return true;
     }
 
     for (const { network, mask, kind } of blockedNetworks) {
@@ -141,6 +146,24 @@ export function isHostnameBlocked(hostname: string): boolean {
   }
 
   return false;
+}
+
+function ipMatchesCidr(
+  ip: ReturnType<typeof ipaddr.parse>,
+  cidr: string,
+): boolean {
+  // A malformed operator CIDR must not fail the whole check closed: that
+  // would block every public address. Startup validation rejects bad values.
+  try {
+    const [addr, bits] = cidr.split("/");
+    if (!addr || bits === undefined) return false;
+    const parsed = ipaddr.parse(addr);
+    const mask = parseInt(bits, 10);
+    if (ip.kind() !== parsed.kind() || !Number.isInteger(mask)) return false;
+    return ip.match(parsed, mask);
+  } catch {
+    return false;
+  }
 }
 
 function normalizeIPAddress(ipString: string): string {

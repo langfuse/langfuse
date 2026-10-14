@@ -22,6 +22,7 @@ export function whitelistFromEnv(): WebhookValidationWhitelist {
     hosts: env.LANGFUSE_WEBHOOK_WHITELISTED_HOST || [],
     ips: env.LANGFUSE_WEBHOOK_WHITELISTED_IPS || [],
     ip_ranges: env.LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS || [],
+    allowedHosts: env.LANGFUSE_WEBHOOK_ALLOWED_HOSTS,
   };
 }
 

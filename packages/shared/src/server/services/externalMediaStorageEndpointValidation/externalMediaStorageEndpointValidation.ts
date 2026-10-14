@@ -15,6 +15,7 @@ const STRICT_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELIST: OutboundUrlValidationWhi
     hosts: [],
     ips: [],
     ip_ranges: [],
+    allowedHosts: [],
   };
 
 function isLangfuseCloud() {
@@ -32,6 +33,7 @@ export function externalMediaStorageEndpointWhitelistFromEnv(): OutboundUrlValid
     ip_ranges:
       env.LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS ||
       [],
+    allowedHosts: env.LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_ALLOWED_HOSTS,
   };
 }
 
@@ -69,7 +71,7 @@ export async function validateExternalMediaStorageEndpoint(
     if (error instanceof OutboundUrlValidationError) {
       throw new OutboundUrlValidationError(
         error.code,
-        `${error.message}${getSelfHostedWhitelistGuidance()}`,
+        `${error.message}${getSelfHostedWhitelistGuidance(error.code)}`,
       );
     }
     throw error;
@@ -83,8 +85,14 @@ export function externalMediaStorageEndpointConnectionValidationOptions(): Outbo
   };
 }
 
-function getSelfHostedWhitelistGuidance() {
+function getSelfHostedWhitelistGuidance(
+  code: OutboundUrlValidationError["code"],
+) {
   if (isLangfuseCloud()) return "";
+
+  if (code === "host-not-allowed") {
+    return " Add the host to LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_ALLOWED_HOSTS.";
+  }
 
   return " For self-hosted deployments with internal external media storage endpoints, configure LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_HOST, LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IPS, or LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS.";
 }

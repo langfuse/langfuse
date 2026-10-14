@@ -1,3 +1,4 @@
+import ipaddr from "ipaddr.js";
 import { z } from "zod";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
@@ -26,6 +27,33 @@ export const redisSocketTimeoutMsSchema = z.coerce
       "REDIS_SOCKET_TIMEOUT_MS must be 0 (disabled) or at least 10000; BullMQ blocking commands idle ~5s between packets",
   })
   .default(30_000);
+
+function commaSeparatedLowercase(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((part) => part.toLowerCase().trim())
+    .filter((part) => part.length > 0);
+}
+
+const optionalCommaSeparatedLowercase = z
+  .string()
+  .optional()
+  .transform(commaSeparatedLowercase);
+
+function isCidr(value: string): boolean {
+  const [addr, bits] = value.split("/");
+  if (!addr || bits === undefined) return false;
+  const mask = Number(bits);
+  if (!Number.isInteger(mask)) return false;
+  try {
+    const parsed = ipaddr.parse(addr);
+    const maxPrefix = parsed.kind() === "ipv4" ? 32 : 128;
+    return mask >= 0 && mask <= maxPrefix;
+  } catch {
+    return false;
+  }
+}
 
 const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
 
@@ -477,6 +505,10 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, webhook URLs must use one of these hosts. Distinct from
+  // LANGFUSE_WEBHOOK_WHITELISTED_HOST, which only exempts a host from the
+  // private-address block.
+  LANGFUSE_WEBHOOK_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -495,6 +527,9 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, LLM connection base URLs must use one of these hosts.
+  // Ignored on Langfuse Cloud, same as the LLM exemption list above.
+  LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -513,6 +548,9 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, blob storage endpoints must use one of these hosts. Also
+  // turns self-hosted endpoint validation on, same as the exemption list.
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -531,6 +569,10 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, external media storage endpoints must use one of these
+  // hosts. Ignored on Langfuse Cloud.
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_ALLOWED_HOSTS:
+    optionalCommaSeparatedLowercase,
   // Buckets that keyless GOOGLE_CLOUD_STORAGE blob exports (default credentials,
   // no service account key) may write to. Those run as the deployment's own GCP
   // identity (ADC), so without this allowlist any project owner could export into
@@ -565,6 +607,18 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, SSO discovery and the endpoints in the discovery document
+  // must use one of these hosts.
+  LANGFUSE_SSO_DISCOVERY_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
+  // Merged into the built-in private-address block for every outbound URL
+  // check. Exemptions in the per-surface *_WHITELISTED_* lists still win.
+  LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS: optionalCommaSeparatedLowercase.refine(
+    (segments) => segments.every(isCidr),
+    {
+      message:
+        "LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS must be a comma-separated list of CIDR ranges",
+    },
+  ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),

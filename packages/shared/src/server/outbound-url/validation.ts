@@ -1,5 +1,6 @@
 import dns from "node:dns/promises";
 import { URL } from "node:url";
+import { env } from "../../env";
 import { logger } from "../logger";
 import {
   isHostnameBlocked,
@@ -11,6 +12,7 @@ export type OutboundUrlValidationErrorCode =
   | "blocked-hostname"
   | "blocked-ip"
   | "dns-lookup-failed"
+  | "host-not-allowed"
   | "https-required"
   | "invalid-encoding"
   | "invalid-syntax"
@@ -37,6 +39,9 @@ export interface OutboundUrlValidationWhitelist {
   hosts: string[];
   ips: string[];
   ip_ranges: string[];
+  // Positive host list. Empty or omitted keeps the default-allow behavior:
+  // any public host is accepted, and `hosts` only exempts private targets.
+  allowedHosts?: string[];
 }
 
 export interface ValidateOutboundUrlHostOptions {
@@ -126,6 +131,10 @@ export async function validateOutboundUrlHost({
   // host safety checks stay tied to the parsed URL component.
   const hostname = url.hostname;
 
+  if (enforcePositiveAllowlist(hostname, whitelist) === "allowed") {
+    return;
+  }
+
   if (whitelist.hosts.includes(hostname)) {
     return;
   }
@@ -170,11 +179,22 @@ export function validateOutboundResolvedIp({
   whitelist,
   logContext,
 }: ValidateOutboundResolvedIpOptions): void {
+  if (enforcePositiveAllowlist(hostname, whitelist) === "allowed") {
+    return;
+  }
+
   if (whitelist.hosts.includes(hostname)) {
     return;
   }
 
-  if (isIPBlocked(ip, whitelist.ips, whitelist.ip_ranges)) {
+  if (
+    isIPBlocked(
+      ip,
+      whitelist.ips,
+      whitelist.ip_ranges,
+      env.LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS ?? [],
+    )
+  ) {
     logger.warn(
       `${logContext} validation blocked resolved IP address: ${ip} for hostname: ${hostname}`,
     );
@@ -183,6 +203,25 @@ export function validateOutboundResolvedIp({
       "Blocked IP address detected",
     );
   }
+}
+
+const HOST_NOT_IN_ALLOWLIST_MESSAGE =
+  "Host is not in the outbound URL allowlist";
+
+// Returns "allowed" when the host is on a configured positive allowlist and
+// may skip the private-address block. Throws when a list is configured and
+// the host is absent. Returns "not-configured" when no positive list is set.
+function enforcePositiveAllowlist(
+  hostname: string,
+  whitelist: OutboundUrlValidationWhitelist,
+): "allowed" | "not-configured" {
+  const allowedHosts = whitelist.allowedHosts ?? [];
+  if (allowedHosts.length === 0) return "not-configured";
+  if (allowedHosts.includes(hostname)) return "allowed";
+  throw new OutboundUrlValidationError(
+    "host-not-allowed",
+    HOST_NOT_IN_ALLOWLIST_MESSAGE,
+  );
 }
 
 function assertValidUrlEncoding(urlString: string): void {

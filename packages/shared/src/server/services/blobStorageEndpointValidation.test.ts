@@ -53,6 +53,38 @@ describe("validateBlobStorageEndpoint", () => {
     expect((caught as Error).cause).toBeUndefined();
   });
 
+  it("rejects hosts outside a positive allowlist even without an exemption list", async () => {
+    let caught: unknown;
+    try {
+      await validateBlobStorageEndpoint("http://10.0.0.1", {
+        hosts: [],
+        ips: [],
+        ip_ranges: [],
+        allowedHosts: ["minio.internal"],
+      });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(OutboundUrlValidationError);
+    expect((caught as OutboundUrlValidationError).code).toBe(
+      "host-not-allowed",
+    );
+    expect((caught as Error).message).toContain(
+      "LANGFUSE_BLOB_STORAGE_ENDPOINT_ALLOWED_HOSTS",
+    );
+  });
+
+  it("allows a private host that is on the positive allowlist", async () => {
+    await expect(
+      validateBlobStorageEndpoint("http://minio.internal", {
+        hosts: [],
+        ips: [],
+        ip_ranges: [],
+        allowedHosts: ["minio.internal"],
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   it("no-ops when validation is disabled (empty whitelist, non-cloud)", async () => {
     await expect(
       validateBlobStorageEndpoint("http://10.0.0.1", {
