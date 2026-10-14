@@ -1,11 +1,11 @@
 //! Resolve the caller's credential, then execute using only the trusted context.
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use axum::{
     body::Body,
     http::{HeaderMap, Response},
 };
-use tokio::sync::{Semaphore, SemaphorePermit};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, SemaphorePermit};
 use tracing::Instrument;
 
 use crate::{
@@ -20,9 +20,9 @@ use crate::{
 pub struct InferenceService {
     control_plane: ControlPlaneClient,
     provider: ProviderTransport,
-    request_body_capacity: Semaphore,
+    request_body_capacity: Arc<Semaphore>,
     request_limits: RequestLimits,
-    request_bytes_capacity: Semaphore,
+    request_bytes_capacity: Arc<Semaphore>,
     model_catalog_capacity: Semaphore,
     resolution_capacity: Semaphore,
     telemetry: Option<crate::telemetry::Telemetry>,
@@ -34,13 +34,14 @@ pub(crate) enum RequestPreparationError {
 }
 
 /// One request-body slot plus the body bytes reserved so far from the shared budget.
-pub(crate) struct RequestBodyPermit<'a> {
-    _slot: SemaphorePermit<'a>,
-    bytes: SemaphorePermit<'a>,
-    budget: &'a Semaphore,
+/// It travels with the upstream body and is released once that body is sent.
+pub(crate) struct RequestBodyPermit {
+    _slot: OwnedSemaphorePermit,
+    bytes: OwnedSemaphorePermit,
+    budget: Arc<Semaphore>,
 }
 
-impl RequestBodyPermit<'_> {
+impl RequestBodyPermit {
     /// Grow the reservation to `total` body bytes without waiting.
     ///
     /// # Errors
@@ -54,7 +55,11 @@ impl RequestBodyPermit<'_> {
         };
         let reserved = u32::try_from(missing)
             .ok()
-            .and_then(|missing| self.budget.try_acquire_many(missing).ok())
+            .and_then(|missing| {
+                Arc::clone(&self.budget)
+                    .try_acquire_many_owned(missing)
+                    .ok()
+            })
             .ok_or_else(|| {
                 crate::observability::rejected("request_bytes");
                 ResolutionError::Unavailable
@@ -88,9 +93,9 @@ impl InferenceService {
             provider: ProviderTransport::new(config.max_active_requests, config.execution_limits)
                 .map_err(|_| ResolutionError::Configuration)?
                 .with_telemetry(telemetry.clone()),
-            request_body_capacity: Semaphore::new(config.max_active_requests),
+            request_body_capacity: Arc::new(Semaphore::new(config.max_active_requests)),
             request_limits: config.request_limits,
-            request_bytes_capacity: Semaphore::new(config.request_limits.buffer_bytes),
+            request_bytes_capacity: Arc::new(Semaphore::new(config.request_limits.buffer_bytes)),
             model_catalog_capacity: Semaphore::new(max_concurrent_resolutions),
             resolution_capacity: Semaphore::new(max_concurrent_resolutions),
             telemetry: Some(telemetry),
@@ -110,19 +115,20 @@ impl InferenceService {
 
     pub(crate) fn try_reserve_request_body(
         &self,
-    ) -> Result<RequestBodyPermit<'_>, RequestPreparationError> {
-        let slot = self.request_body_capacity.try_acquire().map_err(|_| {
-            crate::observability::rejected("request_body");
-            RequestPreparationError::Resolution(ResolutionError::Unavailable)
-        })?;
-        let bytes = self
-            .request_bytes_capacity
-            .try_acquire_many(0)
+    ) -> Result<RequestBodyPermit, RequestPreparationError> {
+        let slot = Arc::clone(&self.request_body_capacity)
+            .try_acquire_owned()
+            .map_err(|_| {
+                crate::observability::rejected("request_body");
+                RequestPreparationError::Resolution(ResolutionError::Unavailable)
+            })?;
+        let bytes = Arc::clone(&self.request_bytes_capacity)
+            .try_acquire_many_owned(0)
             .map_err(|_| RequestPreparationError::Resolution(ResolutionError::Unavailable))?;
         Ok(RequestBodyPermit {
             _slot: slot,
             bytes,
-            budget: &self.request_bytes_capacity,
+            budget: Arc::clone(&self.request_bytes_capacity),
         })
     }
 
@@ -241,9 +247,9 @@ impl InferenceService {
         Self {
             control_plane,
             provider,
-            request_body_capacity: Semaphore::new(resolutions),
+            request_body_capacity: Arc::new(Semaphore::new(resolutions)),
             request_limits: RequestLimits::default(),
-            request_bytes_capacity: Semaphore::new(RequestLimits::default().buffer_bytes),
+            request_bytes_capacity: Arc::new(Semaphore::new(RequestLimits::default().buffer_bytes)),
             model_catalog_capacity: Semaphore::new(resolutions),
             resolution_capacity: Semaphore::new(resolutions),
             telemetry: None,
@@ -252,7 +258,7 @@ impl InferenceService {
 
     #[cfg(test)]
     pub(crate) fn with_request_limits(mut self, request_limits: RequestLimits) -> Self {
-        self.request_bytes_capacity = Semaphore::new(request_limits.buffer_bytes);
+        self.request_bytes_capacity = Arc::new(Semaphore::new(request_limits.buffer_bytes));
         self.request_limits = request_limits;
         self
     }

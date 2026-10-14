@@ -1721,14 +1721,28 @@ async fn anthropic_routes_share_the_request_body_limit() {
 }
 
 #[tokio::test]
-async fn buffered_request_bytes_share_one_budget_until_provider_headers() {
+async fn buffered_request_bytes_are_released_once_sent_to_the_provider() {
     let (release, released) = tokio::sync::watch::channel(false);
+    let lengths = Arc::new(std::sync::Mutex::new(Vec::new()));
     let web = FakeServer::start(|_| async { resolution_response("provider") }).await;
-    let provider = FakeServer::start(move |_| {
-        let mut released = released.clone();
-        async move {
-            released.wait_for(|done| *done).await.unwrap();
-            Response::new(Body::empty())
+    let provider = FakeServer::start({
+        let lengths = lengths.clone();
+        move |request: Request| {
+            let mut released = released.clone();
+            let lengths = lengths.clone();
+            async move {
+                let declared = request
+                    .headers()
+                    .get(header::CONTENT_LENGTH)
+                    .map(|value| value.to_str().unwrap().to_owned());
+                let received = to_bytes(request.into_body(), usize::MAX).await.unwrap();
+                lengths
+                    .lock()
+                    .unwrap()
+                    .push((declared, received.len().to_string()));
+                released.wait_for(|done| *done).await.unwrap();
+                Response::new(Body::empty())
+            }
         }
     })
     .await;
@@ -1741,11 +1755,17 @@ async fn buffered_request_bytes_share_one_budget_until_provider_headers() {
         let prefix = r#"{"model":"Production key:test","padding":""#;
         format!("{prefix}{}\"}}", "x".repeat(size - prefix.len() - 2))
     };
-    let held = tokio::spawn(gateway.post().bearer_auth("key").body(body(60)).send());
+    let oversized = gateway.post().bearer_auth("key").body(body(65)).send();
+    assert_eq!(
+        oversized.await.unwrap().status(),
+        StatusCode::PAYLOAD_TOO_LARGE
+    );
+    // Two non-streamed 60-byte calls exceed the 100-byte budget only if the first
+    // still counts its body while it waits for provider headers.
+    let first = tokio::spawn(gateway.post().bearer_auth("key").body(body(60)).send());
     while provider.calls() == 0 {
         tokio::task::yield_now().await;
     }
-    let declared = gateway.post().bearer_auth("key").body(body(60));
     let chunked = gateway
         .post()
         .bearer_auth("key")
@@ -1755,21 +1775,24 @@ async fn buffered_request_bytes_share_one_budget_until_provider_headers() {
                 .chunks(20)
                 .map(|chunk| Ok::<_, Infallible>(chunk.to_vec()))
                 .collect::<Vec<_>>(),
-        )));
-    let oversized = gateway.post().bearer_auth("key").body(body(65));
-    for (request, status) in [
-        (declared, StatusCode::SERVICE_UNAVAILABLE),
-        (chunked, StatusCode::SERVICE_UNAVAILABLE),
-        (oversized, StatusCode::PAYLOAD_TOO_LARGE),
-    ] {
-        assert_eq!(request.send().await.unwrap().status(), status);
-    }
-    assert_eq!(web.calls(), 1);
+        )))
+        .send();
+    let second = tokio::spawn(chunked);
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while provider.calls() < 2 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the second call reaches the provider while the first waits");
     release.send(true).unwrap();
-    assert_eq!(held.await.unwrap().unwrap().status(), StatusCode::OK);
-    let next = gateway.post().bearer_auth("key").body(body(60)).send();
-    assert_eq!(next.await.unwrap().status(), StatusCode::OK);
-    assert_eq!(provider.calls(), 2);
+    assert_eq!(first.await.unwrap().unwrap().status(), StatusCode::OK);
+    assert_eq!(second.await.unwrap().unwrap().status(), StatusCode::OK);
+    let lengths = lengths.lock().unwrap();
+    assert_eq!(lengths.len(), 2);
+    for (declared, received) in lengths.iter() {
+        assert_eq!(declared.as_ref(), Some(received));
+    }
 }
 
 async fn budgeted_service() -> (FakeServer, FakeServer, InferenceService) {

@@ -1,7 +1,14 @@
 mod chat_completions;
 pub(crate) mod model_list;
 
-use std::{ops::Range, sync::Arc, time::Duration};
+use std::{
+    convert::Infallible,
+    ops::Range,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+    time::Duration,
+};
 
 use axum::{
     body::{Body, Bytes},
@@ -100,6 +107,46 @@ pub(crate) struct RequestBody {
     pub model_range: Range<usize>,
     /// The caller asked for a streamed response (`"stream": true`).
     pub streaming: bool,
+    /// Capacity held for the body, released once the provider connection has sent it.
+    pub reservation: Option<BodyReservation>,
+}
+
+pub(crate) type BodyReservation = Box<dyn Send + Sync>;
+
+/// A fixed-length upstream body that drops its reservation when it has been sent or
+/// abandoned, so a long provider wait does not keep counting it.
+struct ReservedBody {
+    bytes: Option<Bytes>,
+    reservation: Option<BodyReservation>,
+}
+
+impl http_body::Body for ReservedBody {
+    type Data = Bytes;
+    type Error = Infallible;
+
+    fn poll_frame(
+        self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Result<http_body::Frame<Bytes>, Infallible>>> {
+        let this = self.get_mut();
+        if let Some(bytes) = this.bytes.take() {
+            return Poll::Ready(Some(Ok(http_body::Frame::data(bytes))));
+        }
+        this.reservation = None;
+        Poll::Ready(None)
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.bytes.is_none()
+    }
+
+    fn size_hint(&self) -> http_body::SizeHint {
+        http_body::SizeHint::with_exact(
+            self.bytes
+                .as_ref()
+                .map_or(0, |bytes| u64::try_from(bytes.len()).unwrap_or(u64::MAX)),
+        )
+    }
 }
 
 pub struct ProviderTransport {
@@ -190,6 +237,7 @@ impl ProviderTransport {
                 bytes: body,
                 model_range,
                 streaming: true,
+                reservation: None,
             },
             Route::OpenAiResponses,
             &mut RequestCorrelation::from_headers(headers),
@@ -210,6 +258,7 @@ impl ProviderTransport {
             bytes: body,
             model_range,
             streaming,
+            reservation,
         } = request;
         let api_format = route.api_format();
         let (credential_name, mut credential) = provider_credential(&context)?;
@@ -249,7 +298,10 @@ impl ProviderTransport {
             .headers(transport::request_headers(headers, api_format))
             .header(header::ACCEPT_ENCODING, "identity")
             .header(credential_name, credential);
-        upstream = upstream.body(body);
+        upstream = upstream.body(reqwest::Body::wrap(ReservedBody {
+            bytes: Some(body),
+            reservation,
+        }));
         // A stream, or a call that does not generate, that goes quiet before its
         // headers is stalled. A non-streamed generation sends nothing until the whole
         // response is generated.

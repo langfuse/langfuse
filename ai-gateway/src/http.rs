@@ -184,7 +184,7 @@ async fn relay(
     if !crate::transport::identity_encoding(request.headers()) {
         return Err(InferenceHttpError::UnsupportedEncoding);
     }
-    // Held until provider headers arrive; the buffered body lives until it is sent.
+    // Travels with the body and is released once the provider connection has sent it.
     let mut body_permit = inference
         .try_reserve_request_body()
         .map_err(InferenceHttpError::from)?;
@@ -216,6 +216,7 @@ async fn relay(
                 bytes: request_body.bytes,
                 model_range: request_body.model_range,
                 streaming: request_body.streaming,
+                reservation: Some(Box::new(body_permit)),
             },
             route,
             correlation,
@@ -318,7 +319,7 @@ async fn read_request_body(
     headers: &HeaderMap,
     max_bytes: usize,
     read_timeout: Duration,
-    permit: &mut RequestBodyPermit<'_>,
+    permit: &mut RequestBodyPermit,
 ) -> Result<Bytes, InferenceHttpError> {
     let server = tracing::Span::current();
     let span = tracing::info_span!(
