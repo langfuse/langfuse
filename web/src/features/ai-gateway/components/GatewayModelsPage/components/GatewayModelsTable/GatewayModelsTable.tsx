@@ -18,7 +18,7 @@ import type { GatewayModelRow } from "./fns/filterGatewayModels";
 
 const TABLE_NAME = "gateway-models";
 
-export const gatewayModelsColumns: LangfuseColumnDef<GatewayModelRow>[] = [
+const gatewayModelsColumns: LangfuseColumnDef<GatewayModelRow>[] = [
   createTextTableColumn<GatewayModelRow>({
     accessorKey: "id",
     header: "Model",
