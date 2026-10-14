@@ -1845,31 +1845,7 @@ exports[`golden: events simple aggregates family > getSessionMetricsFromEvents s
     "route": "unknown",
     "sql": "SELECT
     session_id,
-    max(start_time) AS max_timestamp,
-    min(start_time) AS min_timestamp,
-    groupUniqArray(trace_id) AS trace_ids,
-    groupUniqArrayIf(user_id, (user_id IS NOT NULL) AND (user_id != '')) AS user_ids,
-    uniq(trace_id) AS trace_count,
-    groupUniqArrayArrayIf(tags, notEmpty(tags)) AS trace_tags,
-    argMaxIf(environment, event_ts, environment != '') AS environment,
-    uniqIf(span_id, parent_span_id != '') AS total_observations,
-    dateDiff('second', min(start_time), max(if(isNull(end_time), start_time, end_time))) AS duration,
-    sumMap(usage_details) AS session_usage_details,
-    sumMap(cost_details) AS session_cost_details,
-    arraySum(
-        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'input') > 0), sumMap(cost_details)))
-    ) AS session_input_cost,
-    arraySum(
-        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'output') > 0), sumMap(cost_details)))
-    ) AS session_output_cost,
-    sumMap(cost_details)['total'] AS session_total_cost,
-    arraySum(
-        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'input') > 0), sumMap(usage_details)))
-    ) AS session_input_usage,
-    arraySum(
-        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'output') > 0), sumMap(usage_details)))
-    ) AS session_output_usage,
-    sumMap(usage_details)['total'] AS session_total_usage
+    uniq(trace_id) AS trace_count
 FROM events_core AS e
 WHERE (e.project_id = {param1:String}) AND (session_id IN ({param2:Array(String)})) AND (session_id != {param3:String})
 GROUP BY session_id
@@ -1895,31 +1871,7 @@ exports[`golden: events simple aggregates family > getSessionMetricsFromEvents s
     "route": "unknown",
     "sql": "SELECT
     session_id,
-    max(start_time) AS max_timestamp,
-    min(start_time) AS min_timestamp,
-    groupUniqArray(trace_id) AS trace_ids,
-    groupUniqArrayIf(user_id, (user_id IS NOT NULL) AND (user_id != '')) AS user_ids,
-    uniq(trace_id) AS trace_count,
-    groupUniqArrayArrayIf(tags, notEmpty(tags)) AS trace_tags,
-    argMaxIf(environment, event_ts, environment != '') AS environment,
-    uniqIf(span_id, parent_span_id != '') AS total_observations,
-    dateDiff('second', min(start_time), max(if(isNull(end_time), start_time, end_time))) AS duration,
-    sumMap(usage_details) AS session_usage_details,
-    sumMap(cost_details) AS session_cost_details,
-    arraySum(
-        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'input') > 0), sumMap(cost_details)))
-    ) AS session_input_cost,
-    arraySum(
-        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'output') > 0), sumMap(cost_details)))
-    ) AS session_output_cost,
-    sumMap(cost_details)['total'] AS session_total_cost,
-    arraySum(
-        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'input') > 0), sumMap(usage_details)))
-    ) AS session_input_usage,
-    arraySum(
-        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'output') > 0), sumMap(usage_details)))
-    ) AS session_output_usage,
-    sumMap(usage_details)['total'] AS session_total_usage
+    uniq(trace_id) AS trace_count
 FROM events_core AS e
 WHERE (e.project_id = {param1:String}) AND (session_id IN ({param2:Array(String)})) AND (start_time >= {param3:DateTime64(6)}) AND (session_id != {param4:String})
 GROUP BY session_id
