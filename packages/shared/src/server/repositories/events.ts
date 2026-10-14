@@ -36,7 +36,6 @@ import {
 import { getClickhouseKysely } from "../query-ast/dialect";
 import { promptGenerationEvents } from "./prompt-events";
 import {
-  argMaxIf,
   arrayMap,
   byteLength,
   count,
@@ -46,9 +45,9 @@ import {
   mapValue,
   medianExact,
   metadataMap,
-  nonEmpty,
   sumMapValuesWhereKeyContains,
   toJSONString,
+  traceSessionId,
   tupleIn,
   uniq,
   xxHash32,
@@ -148,6 +147,7 @@ import {
   type SessionEventsFields,
   type SessionEventsMetricsRow,
   OrderByEntry,
+  EVENTS_METADATA_MAP_SQL,
 } from "../queries/clickhouse-sql/event-query-builder";
 import {
   buildEventsFilterOptionColumnQuery,
@@ -1054,9 +1054,6 @@ export const getObservationByIdFromEventsTable = async ({
   }
   return mapped.shift();
 };
-
-const EVENTS_METADATA_MAP_SQL =
-  "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))";
 
 /** ClickHouse DateTime binds stay strings; the column type is Date. */
 function dateTimeParam(value: string): Date {
@@ -2653,16 +2650,22 @@ export async function getAgentGraphDataFromEventsTable(params: {
 
   const builder = db
     .selectFrom("events_core as e")
-    .select([
-      "e.span_id as id",
-      "e.parent_span_id as parent_observation_id",
-      "e.type as type",
-      "e.name as name",
-      "e.start_time as start_time",
-      "e.end_time as end_time",
-      sql.raw(`${EVENTS_METADATA_MAP_SQL}['langgraph_node']`).as("node"),
-      sql.raw(`${EVENTS_METADATA_MAP_SQL}['langgraph_step']`).as("step"),
-    ])
+    .select((eb) => {
+      const metadata = metadataMap(
+        eb.ref("e.metadata_names"),
+        eb.ref("e.metadata_values"),
+      );
+      return [
+        "e.span_id as id",
+        "e.parent_span_id as parent_observation_id",
+        "e.type as type",
+        "e.name as name",
+        "e.start_time as start_time",
+        "e.end_time as end_time",
+        mapValue(metadata, "langgraph_node").as("node"),
+        mapValue(metadata, "langgraph_step").as("step"),
+      ];
+    })
     .where("e.trace_id", "=", traceId)
     .where("e.start_time", ">=", dateTimeParam(chMinStartTime))
     .where("e.start_time", "<=", dateTimeParam(chMaxStartTime));
@@ -2855,16 +2858,7 @@ export const getObservationsBatchIOFromEventsTable = async <
           .select("trace_id")
           .where("trace_id", "in", traceIds)
           .groupBy("trace_id")
-          .having(
-            (eb) =>
-              argMaxIf(
-                eb.ref("session_id"),
-                eb.ref("event_ts"),
-                nonEmpty(eb.ref("session_id")),
-              ),
-            "=",
-            opts.sessionId!,
-          ),
+          .having(traceSessionId(), "=", opts.sessionId!),
       ),
     )
     .where("e.start_time", ">=", chDateTime(minTimestamp))
@@ -3539,8 +3533,8 @@ export const getEventsForAnalyticsIntegrations = async function* (
       "e.usage_details['output'] as output_tokens",
       "e.usage_details['total'] as total_tokens",
       // Analytics integration session IDs from metadata (constructed from array columns)
-      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['$posthog_session_id'] as posthog_session_id",
-      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['$mixpanel_session_id'] as mixpanel_session_id",
+      `${EVENTS_METADATA_MAP_SQL}['$posthog_session_id'] as posthog_session_id`,
+      `${EVENTS_METADATA_MAP_SQL}['$mixpanel_session_id'] as mixpanel_session_id`,
     )
     .whereRaw(
       "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time < {maxTimestamp: DateTime64(3)}",
