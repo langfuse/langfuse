@@ -19,6 +19,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getEvaluatorCreationAnalyticsProperties } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { getTemplateSelectionAnalyticsProperties } from "@/src/features/evals/v2/fns/templateGallery/getTemplateSelectionAnalyticsProperties";
 import { api } from "@/src/utils/api";
+import {
+  useInAppAiAgent,
+  useIsInAppAgentLauncherVisible,
+} from "@/src/features/in-app-agent";
 
 // Search reports once the user pauses typing, so one query is one event.
 const SEARCH_CAPTURE_DELAY_MS = 1000;
@@ -37,6 +41,8 @@ export function EvaluatorGalleryDialog({
   onCreateFromScratch: (type: EvalTemplateType) => void;
 }) {
   const capture = usePostHogClientCapture();
+  const isAssistantLauncherVisible = useIsInAppAgentLauncherVisible();
+  const { openAssistant, submit } = useInAppAiAgent();
   const [search, setSearch] = useState("");
   const [activeSection, setActiveSection] = useState<string>(
     EVALUATOR_GALLERY_ALL_SECTION_KEY,
@@ -186,6 +192,25 @@ export function EvaluatorGalleryDialog({
     );
     onCreateFromScratch(evaluatorType);
   };
+  const handleBuildWithAi = async (prompt: string) => {
+    flushSearchCapture();
+    const openedAssistant = openAssistant("evaluator_gallery");
+    // False means the enable-AI-features dialog took over; keep the gallery.
+    const sent = openedAssistant
+      ? await submit(prompt, {
+          newConversation: true,
+          entryPoint: "evaluator-gallery",
+        }).catch(() => false)
+      : false;
+    capture("evaluators:gallery_build_with_ai", {
+      promptLength: prompt.length,
+      openedAssistant,
+      sent,
+    });
+    // The assistant window sits below dialogs, so the gallery has to close.
+    if (sent) onOpenChange(false);
+    return sent;
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -226,6 +251,9 @@ export function EvaluatorGalleryDialog({
             projectEvaluators.isError
               ? projectEvaluators.error.message
               : undefined
+          }
+          onBuildWithAi={
+            isAssistantLauncherVisible ? handleBuildWithAi : undefined
           }
         />
       </DialogContent>

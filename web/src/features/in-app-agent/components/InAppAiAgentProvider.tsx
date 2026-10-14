@@ -96,7 +96,8 @@ export type InAppAgentEntryPoint =
   | "keyboard_shortcut"
   | "dashboard_widget"
   | "v4_migration"
-  | "evaluators_empty_state";
+  | "evaluators_empty_state"
+  | "evaluator_gallery";
 
 function useBackgroundExecutionView(
   session: BackgroundExecutionSession | null,

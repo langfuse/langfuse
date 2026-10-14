@@ -1,0 +1,6 @@
+/* Lifted so it reads as the main entry point. */
+.box {
+  box-shadow:
+    0 1px 2px 0 rgb(0 0 0 / 0.04),
+    0 6px 20px -4px rgb(0 0 0 / 0.1);
+}
