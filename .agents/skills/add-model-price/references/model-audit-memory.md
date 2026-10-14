@@ -12,12 +12,74 @@ audit date.
 
 ## Latest useful snapshot
 
-**Audit date:** 2026-10-13
+**Audit date:** 2026-10-14
 
 All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: divide by 1,000,000.
 
-The 2026-10-13 run re-fetched the full Anthropic pricing page (model table, cache-hits
-footnote, Fast mode, Batch, and tool-use tables) and the Anthropic model-deprecations
+The 2026-10-14 run re-fetched the full Anthropic pricing page (model table, cache-hits
+footnote, Fast mode, Batch, and tool-use tables) and the Anthropic model-deprecations page,
+the OpenAI aggregate Standard pricing table and the OpenAI deprecations page, both Gemini
+3.x pricing fetches and the Gemini models catalog, the AWS Bedrock pricing page, and the
+TypeSafe Jev models page. Every existing price matched verbatim; no price drift was found.
+This run found one new model and two lifecycle findings, none requiring a selectable-array
+removal yet:
+1. **Gemini 4 Argon** (`gemini-4-argon`) — a new Google flagship reasoning model, confirmed
+   via `ai.google.dev/gemini-api/docs/models`, its dedicated model page, and the pricing
+   page. "New Stable" status, 1,048,576-token unified input/output context window, max
+   output 1,048,576 tokens with long decode (65,536 default synchronous). Supports
+   text/image/video/audio/PDF input, text-only output, thinking (low/medium/high), function
+   calling, Search grounding, grounding with Google Maps, and implicit-only prompt caching
+   (no explicit cache-write support). Standard tier priced at introductory rates through
+   November 30, 2026: $2.00/MTok input, $10.00/MTok output (including thinking tokens),
+   $0.10/MTok cache read (10% ratio, matching the universal Gemini cache-read ratio) —
+   stepping up to $4.00/$20.00/$0.20 on December 1, 2026 (a different, earlier step-up date
+   than the 3.6/3.7/3.8 Flash family's January 1, 2027 date — do not conflate the two). No
+   context-length pricing threshold (flat price across the full 1M window, unlike
+   `gemini-3.1-pro-preview`/`gemini-2.5-pro`'s <=200K/>200K split). Grounding is $14 per
+   1,000 requests (5,000 free/month, shared across Gemini 3-and-newer models), same rate as
+   the rest of the Gemini 3.x family. A Priority tier (`service_tier: "priority"`) is
+   separately quoted on the pricing page at exactly 1.8x the Standard rate at every
+   introductory/stepped-up price point ($3.60/$18.00/$0.18 through Nov 30, 2026, doubling
+   with the same step-up on Dec 1, 2026) — same multiplier as every other Gemini model with
+   a Priority tier. Not available on the Free tier. Added to the pricing file (mirroring the
+   `gemini-3.8-flash`/`gemini-3.6-flash` key set, Standard + Priority tiers) and to
+   `googleAIStudioModels` only (not `vertexAIModels`): the Vertex AI lifecycle page
+   (`cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions`) 301-redirects to
+   `docs.cloud.google.com`, outside the allowed WebFetch domain list, so Vertex-side
+   availability for this specific new model is unconfirmed — report as a standing gap if a
+   future audit needs to add it to `vertexAIModels` once that domain is reachable or
+   independently confirmed. matchPattern: `(?i)^(google(ai)?/)?(gemini-4-argon)$`, verified
+   via the bundled match-pattern tester to accept `gemini-4-argon`/`googleai/gemini-4-argon`/
+   `google/gemini-4-argon` and reject `gemini-4-argon-preview`/`gemini-3.8-flash`/a dated
+   snapshot guess. No dated snapshot was found at launch, consistent with other recent
+   flagship launches.
+2. **New OpenAI deprecation announced the same day (2026-10-14): a "GPT-4 series" batch,
+   shutdown January 14, 2027** — confirmed via two independent verbatim-quote fetches of
+   `developers.openai.com/api/docs/deprecations`. Exact rows: GPT-4o
+   (`gpt-4o-2024-08-06`, `gpt-4o-2024-11-20`) to `gpt-6-luna`; GPT-4o mini
+   (`gpt-4o-mini-2024-07-18`) to `gpt-6-luna`; GPT-4.1 (`gpt-4.1-2025-04-14`) to
+   `gpt-6-luna`; GPT-4.1 mini (`gpt-4.1-mini-2025-04-14`) to `gpt-6-luna`. Note
+   `gpt-4o-2024-11-20` is a dated snapshot not currently present in `openAIModels` (only
+   `gpt-4o`, `gpt-4o-2024-08-06`, and `gpt-4o-2024-05-13` are), so it has no
+   selectable-array action regardless. January 14, 2027 is three months after this audit's
+   date — not yet actionable under the removal criteria. Re-check
+   `developers.openai.com/api/docs/deprecations` on or after that date and remove
+   `gpt-4o`/`gpt-4o-2024-08-06`/`gpt-4.1`/`gpt-4.1-2025-04-14`/`gpt-4.1-mini`/
+   `gpt-4.1-mini-2025-04-14` from `openAIModels` once the page confirms the shutdown has
+   passed (keep pricing entries). This is a separate, later batch from the already-tracked
+   October 23, 2026 "Legacy GPT model snapshots" batch below — do not conflate the two
+   shutdown dates or model lists.
+3. **Standing re-checks, both still not yet passed**: the October 23, 2026 "Legacy GPT model
+   snapshots" batch (`gpt-3.5-turbo-0125`/`gpt-4-0613`/`gpt-4-1106-preview`/`gpt-4-turbo`/
+   `gpt-4.1-nano`/`gpt-4o-2024-05-13`/`o1`/`o1-pro`/`o3-mini`/`o4-mini`, see the 2026-10-09
+   entry below) is still upcoming (9 days away) — re-confirmed via the deprecations page's
+   own "Upcoming deprecations" section heading. Claude Haiku 4.5's tentative retirement
+   ("Not sooner than October 15, 2026") is also still one day in the future and still has no
+   firm announced date — re-confirmed via the Anthropic model-deprecations page's "Model
+   status" table (`claude-haiku-4-5-20251001` still `Active`, `Deprecated: N/A`). Neither
+   triggers a removal yet.
+The 2026-10-13 run before it re-fetched the full Anthropic pricing page (model table,
+cache-hits footnote, Fast mode, Batch, and tool-use tables) and the Anthropic model-deprecations
 page, targeted rows of the OpenAI aggregate Standard pricing table (the full gpt-6/gpt-5.6
 family plus every gpt-5.x/gpt-4.x/o-series/legacy model and `gpt-5-chat-latest`'s own
 dedicated page), the OpenAI deprecations page and model catalog, the Gemini 3.x and 2.5
@@ -211,7 +273,8 @@ to have siblings `gpt-5.5-cyber`/`gpt-5.4-cyber`, see provider-sources-and-price
 | Google | gemini-3-pro-preview | Input $2/$4 (≤200k/>200k), Output $12/$18 | No | Large Context (>200K) set in file | Not applicable | None | https://ai.google.dev/pricing https://ai.google.dev/gemini-api/docs/models | Still not listed on either official page this run; existing prices retained, not re-verified. |
 | Google | gemini-3.6-flash | Input $0.75, Output $3.75, Cache read $0.075 (all through Dec 31, 2026; reverts to $1.50/$7.50/$0.15 from Jan 1, 2027) | Yes | No large-context tier | Yes | None | https://ai.google.dev/pricing https://ai.google.dev/gemini-api/docs/pricing | Re-confirmed still on introductory pricing; wording and step-up date unchanged. Now the "previous-generation" Flash model behind gemini-3.7-flash and gemini-3.8-flash. |
 | Google | gemini-3.7-flash | Same introductory pricing/step-up date as gemini-3.6-flash | Yes | No large-context tier | Yes | None | https://ai.google.dev/pricing https://ai.google.dev/gemini-api/docs/models | Re-confirmed unchanged; description changed from "New Stable" to "previous-generation" now that gemini-3.8-flash is GA. |
-| Google | gemini-3.8-flash | Input $0.75, Output $3.75, Cache read $0.075 (through Dec 31, 2026; steps to $1.50/$7.50/$0.15 Jan 1, 2027) | Yes | No large-context tier | Yes | Added | https://ai.google.dev/pricing https://ai.google.dev/gemini-api/docs/pricing https://ai.google.dev/gemini-api/docs/models | New "New Stable" GA model, direct successor to gemini-3.7-flash, described as engineered "for long-horizon software engineering, autonomous agents, and complex enterprise workflows." Same intro pricing and Jan 1 2027 step-up as 3.6/3.7-flash. Added mirroring the gemini-3.7-flash key set exactly, and to `vertexAIModels`/`googleAIStudioModels` (not first entry). |
+| Google | gemini-3.8-flash | Input $0.75, Output $3.75, Cache read $0.075 (through Dec 31, 2026; steps to $1.50/$7.50/$0.15 Jan 1, 2027) | Yes | No large-context tier | Yes | None | https://ai.google.dev/pricing https://ai.google.dev/gemini-api/docs/pricing https://ai.google.dev/gemini-api/docs/models | Re-confirmed unchanged. |
+| Google | gemini-4-argon | Standard: Input $2.00, Output $10.00 (incl. thinking), Cache read $0.10 (through Nov 30, 2026; steps to $4.00/$20.00/$0.20 Dec 1, 2026). Priority (`service_tier: "priority"`, 1.8x Standard at every date): $3.60/$18.00/$0.18 through Nov 30, 2026, doubling with Standard on Dec 1, 2026 | Yes | No context-length pricing threshold (flat 1,048,576-token window); Standard + Priority tiers only | Yes | Added | https://ai.google.dev/gemini-api/docs/models https://ai.google.dev/gemini-api/docs/models/gemini-4-argon https://ai.google.dev/gemini-api/docs/pricing | New flagship reasoning model, "New Stable" status. 1M unified input/output context, max output 1,048,576 with long decode (65,536 default). Text/image/video/audio/PDF input, text-only output, thinking (low/medium/high) billed at the output rate, function calling, Search + Maps grounding ($14/1,000 queries, same shared quota as other Gemini 3.x-and-newer models), implicit-only caching (no explicit cache-write key). Different step-up date (Dec 1, 2026) than the 3.6/3.7/3.8-flash family's Jan 1, 2027 date — do not conflate. Added to `googleAIStudioModels` only; `vertexAIModels` left unresolved because the Vertex AI lifecycle page redirects outside the allowed WebFetch domain list (see the standing quirk note in provider-sources-and-price-keys.md). |
 | Google | gemini-2.0-flash / gemini-2.0-flash-001 | Input $0.10, Output $0.40 | No | Deprecated (shut down June 1, 2026) | Not applicable | None | https://ai.google.dev/pricing | Not re-verified this run; retained for backward compatibility. |
 
 ## Unresolved findings (updated 2026-09-14)
