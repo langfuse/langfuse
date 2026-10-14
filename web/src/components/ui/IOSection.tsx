@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
-import { cn } from "@/src/utils/tailwind";
 
 export type IOSectionProps = {
   title: React.ReactNode;
@@ -17,9 +16,6 @@ export type IOSectionProps = {
   /** Controlled state; the caret calls `onCollapsedChange`. */
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
-  /** Off for bodies made of tiles (media): the header keeps the card inset
-      but sits on the panel, and the tiles render without a card behind them. */
-  card?: boolean;
   children: React.ReactNode;
 };
 
@@ -38,7 +34,6 @@ export function IOSection({
   defaultCollapsed = false,
   collapsed,
   onCollapsedChange,
-  card = true,
   children,
 }: IOSectionProps) {
   const [internalCollapsed, setInternalCollapsed] = useState(defaultCollapsed);
@@ -57,12 +52,7 @@ export function IOSection({
 
   return (
     // overflow-clip (not hidden) so the sticky header can track the panel scroll.
-    <div
-      className={cn(
-        "group/iosection flex flex-col overflow-clip",
-        card && "bg-surface-output rounded-md",
-      )}
-    >
+    <div className="group/iosection bg-surface-output flex flex-col overflow-clip rounded-md">
       <MarkdownJsonViewHeader
         title={title}
         titleIcon={titleIcon}
@@ -85,12 +75,7 @@ export function IOSection({
         controlButtons={isCollapsed ? undefined : controlButtons}
       />
       {!isCollapsed && (
-        <div
-          className={cn(
-            "io-message-content ph-no-capture px-3 pb-2",
-            !card && "pt-1",
-          )}
-        >
+        <div className="io-message-content ph-no-capture px-3 pb-2">
           {children}
         </div>
       )}
