@@ -41,4 +41,9 @@ describe("centCostFormatter", () => {
     expect(centCostFormatter(0.0049)).toBe("<$0.01");
     expect(centCostFormatter(0)).toBe("$0.00");
   });
+
+  it("keeps the sign on negative costs", () => {
+    expect(centCostFormatter(-0.37)).toBe("-$0.37");
+    expect(centCostFormatter(-0.0049)).toBe("-<$0.01");
+  });
 });

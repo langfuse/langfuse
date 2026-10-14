@@ -76,7 +76,7 @@ export const BreakdownTooltip = ({
 
     return numericValue === 0 ? "—" : centCostFormatter(numericValue);
   };
-  // Full-precision cost, exposed via `title` on the rounded value.
+  /** Full-precision cost for the value's `title`. */
   const formatExactValue = (value: number | Decimal) =>
     isCost && !new Decimal(value).isZero()
       ? usdFormatter(value, costFractionDigits, costFractionDigits)
@@ -204,8 +204,6 @@ const breakdownRowVariants = cva("min-w-0 items-center text-sm leading-5", {
     variant: "item",
   },
 });
-
-type BreakdownRowVariants = VariantProps<typeof breakdownRowVariants>;
 
 function BreakdownRow({
   label,
@@ -368,3 +366,5 @@ function formatShare(share: number) {
   const rounded = Math.round(share);
   return share > 0 && rounded === 0 ? "<1%" : `${rounded}%`;
 }
+
+type BreakdownRowVariants = VariantProps<typeof breakdownRowVariants>;
