@@ -84,7 +84,7 @@ do not load dotenv files:
 | `LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES` | `33554432` (32 MiB) | Integer from 1048576 (1 MiB) to 1073741824 (1 GiB); largest accepted request body |
 | `LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES` | `536870912` (512 MiB) | Integer from the request limit to 68719476736 (64 GiB); request body bytes all in-flight requests of an instance may buffer together |
 | `LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS` | `3600` | Integer from 60 to 5400; ceiling from execution admission until the response completes. Web ingestion tokens last two hours |
-| `LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS` | `120` | Integer from 1 to the execution ceiling; longest wait without progress |
+| `LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS` | `120`, or the execution ceiling if lower | Integer from 1 to the execution ceiling; longest wait without progress |
 
 The gateway shares `LANGFUSE_LOG_LEVEL` with Web and worker. Values are lowercase;
 `fatal` maps to Rust's `error` level and therefore includes ordinary error logs.

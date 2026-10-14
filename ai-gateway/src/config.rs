@@ -250,7 +250,8 @@ fn execution_limits(
     .ok_or(GatewayConfigError(
         "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS must be an integer from 60 to 5400",
     ))?;
-    let stall_timeout = seconds(stall_timeout, defaults.stall_timeout, 1..=max_execution.as_secs())
+    let default_stall = defaults.stall_timeout.min(max_execution);
+    let stall_timeout = seconds(stall_timeout, default_stall, 1..=max_execution.as_secs())
         .ok_or(GatewayConfigError(
             "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS must be an integer from 1 to LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
         ))?;
@@ -546,6 +547,13 @@ mod tests {
                 stall_timeout: Duration::from_mins(90),
             }
         );
+        assert_eq!(
+            execution_limits(Some("90"), None).unwrap(),
+            ExecutionLimits {
+                max_execution: Duration::from_secs(90),
+                stall_timeout: Duration::from_secs(90),
+            }
+        );
         for (max, stall, name) in [
             (
                 Some("59"),
@@ -559,7 +567,7 @@ mod tests {
             ),
             (
                 Some("60"),
-                None,
+                Some("61"),
                 "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS",
             ),
             (None, Some("0"), "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS"),
