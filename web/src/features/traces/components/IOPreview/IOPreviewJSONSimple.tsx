@@ -3,6 +3,7 @@ import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MediaReturnType } from "@/src/features/media";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
+import { IOSection } from "@/src/components/ui/IOSection";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
 import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
@@ -143,13 +144,16 @@ export function IOPreviewJSONSimple({
       ) : null}
       {showInput &&
         (inputTooLarge ? (
-          <LargeJsonFieldFallback
-            title="Input"
-            serialized={inputProbe.serialized}
-            isString={inputProbe.isString}
-            charCount={inputProbe.size}
-            downloadFileBase={`input-${downloadName}`}
-          />
+          <IOSection title="Input">
+            <LargeJsonFieldFallback
+              title="Input"
+              hideTitle
+              serialized={inputProbe.serialized}
+              isString={inputProbe.isString}
+              charCount={inputProbe.size}
+              downloadFileBase={`input-${downloadName}`}
+            />
+          </IOSection>
         ) : (
           <PrettyJsonView
             title="Input"
@@ -170,13 +174,16 @@ export function IOPreviewJSONSimple({
         ))}
       {showOutput &&
         (outputTooLarge ? (
-          <LargeJsonFieldFallback
-            title="Output"
-            serialized={outputProbe.serialized}
-            isString={outputProbe.isString}
-            charCount={outputProbe.size}
-            downloadFileBase={`output-${downloadName}`}
-          />
+          <IOSection title="Output">
+            <LargeJsonFieldFallback
+              title="Output"
+              hideTitle
+              serialized={outputProbe.serialized}
+              isString={outputProbe.isString}
+              charCount={outputProbe.size}
+              downloadFileBase={`output-${downloadName}`}
+            />
+          </IOSection>
         ) : (
           <PrettyJsonView
             title="Output"
@@ -212,13 +219,16 @@ export function IOPreviewJSONSimple({
       )}
       {showMetadata &&
         (metadataTooLarge ? (
-          <LargeJsonFieldFallback
-            title="Metadata"
-            serialized={metadataProbe.serialized}
-            isString={metadataProbe.isString}
-            charCount={metadataProbe.size}
-            downloadFileBase={`metadata-${downloadName}`}
-          />
+          <IOSection title="Metadata">
+            <LargeJsonFieldFallback
+              title="Metadata"
+              hideTitle
+              serialized={metadataProbe.serialized}
+              isString={metadataProbe.isString}
+              charCount={metadataProbe.size}
+              downloadFileBase={`metadata-${downloadName}`}
+            />
+          </IOSection>
         ) : (
           <PrettyJsonView
             title="Metadata"

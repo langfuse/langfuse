@@ -1452,6 +1452,8 @@ export function PrettyJsonView(props: {
           </>
         }
         defaultCollapsed={props.defaultCollapsed}
+        // Toned bodies (status messages) paint their own box.
+        body={props.tone ? "bare" : "box"}
         {...(systemPrompt.shouldBeCollapsible && {
           collapsed: systemPrompt.isCollapsed,
           onCollapsedChange: systemPrompt.toggleCollapsed,
