@@ -362,9 +362,9 @@ describe("AI gateway control plane", () => {
     const setup = await prepare();
     const connection = await setup.caller.aiGateway.createConnection({
       orgId: setup.org.id,
-      name: "Demo OpenAI",
+      name: "Shared OpenAI",
       provider: "OPENAI",
-      credential: "sk-demo-openai",
+      credential: "sk-shared-openai",
     });
     await setup.caller.aiGateway.updateConnectionModels({
       orgId: setup.org.id,
@@ -377,16 +377,28 @@ describe("AI gateway control plane", () => {
       Role.VIEWER,
     );
     const originalDemoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID;
-    (env as { NEXT_PUBLIC_DEMO_ORG_ID?: string }).NEXT_PUBLIC_DEMO_ORG_ID =
-      setup.org.id;
+    Object.assign(env, { NEXT_PUBLIC_DEMO_ORG_ID: setup.org.id });
 
     try {
+      await expect(
+        setup.caller.aiGateway.listModelConnections({
+          orgId: setup.org.id,
+        }),
+      ).resolves.toEqual([
+        {
+          id: connection.id,
+          name: "Shared OpenAI",
+          provider: "OPENAI",
+          allowedModels: ["enabled-model"],
+        },
+      ]);
       await expect(
         viewerCaller.aiGateway.listModelConnections({ orgId: setup.org.id }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
     } finally {
-      (env as { NEXT_PUBLIC_DEMO_ORG_ID?: string }).NEXT_PUBLIC_DEMO_ORG_ID =
-        originalDemoOrgId;
+      Object.assign(env, {
+        NEXT_PUBLIC_DEMO_ORG_ID: originalDemoOrgId,
+      });
     }
   });
 
@@ -394,17 +406,16 @@ describe("AI gateway control plane", () => {
     const setup = await prepare();
     const connection = await setup.caller.aiGateway.createConnection({
       orgId: setup.org.id,
-      name: "Demo OpenAI",
+      name: "Shared OpenAI",
       provider: "OPENAI",
-      credential: "sk-demo-openai",
+      credential: "sk-shared-openai",
     });
     const viewerCaller = await createCallerForOrganizationRole(
       setup,
       Role.VIEWER,
     );
     const originalDemoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID;
-    (env as { NEXT_PUBLIC_DEMO_ORG_ID?: string }).NEXT_PUBLIC_DEMO_ORG_ID =
-      setup.org.id;
+    Object.assign(env, { NEXT_PUBLIC_DEMO_ORG_ID: setup.org.id });
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response(null, { status: 401 }));
@@ -433,8 +444,9 @@ describe("AI gateway control plane", () => {
       });
     } finally {
       fetchSpy.mockRestore();
-      (env as { NEXT_PUBLIC_DEMO_ORG_ID?: string }).NEXT_PUBLIC_DEMO_ORG_ID =
-        originalDemoOrgId;
+      Object.assign(env, {
+        NEXT_PUBLIC_DEMO_ORG_ID: originalDemoOrgId,
+      });
     }
   });
 

@@ -1,12 +1,17 @@
 import { z } from "zod/v4";
 import type { Session } from "next-auth";
 
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
+import {
+  hasOrganizationAccess,
+  throwIfNoOrganizationAccess,
+} from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
   protectedOrganizationProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
+import { env } from "@/src/env.mjs";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
   GatewayConnectionStatus,
@@ -53,13 +58,36 @@ function requireGatewayAdmin(params: { session: Session; orgId: string }) {
   });
 }
 
-function requireGatewayRead(params: { session: Session; orgId: string }) {
+function requireGatewayRead(params: {
+  session: Session;
+  orgId: string;
+}): boolean {
   requireGatewayEnabledForOrganization(params.orgId);
+  const canManageGateway = hasOrganizationAccess({
+    session: params.session,
+    organizationId: params.orgId,
+    scope: "gateway:manage",
+  });
+  const organizationRole = params.session.user?.organizations.find(
+    (organization) => organization.id === params.orgId,
+  )?.role;
+  const hasAutoGrantedDemoMembership =
+    params.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID &&
+    organizationRole === "VIEWER";
+
+  if (!canManageGateway && hasAutoGrantedDemoMembership) {
+    throwIfNoOrganizationAccess({
+      session: params.session,
+      organizationId: params.orgId,
+      scope: "gateway:manage",
+    });
+  }
   throwIfNoOrganizationAccess({
     session: params.session,
     organizationId: params.orgId,
     scope: "gateway:read",
   });
+  return canManageGateway;
 }
 
 export const aiGatewayRouter = createTRPCRouter({
@@ -217,9 +245,38 @@ export const aiGatewayRouter = createTRPCRouter({
   refreshModels: protectedOrganizationProcedure
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
-      requireGatewayRead({ session: ctx.session, orgId: input.orgId });
-      return new GatewayModelCatalogService(ctx.prisma).refreshAllModels(
+      const canManageGateway = requireGatewayRead({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      const catalogService = new GatewayModelCatalogService(ctx.prisma);
+      const results = await catalogService.refreshAllModels(input.orgId);
+      if (canManageGateway) return results;
+
+      const readableConnections = await catalogService.listModelConnections(
         input.orgId,
+      );
+      const allowedModelsByConnectionId = new Map(
+        readableConnections.map((connection) => [
+          connection.id,
+          connection.allowedModels,
+        ]),
+      );
+      return results.map((result) =>
+        result.success
+          ? {
+              ...result,
+              models: result.models.filter((model) => {
+                const allowedModels = allowedModelsByConnectionId.get(
+                  result.connectionId,
+                );
+                return isGatewayModelAllowed(
+                  allowedModels === undefined ? [] : allowedModels,
+                  model,
+                );
+              }),
+            }
+          : result,
       );
     }),
 
