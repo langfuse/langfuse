@@ -182,7 +182,6 @@ export function GatewayConnectionModelsTable({
             options: PAGE_SIZE_OPTIONS,
           }}
           selectionStore={selectionStore}
-          rowHeight="s"
           orderBy={orderBy}
           setOrderBy={handleOrderByChange}
           noResultsMessage="No models match the current search."
