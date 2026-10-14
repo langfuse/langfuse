@@ -211,10 +211,26 @@ class DerivedColumnTransformer extends ClickHouseOperationNodeTransformer {
       : this.unqualifiedTable(column);
     const expression = derivedExpressionOf(table, column);
     if (!expression) return undefined;
-    return {
-      column,
-      node: expression(columnRefIn(qualifier)).toOperationNode(),
-    };
+    const expansion = expression(columnRefIn(qualifier)).toOperationNode();
+    if (!qualifier) this.assertInputsNotShadowed(column, expansion);
+    return { column, node: expansion };
+  }
+
+  /**
+   * An unqualified expansion reads unqualified columns, which ClickHouse
+   * resolves to a same-named SELECT alias before the table column:
+   * `trace_name AS name` would feed `trace_name` into `nullIf(name, '')`.
+   */
+  private assertInputsNotShadowed(column: string, expansion: OperationNode) {
+    const aliases = this.scopes.at(-1)?.computedAliases;
+    const shadowed = [...columnsReadBy(expansion)].filter((input) =>
+      aliases?.has(input),
+    );
+    if (shadowed.length > 0) {
+      throw new QueryCompileError(
+        `Derived column "${column}" reads ${shadowed.join(", ")}, shadowed by a SELECT alias of the same name; qualify it.`,
+      );
+    }
   }
 
   /** Registry table of the innermost relation named `qualifier`. */
@@ -299,4 +315,18 @@ function computedAliasesOf(node: SelectQueryNode): Set<string> {
     if (!sameNamedColumn) aliases.add(alias);
   }
   return aliases;
+}
+
+function columnsReadBy(node: unknown, found = new Set<string>()): Set<string> {
+  if (!node || typeof node !== "object") return found;
+  if (isOperationNode(node) && ColumnNode.is(node)) {
+    found.add(node.column.name);
+    return found;
+  }
+  for (const child of Object.values(node)) columnsReadBy(child, found);
+  return found;
+}
+
+function isOperationNode(value: object): value is OperationNode {
+  return "kind" in value && typeof value.kind === "string";
 }

@@ -184,6 +184,15 @@ describe("derived columns", () => {
     expect(() => compile(query)).toThrow(/shadowed/);
   });
 
+  it("rejects an unqualified reference whose expansion reads a column another alias shadows", () => {
+    const db = getClickhouseKysely();
+    const query = db
+      .selectFrom("events_core")
+      .select(["trace_name as name", "resolved_trace_name"]);
+
+    expect(() => compile(query)).toThrow(/shadowed/);
+  });
+
   it("renders the trace name exactly as the raw-SQL builders write it", () => {
     const normalize = (sql: string) => sql.toLowerCase().replace(/\s+/g, " ");
     expect(
