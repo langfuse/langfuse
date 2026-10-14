@@ -65,7 +65,7 @@ export function EvaluatorGalleryScorePreview({
         ) : null}
       </div>
       {/* Shown while the parent card (group/card) is hovered. */}
-      <div className="bg-foreground/40 text-background absolute inset-0 hidden items-center justify-center backdrop-blur-xs group-hover/card:flex">
+      <div className="absolute inset-0 hidden items-center justify-center bg-black/40 text-white backdrop-blur-xs group-hover/card:flex">
         <span className="flex items-center gap-1 text-sm font-bold">
           Use template
           {/* Same optical nudge as DropdownIndicator for icons beside text. */}
