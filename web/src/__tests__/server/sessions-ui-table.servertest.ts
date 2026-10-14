@@ -856,6 +856,32 @@ maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
     expect(tableRows[0].session_id).toEqual(sessionIdWithTrueScore);
   });
 
+  it("returns table rows from events without collecting trace ids", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const sessionId = v4();
+    const traces = [
+      createTrace({ session_id: sessionId, project_id: projectId }),
+      createTrace({ session_id: sessionId, project_id: projectId }),
+    ];
+
+    await createTracesCh(traces);
+    await createEventsCh(buildMatchingEvents(traces, []));
+
+    const tableRows = await getSessionsTableFromEvents({
+      projectId,
+      filter: [],
+      orderBy: null,
+      limit: 10,
+      page: 0,
+    });
+
+    expect(tableRows).toHaveLength(1);
+    expect(tableRows[0].trace_count).toBe(2);
+    // The table only shows the count; selecting the ids makes ClickHouse
+    // collect every trace id of every session in the scanned window.
+    expect(tableRows[0]).not.toHaveProperty("trace_ids");
+  });
+
   it("honours the same filter so only the targeted session is returned", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     const targetId = v4();

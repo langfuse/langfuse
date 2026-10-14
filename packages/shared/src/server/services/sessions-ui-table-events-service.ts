@@ -30,7 +30,6 @@ type SessionEventsBaseReturnType = {
   session_id: string;
   max_timestamp: string;
   min_timestamp: string;
-  trace_ids: string[];
   user_ids: string[];
   trace_count: number;
   trace_tags: string[];
@@ -287,11 +286,13 @@ const getSessionsTableFromEventsGeneric = async <T>(
       queryBuilder.select("count(s.session_id) as count");
       break;
     case "rows":
+      // No s.trace_ids: the table only shows trace_count, and selecting the
+      // ids makes ClickHouse collect every trace id of every session in the
+      // scanned window before the LIMIT.
       queryBuilder.selectColumns(
         "s.session_id",
         "s.max_timestamp",
         "s.min_timestamp",
-        "s.trace_ids",
         "s.user_ids",
         "s.trace_count",
         "s.trace_tags",
