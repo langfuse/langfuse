@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("./clickhouse", () => ({ hasTopicEmbeddings: mocks.hasEmbeddings }));
 vi.mock("../llm/testModelCall", () => ({ testModelCall: mocks.testCall }));
-vi.mock("./embeddings", () => ({ generateTopicEmbedding: mocks.embed }));
+vi.mock("./embeddings", () => ({ generateTopicEmbeddings: mocks.embed }));
 vi.mock("../../db", () => ({
   prisma: {
     llmApiKeys: { findMany: mocks.keys },
@@ -44,7 +44,6 @@ const settings = {
   embedding: slot("openai", "text-embedding-3-small"),
   embeddingDimensions: 1024 as const,
   clustering: slot("openai", "gpt-5.6-terra"),
-  enabled: true,
 };
 
 const saveTopicsModelSettings = async (
@@ -65,8 +64,8 @@ beforeEach(() => {
   mocks.current.mockResolvedValue(null);
   mocks.hasEmbeddings.mockResolvedValue(false);
   mocks.testCall.mockResolvedValue(undefined);
-  mocks.embed.mockImplementation(async ({ dimensions }) => ({
-    embedding: Array(dimensions).fill(0.1),
+  mocks.embed.mockImplementation(async ({ summaries, dimensions }) => ({
+    embeddings: summaries.map(() => Array(dimensions).fill(0.1)),
   }));
 });
 
@@ -82,25 +81,52 @@ describe("prepareTopicsModelSettings", () => {
     expect(mocks.upsert).toHaveBeenCalledOnce();
   });
 
-  it("saves a partial setup but enables Topics only with all three models", async () => {
+  it("saves a partial setup only while automatic processing is off", async () => {
     await saveTopicsModelSettings("project", {
       ...settings,
       clustering: null,
-      enabled: false,
     });
     expect(mocks.upsert).toHaveBeenCalledOnce();
+    expect(mocks.upsert.mock.calls[0][0].create).not.toHaveProperty("enabled");
+
+    mocks.current.mockResolvedValue({ enabled: true });
     await expect(
       saveTopicsModelSettings("project", { ...settings, clustering: null }),
-    ).rejects.toThrow("before turning Topics on");
+    ).rejects.toThrow("while automatic processing is on");
     expect(mocks.upsert).toHaveBeenCalledOnce();
   });
 
-  it("tests every configured slot and names the ones that fail", async () => {
+  it("skips the test calls for unchanged models while automatic processing is on", async () => {
+    mocks.current.mockResolvedValue({
+      enabled: true,
+      summaryLlmApiKeyId: "openai",
+      summaryModel: "gpt-6-luna",
+      embeddingLlmApiKeyId: "openai",
+      embeddingModel: "text-embedding-3-small",
+      embeddingDimensions: 1024,
+      clusteringLlmApiKeyId: "openai",
+      clusteringModel: "gpt-5.6-terra",
+    });
+    await saveTopicsModelSettings("project", {
+      ...settings,
+      clustering: slot("openai", "gpt-6.1-sol"),
+    });
+    expect(mocks.testCall).toHaveBeenCalledOnce();
+    expect(mocks.testCall).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-6.1-sol" }),
+    );
+    expect(mocks.embed).not.toHaveBeenCalled();
+  });
+
+  it("tests every changed slot and names the ones that fail", async () => {
+    mocks.current.mockResolvedValue({ enabled: true });
     mocks.testCall.mockImplementation(async ({ model }) => {
       if (model === "gpt-5.6-terra")
         throw new Error("Model not found (HTTP 404)");
     });
-    mocks.embed.mockResolvedValue({ embedding: Array(1536).fill(0.1) });
+    mocks.embed.mockResolvedValue({
+      embeddings: [Array(1536).fill(0.1), Array(1536).fill(0.1)],
+    });
 
     await expect(saveTopicsModelSettings("project", settings)).rejects.toThrow(
       "Embeddings (text-embedding-3-small): The model returned 1536 dimensions instead of 1024. Choose a size this model supports.; Topic clustering (gpt-5.6-terra): Model not found (HTTP 404)",

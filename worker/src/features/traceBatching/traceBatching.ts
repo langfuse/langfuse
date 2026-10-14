@@ -13,7 +13,10 @@ import {
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
-import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
+import {
+  isTopicsProcessingActive,
+  isTopicsProjectEnabled,
+} from "@langfuse/shared/topics/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 import {
@@ -817,8 +820,8 @@ export async function trackTraceBatchActivity(
   )
     return;
   const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
-  // Topics summarizes every trace of an enabled project, so those bypass sampling.
-  const topicsProject = isTopicsProjectEnabled(projectId);
+  // Topics summarizes every trace of an active project, so those bypass sampling.
+  const topicsProject = await resolveTopicsProcessingActive(projectId);
   // Rate 0 admits only Topics projects; skip all tracking work for the rest.
   if (samplingRate === 0 && !topicsProject) return;
 
@@ -976,6 +979,23 @@ export async function trackTraceBatchActivity(
   }
 }
 
+async function resolveTopicsProcessingActive(
+  projectId: string,
+): Promise<boolean> {
+  try {
+    return await isTopicsProcessingActive(projectId);
+  } catch (error) {
+    // The allowlist keeps Topics traces during an outage; the consumer still
+    // loads each project's models and skips projects without them.
+    recordIncrement("langfuse.trace_batch.topics_gate_failures", 1);
+    logger.warn("Failed to read Topics processing state, using allowlist", {
+      projectId,
+      error,
+    });
+    return isTopicsProjectEnabled(projectId);
+  }
+}
+
 async function resolveTraceIdleMs(projectId: string): Promise<number> {
   let traceIdleMs: number | null = null;
   try {
@@ -1090,17 +1110,6 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         recordIncrement("langfuse.trace_batch.expired_traces", expired, {
           source: "dispatcher",
         });
-        recordGauge("langfuse.trace_batch.pending_traces", pending, {
-          shard: String(shard),
-        });
-        recordGauge("langfuse.trace_batch.ready_traces", ready, {
-          shard: String(shard),
-        });
-        recordGauge(
-          "langfuse.trace_batch.oldest_due_age_ms",
-          Math.max(0, now - oldest),
-          { shard: String(shard) },
-        );
         if (expired < CLEANUP_SIZE) {
           totals.pending += pending;
           totals.ready += ready;
@@ -1134,6 +1143,8 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         });
       }
     }
+    // The lease moves between workers after every run, so per-shard series
+    // would multiply custom metrics by the shard count on each dispatcher.
     recordGauge("langfuse.trace_batch.pending_traces", totals.pending);
     recordGauge("langfuse.trace_batch.ready_traces", totals.ready);
     recordGauge("langfuse.trace_batch.oldest_due_age_ms", totals.oldestAge);

@@ -13,6 +13,7 @@ import {
   topicTraceIdSchema,
   topicRuleConfigSchema,
   topicTimeRangeSchema,
+  topicsAutomaticProcessingSchema,
   topicsModelSettingsSchema,
   topicsSetupSchema,
   type TopicTimeRange,
@@ -27,7 +28,6 @@ import {
   getTopicSummaryCounts,
   listTopicExecutions,
   listTopicFacets,
-  ensureDefaultTopicFacets,
   getTopicFacetVersion,
   getLatestFacetSummaries,
   createTopicFacet,
@@ -45,6 +45,7 @@ import {
   readTopicsModelSettings,
   checkTopicsModelSettings,
   saveTopicsSetup,
+  setTopicsAutomaticProcessing,
   enqueueTopicExecution,
   getTopicExecutionQueueState,
 } from "@langfuse/shared/topics/server";
@@ -326,9 +327,6 @@ export const topicsRouter = createTRPCRouter({
   facets: topicsProcedure.query(({ input }) =>
     listTopicFacets(input.projectId),
   ),
-  initialize: topicsWriteProcedure.mutation(({ input }) =>
-    ensureDefaultTopicFacets(input.projectId),
-  ),
   saveFacet: topicsWriteProcedure
     .input(
       projectInput.extend({
@@ -367,9 +365,10 @@ export const topicsRouter = createTRPCRouter({
       });
       return rule;
     }),
-  modelSettings: topicsProcedure.query(({ input }) =>
-    readTopicsModelSettings(input.projectId),
-  ),
+  modelSettings: topicsProcedure.query(async ({ input }) => ({
+    ...(await readTopicsModelSettings(input.projectId)),
+    processingAvailable: isTopicsProjectEnabled(input.projectId),
+  })),
   tracingReadinessSettings: topicsProcedure.query(({ input }) =>
     getTracingReadinessSettings(input.projectId),
   ),
@@ -392,6 +391,30 @@ export const topicsRouter = createTRPCRouter({
         after: rule,
       });
       return rule;
+    }),
+  setAutomaticProcessing: topicsWriteProcedure
+    .input(topicsAutomaticProcessingSchema.extend({ projectId: topicIdSchema }))
+    .mutation(async ({ input: { projectId, ...input }, ctx }) => {
+      if (input.enabled && !isTopicsProjectEnabled(projectId))
+        throw new InvalidRequestError(
+          "Topics processing is not enabled for this project.",
+        );
+      const { ruleBefore, ruleAfter } = await auditedTopicConfigSave(
+        ctx,
+        projectId,
+        () =>
+          setTopicsAutomaticProcessing(projectId, input, ctx.session.user.id),
+      );
+      if (ruleBefore.sampling !== ruleAfter.sampling)
+        await auditLog({
+          session: ctx.session,
+          resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+          resourceId: ruleAfter.id,
+          action: "update",
+          before: ruleBefore,
+          after: ruleAfter,
+        });
+      return { enabled: input.enabled, sampling: ruleAfter.sampling };
     }),
   summaryCounts: topicsProcedure
     .input(

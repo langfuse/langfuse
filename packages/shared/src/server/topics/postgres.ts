@@ -16,6 +16,10 @@ import { isEqual } from "lodash";
 import { getTopicDefinitions, writeTopicDefinitions } from "./clickhouse";
 import { InvalidRequestError } from "../../errors";
 import { EvalTargetObject } from "../../features/evals/types";
+import {
+  invalidateTopicsProcessingActive,
+  topicRuleWhere,
+} from "./processing-gate";
 
 type FacetVersionRow = Prisma.EvaluatorVersionGetPayload<object>;
 type FacetRow = Prisma.EvaluatorGetPayload<{ include: { versions: true } }>;
@@ -175,17 +179,6 @@ const topicRule = (row: RuleRow): TopicRule => ({
   updatedAt: row.updatedAt.toISOString(),
 });
 
-function topicRuleWhere(projectId: string): Prisma.EvaluationRuleWhereInput {
-  return {
-    projectId,
-    targetObject: EvalTargetObject.TRACE,
-    assignments: {
-      some: {},
-      every: { projectId, evaluator: { projectId, type: "FACET" } },
-    },
-  };
-}
-
 export async function listTopicRules(projectId: string): Promise<TopicRule[]> {
   return (
     await prisma.evaluationRule.findMany({
@@ -232,7 +225,9 @@ export type TopicRuleInput = Omit<
   };
 
 export async function saveTopicRule(input: TopicRuleInput): Promise<TopicRule> {
-  return prisma.$transaction((tx) => writeTopicRule(tx, input));
+  const rule = await prisma.$transaction((tx) => writeTopicRule(tx, input));
+  await invalidateTopicsProcessingActive(input.projectId);
+  return rule;
 }
 
 /** Writes the project's rule inside the caller's transaction, under its lock. */
@@ -253,7 +248,7 @@ export async function writeTopicRule(
     throw new InvalidRequestError("Select facets from this project.");
   const rules = await tx.evaluationRule.findMany({
     where: topicRuleWhere(input.projectId),
-    select: { id: true, name: true },
+    select: { id: true, name: true, sampling: true },
   });
   if (rules.length > 1)
     throw new InvalidRequestError(
@@ -267,7 +262,12 @@ export async function writeTopicRule(
     );
   if (input.id && input.id !== ruleId)
     throw new InvalidRequestError("Topic rule not found in this project.");
-  const config = topicRuleSettingsSchema.parse(input);
+  // Sampling belongs to automatic processing; a write without it keeps the rate.
+  const config = topicRuleSettingsSchema.parse({
+    ...input,
+    sampling:
+      input.sampling ?? (rules[0] ? Number(rules[0].sampling) : undefined),
+  });
   const data = {
     name,
     filter: JSON.parse(JSON.stringify(config.filter)) as Prisma.InputJsonValue,

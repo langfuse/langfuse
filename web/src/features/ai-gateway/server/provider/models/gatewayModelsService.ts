@@ -52,17 +52,20 @@ export class GatewayModelsService {
         }),
       })),
     );
-    const failures = results.filter((result) => !result.catalog.success);
-    if (failures.length > 0) {
-      logger.warn("Gateway model discovery omitted unavailable connections", {
-        organizationId: params.context.organizationId,
-        connections: failures.map(({ connection, catalog }) => ({
-          id: connection.id,
-          error: catalog.success ? undefined : catalog.error,
-        })),
-      });
+    const successfulResults = results.filter(
+      (result) => result.catalog.success,
+    );
+    for (const { connection, catalog } of results) {
+      if (!catalog.success) {
+        logger.warn("Failed to discover models for AI Gateway connection", {
+          organizationId: params.context.organizationId,
+          connectionId: connection.id,
+          connectionName: connection.name,
+          error: catalog.error,
+        });
+      }
     }
-    if (results.length > 0 && failures.length === results.length) {
+    if (results.length > 0 && successfulResults.length === 0) {
       throw new GatewayControlPlaneError(
         "Gateway model discovery is temporarily unavailable",
         503,
@@ -70,7 +73,7 @@ export class GatewayModelsService {
     }
 
     return {
-      data: results
+      data: successfulResults
         .flatMap(({ connection, catalog }) =>
           catalog.success
             ? catalog.models.map((model) => ({
