@@ -5,10 +5,8 @@ import {
   type TopicExecutionStatus,
   type TopicFacet,
 } from "@langfuse/shared/topics";
-import {
-  RegenerateTopicsButton,
-  RegenerateTopicsDialog,
-} from "./RegenerateTopicsDialog";
+import { RegenerateTopicsButton } from "./RegenerateTopicsButton";
+import { RegenerateTopicsDialog } from "./RegenerateTopicsDialog";
 
 const facet = (id: string, name: string): TopicFacet => ({
   id,

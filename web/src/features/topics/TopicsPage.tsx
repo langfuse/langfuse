@@ -39,11 +39,10 @@ import {
   type TopicOperation,
 } from "@langfuse/shared/topics";
 import { useTopicPipelineForm } from "./TopicPipelineForm";
-import {
-  RegenerateTopicsButton,
-  RegenerateTopicsDialogController,
-  RegenerateTopicsMenuRow,
-} from "./RegenerateTopicsDialog";
+import { RegenerateTopicsButton } from "./RegenerateTopicsButton";
+import { RegenerateTopicsDialogController } from "./RegenerateTopicsDialogController";
+import { RegenerateTopicsMenuRow } from "./RegenerateTopicsMenuRow";
+import { useRegenerateTopics } from "./useRegenerateTopics";
 import { useTopicModelSettings } from "./TopicModelSettings";
 import { AutomaticProcessingControl } from "./AutomaticProcessingControl";
 import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
@@ -311,6 +310,13 @@ function TopicsWorkspaceContent({
     onTriggered: openExecution,
     timeRange: validTimeRange ? currentTimeRange : null,
   });
+  const regenerate = useRegenerateTopics({
+    projectId,
+    facets: facets.data ?? [],
+    canWrite,
+    timeRange: validTimeRange ? currentTimeRange : null,
+    executions: executions.data,
+  });
   const automaticProcessing = modelSettings.automaticProcessing;
   function openAutomaticProcessingFromHeader() {
     openAutomaticProcessing(automaticProcessing.state.status === "on");
@@ -365,14 +371,10 @@ function TopicsWorkspaceContent({
   );
   return (
     <RegenerateTopicsDialogController
-      projectId={projectId}
-      facets={facets.data ?? []}
-      canWrite={canWrite}
-      timeRange={validTimeRange ? currentTimeRange : null}
-      executions={executions.data}
+      regenerate={regenerate}
       onTriggered={openExecution}
     >
-      {(regenerate) => (
+      {({ openDialog: openRegenerate }) => (
         <Page
           headerProps={{
             title: "Topics",
@@ -383,7 +385,7 @@ function TopicsWorkspaceContent({
             actionButtonsRight: actions(
               <RegenerateTopicsButton
                 disabledReason={regenerate.disabledReason}
-                onClick={regenerate.openDialog}
+                onClick={openRegenerate}
               />,
             ),
             actionButtonsMenu: ({ closeMenu }) => (
@@ -397,7 +399,7 @@ function TopicsWorkspaceContent({
                   disabledReason={regenerate.disabledReason}
                   onClick={() => {
                     closeMenu();
-                    regenerate.openDialog();
+                    openRegenerate();
                   }}
                 />
               </TopicsActionsMenu>
