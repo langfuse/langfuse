@@ -204,13 +204,7 @@ function ToolGroupSummary({
 
   // Quiet reveal row at the bottom of the group, inside the section box.
   const summaryButton = (
-    <div className="flex w-fit items-center gap-2 text-xs">
-      <Button
-        variant="text"
-        size="sm"
-        text={expanded ? "Show less" : "Show more"}
-        onClick={onToggle}
-      />
+    <div className="flex w-fit items-center gap-2 py-2 text-xs">
       <span
         className={cn(
           "text-muted-foreground",
@@ -219,6 +213,12 @@ function ToolGroupSummary({
       >
         {summaryText}
       </span>
+      <Button
+        variant="text"
+        size="sm"
+        text={expanded ? "Show less" : "Show more"}
+        onClick={onToggle}
+      />
     </div>
   );
 
@@ -328,10 +328,10 @@ function ToolDefinitionRow({
   const statusText = getStatusText(callCount);
 
   return (
-    <div className="w-full overflow-hidden rounded-sm border">
+    <div className="w-full">
       <button
         type="button"
-        className="hover:bg-muted/20 flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-1.5 text-left"
+        className="hover:bg-muted/20 flex w-full cursor-pointer items-center justify-between gap-2 py-2 text-left"
         onClick={onToggle}
         aria-expanded={isExpanded}
       >
@@ -364,8 +364,8 @@ function ToolDefinitionRow({
       </button>
 
       {isExpanded && (
-        <div className="border-border bg-muted/30 relative border-t px-4 py-3">
-          <div className="absolute top-1 right-4">
+        <div className="border-border relative border-t py-3">
+          <div className="absolute top-1 right-0">
             <div className="h-fit py-0.5">
               <Tabs
                 value={currentView}
@@ -529,7 +529,7 @@ export function ToolCallDefinitionCard({
     });
 
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
+    <div className={cn("divide-border flex flex-col divide-y", className)}>
       {showCalledTools && renderToolRows(calledTools, "called")}
       {calledToolsShouldCollapse && (
         <ToolGroupSummary
