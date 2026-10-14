@@ -441,6 +441,9 @@ importers:
       oci-objectstorage:
         specifier: ^2.140.0
         version: 2.140.0
+      protobufjs:
+        specifier: 7.6.5
+        version: 7.6.5
       react:
         specifier: ~19.2.4
         version: 19.2.4
@@ -844,9 +847,6 @@ importers:
       prism-react-renderer:
         specifier: ^2.4.1
         version: 2.4.1(react@19.2.4)
-      protobufjs:
-        specifier: 7.6.5
-        version: 7.6.5
       rate-limiter-flexible:
         specifier: ^5.0.4
         version: 5.0.5

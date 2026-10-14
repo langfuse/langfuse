@@ -615,6 +615,11 @@ export const env = createEnv({
     LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED: z
       .enum(["true", "false"])
       .default("false"),
+    // Store accepted OTLP request bodies as received instead of re-serializing
+    // the decoded resourceSpans. Workers read both formats.
+    LANGFUSE_OTEL_STORE_REQUEST_BODY_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
     // Maximum encoded and decompressed OTLP request body size in bytes.
     LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES: z.coerce
       .number()
@@ -1227,6 +1232,8 @@ export const env = createEnv({
       process.env.LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED,
     LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES:
       process.env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES,
+    LANGFUSE_OTEL_STORE_REQUEST_BODY_ENABLED:
+      process.env.LANGFUSE_OTEL_STORE_REQUEST_BODY_ENABLED,
 
     // Natural Language Filters
     LANGFUSE_AI_FEATURES_PUBLIC_KEY:

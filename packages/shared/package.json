@@ -87,6 +87,10 @@
       "import": "./dist/src/encryption/index.js",
       "require": "./dist/src/encryption/index.js"
     },
+    "./src/server/otel/otlp-proto/generated/root": {
+      "import": "./dist/src/server/otel/otlp-proto/generated/root.js",
+      "require": "./dist/src/server/otel/otlp-proto/generated/root.js"
+    },
     "./src/server/ee/ingestionMasking": {
       "import": "./dist/src/server/ee/ingestionMasking/index.js",
       "require": "./dist/src/server/ee/ingestionMasking/index.js"
@@ -266,6 +270,7 @@
     "nodemailer": "^10.0.9",
     "oci-common": "^2.140.0",
     "oci-objectstorage": "^2.140.0",
+    "protobufjs": "7.6.5",
     "safe-regex2": "^5.0.0",
     "slackify-markdown": "^5.0.0",
     "undici": "^7.29.1",

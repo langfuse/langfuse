@@ -1,3 +1,4 @@
+import { $root } from "@langfuse/shared/src/server/otel/otlp-proto/generated/root";
 import { describe, it, expect, vi } from "vitest";
 import { type Job } from "bullmq";
 import type { EarlyOtelBatch } from "@langfuse/native";
@@ -186,14 +187,14 @@ describe("direct-v4 trace batch tracking", () => {
 });
 
 describe("early media extraction rollout", () => {
-  const createJob = (projectId: string) =>
+  const createJob = (projectId: string, fileKey = "early-media-rollout.json") =>
     ({
       data: {
         id: "early-media-rollout",
         timestamp: new Date(),
         name: QueueJobs.OtelIngestionJob,
         payload: {
-          data: { fileKey: "early-media-rollout.json" },
+          data: { fileKey },
           authCheck: {
             validKey: true,
             scope: {
@@ -320,6 +321,90 @@ describe("early media extraction rollout", () => {
         }
       } finally {
         Object.assign(env, original);
+        vi.mocked(getS3EventStorageClient).mockReset();
+        vi.mocked(markProjectIngestFailure).mockClear();
+      }
+    },
+  );
+});
+
+describe("stored OTLP export bodies", () => {
+  const { ExportTraceServiceRequest } =
+    $root.opentelemetry.proto.collector.trace.v1;
+  const startTimeUnixNano = "1746026930686364157";
+  const storedBody = Buffer.from(
+    ExportTraceServiceRequest.encode(
+      ExportTraceServiceRequest.fromObject({
+        resourceSpans: [
+          {
+            scopeSpans: [
+              {
+                spans: [
+                  {
+                    traceId: Buffer.alloc(16, 1),
+                    spanId: Buffer.alloc(8, 2),
+                    name: "stored-span",
+                    startTimeUnixNano,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    ).finish(),
+  );
+  const job = {
+    data: {
+      id: "stored-export-body",
+      timestamp: new Date(),
+      name: QueueJobs.OtelIngestionJob,
+      payload: {
+        data: { fileKey: "otel/project/2026/10/13/12/00/id.otlp.pb" },
+        authCheck: {
+          validKey: true,
+          scope: { projectId: "project", orgId: "org", accessLevel: "project" },
+        },
+        ingestionVersion: "4",
+      },
+    },
+  } as Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>;
+
+  it.each(["false", "true"] as const)(
+    "decodes a protobuf body on the reference path when early media is %s",
+    async (earlyEnabled) => {
+      const original = {
+        LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
+          env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED,
+        LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS:
+          env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS,
+      };
+      env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED = earlyEnabled;
+      env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS = ["*"];
+      vi.mocked(getS3EventStorageClient).mockReturnValue({
+        downloadBytes: vi.fn().mockResolvedValue(storedBody),
+      } as unknown as ReturnType<typeof getS3EventStorageClient>);
+      const prepare = vi
+        .spyOn(otelPreparation, "prepareOtelBatch")
+        .mockResolvedValue({ sourceUnchanged: true });
+      const stop = new Error("stop after parsing");
+      const processToIngestionEvents = vi
+        .spyOn(OtelIngestionProcessor.prototype, "processToIngestionEvents")
+        .mockRejectedValue(stop);
+
+      try {
+        await expect(
+          otelIngestionQueueProcessorBuilder(false)(job, undefined),
+        ).rejects.toBe(stop);
+
+        const [resourceSpans] = processToIngestionEvents.mock.calls[0]!;
+        const span = resourceSpans[0]!.scopeSpans[0]!.spans[0]!;
+        expect(span.name).toBe("stored-span");
+        expect(span.startTimeUnixNano).toBe(startTimeUnixNano);
+        expect(prepare).not.toHaveBeenCalled();
+      } finally {
+        Object.assign(env, original);
+        vi.restoreAllMocks();
         vi.mocked(getS3EventStorageClient).mockReset();
         vi.mocked(markProjectIngestFailure).mockClear();
       }

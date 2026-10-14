@@ -1,3 +1,16 @@
+import { $root } from "./otlp-proto/generated/root";
+
+const { ExportTraceServiceRequest } =
+  $root.opentelemetry.proto.collector.trace.v1;
+
+export function decodeOtelExportBody(body: Uint8Array) {
+  return ExportTraceServiceRequest.toObject(
+    ExportTraceServiceRequest.decode(body),
+    // OTLP JSON encodes int64 fields as decimal strings.
+    { longs: String },
+  );
+}
+
 export function isValidDateString(dateString: string): boolean {
   return !isNaN(new Date(dateString).getTime());
 }
