@@ -718,10 +718,12 @@ exports[`golden: events point-reads & existence family > getAgentGraphDataFromEv
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "golden-project",
-      "param2": "golden-trace",
-      "param3": "2026-01-01 00:00:00.000",
-      "param4": "2026-01-01 01:00:00.000",
+      "param1": "langgraph_node",
+      "param2": "langgraph_step",
+      "param3": "golden-project",
+      "param4": "golden-trace",
+      "param5": "2026-01-01 00:00:00.000",
+      "param6": "2026-01-01 01:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -731,10 +733,10 @@ exports[`golden: events point-reads & existence family > getAgentGraphDataFromEv
     e.name AS name,
     e.start_time AS start_time,
     e.end_time AS end_time,
-    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_node'] AS node,
-    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_step'] AS step
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{param1:String}] AS node,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{param2:String}] AS step
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time <= {param4:DateTime64(6)})",
+WHERE (e.project_id = {param3:String}) AND (e.trace_id = {param4:String}) AND (e.start_time >= {param5:DateTime64(6)}) AND (e.start_time <= {param6:DateTime64(6)})",
   },
 ]
 `;
