@@ -2,6 +2,7 @@ import z from "zod";
 
 export const IN_APP_AGENT_QUESTIONNAIRE_MAX_QUESTIONS = 5;
 export const IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS = 6;
+export const IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH = 2000;
 
 // Every field is required (nullable instead of optional) so the schema stays
 // valid for OpenAI strict tool calling. Questions and options are addressed by
@@ -23,6 +24,10 @@ const InAppAgentQuestionnaireQuestionSchema = z.object({
   options: z
     .array(InAppAgentQuestionnaireOptionSchema)
     .max(IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS)
+    .refine(
+      (options) => options.filter((option) => option.recommended).length <= 1,
+      { message: "Mark at most one option per question as recommended." },
+    )
     .describe("Answer options. Pass [] for a free-text question."),
   allowMultiple: z
     .boolean()
@@ -53,7 +58,10 @@ export const InAppAgentQuestionnaireAnswersSchema = z
       selectedOptionIndexes: z
         .array(z.number().int().nonnegative())
         .max(IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS),
-      otherText: z.string().max(2000).nullable(),
+      otherText: z
+        .string()
+        .max(IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH)
+        .nullable(),
     }),
   )
   .max(IN_APP_AGENT_QUESTIONNAIRE_MAX_QUESTIONS);

@@ -2,7 +2,10 @@
 
 import { useId, type ChangeEvent, type ReactNode } from "react";
 import { useController, type Control } from "react-hook-form";
-import type { InAppAgentQuestionnaireQuestion } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH,
+  type InAppAgentQuestionnaireQuestion,
+} from "@langfuse/shared/in-app-agent";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -61,6 +64,7 @@ export function QuestionnaireStep({
         <Input
           aria-label="Your answer"
           placeholder="Type your answer"
+          maxLength={IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH}
           value={answer.otherText}
           disabled={isDisabled}
           onChange={handleOtherTextChange}
@@ -100,6 +104,7 @@ export function QuestionnaireStep({
           <Input
             aria-label="Other answer"
             placeholder="Type your answer"
+            maxLength={IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH}
             value={answer.otherText}
             disabled={isDisabled}
             onChange={handleOtherTextChange}
