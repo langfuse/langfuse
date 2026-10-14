@@ -21,43 +21,46 @@ export type FormAction = {
 );
 
 export type FormProps = {
+  id?: FormHTMLAttributes<HTMLFormElement>["id"];
   actions: FormAction[];
   children: ReactNode;
   onSubmit: FormHTMLAttributes<HTMLFormElement>["onSubmit"];
 };
 
-function FormRoot({ actions, children, onSubmit }: FormProps) {
+function FormRoot({ actions, children, id, onSubmit }: FormProps) {
   return (
-    <form className="space-y-8" onSubmit={onSubmit}>
+    <form id={id} className="space-y-8" onSubmit={onSubmit}>
       <div className="space-y-5">{children}</div>
-      <div className="flex gap-2">
-        {actions.map((action) => {
-          if (action.type === "submit") {
+      {actions.length > 0 && (
+        <div className="flex gap-2">
+          {actions.map((action) => {
+            if (action.type === "submit") {
+              return (
+                <Button
+                  key={action.id}
+                  type="submit"
+                  text={action.text}
+                  variant={action.variant}
+                  disabled={action.disabled}
+                  loading={action.loading}
+                />
+              );
+            }
+
             return (
               <Button
                 key={action.id}
-                type="submit"
+                type="button"
                 text={action.text}
                 variant={action.variant}
                 disabled={action.disabled}
                 loading={action.loading}
+                onClick={action.onClick}
               />
             );
-          }
-
-          return (
-            <Button
-              key={action.id}
-              type="button"
-              text={action.text}
-              variant={action.variant}
-              disabled={action.disabled}
-              loading={action.loading}
-              onClick={action.onClick}
-            />
-          );
-        })}
-      </div>
+          })}
+        </div>
+      )}
     </form>
   );
 }

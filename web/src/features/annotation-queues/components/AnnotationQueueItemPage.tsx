@@ -202,7 +202,10 @@ function AnnotationQueueRunContent({
     { projectId, itemId: itemId as string },
     { enabled: !!itemId, refetchOnMount: false },
   );
-  const { configs } = useAnnotationQueueData({ annotationQueueId, projectId });
+  const { configs, isLoading: queueConfigsLoading } = useAnnotationQueueData({
+    annotationQueueId,
+    projectId,
+  });
   const unseenPendingItemCount =
     api.annotationQueueItems.unseenPendingItemCountByQueueId.useQuery(
       { queueId: annotationQueueId, projectId, seenItemIds },
@@ -260,7 +263,8 @@ function AnnotationQueueRunContent({
       // not complete or skip an item the annotator hasn't actually seen yet
       // (e.g. a quick → between ⌘/Ctrl+Enter and onSuccess advancing would skip
       // the next item, which only flashed as a Skeleton).
-      if (objectData.isLoading || isTransitioning) return;
+      if (queueConfigsLoading || objectData.isLoading || isTransitioning)
+        return;
 
       // Complete + next — the Cmd/Ctrl+Enter submit chord. Handled first and
       // *before* the typing guard so it works even while the annotator is in the
@@ -358,6 +362,7 @@ function AnnotationQueueRunContent({
     isTransitioning,
     objectData.isError,
     objectData.isLoading,
+    queueConfigsLoading,
     handleComplete,
     handleNavigateNext,
     handleNavigateBack,
@@ -368,6 +373,7 @@ function AnnotationQueueRunContent({
     (seenItemData.isPending && itemId) ||
     (isTransitioning && !itemId) ||
     unseenPendingItemCount.isPending ||
+    queueConfigsLoading ||
     objectData.isLoading
   ) {
     return <Skeleton className="h-full w-full" />;

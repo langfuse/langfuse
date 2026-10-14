@@ -1,18 +1,13 @@
 /* eslint-disable no-nested-ternary */
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ScoreDataTypeEnum, type ScoreConfigDataType } from "@langfuse/shared";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { type UseFormReturn, useFieldArray, useForm } from "react-hook-form";
 
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import {
-  DialogBody,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import {
   Form,
   FormControl,
@@ -21,7 +16,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Input } from "@/src/components/ui/input";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { Textarea } from "@/src/components/ui/textarea";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import {
@@ -62,6 +57,7 @@ export function UpsertScoreConfigDialogContent({
   onFormSuccess,
   isSubmitting,
 }: UpsertScoreConfigDialogContentProps) {
+  const formId = useId();
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm({
     resolver: zodResolver(
@@ -95,26 +91,32 @@ export function UpsertScoreConfigDialogContent({
   }
 
   return (
-    <>
-      <DialogHeader>
-        <DialogTitle>
-          {mode === "edit" ? "Update score config" : "Add new score config"}
-        </DialogTitle>
-        <DialogDescription>
-          {mode === "edit"
-            ? "This score config is project-wide. Changes affect future scoring wherever it is used, including other queues and API/SDK scores. Data type cannot be changed after creation."
-            : "Create a project-wide score config for annotation and API/SDK scoring."}
-        </DialogDescription>
-      </DialogHeader>
+    <Dialog
+      title={mode === "edit" ? "Update score config" : "Add new score config"}
+      actions={[
+        {
+          label: "Submit",
+          type: "submit",
+          form: formId,
+          loading: isSubmitting,
+        },
+      ]}
+    >
       <Form {...form}>
         <form
-          className="space-y-6"
+          id={formId}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
           onSubmit={(event) => {
             event.stopPropagation();
             return form.handleSubmit(handleSubmit)(event);
           }}
         >
-          <DialogBody>
+          <Dialog.Body>
+            <p className="text-muted-foreground">
+              {mode === "edit"
+                ? "This score config is project-wide. Changes affect future scoring wherever it is used, including other queues and API/SDK scores. Data type cannot be changed after creation."
+                : "Create a project-wide score config for annotation and API/SDK scoring."}
+            </p>
             <FormField
               control={form.control}
               name="name"
@@ -262,7 +264,6 @@ export function UpsertScoreConfigDialogContent({
                                     readOnly
                                     disabled
                                     inputMode="numeric"
-                                    className="text-center"
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -290,17 +291,14 @@ export function UpsertScoreConfigDialogContent({
                               )}
                             />
                             {isCategoricalDataType(dataType) && (
-                              <Button
-                                type="button"
+                              <IconButton
+                                icon={Trash}
+                                label={`Remove category ${index + 1}`}
                                 onClick={() => remove(index)}
-                                variant="outline"
-                                size="icon"
                                 disabled={
                                   index === 0 || index !== fields.length - 1
                                 }
-                              >
-                                <Trash className="icon-base text-icon-foreground" />
-                              </Button>
+                              />
                             )}
                           </div>
                         </div>
@@ -309,6 +307,7 @@ export function UpsertScoreConfigDialogContent({
                         <div className="grid">
                           <Button
                             type="button"
+                            text="Add category"
                             variant="secondary"
                             disabled={
                               isBooleanDataType(dataType) && fields.length === 2
@@ -326,9 +325,7 @@ export function UpsertScoreConfigDialogContent({
                                     : 0,
                               })
                             }
-                          >
-                            Add category
-                          </Button>
+                          />
                         </div>
                       )}
                     </>
@@ -353,21 +350,14 @@ export function UpsertScoreConfigDialogContent({
                 </FormItem>
               )}
             />
-          </DialogBody>
-          <DialogFooter>
-            <div className="flex w-full flex-col items-end gap-4">
-              {formError ? (
-                <p className="w-full text-center">
-                  <span className="font-bold">Error:</span> {formError}
-                </p>
-              ) : null}
-              <Button type="submit" loading={isSubmitting}>
-                Submit
-              </Button>
-            </div>
-          </DialogFooter>
+            {formError && (
+              <p role="alert">
+                <span className="font-bold">Error:</span> {formError}
+              </p>
+            )}
+          </Dialog.Body>
         </form>
       </Form>
-    </>
+    </Dialog>
   );
 }

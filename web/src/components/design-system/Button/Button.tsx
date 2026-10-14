@@ -1,7 +1,11 @@
 import { cva } from "class-variance-authority";
 import { ExternalLink, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { type MouseEventHandler, type Ref } from "react";
+import {
+  type HTMLAttributeAnchorTarget,
+  type MouseEventHandler,
+  type Ref,
+} from "react";
 
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { cn } from "@/src/utils/tailwind";
@@ -60,7 +64,9 @@ type ButtonProps = {
       loading?: never;
       icon?: LucideIcon;
       form?: never;
-      onClick?: never;
+      target?: HTMLAttributeAnchorTarget;
+      onClick?: MouseEventHandler<HTMLAnchorElement>;
+      onAuxClick?: MouseEventHandler<HTMLAnchorElement>;
       type?: never;
     }
   | {
@@ -100,7 +106,9 @@ export function Button(props: ButtonProps) {
           className={`${className} gap-1`}
           href={props.href}
           ref={props.ref}
-          target="_blank"
+          target={props.target ?? "_blank"}
+          onClick={props.onClick}
+          onAuxClick={props.onAuxClick}
           rel={isLangfuseDomain ? "noopener" : "noopener noreferrer"}
         >
           {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
@@ -117,7 +125,15 @@ export function Button(props: ButtonProps) {
     }
 
     return (
-      <Link className={className} href={props.href} ref={props.ref}>
+      <Link
+        className={className}
+        href={props.href}
+        ref={props.ref}
+        target={props.target}
+        rel={props.target === "_blank" ? "noopener" : undefined}
+        onClick={props.onClick}
+        onAuxClick={props.onAuxClick}
+      >
         {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
         {props.text}
       </Link>

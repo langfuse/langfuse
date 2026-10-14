@@ -1,5 +1,5 @@
 import preview from "../../../../.storybook/preview";
-import { Dialog, DialogContent } from "@/src/components/ui/dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { type ScoreConfigDomain } from "@langfuse/shared";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
@@ -56,8 +56,9 @@ export const Create = meta.story({
   name: "(Test) Create",
   render: () => {
     return (
-      <Dialog open onOpenChange={fn()}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogController<boolean>
+        initialState={() => true}
+        renderDialog={() => (
           <AnnotationQueueFormDialogContent
             mode="create"
             initialValues={{
@@ -74,16 +75,24 @@ export const Create = meta.story({
             onSubmit={fn()}
             submitLabel="Create queue"
           />
-        </DialogContent>
-      </Dialog>
+        )}
+      >
+        {() => null}
+      </DialogController>
     );
   },
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
 
-    await userEvent.selectOptions(
+    await userEvent.click(
       await body.findByRole("combobox", { name: "Add existing score config" }),
-      "config-2",
+    );
+    await userEvent.type(
+      await body.findByPlaceholderText("Search score configs..."),
+      "Correctness",
+    );
+    await userEvent.click(
+      await body.findByRole("option", { name: /Correctness/ }),
     );
     await expect(
       body.getByRole("list", { name: "Selected score configs" }),
@@ -112,20 +121,20 @@ export const Edit = meta.story({
     submitLabel: "Save queue",
   },
   render: (args) => (
-    <Dialog open onOpenChange={fn()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
-        <AnnotationQueueFormDialogContent {...args} />
-      </DialogContent>
-    </Dialog>
+    <DialogController<boolean>
+      initialState={() => true}
+      renderDialog={() => <AnnotationQueueFormDialogContent {...args} />}
+    >
+      {() => null}
+    </DialogController>
   ),
   play: async ({ canvasElement, args }) => {
     const body = within(canvasElement.ownerDocument.body);
     await userEvent.click(
       body.getByRole("button", { name: "Remove Legacy quality from queue" }),
     );
-    await userEvent.click(
-      body.getByRole("button", { name: "Move Correctness up" }),
-    );
+    body.getByRole("button", { name: "Move Correctness up" }).focus();
+    await userEvent.keyboard("{Enter}");
     await userEvent.click(body.getByRole("button", { name: "Save queue" }));
     await waitFor(() =>
       expect(args.onSubmit).toHaveBeenCalledWith(
@@ -139,8 +148,9 @@ export const Edit = meta.story({
 export const Submitting = meta.story({
   render: () => {
     return (
-      <Dialog open onOpenChange={fn()}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogController<boolean>
+        initialState={() => true}
+        renderDialog={() => (
           <AnnotationQueueFormDialogContent
             mode="create"
             initialValues={{
@@ -157,8 +167,10 @@ export const Submitting = meta.story({
             onSubmit={fn()}
             submitLabel="Create queue"
           />
-        </DialogContent>
-      </Dialog>
+        )}
+      >
+        {() => null}
+      </DialogController>
     );
   },
 });
@@ -166,8 +178,9 @@ export const Submitting = meta.story({
 export const WithAdvancedOpen = meta.story({
   render: () => {
     return (
-      <Dialog open onOpenChange={fn()}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogController<boolean>
+        initialState={() => true}
+        renderDialog={() => (
           <AnnotationQueueFormDialogContent
             mode="create"
             initialValues={{
@@ -184,8 +197,10 @@ export const WithAdvancedOpen = meta.story({
             onSubmit={fn()}
             submitLabel="Create queue"
           />
-        </DialogContent>
-      </Dialog>
+        )}
+      >
+        {() => null}
+      </DialogController>
     );
   },
 });

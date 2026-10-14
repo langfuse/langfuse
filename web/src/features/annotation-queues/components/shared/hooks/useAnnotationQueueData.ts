@@ -20,6 +20,7 @@ export const useAnnotationQueueData = (config: AnnotationQueueDataConfig) => {
 
   return {
     queueData,
+    isLoading: queueData.isPending || !queueData.isFetchedAfterMount,
     configs: queueData.data?.scoreConfigs ?? [],
   };
 };

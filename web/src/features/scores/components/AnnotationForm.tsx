@@ -95,7 +95,7 @@ const getEmptySelectedConfigIdsStorageKey = (scoreTarget: ScoreTarget) => {
 };
 
 export function AnnotationFormContent({
-  targets,
+  targets: suppliedTargets,
   actionButtons,
   isActive = true,
   refreshRef,
@@ -106,11 +106,13 @@ export function AnnotationFormContent({
   refreshRef?: React.Ref<AnnotationRefreshHandle>;
 }) {
   const capture = usePostHogClientCapture();
-  const primaryTarget = targets[0]!;
-  const { scoreMetadata, analyticsData } = primaryTarget;
-  const allowManualSelection = targets.some(
+  const [initialTargets] = useState(() => suppliedTargets);
+  const allowManualSelection = suppliedTargets.some(
     (target) => target.configControl.allowManualSelection,
   );
+  const targets = allowManualSelection ? suppliedTargets : initialTargets;
+  const primaryTarget = targets[0]!;
+  const { scoreMetadata, analyticsData } = primaryTarget;
   const initialFormData = targets.flatMap((target) =>
     target.initialFormData.map((field) => ({
       ...field,
@@ -490,7 +492,6 @@ export function usePreparedAnnotationFormTarget<Target extends ScoreTarget>({
         scoreTarget,
         analyticsData.source,
         analyticsData.isV4,
-        ...(configSelection.mode === "fixed" ? [selectedConfigIds] : []),
       ]),
       label: annotationTargetLabel(scoreTarget),
       scoreTarget,

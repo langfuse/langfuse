@@ -13,6 +13,7 @@ type DialogControllerProps<State = void> = {
   onDismiss?: () => void;
   renderDialog: (control: {
     state: State;
+    isOpen: boolean;
     closeDialog: () => void;
   }) => React.ReactNode;
 };
@@ -76,7 +77,11 @@ function DialogController<State = void>({
         // Keep the closed content mounted for Radix's exit animation, but
         // start a fresh content instance whenever the dialog opens again.
         <React.Fragment key={controllerState.openCount}>
-          {renderDialog({ state: controllerState.state, closeDialog })}
+          {renderDialog({
+            state: controllerState.state,
+            isOpen: controllerState.isOpen,
+            closeDialog,
+          })}
         </React.Fragment>
       ) : null}
     </DialogPrimitive.Root>

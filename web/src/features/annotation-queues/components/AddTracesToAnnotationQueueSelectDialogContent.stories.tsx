@@ -1,5 +1,6 @@
 import preview from "../../../../.storybook/preview";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { AnnotationQueueScoreConfigEditor } from "./AnnotationQueueScoreConfigEditor";
 import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
 import { type CreateQueueWithAssignments } from "@langfuse/shared";
@@ -19,7 +20,6 @@ const meta = preview.meta({
 export const CreateQueueInStackedDialog = meta.story({
   name: "(Test) Create Queue In Stacked Dialog",
   render: () => {
-    const [createOpen, setCreateOpen] = useState(false);
     const [selectedQueueId, setSelectedQueueId] = useState("queue-1");
     const [queueOptions, setQueueOptions] = useState([
       { id: "queue-1", name: "Support review" },
@@ -29,72 +29,73 @@ export const CreateQueueInStackedDialog = meta.story({
       const queue = { id: `queue-${queueOptions.length + 1}`, name: data.name };
       flushSync(() => setQueueOptions((current) => current.concat(queue)));
       setSelectedQueueId(queue.id);
-      setCreateOpen(false);
     };
 
     return (
-      <>
-        <Dialog open onOpenChange={fn()}>
-          <DialogContent className="sm:max-w-md">
-            <AddTracesToAnnotationQueueSelectDialogContent
-              key={selectedQueueId}
-              description="Add 12 selected traces to an annotation queue."
-              initialTargetId={selectedQueueId}
-              queueOptionsState={{ status: "ready", options: queueOptions }}
-              onSubmit={fn()}
-              onCreateNewQueue={() => setCreateOpen(true)}
-              createQueueState={{ status: "enabled" }}
-              hasAccess={true}
-              batchActionState={{ status: "ready" }}
-            />
-          </DialogContent>
-        </Dialog>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-            {createOpen ? (
-              <AnnotationQueueFormDialogContent
-                mode="create"
-                initialValues={{
-                  name: "",
-                  description: "",
-                  scoreConfigIds: ["config-1"],
-                  newAssignmentUserIds: [],
-                }}
-                renderScoreConfigEditor={(control) => (
-                  <AnnotationQueueScoreConfigEditor
-                    {...control}
-                    scoreConfigs={[
-                      {
-                        id: "config-1",
-                        name: "Helpfulness",
-                        dataType: "NUMERIC",
-                        isArchived: false,
-                      },
-                      {
-                        id: "config-2",
-                        name: "Correctness",
-                        dataType: "BOOLEAN",
-                        isArchived: false,
-                      },
-                    ]}
-                    createAction={null}
-                    editAction={{ disabled: undefined, onClick: fn() }}
-                    warnOnRemoval={false}
-                    disabled={false}
-                  />
-                )}
-                projectId="project-1"
-                queueNames={queueOptions.map((queue) => queue.name)}
-                onManageScoreConfigsClick={fn()}
-                hasQueueAssignmentsReadAccess={false}
-                isSubmitting={false}
-                onSubmit={handleCreate}
-                submitLabel="Create queue"
+      <DialogController
+        renderDialog={({ closeDialog }) => (
+          <AnnotationQueueFormDialogContent
+            mode="create"
+            initialValues={{
+              name: "",
+              description: "",
+              scoreConfigIds: ["config-1"],
+              newAssignmentUserIds: [],
+            }}
+            renderScoreConfigEditor={(control) => (
+              <AnnotationQueueScoreConfigEditor
+                {...control}
+                scoreConfigs={[
+                  {
+                    id: "config-1",
+                    name: "Helpfulness",
+                    dataType: "NUMERIC",
+                    isArchived: false,
+                  },
+                  {
+                    id: "config-2",
+                    name: "Correctness",
+                    dataType: "BOOLEAN",
+                    isArchived: false,
+                  },
+                ]}
+                createAction={null}
+                editAction={{ disabled: undefined, onClick: fn() }}
+                warnOnRemoval={false}
+                disabled={false}
               />
-            ) : null}
-          </DialogContent>
-        </Dialog>
-      </>
+            )}
+            projectId="project-1"
+            queueNames={queueOptions.map((queue) => queue.name)}
+            onManageScoreConfigsClick={fn()}
+            hasQueueAssignmentsReadAccess={false}
+            isSubmitting={false}
+            onSubmit={(data) => {
+              handleCreate(data);
+              closeDialog();
+            }}
+            submitLabel="Create queue"
+          />
+        )}
+      >
+        {({ openDialog }) => (
+          <Dialog open onOpenChange={fn()}>
+            <DialogContent className="sm:max-w-md">
+              <AddTracesToAnnotationQueueSelectDialogContent
+                key={selectedQueueId}
+                description="Add 12 selected traces to an annotation queue."
+                initialTargetId={selectedQueueId}
+                queueOptionsState={{ status: "ready", options: queueOptions }}
+                onSubmit={fn()}
+                onCreateNewQueue={openDialog}
+                createQueueState={{ status: "enabled" }}
+                hasAccess={true}
+                batchActionState={{ status: "ready" }}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+      </DialogController>
     );
   },
   play: async ({ canvasElement }) => {

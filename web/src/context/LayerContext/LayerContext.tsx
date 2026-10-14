@@ -5,6 +5,24 @@ import { LAYER_ORDER, type LayerName } from "./layers";
 const LayerContext = React.createContext<Map<LayerName, HTMLElement> | null>(
   null,
 );
+const PopoverLayerContext = React.createContext<HTMLElement | null | undefined>(
+  undefined,
+);
+
+/** Keeps a modal's interactive popovers inside its accessibility subtree. */
+export function PopoverLayerProvider({
+  container,
+  children,
+}: {
+  container: HTMLElement | null;
+  children: React.ReactNode;
+}) {
+  return (
+    <PopoverLayerContext.Provider value={container}>
+      {children}
+    </PopoverLayerContext.Provider>
+  );
+}
 
 function ensureLayerContainers(): Map<LayerName, HTMLElement> {
   let root = document.querySelector<HTMLElement>("[data-overlay-root]");
@@ -17,7 +35,7 @@ function ensureLayerContainers(): Map<LayerName, HTMLElement> {
   const layerContainers = new Map<LayerName, HTMLElement>();
   for (const name of LAYER_ORDER) {
     let layer = root.querySelector<HTMLElement>(
-      `[data-layer="${CSS.escape(name)}"]`,
+      `:scope > [data-layer="${CSS.escape(name)}"]`,
     );
     if (!layer) {
       layer = document.createElement("div");
@@ -51,7 +69,11 @@ export function LayerProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Returns the body-level container used by Radix/Vaul portals. */
+/** Returns the scoped layer container used by Radix/Vaul portals. */
 export function useLayerContainer(name: LayerName) {
-  return React.useContext(LayerContext)?.get(name) ?? null;
+  const layers = React.useContext(LayerContext);
+  const popoverContainer = React.useContext(PopoverLayerContext);
+  return name === "popover" && popoverContainer !== undefined
+    ? popoverContainer
+    : (layers?.get(name) ?? null);
 }

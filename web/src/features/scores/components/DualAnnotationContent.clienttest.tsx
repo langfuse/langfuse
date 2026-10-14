@@ -887,6 +887,9 @@ describe("unified annotation targets", () => {
           screen.queryByRole("button", { name: "Add score" }),
         ).not.toBeInTheDocument();
         rendered.rerenderContent(contentFor([accuracy, defaultConfig]));
+        expect(fieldOrder()).toEqual(expectedOrder);
+        rendered.unmount();
+        renderContent(contentFor([accuracy, defaultConfig]));
         expect(fieldOrder()).toEqual(["Accuracy", "Quality"]);
         expect(
           within(screen.getByRole("group", { name: "Accuracy" })).getByRole(
@@ -894,10 +897,6 @@ describe("unified annotation targets", () => {
             { name: /False/ },
           ),
         ).toHaveAttribute("aria-selected", "true");
-        rendered.rerenderContent(contentFor([accuracy]));
-        expect(fieldOrder()).toEqual(["Accuracy"]);
-        rendered.rerenderContent(contentFor([defaultConfig, accuracy]));
-        expect(fieldOrder()).toEqual(["Quality", "Accuracy"]);
       }
       expect(mocks.create).not.toHaveBeenCalled();
       expect(mocks.update).not.toHaveBeenCalled();
@@ -958,6 +957,72 @@ describe("unified annotation targets", () => {
     view.rerenderContent(contentFor("next-session", "Other session score"));
     expect(screen.getByRole("textbox")).toHaveValue("Other session score");
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("preserves fixed queue text and comment drafts through config refresh and applies fields on reopen", async () => {
+    const feedback = {
+      ...defaultConfig,
+      id: "feedback",
+      name: "Feedback",
+      dataType: "TEXT" as const,
+      categories: null,
+    };
+    const accuracy = { ...defaultConfig, id: "accuracy", name: "Accuracy" };
+    const score = {
+      ...serverQualityScore(),
+      metadata: "{}",
+      traceId: null,
+      observationId: null,
+      sessionId: "session",
+    };
+    const contentFor = (orderedConfigs: ScoreConfigDomain[]) => (
+      <AnnotationForm
+        scoreTarget={{ type: "session", sessionId: "session" }}
+        serverScores={[score]}
+        scoreMetadata={{ projectId: "project", queueId: "queue" }}
+        analyticsData={{
+          type: "session",
+          source: "AnnotationQueue",
+          isV4: true,
+        }}
+        configSelection={{ mode: "fixed", configs: orderedConfigs }}
+      />
+    );
+    const view = renderContent(contentFor([feedback, defaultConfig]));
+    const text = within(
+      screen.getByRole("group", { name: "Feedback" }),
+    ).getByRole("textbox");
+    fireEvent.change(text, { target: { value: "Unsent feedback" } });
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Quality" })).getByTitle(
+        "Add or view score comment",
+      ),
+    );
+    const comment = await within(screen.getByRole("dialog")).findByRole(
+      "textbox",
+    );
+    fireEvent.change(comment, { target: { value: "Unsent score comment" } });
+    view.rerenderContent(contentFor([defaultConfig, accuracy]));
+    expect(text).toBeInTheDocument();
+    expect(text).toHaveValue("Unsent feedback");
+    expect(comment).toHaveValue("Unsent score comment");
+    expect(
+      screen.queryByRole("group", { name: "Accuracy" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole("group").map((row) => row.getAttribute("aria-label")),
+    ).toEqual(["Feedback", "Quality"]);
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.remove).not.toHaveBeenCalled();
+    view.unmount();
+    renderContent(contentFor([defaultConfig, accuracy]));
+    expect(
+      screen.queryByRole("group", { name: "Feedback" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole("group").map((row) => row.getAttribute("aria-label")),
+    ).toEqual(["Quality", "Accuracy"]);
   });
 
   it("navigates one form and saves the same config independently for observation and trace", async () => {

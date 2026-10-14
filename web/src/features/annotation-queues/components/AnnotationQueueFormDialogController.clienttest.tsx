@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { type ReactNode } from "react";
 import { vi } from "vitest";
 import { AnnotationQueueFormDialogController } from "./AnnotationQueueFormDialogController";
 
@@ -20,10 +19,6 @@ vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
 vi.mock("@/src/features/notifications", () => ({ showErrorToast: notify }));
 vi.mock("@/src/features/posthog-analytics", () => ({
   usePostHogClientCapture: () => vi.fn(),
-}));
-vi.mock("@/src/components/ui/dialog", () => ({
-  Dialog: ({ children }: { children: ReactNode }) => children,
-  DialogContent: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("./AnnotationQueueFormDialogContent", () => ({
   AnnotationQueueFormDialogContent: ({

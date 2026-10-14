@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, Pencil, X } from "lucide-react";
 import { type ScoreConfigDomain } from "@langfuse/shared";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { getScoreDataTypeIcon } from "@/src/features/scores";
 
@@ -30,6 +31,7 @@ export function AnnotationQueueScoreConfigEditor({
   disabled: boolean;
 }) {
   const [announcement, setAnnouncement] = useState("");
+  const activeConfigs = scoreConfigs.filter((config) => !config.isArchived);
   const configsById = new Map(
     scoreConfigs.map((config) => [config.id, config]),
   );
@@ -55,30 +57,37 @@ export function AnnotationQueueScoreConfigEditor({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-48 flex-1">
-          <select
-            aria-label="Add existing score config"
-            className="border-input bg-background focus-visible:ring-ring h-8 w-full rounded-md border px-3 py-1 text-sm focus-visible:ring-2 focus-visible:outline-hidden disabled:opacity-50"
-            value=""
-            disabled={disabled}
-            onChange={(event) => onChange([...value, event.target.value])}
-          >
-            <option value="" disabled>
-              Add existing score config
-            </option>
-            {scoreConfigs
-              .filter(
-                (config) => !config.isArchived && !value.includes(config.id),
-              )
-              .map((config) => (
-                <option key={config.id} value={config.id}>
-                  {getScoreDataTypeIcon(config.dataType)} {config.name}
-                </option>
-              ))}
-          </select>
-        </div>
+        {activeConfigs.length > 0 ? (
+          <div className="min-w-48 flex-1">
+            <SelectInput
+              aria-label="Add existing score config"
+              value=""
+              placeholder="Add existing score config"
+              search={{ placeholder: "Search score configs..." }}
+              emptyMessage="No other active score configs available."
+              disabled={disabled}
+              options={activeConfigs
+                .filter((config) => !value.includes(config.id))
+                .map((config) => ({
+                  value: config.id,
+                  label: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
+                }))}
+              onValueChange={(id) => onChange([...value, id])}
+            />
+          </div>
+        ) : (
+          <p className="text-muted-foreground min-w-48 flex-1 text-sm">
+            No score configs yet. Create one here to define your first
+            annotation field, even if your project already has scores.
+          </p>
+        )}
         {createAction}
       </div>
+      {value.length === 0 && activeConfigs.length > 0 && (
+        <p className="text-muted-foreground text-sm">
+          No score configs selected. Add an existing config or create one above.
+        </p>
+      )}
       <ConfirmationDialogController<string>
         title="Remove score config from queue?"
         text="This queue contains items. After saving, reopened items, including completed items, will no longer show this field. Historical scores are kept and completion status stays the same. The project-wide score config is kept."

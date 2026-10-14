@@ -27,9 +27,22 @@ each project and queue; changing the current item keeps the same run history.
 - `processors/TraceAnnotationProcessor.tsx` and `SessionAnnotationProcessor.tsx`
   prepare their object views. They do not initialize the route's selected span.
 - Score forms own their field state; the comments feature owns discussion drafts.
-  Shared processing layout components own resize preferences.
+  Queue fields wait for the opening refresh, then remain stable for the active
+  item so later query updates cannot discard unsaved drafts. Reopening an item
+  uses the current queue configuration. Shared processing layout components own
+  resize preferences.
 
 ## Structure and consumers
+
+Queue setup keeps server data in tRPC and one editable draft in React Hook Form.
+`AnnotationQueueFormDialogController` owns permissions and dialog lifecycle;
+its data boundary waits for queue defaults and score configs before mounting
+`AnnotationQueueFormDialogContent`. Refetches do not reset the draft.
+`AnnotationQueueScoreConfigEditor` is controlled by ordered config IDs and renders
+query-backed definitions without copying them into local state. Existing config
+dialogs return explicit create/edit results; creating a config appends its ID to
+the draft without saving the queue. `saveQueueWithAssignments` owns the save/retry
+workflow independently of rendering. Dialog controllers own transient open state.
 
 `components/` contains queue forms, tables, and processing views. `components/shared`
 contains object/query adapters and layout primitives; `server/` contains queue and

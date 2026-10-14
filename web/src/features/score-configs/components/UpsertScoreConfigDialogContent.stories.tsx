@@ -2,7 +2,7 @@ import { type ComponentProps } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Dialog, DialogContent } from "@/src/components/ui/dialog";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 
 import { UpsertScoreConfigDialogContent } from "./UpsertScoreConfigDialogContent";
 
@@ -26,11 +26,9 @@ const meta = preview.meta({
   },
   decorators: [
     (Story) => (
-      <Dialog open onOpenChange={fn()}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <Story />
-        </DialogContent>
-      </Dialog>
+      <DialogPrimitive.Root open onOpenChange={fn()}>
+        <Story />
+      </DialogPrimitive.Root>
     ),
   ],
 });

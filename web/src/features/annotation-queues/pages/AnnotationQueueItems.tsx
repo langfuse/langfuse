@@ -1,8 +1,7 @@
 import { api } from "@/src/utils/api";
 import { AnnotationQueueItemsTable } from "@/src/features/annotation-queues/components/AnnotationQueueItemsTable";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { ClipboardPen, Lock, Pencil } from "lucide-react";
-import Link from "next/link";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing";
@@ -14,7 +13,6 @@ import {
   SidePanelHeader,
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
-import { Button as DesignButton } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { AnnotationQueueFormDialogController } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogController";
 import { EditScoreConfigDialogController } from "@/src/features/score-configs";
@@ -58,19 +56,13 @@ export default function QueueItems({
           },
         ],
         actionButtonsRight: !hasWriteAccess ? (
-          <Button disabled>
-            <Lock className="icon-base text-icon-foreground mr-1" />
-            <span className="text-sm">Process queue</span>
-          </Button>
+          <Button disabled icon={Lock} text="Process queue" />
         ) : (
-          <Button asChild>
-            <Link
-              href={`/project/${projectId}/annotation-queues/${queueId}/items`}
-            >
-              <ClipboardPen className="icon-base text-icon-foreground mr-1" />
-              <span className="text-sm">Process queue</span>
-            </Link>
-          </Button>
+          <Button
+            href={`/project/${projectId}/annotation-queues/${queueId}/items`}
+            icon={ClipboardPen}
+            text="Process queue"
+          />
         ),
       }}
     >
@@ -89,7 +81,7 @@ export default function QueueItems({
                 onSuccess={() => undefined}
               >
                 {({ disabled, openDialog }) => (
-                  <DesignButton
+                  <Button
                     text="Add/Edit score configs"
                     size="sm"
                     variant="secondary"
@@ -145,6 +137,12 @@ export default function QueueItems({
                   </ol>
                 )}
               </EditScoreConfigDialogController>
+            )}
+            {queue.data?.scoreConfigs.length === 0 && (
+              <p className="text-muted-foreground text-sm">
+                No score configs yet. Add a score config to set up this
+                queue&apos;s annotation fields.
+              </p>
             )}
             <p className="text-muted-foreground text-xs">
               Annotators see these fields in this order. Score config

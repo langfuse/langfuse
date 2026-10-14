@@ -9,8 +9,9 @@ trace and observation. Trace/session detail, annotation queues, and dataset
 comparison supply their targets and scores. The adapters prepare data and gate
 the form on score-config readiness. Target identity keys the mounted form;
 refetches of the same target preserve its draft.
-A fixed queue's config IDs and order also identify its form, so a changed
-selection rebuilds its fields when queue data reloads.
+Queue editing waits for the initial queue refresh. A fixed form snapshots its
+targets and configs for that item, so later refreshes preserve open drafts.
+Reopening the item applies the latest queue fields and their order.
 
 | Owner                                                          | Responsibility                                                                                                                                                                                                 |
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

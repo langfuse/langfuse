@@ -222,6 +222,38 @@ describe("annotation queues trpc", () => {
   });
 
   describe("annotationQueues.update", () => {
+    it("deduplicates resolved queue configs in first-occurrence order", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const { caller } = createCallerForProjectRole(setup);
+      const first = await createScoreConfig(setup.project.id);
+      const second = await createScoreConfig(setup.project.id);
+      const queue = await prisma.annotationQueue.create({
+        data: {
+          projectId: setup.project.id,
+          name: "legacy-queue-configs",
+          scoreConfigIds: [second.id, uuidv4(), second.id, first.id, first.id],
+        },
+      });
+
+      const [details, list] = await Promise.all([
+        caller.annotationQueues.byId({
+          projectId: setup.project.id,
+          queueId: queue.id,
+        }),
+        caller.annotationQueues.all({ projectId: setup.project.id }),
+      ]);
+      expect(details.scoreConfigs.map((config) => config.id)).toEqual([
+        second.id,
+        first.id,
+      ]);
+      expect(
+        list.queues
+          .find((entry) => entry.id === queue.id)
+          ?.scoreConfigs.map((config) => config.id),
+      ).toEqual([second.id, first.id]);
+    });
+
     it("persists score config order through queue reads without changing completed items", async () => {
       const setup = await createOrgProjectAndApiKey();
       orgIds.push(setup.org.id);

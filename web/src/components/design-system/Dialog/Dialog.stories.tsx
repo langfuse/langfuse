@@ -3,6 +3,8 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 
 import { Dialog } from "./Dialog";
 
@@ -162,5 +164,127 @@ export const DestructiveOnlyAutofocus = meta.story({
     await waitFor(() =>
       expect(body.getByRole("button", { name: "Cancel" })).toHaveFocus(),
     );
+  },
+});
+
+export const SelectOptionsInModal = meta.story({
+  name: "(Test) Select options in modal",
+  render: () => {
+    const [config, setConfig] = React.useState("");
+    const [dataType, setDataType] = React.useState("");
+
+    return (
+      <DialogController
+        renderDialog={() => (
+          <Dialog title="Choose score config">
+            <Dialog.Body>
+              <SelectInput
+                aria-label="Score config"
+                value={config}
+                onValueChange={setConfig}
+                placeholder="Choose score config"
+                search={{ placeholder: "Search score configs..." }}
+                options={[
+                  { value: "quality", label: "Quality" },
+                  { value: "helpfulness", label: "Helpfulness" },
+                ]}
+              />
+              <SelectInput
+                aria-label="Data type"
+                value={dataType}
+                onValueChange={setDataType}
+                placeholder="Choose type"
+                options={[
+                  { value: "numeric", label: "Numeric" },
+                  { value: "boolean", label: "Boolean" },
+                ]}
+              />
+            </Dialog.Body>
+          </Dialog>
+        )}
+      >
+        {({ openDialog }) => <Button text="Open dialog" onClick={openDialog} />}
+      </DialogController>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
+    await userEvent.click(body.getByRole("combobox", { name: "Score config" }));
+    await userEvent.type(
+      body.getByPlaceholderText("Search score configs..."),
+      "Quality",
+    );
+    await userEvent.click(await body.findByRole("option", { name: "Quality" }));
+    await expect(
+      body.getByRole("combobox", { name: "Score config" }),
+    ).toHaveTextContent("Quality");
+
+    await userEvent.click(body.getByRole("combobox", { name: "Data type" }));
+    await userEvent.click(await body.findByRole("option", { name: "Boolean" }));
+    await expect(
+      body.getByRole("combobox", { name: "Data type" }),
+    ).toHaveTextContent("Boolean");
+  },
+});
+
+export const ScrollableBodyKeepsControlsAboveFooter = meta.story({
+  name: "(Test) Scrollable body keeps controls above footer",
+  render: () => (
+    <DialogController
+      renderDialog={() => (
+        <Dialog
+          title="Long dialog"
+          actions={[{ label: "Save", onClick: fn() }]}
+        >
+          <Dialog.Body>
+            {Array.from({ length: 20 }, (_, index) => (
+              <p key={index}>Review instruction {index + 1}.</p>
+            ))}
+            <Button text="Create score config" onClick={fn()} />
+          </Dialog.Body>
+        </Dialog>
+      )}
+    >
+      {({ openDialog }) => <Button text="Open dialog" onClick={openDialog} />}
+    </DialogController>
+  ),
+  play: async ({ canvasElement }) => {
+    const document = canvasElement.ownerDocument;
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
+    const lowerControl = body.getByRole("button", {
+      name: "Create score config",
+    });
+    const scrollBody = lowerControl.parentElement!;
+    const footer = body.getByRole("button", { name: "Save" }).parentElement!;
+
+    await expect(scrollBody.scrollHeight).toBeGreaterThan(
+      scrollBody.clientHeight,
+    );
+    await expect(scrollBody.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      footer.getBoundingClientRect().top + 1,
+    );
+
+    lowerControl.scrollIntoView({ block: "center" });
+    await waitFor(() => expect(scrollBody.scrollTop).toBeGreaterThan(0));
+    const controlBounds = lowerControl.getBoundingClientRect();
+    await expect(controlBounds.bottom).toBeLessThanOrEqual(
+      footer.getBoundingClientRect().top + 1,
+    );
+    await expect(
+      lowerControl.contains(
+        document.elementFromPoint(
+          controlBounds.left + controlBounds.width / 2,
+          controlBounds.top + controlBounds.height / 2,
+        ),
+      ),
+    ).toBe(true);
+    await userEvent.click(lowerControl);
+    await expect(lowerControl).toHaveFocus();
   },
 });

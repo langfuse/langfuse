@@ -155,7 +155,7 @@ export const queueRouter = createTRPCRouter({
           totalCount,
           queues: queues.map((queue) => ({
             ...queue,
-            scoreConfigs: queue.scoreConfigIds
+            scoreConfigs: Array.from(new Set(queue.scoreConfigIds))
               .map((id) => scoreConfigsById.get(id))
               .filter(isPresent),
             isCurrentUserAssigned: userQueueAssignments.some(
@@ -254,7 +254,7 @@ export const queueRouter = createTRPCRouter({
 
         return {
           ...queue,
-          scoreConfigs: (queue?.scoreConfigIds ?? [])
+          scoreConfigs: Array.from(new Set(queue?.scoreConfigIds ?? []))
             .map((id) => scoreConfigsById.get(id))
             .filter(isPresent),
         };
