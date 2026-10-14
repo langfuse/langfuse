@@ -27,13 +27,18 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
 import { auditLog } from "@/src/features/audit-logs/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  deriveAuditLogEventId,
+  logger,
+} from "@langfuse/shared/src/server";
 import { ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 
 /**
  * Audit log records are an enterprise feature, so they are only persisted when
- * the instance is licensed for them. The actor log line that mirrors each
- * record is operator telemetry and stays on every plan.
+ * the instance is licensed for them. They are staged for ClickHouse on Cloud
+ * only, where the relay runs. The actor log line that mirrors each record is
+ * operator telemetry and stays on every plan.
  */
 describe("audit log license gate", () => {
   let orgId: string;
@@ -62,7 +67,7 @@ describe("audit log license gate", () => {
     vi.restoreAllMocks();
   });
 
-  /** Writes one record per actor shape, returns how many were persisted. */
+  /** Writes one record per actor shape, counts the persisted and staged ones. */
   const auditAllActorShapes = async () => {
     const resourceIds = [randomUUID(), randomUUID(), randomUUID()];
 
@@ -89,20 +94,29 @@ describe("audit log license gate", () => {
       projectId,
     });
 
-    return prisma.auditLog.count({
+    const records = await prisma.auditLog.findMany({
       where: { resourceId: { in: resourceIds } },
+      select: { id: true, createdAt: true },
     });
+    const stagedIds = records.map((record) =>
+      deriveAuditLogEventId(record.id, record.createdAt),
+    );
+    const staged = await prisma.auditLogStaging.deleteMany({
+      where: { id: { in: stagedIds } },
+    });
+
+    return { persisted: records.length, staged: staged.count };
   };
 
   describe("self-hosted", () => {
-    it("persists records with an enterprise license key", async () => {
+    it("persists records with an enterprise license key, without staging them", async () => {
       mocks.licenseKey = "langfuse_ee_test";
 
-      expect(await auditAllActorShapes()).toBe(3);
+      expect(await auditAllActorShapes()).toEqual({ persisted: 3, staged: 0 });
     });
 
     it("persists no records without a license key", async () => {
-      expect(await auditAllActorShapes()).toBe(0);
+      expect(await auditAllActorShapes()).toEqual({ persisted: 0, staged: 0 });
     });
 
     it("persists no records on a pro license key", async () => {
@@ -110,15 +124,15 @@ describe("audit log license gate", () => {
       // not persist records it cannot view either.
       mocks.licenseKey = "langfuse_pro_test";
 
-      expect(await auditAllActorShapes()).toBe(0);
+      expect(await auditAllActorShapes()).toEqual({ persisted: 0, staged: 0 });
     });
   });
 
   describe("cloud", () => {
-    it("persists records on every plan", async () => {
+    it("persists and stages records on every plan", async () => {
       mocks.cloudRegion = "US";
 
-      expect(await auditAllActorShapes()).toBe(3);
+      expect(await auditAllActorShapes()).toEqual({ persisted: 3, staged: 3 });
     });
   });
 
@@ -128,7 +142,7 @@ describe("audit log license gate", () => {
     // mutations that have no parallel logger call of their own.
     const info = vi.spyOn(logger, "info");
 
-    expect(await auditAllActorShapes()).toBe(0);
+    expect((await auditAllActorShapes()).persisted).toBe(0);
 
     const actorLines = info.mock.calls.filter(([message]) =>
       String(message).startsWith("Audit log: job."),

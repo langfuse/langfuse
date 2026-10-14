@@ -1,13 +1,35 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, describe, expect, it } from "vitest";
-import { toAuditLogResourceRef } from "@langfuse/shared";
+import { version as uuidVersion, validate as isUuid } from "uuid";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+
+// auditLog() stages its events on Cloud only.
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const original = (await importOriginal()) as { env: Record<string, unknown> };
+  return {
+    ...original,
+    env: new Proxy(original.env, {
+      get: (target, prop) =>
+        prop === "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION"
+          ? "US"
+          : Reflect.get(target, prop),
+    }),
+  };
+});
+
+import { toAuditLogResourceRef, type AuditLogActor } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {
   clickhouseClient,
   convertAuditLogStagingRowToClickhouse,
+  createOrgProjectAndApiKey,
+  deriveAuditLogEventId,
+  logger,
   stageAuditLogEvents,
   type AuditLogRecordInsertType,
 } from "@langfuse/shared/src/server";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { auditLog } from "@/src/features/audit-logs/server";
 
 const queryAuditLogs = async (
   query: string,
@@ -228,5 +250,196 @@ describe("audit log staging", () => {
         },
       }),
     ).toThrow("actor.sessionId, dataSubject");
+  });
+
+  it("derives one time-ordered UUIDv7 per Postgres audit log row", () => {
+    const createdAt = new Date("2026-10-14T09:30:00.123Z");
+    const id = deriveAuditLogEventId("cm2abc0000000000000000001", createdAt);
+
+    // Rows staged now and rows a later backfill copies from Postgres must get
+    // the same id, so the derivation must never change.
+    expect(id).toBe("01a139bf-4a3b-7791-9d80-a8821b47ea77");
+    expect(isUuid(id) && uuidVersion(id)).toBe(7);
+    expect(id.replaceAll("-", "").slice(0, 12)).toBe(
+      createdAt.getTime().toString(16).padStart(12, "0"),
+    );
+    expect(deriveAuditLogEventId("cm2abc0000000000000000001", createdAt)).toBe(
+      id,
+    );
+    expect(
+      deriveAuditLogEventId("cm2abc0000000000000000002", createdAt),
+    ).not.toBe(id);
+    expect(
+      deriveAuditLogEventId(
+        "cm2abc0000000000000000001",
+        new Date(createdAt.getTime() + 1),
+      ) > id,
+    ).toBe(true);
+  });
+
+  describe("auditLog shadow write", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    /** The Postgres row written for `resourceId` and the event staged for it. */
+    const findRecordAndStagedEvent = async (resourceId: string) => {
+      const record = await prisma.auditLog.findFirstOrThrow({
+        where: { resourceId },
+      });
+      const id = deriveAuditLogEventId(record.id, record.createdAt);
+      stagedIds.push(id);
+      const staged = await prisma.auditLogStaging.findUniqueOrThrow({
+        where: { id },
+      });
+      return { record, staged };
+    };
+
+    it("stages the change event of the Postgres row under the id derived from it", async () => {
+      const { orgId, projectId } = await createOrgProjectAndApiKey();
+      const resourceId = randomUUID();
+
+      await auditLog({
+        session: {
+          user: {
+            id: "user-1",
+            name: "Ada Lovelace",
+            email: "ada@example.com",
+          },
+          orgId,
+          orgRole: "ADMIN",
+          projectId,
+          projectRole: "MEMBER",
+        },
+        resourceType: "prompt",
+        resourceId,
+        action: "update",
+        before: { version: 1 },
+        after: { version: 2 },
+      });
+
+      const { record, staged } = await findRecordAndStagedEvent(resourceId);
+      expect(staged.createdAt).toEqual(record.createdAt);
+      expect(record).toMatchObject({
+        before: '{"version":1}',
+        after: '{"version":2}',
+      });
+      expect(convertAuditLogStagingRowToClickhouse(staged)).toMatchObject({
+        event_kind: "change",
+        org_id: orgId,
+        project_id: projectId,
+        actor_type: "USER",
+        user_id: "user-1",
+        actor_name: "Ada Lovelace",
+        actor_email: "ada@example.com",
+        user_org_role: "ADMIN",
+        user_project_role: "MEMBER",
+        resource_type: "prompt",
+        resource_id: resourceId,
+        action: "update",
+        before: record.before,
+        after: record.after,
+      });
+    });
+
+    it("stages SYSTEM, API key and in-app agent actors", async () => {
+      const { orgId, projectId, publicKey } = await createOrgProjectAndApiKey();
+      const { id: projectApiKeyId } = await prisma.apiKey.findUniqueOrThrow({
+        where: { publicKey },
+        select: { id: true },
+      });
+      const creator = await prisma.user.create({
+        data: { email: `${randomUUID()}@test.com`, name: "Agent Owner" },
+      });
+      const agentKey = await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(creator.id),
+        name: "In-app agent MCP session",
+        isInAppAgentKey: true,
+      });
+
+      // Per actor: what the Postgres row keeps, and the actor staged for it.
+      const cases: {
+        actor:
+          | { session: { user: { id: string }; orgId: string } }
+          | { apiKeyId: string; orgId: string };
+        record: { userId: string | null; apiKeyId: string | null };
+        staged: AuditLogActor;
+      }[] = [
+        {
+          actor: { session: { user: { id: "stripe-webhook" }, orgId } },
+          record: { userId: "stripe-webhook", apiKeyId: null },
+          staged: { type: "SYSTEM", name: "stripe-webhook" },
+        },
+        {
+          actor: { apiKeyId: "ADMIN_KEY", orgId },
+          record: { userId: null, apiKeyId: "ADMIN_KEY" },
+          staged: { type: "SYSTEM", name: "admin-api" },
+        },
+        {
+          actor: { apiKeyId: projectApiKeyId, orgId },
+          record: { userId: null, apiKeyId: projectApiKeyId },
+          staged: { type: "API_KEY", apiKeyId: projectApiKeyId },
+        },
+        {
+          actor: { apiKeyId: agentKey.id, orgId },
+          record: { userId: creator.id, apiKeyId: agentKey.id },
+          staged: {
+            type: "API_KEY",
+            apiKeyId: agentKey.id,
+            userId: creator.id,
+            name: "Agent Owner",
+            email: creator.email!,
+          },
+        },
+      ];
+
+      for (const { actor, ...expected } of cases) {
+        const resourceId = randomUUID();
+        await auditLog({
+          ...actor,
+          resourceType: "job",
+          resourceId,
+          action: "create",
+        });
+
+        const { record, staged } = await findRecordAndStagedEvent(resourceId);
+        expect(record).toMatchObject(expected.record);
+        expect((staged.payload as { actor: unknown }).actor).toEqual(
+          expected.staged,
+        );
+      }
+    });
+
+    it("never fails the caller's transaction when staging fails", async () => {
+      const { orgId } = await createOrgProjectAndApiKey();
+      const resourceId = randomUUID();
+      const stagingInsert = vi
+        .spyOn(prisma.auditLogStaging, "createMany")
+        .mockRejectedValueOnce(new Error("staging unavailable"));
+      const error = vi.spyOn(logger, "error");
+
+      await prisma.$transaction((tx) =>
+        auditLog(
+          {
+            session: { user: { id: "user-1" }, orgId },
+            resourceType: "prompt",
+            resourceId,
+            action: "delete",
+          },
+          tx,
+        ),
+      );
+
+      // Staging bypasses the transaction client, so a failed insert cannot
+      // abort the audited mutation.
+      expect(stagingInsert).toHaveBeenCalledOnce();
+      expect(error).toHaveBeenCalledWith(
+        "Failed to stage audit log event",
+        expect.objectContaining({ resourceId }),
+      );
+      expect(await prisma.auditLog.count({ where: { resourceId } })).toBe(1);
+    });
   });
 });
