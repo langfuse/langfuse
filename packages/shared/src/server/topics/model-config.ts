@@ -193,6 +193,7 @@ export async function handleTopicsLlmApiKeyDeletion(params: {
     select: {
       id: true,
       projectId: true,
+      enabled: true,
       summaryLlmApiKeyId: true,
       embeddingLlmApiKeyId: true,
       clusteringLlmApiKeyId: true,
@@ -226,10 +227,14 @@ export async function handleTopicsLlmApiKeyDeletion(params: {
         ? slotUpdates
         : {
             ...slotUpdates,
-            enabled: false,
-            blockedAt: new Date(),
-            blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-            blockMessage: `The LLM connection "${provider}" was deleted. Choose another connection and turn Topics on again.`,
+            ...(config.enabled
+              ? {
+                  enabled: false,
+                  blockedAt: new Date(),
+                  blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+                  blockMessage: `The LLM connection "${provider}" was deleted. Choose another connection and turn Topics on again.`,
+                }
+              : {}),
           },
     });
   }

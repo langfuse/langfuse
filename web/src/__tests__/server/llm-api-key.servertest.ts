@@ -2334,5 +2334,47 @@ describe("llmApiKey.all RPC", () => {
         clusteringLlmApiKeyId: null,
       });
     });
+
+    it("clears deleted Topics connections without marking an already disabled config as paused", async () => {
+      await caller.llmApiKey.create({
+        projectId,
+        secretKey: "test-secret",
+        provider: PROVIDER,
+        adapter: LLMAdapter.OpenAI,
+        customModels: [],
+        withDefaultModels: true,
+      });
+      const connection = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: PROVIDER },
+      });
+      await prisma.topicConfig.create({
+        data: {
+          projectId,
+          enabled: false,
+          summaryLlmApiKeyId: connection.id,
+          summaryModel: "gpt-6-luna",
+          embeddingLlmApiKeyId: connection.id,
+          embeddingModel: "text-embedding-3-small",
+          clusteringLlmApiKeyId: connection.id,
+          clusteringModel: "gpt-5.6-terra",
+        },
+      });
+
+      await caller.llmApiKey.delete({ projectId, id: connection.id });
+
+      expect(
+        await prisma.topicConfig.findUniqueOrThrow({
+          where: { projectId },
+        }),
+      ).toMatchObject({
+        enabled: false,
+        blockReason: null,
+        blockMessage: null,
+        blockedAt: null,
+        summaryLlmApiKeyId: null,
+        embeddingLlmApiKeyId: null,
+        clusteringLlmApiKeyId: null,
+      });
+    });
   });
 });
