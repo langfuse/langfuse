@@ -190,8 +190,8 @@ WHERE is_deleted = 0
   AND created_at >= now() - INTERVAL 48 HOUR
 GROUP BY project_id, trace_id;
 
--- MV: scores -> billable_events. Only the billed score data types
--- (LISTABLE_SCORE_TYPES).
+-- MV: scores -> billable_events. Every score data type is billable,
+-- CORRECTION included.
 CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_scores_mv
 TO billable_events AS
 SELECT
@@ -203,7 +203,6 @@ SELECT
     byteSize(*) AS event_bytes
 FROM scores
 WHERE is_deleted = 0
-  AND data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT')
   AND created_at >= now() - INTERVAL 48 HOUR;
 
 -- PROD ROLLOUT: unlike analytics_scores (managed via numbered migrations),

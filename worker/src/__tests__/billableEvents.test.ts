@@ -93,7 +93,7 @@ const insertBillableEvents = (
   });
 
 describe("billable_events materialized views", () => {
-  it("records observations, one row per trace and billed score types", async (ctx) => {
+  it("records observations, one row per trace and every score type", async (ctx) => {
     await skipUnlessBillableEvents(ctx);
     const projectId = randomUUID();
     const traceId = randomUUID();
@@ -167,6 +167,7 @@ describe("billable_events materialized views", () => {
     ).toEqual([
       { type: "observation", id: "span-1", bytes: 10 },
       { type: "observation", id: "span-2", bytes: 20 },
+      { type: "score", id: "score-correction", bytes: expect.any(Number) },
       { type: "score", id: "score-numeric", bytes: expect.any(Number) },
       { type: "trace", id: traceId, bytes: 7 },
     ]);
