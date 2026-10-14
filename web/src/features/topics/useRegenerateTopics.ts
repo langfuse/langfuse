@@ -100,6 +100,9 @@ export function useRegenerateTopics({
           count.facetVersion === candidate.version.version,
       )?.count ?? 0,
   }));
+  const pausedMessage = settings.data?.blockedAt
+    ? (settings.data.blockMessage ?? "")
+    : null;
   const disabledReason =
     prerequisiteReason ??
     regenerateDisabledReason({
@@ -108,9 +111,7 @@ export function useRegenerateTopics({
         ? "loading"
         : {
             configured,
-            pausedMessage: settings.data?.blockedAt
-              ? (settings.data.blockMessage ?? "")
-              : null,
+            pausedMessage,
           },
       runInProgress,
       hasTimeRange: timeRange !== null,

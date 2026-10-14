@@ -190,6 +190,7 @@ function DialogFooter({
 const Dialog = Object.assign(DialogRoot, {
   Body: DialogBody,
   Footer: DialogFooter,
+  Close: DialogPrimitive.Close,
 });
 
 export { Dialog };

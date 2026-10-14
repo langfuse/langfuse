@@ -2,7 +2,6 @@ import { type ReactNode } from "react";
 import { Info } from "lucide-react";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/src/utils/tailwind";
 import { type TopicOperation } from "@langfuse/shared/topics";
 import { type TimeRange } from "@/src/utils/date-range-utils";
@@ -330,9 +329,9 @@ export function ManualTopicsDialog({
           </p>
         }
       >
-        <DialogPrimitive.Close asChild>
+        <Dialog.Close asChild>
           <Button text="Cancel" variant="secondary" />
-        </DialogPrimitive.Close>
+        </Dialog.Close>
         <Button
           text={
             operation === "process" ? "Summarize & embed" : "Generate topics"
