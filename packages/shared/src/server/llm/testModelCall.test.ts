@@ -59,27 +59,36 @@ describe("testModelCall", () => {
   });
 
   it("shows the output schema to the model and bounds the response", async () => {
-    const doGenerate = vi.fn(async () => ({
-      content: [
-        {
-          type: "text" as const,
-          text: '{"reasoning":"The criteria are satisfied.","score":true}',
-        },
-      ],
-      finishReason: { unified: "stop" as const, raw: "stop" },
-      usage: {
-        inputTokens: {
-          total: 1,
-          noCache: 1,
-          cacheRead: undefined,
-          cacheWrite: undefined,
-        },
-        outputTokens: { total: 1, text: 1, reasoning: undefined },
+    const requests: Array<{ prompt: unknown; maxOutputTokens?: number }> = [];
+    const model = new MockLanguageModelV4({
+      doGenerate: async (options) => {
+        requests.push({
+          prompt: options.prompt,
+          maxOutputTokens: options.maxOutputTokens,
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: '{"reasoning":"The criteria are satisfied.","score":true}',
+            },
+          ],
+          finishReason: { unified: "stop" as const, raw: "stop" },
+          usage: {
+            inputTokens: {
+              total: 1,
+              noCache: 1,
+              cacheRead: undefined,
+              cacheWrite: undefined,
+            },
+            outputTokens: { total: 1, text: 1, reasoning: undefined },
+          },
+          warnings: [],
+        };
       },
-      warnings: [],
-    }));
+    });
     vi.mocked(createOpenAI).mockReturnValue({
-      chat: () => new MockLanguageModelV4({ doGenerate }),
+      chat: () => model,
       responses: vi.fn(),
     } as never);
 
@@ -98,11 +107,10 @@ describe("testModelCall", () => {
     await testModelCall(params);
     await testModelCall({ ...params, modelConfig: { max_tokens: 64 } });
 
-    const firstCall = doGenerate.mock.calls[0]?.[0];
-    const prompt = JSON.stringify(firstCall?.prompt);
+    const prompt = JSON.stringify(requests[0]?.prompt);
     expect(prompt).toContain("Return one concise sentence.");
     expect(prompt).toContain("Return true when the criteria are satisfied.");
-    expect(firstCall?.maxOutputTokens).toBe(1_024);
-    expect(doGenerate.mock.calls[1]?.[0].maxOutputTokens).toBe(64);
+    expect(requests[0]?.maxOutputTokens).toBe(1_024);
+    expect(requests[1]?.maxOutputTokens).toBe(64);
   });
 });
