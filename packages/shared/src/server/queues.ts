@@ -394,6 +394,7 @@ export enum QueueName {
   Topics = "topics",
   TopicsUpdate = "topics-update",
   TopicsEmbedding = "topics-embedding",
+  TopicsAutomatic = "topics-automatic",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
@@ -439,6 +440,7 @@ export enum QueueName {
 export enum QueueJobs {
   Topics = "topics",
   TopicsEmbedding = "topics-embedding",
+  TopicsAutomatic = "topics-automatic",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
@@ -502,6 +504,25 @@ export const TopicEmbeddingBatchSchema = z.object({
     .min(1),
 });
 
+// Summaries one trace batch stored for a project, with the facets and vector space they used.
+export const TopicAutomaticBatchSchema = z.object({
+  projectId: z.string().min(1),
+  traceIds: z.array(z.string().min(1)).min(1).max(100),
+  facets: z
+    .array(
+      z.object({
+        facetId: z.string().min(1),
+        version: z.number().int().positive(),
+      }),
+    )
+    .min(1),
+  embeddingConfig: z.object({
+    embeddingModel: z.string().min(1),
+    embeddingDimensions: z.number().int().positive(),
+  }),
+  timeRange: z.object({ from: z.coerce.date(), to: z.coerce.date() }),
+});
+
 export const TraceBatchEventSchema = z.object({
   timestamp: z.coerce.date(),
   id: z.string(),
@@ -546,6 +567,12 @@ export type TQueueJobTypes = {
     id: string;
     name: QueueJobs.TopicsEmbedding;
     payload: z.infer<typeof TopicEmbeddingBatchSchema>;
+  };
+  [QueueName.TopicsAutomatic]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.TopicsAutomatic;
+    payload: z.infer<typeof TopicAutomaticBatchSchema>;
   };
   [QueueName.TraceBatch]: z.infer<typeof TraceBatchEventSchema>;
   [QueueName.TraceUpsert]: {

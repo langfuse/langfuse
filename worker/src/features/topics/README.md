@@ -181,6 +181,22 @@ traces that arrive meanwhile are not queued. An authentication or billing error
 (HTTP 401, 402, 403) turns the project's automatic processing off with the
 failing slot as the reason, and the rest of the batch skips that project.
 
+After the write, the batch queues its stored complete summaries on
+`topics-automatic`, one job per project and 100 traces; a retried batch reuses
+its job IDs. A failed enqueue is logged and does not fail the batch. The job
+rereads those summaries and assigns the ones not yet assigned to their facet's
+compatible serving map with origin `online`; BullMQ retries a failed job three
+times. Set `QUEUE_CONSUMER_TOPICS_AUTOMATIC_QUEUE_IS_ENABLED=false` on fleets that
+run trace batches but should not consume it.
+
+A facet version without any map starts one automatic **Update topics** execution
+once it has 100 compatible summaries from the last seven days. It appears in
+History under the `system:topics` actor and is never restarted automatically, so
+a failed run is resumed from History. An existing map for the version, even an
+incompatible one, blocks discovery; replace it with **Update topics**. Summaries
+stored while the first map is being fitted stay unassigned until the next
+**Update topics**.
+
 Required for a local run, in addition to Postgres, ClickHouse, and Redis:
 
 | Variable                                      | Role                                                                                                                                                                                                                                                 |
@@ -465,8 +481,9 @@ the completed attempt without fitting again. Skipped attempts also resume
 without recomputation, using the previously saved cohort count to distinguish
 no applicable summaries from insufficient data.
 
-There is no automatic discovery schedule or stream producer yet. The planned
-six-hour scheduler should invoke the same update path as the manual button.
+Automatic processing starts only a facet version's first discovery; there is no
+refit schedule yet. The planned six-hour scheduler should invoke the same update
+path as the manual button.
 Large per-project discovery, all-member naming, and distributed stream processing
 remain follow-up work; this is not a 100-million-traces/day throughput validation.
 

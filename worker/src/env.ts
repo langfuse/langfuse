@@ -157,6 +157,10 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  // Off on fleets that run trace batches but should not run Topics assignment.
+  QUEUE_CONSUMER_TOPICS_AUTOMATIC_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED: z
     .enum(["true", "false"])

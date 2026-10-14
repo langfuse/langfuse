@@ -114,6 +114,7 @@ import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runn
 import { isTopicsEnabled } from "@langfuse/shared/topics/server";
 import { topicsQueueProcessor } from "./queues/topicsQueue";
 import { topicsEmbeddingQueueProcessor } from "./queues/topicsEmbeddingQueue";
+import { topicsAutomaticQueueProcessor } from "./queues/topicsAutomaticQueue";
 
 const app = express();
 
@@ -482,6 +483,12 @@ if (isTopicsEnabled()) {
       concurrency: 2,
     },
   );
+  if (env.QUEUE_CONSUMER_TOPICS_AUTOMATIC_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(
+      QueueName.TopicsAutomatic,
+      topicsAutomaticQueueProcessor,
+      { concurrency: 2 },
+    );
 }
 
 if (
