@@ -23,9 +23,19 @@ const sharedExclude = [
 // cumulative import vs 264s tests). Files that do not touch process-global
 // state therefore run with `isolate: false` so each worker imports the graph
 // once instead of per file. Files that mock modules, spy, fake timers, mutate
-// process.env, or close shared connections (redis.disconnect() etc.) would
-// leak that state into other files in a shared context, so they keep the
-// default per-file isolation and run in the matching "-isolated" project.
+// process.env or the env.mjs singleton, or close shared connections
+// (redis.disconnect() etc.) would leak that state into other files in a shared
+// context, so they keep the default per-file isolation and run in the matching
+// "-isolated" project.
+//
+// env.mjs is typed readonly, so a test can only write to it by casting the
+// singleton. The write itself may then happen through an alias, lines away
+// from the cast (`const mutableEnv = env as {…}` … `mutableEnv.FOO = "x"`),
+// which no single-line pattern can tie back to env. Detection therefore keys
+// on the cast rather than on the assignment: casting the singleton to a
+// mutable shape at all counts as touching global state. Every such cast in
+// the suite today exists to mutate, so this costs nothing in practice, and
+// over-classifying only ever moves a file to the safe side of the split.
 //
 // Classification is content-based and happens once, at config load, by
 // reading each file. Vitest does not treat those reads as config
@@ -36,7 +46,7 @@ const sharedExclude = [
 // side of the split. The "server" pair predates this and lists both sides
 // explicitly, so a server test added mid-watch needs a restart.
 const GLOBAL_STATE_PATTERN =
-  /vi\.(mock|doMock|unmock|spyOn|useFakeTimers|setSystemTime|resetModules|stubEnv|stubGlobal|unstubAllEnvs|unstubAllGlobals)|process\.env\.[A-Z0-9_]+\s*=[^=]|process\.env\[[^\]]+\]\s*=[^=]|delete\s+process\.env|\(env as any\)\.\w+\s*=[^=]|\.(disconnect|quit|shutdown)\(|disconnectQueues/;
+  /vi\.(mock|doMock|unmock|spyOn|useFakeTimers|setSystemTime|resetModules|stubEnv|stubGlobal|unstubAllEnvs|unstubAllGlobals)|process\.env\.[A-Z0-9_]+\s*=[^=]|process\.env\[[^\]]+\]\s*=[^=]|delete\s+process\.env|\benv as\s+(?:any|unknown|Record\b|\{)|\.(disconnect|quit|shutdown)\(|disconnectQueues/;
 
 function partitionByIsolation(files: string[]) {
   const shared: string[] = [];
