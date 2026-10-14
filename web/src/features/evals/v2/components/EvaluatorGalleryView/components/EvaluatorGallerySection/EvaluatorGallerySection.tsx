@@ -67,7 +67,7 @@ export function EvaluatorGallerySection({
             ) : null}
           </EvaluatorGallerySectionHeader>
           {isProject ? (
-            <div className="bg-background flex flex-col overflow-hidden rounded-md border">
+            <div className="flex flex-col">
               {shownTemplates.map((template) => (
                 <EvaluatorTemplateRow
                   key={getGalleryTemplateId(template)}
