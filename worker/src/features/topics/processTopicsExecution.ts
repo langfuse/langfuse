@@ -697,7 +697,14 @@ async function clusterFacet(
         const conflict = named.get(label.name.toLowerCase());
         if (conflict) {
           metrics.result("naming", "name_conflict");
-          ({ output: label } = await name(conflict));
+          // The first name is valid, so a failed rename keeps it.
+          label = await name(conflict).then(
+            ({ output }) => output,
+            (error: unknown) => {
+              metrics.error("naming", error);
+              return label;
+            },
+          );
         }
         if (named.has(label.name.toLowerCase()))
           metrics.result("naming", "duplicate_name");

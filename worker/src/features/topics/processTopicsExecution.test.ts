@@ -1336,9 +1336,10 @@ describe("Topics execution", () => {
     },
   );
 
-  it.each([false, true])(
-    "renames a changed definition whose name repeats a reused topic (conflict persists: %s)",
-    async (persists) => {
+  it.each(["renamed", "repeated", "failed"] as const)(
+    "publishes a changed definition whose name repeats a reused topic (retry %s)",
+    async (retry) => {
+      const persists = retry !== "renamed";
       await processSelection("source", 100);
       await updateSelection("first");
       const first = [...state.runs.values()].at(-1)!;
@@ -1354,11 +1355,13 @@ describe("Topics execution", () => {
         },
       };
       state.name.mockResolvedValueOnce(colliding);
-      if (persists) state.name.mockResolvedValueOnce(colliding);
+      if (retry === "repeated") state.name.mockResolvedValueOnce(colliding);
+      if (retry === "failed")
+        state.name.mockRejectedValueOnce(new Error("Naming unavailable"));
       const calls = state.name.mock.calls.length;
       await updateSelection("second");
-      const [, retry] = state.name.mock.calls.slice(calls);
-      expect(retry[2]).toMatchObject({
+      const [, conflictCall] = state.name.mock.calls.slice(calls);
+      expect(conflictCall[2]).toMatchObject({
         name: unchanged.name,
         description: unchanged.description,
       });
