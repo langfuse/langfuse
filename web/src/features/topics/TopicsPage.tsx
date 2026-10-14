@@ -430,7 +430,7 @@ function TopicsWorkspaceContent({
     >
       {({ openDialog }) => {
         const openManual = () => {
-          void utils.topics.summaryCounts.invalidate({ projectId });
+          utils.topics.summaryCounts.invalidate({ projectId });
           pipeline.clearError();
           openDialog();
         };
