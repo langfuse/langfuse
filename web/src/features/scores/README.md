@@ -9,6 +9,8 @@ trace and observation. Trace/session detail, annotation queues, and dataset
 comparison supply their targets and scores. The adapters prepare data and gate
 the form on score-config readiness. Target identity keys the mounted form;
 refetches of the same target preserve its draft.
+A fixed queue's config IDs and order also identify its form, so a changed
+selection rebuilds its fields when queue data reloads.
 
 | Owner                                                          | Responsibility                                                                                                                                                                                                 |
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -35,6 +37,8 @@ default. Draft-only level changes and adding a blank field for the other level
 belong to the form actions; neither changes an existing score's attachment.
 Saved scores, pending writes, invalid drafts, and occupied destinations prevent a
 level change. Single-target and fixed queue forms retain their supplied targets.
+Fixed queue fields follow the supplied score config order, including fields with
+saved scores. Selectable trace/session fields remain alphabetical.
 The row menu removes only empty fields and clears their remembered choices so
 hidden preferences cannot restore them on the next open. Saved and nonempty
 fields keep Clear score; pending clears cannot remove their row before rollback

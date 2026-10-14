@@ -3,6 +3,9 @@ import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { type ScoreConfigDomain } from "@langfuse/shared";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
+import { AnnotationQueueScoreConfigEditor } from "./AnnotationQueueScoreConfigEditor";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { type ComponentProps } from "react";
 import { AnnotationQueueFormDialogContent } from "./AnnotationQueueFormDialogContent";
 
 const scoreConfigs = [
@@ -29,6 +32,19 @@ const scoreConfigs = [
   "id" | "name" | "dataType" | "isArchived"
 >[];
 
+const renderScoreConfigEditor: ComponentProps<
+  typeof AnnotationQueueFormDialogContent
+>["renderScoreConfigEditor"] = (control) => (
+  <AnnotationQueueScoreConfigEditor
+    {...control}
+    scoreConfigs={scoreConfigs}
+    createAction={<Button text="Create score config" onClick={fn()} />}
+    editAction={{ disabled: undefined, onClick: fn() }}
+    warnOnRemoval={false}
+    disabled={false}
+  />
+);
+
 const meta = preview.meta({
   component: AnnotationQueueFormDialogContent,
   parameters: {
@@ -49,7 +65,7 @@ export const Create = meta.story({
               scoreConfigIds: ["config-1"],
               newAssignmentUserIds: [],
             }}
-            scoreConfigs={scoreConfigs}
+            renderScoreConfigEditor={renderScoreConfigEditor}
             projectId="project-1"
             queueNames={[]}
             onManageScoreConfigsClick={fn()}
@@ -65,15 +81,13 @@ export const Create = meta.story({
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
 
-    await userEvent.click(
-      await body.findByRole("combobox", { name: "Score configs" }),
+    await userEvent.selectOptions(
+      await body.findByRole("combobox", { name: "Add existing score config" }),
+      "config-2",
     );
-
-    await waitFor(() =>
-      expect(
-        body.getByPlaceholderText("Search score configs..."),
-      ).toBeVisible(),
-    );
+    await expect(
+      body.getByRole("list", { name: "Selected score configs" }),
+    ).toHaveTextContent("Correctness");
   },
 });
 
@@ -87,7 +101,7 @@ export const Edit = meta.story({
       scoreConfigIds: ["config-1", "config-2", "config-3"],
       newAssignmentUserIds: [],
     },
-    scoreConfigs,
+    renderScoreConfigEditor,
     projectId: "project-1",
     queueId: "queue-1",
     queueNames: ["Support review queue", "Other queue"],
@@ -106,17 +120,16 @@ export const Edit = meta.story({
   ),
   play: async ({ canvasElement, args }) => {
     const body = within(canvasElement.ownerDocument.body);
-    const picker = await body.findByRole("combobox", { name: "Score configs" });
-    await expect(picker).toHaveTextContent("Legacy quality");
-    await userEvent.click(picker);
     await userEvent.click(
-      body.getByRole("option", { name: /Legacy quality/, hidden: true }),
+      body.getByRole("button", { name: "Remove Legacy quality from queue" }),
     );
-    await userEvent.keyboard("{Escape}");
+    await userEvent.click(
+      body.getByRole("button", { name: "Move Correctness up" }),
+    );
     await userEvent.click(body.getByRole("button", { name: "Save queue" }));
     await waitFor(() =>
       expect(args.onSubmit).toHaveBeenCalledWith(
-        expect.objectContaining({ scoreConfigIds: ["config-1", "config-2"] }),
+        expect.objectContaining({ scoreConfigIds: ["config-2", "config-1"] }),
         expect.anything(),
       ),
     );
@@ -135,7 +148,7 @@ export const Submitting = meta.story({
               scoreConfigIds: ["config-1"],
               newAssignmentUserIds: [],
             }}
-            scoreConfigs={scoreConfigs}
+            renderScoreConfigEditor={renderScoreConfigEditor}
             projectId="project-1"
             queueNames={[]}
             onManageScoreConfigsClick={fn()}
@@ -162,7 +175,7 @@ export const WithAdvancedOpen = meta.story({
               scoreConfigIds: ["config-1"],
               newAssignmentUserIds: ["user-1"],
             }}
-            scoreConfigs={scoreConfigs}
+            renderScoreConfigEditor={renderScoreConfigEditor}
             projectId="project-1"
             queueNames={[]}
             onManageScoreConfigsClick={fn()}

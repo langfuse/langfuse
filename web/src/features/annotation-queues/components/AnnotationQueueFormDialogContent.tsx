@@ -25,28 +25,23 @@ import {
 import { Settings2 } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
-import { getScoreDataTypeIcon } from "@/src/features/scores";
-import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
 import {
   CreateQueueWithAssignmentsData,
   type CreateQueueWithAssignments,
-  type ScoreConfigDomain,
 } from "@langfuse/shared";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { UserAssignmentSection } from "@/src/features/annotation-queues/components/UserAssignmentSection";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 
-type AnnotationQueueScoreConfigOption = Pick<
-  ScoreConfigDomain,
-  "id" | "name" | "dataType" | "isArchived"
->;
-
 type AnnotationQueueFormDialogContentProps = {
   mode: "create" | "edit";
   initialValues: CreateQueueWithAssignments;
-  scoreConfigs: AnnotationQueueScoreConfigOption[];
+  renderScoreConfigEditor: (control: {
+    value: string[];
+    onChange: (ids: string[]) => void;
+  }) => ReactNode;
   projectId: string;
   queueId?: string;
   queueNames: string[];
@@ -60,7 +55,7 @@ type AnnotationQueueFormDialogContentProps = {
 export function AnnotationQueueFormDialogContent({
   mode,
   initialValues,
-  scoreConfigs,
+  renderScoreConfigEditor,
   projectId,
   queueId,
   queueNames,
@@ -89,7 +84,7 @@ export function AnnotationQueueFormDialogContent({
   });
 
   const handleScoreConfigValueChange = (values: string[]) => {
-    form.setValue("scoreConfigIds", values);
+    form.setValue("scoreConfigIds", values, { shouldDirty: true });
 
     if (values.length === 0) {
       form.setError("scoreConfigIds", {
@@ -180,33 +175,27 @@ export function AnnotationQueueFormDialogContent({
                     </Button>
                   </div>
                   <FormDescription>
-                    Define which dimensions annotators should score for the
-                    given queue.
+                    Selected score configs are the fields annotators see, in
+                    this order. Use the arrows to reorder them. Reordering keeps
+                    existing scores unchanged.
                   </FormDescription>
-                  <FormControl>
-                    <MultiSelectTagInput
-                      aria-label="Score configs"
-                      placeholder="Choose score configs"
-                      searchPlaceholder="Search score configs..."
-                      emptyMessage="No score configs found."
-                      onValueChange={handleScoreConfigValueChange}
-                      options={scoreConfigs
-                        .filter(
-                          (config) =>
-                            !config.isArchived ||
-                            field.value.includes(config.id),
-                        )
-                        .map((config) => ({
-                          value: config.id,
-                          label: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
-                          secondaryLabel: config.isArchived
-                            ? "Archived"
-                            : undefined,
-                          showSecondaryLabelInTag: true,
-                        }))}
-                      value={field.value}
-                    />
-                  </FormControl>
+                  {renderScoreConfigEditor({
+                    value: field.value,
+                    onChange: handleScoreConfigValueChange,
+                  })}
+                  <FormDescription>
+                    Score config definitions are project-wide. Editing one can
+                    affect future scoring in other queues and through the
+                    API/SDK.
+                    {mode === "edit" && (
+                      <>
+                        {" "}
+                        Adding or removing fields takes effect when items are
+                        reopened, including completed items. Completion status
+                        and historical scores stay unchanged.
+                      </>
+                    )}
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

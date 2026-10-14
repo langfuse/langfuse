@@ -802,6 +802,109 @@ describe("unified annotation targets", () => {
     );
   });
 
+  it.each([
+    ["fixed", "trace"],
+    ["fixed", "session"],
+    ["selectable", "trace"],
+    ["selectable", "session"],
+  ] as const)(
+    "keeps %s %s fields in their configured order across refresh without writing scores",
+    (mode, targetType) => {
+      const accuracy = {
+        ...defaultConfig,
+        id: "accuracy",
+        name: "Accuracy",
+      };
+      configs.push(accuracy);
+      localStorage.setItem(
+        `emptySelectedConfigIds:${targetType}`,
+        JSON.stringify(["quality", "accuracy"]),
+      );
+      const score = {
+        ...serverQualityScore(),
+        id: "saved-accuracy",
+        configId: "accuracy",
+        name: "Accuracy",
+        observationId: null,
+        traceId: targetType === "trace" ? "trace" : null,
+        sessionId: targetType === "session" ? "session" : null,
+        metadata: "{}",
+      };
+      const refreshRef = createRef<AnnotationRefreshHandle>();
+      const scoreTarget =
+        targetType === "trace"
+          ? { type: "trace" as const, traceId: "trace" }
+          : { type: "session" as const, sessionId: "session" };
+      const sourceByTargetType = {
+        trace: "TraceDetail",
+        session: "SessionDetail",
+      } as const;
+      const analyticsData = {
+        type: targetType,
+        source:
+          mode === "fixed"
+            ? ("AnnotationQueue" as const)
+            : sourceByTargetType[targetType],
+        isV4: true,
+      };
+      const contentFor = (orderedConfigs: ScoreConfigDomain[]) => (
+        <AnnotationForm
+          refreshRef={refreshRef}
+          scoreTarget={scoreTarget}
+          serverScores={[score]}
+          scoreMetadata={{ projectId: "project" }}
+          analyticsData={analyticsData}
+          configSelection={
+            mode === "fixed" ? { mode, configs: orderedConfigs } : { mode }
+          }
+        />
+      );
+      const rendered = renderContent(contentFor([defaultConfig, accuracy]));
+      const fieldOrder = () =>
+        screen
+          .getAllByRole("group")
+          .map((row) => row.getAttribute("aria-label"));
+      const expectedOrder =
+        mode === "fixed" ? ["Quality", "Accuracy"] : ["Accuracy", "Quality"];
+      expect(fieldOrder()).toEqual(expectedOrder);
+      act(() =>
+        refreshRef.current?.refresh({
+          scoreTarget,
+          scoreMetadata: { projectId: "project" },
+          analyticsData,
+          scores: [{ ...score, value: 1, stringValue: "True" }],
+        }),
+      );
+      expect(fieldOrder()).toEqual(expectedOrder);
+      expect(
+        within(screen.getByRole("group", { name: "Accuracy" })).getByRole(
+          "tab",
+          { name: /True/ },
+        ),
+      ).toHaveAttribute("aria-selected", "true");
+      if (mode === "fixed") {
+        expect(
+          screen.queryByRole("button", { name: "Add score" }),
+        ).not.toBeInTheDocument();
+        rendered.rerenderContent(contentFor([accuracy, defaultConfig]));
+        expect(fieldOrder()).toEqual(["Accuracy", "Quality"]);
+        expect(
+          within(screen.getByRole("group", { name: "Accuracy" })).getByRole(
+            "tab",
+            { name: /False/ },
+          ),
+        ).toHaveAttribute("aria-selected", "true");
+        rendered.rerenderContent(contentFor([accuracy]));
+        expect(fieldOrder()).toEqual(["Accuracy"]);
+        rendered.rerenderContent(contentFor([defaultConfig, accuracy]));
+        expect(fieldOrder()).toEqual(["Quality", "Accuracy"]);
+      }
+      expect(mocks.create).not.toHaveBeenCalled();
+      expect(mocks.update).not.toHaveBeenCalled();
+      expect(mocks.remove).not.toHaveBeenCalled();
+    },
+  );
+
   it("keeps draft edits local, preserves them through refetch, and resets only for another target", () => {
     const text = {
       ...defaultConfig,

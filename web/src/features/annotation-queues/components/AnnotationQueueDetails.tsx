@@ -52,35 +52,33 @@ export function AnnotationQueueDetails({
       )}
       <section className="flex min-w-0 flex-col gap-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-bold">Score fields</h3>
+          <h3 className="text-sm font-bold">Score configs</h3>
           <Badge text={String(scoreConfigs.length)} />
         </div>
         {scoreConfigs.length === 0 ? (
           <p className="text-muted-foreground text-sm">
-            No score fields configured.
+            No score configs configured.
           </p>
         ) : (
-          <ul className="divide-y" aria-label="Score fields">
-            {[...scoreConfigs]
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((config) => (
-                <li key={config.id} className="flex flex-col gap-1 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="min-w-0 text-sm font-bold wrap-anywhere">
-                      {config.name}
-                    </span>
-                    {config.isArchived && <Badge text="Archived" />}
-                  </div>
-                  <p className="text-muted-foreground text-xs">
-                    {describeScoreField(config)}
+          <ul className="divide-y" aria-label="Score configs">
+            {scoreConfigs.map((config) => (
+              <li key={config.id} className="flex flex-col gap-1 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="min-w-0 text-sm font-bold wrap-anywhere">
+                    {config.name}
+                  </span>
+                  {config.isArchived && <Badge text="Archived" />}
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  {describeScoreField(config)}
+                </p>
+                {config.description && (
+                  <p className="text-muted-foreground text-xs leading-relaxed wrap-anywhere whitespace-pre-wrap">
+                    {config.description}
                   </p>
-                  {config.description && (
-                    <p className="text-muted-foreground text-xs leading-relaxed wrap-anywhere whitespace-pre-wrap">
-                      {config.description}
-                    </p>
-                  )}
-                </li>
-              ))}
+                )}
+              </li>
+            ))}
           </ul>
         )}
       </section>

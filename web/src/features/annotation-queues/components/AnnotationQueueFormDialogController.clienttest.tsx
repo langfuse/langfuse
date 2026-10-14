@@ -50,6 +50,9 @@ vi.mock("@/src/utils/api", () => ({
       create: { useMutation: () => ({ mutateAsync: create }) },
       update: { useMutation: () => ({ mutateAsync: update }) },
     },
+    annotationQueueItems: {
+      itemsByQueueId: { useQuery: () => ({ data: { totalItems: 0 } }) },
+    },
     annotationQueueAssignments: {
       createMany: { useMutation: () => ({ mutateAsync: assign }) },
     },

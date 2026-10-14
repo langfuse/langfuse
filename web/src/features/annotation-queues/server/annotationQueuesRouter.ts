@@ -11,6 +11,7 @@ import {
   CreateQueueData,
   filterAndValidateDbScoreConfigList,
   isBaseError,
+  isPresent,
   LangfuseNotFoundError,
   optionalPaginationZod,
   Prisma,
@@ -23,6 +24,29 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+
+const QueueData = CreateQueueData.extend({
+  scoreConfigIds: CreateQueueData.shape.scoreConfigIds.refine(
+    (ids) => new Set(ids).size === ids.length,
+    { message: "Score config IDs must be unique" },
+  ),
+});
+
+const validateProjectScoreConfigs = async (
+  prisma: Pick<Prisma.TransactionClient, "scoreConfig">,
+  projectId: string,
+  scoreConfigIds: string[],
+) => {
+  const configCount = await prisma.scoreConfig.count({
+    where: { projectId, id: { in: scoreConfigIds } },
+  });
+  if (configCount !== scoreConfigIds.length) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "All score configs must belong to this project.",
+    });
+  }
+};
 
 export const queueRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
@@ -123,13 +147,17 @@ export const queueRouter = createTRPCRouter({
             },
           });
 
+        const scoreConfigsById = new Map(
+          scoreConfigs.map((config) => [config.id, config]),
+        );
+
         return {
           totalCount,
           queues: queues.map((queue) => ({
             ...queue,
-            scoreConfigs: scoreConfigs.filter((config) =>
-              queue.scoreConfigIds.includes(config.id),
-            ),
+            scoreConfigs: queue.scoreConfigIds
+              .map((id) => scoreConfigsById.get(id))
+              .filter(isPresent),
             isCurrentUserAssigned: userQueueAssignments.some(
               (assignment) => assignment.queueId === queue.id,
             ),
@@ -217,9 +245,18 @@ export const queueRouter = createTRPCRouter({
           },
         });
 
+        const scoreConfigsById = new Map(
+          filterAndValidateDbScoreConfigList(configs).map((config) => [
+            config.id,
+            config,
+          ]),
+        );
+
         return {
           ...queue,
-          scoreConfigs: filterAndValidateDbScoreConfigList(configs),
+          scoreConfigs: (queue?.scoreConfigIds ?? [])
+            .map((id) => scoreConfigsById.get(id))
+            .filter(isPresent),
         };
       } catch (error) {
         logger.error(error);
@@ -299,7 +336,7 @@ export const queueRouter = createTRPCRouter({
     }),
   create: protectedProjectProcedure
     .input(
-      CreateQueueData.extend({
+      QueueData.extend({
         projectId: z.string(),
       }),
     )
@@ -323,6 +360,12 @@ export const queueRouter = createTRPCRouter({
         // unique index cannot prevent.
         const queue = await ctx.prisma.$transaction(
           async (tx) => {
+            await validateProjectScoreConfigs(
+              tx,
+              input.projectId,
+              input.scoreConfigIds,
+            );
+
             if (plan === "cloud:hobby") {
               const queueCount = await tx.annotationQueue.count({
                 where: { projectId: input.projectId },
@@ -403,7 +446,7 @@ export const queueRouter = createTRPCRouter({
     }),
   update: protectedProjectProcedure
     .input(
-      CreateQueueData.extend({
+      QueueData.extend({
         projectId: z.string(),
         queueId: z.string(),
       }),
@@ -426,6 +469,12 @@ export const queueRouter = createTRPCRouter({
         if (!queue) {
           throw new LangfuseNotFoundError("Queue not found in project");
         }
+
+        await validateProjectScoreConfigs(
+          ctx.prisma,
+          input.projectId,
+          input.scoreConfigIds,
+        );
 
         const existingQueueWithName =
           await ctx.prisma.annotationQueue.findFirst({

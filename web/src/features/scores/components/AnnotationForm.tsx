@@ -111,14 +111,15 @@ export function AnnotationFormContent({
   const allowManualSelection = targets.some(
     (target) => target.configControl.allowManualSelection,
   );
-  const initialFormData = targets
-    .flatMap((target) =>
-      target.initialFormData.map((field) => ({
-        ...field,
-        targetKey: target.key,
-      })),
-    )
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const initialFormData = targets.flatMap((target) =>
+    target.initialFormData.map((field) => ({
+      ...field,
+      targetKey: target.key,
+    })),
+  );
+  if (allowManualSelection) {
+    initialFormData.sort((a, b) => a.name.localeCompare(b.name));
+  }
   const form = useForm<AnnotateFormSchemaType>({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: { scoreData: initialFormData },
@@ -169,6 +170,7 @@ export function AnnotationFormContent({
           transformToAnnotationScores(scores, target.configControl.configs),
           target.configControl.configs,
           selected,
+          target.configControl.allowManualSelection ? "name" : "selected",
         ).map((field) => ({ ...field, targetKey: target.key }));
       });
       actions.reconcileServerFields(refreshed);
@@ -476,6 +478,7 @@ export function usePreparedAnnotationFormTarget<Target extends ScoreTarget>({
     annotationScores,
     availableConfigs,
     selectedConfigIds,
+    configSelection.mode === "fixed" ? "selected" : "name",
   );
 
   return {
@@ -487,6 +490,7 @@ export function usePreparedAnnotationFormTarget<Target extends ScoreTarget>({
         scoreTarget,
         analyticsData.source,
         analyticsData.isV4,
+        ...(configSelection.mode === "fixed" ? [selectedConfigIds] : []),
       ]),
       label: annotationTargetLabel(scoreTarget),
       scoreTarget,

@@ -1,12 +1,15 @@
 /* eslint-disable no-nested-ternary */
 import { showErrorToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import {
-  type CreateQueueWithAssignments,
-  type ScoreConfigDomain,
-} from "@langfuse/shared";
+import { type CreateQueueWithAssignments } from "@langfuse/shared";
 import { type ReactNode, useState } from "react";
 
+import { Button } from "@/src/components/design-system/Button/Button";
+import { AnnotationQueueScoreConfigEditor } from "./AnnotationQueueScoreConfigEditor";
+import {
+  CreateScoreConfigDialogController,
+  EditScoreConfigDialogController,
+} from "@/src/features/score-configs";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -64,6 +67,10 @@ export function AnnotationQueueFormDialogController(
 
   const queueQuery = api.annotationQueues.byId.useQuery(
     { projectId, queueId: queueId ?? "" },
+    { enabled: mode === "edit" && hasQueueAccess && open },
+  );
+  const itemsQuery = api.annotationQueueItems.itemsByQueueId.useQuery(
+    { projectId, queueId: queueId ?? "", page: 0, limit: 1 },
     { enabled: mode === "edit" && hasQueueAccess && open },
   );
   const configsQuery = api.scoreConfigs.all.useQuery(
@@ -148,9 +155,7 @@ export function AnnotationQueueFormDialogController(
         ? {
             name: queueQuery.data.name ?? "",
             description: queueQuery.data.description || undefined,
-            scoreConfigIds: queueQuery.data.scoreConfigs.map(
-              (config: ScoreConfigDomain) => config.id,
-            ),
+            scoreConfigIds: queueQuery.data.scoreConfigIds ?? [],
             newAssignmentUserIds: [],
           }
         : undefined
@@ -168,7 +173,55 @@ export function AnnotationQueueFormDialogController(
           <AnnotationQueueFormDialogContent
             mode={mode}
             initialValues={initialValues}
-            scoreConfigs={configsQuery.data.configs}
+            renderScoreConfigEditor={({ value, onChange }) => (
+              <CreateScoreConfigDialogController
+                projectId={projectId}
+                onAfterCreate={(config) => onChange([...value, config.id])}
+              >
+                {(create) => (
+                  <EditScoreConfigDialogController projectId={projectId}>
+                    {(edit) => (
+                      <AnnotationQueueScoreConfigEditor
+                        scoreConfigs={configsQuery.data!.configs}
+                        value={value}
+                        onChange={onChange}
+                        disabled={isSubmitting}
+                        warnOnRemoval={
+                          mode === "edit" && itemsQuery.data?.totalItems !== 0
+                        }
+                        createAction={
+                          <Button
+                            text="Create score config"
+                            size="sm"
+                            variant="secondary"
+                            disabled={isSubmitting || !!create.disabled}
+                            onClick={create.openDialog}
+                          />
+                        }
+                        editAction={{
+                          disabled: edit.disabled,
+                          onClick: (configId) => {
+                            const config = configsQuery.data?.configs.find(
+                              (config) => config.id === configId,
+                            );
+                            if (!config) return;
+                            edit.openDialog({
+                              id: config.id,
+                              name: config.name,
+                              dataType: config.dataType,
+                              description: config.description ?? undefined,
+                              minValue: config.minValue ?? undefined,
+                              maxValue: config.maxValue ?? undefined,
+                              categories: config.categories ?? undefined,
+                            });
+                          },
+                        }}
+                      />
+                    )}
+                  </EditScoreConfigDialogController>
+                )}
+              </CreateScoreConfigDialogController>
+            )}
             projectId={projectId}
             queueId={queueId ?? createdQueueId}
             queueNames={

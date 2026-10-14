@@ -8,6 +8,7 @@ import { Button } from "@/src/components/ui/button";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   DialogBody,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -99,9 +100,20 @@ export function UpsertScoreConfigDialogContent({
         <DialogTitle>
           {mode === "edit" ? "Update score config" : "Add new score config"}
         </DialogTitle>
+        <DialogDescription>
+          {mode === "edit"
+            ? "This score config is project-wide. Changes affect future scoring wherever it is used, including other queues and API/SDK scores. Data type cannot be changed after creation."
+            : "Create a project-wide score config for annotation and API/SDK scoring."}
+        </DialogDescription>
       </DialogHeader>
       <Form {...form}>
-        <form className="space-y-6" onSubmit={form.handleSubmit(handleSubmit)}>
+        <form
+          className="space-y-6"
+          onSubmit={(event) => {
+            event.stopPropagation();
+            return form.handleSubmit(handleSubmit)(event);
+          }}
+        >
           <DialogBody>
             <FormField
               control={form.control}

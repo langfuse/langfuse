@@ -96,7 +96,11 @@ export function EditScoreConfigDialogController({
   });
   const utils = api.useUtils();
   const mutation = api.scoreConfigs.update.useMutation({
-    onSuccess: () => utils.scoreConfigs.invalidate(),
+    onSuccess: () =>
+      Promise.all([
+        utils.scoreConfigs.invalidate(),
+        utils.annotationQueues.invalidate(),
+      ]),
   });
   const disabled = hasAccess
     ? undefined

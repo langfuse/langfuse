@@ -1,5 +1,6 @@
 import preview from "../../../../.storybook/preview";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
+import { AnnotationQueueScoreConfigEditor } from "./AnnotationQueueScoreConfigEditor";
 import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
 import { type CreateQueueWithAssignments } from "@langfuse/shared";
 import { useState } from "react";
@@ -59,20 +60,29 @@ export const CreateQueueInStackedDialog = meta.story({
                   scoreConfigIds: ["config-1"],
                   newAssignmentUserIds: [],
                 }}
-                scoreConfigs={[
-                  {
-                    id: "config-1",
-                    name: "Helpfulness",
-                    dataType: "NUMERIC",
-                    isArchived: false,
-                  },
-                  {
-                    id: "config-2",
-                    name: "Correctness",
-                    dataType: "BOOLEAN",
-                    isArchived: false,
-                  },
-                ]}
+                renderScoreConfigEditor={(control) => (
+                  <AnnotationQueueScoreConfigEditor
+                    {...control}
+                    scoreConfigs={[
+                      {
+                        id: "config-1",
+                        name: "Helpfulness",
+                        dataType: "NUMERIC",
+                        isArchived: false,
+                      },
+                      {
+                        id: "config-2",
+                        name: "Correctness",
+                        dataType: "BOOLEAN",
+                        isArchived: false,
+                      },
+                    ]}
+                    createAction={null}
+                    editAction={{ disabled: undefined, onClick: fn() }}
+                    warnOnRemoval={false}
+                    disabled={false}
+                  />
+                )}
                 projectId="project-1"
                 queueNames={queueOptions.map((queue) => queue.name)}
                 onManageScoreConfigsClick={fn()}
