@@ -19,7 +19,7 @@ import { UserAssignmentSection } from "@/src/features/annotation-queues/componen
 type AnnotationQueueFormDialogContentProps = {
   mode: "create" | "edit";
   initialValues: CreateQueueWithAssignments;
-  renderScoreConfigEditor: (control: {
+  children: (control: {
     value: string[];
     onChange: (ids: string[]) => void;
   }) => ReactNode;
@@ -42,7 +42,7 @@ const queueFormSchema = CreateQueueWithAssignmentsData.extend({
 export function AnnotationQueueFormDialogContent({
   mode,
   initialValues,
-  renderScoreConfigEditor,
+  children,
   projectId,
   queueId,
   queueNames,
@@ -167,7 +167,7 @@ export function AnnotationQueueFormDialogContent({
                     }}
                   />
                 </div>
-                {renderScoreConfigEditor({
+                {children({
                   value: field.value,
                   onChange: handleScoreConfigValueChange,
                 })}

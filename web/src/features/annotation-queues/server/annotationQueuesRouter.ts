@@ -32,22 +32,6 @@ const QueueData = CreateQueueData.extend({
   ),
 });
 
-const validateProjectScoreConfigs = async (
-  prisma: Pick<Prisma.TransactionClient, "scoreConfig">,
-  projectId: string,
-  scoreConfigIds: string[],
-) => {
-  const configCount = await prisma.scoreConfig.count({
-    where: { projectId, id: { in: scoreConfigIds } },
-  });
-  if (configCount !== scoreConfigIds.length) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "All score configs must belong to this project.",
-    });
-  }
-};
-
 export const queueRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
     .input(
@@ -650,3 +634,19 @@ export const queueRouter = createTRPCRouter({
       return inflatedUpdatedItem;
     }),
 });
+
+async function validateProjectScoreConfigs(
+  prisma: Pick<Prisma.TransactionClient, "scoreConfig">,
+  projectId: string,
+  scoreConfigIds: string[],
+) {
+  const configCount = await prisma.scoreConfig.count({
+    where: { projectId, id: { in: scoreConfigIds } },
+  });
+  if (configCount !== scoreConfigIds.length) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "All score configs must belong to this project.",
+    });
+  }
+}

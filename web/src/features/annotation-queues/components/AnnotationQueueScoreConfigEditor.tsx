@@ -15,26 +15,13 @@ export function AnnotationQueueScoreConfigEditor({
   editAction,
   warnOnRemoval,
   disabled,
-}: {
-  scoreConfigs: Pick<
-    ScoreConfigDomain,
-    "id" | "name" | "dataType" | "isArchived"
-  >[];
-  value: string[];
-  onChange: (ids: string[]) => void;
-  createAction: ReactNode;
-  editAction: {
-    disabled: { reason: string } | undefined;
-    onClick: (configId: string) => void;
-  };
-  warnOnRemoval: boolean;
-  disabled: boolean;
-}) {
+}: AnnotationQueueScoreConfigEditorProps) {
   const [announcement, setAnnouncement] = useState("");
   const activeConfigs = scoreConfigs.filter((config) => !config.isArchived);
   const configsById = new Map(
     scoreConfigs.map((config) => [config.id, config]),
   );
+  const handleAdd = (id: string) => onChange([...value, id]);
   const remove = (id: string) => {
     onChange(value.filter((configId) => configId !== id));
     setAnnouncement(
@@ -72,7 +59,7 @@ export function AnnotationQueueScoreConfigEditor({
                   value: config.id,
                   label: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
                 }))}
-              onValueChange={(id) => onChange([...value, id])}
+              onValueChange={handleAdd}
             />
           </div>
         ) : (
@@ -103,6 +90,16 @@ export function AnnotationQueueScoreConfigEditor({
             {value.map((id, index) => {
               const config = configsById.get(id);
               const name = config?.name ?? id;
+              const handleEdit = () => editAction.onClick(id);
+              const handleMoveUp = () => move(index, -1);
+              const handleMoveDown = () => move(index, 1);
+              const handleRemove = () => {
+                if (warnOnRemoval) {
+                  openDialog(id);
+                } else {
+                  remove(id);
+                }
+              };
               return (
                 <li key={id} className="flex items-center gap-2 py-2">
                   <span className="text-muted-foreground w-4 shrink-0 text-xs">
@@ -122,7 +119,7 @@ export function AnnotationQueueScoreConfigEditor({
                       }
                       size="sm"
                       disabled={disabled || !!editAction.disabled || !config}
-                      onClick={() => editAction.onClick(id)}
+                      onClick={handleEdit}
                     />
                     <IconButton
                       icon={ArrowUp}
@@ -130,7 +127,7 @@ export function AnnotationQueueScoreConfigEditor({
                       title="Move up"
                       size="sm"
                       disabled={disabled || index === 0}
-                      onClick={() => move(index, -1)}
+                      onClick={handleMoveUp}
                     />
                     <IconButton
                       icon={ArrowDown}
@@ -138,7 +135,7 @@ export function AnnotationQueueScoreConfigEditor({
                       title="Move down"
                       size="sm"
                       disabled={disabled || index === value.length - 1}
-                      onClick={() => move(index, 1)}
+                      onClick={handleMoveDown}
                     />
                     <IconButton
                       icon={X}
@@ -146,9 +143,7 @@ export function AnnotationQueueScoreConfigEditor({
                       title="Remove from queue"
                       size="sm"
                       disabled={disabled}
-                      onClick={() =>
-                        warnOnRemoval ? openDialog(id) : remove(id)
-                      }
+                      onClick={handleRemove}
                     />
                   </div>
                 </li>
@@ -163,3 +158,19 @@ export function AnnotationQueueScoreConfigEditor({
     </div>
   );
 }
+
+type AnnotationQueueScoreConfigEditorProps = {
+  scoreConfigs: Pick<
+    ScoreConfigDomain,
+    "id" | "name" | "dataType" | "isArchived"
+  >[];
+  value: string[];
+  onChange: (ids: string[]) => void;
+  createAction: ReactNode;
+  editAction: {
+    disabled: { reason: string } | undefined;
+    onClick: (configId: string) => void;
+  };
+  warnOnRemoval: boolean;
+  disabled: boolean;
+};

@@ -2,7 +2,7 @@ import { type ComponentProps } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 
 import { UpsertScoreConfigDialogContent } from "./UpsertScoreConfigDialogContent";
 
@@ -26,9 +26,12 @@ const meta = preview.meta({
   },
   decorators: [
     (Story) => (
-      <DialogPrimitive.Root open onOpenChange={fn()}>
-        <Story />
-      </DialogPrimitive.Root>
+      <DialogController<boolean>
+        initialState={() => true}
+        renderDialog={() => <Story />}
+      >
+        {() => null}
+      </DialogController>
     ),
   ],
 });

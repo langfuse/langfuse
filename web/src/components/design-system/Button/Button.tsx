@@ -54,6 +54,7 @@ const buttonIconVariants = cva("icon-base shrink-0", {
 
 type ButtonProps = {
   text: string;
+  title?: string;
   variant?: "primary" | "secondary" | "destructive" | "ghost" | "text";
   size?: "default" | "sm";
 } & (
@@ -105,6 +106,7 @@ export function Button(props: ButtonProps) {
         <a
           className={`${className} gap-1`}
           href={props.href}
+          title={props.title}
           ref={props.ref}
           target={props.target ?? "_blank"}
           onClick={props.onClick}
@@ -128,6 +130,7 @@ export function Button(props: ButtonProps) {
       <Link
         className={className}
         href={props.href}
+        title={props.title}
         ref={props.ref}
         target={props.target}
         rel={props.target === "_blank" ? "noopener" : undefined}
@@ -152,6 +155,7 @@ export function Button(props: ButtonProps) {
       onClick={props.loading || props.disabled ? undefined : props.onClick}
       aria-busy={props.loading}
       aria-label={props.text}
+      title={props.title}
     >
       {props.loading ? (
         <span className="flex h-1/2 items-center justify-center">

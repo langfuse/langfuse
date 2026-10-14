@@ -14,6 +14,7 @@ export function createButtonTableColumn<TData extends RowData, TValue>({
 }: TableColumnOptions<TData, TValue> & {
   getButton: (context: CellContext<TData, TValue | null | undefined>) => {
     text: string;
+    title?: string;
     onClick: () => void;
     disabled?: boolean;
     loading?: boolean;

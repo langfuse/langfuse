@@ -6,10 +6,8 @@ import { X, type LucideIcon } from "lucide-react";
 import * as React from "react";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import {
-  PopoverLayerProvider,
-  useLayerContainer,
-} from "@/src/context/LayerContext/LayerContext";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
 import { cn } from "@/src/utils/tailwind";
 
 import motionStyles from "./Dialog.module.css";

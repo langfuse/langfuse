@@ -32,9 +32,9 @@ const scoreConfigs = [
   "id" | "name" | "dataType" | "isArchived"
 >[];
 
-const renderScoreConfigEditor: ComponentProps<
+const children: ComponentProps<
   typeof AnnotationQueueFormDialogContent
->["renderScoreConfigEditor"] = (control) => (
+>["children"] = (control) => (
   <AnnotationQueueScoreConfigEditor
     {...control}
     scoreConfigs={scoreConfigs}
@@ -66,7 +66,6 @@ export const Create = meta.story({
               scoreConfigIds: ["config-1"],
               newAssignmentUserIds: [],
             }}
-            renderScoreConfigEditor={renderScoreConfigEditor}
             projectId="project-1"
             queueNames={[]}
             onManageScoreConfigsClick={fn()}
@@ -74,7 +73,9 @@ export const Create = meta.story({
             isSubmitting={false}
             onSubmit={fn()}
             submitLabel="Create queue"
-          />
+          >
+            {children}
+          </AnnotationQueueFormDialogContent>
         )}
       >
         {() => null}
@@ -110,7 +111,7 @@ export const Edit = meta.story({
       scoreConfigIds: ["config-1", "config-2", "config-3"],
       newAssignmentUserIds: [],
     },
-    renderScoreConfigEditor,
+    children,
     projectId: "project-1",
     queueId: "queue-1",
     queueNames: ["Support review queue", "Other queue"],
@@ -158,7 +159,6 @@ export const Submitting = meta.story({
               scoreConfigIds: ["config-1"],
               newAssignmentUserIds: [],
             }}
-            renderScoreConfigEditor={renderScoreConfigEditor}
             projectId="project-1"
             queueNames={[]}
             onManageScoreConfigsClick={fn()}
@@ -166,7 +166,9 @@ export const Submitting = meta.story({
             isSubmitting={true}
             onSubmit={fn()}
             submitLabel="Create queue"
-          />
+          >
+            {children}
+          </AnnotationQueueFormDialogContent>
         )}
       >
         {() => null}
@@ -188,7 +190,6 @@ export const WithAdvancedOpen = meta.story({
               scoreConfigIds: ["config-1"],
               newAssignmentUserIds: ["user-1"],
             }}
-            renderScoreConfigEditor={renderScoreConfigEditor}
             projectId="project-1"
             queueNames={[]}
             onManageScoreConfigsClick={fn()}
@@ -196,7 +197,9 @@ export const WithAdvancedOpen = meta.story({
             isSubmitting={false}
             onSubmit={fn()}
             submitLabel="Create queue"
-          />
+          >
+            {children}
+          </AnnotationQueueFormDialogContent>
         )}
       >
         {() => null}

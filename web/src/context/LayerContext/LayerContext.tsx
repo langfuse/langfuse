@@ -1,28 +1,11 @@
 import * as React from "react";
 
 import { LAYER_ORDER, type LayerName } from "./layers";
+import { PopoverLayerContext } from "./PopoverLayerProvider";
 
 const LayerContext = React.createContext<Map<LayerName, HTMLElement> | null>(
   null,
 );
-const PopoverLayerContext = React.createContext<HTMLElement | null | undefined>(
-  undefined,
-);
-
-/** Keeps a modal's interactive popovers inside its accessibility subtree. */
-export function PopoverLayerProvider({
-  container,
-  children,
-}: {
-  container: HTMLElement | null;
-  children: React.ReactNode;
-}) {
-  return (
-    <PopoverLayerContext.Provider value={container}>
-      {children}
-    </PopoverLayerContext.Provider>
-  );
-}
 
 function ensureLayerContainers(): Map<LayerName, HTMLElement> {
   let root = document.querySelector<HTMLElement>("[data-overlay-root]");

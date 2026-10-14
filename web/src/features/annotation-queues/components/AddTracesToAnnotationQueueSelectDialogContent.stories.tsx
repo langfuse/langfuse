@@ -42,7 +42,18 @@ export const CreateQueueInStackedDialog = meta.story({
               scoreConfigIds: ["config-1"],
               newAssignmentUserIds: [],
             }}
-            renderScoreConfigEditor={(control) => (
+            projectId="project-1"
+            queueNames={queueOptions.map((queue) => queue.name)}
+            onManageScoreConfigsClick={fn()}
+            hasQueueAssignmentsReadAccess={false}
+            isSubmitting={false}
+            onSubmit={(data) => {
+              handleCreate(data);
+              closeDialog();
+            }}
+            submitLabel="Create queue"
+          >
+            {(control) => (
               <AnnotationQueueScoreConfigEditor
                 {...control}
                 scoreConfigs={[
@@ -65,17 +76,7 @@ export const CreateQueueInStackedDialog = meta.story({
                 disabled={false}
               />
             )}
-            projectId="project-1"
-            queueNames={queueOptions.map((queue) => queue.name)}
-            onManageScoreConfigsClick={fn()}
-            hasQueueAssignmentsReadAccess={false}
-            isSubmitting={false}
-            onSubmit={(data) => {
-              handleCreate(data);
-              closeDialog();
-            }}
-            submitLabel="Create queue"
-          />
+          </AnnotationQueueFormDialogContent>
         )}
       >
         {({ openDialog }) => (
