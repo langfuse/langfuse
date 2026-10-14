@@ -893,24 +893,11 @@ export const otelIngestionQueueProcessorBuilder = (
       throw e;
     } finally {
       await earlyBatch?.dispose();
-      if (mediaPath) {
-        span?.setAttribute(
-          "langfuse.ingestion.otel.media_presence",
-          mediaPresence ?? "unknown",
-        );
-        if (mediaPresence && mediaPresence !== "unknown") {
-          span?.setAttribute(
-            "langfuse.ingestion.otel.media_detected",
-            mediaPresence === "present",
-          );
-        }
-      }
-      if (inputPreparationDurationMs !== undefined) {
-        span?.setAttribute(
-          "langfuse.ingestion.otel.input_preparation_duration_ms",
-          inputPreparationDurationMs,
-        );
-      }
+      setOtelInputPreparationSpanAttributes(span, {
+        durationMs: inputPreparationDurationMs,
+        mediaPath,
+        mediaPresence,
+      });
       recordOtelInputPreparationMetrics({
         durationMs: inputPreparationDurationMs,
         mediaPath,
@@ -928,6 +915,34 @@ function combineOtelMediaPresence(
   if (current === "present" || next === "present") return "present";
   if (current === "unknown" || next === "unknown") return "unknown";
   return "absent";
+}
+
+function setOtelInputPreparationSpanAttributes(
+  span: ReturnType<typeof getCurrentSpan>,
+  params: {
+    durationMs?: number;
+    mediaPath?: "early" | "reference";
+    mediaPresence?: OtelMediaPresence;
+  },
+): void {
+  if (params.mediaPath) {
+    span?.setAttribute(
+      "langfuse.ingestion.otel.media_presence",
+      params.mediaPresence ?? "unknown",
+    );
+    if (params.mediaPresence && params.mediaPresence !== "unknown") {
+      span?.setAttribute(
+        "langfuse.ingestion.otel.media_detected",
+        params.mediaPresence === "present",
+      );
+    }
+  }
+  if (params.durationMs !== undefined) {
+    span?.setAttribute(
+      "langfuse.ingestion.otel.input_preparation_duration_ms",
+      params.durationMs,
+    );
+  }
 }
 
 function recordOtelInputPreparationMetrics(params: {
