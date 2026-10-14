@@ -16,6 +16,34 @@ type ToastEventMap = {
   "toast:dismiss": ToastInteractionEventProperties;
 };
 
+type CustomUiEventProperties = {
+  placement: "session" | "trace";
+  catalogVersion: "custom-ui@1";
+  componentCountBucket: "1-10" | "11-50" | "51-100" | "101-200";
+  depthBucket: "1-3" | "4-6" | "7-10";
+};
+
+type CustomUiEventMap = {
+  "custom_ui:created": CustomUiEventProperties;
+  "custom_ui:generation_requested": Pick<
+    CustomUiEventProperties,
+    "placement" | "catalogVersion"
+  > & {
+    isRefinement: boolean;
+  };
+  "custom_ui:version_saved": CustomUiEventProperties & {
+    source: "manual" | "ai";
+  };
+  "custom_ui:published": CustomUiEventProperties;
+  "custom_ui:default_view_selected": Pick<
+    CustomUiEventProperties,
+    "placement" | "catalogVersion"
+  >;
+  "custom_ui:render_fallback": CustomUiEventProperties & {
+    reason: "invalid_spec" | "budget_exceeded" | "render_error";
+  };
+};
+
 // resource:action, only use snake_case
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const events = {
@@ -504,6 +532,16 @@ const events = {
     "ai_generate_applied",
     "ai_generate_failed",
   ],
+  // Custom UI authoring/adoption. Props are structural metadata only: never
+  // definition JSON, binding paths, filter values, prompts, or trace content.
+  custom_ui: [
+    "created",
+    "generation_requested",
+    "version_saved",
+    "published",
+    "default_view_selected",
+    "render_fallback",
+  ],
 } as const;
 
 // type that represents all possible event names, e.g. "trace:delete"
@@ -513,7 +551,8 @@ type EventName = {
 
 type TypedEventMap = AnnotationEventMap &
   EvalOnboardingEventMap &
-  ToastEventMap;
+  ToastEventMap &
+  CustomUiEventMap;
 
 type EventProperties = TypedEventMap & {
   [E in Exclude<EventName, keyof TypedEventMap>]: Record<string, any> | null;

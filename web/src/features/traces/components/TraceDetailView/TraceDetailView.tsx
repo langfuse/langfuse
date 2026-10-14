@@ -49,7 +49,10 @@ import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import { ScoresTable } from "@/src/features/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import {
+  useInternalFeaturesEnabled,
+  useIsFeatureEnabled,
+} from "@/src/features/feature-flags";
 import { useReadPath } from "@/src/features/events";
 import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 import { TraceDetailTabsBarList } from "../TraceDetailTabsBarList";
@@ -57,7 +60,11 @@ import { DetailAttributesTab } from "../DetailAttributesTab";
 import { getDetailTabs } from "../../fns/getDetailTabs";
 import { resolveDetailTab } from "../../fns/resolveDetailTab";
 import { VisualizationRenderer } from "@/src/features/custom-visualizations/components/VisualizationRenderer";
-import { matchesTraceVisualization } from "@/src/features/custom-visualizations/fns/observationVisualization";
+import { CustomUiPicker } from "@/src/features/custom-visualizations/components/CustomUiPicker";
+import {
+  buildTraceVisualizationData,
+  matchesTraceVisualization,
+} from "@/src/features/custom-visualizations/fns/observationVisualization";
 
 export interface TraceDetailViewProps {
   isLoading?: false;
@@ -118,12 +125,15 @@ function LoadedTraceDetailView({
   // Tab and view state from URL (via SelectionContext)
   const { selectedTab: globalSelectedTab, setSelectedTab } = useSelection();
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const customUiEnabled = useIsFeatureEnabled("customUi");
   const { isV4 } = useReadPath();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
   const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false);
+  const [selectedCustomUiVersionId, setSelectedCustomUiVersionId] =
+    useState<string>();
 
   // Get jsonViewPreference directly from ViewPreferencesContext for "json-beta" support
   const {
@@ -140,7 +150,8 @@ function LoadedTraceDetailView({
   const activeVisualizations = api.customVisualizations.active.useQuery(
     { projectId },
     {
-      enabled: isAuthenticatedAndProjectMember && !isAnnotationMode,
+      enabled:
+        isAuthenticatedAndProjectMember && customUiEnabled && !isAnnotationMode,
       refetchOnWindowFocus: false,
     },
   );
@@ -153,6 +164,10 @@ function LoadedTraceDetailView({
       ) ?? [])
     : [];
   const showVisualizationsTab = traceVisualizations.length > 0;
+  const selectedCustomUi =
+    traceVisualizations.find(
+      (item) => item.versionId === selectedCustomUiVersionId,
+    ) ?? traceVisualizations[0];
   const tabs = getDetailTabs({
     target: "trace",
     isV4,
@@ -295,29 +310,32 @@ function LoadedTraceDetailView({
     setSelectedTab(value as DetailTab);
   };
 
-  const visualizationData = {
-    trace: {
-      id: trace.id,
-      name: trace.name,
-      timestamp: trace.timestamp,
-      latency: trace.latency,
-      input: parsedInput,
-      output: parsedOutput,
-      metadata: parsedMetadata,
-      environment: trace.environment,
-      tags: trace.tags,
-    },
-    observations: observations.map((observation) => ({
-      id: observation.id,
-      name: observation.name,
-      type: observation.type,
-      startTime: observation.startTime,
-      endTime: observation.endTime,
-      level: observation.level,
-      statusMessage: observation.statusMessage,
-      metadata: observation.metadata,
-    })),
-  };
+  const selectedCustomUiData = selectedCustomUi
+    ? buildTraceVisualizationData(
+        selectedCustomUi.definition,
+        {
+          id: trace.id,
+          name: trace.name,
+          timestamp: trace.timestamp,
+          latency: trace.latency,
+          input: parsedInput,
+          output: parsedOutput,
+          metadata: parsedMetadata,
+          environment: trace.environment,
+          tags: trace.tags,
+        },
+        observations.map((observation) => ({
+          id: observation.id,
+          name: observation.name,
+          type: observation.type,
+          startTime: observation.startTime,
+          endTime: observation.endTime,
+          level: observation.level,
+          statusMessage: observation.statusMessage,
+          metadata: observation.metadata,
+        })),
+      )
+    : null;
 
   return (
     <CommentDrawerController
@@ -622,31 +640,34 @@ function LoadedTraceDetailView({
 
             {showVisualizationsTab && (
               <Tabs.Content value="visualizations" layout="fill">
-                <div className="ph-no-capture min-h-0 flex-1 space-y-5 overflow-auto p-4">
-                  {traceVisualizations.map((visualization) => (
-                    <section
-                      key={visualization.versionId}
-                      className="space-y-2"
-                    >
-                      <div className="flex items-center justify-between gap-3">
+                <div className="ph-no-capture min-h-0 flex-1 overflow-auto p-4">
+                  {selectedCustomUi && selectedCustomUiData ? (
+                    <section className="space-y-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <h3 className="text-sm font-bold">
-                            {visualization.definition.title}
+                            {selectedCustomUi.definition.title}
                           </h3>
                           <p className="text-muted-foreground text-xs">
-                            {visualization.definition.summary}
+                            {selectedCustomUi.definition.summary}
                           </p>
                         </div>
-                        <span className="text-muted-foreground shrink-0 text-[10px]">
-                          v{visualization.version}
-                        </span>
+                        <CustomUiPicker
+                          items={traceVisualizations.map((item) => ({
+                            versionId: item.versionId,
+                            title: item.definition.title,
+                            version: item.version,
+                          }))}
+                          selectedVersionId={selectedCustomUi.versionId}
+                          onSelectedVersionChange={setSelectedCustomUiVersionId}
+                        />
                       </div>
                       <VisualizationRenderer
-                        definition={visualization.definition}
-                        data={visualizationData}
+                        definition={selectedCustomUi.definition}
+                        data={selectedCustomUiData}
                       />
                     </section>
-                  ))}
+                  ) : null}
                 </div>
               </Tabs.Content>
             )}

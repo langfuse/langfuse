@@ -44,17 +44,19 @@ describe("parseFlags", () => {
     ).toEqual([]);
   });
 
-  it("requires personal Topics opt-in and ignores team and organization defaults", () => {
-    const context = {
-      email: "team.member@langfuse.com",
-      v4BetaEnabled: true,
-    };
-    expect(
-      parseFlagsWithOrganizationDefaults([], ["langfuseTopics"], context)
-        .langfuseTopics,
-    ).toBe(false);
-    expect(parseFlags(["langfuseTopics"], context).langfuseTopics).toBe(true);
-  });
+  it.each(["langfuseTopics", "customUi"] as const)(
+    "requires personal %s opt-in and ignores team and organization defaults",
+    (flag) => {
+      const context = {
+        email: "team.member@langfuse.com",
+        v4BetaEnabled: true,
+      };
+      expect(
+        parseFlagsWithOrganizationDefaults([], [flag], context)[flag],
+      ).toBe(false);
+      expect(parseFlags([flag], context)[flag]).toBe(true);
+    },
+  );
 
   it("enables feature previews by default for Langfuse team members", () => {
     const flags = parseFlags([], {

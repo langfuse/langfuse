@@ -38,13 +38,13 @@ export function VisualizationEditor({
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-6">
         <Card className="max-w-md p-6 text-center">
-          <h1 className="font-bold">Visualization not found</h1>
+          <h1 className="font-bold">Custom UI not found</h1>
           <p className="text-muted-foreground mt-2 text-sm">
             It may have been removed or its latest version is invalid.
           </p>
           <Button asChild variant="outline" className="mt-5">
             <Link href={`/project/${projectId}/visualizations`}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to visualizations
+              <ArrowLeft className="icon-base mr-2" /> Back to Custom UI
             </Link>
           </Button>
         </Card>

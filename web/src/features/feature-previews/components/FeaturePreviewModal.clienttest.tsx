@@ -8,6 +8,21 @@ vi.mock("next/image", () => ({
 }));
 
 describe("FeaturePreviewModal", () => {
+  it("shows the Custom UI admin preview", () => {
+    render(
+      <FeaturePreviewModal
+        open
+        onOpenChange={vi.fn()}
+        state={{ customUi: { enabled: false, onToggle: vi.fn() } }}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Custom UI" })).toBeVisible();
+    expect(
+      screen.getByRole("switch", { name: "Toggle Custom UI" }),
+    ).toBeEnabled();
+  });
+
   it("renders the session timeline toggle inside Redesigned Session View", () => {
     const onTimelineToggle = vi.fn();
 

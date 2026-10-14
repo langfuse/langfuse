@@ -13,12 +13,14 @@ vi.mock("next-auth/react", () => ({
 const mockSession = ({
   aiGateway,
   langfuseTopics = false,
+  customUi = false,
   admin = false,
   enableExperimentalFeatures = false,
   internalFeatures,
 }: {
   aiGateway: boolean;
   langfuseTopics?: boolean;
+  customUi?: boolean;
   admin?: boolean;
   enableExperimentalFeatures?: boolean;
   internalFeatures?: boolean;
@@ -31,12 +33,17 @@ const mockSession = ({
         featureFlags: testFeatureFlags({
           aiGateway: false,
           langfuseTopics,
+          customUi,
           [INTERNAL_FEATURE_FLAG]: internalFeatures,
         }),
         organizations: [
           {
             id: "org-1",
-            featureFlags: testFeatureFlags({ aiGateway, langfuseTopics }),
+            featureFlags: testFeatureFlags({
+              aiGateway,
+              langfuseTopics,
+              customUi,
+            }),
             projects: [],
           },
         ],
@@ -89,5 +96,34 @@ describe("useIsFeatureEnabled", () => {
     mockSession({ aiGateway: true, langfuseTopics: true });
     rerender();
     expect(result.current).toEqual({ aiGateway: true, langfuseTopics: true });
+  });
+
+  it("requires a platform admin and explicit opt-in for Custom UI", () => {
+    mockSession({
+      aiGateway: false,
+      admin: true,
+      enableExperimentalFeatures: true,
+    });
+    const { result, rerender } = renderHook(() =>
+      useIsFeatureEnabled("customUi"),
+    );
+    expect(result.current).toBe(false);
+
+    mockSession({
+      aiGateway: false,
+      langfuseTopics: true,
+      customUi: true,
+    });
+    rerender();
+    expect(result.current).toBe(false);
+
+    mockSession({
+      aiGateway: false,
+      admin: true,
+      langfuseTopics: true,
+      customUi: true,
+    });
+    rerender();
+    expect(result.current).toBe(true);
   });
 });

@@ -54,6 +54,7 @@ import {
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 
 export interface TraceDetailViewHeaderProps {
   isLoading?: false;
@@ -127,6 +128,7 @@ function LoadedTraceDetailViewHeader({
   commentDrawerControl,
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
+  const customUiEnabled = useIsFeatureEnabled("customUi");
   const router = useRouter();
   const { isV4 } = useReadPath();
   const isMobile = useIsMobile();
@@ -349,7 +351,7 @@ function LoadedTraceDetailViewHeader({
                 )}
               </AnnotateDrawerController>
             )}
-            {!isAnnotationMode && (
+            {!isAnnotationMode && customUiEnabled && (
               <Button
                 type="button"
                 variant="secondary"
@@ -365,8 +367,8 @@ function LoadedTraceDetailViewHeader({
                   })
                 }
               >
-                <Palette className="h-3.5 w-3.5" />
-                <span>Visualize</span>
+                <Palette className="icon-sm" />
+                <span>Custom UI</span>
               </Button>
             )}
             <Button

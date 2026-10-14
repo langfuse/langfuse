@@ -66,13 +66,17 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import {
+  useInternalFeaturesEnabled,
+  useIsFeatureEnabled,
+} from "@/src/features/feature-flags";
 import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 import { DetailAttributesTab } from "../DetailAttributesTab";
 import { buildModelParameters } from "@/src/features/traces/fns/buildModelParameters";
 import { buildObservationAttributes } from "@/src/features/traces/fns/buildObservationAttributes";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { VisualizationRenderer } from "@/src/features/custom-visualizations/components/VisualizationRenderer";
+import { CustomUiPicker } from "@/src/features/custom-visualizations/components/CustomUiPicker";
 import {
   buildObservationVisualizationData,
   matchesObservationVisualization,
@@ -102,6 +106,9 @@ export function ConnectedObservationDetailView({
   // V4 beta mode and observations for log tab
   const { isV4: isV4Enabled } = useReadPath();
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const customUiEnabled = useIsFeatureEnabled("customUi");
+  const [selectedCustomUiVersionId, setSelectedCustomUiVersionId] =
+    useState<string>();
   const {
     observations,
     roots,
@@ -333,7 +340,8 @@ export function ConnectedObservationDetailView({
   const activeVisualizations = api.customVisualizations.active.useQuery(
     { projectId },
     {
-      enabled: isAuthenticatedAndProjectMember && !isAnnotationMode,
+      enabled:
+        isAuthenticatedAndProjectMember && customUiEnabled && !isAnnotationMode,
       refetchOnWindowFocus: false,
     },
   );
@@ -347,6 +355,10 @@ export function ConnectedObservationDetailView({
     activeVisualizations.data?.filter(({ definition }) =>
       matchesObservationVisualization(definition, visualizationObservation),
     ) ?? [];
+  const selectedCustomUi =
+    observationVisualizations.find(
+      (item) => item.versionId === selectedCustomUiVersionId,
+    ) ?? observationVisualizations[0];
   const isCustomVisualizationView =
     selectedTab === "preview" &&
     showCustomVisualization &&
@@ -504,7 +516,7 @@ export function ConnectedObservationDetailView({
                         )}
                         {selectedTab === "preview" &&
                         observationVisualizations.length > 0 ? (
-                          <Tabs.Trigger value="custom" label="Custom" />
+                          <Tabs.Trigger value="custom" label="Custom UI" />
                         ) : null}
                       </Tabs.List>
                     </Tabs>
@@ -523,33 +535,36 @@ export function ConnectedObservationDetailView({
             <Tabs.Content value="preview" layout="fill">
               {isCustomVisualizationView ? (
                 <div className="ph-no-capture flex min-h-0 w-full flex-1 flex-col gap-5 overflow-auto p-4">
-                  {observationVisualizations.map((visualization) => (
-                    <section
-                      key={visualization.versionId}
-                      className="space-y-2"
-                    >
-                      <div className="flex items-center justify-between gap-3">
+                  {selectedCustomUi ? (
+                    <section className="space-y-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <h3 className="text-sm font-bold">
-                            {visualization.definition.title}
+                            {selectedCustomUi.definition.title}
                           </h3>
                           <p className="text-muted-foreground text-xs">
-                            {visualization.definition.summary}
+                            {selectedCustomUi.definition.summary}
                           </p>
                         </div>
-                        <span className="text-muted-foreground shrink-0 text-[10px]">
-                          v{visualization.version}
-                        </span>
+                        <CustomUiPicker
+                          items={observationVisualizations.map((item) => ({
+                            versionId: item.versionId,
+                            title: item.definition.title,
+                            version: item.version,
+                          }))}
+                          selectedVersionId={selectedCustomUi.versionId}
+                          onSelectedVersionChange={setSelectedCustomUiVersionId}
+                        />
                       </div>
                       <VisualizationRenderer
-                        definition={visualization.definition}
+                        definition={selectedCustomUi.definition}
                         data={buildObservationVisualizationData(
-                          visualization.definition,
+                          selectedCustomUi.definition,
                           visualizationObservation,
                         )}
                       />
                     </section>
-                  ))}
+                  ) : null}
                 </div>
               ) : (
                 <ObservationPreview

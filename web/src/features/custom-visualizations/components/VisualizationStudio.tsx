@@ -3,13 +3,9 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import {
   ArrowLeft,
-  Braces,
-  ChartNoAxesCombined,
   Check,
   ChevronDown,
-  Code2,
   Eye,
-  FlaskConical,
   Play,
   Save,
   Sparkles,
@@ -21,13 +17,6 @@ import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { Input } from "@/src/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -51,12 +40,12 @@ import {
   showToast,
 } from "@/src/features/notifications";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   compactContextPreview,
   selectDiverseObservations,
 } from "../fns/visualizationGenerationContext";
 import {
-  SHADER_STARTER,
   TOOL_STARTER,
   TRACE_STARTER,
   VisualizationDefinitionSchema,
@@ -68,7 +57,6 @@ const DEFAULT_PROMPT =
   "Make the important sequence, tool activity, errors, and outputs easier to understand at a glance.";
 
 type ComparisonMode = "compare" | "default" | "visualized";
-type RendererPreference = "auto" | VisualizationDefinition["renderer"]["kind"];
 type StudioSection = "applies" | "placement" | "visualization";
 
 const contextFilters = (query: Record<string, unknown>): FilterState => {
@@ -158,19 +146,11 @@ const initialDefinition = (
   };
 };
 
-const rendererLabel = (definition: VisualizationDefinition) =>
-  ({
-    template: "Template",
-    chart: "Chart",
-    react: "React lab",
-    shader: "Three / shader lab",
-  })[definition.renderer.kind];
-
 const bindingLabel = (source: VisualizationDefinition["binding"]["source"]) => {
   if (source === "TRACE") return "Trace data view";
   if (source === "OBSERVATION_INPUT") return "Session · after input";
   if (source === "OBSERVATION_OUTPUT") return "Session · after output";
-  return "Transcript";
+  return "Session";
 };
 
 const withMatchFilters = (
@@ -203,6 +183,42 @@ const matchRuleSummary = (filters: FilterState) => {
       return `${filter.column} ${filter.operator} ${value}`;
     })
     .join(" · ");
+};
+
+const customUiAnalyticsDimensions = (definition: VisualizationDefinition) => {
+  const componentCount = Object.keys(definition.spec.elements).length;
+  const visit = (key: string, seen: ReadonlySet<string>): number => {
+    if (seen.has(key)) return 0;
+    const element = definition.spec.elements[key];
+    if (!element) return 0;
+    const children = [
+      ...element.children,
+      ...Object.values(element.slots ?? {}).flat(),
+    ];
+    const nextSeen = new Set(seen).add(key);
+    return 1 + Math.max(0, ...children.map((child) => visit(child, nextSeen)));
+  };
+  const depth = visit(definition.spec.root, new Set());
+  const componentCountBucket = (() => {
+    if (componentCount <= 10) return "1-10" as const;
+    if (componentCount <= 50) return "11-50" as const;
+    if (componentCount <= 100) return "51-100" as const;
+    return "101-200" as const;
+  })();
+  const depthBucket = (() => {
+    if (depth <= 3) return "1-3" as const;
+    if (depth <= 6) return "4-6" as const;
+    return "7-10" as const;
+  })();
+  return {
+    placement:
+      definition.placement.surface === "TRACE"
+        ? ("trace" as const)
+        : ("session" as const),
+    catalogVersion: definition.catalogVersion,
+    componentCountBucket,
+    depthBucket,
+  };
 };
 
 const describeShape = (value: unknown, depth = 0): unknown => {
@@ -401,7 +417,11 @@ function SessionVisualizationPreview({
         <span>after {slot}</span>
       </div>
       <div className="bg-muted/10 rounded-xl border border-dashed p-2">
-        <VisualizationRenderer definition={definition} data={data} />
+        <VisualizationRenderer
+          definition={definition}
+          data={data}
+          showDiagnostics
+        />
       </div>
     </div>
   );
@@ -416,7 +436,11 @@ function TraceVisualizationPreview({
 }) {
   return (
     <div className="ph-no-capture min-h-[360px] overflow-auto">
-      <VisualizationRenderer definition={definition} data={data} />
+      <VisualizationRenderer
+        definition={definition}
+        data={data}
+        showDiagnostics
+      />
     </div>
   );
 }
@@ -434,6 +458,7 @@ type VisualizationStudioProps = { projectId: string } & (
 export function VisualizationStudio(props: VisualizationStudioProps) {
   const { projectId } = props;
   const router = useRouter();
+  const capture = usePostHogClientCapture();
   const hasAdminAccess = useHasProjectAccess({
     projectId,
     scope: "project:update",
@@ -472,8 +497,6 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [comparisonMode, setComparisonMode] =
     useState<ComparisonMode>("compare");
-  const [rendererPreference, setRendererPreference] =
-    useState<RendererPreference>("auto");
   const [rawDefinition, setRawDefinition] = useState(() =>
     JSON.stringify(editorInitialDefinition, null, 2),
   );
@@ -730,10 +753,10 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
       .map(({ reference }) => ({
         title: reference.title,
         summary: reference.summary,
-        rendererKind: reference.renderer.kind,
+        catalogVersion: reference.catalogVersion,
         bindingSource: reference.binding.source,
         matchSummary: matchRuleSummary(reference.match.filters),
-        rendererExcerpt: compactContextPreview(reference.renderer, 5_000),
+        specExcerpt: compactContextPreview(reference.spec, 5_000),
       }));
   }, [
     browseFilters,
@@ -759,32 +782,38 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
       selectedValue = io?.output;
     }
     let observations: Array<Record<string, unknown>> = [];
-    if (
-      definition.binding.source === "TRACE" ||
-      definition.binding.source === "TRANSCRIPT"
-    ) {
+    if (definition.binding.source === "TRACE") {
       observations = traceObservations;
     } else if (observation) {
       observations = [observation];
     }
     return {
-      trace: selectedObservation
-        ? {
-            id: selectedObservation.traceId,
-            name: selectedObservation.traceName,
-            latency: selectedObservation.latency,
-            input: traceData.data?.input,
-            output: traceData.data?.output,
-            metadata: traceData.data?.metadata,
-            environment: traceData.data?.environment,
-          }
-        : { name: "Select an example" },
-      observations,
-      observation,
-      selectedValue,
+      envelopeVersion: "1",
+      data: {
+        trace: selectedObservation
+          ? {
+              id: selectedObservation.traceId,
+              name: selectedObservation.traceName,
+              latency: selectedObservation.latency,
+              input: traceData.data?.input,
+              output: traceData.data?.output,
+              metadata: traceData.data?.metadata,
+              environment: traceData.data?.environment,
+            }
+          : { name: "Select an example" },
+        observations,
+        observation,
+        selectedValue,
+      },
+      meta: {
+        surface: definition.placement.surface,
+        source: definition.binding.source,
+      },
+      scores: [],
     };
   }, [
     definition.binding.source,
+    definition.placement.surface,
     io,
     selectedObservation,
     traceData.data,
@@ -872,51 +901,9 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
     setDraftReady(false);
   };
 
-  const applyRenderer = (kind: VisualizationDefinition["renderer"]["kind"]) => {
-    setDraftReady(true);
-    if (kind === "template") {
-      updateDefinition({ ...definition, renderer: TRACE_STARTER.renderer });
-      return;
-    }
-    if (kind === "chart") {
-      updateDefinition({
-        ...definition,
-        renderer: {
-          kind: "chart",
-          chart: "bar",
-          dataPath: "observations",
-          xKey: "name",
-          yKey: "latency",
-          color: "#4f46e5",
-        },
-      });
-      return;
-    }
-    if (kind === "react") {
-      updateDefinition({
-        ...definition,
-        renderer: {
-          kind: "react",
-          source: `
-const value = viz.parse(data.selectedValue);
-const title = viz.first(data.observation?.name, data.trace?.name, "Custom view");
-const facts = viz.entries(value, 4).map(([label, item]) => ({ label, value: viz.text(item, "", 160) }));
-root.append(ui.stack([
-  ui.el("div", { className: "eyebrow", text: "INTERACTIVE VIEW" }),
-  ui.ellipsis(title, 56),
-  ui.sentence(["This record exposes ", { emphasis: Array.isArray(value) ? value.length + " items" : facts.length + " useful fields" }, "."]),
-  ui.facts(facts),
-  ui.accordion("Raw evidence", ui.code(value))
-]));`,
-        },
-      });
-      return;
-    }
-    updateDefinition({ ...definition, renderer: SHADER_STARTER.renderer });
-  };
-
   const handleSave = async () => {
     try {
+      const createsNewCustomUi = !selectedVisualizationId;
       const result = await saveVersion.mutateAsync({
         projectId,
         visualizationId: selectedVisualizationId || undefined,
@@ -927,6 +914,12 @@ root.append(ui.stack([
       setSelectedVisualizationId(result.visualizationId);
       setSelectedVersionId(result.id);
       setSavedDefinition(JSON.stringify(scopedDefinition));
+      const analytics = customUiAnalyticsDimensions(scopedDefinition);
+      capture("custom_ui:version_saved", {
+        ...analytics,
+        source: "manual",
+      });
+      if (createsNewCustomUi) capture("custom_ui:created", analytics);
       await utils.customVisualizations.list.invalidate({ projectId });
       if (props.mode === "create") {
         await router.replace(
@@ -935,7 +928,7 @@ root.append(ui.stack([
       }
       showSuccessToast({
         operation: "customVisualizations.saveVersion",
-        title: "Visualization version saved",
+        title: "Custom UI version saved",
         description: `Saved immutable version ${result.version}.`,
       });
     } catch (error) {
@@ -949,6 +942,13 @@ root.append(ui.stack([
 
   const generateFromPrompt = async (generationPrompt: string) => {
     try {
+      const createsNewCustomUi = !selectedVisualizationId;
+      capture("custom_ui:generation_requested", {
+        placement:
+          definition.placement.surface === "TRACE" ? "trace" : "session",
+        catalogVersion: definition.catalogVersion,
+        isRefinement: draftReady,
+      });
       const samplePreview = compactContextPreview(
         {
           observationType: selectedObservation?.type,
@@ -956,8 +956,7 @@ root.append(ui.stack([
           traceName: selectedObservation?.traceName,
           input: describeShape(io?.input),
           output: describeShape(io?.output),
-          ...(definition.binding.source === "TRACE" ||
-          definition.binding.source === "TRANSCRIPT"
+          ...(definition.binding.source === "TRACE"
             ? {
                 observationTypes: Array.from(
                   new Set(traceObservations.map((item) => item.type)),
@@ -980,14 +979,10 @@ root.append(ui.stack([
       let field: "input" | "output" | undefined;
       if (definition.binding.source === "OBSERVATION_INPUT") field = "input";
       if (definition.binding.source === "OBSERVATION_OUTPUT") field = "output";
-      const rendererInstruction =
-        rendererPreference === "auto"
-          ? "Choose the renderer that best fits the selected data shape."
-          : `Use the ${rendererPreference} renderer.`;
       const result = await generateVersion.mutateAsync({
         projectId,
         visualizationId: selectedVisualizationId || undefined,
-        prompt: `${generationPrompt}\n\nRenderer instruction: ${rendererInstruction}`,
+        prompt: generationPrompt,
         currentDefinition: withMatchFilters(definition, browseFilters),
         context: {
           source:
@@ -1005,6 +1000,9 @@ root.append(ui.stack([
         result.visualizationId,
         result.id,
       );
+      const analytics = customUiAnalyticsDimensions(result.definition);
+      capture("custom_ui:version_saved", { ...analytics, source: "ai" });
+      if (createsNewCustomUi) capture("custom_ui:created", analytics);
       await utils.customVisualizations.list.invalidate({ projectId });
       if (props.mode === "create") {
         await router.replace(
@@ -1013,7 +1011,7 @@ root.append(ui.stack([
       }
       showSuccessToast({
         operation: "customVisualizations.generateVersion",
-        title: "Visualization generated",
+        title: "Custom UI generated",
         description: `Generated version ${result.version}.`,
       });
       return true;
@@ -1034,13 +1032,13 @@ root.append(ui.stack([
       : "";
     if (definition.binding.source === "TRACE") {
       return generateFromPrompt(
-        `Analyze this whole trace structure and generate the most useful visualization for understanding its sequence, observation mix, latency, tool activity, errors, and outputs. Choose a renderer that fits the actual fields instead of producing generic HTML.${additionalDirection}`,
+        `Analyze this whole trace structure and generate the most useful Custom UI for understanding its sequence, observation mix, latency, tool activity, errors, and outputs. Prefer a concise story over a complete data dump.${additionalDirection}`,
       );
     }
     const field =
       definition.binding.source === "OBSERVATION_INPUT" ? "input" : "output";
     return generateFromPrompt(
-      `Analyze this observation ${field} structure and generate the clearest visualization for understanding this data inside a session. Choose the renderer and hierarchy based on the actual shape.${additionalDirection}`,
+      `Analyze this observation ${field} structure and generate the clearest Custom UI for understanding this data inside a session. Prefer a concise story over a complete data dump.${additionalDirection}`,
     );
   };
 
@@ -1056,9 +1054,13 @@ root.append(ui.stack([
         utils.customVisualizations.list.invalidate({ projectId }),
         utils.customVisualizations.active.invalidate({ projectId }),
       ]);
+      capture(
+        "custom_ui:published",
+        customUiAnalyticsDimensions(scopedDefinition),
+      );
       showSuccessToast({
         operation: "customVisualizations.publishVersion",
-        title: "Visualization published",
+        title: "Custom UI published",
         description: "Existing viewers now use this exact version.",
       });
     } catch (error) {
@@ -1074,12 +1076,9 @@ root.append(ui.stack([
     return (
       <div className="flex h-full items-center justify-center p-8">
         <Card className="max-w-md p-6 text-center">
-          <h1 className="text-lg">
-            Visualization Studio is for project admins
-          </h1>
+          <h1 className="text-lg">Custom UI is for Langfuse admins</h1>
           <p className="text-muted-foreground mt-2 text-sm">
-            Published visualizations remain available in trace and session
-            views.
+            Enable the employee preview to design and publish Custom UI.
           </p>
         </Card>
       </div>
@@ -1099,8 +1098,8 @@ root.append(ui.stack([
     : "Current Session view";
   const visualizedSurfaceDescription = (() => {
     if (!draftReady) return "Generate a first draft";
-    if (isTraceSurface) return "Draft as a Trace detail tab";
-    return "Draft injected into the Session";
+    if (isTraceSurface) return "Custom UI in the Trace detail tab";
+    return "Custom UI after the matching Session item";
   })();
   const defaultSurfacePreview = isTraceSurface ? (
     <TraceDataPreview
@@ -1117,7 +1116,7 @@ root.append(ui.stack([
       return (
         <div className="text-muted-foreground flex min-h-[360px] flex-col items-center justify-center gap-2 p-8 text-center text-sm">
           <Sparkles className="icon-lg" />
-          <span>No visualization generated for this surface yet.</span>
+          <span>No Custom UI generated for this surface yet.</span>
         </div>
       );
     }
@@ -1151,28 +1150,6 @@ root.append(ui.stack([
   const generationContextLabel = generationContextPending
     ? "preparing representative examples…"
     : `${generationExamples.length} data examples · ${generationReferences.length} saved references`;
-  const rendererPicker = (
-    <label className="flex min-w-0 flex-col gap-1">
-      <span className="text-muted-foreground text-xs font-bold">Renderer</span>
-      <Select
-        value={rendererPreference}
-        onValueChange={(value) =>
-          setRendererPreference(value as RendererPreference)
-        }
-      >
-        <SelectTrigger className="h-9">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="auto">Auto · best fit</SelectItem>
-          <SelectItem value="template">Template</SelectItem>
-          <SelectItem value="chart">Chart</SelectItem>
-          <SelectItem value="react">Interactive</SelectItem>
-          <SelectItem value="shader">Three / shader</SelectItem>
-        </SelectContent>
-      </Select>
-    </label>
-  );
   const generationDisabled =
     !selectedObservation ||
     !generationModel.data ||
@@ -1183,7 +1160,7 @@ root.append(ui.stack([
     <DialogController
       renderDialog={({ closeDialog }) => (
         <Dialog
-          title={draftReady ? "Refine visualization" : "Generate visualization"}
+          title={draftReady ? "Refine Custom UI" : "Generate Custom UI"}
           actions={[
             {
               label: draftReady ? "Generate version" : "Generate",
@@ -1206,7 +1183,7 @@ root.append(ui.stack([
               </label>
               <p className="text-muted-foreground mt-1 text-xs">
                 We use the selected example, other filter matches, and relevant
-                saved visualizations to infer a useful view.
+                saved Custom UI to infer a useful view.
               </p>
               <Textarea
                 id="visualization-prompt"
@@ -1216,7 +1193,6 @@ root.append(ui.stack([
                 rows={4}
               />
             </div>
-            {rendererPicker}
             <p className="text-muted-foreground text-xs">
               {generationModelLabel} · {generationContextLabel}
             </p>
@@ -1251,21 +1227,17 @@ root.append(ui.stack([
             <Button asChild variant="ghost" size="icon">
               <Link href={`/project/${projectId}/visualizations`}>
                 <ArrowLeft className="icon-base" />
-                <span className="sr-only">Back to visualizations</span>
+                <span className="sr-only">Back to Custom UI</span>
               </Link>
             </Button>
             <div className="min-w-0">
               <h1
                 className="truncate text-lg font-bold tracking-tight"
                 title={
-                  props.mode === "create"
-                    ? "New visualization"
-                    : "Edit visualization"
+                  props.mode === "create" ? "New Custom UI" : "Edit Custom UI"
                 }
               >
-                {props.mode === "create"
-                  ? "New visualization"
-                  : "Edit visualization"}
+                {props.mode === "create" ? "New Custom UI" : "Edit Custom UI"}
               </h1>
               <p className="text-muted-foreground hidden text-sm sm:block">
                 Choose where it appears, then design it with a real example.
@@ -1286,7 +1258,7 @@ root.append(ui.stack([
                   disabled={!selectedStoredVisualization?.activeVersion}
                   title={
                     selectedStoredVisualization?.activeVersion
-                      ? "Choose a matching example to open with the live visualization"
+                      ? "Choose a matching example to open with the live Custom UI"
                       : "Publish a version before previewing it live"
                   }
                 >
@@ -1510,19 +1482,13 @@ root.append(ui.stack([
                   <Accordion.Trigger>
                     <div className="min-w-0 flex-1 py-3 text-left">
                       <div className="text-muted-foreground text-xs font-normal">
-                        3 · Visualization
+                        3 · Custom UI
                       </div>
                       <div
                         className="mt-1 truncate text-sm font-bold"
-                        title={
-                          draftReady
-                            ? `${rendererLabel(definition)} · ${draftStatus}`
-                            : "Ready to generate"
-                        }
+                        title={draftReady ? draftStatus : "Ready to generate"}
                       >
-                        {draftReady
-                          ? `${rendererLabel(definition)} · ${draftStatus}`
-                          : "Ready to generate"}
+                        {draftReady ? draftStatus : "Ready to generate"}
                       </div>
                     </div>
                   </Accordion.Trigger>
@@ -1607,7 +1573,23 @@ root.append(ui.stack([
                                   <button
                                     key={mode}
                                     type="button"
-                                    onClick={() => setComparisonMode(mode)}
+                                    onClick={() => {
+                                      setComparisonMode(mode);
+                                      if (mode === "default") {
+                                        capture(
+                                          "custom_ui:default_view_selected",
+                                          {
+                                            placement:
+                                              definition.placement.surface ===
+                                              "TRACE"
+                                                ? "trace"
+                                                : "session",
+                                            catalogVersion:
+                                              definition.catalogVersion,
+                                          },
+                                        );
+                                      }
+                                    }}
                                     className={`rounded-md px-3 py-1.5 text-xs capitalize transition-colors ${
                                       effectiveComparisonMode === mode
                                         ? "bg-background font-bold shadow-sm"
@@ -1653,14 +1635,14 @@ root.append(ui.stack([
                               <div className="flex items-center justify-between border-b px-4 py-2.5">
                                 <div>
                                   <div className="text-xs font-bold">
-                                    Visualized
+                                    Custom UI
                                   </div>
                                   <div className="text-muted-foreground text-[11px]">
                                     {visualizedSurfaceDescription}
                                   </div>
                                 </div>
                                 <Badge variant="outline">
-                                  {rendererLabel(definition)}
+                                  {definition.catalogVersion}
                                 </Badge>
                               </div>
                               {visualizedSurfacePreview}
@@ -1673,7 +1655,7 @@ root.append(ui.stack([
                         <summary className="flex cursor-pointer list-none items-center justify-between p-4">
                           <span className="text-sm font-bold">Advanced</span>
                           <Badge variant="outline">
-                            {rendererLabel(definition)}
+                            {definition.catalogVersion}
                           </Badge>
                         </summary>
                         <div className="space-y-6 border-t p-4">
@@ -1725,43 +1707,11 @@ root.append(ui.stack([
                           ) : null}
 
                           <section className="space-y-3">
-                            <h3 className="text-sm font-bold">Renderer</h3>
-                            <div className="flex flex-wrap gap-2">
-                              {(
-                                [
-                                  ["template", Braces, "Template"],
-                                  ["chart", ChartNoAxesCombined, "Chart"],
-                                  ["react", Code2, "React lab"],
-                                  [
-                                    "shader",
-                                    FlaskConical,
-                                    "Three / shader lab",
-                                  ],
-                                ] as const
-                              ).map(([kind, Icon, label]) => (
-                                <Button
-                                  key={kind}
-                                  type="button"
-                                  variant={
-                                    definition.renderer.kind === kind
-                                      ? "default"
-                                      : "outline"
-                                  }
-                                  size="sm"
-                                  onClick={() => applyRenderer(kind)}
-                                >
-                                  <Icon className="icon-base mr-2" /> {label}
-                                </Button>
-                              ))}
-                            </div>
-                          </section>
-
-                          <section className="space-y-3">
                             <div>
                               <h3 className="text-sm font-bold">Definition</h3>
                               <p className="text-muted-foreground text-xs">
-                                Edit matching, placement, data binding, and
-                                renderer directly.
+                                Edit matching, placement, data binding, and the
+                                declarative component tree directly.
                               </p>
                             </div>
                             <Textarea

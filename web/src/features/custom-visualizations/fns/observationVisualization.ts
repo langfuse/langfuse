@@ -206,12 +206,7 @@ export const matchesTraceVisualization = (
 ) => {
   if (definition.match.entity !== "TRACE") return false;
   if (definition.placement.surface !== "TRACE") return false;
-  if (
-    definition.binding.source !== "TRACE" &&
-    definition.binding.source !== "TRANSCRIPT"
-  ) {
-    return false;
-  }
+  if (definition.binding.source !== "TRACE") return false;
   return definition.match.filters.every((filter) =>
     matchesFilter(rootObservation, filter),
   );
@@ -226,7 +221,32 @@ export const buildObservationVisualizationData = (
       ? observation.input
       : observation.output;
   return {
-    observation,
-    selectedValue: resolvePath(sourceValue, definition.binding.jsonPath),
+    envelopeVersion: "1",
+    data: {
+      observation,
+      observations: [observation],
+      selectedValue: resolvePath(sourceValue, definition.binding.jsonPath),
+    },
+    meta: {
+      surface: "SESSION",
+      source: definition.binding.source,
+    },
+    scores: [],
   };
 };
+
+export const buildTraceVisualizationData = (
+  definition: VisualizationDefinition,
+  trace: Record<string, unknown>,
+  observations: ObservationVisualizationTarget[],
+  scores: VisualizationDataEnvelope["scores"] = [],
+): VisualizationDataEnvelope => ({
+  envelopeVersion: "1",
+  data: {
+    trace,
+    observations,
+    selectedValue: resolvePath(trace, definition.binding.jsonPath),
+  },
+  meta: { surface: "TRACE", source: "TRACE" },
+  scores,
+});

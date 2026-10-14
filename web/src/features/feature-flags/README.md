@@ -19,12 +19,13 @@ User-controlled previews may pass `{ enableForAdmins: false }` so an
 administrator can opt in or out like any other user. The deployment-wide
 `LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES` override still forces flags on.
 
-`langfuseTopics` ("Langfuse Topics") requires explicit personal opt-in. Only
-platform administrators (`user.admin`) see or may change this preview toggle;
-organization administrator roles do not grant toggle access. Admin and global
-experimental overrides do not enable Topics. It is deliberately excluded from
-public previews, organization defaults, and member preview management. Its
-runtime availability remains controlled separately by the Topics server gate.
+`langfuseTopics` ("Langfuse Topics") and `customUi` ("Custom UI") require
+explicit personal opt-in. Only platform administrators (`user.admin`) see or
+may change these preview toggles; organization administrator roles do not grant
+toggle access. Admin and global experimental overrides do not enable them. They
+are deliberately excluded from public previews, organization defaults, and
+member preview management. Topics runtime availability remains controlled
+separately by the Topics server gate.
 
 Admin-only personal previews are registered in `adminOnlyFeaturePreviewFlags`;
 the personal modal and self-toggle mutation use `personalFeaturePreviewFlags`.

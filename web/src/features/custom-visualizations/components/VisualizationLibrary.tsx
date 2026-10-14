@@ -50,14 +50,6 @@ const placementLabel = (definition: VisualizationDefinition) => {
   return "Session · transcript";
 };
 
-const rendererLabel = (definition: VisualizationDefinition) =>
-  ({
-    template: "Template",
-    chart: "Chart",
-    react: "Interactive",
-    shader: "Three / shader",
-  })[definition.renderer.kind];
-
 function VisualizationCard({
   projectId,
   visualization,
@@ -130,7 +122,8 @@ function VisualizationCard({
           <span className="font-bold">{placementLabel(definition)}</span>
         </div>
         <div className="text-muted-foreground text-xs">
-          {rendererLabel(definition)} · {visualization.versions.length}{" "}
+          {Object.keys(definition.spec.elements).length} components ·{" "}
+          {visualization.versions.length}{" "}
           {visualization.versions.length === 1 ? "version" : "versions"}
         </div>
       </div>
@@ -153,10 +146,10 @@ export function VisualizationLibrary({ projectId }: { projectId: string }) {
       <div className="flex h-full items-center justify-center p-8">
         <Card className="max-w-md p-6 text-center">
           <h1 className="text-lg font-bold">
-            Visualizations are for project admins
+            Custom UI is for Langfuse admins
           </h1>
           <p className="text-muted-foreground mt-2 text-sm">
-            Live visualizations remain available in trace and session views.
+            Enable the employee preview to create and inspect Custom UI.
           </p>
         </Card>
       </div>
@@ -178,22 +171,20 @@ export function VisualizationLibrary({ projectId }: { projectId: string }) {
       );
     }
     if (visualizations.isError) {
-      return (
-        <Card className="p-6 text-sm">Could not load visualizations.</Card>
-      );
+      return <Card className="p-6 text-sm">Could not load Custom UI.</Card>;
     }
     if (visualizations.data?.length === 0) {
       return (
         <Card className="flex min-h-72 flex-col items-center justify-center p-8 text-center">
           <Sparkles className="text-muted-foreground icon-lg" />
-          <h2 className="mt-4 font-bold">No visualizations yet</h2>
+          <h2 className="mt-4 font-bold">No Custom UI yet</h2>
           <p className="text-muted-foreground mt-1 max-w-sm text-sm">
             Start with a real trace or observation. AI will propose a focused
             view that you can refine before anyone sees it.
           </p>
           <Button asChild className="mt-5">
             <Link href={`/project/${projectId}/visualizations/new`}>
-              Create visualization
+              Create Custom UI
             </Link>
           </Button>
         </Card>
@@ -251,14 +242,14 @@ export function VisualizationLibrary({ projectId }: { projectId: string }) {
     <main className="mx-auto w-full max-w-6xl p-6 lg:p-10">
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Visualizations</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Custom UI</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Decide how traces and session data should appear to your team.
+            Turn trace and session data into focused, reusable views.
           </p>
         </div>
         <Button asChild>
           <Link href={`/project/${projectId}/visualizations/new`}>
-            <Plus className="icon-base mr-2" /> New visualization
+            <Plus className="icon-base mr-2" /> New Custom UI
           </Link>
         </Button>
       </div>

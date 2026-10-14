@@ -14,6 +14,7 @@ import { api } from "@/src/utils/api";
 import { useSessionTraceTranscripts } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
 import { getSessionConversationEntries } from "./components/ConnectedSessionConversationTimeline/fns/getSessionConversationEntries";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 
 const SIDEBAR_TRACE_CHUNK_SIZE = 20;
 const EMPTY_TRACES: EventSessionTrace[] = [];
@@ -52,10 +53,11 @@ export function ConnectedModernSessionBodyTimeline({
   const utils = api.useUtils();
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
+  const customUiEnabled = useIsFeatureEnabled("customUi");
   const activeVisualizations = api.customVisualizations.active.useQuery(
     { projectId },
     {
-      enabled: isAuthenticatedAndProjectMember,
+      enabled: isAuthenticatedAndProjectMember && customUiEnabled,
       refetchOnWindowFocus: false,
     },
   );

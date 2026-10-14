@@ -58,6 +58,8 @@
     "@ferrucc-io/emoji-picker": "^0.1.2",
     "@floating-ui/react": "0.27.20",
     "@hookform/resolvers": "^5.2.2",
+    "@json-render/core": "0.21.0",
+    "@json-render/react": "0.21.0",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.3",
     "@modelcontextprotocol/sdk": "1.31.0",

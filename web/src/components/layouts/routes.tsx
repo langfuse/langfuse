@@ -211,8 +211,9 @@ export const ROUTES: Route[] = [
     legacyPathname: `/project/[projectId]/evals/legacy`,
   },
   {
-    title: "Visualizations",
+    title: "Custom UI",
     href: `/project/[projectId]/visualizations`,
+    featureFlag: "customUi",
     projectRbacScopes: ["project:read"],
     group: RouteGroup.Observability,
     section: RouteSection.Main,

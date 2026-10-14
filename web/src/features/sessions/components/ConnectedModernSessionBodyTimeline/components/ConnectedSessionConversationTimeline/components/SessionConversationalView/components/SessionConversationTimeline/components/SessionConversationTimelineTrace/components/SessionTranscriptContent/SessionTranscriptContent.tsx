@@ -21,6 +21,7 @@ import { getSessionToolStatus } from "@/src/features/sessions/components/Connect
 import { SessionToolStatusCountBadge } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolStatusCountBadge/SessionToolStatusCountBadge";
 import { type RouterOutputs } from "@/src/utils/api";
 import { VisualizationRenderer } from "@/src/features/custom-visualizations/components/VisualizationRenderer";
+import { CustomUiPicker } from "@/src/features/custom-visualizations/components/CustomUiPicker";
 import {
   buildObservationVisualizationData,
   matchesObservationVisualization,
@@ -253,27 +254,42 @@ function renderSessionObservationVisualizations({
   );
   if (matches.length === 0) return null;
   return (
-    <div className="ph-no-capture mt-3 space-y-3">
-      {matches.map((visualization) => (
-        <section key={visualization.versionId} className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-xs font-bold">
-              {visualization.definition.title}
-            </h3>
-            <span className="text-muted-foreground text-[10px]">
-              v{visualization.version}
-            </span>
-          </div>
-          <VisualizationRenderer
-            definition={visualization.definition}
-            data={buildObservationVisualizationData(
-              visualization.definition,
-              observation,
-            )}
-          />
-        </section>
-      ))}
-    </div>
+    <SessionObservationCustomUi observation={observation} matches={matches} />
+  );
+}
+
+function SessionObservationCustomUi({
+  observation,
+  matches,
+}: {
+  observation: ObservationVisualizationTarget;
+  matches: SessionVisualization[];
+}) {
+  const [selectedVersionId, setSelectedVersionId] = useState<string>();
+  const selected =
+    matches.find((item) => item.versionId === selectedVersionId) ?? matches[0]!;
+  return (
+    <section className="ph-no-capture mt-3 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-xs font-bold">{selected.definition.title}</h3>
+        <CustomUiPicker
+          items={matches.map((item) => ({
+            versionId: item.versionId,
+            title: item.definition.title,
+            version: item.version,
+          }))}
+          selectedVersionId={selected.versionId}
+          onSelectedVersionChange={setSelectedVersionId}
+        />
+      </div>
+      <VisualizationRenderer
+        definition={selected.definition}
+        data={buildObservationVisualizationData(
+          selected.definition,
+          observation,
+        )}
+      />
+    </section>
   );
 }
 
