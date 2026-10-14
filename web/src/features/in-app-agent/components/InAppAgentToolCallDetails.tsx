@@ -2,6 +2,7 @@
 "use client";
 
 import {
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   InAppAgentSandboxBashArgsSchema,
   InAppAgentSandboxBashResultSchema,
   InAppAgentSandboxEditArgsSchema,
@@ -18,12 +19,24 @@ import { assertUnreachable } from "@/src/utils/types";
 import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
 import { InAppAgentToolResultPayload } from "./InAppAgentToolResultPayload";
 import type { InAppAgentToolCallContent } from "./utils/utils";
+import { InAppAgentQuestionnaireSummary } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireSummary/InAppAgentQuestionnaireSummary";
+import { parseQuestionnaireToolResult } from "@/src/features/in-app-agent/fns/parseQuestionnaireToolResult";
 
 export function InAppAgentToolCallDetails({
   tool,
 }: {
   tool: InAppAgentToolCallContent;
 }) {
+  const questionnaireResult =
+    tool.name === IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME
+      ? parseQuestionnaireToolResult(tool.result)
+      : null;
+  if (questionnaireResult) {
+    return (
+      <InAppAgentQuestionnaireSummary answers={questionnaireResult.answers} />
+    );
+  }
+
   const toolName = InAppAgentSandboxToolNameSchema.safeParse(tool.name);
   if (!toolName.success) {
     return <DefaultToolCallDetails tool={tool} />;

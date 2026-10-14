@@ -713,6 +713,7 @@ const meta = preview.meta({
     onApproveToolCall: fn(),
     onAlwaysAllowToolCall: fn(),
     onRejectToolCall: fn(),
+    onAnswerQuestionnaire: fn(),
     onSelectConversation: fn(),
     onClose: fn(),
     onExpandedChange: fn(),

@@ -23,6 +23,7 @@ import {
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
   type AgUiMessage,
+  type InAppAgentQuestionnaireAnswers,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 import { isActiveInAppAgentRunStatus } from "../watchFrames";
@@ -144,6 +145,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   deleteConversation: async () => undefined,
   submit: async () => false,
   approveToolCall: async () => undefined,
+  answerQuestionnaire: async () => undefined,
   rejectToolCall: async () => undefined,
   submitFeedback: async () => undefined,
 };
@@ -211,6 +213,10 @@ type InAppAiAgentContextType = {
   ) => Promise<boolean>;
   approveToolCall: (approvalId: string) => Promise<void>;
   alwaysAllowToolCall?: (approvalId: string) => Promise<void>;
+  answerQuestionnaire: (
+    approvalId: string,
+    answers: InAppAgentQuestionnaireAnswers,
+  ) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
   submitFeedback: (params: {
     messageId: string;
@@ -887,6 +893,7 @@ function InAppAiAgentProviderInner({
             toolCallId: input.toolCallId,
             approved: input.approved,
             approvalScope: input.approvalScope,
+            answers: input.answers,
           }),
         onHydratedSnapshot: ({ messages }) => {
           performToolSideEffectsForCompletedToolCalls({
@@ -1333,6 +1340,7 @@ function InAppAiAgentProviderInner({
       approval: InAppAgentPendingToolApproval;
       approved: boolean;
       approvalScope: "once" | "conversation";
+      answers?: InAppAgentQuestionnaireAnswers;
       conversationId: string;
     }) => {
       const runId =
@@ -1355,6 +1363,7 @@ function InAppAiAgentProviderInner({
           toolCallId: params.approval.approvalRequest.toolCallId,
           approved: params.approved,
           approvalScope: params.approvalScope,
+          answers: params.answers,
         });
         return true;
       } catch (error) {
@@ -1370,6 +1379,7 @@ function InAppAiAgentProviderInner({
       approvalId: string,
       approved: boolean,
       approvalScope: "once" | "conversation" = "once",
+      answers?: InAppAgentQuestionnaireAnswers,
     ) => {
       const approval = effectivePendingToolApprovals.find(
         (approval) => approval.id === approvalId,
@@ -1388,6 +1398,7 @@ function InAppAiAgentProviderInner({
         approval,
         approved,
         approvalScope,
+        answers,
         conversationId: selectedConversationId,
       });
       if (decisionAccepted) {
@@ -1452,6 +1463,12 @@ function InAppAiAgentProviderInner({
     [resumeToolApproval],
   );
 
+  const answerQuestionnaire = useCallback(
+    (approvalId: string, answers: InAppAgentQuestionnaireAnswers) =>
+      resumeToolApproval(approvalId, true, "once", answers),
+    [resumeToolApproval],
+  );
+
   const rejectToolCall = useCallback(
     (approvalId: string) => resumeToolApproval(approvalId, false),
     [resumeToolApproval],
@@ -1492,12 +1509,14 @@ function InAppAiAgentProviderInner({
       submit,
       approveToolCall,
       alwaysAllowToolCall,
+      answerQuestionnaire,
       rejectToolCall,
       submitFeedback,
     }),
     [
       activityByConversationId,
       approveToolCall,
+      answerQuestionnaire,
       attentionCount,
       alwaysAllowToolCall,
       isExpanded,

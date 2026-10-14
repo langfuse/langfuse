@@ -54,7 +54,11 @@ import type {
   InAppAgentMessageFeedbackValue,
   InAppAgentMessageSource,
 } from "../schema";
-import { IN_APP_AGENT_GENERIC_ERROR_MESSAGE } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+  type InAppAgentQuestionnaireAnswers,
+} from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import type { SettledActivityOutcome } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
@@ -63,6 +67,7 @@ import { InAppAgentBackgroundHint } from "@/src/features/in-app-agent/components
 import { InAppAgentNotice } from "@/src/features/in-app-agent/components/InAppAgentNotice";
 import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/useInAppAgentBackgroundHint";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
+import { InAppAgentQuestionnaireCard } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/InAppAgentQuestionnaireCard";
 import {
   getInAppAgentActivityProgressLabel,
   type InAppAgentError,
@@ -887,6 +892,10 @@ export type InAppAgentWindowProps = {
   onApproveToolCall: (approvalId: string) => Promise<void>;
   onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
+  onAnswerQuestionnaire: (
+    approvalId: string,
+    answers: InAppAgentQuestionnaireAnswers,
+  ) => Promise<void>;
   onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (
@@ -991,6 +1000,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onApproveToolCall,
     onAlwaysAllowToolCall,
     onRejectToolCall,
+    onAnswerQuestionnaire,
     onOpenConversationHistory,
     onSelectConversation,
     onSubmit,
@@ -1514,17 +1524,27 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 isExpanded && "mx-auto max-w-3xl",
               )}
             >
-              {pendingToolCalls.map((tool, index) => (
-                <InAppAgentToolCallCard
-                  key={`${tool.approval?.id ?? tool.name}-${index}`}
-                  tool={tool}
-                  isCompact={!isExpanded}
-                  isDisabled={isRateLimited}
-                  onApproveToolCall={onApproveToolCall}
-                  onAlwaysAllowToolCall={onAlwaysAllowToolCall}
-                  onRejectToolCall={onRejectToolCall}
-                />
-              ))}
+              {pendingToolCalls.map((tool, index) =>
+                tool.name === IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME ? (
+                  <InAppAgentQuestionnaireCard
+                    key={`${tool.approval?.id ?? tool.name}-${index}`}
+                    tool={tool}
+                    isDisabled={isRateLimited}
+                    onAnswerQuestionnaire={onAnswerQuestionnaire}
+                    onRejectToolCall={onRejectToolCall}
+                  />
+                ) : (
+                  <InAppAgentToolCallCard
+                    key={`${tool.approval?.id ?? tool.name}-${index}`}
+                    tool={tool}
+                    isCompact={!isExpanded}
+                    isDisabled={isRateLimited}
+                    onApproveToolCall={onApproveToolCall}
+                    onAlwaysAllowToolCall={onAlwaysAllowToolCall}
+                    onRejectToolCall={onRejectToolCall}
+                  />
+                ),
+              )}
             </div>
           </div>
         ) : null}
