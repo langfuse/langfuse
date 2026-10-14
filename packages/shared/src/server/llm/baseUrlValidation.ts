@@ -1,4 +1,5 @@
 import { env } from "../../env";
+import type { LLMCredentialSource } from "./ai-sdk/providers/types";
 import {
   type OutboundUrlValidationWhitelist,
   OutboundUrlValidationError,
@@ -28,12 +29,13 @@ export function llmBaseUrlWhitelistFromEnv(): LlmBaseUrlValidationWhitelist {
   };
 }
 
-/** llmFetchWhitelistForBaseUrl applies the positive host list only to custom base URLs. */
+/** llmFetchWhitelistForBaseUrl applies the positive host list only to user connections with a custom base URL. */
 export function llmFetchWhitelistForBaseUrl(
   baseURL: string | null | undefined,
+  credentialSource: LLMCredentialSource = "user",
 ): LlmBaseUrlValidationWhitelist {
   const whitelist = llmBaseUrlWhitelistFromEnv();
-  if (baseURL) return whitelist;
+  if (baseURL && credentialSource === "user") return whitelist;
   if ((whitelist.allowedHosts ?? []).length === 0) return whitelist;
   return { ...whitelist, allowedHosts: [] };
 }

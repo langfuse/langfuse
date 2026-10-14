@@ -312,6 +312,7 @@ async function prepareLLMTextCall<
 
   const { apiKey, extraHeaders, createFetch } = openLLMConnection(
     options.connection,
+    credentialSource,
   );
 
   const languageModel = await buildAiSdkModel({
@@ -359,7 +360,10 @@ async function prepareLLMTextCall<
   };
 }
 
-function openLLMConnection(connection: LLMConnection) {
+function openLLMConnection(
+  connection: LLMConnection,
+  credentialSource: LLMCredentialSource,
+) {
   const apiKey = decrypt(connection.secretKey);
   const extraHeaders = decryptAndParseExtraHeaders(connection.extraHeaders);
   const createFetch = (
@@ -368,7 +372,10 @@ function openLLMConnection(connection: LLMConnection) {
   ) =>
     createSecureLlmFetch({
       logContext,
-      whitelist: llmFetchWhitelistForBaseUrl(connection.baseURL),
+      whitelist: llmFetchWhitelistForBaseUrl(
+        connection.baseURL,
+        credentialSource,
+      ),
       // Connection-specific headers are encrypted at rest and can contain
       // gateway credentials. Keep them on same-origin redirects, but strip
       // them alongside provider auth headers when the origin changes.
@@ -397,6 +404,7 @@ export async function embedLLMText(options: {
   });
   const { apiKey, extraHeaders, createFetch } = openLLMConnection(
     options.connection,
+    "user",
   );
   const embeddingModel = await buildAiSdkEmbeddingModel({
     model: options.model,

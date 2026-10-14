@@ -147,8 +147,8 @@ connectionValidation: blobStorageEndpointConnectionValidationOptions() })`.
   listed hosts are trusted (including private targets) and every other host
   is rejected. Unset and empty leave the default-allow behavior in place.
   `LANGFUSE_WEBHOOK_ALLOWED_HOSTS` applies to webhook saves and delivery
-  only. `LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS` applies to custom base URLs
-  only. For S3 virtual-hosted addressing, connect-time validation also
+  only.   `LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS` applies to user connections with a
+  custom base URL only. Langfuse AI (`LANGFUSE_AI_BASE_URL`) is unchanged. For S3 virtual-hosted addressing, connect-time validation also
   trusts `{bucket}.{allowlisted endpoint host}` for that bucket.
 - `LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS` adds CIDR ranges to the built-in
   private-address block for outbound URL checks that already run. Blob
