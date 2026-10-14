@@ -95,6 +95,15 @@ export const costFormatter = (totalCost?: number) => {
   return usdFormatter(cost, 2, 2);
 };
 
+/** Cent precision; a non-zero cost that would round to $0.00 reads "<$0.01". */
+export const centCostFormatter = (cost: number) => {
+  if (cost !== 0 && Math.abs(cost) < SUB_CENT_THRESHOLD / 2) {
+    return `${cost < 0 ? "-" : ""}<${usdFormatter(SUB_CENT_THRESHOLD, 2, 2)}`;
+  }
+
+  return usdFormatter(cost, 2, 2);
+};
+
 /** Returns the fraction digits that render a sub-cent cost to ~3 significant digits. */
 const subCentFractionDigits = (cost: number) =>
   Math.min(
