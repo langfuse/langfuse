@@ -226,14 +226,14 @@ export function dateDiff(
   );
 }
 
-/** `map[key]` subscript with a bound key. */
+/** `map[key]` subscript with a bound key, on a map column or expression. */
 export function mapValue<V = number>(
-  column: string,
+  map: string | Expression<Record<string, V>>,
   key: string,
-): Expression<V> {
+): ChExpression<V> {
   return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
     ArrayIndexNode.create(
-      columnRef(column),
+      typeof map === "string" ? columnRef(map) : map.toOperationNode(),
       ValueNode.create(key),
     ) as unknown as OperationNode,
   );
@@ -407,9 +407,7 @@ export function tupleIn(
 }
 
 /** `expression != ''`, with the empty string inlined rather than bound. */
-export function nonEmpty(
-  expression: Expression<string>,
-): ChExpression<SqlBool> {
+function nonEmpty(expression: Expression<string>): ChExpression<SqlBool> {
   return new ExpressionWrapper(
     BinaryOperationNode.create(
       expression.toOperationNode(),
@@ -420,7 +418,7 @@ export function nonEmpty(
 }
 
 /** ClickHouse `argMaxIf(value, by, condition)`. */
-export function argMaxIf<T>(
+function argMaxIf<T>(
   value: Expression<T>,
   by: Expression<unknown>,
   condition: Expression<SqlBool>,
@@ -431,6 +429,24 @@ export function argMaxIf<T>(
       by.toOperationNode(),
       condition.toOperationNode(),
     ]) as unknown as OperationNode,
+  );
+}
+
+/**
+ * A trace's session id from its events: the latest non-empty `session_id`,
+ * `argMaxIf(session_id, event_ts, session_id != '')`. Reads unqualified
+ * columns, for a trace-level aggregate over one events table.
+ */
+export function traceSessionId(): ChExpression<string> {
+  const sessionId = new ExpressionWrapper<
+    ClickHouseDatabase,
+    keyof ClickHouseDatabase,
+    string
+  >(columnRef("session_id"));
+  return argMaxIf(
+    sessionId,
+    new ExpressionWrapper(columnRef("event_ts")),
+    nonEmpty(sessionId),
   );
 }
 
