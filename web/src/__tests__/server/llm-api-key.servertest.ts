@@ -214,6 +214,51 @@ describe("llmApiKey.all RPC", () => {
     ).resolves.toBe(1);
   });
 
+  it("rejects creating or updating a project connection with an incompatible organization adapter", async () => {
+    const provider = `incompatible-project-override-${randomUUID()}`;
+    await prisma.llmApiKeys.create({
+      data: {
+        organizationId: orgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: encrypt("organization-secret"),
+        displaySecretKey: "...cret",
+      },
+    });
+
+    await expect(
+      caller.llmApiKey.create({
+        projectId,
+        provider,
+        adapter: LLMAdapter.Anthropic,
+        secretKey: "project-secret",
+      }),
+    ).rejects.toThrow(
+      "Project and organization connections with the same provider must use the same adapter.",
+    );
+
+    const incompatibleProjectConnection = await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider,
+        adapter: LLMAdapter.Anthropic,
+        secretKey: encrypt("project-secret"),
+        displaySecretKey: "...cret",
+      },
+    });
+    await expect(
+      caller.llmApiKey.update({
+        id: incompatibleProjectConnection.id,
+        projectId,
+        provider,
+        adapter: LLMAdapter.Anthropic,
+        customModels: ["claude-sonnet-4-5"],
+      }),
+    ).rejects.toThrow(
+      "Project and organization connections with the same provider must use the same adapter.",
+    );
+  });
+
   it("should rotate a secret without revalidating an unchanged stored base URL", async () => {
     const provider = `operator-provisioned-${randomUUID()}`;
     const connection = await prisma.llmApiKeys.create({

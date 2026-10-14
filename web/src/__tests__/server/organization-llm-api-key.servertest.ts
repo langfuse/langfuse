@@ -88,6 +88,60 @@ describe("organization LLM connections", () => {
     expect(result.data[0]).not.toHaveProperty("extraHeaders");
   });
 
+  it("rejects creating or updating an organization connection with an incompatible project adapter", async () => {
+    const setup = await createOrgProjectAndApiKey();
+    const caller = createCaller(
+      createSession({
+        orgId: setup.orgId,
+        projectId: setup.projectId,
+        orgRole: "OWNER",
+        projectRole: "ADMIN",
+      }),
+    );
+    const provider = `incompatible-organization-connection-${randomUUID()}`;
+    await prisma.llmApiKeys.create({
+      data: {
+        projectId: setup.projectId,
+        provider,
+        adapter: LLMAdapter.Anthropic,
+        secretKey: "encrypted-project-secret",
+        displaySecretKey: "...cret",
+      },
+    });
+
+    await expect(
+      caller.organizationLlmApiKey.create({
+        orgId: setup.orgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "organization-secret",
+      }),
+    ).rejects.toThrow(
+      "Project and organization connections with the same provider must use the same adapter.",
+    );
+
+    const incompatibleOrganizationConnection = await prisma.llmApiKeys.create({
+      data: {
+        organizationId: setup.orgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "encrypted-organization-secret",
+        displaySecretKey: "...cret",
+      },
+    });
+    await expect(
+      caller.organizationLlmApiKey.update({
+        id: incompatibleOrganizationConnection.id,
+        orgId: setup.orgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        customModels: ["gpt-5"],
+      }),
+    ).rejects.toThrow(
+      "Project and organization connections with the same provider must use the same adapter.",
+    );
+  });
+
   it("lets a project viewer read inherited metadata but not organization settings", async () => {
     const setup = await createOrgProjectAndApiKey();
     await prisma.llmApiKeys.create({

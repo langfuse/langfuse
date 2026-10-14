@@ -417,6 +417,25 @@ export class LlmConnectionService {
     private readonly db: typeof prisma = prisma,
   ) {}
 
+  private async validateHierarchyAdapter(params: {
+    repository: LlmConnectionRepository;
+    owner: LlmConnectionOwner;
+    provider: string;
+    adapter: string;
+  }): Promise<void> {
+    const incompatibleConnection =
+      await params.repository.findIncompatibleConnection({
+        owner: params.owner,
+        provider: params.provider,
+        adapter: params.adapter,
+      });
+    if (incompatibleConnection) {
+      throw new InvalidRequestError(
+        "Project and organization connections with the same provider must use the same adapter.",
+      );
+    }
+  }
+
   async list(params: {
     owner: LlmConnectionOwner;
     includeDecisionModels?: boolean;
@@ -494,6 +513,12 @@ export class LlmConnectionService {
     try {
       key = await this.db.$transaction(async (tx) => {
         const repository = this.repository.withDb(tx);
+        await this.validateHierarchyAdapter({
+          repository,
+          owner: params.owner,
+          provider: params.input.provider,
+          adapter: params.input.adapter,
+        });
         return repository.create({
           owner: params.owner,
           data: {
@@ -563,6 +588,12 @@ export class LlmConnectionService {
       : undefined;
     const { connection, existing } = await this.db.$transaction(async (tx) => {
       const repository = this.repository.withDb(tx);
+      await this.validateHierarchyAdapter({
+        repository,
+        owner: params.owner,
+        provider: params.input.provider,
+        adapter: params.input.adapter,
+      });
       const existing = await repository.findByProvider({
         owner: params.owner,
         provider: params.input.provider,
@@ -636,6 +667,12 @@ export class LlmConnectionService {
     ) {
       throw new InvalidRequestError("Provider and adapter cannot be changed");
     }
+    await this.validateHierarchyAdapter({
+      repository: this.repository,
+      owner: params.owner,
+      provider: params.input.provider,
+      adapter: params.input.adapter,
+    });
 
     const isBaseURLChanged =
       params.input.baseURL !== undefined &&

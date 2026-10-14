@@ -50,6 +50,27 @@ export class LlmConnectionRepository {
     });
   }
 
+  findIncompatibleConnection(params: {
+    owner: LlmConnectionOwner;
+    provider: string;
+    adapter: string;
+  }): Promise<LlmApiKeys | null> {
+    return this.db.llmApiKeys.findFirst({
+      where: {
+        provider: params.provider,
+        adapter: { not: params.adapter },
+        ...(params.owner.type === "project"
+          ? { organizationId: params.owner.organizationId }
+          : {
+              project: {
+                orgId: params.owner.organizationId,
+                deletedAt: null,
+              },
+            }),
+      },
+    });
+  }
+
   list(params: {
     owner: LlmConnectionOwner;
     includeDecisionModels: boolean;
