@@ -105,8 +105,6 @@ export class GatewayApiKeyAuthenticator {
         : null,
     };
 
-    // The association query does not load role rows. authorize only reads
-    // policies, and only while API_AUTH_MIGRATION is enforce.
     if (env.API_AUTH_MIGRATION === "enforce") {
       await assertCanInvokeGateway(this.prisma, row.apiKeyId, organizationId);
     }
@@ -120,6 +118,7 @@ export class GatewayApiKeyAuthenticator {
   }
 }
 
+/** assertCanInvokeGateway denies the key when its stored roles do not grant gateway:invoke on the organization. */
 async function assertCanInvokeGateway(
   prisma: PrismaClient,
   apiKeyId: string,
