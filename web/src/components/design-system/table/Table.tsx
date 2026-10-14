@@ -48,6 +48,8 @@ export interface TableProps<TData> {
   columnOrder?: ColumnOrderState;
   onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
   rowHeight?: "s" | "m" | "l";
+  /** `false` for a table that sits directly under a divider, such as page tabs. */
+  topBorder?: boolean;
 }
 
 export function Table<TData extends object>({
@@ -66,6 +68,7 @@ export function Table<TData extends object>({
   columnOrder,
   onColumnOrderChange,
   rowHeight,
+  topBorder = true,
 }: TableProps<TData>) {
   const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
     if (!actions) return columns;
@@ -146,7 +149,12 @@ export function Table<TData extends object>({
 
   return (
     <div className="flex w-full max-w-full flex-1 flex-col overflow-auto">
-      <div className="relative min-h-full w-full overflow-auto border-t [scrollbar-gutter:stable]">
+      <div
+        className={cn(
+          "relative min-h-full w-full overflow-auto [scrollbar-gutter:stable]",
+          topBorder && "border-t",
+        )}
+      >
         <table
           aria-label={tableName}
           className="w-full table-fixed border-separate border-spacing-0 space-y-4 overflow-auto text-sm"
