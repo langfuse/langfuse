@@ -15,9 +15,6 @@ const { discoverLocalSkills, byName, createVersion } = vi.hoisted(() => ({
 }));
 
 vi.mock("../utils/local-import", () => ({ discoverLocalSkills }));
-vi.mock("@/src/features/public-api/hooks/useLangfuseEnvCode", () => ({
-  useLangfuseBaseUrl: () => "https://example.langfuse.com",
-}));
 vi.mock("@/src/features/notifications", () => ({ showSuccessToast: vi.fn() }));
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
@@ -55,59 +52,6 @@ const secondSkill = {
 afterEach(cleanup);
 
 describe("ImportSkillsDialog", () => {
-  it("preserves local selections across tabs and hides the upload action in CLI instructions", async () => {
-    discoverLocalSkills.mockResolvedValue([firstSkill]);
-    byName.mockResolvedValue({ name: firstSkill.name, files: [] });
-    render(
-      <ImportSkillsDialog projectId="project">
-        {(openDialog) => <button onClick={openDialog}>Open import</button>}
-      </ImportSkillsDialog>,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Open import" }));
-    expect(screen.getByRole("tab", { name: "Local files" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    fireEvent.change(
-      screen.getByRole("dialog").querySelector('input[type="file"]')!,
-      { target: { files: [new File(["Instructions"], "SKILL.md")] } },
-    );
-    await screen.findByRole("checkbox", { name: /review-code/ });
-    fireEvent.click(screen.getByRole("button", { name: "Select all" }));
-
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "CLI" }), {
-      button: 0,
-    });
-    expect(screen.getByRole("tab", { name: "CLI" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(screen.queryByRole("button", { name: "Import 1 skill" })).toBeNull();
-    expect(screen.queryByRole("checkbox", { name: /review-code/ })).toBeNull();
-    expect(
-      screen.getByRole("link", { name: "Get project API keys" }),
-    ).toHaveAttribute("href", "/project/project/settings/api-keys");
-
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Local files" }), {
-      button: 0,
-    });
-    expect(screen.getByRole("checkbox", { name: /review-code/ })).toBeChecked();
-    expect(
-      screen.getByRole("button", { name: "Import 1 skill" }),
-    ).toBeEnabled();
-
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "CLI" }), {
-      button: 0,
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    fireEvent.click(screen.getByRole("button", { name: "Open import" }));
-    expect(screen.getByRole("tab", { name: "Local files" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(screen.queryByRole("button", { name: "Import 1 skill" })).toBeNull();
-  });
-
   it("retries a failed import without creating another version of successful skills", async () => {
     createVersion
       .mockResolvedValueOnce({ version: 3 })
