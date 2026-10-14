@@ -6,25 +6,10 @@ describe("prepareEvaluatorEmptyState", () => {
     const emptyState = prepareEvaluatorEmptyState();
 
     expect(emptyState.docsHref).toBe(EVALUATOR_EMPTY_STATE_DOCS_HREF);
-    expect(
-      emptyState.startingPoints.map(({ template, action }) => ({
-        key: template.key,
-        action,
-      })),
-    ).toEqual([
-      { key: "topic-classifier", action: "detect-topics" },
-      { key: "user-disagreement", action: "select-template" },
-      { key: "topic-decision-model", action: "select-template" },
+    expect(emptyState.startingPoints.map(({ key }) => key)).toEqual([
+      "topic-decision-model",
+      "correctness",
+      "user-disagreement",
     ]);
-    expect(emptyState.startingPoints[0]).toMatchObject({
-      action: "detect-topics",
-      title: "Detect Topics",
-      template: { key: "topic-classifier" },
-    });
-    expect(emptyState.startingPoints[1]).toMatchObject({
-      action: "select-template",
-      template: { key: "user-disagreement" },
-    });
-    expect(emptyState.startingPoints[1]).not.toHaveProperty("title");
   });
 });

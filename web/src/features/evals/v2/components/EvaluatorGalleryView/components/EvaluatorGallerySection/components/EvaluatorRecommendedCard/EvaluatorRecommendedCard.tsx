@@ -9,7 +9,7 @@ import type {
   ManagedTemplate,
 } from "@/src/features/evals/v2/types/templateGallery";
 
-export function EvaluatorRecommendedCardSurface({
+function EvaluatorRecommendedCardSurface({
   children,
 }: {
   children: ReactNode;
@@ -51,7 +51,7 @@ function EvaluatorRecommendedCardContent({
   );
 }
 
-export function EvaluatorRecommendedTemplateCardContent({
+function EvaluatorRecommendedTemplateCardContent({
   title,
   description,
   type,

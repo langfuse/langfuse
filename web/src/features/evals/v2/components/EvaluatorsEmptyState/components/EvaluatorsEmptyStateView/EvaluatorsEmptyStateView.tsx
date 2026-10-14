@@ -1,15 +1,9 @@
-import {
-  EvaluatorRecommendedCard,
-  EvaluatorRecommendedCardSurface,
-  EvaluatorRecommendedTemplateCardContent,
-} from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
+import { EvaluatorRecommendedCard } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
 import { EvaluatorRecommendedCards } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorRecommendedCards/EvaluatorRecommendedCards";
-import { getGalleryTemplatePresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
-import type { EvaluatorEmptyStateStartingPoint } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorEmptyState";
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
 
 type EvaluatorsEmptyStateViewProps = {
-  startingPoints: EvaluatorEmptyStateStartingPoint[];
+  startingPoints: Extract<GalleryTemplate, { source: "managed" }>[];
   docsHref: string;
   onSelectTemplate: (template: GalleryTemplate) => void;
   onBrowseLibrary: () => void;
@@ -43,11 +37,11 @@ export function EvaluatorsEmptyStateView({
 
       <div className="flex w-full flex-col gap-8">
         <EvaluatorRecommendedCards label="Recommended starting points">
-          {startingPoints.map((startingPoint) => (
-            <StartingPointCard
-              key={startingPoint.template.key}
-              startingPoint={startingPoint}
-              onSelectTemplate={onSelectTemplate}
+          {startingPoints.map((template) => (
+            <EvaluatorRecommendedCard
+              key={template.key}
+              template={template}
+              onSelect={onSelectTemplate}
             />
           ))}
         </EvaluatorRecommendedCards>
@@ -60,46 +54,5 @@ export function EvaluatorsEmptyStateView({
         </button>
       </div>
     </div>
-  );
-}
-
-type StartingPointCardProps = {
-  startingPoint: EvaluatorEmptyStateStartingPoint;
-  onSelectTemplate: (template: GalleryTemplate) => void;
-};
-
-/** A starting point, with its own title and description when it has one. */
-function StartingPointCard({
-  startingPoint,
-  onSelectTemplate,
-}: StartingPointCardProps) {
-  if (startingPoint.action === "select-template") {
-    return (
-      <EvaluatorRecommendedCard
-        template={startingPoint.template}
-        onSelect={onSelectTemplate}
-      />
-    );
-  }
-
-  const { type } = getGalleryTemplatePresentation(startingPoint.template);
-  const handleSelect = () => onSelectTemplate(startingPoint.template);
-
-  return (
-    <button
-      type="button"
-      onClick={handleSelect}
-      aria-label={`Set up ${startingPoint.title}`}
-      className="h-full w-full cursor-pointer bg-transparent p-0 text-left"
-    >
-      <EvaluatorRecommendedCardSurface>
-        <EvaluatorRecommendedTemplateCardContent
-          title={startingPoint.title}
-          description={startingPoint.description}
-          type={type}
-          previewScores={startingPoint.template.previewScores}
-        />
-      </EvaluatorRecommendedCardSurface>
-    </button>
   );
 }
