@@ -1,6 +1,10 @@
 /* eslint-disable no-nested-ternary */
 import { useEffect } from "react";
-import { type ScoreDomain, type Prisma } from "@langfuse/shared";
+import {
+  type ObservationType,
+  type ScoreDomain,
+  type Prisma,
+} from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePreserveRelativeScroll } from "@/src/features/traces/hooks/usePreserveRelativeScroll";
@@ -69,6 +73,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
   parsedMetadata?: unknown;
   chatMLParserResult?: ChatMLParserResult;
   observationName?: string;
+  observationType?: ObservationType;
   isLoading?: boolean;
   isParsing?: boolean;
   hideIfNull?: boolean;
@@ -117,6 +122,7 @@ export function IOPreview({
   parsedMetadata,
   chatMLParserResult,
   observationName,
+  observationType,
   isLoading = false,
   isParsing = false,
   hideIfNull = false,
@@ -204,6 +210,7 @@ export function IOPreview({
     onOutputExpansionChange,
     onMetadataExpansionChange,
     observationId,
+    observationType,
     projectId,
     traceId,
     environment,
