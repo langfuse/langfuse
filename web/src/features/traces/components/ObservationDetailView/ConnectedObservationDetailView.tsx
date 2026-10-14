@@ -59,10 +59,6 @@ import { ObservationDetailViewHeader } from "@/src/features/traces/components/Ob
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { useReadPath } from "@/src/features/events";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
-import {
-  aggregateTraceMetrics,
-  getDescendantIds,
-} from "@/src/features/traces/fns/traceAggregation";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
@@ -96,14 +92,7 @@ export function ConnectedObservationDetailView({
   // V4 beta mode and observations for log tab
   const { isV4: isV4Enabled } = useReadPath();
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  const {
-    observations,
-    roots,
-    nodeMap,
-    traceLevelScoreOwnerIds,
-    detachedObservationId,
-    detachedObservationIsMisplaced,
-  } = useTraceData();
+  const { observations, traceLevelScoreOwnerIds } = useTraceData();
   const isLogViewVirtualized =
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
   // Get jsonViewPreference directly from ViewPreferencesContext for "json-beta" support
@@ -137,41 +126,9 @@ export function ConnectedObservationDetailView({
   });
   const modelParameters = buildModelParameters(observation.modelParameters);
 
-  // for v4:
-  // is this observation topmost in tree? we don't check for root observation here as this is not necessarily given.
-  // Uses the tree's roots array which handles orphans correctly.
-  // Both stay absent/false for an observation outside the loaded (capped) list:
-  // subtree metrics and root-only chrome are tree facts we genuinely don't have,
-  // so they are omitted rather than guessed. A merged-in row whose parent is also
-  // past the cap sits AMONG the roots without being one — root chrome there would
-  // assert a position we don't know.
-  const treeNode = nodeMap.get(observation.id);
-  const isRoot =
-    roots.some((root) => root.id === observation.id) &&
-    !(
-      detachedObservationIsMisplaced && observation.id === detachedObservationId
-    );
-
   // Without a TRACE row (v4) this span stands in for the trace, so its Scores
   // tab covers the trace-level scores.
   const ownsTraceLevelScores = traceLevelScoreOwnerIds.has(observation.id);
-
-  // For root observations, compute subtree metrics for badge tooltips.
-  // We compute this lazily here rather than in tree-building.ts because:
-  // - TreeNode.totalCost just has the aggregated cost, we use it
-  // - costDetails/usageDetails (for tooltips) aren't in TreeNode, adding them causes high memory for all nodes, esp on big traces
-  // - computation only runs when viewing a root observation and is memo'd
-  const subtreeMetrics = useMemo(() => {
-    if (!isRoot || !treeNode) return null;
-    const descendantIds = getDescendantIds(treeNode);
-    const descendantIdSet = new Set(descendantIds);
-
-    const descendants = observations.filter((obs) =>
-      descendantIdSet.has(obs.id),
-    );
-    const allObservations = [observation, ...descendants];
-    return aggregateTraceMetrics(allObservations);
-  }, [isRoot, treeNode, observations, observation]);
 
   const selectedTab = resolveDetailTab(globalSelectedTab, tabs);
 
@@ -360,8 +317,6 @@ export function ConnectedObservationDetailView({
                   objectStartTime: observation.startTime,
                 }),
             }}
-            subtreeMetrics={subtreeMetrics}
-            treeNodeTotalCost={treeNode?.totalCost}
           />
 
           <Tabs
