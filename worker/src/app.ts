@@ -469,26 +469,29 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
 
 export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
 
-// Every Topics queue shares one switch, so fleets that only run trace batches skip all of them.
-if (isTopicsEnabled() && env.QUEUE_CONSUMER_TOPICS_IS_ENABLED === "true") {
-  WorkerManager.register(QueueName.Topics, topicsQueueProcessor, {
-    concurrency: 1,
-  });
-  WorkerManager.register(QueueName.TopicsUpdate, topicsQueueProcessor, {
-    concurrency: 1,
-  });
-  WorkerManager.register(
-    QueueName.TopicsEmbedding,
-    topicsEmbeddingQueueProcessor,
-    {
-      concurrency: 2,
-    },
-  );
-  WorkerManager.register(
-    QueueName.TopicsAutomatic,
-    topicsAutomaticQueueProcessor,
-    { concurrency: 2 },
-  );
+if (isTopicsEnabled()) {
+  if (env.QUEUE_CONSUMER_TOPICS_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(QueueName.Topics, topicsQueueProcessor, {
+      concurrency: 1,
+    });
+  if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(QueueName.TopicsUpdate, topicsQueueProcessor, {
+      concurrency: 1,
+    });
+  if (env.QUEUE_CONSUMER_TOPICS_EMBEDDING_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(
+      QueueName.TopicsEmbedding,
+      topicsEmbeddingQueueProcessor,
+      {
+        concurrency: 2,
+      },
+    );
+  if (env.QUEUE_CONSUMER_TOPICS_AUTOMATIC_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(
+      QueueName.TopicsAutomatic,
+      topicsAutomaticQueueProcessor,
+      { concurrency: 2 },
+    );
 }
 
 if (
