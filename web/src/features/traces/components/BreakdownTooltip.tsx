@@ -103,7 +103,7 @@ export const BreakdownTooltip = ({
         <TooltipContent className="w-fit max-w-[calc(100vw-2rem)] p-3">
           <div className="grid min-w-0 grid-cols-[repeat(4,max-content)] gap-x-3 gap-y-3 max-sm:w-full max-sm:grid-cols-[minmax(0,1fr)_repeat(3,max-content)]">
             <div className="col-span-4 flex min-w-0 flex-col gap-0.5">
-              <span className="text-sm">
+              <span className="text-sm font-bold">
                 {isCost ? "Cost breakdown" : "Usage breakdown"}
               </span>
 
@@ -195,8 +195,8 @@ const breakdownRowVariants = cva("min-w-0 items-center text-sm leading-5", {
     },
     variant: {
       item: "text-muted-foreground",
-      section: "",
-      total: "border-t pt-1.5",
+      section: "font-bold",
+      total: "border-t pt-1.5 font-bold",
     },
   },
   defaultVariants: {
@@ -255,7 +255,7 @@ function BreakdownRow({
         {value}
       </span>
       {share !== undefined ? (
-        <span className="text-muted-foreground text-right font-mono text-xs tabular-nums">
+        <span className="text-muted-foreground text-right font-mono text-xs font-normal tabular-nums">
           {formatShare(share)}
         </span>
       ) : null}
