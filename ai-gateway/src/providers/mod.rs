@@ -1,12 +1,13 @@
 mod chat_completions;
 pub(crate) mod model_list;
 
-use std::{sync::Arc, time::Duration};
+use std::{convert::Infallible, sync::Arc, time::Duration};
 
 use axum::{
     body::{Body, Bytes},
     http::{HeaderMap, HeaderName, HeaderValue, Response, header},
 };
+use futures_util::stream;
 use reqwest::Client;
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_tracing::DisableOtelPropagation;
@@ -222,20 +223,20 @@ impl ProviderTransport {
         } else {
             ExecutionCapture::unobserved()
         };
-        let body = if let (true, Some(provider_model)) =
-            (route.requires_model_rewrite(), provider_model)
-        {
-            capture.replace_requested_model(provider_model);
-            rewrite_model(body, provider_model)
-        } else {
-            body
-        };
         // Capture the caller's body shape, but keep upstream-only changes out of the input.
         let body = match route {
             Route::OpenAiChatCompletions => {
                 chat_completions::request_stream_usage(headers, &body).unwrap_or(body)
             }
             _ => body,
+        };
+        let body = if let (true, Some(provider_model)) =
+            (route.requires_model_rewrite(), provider_model)
+        {
+            capture.replace_requested_model(provider_model);
+            ProviderRequestBody::with_rewritten_model(body, provider_model)
+        } else {
+            ProviderRequestBody::Contiguous(body)
         };
         let model = capture
             .requested_model()
@@ -249,7 +250,7 @@ impl ProviderTransport {
             .header(header::ACCEPT_ENCODING, "identity")
             .header(credential_name, credential);
         if route.requires_model_rewrite() {
-            upstream = upstream.body(body);
+            upstream = upstream.body(body.into_reqwest());
         }
         let response = tokio::time::timeout_at(
             permit
@@ -315,42 +316,69 @@ impl ProviderTransport {
     }
 }
 
+enum ProviderRequestBody {
+    Contiguous(Bytes),
+    Segmented([Bytes; 3]),
+}
+
+impl ProviderRequestBody {
+    fn with_rewritten_model(body: Bytes, provider_model: &str) -> Self {
+        let (start, end) = {
+            // Borrow the raw top-level value so its slice still points into `body`.
+            // Re-serializing the full request can reorder nested schema properties and
+            // normalize otherwise untouched caller JSON.
+            let Ok(request) = serde_json::from_slice::<ModelMember<'_>>(&body) else {
+                // The HTTP layer validates `model` before forwarding. Preserve the
+                // original bytes if this helper still receives an unexpected body.
+                return Self::Contiguous(body);
+            };
+            let model = request.model.get();
+            // Convert the borrowed value's position into indexes for a surgical
+            // replacement, with bounds checks before slicing the original body.
+            let Some(start) = (model.as_ptr() as usize).checked_sub(body.as_ptr() as usize) else {
+                return Self::Contiguous(body);
+            };
+            let end = start.saturating_add(model.len());
+            if end > body.len() {
+                return Self::Contiguous(body);
+            }
+            (start, end)
+        };
+        let Ok(model) = serde_json::to_vec(provider_model) else {
+            return Self::Contiguous(body);
+        };
+        Self::Segmented([body.slice(..start), Bytes::from(model), body.slice(end..)])
+    }
+
+    fn into_reqwest(self) -> reqwest::Body {
+        match self {
+            Self::Contiguous(body) => body.into(),
+            Self::Segmented(segments) => reqwest::Body::wrap_stream(stream::iter(
+                segments.into_iter().map(Ok::<_, Infallible>),
+            )),
+        }
+    }
+
+    #[cfg(test)]
+    fn into_bytes(self) -> Bytes {
+        match self {
+            Self::Contiguous(body) => body,
+            Self::Segmented(segments) => {
+                let capacity = segments.iter().map(Bytes::len).sum();
+                let mut body = Vec::with_capacity(capacity);
+                for segment in segments {
+                    body.extend_from_slice(&segment);
+                }
+                Bytes::from(body)
+            }
+        }
+    }
+}
+
 #[derive(serde::Deserialize)]
 struct ModelMember<'a> {
     #[serde(borrow)]
     model: &'a serde_json::value::RawValue,
-}
-
-fn rewrite_model(body: Bytes, provider_model: &str) -> Bytes {
-    let (start, end) = {
-        // Borrow the raw top-level value so its slice still points into `body`.
-        // Re-serializing the full request can reorder nested schema properties and
-        // normalize otherwise untouched caller JSON.
-        let Ok(request) = serde_json::from_slice::<ModelMember<'_>>(&body) else {
-            // The HTTP layer validates `model` before forwarding. Preserve the
-            // original bytes if this helper still receives an unexpected body.
-            return body;
-        };
-        let model = request.model.get();
-        // Convert the borrowed value's position into indexes for a surgical
-        // replacement, with bounds checks before slicing the original body.
-        let Some(start) = (model.as_ptr() as usize).checked_sub(body.as_ptr() as usize) else {
-            return body;
-        };
-        let end = start.saturating_add(model.len());
-        if end > body.len() {
-            return body;
-        }
-        (start, end)
-    };
-    let Ok(model) = serde_json::to_vec(provider_model) else {
-        return body;
-    };
-    let mut rewritten = Vec::with_capacity(body.len() - (end - start) + model.len());
-    rewritten.extend_from_slice(&body[..start]);
-    rewritten.extend_from_slice(&model);
-    rewritten.extend_from_slice(&body[end..]);
-    Bytes::from(rewritten)
 }
 
 fn provider_credential(
