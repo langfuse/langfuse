@@ -6,6 +6,18 @@ export type InMemoryFilterOptions = {
   emptyEqualsNullColumns?: ReadonlySet<string>;
 };
 
+// Strings that ClickHouse toFloat64OrNull parses as finite numbers, so
+// in-memory metadata comparisons match the same values as ClickHouse queries.
+const DECIMAL_NUMBER_PATTERN = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
+
+const toComparableNumber = (value: unknown): number => {
+  if (typeof value === "number") return value;
+  if (typeof value === "string" && DECIMAL_NUMBER_PATTERN.test(value)) {
+    return Number(value);
+  }
+  return NaN;
+};
+
 export class InMemoryFilterService {
   /**
    * Evaluates whether a data object matches the given filter conditions.
@@ -401,10 +413,7 @@ export class InMemoryFilterService {
       return false;
     }
     const objectValue = record[key];
-    const numValue =
-      typeof objectValue === "number"
-        ? objectValue
-        : parseFloat(String(objectValue));
+    const numValue = toComparableNumber(objectValue);
 
     if (isNaN(numValue)) {
       return false;
