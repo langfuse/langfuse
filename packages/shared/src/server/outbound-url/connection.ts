@@ -25,6 +25,10 @@ export type RequestInitWithDispatcher = RequestInit & { dispatcher?: unknown };
 export interface OutboundUrlConnectionValidationOptions {
   whitelist?: OutboundUrlValidationWhitelist;
   logContext?: string;
+  // How long one address family may take to connect before the next is
+  // tried. Omitted callers keep Node's default. Undici fixes this when the
+  // Agent is created, so it is part of the pool key below.
+  addressAttemptTimeoutMs?: number;
 }
 
 const secureOutboundDispatchersByPolicy = new Map<string, UndiciAgent>();
@@ -166,6 +170,7 @@ function getSecureOutboundDispatcher(
   validationOptions: OutboundUrlConnectionValidationOptions,
 ): UndiciAgent {
   const policyKey = getConnectionValidationPolicyKey(validationOptions);
+  const { addressAttemptTimeoutMs } = validationOptions;
   return getOrCreatePolicyResource(
     secureOutboundDispatchersByPolicy,
     policyKey,
@@ -176,13 +181,14 @@ function getSecureOutboundDispatcher(
           // This lookup runs at socket connection time, so DNS rebinding between
           // the earlier URL validation and the actual HTTP connection is blocked.
           lookup: createSecureOutboundLookup(validationOptions),
-          // Each address family gets a full second before the next one is
-          // tried. Node's 250ms default aborts a handshake that loses its
-          // first SYN, whose retransmit waits about a second. A blackholed
-          // family then delays the fallback by one second, inside the
-          // caller's request budget.
-          autoSelectFamily: true,
-          autoSelectFamilyAttemptTimeout: 1_000,
+          // The attempt timeout is only used while autoSelectFamily is on.
+          // Callers that omit it keep Node's 250ms default.
+          ...(addressAttemptTimeoutMs != null
+            ? {
+                autoSelectFamily: true,
+                autoSelectFamilyAttemptTimeout: addressAttemptTimeoutMs,
+              }
+            : {}),
         },
       }),
   );
@@ -236,15 +242,19 @@ function validateConnectionTimeLookupResult(
 function getConnectionValidationPolicyKey({
   whitelist,
   logContext,
+  addressAttemptTimeoutMs,
 }: OutboundUrlConnectionValidationOptions): string {
   // Keep separate Agent pools per whitelist. A single shared Agent could reuse
   // a socket opened under a permissive policy for a later stricter request to
   // the same origin without performing another DNS lookup. The lookup closure
   // also captures logContext, so include it to avoid mislabeling connection-time
-  // block warnings when different flows share the same whitelist.
+  // block warnings when different flows share the same whitelist. The address
+  // attempt timeout is fixed at Agent construction, so it belongs in the key
+  // too.
   return JSON.stringify({
     whitelist: normalizeWhitelist(whitelist),
     logContext: logContext ?? "Outbound URL",
+    addressAttemptTimeoutMs: addressAttemptTimeoutMs ?? null,
   });
 }
 
