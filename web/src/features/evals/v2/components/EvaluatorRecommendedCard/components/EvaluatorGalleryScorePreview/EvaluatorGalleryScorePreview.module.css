@@ -1,5 +1,5 @@
-/* Recessed base, darker than the chip's bg-muted in both modes; a faint mesh in
-   the type hue; light grain. */
+/* Base well apart from the chip's bg-muted (darker in light mode, lighter in
+   dark); a faint mesh in the type hue; light grain. */
 .preview {
   --preview-base: hsl(var(--muted-gray));
   position: relative;
@@ -19,7 +19,7 @@
 }
 
 :global(.dark) .preview {
-  --preview-base: hsl(var(--background));
+  --preview-base: hsl(var(--border));
 }
 
 .preview::after {
