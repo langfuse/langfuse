@@ -154,6 +154,18 @@ function QuestionnaireForm({
       });
   };
 
+  const nextLabel = isLastStep ? "Submit" : "Next";
+  const backButton =
+    stepIndex > 0 ? (
+      <Button
+        text="Back"
+        variant="ghost"
+        size="sm"
+        disabled={isBusy}
+        onClick={handleBack}
+      />
+    ) : null;
+
   return (
     <form
       aria-labelledby={titleId}
@@ -197,15 +209,7 @@ function QuestionnaireForm({
             isDisabled={isBusy}
           />
           <div className="flex items-center gap-2 px-3 pb-3">
-            {stepIndex > 0 ? (
-              <Button
-                text="Back"
-                variant="ghost"
-                size="sm"
-                disabled={isBusy}
-                onClick={handleBack}
-              />
-            ) : null}
+            {backButton}
             <span className="flex-1" />
             <Button
               text="Skip"
@@ -215,7 +219,7 @@ function QuestionnaireForm({
               onClick={handleSkip}
             />
             <Button
-              text={isLastStep ? "Submit" : "Next"}
+              text={nextLabel}
               size="sm"
               shortcutKeys={["Mod", "Enter"]}
               disabled={isDisabled}

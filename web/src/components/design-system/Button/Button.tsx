@@ -132,6 +132,15 @@ export function Button(props: ButtonProps) {
   }
 
   const Icon = props.icon;
+  const shortcutVariant =
+    (props.variant ?? "primary") === "primary" ? "inverse" : "default";
+  const shortcutHint = props.shortcutKeys ? (
+    <KeyboardShortcut
+      keys={props.shortcutKeys}
+      size="sm"
+      variant={shortcutVariant}
+    />
+  ) : null;
 
   return (
     <button
@@ -152,17 +161,7 @@ export function Button(props: ButtonProps) {
         <>
           {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
           {props.text}
-          {props.shortcutKeys ? (
-            <KeyboardShortcut
-              keys={props.shortcutKeys}
-              size="sm"
-              variant={
-                (props.variant ?? "primary") === "primary"
-                  ? "inverse"
-                  : "default"
-              }
-            />
-          ) : null}
+          {shortcutHint}
         </>
       )}
     </button>

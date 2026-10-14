@@ -71,6 +71,7 @@ import { InAppAgentQuestionnaireCard } from "@/src/features/in-app-agent/compone
 import {
   getInAppAgentActivityProgressLabel,
   type InAppAgentError,
+  type InAppAgentToolCallContent,
   isInAppAgentRateLimited,
 } from "@/src/features/in-app-agent/components/utils/utils";
 import { deduplicateBy } from "@/src/utils/arrays";
@@ -965,6 +966,50 @@ function InAppAgentRateLimitError({
   );
 }
 
+type PendingToolCallCardProps = {
+  tool: InAppAgentToolCallContent;
+  isCompact: boolean;
+  isDisabled: boolean;
+} & Pick<
+  InAppAgentWindowProps,
+  | "onApproveToolCall"
+  | "onAlwaysAllowToolCall"
+  | "onAnswerQuestionnaire"
+  | "onRejectToolCall"
+>;
+
+function PendingToolCallCard({
+  tool,
+  isCompact,
+  isDisabled,
+  onApproveToolCall,
+  onAlwaysAllowToolCall,
+  onAnswerQuestionnaire,
+  onRejectToolCall,
+}: PendingToolCallCardProps) {
+  if (tool.name === IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME) {
+    return (
+      <InAppAgentQuestionnaireCard
+        tool={tool}
+        isDisabled={isDisabled}
+        onAnswerQuestionnaire={onAnswerQuestionnaire}
+        onRejectToolCall={onRejectToolCall}
+      />
+    );
+  }
+
+  return (
+    <InAppAgentToolCallCard
+      tool={tool}
+      isCompact={isCompact}
+      isDisabled={isDisabled}
+      onApproveToolCall={onApproveToolCall}
+      onAlwaysAllowToolCall={onAlwaysAllowToolCall}
+      onRejectToolCall={onRejectToolCall}
+    />
+  );
+}
+
 function InAppAgentIssueNotice({ isExpanded }: { isExpanded: boolean }) {
   return (
     <InAppAgentNotice
@@ -1524,27 +1569,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 isExpanded && "mx-auto max-w-3xl",
               )}
             >
-              {pendingToolCalls.map((tool, index) =>
-                tool.name === IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME ? (
-                  <InAppAgentQuestionnaireCard
-                    key={`${tool.approval?.id ?? tool.name}-${index}`}
-                    tool={tool}
-                    isDisabled={isRateLimited}
-                    onAnswerQuestionnaire={onAnswerQuestionnaire}
-                    onRejectToolCall={onRejectToolCall}
-                  />
-                ) : (
-                  <InAppAgentToolCallCard
-                    key={`${tool.approval?.id ?? tool.name}-${index}`}
-                    tool={tool}
-                    isCompact={!isExpanded}
-                    isDisabled={isRateLimited}
-                    onApproveToolCall={onApproveToolCall}
-                    onAlwaysAllowToolCall={onAlwaysAllowToolCall}
-                    onRejectToolCall={onRejectToolCall}
-                  />
-                ),
-              )}
+              {pendingToolCalls.map((tool, index) => (
+                <PendingToolCallCard
+                  key={`${tool.approval?.id ?? tool.name}-${index}`}
+                  tool={tool}
+                  isCompact={!isExpanded}
+                  isDisabled={isRateLimited}
+                  onApproveToolCall={onApproveToolCall}
+                  onAlwaysAllowToolCall={onAlwaysAllowToolCall}
+                  onAnswerQuestionnaire={onAnswerQuestionnaire}
+                  onRejectToolCall={onRejectToolCall}
+                />
+              ))}
             </div>
           </div>
         ) : null}
