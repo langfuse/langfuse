@@ -1,10 +1,5 @@
-import {
-  useState,
-  type ChangeEvent,
-  type SyntheticEvent,
-  type KeyboardEvent,
-  type RefObject,
-} from "react";
+import { type KeyboardEvent } from "react";
+import { useForm } from "react-hook-form";
 import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -15,42 +10,32 @@ import styles from "./EvaluatorGalleryAiBox.module.css";
 type EvaluatorGalleryAiBoxProps = {
   /** Resolves false when the prompt was not sent; the text is kept. */
   onSubmit: (prompt: string) => Promise<boolean>;
-  textareaRef?: RefObject<HTMLTextAreaElement | null>;
 };
+
+type AiBoxFormValues = { prompt: string };
 
 /** Free-text starting point that hands the description to the assistant. */
 export function EvaluatorGalleryAiBox({
   onSubmit,
-  textareaRef,
 }: EvaluatorGalleryAiBoxProps) {
-  const [prompt, setPrompt] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [notSent, setNotSent] = useState(false);
-  const trimmedPrompt = prompt.trim();
+  const form = useForm<AiBoxFormValues>({ defaultValues: { prompt: "" } });
+  const hasPrompt = form.watch("prompt").trim().length > 0;
+  const notSent = Boolean(form.formState.errors.root?.notSent);
 
-  const submitPrompt = async () => {
-    if (!trimmedPrompt || isSubmitting) return;
-    setIsSubmitting(true);
-    try {
-      const sent = await onSubmit(trimmedPrompt);
-      setNotSent(!sent);
-      if (sent) setPrompt("");
-    } finally {
-      setIsSubmitting(false);
+  const handleSubmit = form.handleSubmit(async ({ prompt }) => {
+    const trimmed = prompt.trim();
+    if (!trimmed) return;
+    const sent = await onSubmit(trimmed);
+    if (sent) {
+      form.reset();
+    } else {
+      form.setError("root.notSent", { type: "notSent" });
     }
-  };
-  const handleSubmit = (event: SyntheticEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    submitPrompt().catch(() => undefined);
-  };
-  const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    setPrompt(event.target.value);
-    setNotSent(false);
-  };
+  });
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
-      submitPrompt().catch(() => undefined);
+      handleSubmit().catch(() => undefined);
     }
   };
 
@@ -63,9 +48,9 @@ export function EvaluatorGalleryAiBox({
       onSubmit={handleSubmit}
     >
       <textarea
-        ref={textareaRef}
-        value={prompt}
-        onChange={handleChange}
+        {...form.register("prompt", {
+          onChange: () => form.clearErrors("root.notSent"),
+        })}
         onKeyDown={handleKeyDown}
         rows={2}
         aria-label="Describe what you want to check"
@@ -84,7 +69,7 @@ export function EvaluatorGalleryAiBox({
           variant="secondary"
           icon={BotMessageSquare}
           text="Build with AI"
-          disabled={!trimmedPrompt || isSubmitting}
+          disabled={!hasPrompt || form.formState.isSubmitting}
         />
       </div>
     </form>
