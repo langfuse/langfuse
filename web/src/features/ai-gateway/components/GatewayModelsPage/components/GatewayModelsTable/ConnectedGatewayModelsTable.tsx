@@ -4,29 +4,18 @@ import { RefreshCw } from "lucide-react";
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
+import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Button } from "@/src/components/ui/button";
-import {
-  DataTableControls,
-  DataTableControlsProvider,
-} from "@/src/components/table/data-table-controls";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { useSidebarFilterState } from "@/src/features/filters";
-import { gatewayModelsFilterConfig } from "@/src/features/ai-gateway/constants/modelsFilterConfig";
-import { GATEWAY_MODELS_FIELD_REGISTRY } from "@/src/features/ai-gateway/constants/modelsSearchRegistry";
-import {
-  TableSearchBar,
-  toObservedOptions,
-  withFieldOptions,
-} from "@/src/features/search-bar";
+import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import {
   filterGatewayModels,
   type GatewayModelRow,
 } from "./fns/filterGatewayModels";
-import { getGatewayModelConnectionSearchOptions } from "./fns/getGatewayModelConnectionSearchOptions";
-import { GatewayModelsTable, gatewayModelsColumns } from "./GatewayModelsTable";
+import { GatewayModelsTable } from "./GatewayModelsTable";
 
-const TABLE_NAME = gatewayModelsFilterConfig.tableName;
+const ALL_PROVIDERS = "all";
 
 export function ConnectedGatewayModelsTable({
   models,
@@ -54,86 +43,33 @@ export function ConnectedGatewayModelsTable({
   onLoadMoreProviders: () => unknown;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [provider, setProvider] = useState<GatewayProvider | "all">(
+    ALL_PROVIDERS,
+  );
   const [pageIndex, setPageIndex] = useState(0);
   const [pendingPage, setPendingPage] = useState<{
     index: number;
     filterKey: string;
   } | null>(null);
   const pageSize = 10;
-  const filterOptions = useMemo(
-    () => ({
-      connection: [
-        ...new Map(
-          models
-            .flatMap((model) => model.availableVia)
-            .map((connection) => [connection.connectionId, connection]),
-        ).values(),
-      ]
-        .toSorted((left, right) =>
-          left.connectionName.localeCompare(right.connectionName),
-        )
-        .map((connection) => ({
-          value: connection.connectionId,
-          displayValue: connection.connectionName,
-        })),
-      provider: uniqueSorted(
+  const providerOptions = useMemo<
+    Array<{ value: GatewayProvider | "all"; label: string }>
+  >(
+    () => [
+      { value: ALL_PROVIDERS, label: "All providers" },
+      ...uniqueSorted(
         models.flatMap((model) =>
           model.availableVia.map((connection) => connection.provider),
         ),
-      ),
-      apiFormat: uniqueSorted(models.flatMap((model) => model.apiFormats)),
-    }),
+      ).map((value) => ({ value, label: providerLabels[value] })),
+    ],
     [models],
   );
-  const queryFilter = useSidebarFilterState(
-    gatewayModelsFilterConfig,
-    filterOptions,
-    {
-      stateLocation: "url",
-    },
-  );
-  const retainedConnectionIds = useMemo(
-    () =>
-      queryFilter.filterState.flatMap((filter) =>
-        filter.column === "connection" && filter.type === "arrayOptions"
-          ? filter.value
-          : [],
-      ),
-    [queryFilter.filterState],
-  );
-  const connectionSearchOptions = useMemo(
-    () =>
-      getGatewayModelConnectionSearchOptions(
-        filterOptions.connection,
-        retainedConnectionIds,
-      ),
-    [filterOptions.connection, retainedConnectionIds],
-  );
-  const searchRegistry = useMemo(
-    () =>
-      withFieldOptions(
-        GATEWAY_MODELS_FIELD_REGISTRY,
-        "connection",
-        connectionSearchOptions.registryOptions,
-      ),
-    [connectionSearchOptions.registryOptions],
-  );
-  const observedOptions = useMemo(
-    () =>
-      toObservedOptions(
-        {
-          ...filterOptions,
-          connection: connectionSearchOptions.observedValues,
-        },
-        isLoading,
-      ),
-    [connectionSearchOptions.observedValues, filterOptions, isLoading],
-  );
   const filteredModels = useMemo(
-    () => filterGatewayModels(models, searchQuery, queryFilter.filterState),
-    [models, queryFilter.filterState, searchQuery],
+    () => filterGatewayModels(models, searchQuery, provider),
+    [models, provider, searchQuery],
   );
-  const filterKey = JSON.stringify([searchQuery, queryFilter.filterState]);
+  const filterKey = JSON.stringify([searchQuery, provider]);
   useEffect(() => {
     if (pendingPage && pendingPage.filterKey !== filterKey) {
       setPendingPage(null);
@@ -171,7 +107,7 @@ export function ConnectedGatewayModelsTable({
     hasProviders,
     hasSynced,
     hasActiveFilters:
-      searchQuery.trim().length > 0 || queryFilter.filterState.length > 0,
+      searchQuery.trim().length > 0 || provider !== ALL_PROVIDERS,
   });
 
   return (
@@ -209,77 +145,49 @@ export function ConnectedGatewayModelsTable({
         </Alert>
       ) : null}
 
-      <DataTableControlsProvider tableName={TABLE_NAME}>
-        <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-md border">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <SearchableTableFilterLayout
-              search={
-                <TableSearchBar
-                  key={queryFilter.draftResetKey}
-                  tableName={TABLE_NAME}
-                  registry={searchRegistry}
-                  filterState={queryFilter.searchBarFilterState}
-                  setFilterState={(filters) =>
-                    queryFilter.setFilterState(
-                      filters.map((filter) =>
-                        filter.column === "connection" &&
-                        filter.type === "arrayOptions"
-                          ? {
-                              ...filter,
-                              value: filter.value.map(
-                                (value) =>
-                                  connectionSearchOptions.connectionIdByDisplayValue.get(
-                                    value,
-                                  ) ?? value,
-                              ),
-                            }
-                          : filter,
-                      ),
-                    )
-                  }
-                  observed={observedOptions}
-                  isV4={false}
-                  search={{
-                    query: searchQuery,
-                    setQuery: (query) => setSearchQuery(query ?? ""),
-                  }}
-                />
-              }
-              toolbar={
-                <DataTableToolbar
-                  tableName={TABLE_NAME}
-                  columns={gatewayModelsColumns}
-                  filterState={queryFilter.filterState}
-                />
-              }
-            >
-              <DataTableControls queryFilter={queryFilter} />
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <GatewayModelsTable
-                  data={
-                    isLoading
-                      ? { status: "loading" }
-                      : {
-                          status: "success",
-                          data: filteredModels.slice(
-                            currentPageIndex * pageSize,
-                            (currentPageIndex + 1) * pageSize,
-                          ),
-                        }
-                  }
-                  noResultsMessage={emptyMessage}
-                  pagination={pagination}
-                />
-              </div>
-            </SearchableTableFilterLayout>
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <div className="w-80 max-w-full">
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              onSubmit={setSearchQuery}
+              placeholder="Search models"
+            />
+          </div>
+          <div className="w-44">
+            <SelectInput
+              aria-label="Filter by provider"
+              value={provider}
+              options={providerOptions}
+              onValueChange={setProvider}
+              placeholder="All providers"
+            />
           </div>
         </div>
-      </DataTableControlsProvider>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border">
+          <GatewayModelsTable
+            data={
+              isLoading
+                ? { status: "loading" }
+                : {
+                    status: "success",
+                    data: filteredModels.slice(
+                      currentPageIndex * pageSize,
+                      (currentPageIndex + 1) * pageSize,
+                    ),
+                  }
+            }
+            noResultsMessage={emptyMessage}
+            pagination={pagination}
+          />
+        </div>
+      </div>
     </div>
   );
 }
 
-function uniqueSorted(values: string[]) {
+function uniqueSorted<T extends string>(values: T[]) {
   return [...new Set(values)].toSorted((left, right) =>
     left.localeCompare(right),
   );
