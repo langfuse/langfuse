@@ -71,7 +71,7 @@ export const LimitByNode = {
 
 /**
  * ClickHouse array subscript `arr[index]`. Children are traced nodes
- * (typically a column ref and an `indexOf(...)` FunctionNode), not raw SQL.
+ * (typically a `mapFromArrays(...)` FunctionNode and a bound key), not raw SQL.
  *
  * Same closed-`kind` constraint as ARRAY JOIN: not a Kysely visitor-map
  * kind. The dialect compiler and transformer special-case this object.

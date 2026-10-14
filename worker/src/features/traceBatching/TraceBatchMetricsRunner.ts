@@ -135,13 +135,14 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
         state,
         ...first.keys,
       )) as number[];
-      this.recordMapMemory(values, String(shard));
       values.forEach((value, index) => (totals[index] += Number(value)));
     }
-    this.recordMapMemory(totals, "total");
+    // Per-shard series would multiply custom metrics by the shard count on
+    // every reporting worker; only the summed totals are emitted.
+    this.recordMapMemory(totals);
   }
 
-  private recordMapMemory(values: number[], shard: string): void {
+  private recordMapMemory(values: number[]): void {
     const [
       dueBytes,
       dueEntries,
@@ -159,12 +160,12 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
     ]) {
       recordGauge(`${METRIC_PREFIX}.redis_key_bytes`, bytes, {
         key,
-        shard,
+        shard: "total",
         unit: "bytes",
       });
       recordGauge(`${METRIC_PREFIX}.redis_key_entries`, entries, {
         key,
-        shard,
+        shard: "total",
         unit: "records",
       });
     }

@@ -54,21 +54,21 @@ describe("events.transcriptByTraceId preview access", () => {
   it.each([
     {
       name: "user preview",
-      flags: ["modernSession", "sessionTimeline"],
+      flags: ["sessionViewV2", "sessionViewV2Timeline"],
       defaults: [],
       allowed: true,
     },
-    { name: "disabled preview", flags: [], defaults: [], allowed: false },
+    { name: "default preview", flags: [], defaults: [], allowed: true },
     {
       name: "organization default",
       flags: [],
-      defaults: ["modernSession", "sessionTimeline"],
+      defaults: ["sessionViewV2", "sessionViewV2Timeline"],
       allowed: true,
     },
     {
       name: "user opt-out",
-      flags: [getFeaturePreviewOptOutFlag("sessionTimeline")],
-      defaults: ["modernSession", "sessionTimeline"],
+      flags: [getFeaturePreviewOptOutFlag("sessionViewV2Timeline")],
+      defaults: ["sessionViewV2", "sessionViewV2Timeline"],
       allowed: false,
     },
   ])("respects $name", async ({ flags, defaults, allowed }) => {

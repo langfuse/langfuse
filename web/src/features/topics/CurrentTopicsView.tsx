@@ -41,11 +41,18 @@ export function CurrentTopicsView({
     setSelectedTraceId(null);
     setFilters(selectTopicTraceFilters(filters, topicId));
   }
-  const visible = filterTopicTraces(facet.rows, filters, searchQuery);
-  const isFiltered = filters.length > 0 || Boolean(searchQuery?.trim());
-  const matchingTraceKey = isFiltered
-    ? JSON.stringify([...new Set(visible.map((row) => row.traceId))].sort())
-    : null;
+  const { visible, matchingTraceKey } = useMemo(() => {
+    const isFiltered = filters.length > 0 || Boolean(searchQuery?.trim());
+    const visible = isFiltered
+      ? filterTopicTraces(facet.rows, filters, searchQuery)
+      : facet.rows;
+    return {
+      visible,
+      matchingTraceKey: isFiltered
+        ? JSON.stringify([...new Set(visible.map((row) => row.traceId))].sort())
+        : null,
+    };
+  }, [facet.rows, filters, searchQuery]);
   /** Frame identity changes only when matching IDs change, preserving hover and focus across refreshes. */
   const matchingTraceIds = useMemo(
     () =>

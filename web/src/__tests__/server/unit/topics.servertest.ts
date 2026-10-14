@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   readLatestTopicAssignments: vi.fn(),
   getLatestFacetSummaries: vi.fn(),
   getPublishedTopicRun: vi.fn(),
-  ensureDefaultTopicFacets: vi.fn(),
   getTopicFacetVersion: vi.fn(),
   createTopicFacet: vi.fn(),
   createTopicFacetVersion: vi.fn(),
@@ -38,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   getTopicsModels: vi.fn(),
   checkTopicsModelSettings: vi.fn(),
   saveTopicsSetup: vi.fn(),
+  setTopicsAutomaticProcessing: vi.fn(),
   enqueueTopicExecution: vi.fn(),
   getTopicExecutionQueueState: vi.fn(),
   queryClickhouse: vi.fn(),
@@ -267,12 +267,9 @@ describe("Topics project allowlist", () => {
   it("keeps reads and facet configuration available when processing is disabled", async () => {
     mocks.isTopicsProjectEnabled.mockReturnValue(false);
     mocks.listTopicFacets.mockResolvedValue([]);
-    mocks.ensureDefaultTopicFacets.mockResolvedValue([]);
 
     await expect(caller().facets({ projectId })).resolves.toEqual([]);
-    await expect(caller().initialize({ projectId })).resolves.toEqual([]);
     expect(mocks.listTopicFacets).toHaveBeenCalledWith(projectId);
-    expect(mocks.ensureDefaultTopicFacets).toHaveBeenCalledWith(projectId);
   });
 });
 
@@ -1288,7 +1285,6 @@ describe("Topics model settings", () => {
     embedding: { llmApiKeyId: "key", model: "text-embedding-3-small" },
     embeddingDimensions: 1024,
     clustering: null,
-    enabled: false,
   };
 
   it("returns the slot check to a writer and rejects a viewer before testing", async () => {
@@ -1312,7 +1308,6 @@ describe("Topics model settings", () => {
       embedding: settings.embedding,
       embeddingDimensions: 1024,
       clustering: null,
-      enabled: false,
     });
   });
 });
@@ -1324,7 +1319,6 @@ describe("Topics setup", () => {
     embedding: { llmApiKeyId: "key", model: "embed" },
     embeddingDimensions: 1024,
     clustering: { llmApiKeyId: "key", model: "cluster" },
-    enabled: true,
     facets: DEFAULT_TOPIC_FACETS.map((facet) => ({
       name: facet.name,
       enabled: facet.name !== "Sentiment",
@@ -1337,7 +1331,6 @@ describe("Topics setup", () => {
         value: "billing",
       },
     ],
-    sampling: 0.25,
     traceIdleMs: 120_000,
   };
 
@@ -1361,11 +1354,9 @@ describe("Topics setup", () => {
         embedding: setup.embedding,
         embeddingDimensions: 1024,
         clustering: setup.clustering,
-        enabled: true,
         facets: setup.facets,
         customFacetIds: [],
         filter: setup.filter,
-        sampling: 0.25,
         traceIdleMs: 120_000,
       },
       "user-a",
@@ -1393,6 +1384,71 @@ describe("Topics setup", () => {
   });
 });
 
+describe("Topics automatic processing", () => {
+  const rule = {
+    id: "rule-a",
+    projectId,
+    name: "Topics",
+    filter: [],
+    facetIds: [facetId],
+    updatedAt: "2026-10-13T00:00:00Z",
+  };
+
+  it("turns processing on with sampling and audit-logs the sampling change", async () => {
+    mocks.isTopicsProjectEnabled.mockReturnValue(true);
+    mocks.setTopicsAutomaticProcessing.mockResolvedValue({
+      ruleBefore: { ...rule, sampling: 1 },
+      ruleAfter: { ...rule, sampling: 0.25 },
+    });
+
+    await expect(
+      caller().setAutomaticProcessing({
+        projectId,
+        enabled: true,
+        sampling: 0.25,
+      }),
+    ).resolves.toEqual({ enabled: true, sampling: 0.25 });
+    expect(mocks.setTopicsAutomaticProcessing).toHaveBeenCalledWith(
+      projectId,
+      { enabled: true, sampling: 0.25 },
+      "user-a",
+    );
+    expect(mocks.auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resourceType: "job",
+        resourceId: "rule-a",
+        action: "update",
+        before: expect.objectContaining({ sampling: 1 }),
+        after: expect.objectContaining({ sampling: 0.25 }),
+      }),
+    );
+  });
+
+  it("refuses to turn on a project that is not on the Topics allowlist", async () => {
+    mocks.isTopicsProjectEnabled.mockReturnValue(false);
+
+    await expect(
+      caller().setAutomaticProcessing({ projectId, enabled: true }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.setTopicsAutomaticProcessing).not.toHaveBeenCalled();
+  });
+
+  it("turns processing off for a project that is not on the allowlist", async () => {
+    mocks.isTopicsProjectEnabled.mockReturnValue(false);
+    mocks.setTopicsAutomaticProcessing.mockResolvedValue({
+      ruleBefore: { ...rule, sampling: 1 },
+      ruleAfter: { ...rule, sampling: 1 },
+    });
+
+    await expect(
+      caller().setAutomaticProcessing({ projectId, enabled: false }),
+    ).resolves.toEqual({ enabled: false, sampling: 1 });
+    expect(mocks.auditLog).not.toHaveBeenCalledWith(
+      expect.objectContaining({ resourceType: "job" }),
+    );
+  });
+});
+
 describe("Topics write access", () => {
   const facetDraft = {
     name: "Intent",
@@ -1405,13 +1461,11 @@ describe("Topics write access", () => {
     embedding: slot,
     embeddingDimensions: 1024,
     clustering: slot,
-    enabled: true,
   };
   const writes: Record<
     string,
     (api: ReturnType<typeof caller>, projectId: string) => Promise<unknown>
   > = {
-    initialize: (api, projectId) => api.initialize({ projectId }),
     saveFacet: (api, projectId) => api.saveFacet({ projectId, ...facetDraft }),
     saveRule: (api, projectId) =>
       api.saveRule({
@@ -1431,20 +1485,21 @@ describe("Topics write access", () => {
           enabled: true,
         })),
         filter: [],
-        sampling: 1,
         traceIdleMs: 120_000,
       }),
+    setAutomaticProcessing: (api, projectId) =>
+      api.setAutomaticProcessing({ projectId, enabled: true, sampling: 0.5 }),
     trigger: (api, projectId) => api.trigger({ ...input, projectId }),
     retry: (api, projectId) =>
       api.retry({ projectId, executionId: "execution-a" }),
   };
   const writeMocks = [
-    mocks.ensureDefaultTopicFacets,
     mocks.createTopicFacet,
     mocks.createTopicFacetVersion,
     mocks.saveTopicRule,
     mocks.checkTopicsModelSettings,
     mocks.saveTopicsSetup,
+    mocks.setTopicsAutomaticProcessing,
     mocks.createTopicExecution,
     mocks.enqueueTopicExecution,
     mocks.auditLog,

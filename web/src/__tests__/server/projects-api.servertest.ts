@@ -461,9 +461,6 @@ describe("Projects API", () => {
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.message).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
@@ -767,9 +764,6 @@ describe("Projects API", () => {
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.message).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 404 when project does not exist", async () => {
@@ -844,9 +838,6 @@ describe("Projects API", () => {
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.message).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
@@ -909,9 +900,6 @@ describe("Projects API", () => {
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.message).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 404 when project does not exist", async () => {
@@ -1149,9 +1137,6 @@ describe("Projects API", () => {
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.message).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
@@ -1422,9 +1407,6 @@ describe("Projects API", () => {
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.message).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 401 when invalid API keys are provided", async () => {

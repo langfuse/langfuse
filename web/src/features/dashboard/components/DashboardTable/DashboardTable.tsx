@@ -35,6 +35,7 @@ export function DashboardTable({
   | "onRowClick"
   | "orderBy"
   | "setOrderBy"
+  | "topBorder"
 > & {
   hasAccess: boolean;
   onClone: (dashboard: DashboardTableRow) => void;

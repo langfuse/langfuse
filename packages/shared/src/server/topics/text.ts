@@ -1,6 +1,6 @@
 import { Sha256 } from "@aws-crypto/sha256-js";
 import { SignatureV4 } from "@smithy/signature-v4";
-import { Output } from "ai";
+import { NoObjectGeneratedError, Output, type LanguageModelUsage } from "ai";
 import { z } from "zod";
 import { decrypt } from "../../encryption";
 import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSchemas";
@@ -10,27 +10,12 @@ import {
   resolveBedrockProviderAuth,
 } from "../llm/ai-sdk/providers/bedrock";
 import { generateLLMText } from "../llm/llmText";
-import { LLMAdapter } from "../llm/types";
+import { LLMAdapter, type TraceSinkParams } from "../llm/types";
+import { logger } from "../logger";
+import { writeInternalTraceViaOtelIngestion } from "../otel/internalTraceOtelWriter";
 import type { TopicsModel } from "./model-config";
 
-/** A system prompt segment; `cache` ends a reusable prefix with a cache breakpoint. */
-export type TopicPromptPart = { text: string; cache?: boolean };
-
-type TopicTextResult = {
-  output: unknown;
-  usage: {
-    inputTokens?: number;
-    outputTokens?: number;
-    totalTokens?: number;
-    cacheReadTokens?: number;
-    cacheWriteTokens?: number;
-  };
-};
-
 const TIMEOUT_MS = 60_000;
-
-const isBedrockOpenAI = (model: TopicsModel) =>
-  model.adapter === LLMAdapter.Bedrock && /(^|\.)openai\./.test(model.model);
 
 /**
  * Structured Topics text through the project's LLM connection. GPT-5.6+ models
@@ -38,34 +23,147 @@ const isBedrockOpenAI = (model: TopicsModel) =>
  * which Converse does not accept for them, so cached prompts on those models
  * use InvokeModel at the same regional endpoint and model ID.
  */
-export async function generateTopicText<T>(params: {
-  model: TopicsModel;
-  system: TopicPromptPart[];
-  input: string;
-  schema: z.ZodType<T>;
-  maxOutputTokens: number;
-}): Promise<TopicTextResult> {
-  if (isBedrockOpenAI(params.model) && params.system.some((p) => p.cache))
-    return invokeWithCache(params);
+export async function generateTopicText<T>(
+  params: TopicTextParams<T>,
+): Promise<TopicTextResult> {
+  const startTimeISO = new Date().toISOString();
+  let result: TopicTextResult | undefined;
+  let failure: unknown;
+  const recordResponse = (response: TopicTextResult) => {
+    result = response;
+  };
+  try {
+    result =
+      isBedrockGPT(params.model) && params.system.some((part) => part.cache)
+        ? await invokeWithCache(params, recordResponse)
+        : await generateWithConnection(params, recordResponse);
+    return result;
+  } catch (error) {
+    failure = error;
+    if (NoObjectGeneratedError.isInstance(error)) {
+      result = { output: error.text, usage: topicUsage(error.usage) };
+    }
+    throw error;
+  } finally {
+    await writeTopicTrace(params, startTimeISO, result, failure);
+  }
+}
 
+async function writeTopicTrace<T>(
+  params: TopicTextParams<T>,
+  startTimeISO: string,
+  result: TopicTextResult | undefined,
+  failure: unknown,
+) {
+  const { trace } = params;
+  if (!trace) return;
+  try {
+    /** Validation marks the trace; the caller validates after accounting for usage. */
+    const validation = params.schema.safeParse(result?.output);
+    await writeInternalTraceViaOtelIngestion({
+      rootSpanId: trace.traceId,
+      eventInputs: [
+        {
+          projectId: trace.targetProjectId,
+          traceId: trace.traceId,
+          spanId: trace.traceId,
+          name: trace.traceName,
+          traceName: trace.traceName,
+          type: "GENERATION",
+          environment: trace.environment,
+          startTimeISO,
+          endTimeISO: new Date().toISOString(),
+          modelName: params.model.model,
+          modelParameters: { maxOutputTokens: params.maxOutputTokens },
+          input: JSON.stringify(topicMessages(params)),
+          output: JSON.stringify(result?.output),
+          providedUsageDetails: topicTraceUsage(result?.usage),
+          metadata: trace.metadata ?? {},
+          userId: trace.userId,
+          sessionId: trace.sessionId,
+          ...topicTraceError(failure ?? validation.error),
+        },
+      ],
+    });
+  } catch (error) {
+    logger.error("Failed to publish Topics model trace", {
+      error,
+      traceId: trace.traceId,
+    });
+  }
+}
+
+function topicTraceUsage(usage: TopicTextResult["usage"] | undefined) {
+  if (!usage) return undefined;
+  const details: Record<string, number | undefined> = {
+    input: undefined,
+    output: usage.outputTokens,
+    total: usage.totalTokens,
+    input_cached_tokens: usage.cacheReadTokens,
+    input_cache_creation: usage.cacheWriteTokens,
+  };
+  /** Standard input excludes cached tokens, which have their own prices. */
+  if (usage.inputTokens !== undefined) {
+    details.input = Math.max(
+      0,
+      usage.inputTokens -
+        (usage.cacheReadTokens ?? 0) -
+        (usage.cacheWriteTokens ?? 0),
+    );
+  }
+  return Object.fromEntries(
+    Object.entries(details).filter(
+      (entry): entry is [string, number] => entry[1] !== undefined,
+    ),
+  );
+}
+
+function topicTraceError(failure: unknown) {
+  if (failure === undefined) return {};
+  return {
+    level: "ERROR" as const,
+    statusMessage: failure instanceof Error ? failure.message : String(failure),
+  };
+}
+
+function topicMessages(params: { system: TopicPromptPart[]; input: string }) {
+  return [
+    {
+      role: "system" as const,
+      content: params.system.map((part) => part.text).join("\n\n"),
+    },
+    { role: "user" as const, content: params.input },
+  ];
+}
+
+function topicUsage(
+  usage: LanguageModelUsage | undefined,
+): TopicTextResult["usage"] {
+  return {
+    inputTokens: usage?.inputTokens,
+    outputTokens: usage?.outputTokens,
+    totalTokens: usage?.totalTokens,
+    cacheReadTokens: usage?.inputTokenDetails?.cacheReadTokens,
+    cacheWriteTokens: usage?.inputTokenDetails?.cacheWriteTokens,
+  };
+}
+
+async function generateWithConnection<T>(
+  params: TopicTextParams<T>,
+  recordResponse: (result: TopicTextResult) => void,
+): Promise<TopicTextResult> {
   const result = await generateLLMText({
     model: { adapter: params.model.adapter, id: params.model.model },
     connection: params.model.connection,
     // The static system prompt comes first so providers with automatic prefix
     // caching can reuse it across traces.
-    messages: [
-      {
-        role: "system",
-        content: params.system.map((part) => part.text).join("\n\n"),
-      },
-      { role: "user", content: params.input },
-    ],
+    messages: topicMessages(params),
     output: Output.object({ schema: params.schema }),
     maxOutputTokens: params.maxOutputTokens,
     reasoning: "none",
     // Bedrock ignores portable reasoning for OpenAI models; their default effort
     // is not none.
-    ...(isBedrockOpenAI(params.model)
+    ...(isBedrockGPT(params.model)
       ? {
           providerOptions: {
             bedrock: {
@@ -78,16 +176,26 @@ export async function generateTopicText<T>(params: {
     maxRetries: 2,
     timeout: TIMEOUT_MS,
   });
+  const usage = topicUsage(result.usage);
+  // The SDK's output getter can throw after a response with billable usage.
+  recordResponse({ output: result.text, usage });
   return {
     output: result.output,
-    usage: {
-      inputTokens: result.usage.inputTokens,
-      outputTokens: result.usage.outputTokens,
-      totalTokens: result.usage.totalTokens,
-      cacheReadTokens: result.usage.inputTokenDetails?.cacheReadTokens,
-      cacheWriteTokens: result.usage.inputTokenDetails?.cacheWriteTokens,
-    },
+    usage,
   };
+}
+
+function isBedrockGPT(model: TopicsModel): boolean {
+  if (model.adapter !== LLMAdapter.Bedrock) return false;
+  /** Opaque application inference profiles cannot identify the underlying model. */
+  const version = /(?:^|[/.])openai\.gpt-(\d+)(?:\.(\d+))?(?:[-:]|$)/.exec(
+    model.model,
+  );
+  return Boolean(
+    version &&
+    (Number(version[1]) > 5 ||
+      (Number(version[1]) === 5 && Number(version[2] ?? 0) >= 6)),
+  );
 }
 
 function signingCredentials(
@@ -153,13 +261,10 @@ async function bedrockRequestHeaders(
   return signed.headers;
 }
 
-async function invokeWithCache(params: {
-  model: TopicsModel;
-  system: TopicPromptPart[];
-  input: string;
-  schema: z.ZodType;
-  maxOutputTokens: number;
-}): Promise<TopicTextResult> {
+async function invokeWithCache(
+  params: TopicTextParams<unknown>,
+  recordResponse: (result: TopicTextResult) => void,
+): Promise<TopicTextResult> {
   const { region } = BedrockConfigSchema.parse(params.model.connection.config);
   assertValidBedrockRegion(region);
   const { $schema: _, ...schema } = z.toJSONSchema(params.schema);
@@ -219,14 +324,8 @@ async function invokeWithCache(params: {
     };
   };
   const message = json.choices?.[0]?.message;
-  if (!message?.content || json.choices?.[0]?.finish_reason === "length")
-    throw new Error(
-      message?.refusal
-        ? `The model refused: ${message.refusal}`
-        : "The model returned no complete output.",
-    );
-  return {
-    output: JSON.parse(message.content) as unknown,
+  const result: TopicTextResult = {
+    output: message?.content ?? message?.refusal,
     usage: {
       inputTokens: json.usage?.prompt_tokens,
       outputTokens: json.usage?.completion_tokens,
@@ -235,4 +334,37 @@ async function invokeWithCache(params: {
       cacheWriteTokens: json.usage?.prompt_tokens_details?.cache_write_tokens,
     },
   };
+  // Retain paid usage and the original response if parsing or validation fails.
+  recordResponse(result);
+
+  if (!message?.content || json.choices?.[0]?.finish_reason === "length")
+    throw new Error(
+      message?.refusal
+        ? `The model refused: ${message.refusal}`
+        : "The model returned no complete output.",
+    );
+  return { ...result, output: JSON.parse(message.content) as unknown };
 }
+
+/** A system prompt segment; `cache` ends a reusable prefix with a cache breakpoint. */
+export type TopicPromptPart = { text: string; cache?: boolean };
+
+type TopicTextResult = {
+  output: unknown;
+  usage: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+  };
+};
+
+type TopicTextParams<T> = {
+  model: TopicsModel;
+  system: TopicPromptPart[];
+  input: string;
+  schema: z.ZodType<T>;
+  maxOutputTokens: number;
+  trace?: TraceSinkParams;
+};

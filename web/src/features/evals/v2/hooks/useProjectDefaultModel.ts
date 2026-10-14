@@ -44,7 +44,7 @@ export function useProjectDefaultModel({
     projectId,
     scope: "llmApiKeys:read",
   });
-  const connectionsQuery = api.llmApiKey.all.useQuery(
+  const connectionsQuery = api.llmApiKey.effective.useQuery(
     { projectId },
     // Gated on the scope the router enforces, so a viewer does not fire a
     // request that can only come back 403.

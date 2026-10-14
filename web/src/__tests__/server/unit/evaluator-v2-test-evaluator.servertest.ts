@@ -3,10 +3,9 @@ import {
   LLMAdapter,
 } from "@langfuse/shared";
 import {
-  compileLangfuseMediaMessages,
   DefaultEvalModelService,
   findModel,
-  generateLLMText,
+  generateLlmEvaluatorOutput,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
 } from "@langfuse/shared/src/server";
@@ -23,8 +22,7 @@ vi.mock("@langfuse/shared/src/server", async () => ({
   DefaultEvalModelService: {
     fetchValidModelConfig: vi.fn(),
   },
-  compileLangfuseMediaMessages: vi.fn(),
-  generateLLMText: vi.fn(),
+  generateLlmEvaluatorOutput: vi.fn(),
   findModel: vi.fn(),
   resolveConfiguredCodeEvalDispatcher: vi.fn(),
   runCodeBasedEvaluationDispatch: vi.fn(),
@@ -56,13 +54,7 @@ describe("testEvaluator", () => {
         },
       } as unknown as ValidModelConfig,
     });
-    vi.mocked(compileLangfuseMediaMessages).mockImplementation(
-      async ({ messages }) => {
-        const mapped = messages.map(({ role, content }) => ({ role, content }));
-        return { providerMessages: mapped, traceMessages: mapped } as never;
-      },
-    );
-    vi.mocked(generateLLMText).mockResolvedValue({
+    vi.mocked(generateLlmEvaluatorOutput).mockResolvedValue({
       output: { score: 1, reasoning: "Correct" },
       usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
     } as never);
@@ -139,12 +131,10 @@ describe("testEvaluator", () => {
       startTime,
       shouldReadFromObservationsTable: true,
     });
-    expect(compileLangfuseMediaMessages).toHaveBeenCalledWith(
-      expect.objectContaining({ projectId: "project-1" }),
-    );
-    expect(generateLLMText).toHaveBeenCalledWith(
+    // Live runs send the model this same call, so Test reproduces them.
+    expect(generateLlmEvaluatorOutput).toHaveBeenCalledWith(
       expect.objectContaining({
-        maxRetries: 1,
+        projectId: "project-1",
         messages: [
           expect.objectContaining({
             role: "system",
@@ -155,16 +145,12 @@ describe("testEvaluator", () => {
             content: "Judge It arrives tomorrow.",
           }),
         ],
-        traceInput: [
-          expect.objectContaining({
-            role: "system",
-            content: "Judge consistently",
+        outputResultSchema: expect.objectContaining({
+          shape: expect.objectContaining({
+            reasoning: expect.anything(),
+            score: expect.anything(),
           }),
-          expect.objectContaining({
-            role: "user",
-            content: "Judge It arrives tomorrow.",
-          }),
-        ],
+        }),
         trace: expect.objectContaining({
           evaluationContext: {
             evaluatorId: "evaluator-1",

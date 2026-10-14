@@ -62,7 +62,7 @@ function JsonInputOutputView({
       {showInput && (
         <PrettyJsonView
           title="Input"
-          json={parsedInput ?? null}
+          json={parsedInput}
           isLoading={isLoading}
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "input") ?? []}

@@ -1131,6 +1131,15 @@ export async function getAuthOptions(
               },
             });
             if (user) {
+              // NextAuth stores the new code right after this callback. Codes
+              // are hashed without the email and `token` is globally unique, so
+              // rows left behind make new codes collide. Only the newest code
+              // per account is needed, and expired codes can never be used.
+              await prisma.verificationToken.deleteMany({
+                where: {
+                  OR: [{ identifier: email }, { expires: { lt: new Date() } }],
+                },
+              });
               return true;
             }
             // Add random delay to prevent leaking if user exists as otherwise it would be instant compared to sending an email

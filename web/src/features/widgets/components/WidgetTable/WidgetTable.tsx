@@ -87,6 +87,7 @@ export function DashboardWidgetTable({
   | "onRowClick"
   | "orderBy"
   | "setOrderBy"
+  | "topBorder"
 > & {
   projectId: string | undefined;
   hasCUDAccess: boolean;

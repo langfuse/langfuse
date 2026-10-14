@@ -9,8 +9,8 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=obser
       "prompt-a",
       "prompt-b",
     ],
-    "param4": 2026-01-01T00:00:00.000Z,
-    "param5": 2026-01-31T23:59:59.000Z,
+    "param4": "2026-01-01 00:00:00.000",
+    "param5": "2026-01-31 23:59:59.000",
     "param6": 0,
     "param7": 0,
     "param8": [
@@ -20,8 +20,7 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=obser
       "TEXT",
     ],
   },
-  "sql": "WITH
-    prompt_events AS
+  "sql": "WITH prompt_events AS
     (
         SELECT
             e.project_id AS project_id,
@@ -30,7 +29,7 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=obser
             e.span_id AS span_id,
             e.is_deleted AS is_deleted
         FROM events_core AS e
-        WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)})) AND (e.start_time >= {param4:DateTime64(3)}) AND (e.start_time <= {param5:DateTime64(3)})
+        WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)})) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
         ORDER BY e.event_ts DESC
         LIMIT 1 BY
             e.span_id,
@@ -89,8 +88,7 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=obser
       "TEXT",
     ],
   },
-  "sql": "WITH
-    prompt_events AS
+  "sql": "WITH prompt_events AS
     (
         SELECT
             e.project_id AS project_id,
@@ -149,7 +147,7 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=trace
       "prompt-a",
       "prompt-b",
     ],
-    "param4": 2026-01-01T00:00:00.000Z,
+    "param4": "2026-01-01 00:00:00.000",
     "param5": 0,
     "param6": 0,
     "param7": [
@@ -159,8 +157,7 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=trace
       "TEXT",
     ],
   },
-  "sql": "WITH
-    prompt_events AS
+  "sql": "WITH prompt_events AS
     (
         SELECT
             e.project_id AS project_id,
@@ -169,7 +166,7 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=trace
             e.span_id AS span_id,
             e.is_deleted AS is_deleted
         FROM events_core AS e
-        WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)})) AND (e.start_time >= {param4:DateTime64(3)})
+        WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)})) AND (e.start_time >= {param4:DateTime64(6)})
         ORDER BY e.event_ts DESC
         LIMIT 1 BY
             e.span_id,
@@ -226,8 +223,7 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=trace
       "TEXT",
     ],
   },
-  "sql": "WITH
-    prompt_events AS
+  "sql": "WITH prompt_events AS
     (
         SELECT
             e.project_id AS project_id,

@@ -1,11 +1,17 @@
 /**
- * Bounds active uploads and decoded bytes. Fitting work may bypass the oldest
- * waiter up to `concurrency` times; then new work waits until it starts.
- * The upload must reject on timeout itself. This pool keeps its reservation
- * until work actually settles; timing out only the waiter would free it too soon.
+ * Bounds active uploads and their decoded bytes. Waiting `run()` calls pause
+ * until admitted; admission reserves capacity before waking them. Each settled
+ * upload admits more work, so progress requires active uploads to settle.
+ * Oversized uploads run alone.
+ *
+ * A fitting upload may bypass the oldest waiter up to `concurrency` times.
+ * Work must enforce its own timeout; its reservation lasts until it settles.
  */
 export class MediaUploadPool {
-  private waiting: PendingUpload[] = [];
+  private waiting: Array<PendingUpload | undefined> = [];
+  private first = 0;
+  private capacity = 1;
+  private minBytes = [Infinity, Infinity];
   private active = 0;
   private reservedBytes = 0;
   private bypasses = 0;
@@ -33,7 +39,23 @@ export class MediaUploadPool {
 
     await new Promise<void>((ready) => {
       const upload = { bytes, ready };
-      if (!this.startIfPossible(upload)) this.waiting.push(upload);
+      if (
+        this.waiting.length === 0 &&
+        this.active < this.concurrency &&
+        (this.active === 0 || bytes <= this.maxBytes - this.reservedBytes)
+      ) {
+        this.bypasses = 0;
+        this.admit(upload);
+        return;
+      }
+      this.waiting.push(upload);
+      if (this.waiting.length > this.capacity) {
+        this.capacity *= 2;
+        this.rebuildIndex();
+      } else {
+        this.setSize(this.waiting.length - 1, bytes);
+      }
+      this.admitFittingWaiters();
     });
 
     try {
@@ -41,41 +63,90 @@ export class MediaUploadPool {
     } finally {
       this.active -= 1;
       this.reservedBytes -= bytes;
-      this.startWaiting();
+      this.admitFittingWaiters();
     }
   }
 
-  private startWaiting(): void {
-    const waiting = this.waiting;
-    this.waiting = [];
-    for (const upload of waiting) {
-      if (!this.startIfPossible(upload)) this.waiting.push(upload);
+  // Each call wakes at most the number of slots free when it begins. Waitlist
+  // compaction can still scan the full backlog.
+  private admitFittingWaiters(): void {
+    while (this.active < this.concurrency && this.waiting.length > 0) {
+      const available =
+        this.active === 0
+          ? Number.MAX_SAFE_INTEGER
+          : this.maxBytes - this.reservedBytes;
+      const index = this.firstFitting(available);
+      if (index === undefined) return;
+      const bypass = index !== this.first;
+      if (bypass && this.bypasses >= this.concurrency) return;
+
+      const upload = this.waiting[index]!;
+      this.removeWaiting(index);
+      this.bypasses = bypass ? this.bypasses + 1 : 0;
+      this.admit(upload);
     }
   }
 
-  private startIfPossible(upload: PendingUpload): boolean {
-    if (!this.canStart(upload)) return false;
-    const hasOlderWaiters = this.waiting.length > 0;
-    if (hasOlderWaiters && this.bypasses >= this.concurrency) return false;
-    this.bypasses = hasOlderWaiters ? this.bypasses + 1 : 0;
-    this.start(upload);
-    return true;
+  // Each subtree stores its smallest reservation, so this finds the earliest fit.
+  private firstFitting(bytes: number): number | undefined {
+    if (this.minBytes[1]! > bytes) return undefined;
+    let node = 1;
+    while (node < this.capacity) {
+      node = this.minBytes[node * 2]! <= bytes ? node * 2 : node * 2 + 1;
+    }
+    return node - this.capacity;
   }
 
-  private start(upload: PendingUpload): void {
+  private removeWaiting(index: number): void {
+    this.waiting[index] = undefined;
+    this.setSize(index, Infinity);
+    while (this.first < this.waiting.length && !this.waiting[this.first]) {
+      this.first++;
+    }
+    if (this.first === this.waiting.length) {
+      this.waiting = [];
+      this.first = 0;
+      this.capacity = 1;
+      this.minBytes = [Infinity, Infinity];
+    } else if (this.first >= 1024 && this.first * 2 >= this.waiting.length) {
+      this.waiting = this.waiting.slice(this.first);
+      this.first = 0;
+      this.capacity = 1;
+      while (this.capacity < this.waiting.length) this.capacity *= 2;
+      this.rebuildIndex();
+    }
+  }
+
+  private setSize(index: number, bytes: number): void {
+    let node = this.capacity + index;
+    this.minBytes[node] = bytes;
+    while (node > 1) {
+      node = Math.floor(node / 2);
+      this.minBytes[node] = Math.min(
+        this.minBytes[node * 2]!,
+        this.minBytes[node * 2 + 1]!,
+      );
+    }
+  }
+
+  private rebuildIndex(): void {
+    this.minBytes = new Array<number>(this.capacity * 2).fill(Infinity);
+    for (let index = 0; index < this.waiting.length; index++) {
+      const upload = this.waiting[index];
+      if (upload) this.minBytes[this.capacity + index] = upload.bytes;
+    }
+    for (let node = this.capacity - 1; node > 0; node--) {
+      this.minBytes[node] = Math.min(
+        this.minBytes[node * 2]!,
+        this.minBytes[node * 2 + 1]!,
+      );
+    }
+  }
+
+  private admit(upload: PendingUpload): void {
     this.active += 1;
     this.reservedBytes += upload.bytes;
     upload.ready();
-  }
-
-  private canStart(next: PendingUpload): boolean {
-    if (this.active >= this.concurrency) return false;
-    if (this.active === 0) return true;
-
-    return (
-      this.reservedBytes <= this.maxBytes &&
-      next.bytes <= this.maxBytes - this.reservedBytes
-    );
   }
 }
 
