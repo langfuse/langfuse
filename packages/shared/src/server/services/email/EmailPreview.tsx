@@ -10,11 +10,7 @@ const PREVIEW_MAX_LENGTH = 150;
  * a pattern spam filters associate with phishing (Gmail flags such mail as
  * dangerous).
  */
-export const EmailPreview = ({
-  children,
-}: {
-  children: string | Array<string | number>;
-}) => {
+export const EmailPreview = ({ children }: EmailPreviewProps) => {
   const text = Array.isArray(children) ? children.join("") : children;
   return (
     <div
@@ -31,4 +27,8 @@ export const EmailPreview = ({
       {text.substring(0, PREVIEW_MAX_LENGTH)}
     </div>
   );
+};
+
+type EmailPreviewProps = {
+  children: string | Array<string | number>;
 };
