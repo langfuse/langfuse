@@ -101,7 +101,7 @@ export function GatewayConnectionModelsPage({
               <IconButton
                 icon={Trash2}
                 label="Delete provider credential"
-                variant="destructive"
+                variant="outlineDestructive"
                 disabled={isDeleting}
                 onClick={openDialog}
               />
