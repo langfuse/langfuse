@@ -28,6 +28,10 @@ const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const THREE_DAYS_AGO = Date.now() - 72 * HOUR;
 
+/** Ledger id of an observation: span ids are only unique within a trace. */
+const observationEventId = (traceId: string, spanId: string) =>
+  `${traceId.length}:${traceId}${spanId}`;
+
 const getBillableRows = (projectId: string) =>
   queryClickhouse<{
     event_type: BillableEventType;
@@ -155,12 +159,47 @@ describe("billable_events materialized views", () => {
         bytes: Number(row.event_bytes),
       })),
     ).toEqual([
-      { type: "observation", id: "span-1", bytes: 10 },
-      { type: "observation", id: "span-2", bytes: 20 },
+      {
+        type: "observation",
+        id: observationEventId(traceId, "span-1"),
+        bytes: 10,
+      },
+      {
+        type: "observation",
+        id: observationEventId(traceId, "span-2"),
+        bytes: 20,
+      },
       { type: "score", id: "score-correction", bytes: expect.any(Number) },
       { type: "score", id: "score-numeric", bytes: expect.any(Number) },
       { type: "trace", id: traceId, bytes: 7 },
     ]);
+  });
+
+  it("bills a span id once per trace it appears in", async (ctx) => {
+    await skipUnlessBillableEvents(ctx);
+    const projectId = randomUUID();
+
+    await createEventsCh([
+      // Ingestion API clients choose observation ids and may reuse them.
+      createEvent({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        span_id: "llm-call",
+      }),
+      createEvent({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        span_id: "llm-call",
+      }),
+      // Trace and span ids whose plain concatenation would collide.
+      createEvent({ project_id: projectId, trace_id: "t:x", span_id: "s" }),
+      createEvent({ project_id: projectId, trace_id: "t", span_id: "x:s" }),
+    ]);
+
+    expect(await billedUnitsAroundNow(projectId)).toEqual({
+      observation: 4,
+      trace: 4,
+    });
   });
 
   it("keeps billed units when the trace is deleted", async (ctx) => {

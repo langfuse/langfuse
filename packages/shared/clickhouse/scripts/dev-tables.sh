@@ -143,14 +143,17 @@ ORDER BY (toStartOfFifteenMinutes(ingested_at), project_id, event_type, event_id
 -- new usage. Rows with is_deleted = 1 are tombstones, not usage.
 
 -- MV: events_full -> billable_events (observations). Dual-write trace spans
--- (span_id 't-<trace_id>') only count as a trace.
+-- (span_id 't-<trace_id>') only count as a trace. Span ids are only unique
+-- within their trace, and ingestion API clients choose them, so event_id is
+-- '<length(trace_id)>:<trace_id><span_id>'. The length prefix keeps distinct
+-- (trace_id, span_id) pairs from concatenating to the same id.
 CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_observations_mv
 TO billable_events AS
 SELECT
     now() AS ingested_at,
     project_id,
     'observation' AS event_type,
-    span_id AS event_id,
+    concat(toString(length(trace_id)), ':', trace_id, span_id) AS event_id,
     start_time AS event_time,
     event_bytes
 FROM events_full
