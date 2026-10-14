@@ -102,8 +102,10 @@ function ProviderBadge({
   const ProviderIcon = providerIcons[model.provider];
   const content = (
     <>
-      <ProviderIcon aria-hidden className="size-3 shrink-0" />
-      <span className="truncate py-0.5">{model.connectionName}</span>
+      <ProviderIcon aria-hidden className="icon-sm shrink-0" />
+      <span className="truncate py-0.5" title={model.connectionName}>
+        {model.connectionName}
+      </span>
     </>
   );
   const ariaLabel = `${model.connectionName}, ${providerLabels[model.provider]}`;
