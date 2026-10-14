@@ -1209,7 +1209,7 @@ export function PrettyJsonView(props: {
 
   const getBackgroundColorClass = () =>
     ASSISTANT_TITLES.includes(props.title || "")
-      ? "bg-surface-output rounded-md overflow-clip"
+      ? "bg-surface-output rounded-md overflow-clip px-3 pt-1"
       : "";
 
   const body = (

@@ -42,7 +42,7 @@ import { MarkdownJsonViewHeader } from "@/src/app/design-system/legacy-primitive
 import { copyTextToClipboard } from "@/src/app/utils/clipboard";
 import { MENTION_USER_PREFIX } from "@/src/annotation/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/app/hooks/useCollapsibleSystemPrompt";
-import { Button } from "@/src/app/design-system/legacy-primitives/button";
+import { Button } from "@/src/app/design-system/Button/Button";
 import {
   getSafeImageUrl,
   getSafeLinkUrl,
@@ -583,14 +583,13 @@ export function MarkdownView({
   );
 
   const collapseToggle = shouldBeCollapsible ? (
-    <Button
-      variant="ghost"
-      size="xs"
-      onClick={() => toggleCollapsed("inline")}
-      className="w-fit text-xs underline"
-    >
-      {isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
-    </Button>
+    <div className="flex">
+      <Button
+        variant="text"
+        onClick={() => toggleCollapsed("inline")}
+        text={isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
+      />
+    </div>
   ) : null;
 
   return (

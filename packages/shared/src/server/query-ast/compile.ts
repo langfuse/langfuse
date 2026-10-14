@@ -1,5 +1,6 @@
 import {
   createQueryId,
+  type Expression,
   type KyselyPlugin,
   type RootOperationNode,
 } from "kysely";
@@ -9,6 +10,7 @@ import { DedupLoweringPlugin } from "./dedup";
 import {
   type ExecutionContext,
   TenancyInjectionPlugin,
+  assertRelationFree,
   requireExecutionContext,
 } from "./tenancy";
 import { validateTypeCompatibility } from "./typecheck";
@@ -56,4 +58,19 @@ export function compileClickhouseQuery(
     sql: compiled.sql,
     params: { ...compiler.namedParameters },
   };
+}
+
+/**
+ * SQL text of a typed expression, for raw-SQL builders that share an AST
+ * definition: `metadataMap(e.metadata_names,
+ * e.metadata_values)` → `mapFromArrays(arrayReverse(e.metadata_names),
+ * arrayReverse(e.metadata_values))`. Throws on a subquery or raw relation
+ * (nothing scopes it to a project) and on a bound value.
+ */
+export function renderClickhouseExpression(
+  expression: Expression<unknown>,
+): string {
+  const node = expression.toOperationNode();
+  assertRelationFree(node);
+  return new ClickHouseQueryCompiler().compileExpression(node);
 }
