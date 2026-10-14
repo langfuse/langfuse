@@ -22,7 +22,7 @@ const statusCategories = {
   pending: ["pending", "waiting", "queued", "running", "processing"],
   delayed: ["delayed"],
   inactive: ["disabled", "inactive", "archived", "cancelled", "debug"],
-  notConfigured: ["not configured"],
+  notConfigured: ["not_configured"],
   paused: ["paused"],
   completed: ["completed", "done", "finished"],
   error: ["error", "failed", "triggered"],
@@ -165,7 +165,9 @@ export const StatusBadge = ({
       )}
       {showText && type && (
         <span>
-          {preserveCase ? type : type[0].toUpperCase() + type.slice(1)}
+          {preserveCase
+            ? type
+            : type[0].toUpperCase() + type.slice(1).replaceAll("_", " ")}
         </span>
       )}
       {children}
