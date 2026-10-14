@@ -31,6 +31,7 @@ import {
   type ClickHouseSelectQueryNode,
   type LimitByNode,
 } from "./nodes";
+import { QueryCompileError } from "./errors";
 import { COLUMN_BIND_TYPES, TABLE_BIND_TYPES } from "./schema";
 import { assertTenancyStamped } from "./tenancy";
 
@@ -227,6 +228,21 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.selectScopes = [];
     assertTenancyStamped(node);
     return super.compileQuery(node, queryId);
+  }
+
+  /**
+   * SQL text of one standalone expression, on a fresh compiler. The caller
+   * checks the tree is relation-free. A bind throws: the text is spliced into
+   * a query whose parameters this compiler does not own.
+   */
+  compileExpression(node: OperationNode): string {
+    this.visitNode(node);
+    if (Object.keys(this.namedParameters).length > 0) {
+      throw new QueryCompileError(
+        "A standalone expression cannot bind parameters; inline the value or build the whole query on the AST.",
+      );
+    }
+    return this.getSql();
   }
 
   // Emit identifiers unquoted. `clickhouse format` normalizes to unquoted

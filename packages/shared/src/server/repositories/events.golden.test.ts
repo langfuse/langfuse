@@ -28,6 +28,7 @@ vi.mock("./clickhouse", async (importOriginal) => {
 
 import {
   getAgentGraphDataFromEventsTable,
+  getEventsForAnalyticsIntegrations,
   getLastTraceTimestampsByProjectsFromEventsTable,
   getLatestSdkVersionInfoFromEvents,
   getObservationByIdFromEventsTable,
@@ -36,6 +37,7 @@ import {
   getObservationIOFieldByteLengthFromEventsTable,
   getObservationsBatchIOFromEventsTable,
   getObservationsTraceIdsFromEventsTable,
+  getObservationsV2FromEventsTableForPublicApi,
   getObservationsWithPromptNameFromEvents,
   getSessionMetricsFromEvents,
   getTraceByIdFromEventsTable,
@@ -45,6 +47,7 @@ import {
   hasAnyUserFromEventsTable,
   streamObservationIOFieldFromEventsTable,
 } from "./events";
+import { getTraceBatchEventStream } from "./trace-batch";
 
 const FIXED_PROJECT_ID = "golden-project";
 const FIXED_PROJECT_IDS = ["golden-project", "golden-project-b"] as const;
@@ -458,3 +461,51 @@ describeWithClickhouse("golden: events IO payload reads family", () => {
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 });
+
+describeWithClickhouse(
+  "golden: events metadata map and session resolution",
+  () => {
+    beforeEach(() => {
+      resetCaptures();
+    });
+
+    it("getObservationsV2FromEventsTableForPublicApi fields=core+metadata expandMetadataKeys=set", async () => {
+      await getObservationsV2FromEventsTableForPublicApi({
+        projectId: FIXED_PROJECT_ID,
+        page: 1,
+        limit: 50,
+        fields: ["core", "metadata"],
+        expandMetadataKeys: ["golden-key"],
+      });
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    it("getEventsForAnalyticsIntegrations", async () => {
+      for await (const _ of getEventsForAnalyticsIntegrations(
+        FIXED_PROJECT_ID,
+        "golden-project-name",
+        FIXED_FROM_TIMESTAMP,
+        FIXED_START_TIME,
+      )) {
+        // The harness streams no rows.
+      }
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    it("getTraceBatchEventStream", async () => {
+      for await (const _ of getTraceBatchEventStream({
+        traces: [
+          {
+            projectId: FIXED_PROJECT_ID,
+            traceId: FIXED_TRACE_ID,
+            minStart: FIXED_FROM_TIMESTAMP.getTime(),
+            maxStart: FIXED_START_TIME.getTime(),
+          },
+        ],
+      })) {
+        // The harness streams no rows.
+      }
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+  },
+);
