@@ -31,6 +31,7 @@ import {
   GatewayModelsPage,
   GatewayProvidersPage,
 } from "@/src/features/ai-gateway";
+import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { ConnectedLLMApiKeySettingsTable } from "@/src/features/public-api/components/LLMApiKeySettingsTable/ConnectedLLMApiKeySettingsTable";
@@ -97,7 +98,14 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     isLangfuseCloud,
     showV4Migration,
     showAiGatewayManagement: canManageGateway && isAiGatewayEnabled,
-    showAiGatewayModels: canReadGateway && isAiGatewayEnabled,
+    showAiGatewayModels:
+      isAiGatewayEnabled &&
+      canReadGatewayModels({
+        organizationId: organization.id,
+        demoOrganizationId: env.NEXT_PUBLIC_DEMO_ORG_ID,
+        canReadGateway,
+        canManageGateway,
+      }),
     showOrganizationLlmConnections: canReadOrganizationLlmConnections,
     showFeaturePreviews:
       canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,

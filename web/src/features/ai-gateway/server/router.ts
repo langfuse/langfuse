@@ -11,6 +11,7 @@ import {
   protectedOrganizationProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
+import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
@@ -68,14 +69,19 @@ function requireGatewayRead(params: {
     organizationId: params.orgId,
     scope: "gateway:manage",
   });
-  const organizationRole = params.session.user?.organizations.find(
-    (organization) => organization.id === params.orgId,
-  )?.role;
-  const hasAutoGrantedDemoMembership =
-    params.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID &&
-    organizationRole === "VIEWER";
-
-  if (!canManageGateway && hasAutoGrantedDemoMembership) {
+  const canReadGateway = hasOrganizationAccess({
+    session: params.session,
+    organizationId: params.orgId,
+    scope: "gateway:read",
+  });
+  if (
+    !canReadGatewayModels({
+      organizationId: params.orgId,
+      demoOrganizationId: env.NEXT_PUBLIC_DEMO_ORG_ID,
+      canReadGateway,
+      canManageGateway,
+    })
+  ) {
     throwIfNoOrganizationAccess({
       session: params.session,
       organizationId: params.orgId,
@@ -250,7 +256,9 @@ export const aiGatewayRouter = createTRPCRouter({
         orgId: input.orgId,
       });
       const catalogService = new GatewayModelCatalogService(ctx.prisma);
-      const results = await catalogService.refreshAllModels(input.orgId);
+      const results = canManageGateway
+        ? await catalogService.refreshAllModels(input.orgId)
+        : await catalogService.listCachedModels(input.orgId);
       if (canManageGateway) return results;
 
       const readableConnections = await catalogService.listModelConnections(

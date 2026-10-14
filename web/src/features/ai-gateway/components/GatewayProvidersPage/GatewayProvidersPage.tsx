@@ -68,9 +68,14 @@ export function GatewayProvidersPage({
         orgId: organizationId,
         id: connection.id,
       });
-      await utils.aiGateway.listConnections.invalidate({
-        orgId: organizationId,
-      });
+      await Promise.all([
+        utils.aiGateway.listConnections.invalidate({
+          orgId: organizationId,
+        }),
+        utils.aiGateway.refreshModels.invalidate({
+          orgId: organizationId,
+        }),
+      ]);
       if (connection.id === connectionId) {
         await router.push(
           `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway-providers`,
@@ -140,19 +145,20 @@ export function GatewayProvidersPage({
     : Object.fromEntries(
         (modelsQuery.data ?? [])
           .filter((result) => result.success)
-          .map((result) => {
+          .flatMap((result) => {
             const connection = connectionsById.get(result.connectionId);
+            if (!connection) return [];
             const allowedModels = toGatewayAllowedModelsSet(
-              connection?.allowedModels,
+              connection.allowedModels,
             );
-            const enabled = connection
-              ? result.models.filter((model) =>
-                  isGatewayModelAllowed(allowedModels, model),
-                ).length
-              : result.models.length;
+            const enabled = result.models.filter((model) =>
+              isGatewayModelAllowed(allowedModels, model),
+            ).length;
             return [
-              result.connectionId,
-              { enabled, total: result.models.length },
+              [
+                result.connectionId,
+                { enabled, total: result.models.length },
+              ] as const,
             ];
           }),
       );

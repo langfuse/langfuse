@@ -75,6 +75,29 @@ export class GatewayModelCatalogService {
     );
   }
 
+  async listCachedModels(
+    organizationId: string,
+  ): Promise<ModelRefreshResult[]> {
+    const connections = await this.listAllConnections(
+      organizationId,
+      "ENABLED",
+    );
+    return Promise.all(
+      connections.map(async (connection) => {
+        const cachedModels = await this.getCachedModels(
+          organizationId,
+          connection.id,
+        );
+        return {
+          connectionId: connection.id,
+          success: true as const,
+          models:
+            cachedModels?.map(({ id }) => id) ?? connection.allowedModels ?? [],
+        };
+      }),
+    );
+  }
+
   async listModelConnections(organizationId: string) {
     const connections = await this.listAllConnections(
       organizationId,
