@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { skipToken } from "@tanstack/react-query";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
@@ -34,7 +34,7 @@ const isBusy = (status: TopicExecutionStatus) =>
  * Data and the `topics.trigger` (`operation: "update"`) write behind the
  * Regenerate topics dialog. Facets follow the Topics rule at their latest
  * version, the one automatic processing summarizes with. Call it above the
- * dialog content so the request outlives a close.
+ * dialog content so the request and its error outlive a close.
  */
 export function useRegenerateTopics({
   projectId,
@@ -107,8 +107,11 @@ export function useRegenerateTopics({
   // requestId and cannot start a second run.
   const request = useRef<{ key: string; id: string } | null>(null);
   const trigger = api.topics.trigger.useMutation();
+  const [error, setError] = useState<string | null>(null);
+  /** Resolves to the new execution id, or null after recording `error`. */
   async function submit(values: RegenerateRequest) {
-    if (!timeRange) throw new Error("Select a time range of at most 90 days.");
+    if (!timeRange) return null;
+    setError(null);
     const input = {
       projectId,
       operation: "update" as const,
@@ -118,12 +121,22 @@ export function useRegenerateTopics({
     const key = JSON.stringify(input);
     if (request.current?.key !== key)
       request.current = { key, id: crypto.randomUUID() };
-    const result = await trigger.mutateAsync({
-      ...input,
-      requestId: request.current.id,
-    });
-    request.current = null;
-    return result.id;
+    try {
+      const result = await trigger.mutateAsync({
+        ...input,
+        requestId: request.current.id,
+      });
+      request.current = null;
+      return result.id;
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not regenerate topics.",
+      );
+      return null;
+    }
+  }
+  function clearError() {
+    if (!trigger.isPending) setError(null);
   }
   return {
     timeRange,
@@ -131,6 +144,8 @@ export function useRegenerateTopics({
     lastRun,
     disabledReason,
     isSubmitting: trigger.isPending,
+    error,
+    clearError,
     submit,
   };
 }
