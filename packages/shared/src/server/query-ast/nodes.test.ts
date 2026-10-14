@@ -44,6 +44,21 @@ describe("tenancy injection", () => {
     expect(() => compileClickhouseQuery(qb, "")).toThrow(/no tenancy scope/);
   });
 
+  it("refuses a scope that is not a single projectId string", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events_core")
+      .select("environment");
+
+    expect(() =>
+      // @ts-expect-error - a query is scoped to exactly one project
+      compileClickhouseQuery(qb, ["proj-a", "proj-b"]),
+    ).toThrow(/no tenancy scope/);
+    expect(() =>
+      // @ts-expect-error - the scope is the projectId itself, not a context
+      compileClickhouseQuery(qb, { projectId: "proj-a" }),
+    ).toThrow(/no tenancy scope/);
+  });
+
   it("refuses kysely.compile() when the tenancy pass did not run", () => {
     const qb = getClickhouseKysely()
       .selectFrom("traces")

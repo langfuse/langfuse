@@ -318,7 +318,7 @@ function isProjectIdValue(node: OperationNode, projectId: string): boolean {
 }
 
 export function requireProjectId(projectId: string | undefined): string {
-  if (!projectId) {
+  if (typeof projectId !== "string" || !projectId) {
     throw new QueryCompileError(
       "projectId is required: a query with no tenancy scope cannot compile.",
     );

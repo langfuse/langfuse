@@ -16,10 +16,9 @@ export const getEnvironmentsForProject = async (
   const { projectId, fromTimestamp } = props;
   const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
   const db = getClickhouseKysely();
-  // Tenancy is applied at compile time: compileClickhouseQuery injects
-  // `project_id = {projectId}` into every tenanted relation and refuses to
-  // compile an unscoped query, so the query bodies below carry no project_id
-  // filter of their own.
+  // The query bodies below carry no project_id filter of their own:
+  // compileClickhouseQuery injects `project_id = {projectId}` into every
+  // tenanted relation.
 
   // In dual/events_only write modes all tracing data lands in events_core (the
   // only populated source under events_only), so one scan covers traces and
