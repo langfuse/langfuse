@@ -91,6 +91,27 @@ const byteLength = (value: unknown): number | undefined => {
   }
 };
 
+const hasSafeConditionReferences = (value: unknown): boolean => {
+  if (typeof value === "boolean") return true;
+  if (Array.isArray(value)) return value.every(hasSafeConditionReferences);
+  if (!value || typeof value !== "object") return true;
+
+  const record = value as Record<string, unknown>;
+  if (
+    "$state" in record &&
+    !JsonPointerSchema.safeParse(record.$state).success
+  ) {
+    return false;
+  }
+  if (
+    "$item" in record &&
+    (typeof record.$item !== "string" || record.$item.length > 500)
+  ) {
+    return false;
+  }
+  return Object.values(record).every(hasSafeConditionReferences);
+};
+
 const hasSafeExpressions = (value: unknown): boolean => {
   if (Array.isArray(value)) return value.every(hasSafeExpressions);
   if (!value || typeof value !== "object") return true;
@@ -104,6 +125,9 @@ const hasSafeExpressions = (value: unknown): boolean => {
   }
 
   if ("$bindState" in record || "$bindItem" in record) return false;
+  if (VisibilityConditionStrictSchema.safeParse(record).success) {
+    return hasSafeConditionReferences(record);
+  }
   if ("$state" in record) {
     return (
       Object.keys(record).length === 1 &&

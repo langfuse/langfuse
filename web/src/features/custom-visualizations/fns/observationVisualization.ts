@@ -61,7 +61,7 @@ const observationFilterValue = (
   const { column } = filter;
   if (column === "observationId") return observation.id;
   if (column === "isRootObservation") {
-    return observation.parentObservationId == null;
+    return !observation.parentObservationId;
   }
   if (column === "hasInput") return observation.input != null;
   if (column === "hasOutput") return observation.output != null;

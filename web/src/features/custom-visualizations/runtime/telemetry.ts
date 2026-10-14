@@ -7,7 +7,11 @@ import type {
   CustomUiRuntimeDiagnostics,
 } from "./compileRenderPlan";
 
-type CustomUiPerformancePhase = "prepare" | "first_render" | "deferred_render";
+type CustomUiPerformancePhase =
+  | "queue_wait"
+  | "prepare"
+  | "first_render"
+  | "deferred_render";
 
 const structuralAttributes = (diagnostics: CustomUiRuntimeDiagnostics) => ({
   "custom_ui.node_count": diagnostics.nodeCount,

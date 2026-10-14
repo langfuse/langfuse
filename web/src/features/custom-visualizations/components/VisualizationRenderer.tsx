@@ -18,11 +18,13 @@ export function VisualizationRenderer({
   data,
   fallback = null,
   showDiagnostics = false,
+  deferUntilVisible = false,
 }: {
   definition: VisualizationDefinition;
   data: VisualizationDataEnvelope;
   fallback?: ReactNode;
   showDiagnostics?: boolean;
+  deferUntilVisible?: boolean;
 }) {
   return (
     <CustomUiRenderer
@@ -30,6 +32,7 @@ export function VisualizationRenderer({
       input={data}
       fallback={fallback}
       showDiagnostics={showDiagnostics}
+      deferUntilVisible={deferUntilVisible}
     />
   );
 }

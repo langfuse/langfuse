@@ -34,12 +34,60 @@ const clientSnapshot = () => true;
 const serverSnapshot = () => false;
 const RENDER_BUDGET_MS = 50;
 let renderInstanceCounter = 0;
+type QueuedMount = {
+  cancelled: boolean;
+  queuedAt: number;
+  run: (waitMs: number) => void;
+};
+const mountQueue: QueuedMount[] = [];
+let mountQueueScheduled = false;
 
-export type CustomUiRendererProps = {
+const scheduleNextMount = () => {
+  if (mountQueueScheduled) return;
+  const task = mountQueue.find((candidate) => !candidate.cancelled);
+  if (!task) {
+    mountQueue.length = 0;
+    return;
+  }
+  mountQueueScheduled = true;
+
+  const mount = () => {
+    const next = mountQueue.shift();
+    if (next && !next.cancelled) {
+      next.run(performance.now() - next.queuedAt);
+    }
+    window.requestAnimationFrame(() => {
+      mountQueueScheduled = false;
+      scheduleNextMount();
+    });
+  };
+
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(mount, { timeout: 100 });
+  } else {
+    window.setTimeout(mount, 0);
+  }
+};
+
+const enqueueMount = (run: QueuedMount["run"]) => {
+  const task: QueuedMount = {
+    cancelled: false,
+    queuedAt: performance.now(),
+    run,
+  };
+  mountQueue.push(task);
+  scheduleNextMount();
+  return () => {
+    task.cancelled = true;
+  };
+};
+
+type CustomUiRendererProps = {
   spec: CustomUiSpec;
   input: CustomUiRenderInput;
   fallback?: ReactNode;
   showDiagnostics?: boolean;
+  deferUntilVisible?: boolean;
 };
 
 class CustomUiRootErrorBoundary extends Component<
@@ -196,11 +244,13 @@ function PreparedCustomUi({
   fallback,
   showDiagnostics,
   preparationStartedAt,
+  queueWaitMs,
 }: {
   plan: CustomUiRenderPlan;
   fallback: ReactNode;
   showDiagnostics: boolean;
   preparationStartedAt: number;
+  queueWaitMs: number;
 }) {
   const progressive = useProgressiveStage(plan);
   const stageSpec = buildCustomUiStageSpec(
@@ -210,6 +260,9 @@ function PreparedCustomUi({
 
   useEffect(() => {
     const firstRenderDuration = performance.now() - preparationStartedAt;
+    if (queueWaitMs > 0) {
+      recordCustomUiPerformance("queue_wait", queueWaitMs, plan.diagnostics);
+    }
     recordCustomUiPerformance(
       "prepare",
       plan.diagnostics.validateDurationMs + plan.diagnostics.compileDurationMs,
@@ -220,7 +273,7 @@ function PreparedCustomUi({
       firstRenderDuration,
       plan.diagnostics,
     );
-  }, [plan.diagnostics, preparationStartedAt]);
+  }, [plan.diagnostics, preparationStartedAt, queueWaitMs]);
 
   return (
     <CustomUiRootErrorBoundary fallback={fallback}>
@@ -266,6 +319,7 @@ export function CustomUiRenderer({
   input,
   fallback = null,
   showDiagnostics = false,
+  deferUntilVisible = false,
 }: CustomUiRendererProps) {
   const isClient = useSyncExternalStore(
     subscribeToClient,
@@ -275,12 +329,71 @@ export function CustomUiRenderer({
 
   if (!isClient) return fallback;
   return (
-    <ClientCustomUiRenderer
+    <VisibleClientCustomUiRenderer
       spec={spec}
       input={input}
       fallback={fallback}
       showDiagnostics={showDiagnostics}
+      deferUntilVisible={deferUntilVisible}
     />
+  );
+}
+
+function VisibleClientCustomUiRenderer({
+  deferUntilVisible,
+  ...props
+}: Required<CustomUiRendererProps>) {
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const [mountState, setMountState] = useState({
+    ready: !deferUntilVisible,
+    queueWaitMs: 0,
+  });
+  const ready = !deferUntilVisible || mountState.ready;
+
+  useEffect(() => {
+    if (ready) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    let cancelQueuedMount: (() => void) | undefined;
+    const queueMount = () => {
+      cancelQueuedMount = enqueueMount((queueWaitMs) => {
+        setMountState({ ready: true, queueWaitMs });
+      });
+    };
+
+    if (typeof IntersectionObserver === "undefined") {
+      queueMount();
+      return () => cancelQueuedMount?.();
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        observer.disconnect();
+        queueMount();
+      },
+      { rootMargin: "800px 0px" },
+    );
+    observer.observe(sentinel);
+    return () => {
+      observer.disconnect();
+      cancelQueuedMount?.();
+    };
+  }, [ready]);
+
+  if (!ready) {
+    return (
+      <div
+        ref={sentinelRef}
+        className="min-h-px"
+        data-custom-ui-pending
+        aria-hidden
+      />
+    );
+  }
+  return (
+    <ClientCustomUiRenderer {...props} queueWaitMs={mountState.queueWaitMs} />
   );
 }
 
@@ -289,7 +402,10 @@ function ClientCustomUiRenderer({
   input,
   fallback,
   showDiagnostics,
-}: Required<CustomUiRendererProps>) {
+  queueWaitMs,
+}: Omit<Required<CustomUiRendererProps>, "deferUntilVisible"> & {
+  queueWaitMs: number;
+}) {
   const prepared = useMemo(() => {
     const startedAt = globalThis.performance?.now() ?? Date.now();
     return {
@@ -309,6 +425,7 @@ function ClientCustomUiRenderer({
       fallback={fallback}
       showDiagnostics={showDiagnostics}
       preparationStartedAt={prepared.startedAt}
+      queueWaitMs={queueWaitMs}
     />
   );
 }

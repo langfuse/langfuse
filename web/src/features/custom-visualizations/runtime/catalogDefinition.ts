@@ -204,5 +204,3 @@ export const customUiCatalog = defineCatalog(schema, {
   },
   actions: {},
 });
-
-export type CustomUiCatalog = typeof customUiCatalog;

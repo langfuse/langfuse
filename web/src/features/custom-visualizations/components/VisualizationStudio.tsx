@@ -858,9 +858,11 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
     if (!observation.traceId) return;
     const params = new URLSearchParams({
       peek: observation.traceId,
-      observation: observation.id,
       timestamp: observation.startTime.toISOString(),
     });
+    if (definition.placement.surface !== "TRACE") {
+      params.set("observation", observation.id);
+    }
     router
       .push(`/project/${projectId}/traces?${params.toString()}`)
       .catch(() => undefined);

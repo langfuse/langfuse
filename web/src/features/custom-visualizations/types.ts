@@ -5,7 +5,6 @@ import {
 import { z } from "zod";
 import { CUSTOM_UI_CATALOG_VERSION } from "./runtime/catalogDefinition";
 import {
-  CustomUiRenderInputSchema,
   CustomUiSpecSchema,
   type CustomUiRenderInput,
   type CustomUiSpec,
@@ -272,9 +271,4 @@ export const TOOL_STARTER: VisualizationDefinition =
     spec: toolStarterSpec,
   });
 
-export {
-  CUSTOM_UI_CATALOG_VERSION,
-  CustomUiRenderInputSchema,
-  CustomUiSpecSchema,
-};
-export type { CustomUiRenderInput, CustomUiSpec };
+export { CUSTOM_UI_CATALOG_VERSION };

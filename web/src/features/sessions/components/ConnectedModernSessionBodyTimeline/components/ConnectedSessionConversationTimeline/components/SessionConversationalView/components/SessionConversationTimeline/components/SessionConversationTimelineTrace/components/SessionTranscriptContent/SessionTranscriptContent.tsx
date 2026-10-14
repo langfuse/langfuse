@@ -288,6 +288,7 @@ function SessionObservationCustomUi({
           selected.definition,
           observation,
         )}
+        deferUntilVisible
       />
     </section>
   );

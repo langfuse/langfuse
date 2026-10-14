@@ -9,9 +9,9 @@ import {
   validateCustomUiSpec,
 } from "./spec";
 
-export type CustomUiRenderCost = "CHEAP" | "MODERATE" | "HEAVY";
+type CustomUiRenderCost = "CHEAP" | "MODERATE" | "HEAVY";
 
-export type CustomUiPlanNode = {
+type CustomUiPlanNode = {
   key: string;
   type: string;
   depth: number;

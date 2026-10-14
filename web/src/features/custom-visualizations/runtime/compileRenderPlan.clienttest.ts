@@ -35,7 +35,10 @@ describe("Custom UI render-plan compiler", () => {
       root: "root",
       elements: {
         root: stackElement(["state", "computed"]),
-        state: textElement({ $state: "/data/summary" }),
+        state: {
+          ...textElement({ $state: "/data/summary" }),
+          visible: { $state: "/data/summary", not: true },
+        },
         computed: textElement({
           $computed: "truncate",
           args: { value: { $state: "/data/summary" }, maximum: 120 },
