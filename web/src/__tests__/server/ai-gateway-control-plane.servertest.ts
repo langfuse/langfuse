@@ -740,7 +740,7 @@ describe("AI gateway control plane", () => {
 
     const context = await new GatewayApiKeyAuthenticator(
       prisma,
-    ).authenticateRequest({
+    ).authenticateModelsRequest({
       fastHashedSecretKey,
       apiFormat: "openai.responses",
     });

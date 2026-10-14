@@ -1,3 +1,5 @@
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+
 export function formatGatewayModelSlug(
   connectionName: string,
   providerModel: string,
@@ -27,8 +29,11 @@ export function resolveGatewayModelRoute<
   if (model.startsWith("ft:")) {
     return {
       connection:
-        connections.find((connection) => connection.provider === "OPENAI") ??
-        null,
+        connections.find(
+          (connection) =>
+            connection.provider === "OPENAI" &&
+            isGatewayModelAllowed(connection.allowedModels, model),
+        ) ?? null,
       providerModel: model,
     };
   }
@@ -49,8 +54,11 @@ export function resolveGatewayModelRoute<
 
   return {
     connection:
-      connections.find((connection) => connection.provider === provider) ??
-      null,
+      connections.find(
+        (connection) =>
+          connection.provider === provider &&
+          isGatewayModelAllowed(connection.allowedModels, model),
+      ) ?? null,
     providerModel: model,
   };
 }
@@ -72,4 +80,5 @@ function parseGatewayModelSlug(model: string) {
 type GatewayRouteConnection = {
   name: string;
   provider: string;
+  allowedModels: Set<string> | readonly string[] | null;
 };

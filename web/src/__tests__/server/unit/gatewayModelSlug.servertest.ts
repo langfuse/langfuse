@@ -3,9 +3,24 @@ import { describe, expect, it } from "vitest";
 import { resolveGatewayModelRoute } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
 
 const connections = [
-  { id: "openai-primary", name: "OpenAI primary", provider: "OPENAI" },
-  { id: "anthropic", name: "Anthropic", provider: "ANTHROPIC" },
-  { id: "openai-secondary", name: "OpenAI secondary", provider: "OPENAI" },
+  {
+    id: "openai-primary",
+    name: "OpenAI primary",
+    provider: "OPENAI",
+    allowedModels: null,
+  },
+  {
+    id: "anthropic",
+    name: "Anthropic",
+    provider: "ANTHROPIC",
+    allowedModels: null,
+  },
+  {
+    id: "openai-secondary",
+    name: "OpenAI secondary",
+    provider: "OPENAI",
+    allowedModels: null,
+  },
 ] as const;
 
 describe("resolveGatewayModelRoute", () => {
@@ -71,6 +86,7 @@ describe("resolveGatewayModelRoute", () => {
       id: "ft-connection",
       name: "ft",
       provider: "ANTHROPIC",
+      allowedModels: null,
     } as const;
 
     expect(
@@ -81,6 +97,54 @@ describe("resolveGatewayModelRoute", () => {
     ).toEqual({
       connection: ftConnection,
       providerModel: "claude-sonnet-4-5",
+    });
+  });
+
+  it("skips connections that do not allow an implicitly routed model", () => {
+    const restrictedConnections = [
+      {
+        id: "openai-restricted",
+        name: "OpenAI restricted",
+        provider: "OPENAI",
+        allowedModels: ["gpt-4o"],
+      },
+      {
+        id: "openai-compatible",
+        name: "OpenAI compatible",
+        provider: "OPENAI",
+        allowedModels: ["gpt-6-sol"],
+      },
+    ] as const;
+
+    expect(
+      resolveGatewayModelRoute("gpt-6-sol", restrictedConnections),
+    ).toEqual({
+      connection: restrictedConnections[1],
+      providerModel: "gpt-6-sol",
+    });
+  });
+
+  it("uses an unrestricted connection for an implicitly routed model", () => {
+    const unrestrictedConnection = {
+      id: "openai-unrestricted",
+      name: "OpenAI unrestricted",
+      provider: "OPENAI",
+      allowedModels: null,
+    } as const;
+
+    expect(
+      resolveGatewayModelRoute("gpt-6-sol", [
+        {
+          id: "openai-restricted",
+          name: "OpenAI restricted",
+          provider: "OPENAI",
+          allowedModels: [],
+        },
+        unrestrictedConnection,
+      ]),
+    ).toEqual({
+      connection: unrestrictedConnection,
+      providerModel: "gpt-6-sol",
     });
   });
 });
