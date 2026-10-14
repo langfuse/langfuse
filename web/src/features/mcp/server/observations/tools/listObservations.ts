@@ -50,13 +50,7 @@ const ObservationCursorSchema =
     "Cursor returned by a previous listObservations call",
   );
 
-const EXPENSIVE_OBSERVATION_ACCESS_COLUMNS = new Set([
-  "input",
-  "output",
-  "metadata",
-]);
-
-const EXPENSIVE_OBSERVATION_MAX_RANGE_MS = 14 * 24 * 60 * 60 * 1000;
+const OBSERVATION_MAX_RANGE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 const EXPENSIVE_OBSERVATION_MAX_IO_LIMIT = 50;
 const MCP_OBSERVATIONS_MAX_EXECUTION_TIME_SECONDS = 25;
 
@@ -293,8 +287,8 @@ const ListObservationsBaseSchema = z.object({
     .describe(
       "Environment to filter by. Multiple environments are temporarily unsupported until the public observations API applies allow-multiple environment filters correctly.",
     ),
-  fromStartTime: z.iso.datetime({ offset: true }).optional(),
-  toStartTime: z.iso.datetime({ offset: true }).optional(),
+  fromStartTime: z.iso.datetime({ offset: true }),
+  toStartTime: z.iso.datetime({ offset: true }),
   filter: z
     .array(ObservationMcpFilterBaseSchema)
     .optional()
@@ -314,54 +308,16 @@ const ListObservationsInputSchema = ListObservationsBaseSchema.extend({
 
 type ListObservationsInput = z.infer<typeof ListObservationsInputSchema>;
 
-const hasObservationIdFilter = (filters: ListObservationsInput["filter"]) =>
-  filters?.some(
-    (filter) =>
-      filter.column === "id" &&
-      filter.type === "stringOptions" &&
-      filter.operator === "any of" &&
-      filter.value.length > 0,
-  ) ?? false;
-
-// Initially, we return io/metadata in full only if some limits are set
-const assertAllowedExpensiveObservationAccess = (
+const assertAllowedObservationAccess = (
   input: ListObservationsInput,
   projectionFields: string[],
 ) => {
-  const expensiveColumns = new Set<string>();
-
-  for (const field of projectionFields) {
-    if (EXPENSIVE_OBSERVATION_ACCESS_COLUMNS.has(field)) {
-      expensiveColumns.add(field);
-    }
-  }
-
-  for (const filter of input.filter ?? []) {
-    if (EXPENSIVE_OBSERVATION_ACCESS_COLUMNS.has(filter.column)) {
-      expensiveColumns.add(filter.column);
-    }
-  }
-
-  if (expensiveColumns.size === 0) return;
-
-  if (input.traceId || hasObservationIdFilter(input.filter)) return;
-
-  if (!input.fromStartTime || !input.toStartTime) {
-    throw new InvalidRequestError(
-      `Accessing observation ${Array.from(expensiveColumns)
-        .sort()
-        .join(
-          ", ",
-        )} requires traceId, an id filter, or both fromStartTime and toStartTime with a maximum range of 14 days.`,
-    );
-  }
-
   const rangeMs =
     new Date(input.toStartTime).getTime() -
     new Date(input.fromStartTime).getTime();
-  if (rangeMs <= 0 || rangeMs > EXPENSIVE_OBSERVATION_MAX_RANGE_MS) {
+  if (rangeMs <= 0 || rangeMs > OBSERVATION_MAX_RANGE_MS) {
     throw new InvalidRequestError(
-      "Accessing observation input, output, or metadata by date requires a maximum range of 14 days.",
+      "listObservations requires fromStartTime before toStartTime with a maximum range of 14 days.",
     );
   }
 
@@ -381,11 +337,11 @@ export const [listObservationsTool, handleListObservations] = defineTool({
     "Find and review observations in the current Langfuse project, such as generations, spans, events, agent steps, and tool calls.",
     "Traces consist of observations. Use this tool when the user asks to inspect traces: pass traceId to page through the observations for a specific trace; those observation records are the trace data returned by the API.",
     "Use filters to narrow results by trace, name, type, level, environment, time range, or advanced filter conditions. Results are paginated with an opaque cursor.",
-    'For metadata filters, first inspect metadata on selectively scoped observations by passing traceId, an exact id filter, or both fromStartTime and toStartTime with fields: ["id", "metadata"]. Then use a discovered key in a stringObject filter.',
+    'For metadata filters, first inspect metadata by passing both fromStartTime and toStartTime with a maximum range of 14 days and fields: ["id", "metadata"]. Then use a discovered key in a stringObject filter.',
     "",
     'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
-    "Requests that project or filter input, output, or metadata must include traceId, an id filter, or a date range of at most 14 days. Date-scoped input/output projections support a maximum limit of 50.",
+    "All requests must include explicit fromStartTime and toStartTime with a positive date range of at most 14 days, even when scoped by traceId or observation id. Reuse timestamps from earlier results to narrow the search. Input/output projections support a maximum limit of 50.",
   ].join("\n"),
   action: "traces:read",
   baseSchema: ListObservationsBaseSchema,
@@ -400,7 +356,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
       fn: async (span) => {
         const projectionFields = getProjectionFields(input.fields);
         const fieldGroups = getProjectionFieldGroups(projectionFields);
-        assertAllowedExpensiveObservationAccess(input, projectionFields);
+        assertAllowedObservationAccess(input, projectionFields);
         const dataAccessWindow = clampToDataAccessDays({
           plan: context.plan,
           fromTimestamp: input.fromStartTime,

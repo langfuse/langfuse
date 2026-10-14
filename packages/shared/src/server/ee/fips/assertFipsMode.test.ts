@@ -67,4 +67,45 @@ describe("assertFipsMode", () => {
       /FIPS provider is not active/,
     );
   });
+
+  it.each([
+    [
+      "the MD5 S3 delete checksum",
+      { LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM: "MD5" },
+      /LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM=MD5/,
+    ],
+    [
+      "OCI native object storage",
+      { LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE: "true" },
+      /LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE=true/,
+    ],
+  ] as const)(
+    "refuses to start with %s, which computes MD5",
+    (_label, overrides, message) => {
+      expect(() => assertFipsMode(createTestEnv(overrides))).toThrow(message);
+    },
+  );
+
+  it("passes with FIPS-approved storage options", () => {
+    expect(() =>
+      assertFipsMode(
+        createTestEnv({
+          LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM: "SHA256",
+          LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE: "false",
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it("ignores MD5 storage options when FIPS mode is not requested", () => {
+    expect(() =>
+      assertFipsMode(
+        createTestEnv({
+          LANGFUSE_REQUIRE_FIPS: "false",
+          LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM: "MD5",
+          LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE: "true",
+        }),
+      ),
+    ).not.toThrow();
+  });
 });

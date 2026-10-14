@@ -1,4 +1,6 @@
+import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 /**
  * ObservationDetailViewHeader - Extracted header component for ObservationDetailView
@@ -35,7 +37,10 @@ import {
   UsageBadge,
   hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
-import { resolveObservationCostSource } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
+import {
+  isGenerationMissingCost,
+  resolveObservationCostSource,
+} from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
 import {
   type WithStringifiedMetadata,
@@ -53,7 +58,6 @@ import {
   LockIcon,
   MessageSquare,
   MessageSquareOff,
-  MoreHorizontal,
   PlusIcon,
   SquarePen,
 } from "lucide-react";
@@ -152,6 +156,12 @@ export const ObservationDetailViewHeader = memo(
     const displayedCostDetails =
       subtreeMetrics?.costDetails ?? observation.costDetails;
     const showsOwnObservationCost = !subtreeMetrics;
+    const showsNoCost = isGenerationMissingCost({
+      type: observation.type,
+      totalUsage,
+      totalCost: displayedTotalCost,
+      costDetails: displayedCostDetails,
+    });
     const hasProvidedCostDetails =
       Object.keys(observation.providedCostDetails).length > 0;
     const costSource = resolveObservationCostSource({
@@ -175,6 +185,20 @@ export const ObservationDetailViewHeader = memo(
           }
         : undefined;
 
+    const renderCostBadge = () => {
+      if (showsNoCost)
+        return <CostBadge variant="missing" projectId={projectId} />;
+      if (displayedTotalCost == null || !displayedCostDetails) return null;
+      return (
+        <CostBadge
+          totalCost={displayedTotalCost}
+          costDetails={displayedCostDetails}
+          costSource={costSource}
+          priceSource={priceSource}
+        />
+      );
+    };
+
     const timestampBadge = preparedDate && (
       <Badge
         font="mono"
@@ -185,8 +209,13 @@ export const ObservationDetailViewHeader = memo(
     );
 
     const renderAddToButton = (triggerProps: Record<string, unknown> = {}) => (
-      <Button variant="secondary" size="sm" className="gap-1" {...triggerProps}>
-        <PlusIcon className="icon-base" />
+      <Button
+        variant="ghost"
+        size="sm"
+        className={headerActionClassName}
+        {...triggerProps}
+      >
+        <PlusIcon className="icon-base text-icon-foreground" />
         <span>Add to</span>
         <DropdownIndicator size="sm" nudge />
       </Button>
@@ -331,7 +360,7 @@ export const ObservationDetailViewHeader = memo(
                                   ref: mobileActionsTriggerRef,
                                 })}
                               >
-                                <MoreHorizontal className="icon-base text-icon-foreground" />
+                                <EllipsisVertical className="icon-base text-icon-foreground" />
                               </Button>
                             )}
                           </DropdownMenu>
@@ -345,7 +374,7 @@ export const ObservationDetailViewHeader = memo(
           </div>
           {/* Action buttons (desktop inline cluster) */}
           {!isMobile && (
-            <div className="flex flex-wrap content-start items-center justify-start gap-0.5 @md:justify-end">
+            <div className="flex flex-wrap content-start items-center justify-start gap-1 @md:justify-end">
               {observationWithIO ? (
                 <ConnectedTraceObservationAddToDropdownMenuController
                   analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
@@ -377,6 +406,7 @@ export const ObservationDetailViewHeader = memo(
                     <Button
                       variant="ghost"
                       size="sm"
+                      className={headerActionClassName}
                       disabled={disabled}
                       onClick={() =>
                         openDrawer({
@@ -393,9 +423,9 @@ export const ObservationDetailViewHeader = memo(
                       }
                     >
                       {disabled ? (
-                        <LockIcon className="icon-base mr-1.5" />
+                        <LockIcon className="icon-base text-icon-foreground" />
                       ) : (
-                        <SquarePen className="icon-base mr-1.5" />
+                        <SquarePen className="icon-base text-icon-foreground" />
                       )}
                       <span>Annotate</span>
                     </Button>
@@ -408,13 +438,13 @@ export const ObservationDetailViewHeader = memo(
                 size="sm"
                 disabled={commentDrawerControl.disabled}
                 onClick={commentDrawerControl.openDrawer}
-                className="gap-1"
+                className={headerActionClassName}
               >
                 {commentDrawerControl.disabled ? (
                   <MessageSquareOff className="icon-base text-muted-foreground" />
                 ) : (
                   <>
-                    <MessageSquare className="icon-base" />
+                    <MessageSquare className="icon-base text-icon-foreground" />
                     <span>{commentActionLabel}</span>
                     {!!commentCount ? (
                       <ActionButtonCountBadge count={commentCount} />
@@ -446,16 +476,13 @@ export const ObservationDetailViewHeader = memo(
                 }}
               >
                 {({ getTriggerProps }) => (
-                  <Button
-                    aria-label="Options"
-                    className="shrink-0"
-                    size="icon-sm"
-                    title="Options"
-                    variant="ghost"
+                  <HeaderActionButton
+                    label="Options"
+                    icon={
+                      <EllipsisVertical className="icon-base text-icon-foreground" />
+                    }
                     {...getTriggerProps()}
-                  >
-                    <EllipsisVertical className="icon-base" />
-                  </Button>
+                  />
                 )}
               </ConnectedDetailHeaderActionsMenuController>
             </div>
@@ -490,14 +517,7 @@ export const ObservationDetailViewHeader = memo(
                   projectId={projectId}
                 />
               )}
-            {displayedTotalCost != null && displayedCostDetails && (
-              <CostBadge
-                totalCost={displayedTotalCost}
-                costDetails={displayedCostDetails}
-                costSource={costSource}
-                priceSource={priceSource}
-              />
-            )}
+            {renderCostBadge()}
             {subtreeMetrics
               ? subtreeMetrics.hasGenerationLike &&
                 subtreeMetrics.totalUsage > 0 &&

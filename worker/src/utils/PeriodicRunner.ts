@@ -1,4 +1,5 @@
 import {
+  contextWithLangfuseProps,
   instrumentAsync,
   logger,
   recordDistribution,
@@ -6,7 +7,7 @@ import {
   recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
-import { SpanKind } from "@opentelemetry/api";
+import { context as otelContext, SpanKind } from "@opentelemetry/api";
 
 const METRIC_PREFIX = "langfuse.periodic_runner";
 type RunOutcome = "success" | "failed" | "skipped";
@@ -94,7 +95,15 @@ export abstract class PeriodicRunner {
           span.setAttribute("runner.name", this.name);
           span.setAttribute("runner.interval_ms", this.defaultIntervalMs);
 
-          const result = await this.execute();
+          const clickHouseCtx = contextWithLangfuseProps({
+            clickhouse: {
+              surface: "worker",
+              route: `${METRIC_PREFIX}.${this.metricName}`,
+            },
+          });
+          const result = await otelContext.with(clickHouseCtx, () =>
+            this.execute(),
+          );
           if (typeof result === "number") {
             nextDelayMs = result;
             span.setAttribute("runner.next_delay_ms", nextDelayMs);

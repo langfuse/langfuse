@@ -185,6 +185,9 @@ const events = {
     "duplicate_form_submit",
   ],
   session_detail: [
+    "announcement_learn_more_click",
+    "announcement_feedback_click",
+    "announcement_dismiss",
     "publish_button_click",
     "download_button_click",
     "copy_session_id_click",
@@ -394,6 +397,7 @@ const events = {
     "tracing_api_key_create_clicked",
     "tracing_agent_prompt_copy_clicked",
     "tracing_manual_docs_link_clicked",
+    "signup_survey_submitted",
   ],
   user_settings: ["theme_changed", "feature_preview_toggled"],
   project_settings: [
@@ -418,6 +422,9 @@ const events = {
     "delete_membership",
     "api_key_create",
     "api_key_delete",
+    "llm_api_key_create",
+    "llm_api_key_update",
+    "llm_api_key_delete",
     "pricing_dialog_opened",
     "delete_organization",
     "ai_features_toggle",
@@ -523,8 +530,9 @@ export const usePostHogClientCapture = () => {
   return useCallback(
     function capture<E extends EventName>(
       eventName: E,
-      properties?: EventProperties[E],
-      options?: CaptureOptions,
+      ...[properties, options]: E extends keyof ToastEventMap
+        ? [properties: EventProperties[E], options?: CaptureOptions]
+        : [properties?: EventProperties[E], options?: CaptureOptions]
     ): CaptureResult | void {
       return posthog.capture(eventName, properties, options);
     },

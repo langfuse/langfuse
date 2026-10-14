@@ -27,35 +27,6 @@ export const redisSocketTimeoutMsSchema = z.coerce
   })
   .default(30_000);
 
-// ClickHouse rejects unknown settings on every query, so a malformed value
-// must fail the process at startup instead.
-const clickhouseExtraSettingsSchema = (name: string) =>
-  z
-    .string()
-    .transform((value, ctx) => {
-      try {
-        return JSON.parse(value) as unknown;
-      } catch {
-        ctx.addIssue({ code: "custom", message: `${name} must be valid JSON` });
-        return z.NEVER;
-      }
-    })
-    .pipe(
-      z.record(
-        z
-          .string()
-          .regex(
-            /^[A-Za-z_][A-Za-z0-9_]*$/,
-            `${name} keys must be ClickHouse setting names`,
-          ),
-        z.union([z.string(), z.number(), z.boolean()]),
-        {
-          error: `${name} must be a JSON object of setting names to string, number, or boolean values`,
-        },
-      ),
-    )
-    .optional();
-
 const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
 
 const EnvSchema = z.object({
@@ -73,10 +44,16 @@ const EnvSchema = z.object({
   NEXTAUTH_URL: z.url().optional(),
   // Internal Topics PoC controls; not a supported self-hosting configuration.
   LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
-  // Unset model IDs make Topics model processing unavailable.
-  LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
-  LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
   LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS: z
     .string()
     .default("")
     .transform((value) =>
@@ -213,18 +190,6 @@ const EnvSchema = z.object({
   CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
     .enum(["true", "false"])
     .default("false"),
-  // JSON objects of ClickHouse setting name to value. Every client gets
-  // CLICKHOUSE_EXTRA_SETTINGS; the service variants add to it for clients of
-  // that service. Settings set by Langfuse itself take precedence.
-  CLICKHOUSE_EXTRA_SETTINGS: clickhouseExtraSettingsSchema(
-    "CLICKHOUSE_EXTRA_SETTINGS",
-  ),
-  CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY: clickhouseExtraSettingsSchema(
-    "CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY",
-  ),
-  CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY: clickhouseExtraSettingsSchema(
-    "CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY",
-  ),
   LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
     .enum(["true", "false"])
     .default("false"),
@@ -341,6 +306,16 @@ const EnvSchema = z.object({
   LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_EVENT_KEY_MAX_SEGMENT_BYTES:
     langfuseS3EventKeyMaxSegmentBytesSchema,
+  LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(100),
+  LANGFUSE_OTEL_MEDIA_UPLOAD_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(128 * 1024 * 1024),
   LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
@@ -353,6 +328,11 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30_000),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
   LANGFUSE_AZURE_SKIP_CONTAINER_CHECK: z
     .enum(["true", "false"])
@@ -661,6 +641,16 @@ const EnvSchema = z.object({
       },
     ),
   LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+  // Cloud runtime credentials require an operator-provisioned connection.
+  LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
   // Local AI credentials; production normally uses the AWS role chain.
   AWS_PROFILE: z.string().optional(),
   LANGFUSE_AI_FEATURES_AWS_PROFILE: z.string().optional(),

@@ -104,14 +104,26 @@ export class GatewayResolveCache {
     fastHashedSecretKey: string;
     apiFormat: string;
     context: CachedResolveContext | typeof GATEWAY_RESOLVE_KEY_NON_EXISTENT;
+    expiresAt?: Date | null;
   }) {
     if (!this.enabled) return;
 
     const key = contextCacheKey(params.fastHashedSecretKey, params.apiFormat);
-    const ttl = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS;
+    const configuredTtl = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS;
+    const now = Date.now();
+    const expirationTimestamp = Math.min(
+      now + configuredTtl * 1000,
+      params.expiresAt?.getTime() ?? Number.POSITIVE_INFINITY,
+    );
+    if (expirationTimestamp <= now) return;
     try {
       if (params.context === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
-        await this.redis!.set(key, JSON.stringify(params.context), "EX", ttl);
+        await this.redis!.set(
+          key,
+          JSON.stringify(params.context),
+          "PXAT",
+          expirationTimestamp,
+        );
         return;
       }
 
@@ -119,11 +131,16 @@ export class GatewayResolveCache {
       // commands separately instead of wrapping them in one transaction.
       const index = organizationIndexKey(params.context.organizationId);
       await Promise.all([
-        this.redis!.set(key, JSON.stringify(params.context), "EX", ttl),
+        this.redis!.set(
+          key,
+          JSON.stringify(params.context),
+          "PXAT",
+          expirationTimestamp,
+        ),
         this.redis!.sadd(index, key),
         // The index must outlive its entries, otherwise invalidation can miss a
         // cached key that is still live.
-        this.redis!.expire(index, ttl * 2),
+        this.redis!.expire(index, configuredTtl * 2),
       ]);
     } catch (error) {
       logger.error("Error writing gateway resolve cache", error);

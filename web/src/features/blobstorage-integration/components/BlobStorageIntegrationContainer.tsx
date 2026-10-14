@@ -7,6 +7,7 @@ import {
 } from "@/src/features/analytics-integrations";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   type V4WriteMode,
   type BlobStorageIntegration,
@@ -65,7 +66,11 @@ export const BlobStorageIntegrationContainer = ({
       utils.blobStorageIntegration.invalidate();
     },
     onError: (error) => {
-      showErrorToast("Failed to save integration", error.message);
+      showErrorToast(
+        "Failed to save integration",
+        error.message,
+        classifyTrpcToastError(error, "blob_storage.save"),
+      );
     },
   });
   const mutDelete = api.blobStorageIntegration.delete.useMutation({
@@ -87,7 +92,11 @@ export const BlobStorageIntegrationContainer = ({
       });
     },
     onError: (error) => {
-      showErrorToast("Validation failed", error.message);
+      showErrorToast(
+        "Validation failed",
+        error.message,
+        classifyTrpcToastError(error, "blob_storage.validate"),
+      );
     },
   });
 

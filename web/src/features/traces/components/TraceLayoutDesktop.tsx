@@ -28,6 +28,7 @@ import { TraceReviewLayout } from "./TraceReviewLayout";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { useReadPath } from "@/src/features/events";
 import { resolveEffectiveWidthFraction } from "@/src/components/table/peek/store/peekPanelStore";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
 const RESIZABLE_PANEL_NAVIGATION_ID = "trace-layout-panel-navigation";
@@ -221,23 +222,17 @@ function TraceNavigationDetailLayout({
   // Peek sizing depends on the drawer width; persistence scope is caller-owned.
   const { isPeekMode } = useViewPreferences();
 
-  // The width the trace container actually opens at, driving the computed
-  // default split. Peek: the drawer width — when expanded (a shared/reloaded
-  // `?peekView=expanded` link) the panel renders at ~viewport width, NOT the
-  // widget fraction — so we must size the split against that, or a first-open
-  // expanded peek on a big screen re-creates the wide-tree bug. Full-page: the
-  // viewport. Sidebar offsets are ignored in both (the nav is width-capped at
-  // these sizes, so the small overestimate only makes the tree slightly
-  // narrower, still within its comfortable band). 0 during SSR. Mount-time
-  // default only (a saved layout wins after the first resize), so it doesn't
-  // track viewport changes.
+  /** Mount-time defaults use the host width; saved inner splits take precedence. */
+  const getPanelWidthPx = usePeekTableState()?.getPanelWidthPx;
   const [peekView] = useQueryParam("peekView", StringParam);
   const isPeekExpanded = isPeekMode && peekView === "expanded";
   const containerWidthPx = useMemo(() => {
     if (typeof window === "undefined") return 0;
-    if (!isPeekMode || isPeekExpanded) return window.innerWidth;
+    if (!isPeekMode) return window.innerWidth;
+    if (getPanelWidthPx) return getPanelWidthPx();
+    if (isPeekExpanded) return window.innerWidth;
     return resolveEffectiveWidthFraction() * window.innerWidth;
-  }, [isPeekMode, isPeekExpanded]);
+  }, [isPeekMode, isPeekExpanded, getPanelWidthPx]);
 
   // Deterministic default split, computed from `containerWidthPx`. Only used on
   // first open (no saved layout); memoized so the Group sees a stable prop.

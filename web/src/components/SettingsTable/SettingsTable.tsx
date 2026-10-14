@@ -1,4 +1,4 @@
-import { useState, type ComponentProps } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import {
   ActionButton,
   type ActionButtonProps,
@@ -60,6 +60,8 @@ export type SettingsTableProps<TData extends object> = Omit<
     onChange: (value: string) => void;
   };
   filters?: SettingsTableFilter[];
+  emptyState?: ReactNode;
+  toolbarContent?: ReactNode;
   toolbarActions?: SettingsTableToolbarAction[];
   rowHeightControl?: {
     rowHeight: RowHeight;
@@ -74,6 +76,8 @@ export function SettingsTable<TData extends object>({
   columnVisibilityKey,
   search,
   filters,
+  emptyState,
+  toolbarContent,
   toolbarActions,
   rowHeightControl,
   pagination,
@@ -101,10 +105,15 @@ export function SettingsTable<TData extends object>({
   const hasToolbar = Boolean(
     search ||
     hasFilters ||
+    toolbarContent ||
     columnVisibilityKey ||
     toolbarActions ||
     rowHeightControl,
   );
+  const showEmptyState =
+    emptyState !== undefined &&
+    tableProps.data.status === "success" &&
+    tableProps.data.data.length === 0;
 
   return (
     <div className="flex min-h-0 flex-col gap-2">
@@ -121,6 +130,7 @@ export function SettingsTable<TData extends object>({
               hasFilters ? "min-w-72" : "min-w-0",
             )}
           >
+            {toolbarContent}
             {search && (
               <div className="w-full max-w-sm min-w-0">
                 <SearchInput
@@ -229,17 +239,21 @@ export function SettingsTable<TData extends object>({
         </div>
       )}
 
-      <SettingsTableCard>
-        <Table
-          columns={columns}
-          columnVisibility={columnVisibility}
-          onColumnVisibilityChange={setColumnVisibility}
-          columnOrder={columnOrder}
-          onColumnOrderChange={setColumnOrder}
-          {...tableProps}
-        />
-        {pagination && <PaginationBar {...pagination} />}
-      </SettingsTableCard>
+      {showEmptyState ? (
+        emptyState
+      ) : (
+        <SettingsTableCard>
+          <Table
+            columns={columns}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={setColumnVisibility}
+            columnOrder={columnOrder}
+            onColumnOrderChange={setColumnOrder}
+            {...tableProps}
+          />
+          {pagination && <PaginationBar {...pagination} />}
+        </SettingsTableCard>
+      )}
     </div>
   );
 }

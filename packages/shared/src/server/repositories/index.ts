@@ -28,3 +28,5 @@ export * from "./job-executions";
 export * from "./daily-metrics";
 export * from "./dataset-runs";
 export * from "./score-configs";
+export * from "./auditLogs";
+export * from "./billable-events";

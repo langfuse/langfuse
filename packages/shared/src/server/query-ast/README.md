@@ -8,7 +8,7 @@ metadata, `FilterState` embedding) will land under
 `packages/shared/src/query-ast/`.
 
 This folder is a compile-only ClickHouse dialect on Kysely 0.28: real
-`OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata `indexOf`
+`OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata map
 subscripts; a mandatory tenancy injection pass keyed on `ExecutionContext`;
 per-table dedup lowering from the registry; schema-typed selection; virtual
 views as WITH CTEs; catalog parity.
@@ -40,6 +40,7 @@ SQL at the `repositories/clickhouse.ts` exec seam in test mode, then normalizes
 it via `clickhouse format` + positional param names for snapshot comparison — no
 ClickHouse server needed). Each migrated call site keeps its SQL baseline next to
 that call site, e.g. `../repositories/environments.golden.test.ts`,
+`../repositories/events.golden.test.ts`,
 `../repositories/scores.golden.test.ts`, and
 `../queries/clickhouse-sql/event-filter-options.golden.test.ts`.
 
@@ -74,20 +75,28 @@ suffix to run there. Promote it to a required check once it has proven stable.
 
 - **Compile only through `compileClickhouseQuery(query, ctx)`.** It is the one
   supported path from a builder to `{ sql, params }`; the repository layer hands
-  that to `queryClickhouse`. `ctx` (an `ExecutionContext` carrying `projectId`)
-  is required — omitting it is a compile-time type error and an empty one throws.
+  that to `queryClickhouse`. `ctx` (an `ExecutionContext` carrying exactly one
+  `projectId`) is required — omitting it is a compile-time type error and
+  an empty one throws. There is no multi-project scope: a query reads one
+  project.
 - **Never filter `project_id` yourself.** The compile step injects
   `project_id = {projectId}` into every tenanted relation, so call sites pass
   only `{ projectId }` (see `../repositories/environments.ts`).
 - **Dedup is declared per table and must be an existing production idiom.**
-  `events_core` is `none` (immutable at read time — no LIMIT BY, no FINAL).
+  `events_core` and `events_full` are `none` (immutable at read time — no
+  LIMIT BY, no FINAL).
   `limitBy` is the legacy `ORDER BY <version> DESC LIMIT 1 BY <key>` already
   used on traces / observations / scores. `$call(limitBy(...))` remains for
   explicit non-version LIMIT BY. Auto-lowering does not declare scores as
   `{ strategy: "final" }`; callers opt in with `$call(useFinal(["scores"]))`.
 - **Value binds take their ClickHouse type from the compared column** in the
-  table registry (`total_cost > 1` emits `{p:Float64}`, not inferred
+  table registry (`scores.value > 1` emits `{p:Float64}`, not inferred
   `{p:Int64}`). Same-value binds still intern to one placeholder.
+- **Bind dates as JS `Date`**, never as pre-formatted strings. The compiler
+  sends a `Date` as the UTC wall-clock string ingestion writes
+  (`toClickhouseDateTime`), so binds match stored rows whatever the server
+  timezone. Use `toDate` / `toStartOfMinute` from `extensions.ts` for
+  date-truncated comparisons.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
@@ -127,13 +136,13 @@ db.selectFrom("scores as s")
 // … from scores as s final
 ```
 
-**Select a metadata value** (`metadataValue` — lowers `metadata[key]` to a bound `indexOf` subscript):
+**Select a metadata value** (`metadataValue` — lowers `metadata[key]` to a bound subscript of `metadataMap`, so the last duplicate key wins):
 
 ```ts
 db.selectFrom("events_core as e")
   .select((eb) => [metadataValue("e", "my_key").as("my_val")])
-  .where((eb) => eb(metadataValue("e", "my_key"), ">", 2));
-// select metadata_values[indexof(e.metadata_names, {p:String})] as my_val …
+  .where((eb) => eb(metadataValue("e", "my_key"), "=", "x"));
+// select mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[{p:String}] as my_val …
 ```
 
 ## Developing the dialect
@@ -153,7 +162,7 @@ preserve it:
 | ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE. | no    |
 | LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                               | no    |
 | FINAL              | Plugin wraps a FROM/JOIN table expression in `FinalTableNode`. Compiler emits `final` after that expression (`scores as s final`). `$call(useFinal(["scores"]))`. Tables declared `dedup: none` throw.     | no    |
-| metadata `indexOf` | Helper builds an `ArrayIndexNode` whose index child is a `FunctionNode` (`indexOf`) over a bound `ValueNode` key. Transformer + compiler special-case the node. No plugin.                                 | no    |
+| metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a bound `ValueNode` key. Transformer + compiler special-case the node. No plugin.                                       | no    |
 | Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                               | no    |
 
 These are real node objects whose children are traced Kysely
@@ -188,18 +197,19 @@ is where tenancy is enforced:
    both. It then identity-stamps the tree (`WeakSet`); a copied
    `langfuseTenancy` property is not a valid stamp.
 3. `DedupLoweringPlugin` applies the table's declared read idiom
-   (`none` / `limitBy` / `final`). `events_core` is `none` — immutable at
-   read time, so the pass does not inject LIMIT BY or FINAL. `limitBy` is
+   (`none` / `limitBy` / `final`). `events_core` and `events_full` are
+   `none` — immutable at read time, so the pass does not inject LIMIT BY or
+   FINAL. `limitBy` is
    the existing legacy `ORDER BY <version> DESC LIMIT 1 BY <key>`.
    `final` remains fail-closed on the auto-lowering pass; callers opt in
    with `$call(useFinal(["scores"]))`. The pass restamps the rewritten root.
 4. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
    present, so `qb.compile()` without the plugin also fails. Value binds take
    their ClickHouse type from the compared column's registry entry when one is
-   in scope (`total_cost > 1` → `{p:Float64}`).
-5. Raw-SQL table sources (`selectFrom(sql\`...\`)`) and raw fragments embedding a
-   `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`. Kysely's
-   own keyword fragments (`asc`/`desc`) are not relations.
+   in scope (`scores.value > 1` → `{p:Float64}`).
+5. Raw-SQL table sources (``selectFrom(sql`...`)``) and raw fragments embedding
+   a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`.
+   Kysely's own keyword fragments (`asc`/`desc`) are not relations.
 
 So query bodies here never filter `project_id` by hand — it is redundant, and
 forgetting it is impossible.

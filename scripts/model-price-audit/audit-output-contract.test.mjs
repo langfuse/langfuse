@@ -7,6 +7,7 @@ import test from "node:test";
 import {
   collectTypeModelChanges,
   renderAuditSummary,
+  renderPullRequestBody,
 } from "./audit-output-contract.mjs";
 
 const scriptPath = path.join(
@@ -692,6 +693,56 @@ test("escapes backslashes and backticks in the proposed title", () => {
   );
 });
 
+test("limits the pull request body to changed rows, reasons, and sources", () => {
+  const output = {
+    ...structuredOutput([
+      auditRow({ model: "gpt-4o", comments: "Unchanged row detail." }),
+      auditRow({
+        model: "gpt-5",
+        change: "updated",
+        comments: "Cache read lowered from $0.20 to $0.10/MTok.",
+      }),
+    ]),
+    skillReferenceUpdates: ["provider-sources-and-price-keys.md - noted fix"],
+    unresolvedFindings: ["Bedrock SKU still ambiguous"],
+    validation: ["validate-pricing-file.mjs passed"],
+  };
+
+  const body = renderPullRequestBody(output, {
+    reportUrl: "https://github.com/langfuse/langfuse/actions/runs/1",
+  });
+
+  assert.match(body, /### `gpt-5` \(OpenAI\): updated/);
+  assert.match(body, /\*\*Why:\*\* Cache read lowered from \$0\.20/);
+  assert.ok(body.includes(`- ${officialSource}`));
+  assert.ok(body.includes("provider-sources-and-price-keys.md - noted fix"));
+  assert.ok(
+    body.includes(
+      "[workflow run summary](https://github.com/langfuse/langfuse/actions/runs/1)",
+    ),
+  );
+  assert.match(body, /Checked 2 model entries; 1 unresolved finding\./);
+  for (const omitted of [
+    "Unchanged row detail.",
+    "Bedrock SKU still ambiguous",
+    "validate-pricing-file.mjs passed",
+    "| Provider |",
+  ]) {
+    assert.ok(!body.includes(omitted), `body must omit ${omitted}`);
+  }
+
+  const workflow = fs.readFileSync(workflowPath, "utf8");
+  const bodyStep = workflow.slice(
+    workflow.lastIndexOf(
+      "{",
+      workflow.indexOf('> "$RUNNER_TEMP/model-price-audit-pr-body.md"'),
+    ),
+    workflow.indexOf('> "$RUNNER_TEMP/model-price-audit-pr-body.md"'),
+  );
+  assert.match(bodyStep, /render-pull-request-body\.mjs/);
+  assert.doesNotMatch(bodyStep, /claude-model-price-audit\.txt/);
+});
+
 test("runs formatting cleanup before the extracted output contract", () => {
   const workflow = fs.readFileSync(workflowPath, "utf8");
   const cleanupIndex = workflow.indexOf(
@@ -725,4 +776,13 @@ test("runs formatting cleanup before the extracted output contract", () => {
     "guardrail tests must rerun after permitted workflow self-edits",
   );
   assert.doesNotMatch(workflow, /node <<'NODE' \| tee/);
+  assert.match(
+    workflow,
+    /Bash\(node scripts\/model-price-audit\/list-required-audit-rows\.mjs\)/,
+    "the audit must be allowed to list the rows the validator expects",
+  );
+  assert.match(
+    workflow,
+    /run the allowed exact `node scripts\/model-price-audit\/list-required-audit-rows\.mjs` command/,
+  );
 });

@@ -12,7 +12,7 @@ import {
 } from "../transcript";
 
 /** Historical summaries are reusable only with the same transcript producer. */
-export const TOPICS_TRANSCRIPT_VERSION = "shared-transcript-v2";
+export const TOPICS_TRANSCRIPT_VERSION = "shared-transcript-v3";
 
 const MAX_OBSERVATIONS = 2_000;
 const MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024;
@@ -102,6 +102,9 @@ export async function loadTopicTranscript(params: {
     )
     .orderByColumns([
       { column: "e.event_ts", direction: "DESC" },
+      /** Use the same environment tie-breakers as Topics root discovery. */
+      { column: "e.span_id", direction: "DESC" },
+      { column: "e.environment", direction: "DESC" },
       // Equal storage timestamps need a stable choice; they do not establish causal order.
       {
         column:

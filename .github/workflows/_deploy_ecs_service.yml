@@ -31,8 +31,9 @@ jobs:
     permissions:
       contents: read
     env:
-      # Iron Bank Alpine base, the same one pipeline.yml uses for release images.
-      BASE_IMAGE: registry1.dso.mil/ironbank/opensource/alpinelinux/alpine:3.24
+      # Iron Bank UBI 9 bases, the same ones pipeline.yml uses for release images.
+      BASE_IMAGE: registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8
+      MICRO_BASE_IMAGE: registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8
     steps:
       - name: Get app name
         uses: winterjung/split@a211a1c46e35fcdc4097d59dd6282d4a9859651b # v2
@@ -73,6 +74,7 @@ jobs:
             --target runtime \
             --build-arg BUILD_ID="$IMAGE_TAG" \
             --build-arg BASE_IMAGE="$BASE_IMAGE" \
+            --build-arg MICRO_BASE_IMAGE="$MICRO_BASE_IMAGE" \
             -t "$REGISTRY/ai-gateway:$IMAGE_TAG" \
             ./ai-gateway
           docker push "$REGISTRY/ai-gateway:$IMAGE_TAG"
@@ -92,6 +94,7 @@ jobs:
           VARS_NEXT_PUBLIC_POSTHOG_KEY: ${{ vars.NEXT_PUBLIC_POSTHOG_KEY }}
           VARS_NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.NEXT_PUBLIC_POSTHOG_HOST }}
           VARS_NEXT_PUBLIC_PLAIN_APP_ID: ${{ vars.NEXT_PUBLIC_PLAIN_APP_ID }}
+          VARS_NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
           VARS_SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           VARS_SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
           VARS_NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE: ${{ vars.NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE }}
@@ -102,6 +105,7 @@ jobs:
             -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
             -f ./${STEPS_SPLIT_OUTPUTS__0}/Dockerfile \
             --build-arg BASE_IMAGE="$BASE_IMAGE" \
+            --build-arg MICRO_BASE_IMAGE="$MICRO_BASE_IMAGE" \
             --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${VARS_NEXT_PUBLIC_LANGFUSE_CLOUD_REGION} \
             --build-arg NEXT_LANGFUSE_TRACING_SAMPLE_RATE=${VARS_NEXT_LANGFUSE_TRACING_SAMPLE_RATE} \
             --build-arg NEXT_PUBLIC_SENTRY_ENVIRONMENT=${VARS_NEXT_PUBLIC_SENTRY_ENVIRONMENT} \
@@ -112,6 +116,7 @@ jobs:
             --build-arg NEXT_PUBLIC_POSTHOG_KEY=${VARS_NEXT_PUBLIC_POSTHOG_KEY} \
             --build-arg NEXT_PUBLIC_POSTHOG_HOST=${VARS_NEXT_PUBLIC_POSTHOG_HOST} \
             --build-arg NEXT_PUBLIC_PLAIN_APP_ID=${VARS_NEXT_PUBLIC_PLAIN_APP_ID} \
+            --build-arg NEXT_PUBLIC_TURNSTILE_SITE_KEY=${VARS_NEXT_PUBLIC_TURNSTILE_SITE_KEY} \
             --build-arg SENTRY_AUTH_TOKEN=${SECRETS_SENTRY_AUTH_TOKEN} \
             --build-arg SENTRY_ORG=${VARS_SENTRY_ORG} \
             --build-arg SENTRY_PROJECT=${VARS_SENTRY_PROJECT} \

@@ -907,6 +907,8 @@ export type InAppAgentWindowProps = {
   /** Titles the window. Null until the server has named the conversation,
    * which is when the product name shows instead. */
   selectedConversationTitle: string | null;
+  /** Rendered right after the title. */
+  titleActions?: ReactNode;
 } & InAppAgentWindowCloseButtonProps;
 
 function InAppAgentRateLimitError({
@@ -999,6 +1001,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     screenContextDescription,
     selectedConversationId,
     selectedConversationTitle,
+    titleActions,
   } = props;
   const screenContextNotice = formatScreenContextNotice(
     screenContextDescription,
@@ -1181,6 +1184,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               Assistant
             </p>
           )}
+          {titleActions ? (
+            <div
+              className="flex shrink-0 items-center"
+              data-movable-resizable-panel-ignore-drag="true"
+            >
+              {titleActions}
+            </div>
+          ) : null}
         </div>
         <div
           className="flex shrink-0 items-center gap-0.5"
@@ -1619,7 +1630,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   : "Let me know what I can do for you..."
               }
               rows={1}
-              className="placeholder:text-foreground-tertiary max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 pb-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              className="placeholder:text-muted-foreground max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 pb-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
             />
             <div className="bg-muted flex min-h-9 w-full items-center justify-between gap-2 px-2 py-1.5">
               <p className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">

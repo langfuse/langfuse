@@ -11,7 +11,7 @@ import {
   getBearerTokenProvider,
   type TokenCredential,
 } from "@azure/identity";
-import { APICallError, type LanguageModel } from "ai";
+import { APICallError, type EmbeddingModel, type LanguageModel } from "ai";
 
 import { env } from "../../../../env";
 import {
@@ -263,13 +263,12 @@ export function translateAzureBaseURL(
   return { ok: true, value: trimmed };
 }
 
-export function buildAzureModel(params: {
-  modelId: string;
+function createAzureProvider(params: {
   apiKey: string;
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
   fetch: typeof fetch;
-}): LanguageModel {
+}) {
   const baseUrlTranslation = translateAzureBaseURL(params.baseURL);
   if (!baseUrlTranslation.ok) {
     // Configuration validation runs before model construction; keep this
@@ -283,7 +282,7 @@ export function buildAzureModel(params: {
     extraHeaders: params.extraHeaders,
   });
 
-  const provider = createAzure({
+  return createAzure({
     ...auth,
     baseURL: baseUrlTranslation.value,
     apiVersion: AZURE_OPENAI_API_VERSION,
@@ -291,7 +290,25 @@ export function buildAzureModel(params: {
     headers: params.extraHeaders,
     fetch: params.fetch,
   });
+}
 
+export function buildAzureModel(params: {
+  modelId: string;
+  apiKey: string;
+  baseURL?: string | null;
+  extraHeaders?: Record<string, string>;
+  fetch: typeof fetch;
+}): LanguageModel {
   // Azure connections use Chat Completions; the model name is the deployment.
-  return provider.chat(params.modelId);
+  return createAzureProvider(params).chat(params.modelId);
+}
+
+export function buildAzureEmbeddingModel(params: {
+  modelId: string;
+  apiKey: string;
+  baseURL?: string | null;
+  extraHeaders?: Record<string, string>;
+  fetch: typeof fetch;
+}): EmbeddingModel {
+  return createAzureProvider(params).embedding(params.modelId);
 }

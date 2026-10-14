@@ -12,3 +12,6 @@
 
 # Skills for langfuse assistant
 /packages/langfuse-skills/ @LysanderKie @bezbac
+
+# Code review policy
+/REVIEW.md @nimarb

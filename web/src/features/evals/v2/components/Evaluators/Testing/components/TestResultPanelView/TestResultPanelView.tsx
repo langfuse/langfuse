@@ -46,11 +46,11 @@ function ResultStat({
 }) {
   return (
     <span
-      className="text-muted-foreground flex items-center gap-1 font-mono text-xs leading-none tabular-nums"
+      className="text-muted-foreground inline-flex items-baseline gap-1 font-mono text-xs leading-none tabular-nums"
       title={title}
     >
-      <Icon className="icon-sm shrink-0" />
-      {children}
+      <Icon className="icon-sm shrink-0 self-center" />
+      <span>{children}</span>
     </span>
   );
 }
@@ -72,20 +72,22 @@ function TestResultHeader({
 }) {
   return (
     <div className="bg-secondary text-secondary-foreground flex flex-wrap items-center gap-2 border-b px-3 py-2">
-      <p className="text-sm leading-none font-bold">{title}</p>
-      {durationMs !== null ? (
-        <ResultStat icon={Clock} title="Duration of the test call">
-          {(durationMs / 1000).toFixed(2)}s
-        </ResultStat>
-      ) : null}
-      {estimatedCostUsd !== null ? (
-        <ResultStat
-          icon={Coins}
-          title="Estimated cost of the test call — also feeds the daily projection when saving"
-        >
-          {usdFormatter(estimatedCostUsd)}
-        </ResultStat>
-      ) : null}
+      <div className="flex flex-wrap items-baseline gap-2">
+        <p className="text-sm leading-none font-bold">{title}</p>
+        {durationMs !== null ? (
+          <ResultStat icon={Clock} title="Duration of the test call">
+            {(durationMs / 1000).toFixed(2)}s
+          </ResultStat>
+        ) : null}
+        {estimatedCostUsd !== null ? (
+          <ResultStat
+            icon={Coins}
+            title="Estimated cost of the test call — also feeds the daily projection when saving"
+          >
+            {usdFormatter(estimatedCostUsd)}
+          </ResultStat>
+        ) : null}
+      </div>
       <span className="ml-auto flex shrink-0 items-center gap-2">
         <label className="text-muted-foreground flex cursor-pointer items-center gap-1.5 text-xs">
           <Switch

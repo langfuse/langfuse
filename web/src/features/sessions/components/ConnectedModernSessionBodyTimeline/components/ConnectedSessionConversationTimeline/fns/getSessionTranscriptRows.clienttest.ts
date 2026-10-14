@@ -40,7 +40,11 @@ const transcript = {
             role: "tool",
             source: "output",
             parts: [
-              { type: "tool-result", toolCallId: "call", output: "Found" },
+              {
+                type: "tool-result",
+                toolCallId: "call",
+                output: { type: "text", value: "Found" },
+              },
             ],
           },
         ],
@@ -302,7 +306,7 @@ describe("getSessionTranscriptRows", () => {
     ]);
     expect(rows[1]?.row).toMatchObject({
       call: { toolName: "search" },
-      result: { output: "Found" },
+      result: { output: { type: "text", value: "Found" } },
     });
   });
 

@@ -17,6 +17,7 @@ import { PaginationBar } from "@/src/components/design-system/PaginationBar/Pagi
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { assertUnreachable } from "@/src/utils/types";
 import { DashboardTable, type DashboardTableRow } from "./DashboardTable";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export function ConnectedDashboardTable() {
   const projectId = useProjectIdFromURL() as string;
@@ -37,7 +38,11 @@ export function ConnectedDashboardTable() {
       });
     },
     onError: (error) => {
-      showErrorToast("Failed to clone dashboard", error.message);
+      showErrorToast(
+        "Failed to clone dashboard",
+        error.message,
+        classifyTrpcToastError(error, "dashboard.clone"),
+      );
     },
   });
   const deleteDashboard = api.dashboard.delete.useMutation({
@@ -51,7 +56,11 @@ export function ConnectedDashboardTable() {
       utils.dashboard.invalidate();
     },
     onError: (error) => {
-      showErrorToast("Failed to delete dashboard", error.message);
+      showErrorToast(
+        "Failed to delete dashboard",
+        error.message,
+        classifyTrpcToastError(error, "dashboard.delete"),
+      );
     },
   });
 
@@ -165,6 +174,7 @@ export function ConnectedDashboardTable() {
                 <div className="flex min-h-0 flex-1 flex-col">
                   <DashboardTable
                     projectId={projectId}
+                    topBorder={false}
                     hasAccess={hasAccess}
                     loadingRowCount={Math.min(paginationState.pageSize, 8)}
                     onEdit={(dashboard) => {

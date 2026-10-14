@@ -297,11 +297,10 @@ export const processEventBatch = async (
             source: "process_event_batch",
             reason: "s3_upload_error",
           });
+          logger.error("Failed to upload event to S3", {
+            error: result.reason,
+          });
         }
-
-        logger.error("Failed to upload event to S3", {
-          error: result.reason,
-        });
       }
     });
   });
