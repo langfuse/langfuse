@@ -315,6 +315,7 @@ export const eventsSessionsAggregation = (params: {
   includeMetadata?: boolean;
   includeTools?: boolean;
   fullTable?: boolean;
+  metadataSessionPrefilter?: ClickhouseFilter | null;
 }): EventsSessionAggregationQueryBuilder => {
   return new EventsSessionAggregationQueryBuilder({
     projectId: params.projectId,
@@ -329,6 +330,10 @@ export const eventsSessionsAggregation = (params: {
     )
     .withSessionIds(params.sessionIds)
     .withStartTimeFrom(params.startTimeFrom)
+    .withMetadataSessionPrefilter(
+      params.metadataSessionPrefilter ?? null,
+      params.startTimeFrom,
+    )
     .whereRaw("session_id != ''");
 };
 

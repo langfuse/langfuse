@@ -195,6 +195,24 @@ const getSessionsTableFromEventsGeneric = async <T>(
     (filter) =>
       filter.clickhouseTable === "events_proto" && filter.field === "metadata",
   );
+  const fullTable = filtersRequireEventsFull(sessionFilters);
+  const metadataSessionPrefilter = fullTable
+    ? new FilterList(
+        createFilterFromFilterState(
+          filter.filter(
+            (item) =>
+              findUiColumnMapping(sessionEventsCols, item.column)?.uiTableId ===
+              "metadata",
+          ),
+          sessionEventsCols.map((column) =>
+            column.uiTableId === "metadata"
+              ? { ...column, queryPrefix: "m" }
+              : column,
+          ),
+          sessionsEventsViewCols,
+        ),
+      ).apply()
+    : null;
   const toolColumns = ["toolNames", "calledToolNames", "toolCalls"];
   const requiresTools =
     filter.some((item) => toolColumns.includes(item.column)) ||
@@ -210,7 +228,8 @@ const getSessionsTableFromEventsGeneric = async <T>(
       : null,
     includeMetadata: requiresMetadata,
     includeTools: requiresTools,
-    fullTable: filtersRequireEventsFull(sessionFilters),
+    fullTable,
+    metadataSessionPrefilter,
   });
 
   // Compose query using CTEQueryBuilder

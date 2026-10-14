@@ -8,7 +8,11 @@ import {
   eventsTableTraceNameSelectSql,
 } from "../../../eventsTable";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
-import { FilterList, StringFilter } from "./clickhouse-filter";
+import {
+  FilterList,
+  StringFilter,
+  type ClickhouseFilter,
+} from "./clickhouse-filter";
 
 /**
  * Extract the output column alias from a field expression (unquoted).
@@ -1654,6 +1658,33 @@ export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder
       b.whereRaw(
         `start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
         { startTimeFrom },
+      ),
+    );
+  }
+
+  /**
+   * Restricts the aggregation to sessions with at least one event matching a
+   * row-level metadata condition over alias `m`. Sound for any condition the
+   * caller re-applies to the aggregated metadata: that metadata comes from one
+   * of the session's events in the same range, so a passing session always has
+   * a matching event. Lets the metadata skip indices prune the subquery and the
+   * session_id bloom filter prune the aggregation scan.
+   */
+  withMetadataSessionPrefilter(
+    condition: ClickhouseFilter | null,
+    startTimeFrom?: string | null,
+  ): this {
+    return this.when(Boolean(condition?.query.trim()), (b) =>
+      b.whereRaw(
+        `session_id IN (
+          SELECT m.session_id
+          FROM ${this.getTableName()} m
+          WHERE m.project_id = {projectId: String}
+            ${startTimeFrom ? `AND m.start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+            AND m.session_id != ''
+            AND (${condition!.query})
+        )`,
+        { ...condition!.params, ...(startTimeFrom ? { startTimeFrom } : {}) },
       ),
     );
   }
