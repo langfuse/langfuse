@@ -67,7 +67,7 @@ export function ChatMessage({
     />
   );
 
-  const title = getMessageTitle(message, isOutputMessage);
+  const title = getMessageTitle(message);
   const toolCalls = parseToolCallsFromMessage(message);
   const hasContent = hasRenderableContent(message);
   // Collapse from the raw role: the title is the message `name` when present,

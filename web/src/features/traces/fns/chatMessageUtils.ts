@@ -6,15 +6,19 @@ export type { ChatMlMessage };
 
 /**
  * Get display title for a message based on name or role. A message whose
- * role is only the side default is not a chat turn: title it by side.
+ * role is only the side default is not a chat turn: title it by side. The
+ * default role encodes the side (input → user, output → assistant), so the
+ * title holds however inputs and outputs interleave.
  */
-export function getMessageTitle(
-  message: ChatMlMessage,
-  isOutputMessage = false,
-): string {
-  if (message.roleInferred) return isOutputMessage ? "Output" : "Input";
+export function getMessageTitle(message: ChatMlMessage): string {
+  if (message.roleInferred) {
+    return message.role === "assistant" ? "Output" : "Input";
+  }
   return message.name ?? message.role ?? "";
 }
+
+/** Presentation flags are not message data. */
+const PRESENTATION_KEYS = new Set(["role", "content", "roleInferred"]);
 
 /**
  * Check if message has renderable content (text or audio).
@@ -33,8 +37,7 @@ export function hasRenderableContent(message: ChatMlMessage): boolean {
  */
 export function hasAdditionalData(message: ChatMlMessage): boolean {
   return Object.entries(message).some(
-    ([key, value]) =>
-      key !== "role" && key !== "content" && value !== undefined,
+    ([key, value]) => !PRESENTATION_KEYS.has(key) && value !== undefined,
   );
 }
 
@@ -47,7 +50,9 @@ export function withoutUnsetFields(
   message: ChatMlMessage,
 ): Record<string, unknown> {
   return Object.fromEntries(
-    Object.entries(message).filter(([, value]) => value !== undefined),
+    Object.entries(message).filter(
+      ([key, value]) => key !== "roleInferred" && value !== undefined,
+    ),
   );
 }
 
