@@ -219,6 +219,13 @@ const CONSUMED_PART_KEYS_BY_TYPE: Record<
   custom: new Set(),
 };
 
+/** Semconv media parts carry their payload under a generic key; it is consumed
+ * only on these part types, so other dialects keep such fields as metadata. */
+const FILE_PAYLOAD_KEY_BY_RAW_TYPE: Readonly<Record<string, string>> = {
+  blob: "content",
+  uri: "uri",
+};
+
 /**
  * Known part fields normalize into the canonical union; every unconsumed raw
  * field becomes providerMetadata. AI SDK providerOptions and explicit/parser-
@@ -248,6 +255,11 @@ function withProviderMetadata<T extends NormalizedMessagePart>(
     isRecord(part.input)
   ) {
     for (const key of Object.keys(part.input)) consumedKeys.add(key);
+  }
+
+  if (part.type === "file" && typeof value.type === "string") {
+    const payloadKey = ownLookup(FILE_PAYLOAD_KEY_BY_RAW_TYPE, value.type);
+    if (payloadKey) consumedKeys.add(payloadKey);
   }
 
   const providerMetadata = remainingProviderMetadata(
