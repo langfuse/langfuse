@@ -646,10 +646,7 @@ async function clusterFacet(
     );
     await saveProgress(metrics, execution, "naming");
     const topics: TopicDefinition[] = [];
-    const named = new Map<
-      string,
-      { name: string; description: string; summaries: string[] }
-    >();
+    const named: NamedTopics = new Map();
     for (const group of evidence) {
       const retained = reused.get(group.id);
       if (retained)
@@ -669,53 +666,29 @@ async function clusterFacet(
         const members = new Map(
           group.members.map((summary, index) => [`m${index + 1}`, summary]),
         );
-        const name = (conflict?: Parameters<typeof nameTopicGroup>[3]) =>
-          nameTopicGroup(
-            models,
-            {
-              members: Array.from(members, ([id, { summary }]) => ({
-                id,
-                summary,
-              })),
-              contrasts: group.contrasts.map((member, index) => ({
-                id: `c${index + 1}`,
-                summary: member.summary,
-              })),
-            },
-            {
-              facet_id: facet.facetId,
-              facet_name: facetName,
-              facet_version: facet.version,
-              execution_id: execution.id,
-              run_id: run.id,
-              group_id: group.id,
-            },
-            conflict,
-          );
-        let { output: label } = await name();
-        // Groups are named independently, so distinct clusters can get one name.
-        const conflict = named.get(label.name.toLowerCase());
-        if (conflict) {
-          metrics.result("naming", "name_conflict");
-          // The first name is valid, so a failed rename keeps it.
-          label = await name(conflict).then(
-            ({ output }) => output,
-            (error: unknown) => {
-              metrics.error("naming", error);
-              return label;
-            },
-          );
-        }
-        if (named.has(label.name.toLowerCase()))
-          metrics.result("naming", "duplicate_name");
-        else
-          named.set(label.name.toLowerCase(), {
-            name: label.name,
-            description: label.description,
-            summaries: label.evidenceSummaryIds.map(
-              (id) => members.get(id)!.summary,
-            ),
-          });
+        const label = await nameGroupAvoidingConflicts(
+          metrics,
+          models,
+          named,
+          {
+            members: Array.from(members, ([id, { summary }]) => ({
+              id,
+              summary,
+            })),
+            contrasts: group.contrasts.map((member, index) => ({
+              id: `c${index + 1}`,
+              summary: member.summary,
+            })),
+          },
+          {
+            facet_id: facet.facetId,
+            facet_name: facetName,
+            facet_version: facet.version,
+            execution_id: execution.id,
+            run_id: run.id,
+            group_id: group.id,
+          },
+        );
         return {
           ...label,
           representativeSummaries: label.evidenceSummaryIds.map((id) => {
@@ -776,6 +749,45 @@ async function clusterFacet(
     });
     throw error;
   }
+}
+
+type NamedTopics = Map<
+  string,
+  { name: string; description: string; summaries: string[] }
+>;
+
+/** Groups are named independently, so a name taken in the run gets one conflict-aware retry. */
+async function nameGroupAvoidingConflicts(
+  metrics: TopicMetrics,
+  models: TopicsModels,
+  named: NamedTopics,
+  group: Parameters<typeof nameTopicGroup>[1],
+  metadata: Record<string, unknown>,
+) {
+  let { output: label } = await nameTopicGroup(models, group, metadata);
+  const conflict = named.get(label.name.toLowerCase());
+  if (conflict) {
+    metrics.result("naming", "name_conflict");
+    // The first name is valid, so a failed rename keeps it.
+    label = await nameTopicGroup(models, group, metadata, conflict).then(
+      ({ output }) => output,
+      (error: unknown) => {
+        metrics.error("naming", error);
+        return label;
+      },
+    );
+  }
+  if (named.has(label.name.toLowerCase()))
+    metrics.result("naming", "duplicate_name");
+  else
+    named.set(label.name.toLowerCase(), {
+      name: label.name,
+      description: label.description,
+      summaries: label.evidenceSummaryIds.map(
+        (id) => group.members.find((member) => member.id === id)!.summary,
+      ),
+    });
+  return label;
 }
 
 function compatibleMap(
