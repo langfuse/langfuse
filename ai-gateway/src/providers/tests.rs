@@ -1237,3 +1237,35 @@ fn assert_chat_upload(payload: &serde_json::Value, request: &str) {
         assert!(!payload.to_string().contains(secret));
     }
 }
+
+#[tokio::test]
+async fn an_upstream_body_holds_its_reservation_until_the_last_slice_is_taken() {
+    use http_body::Body as _;
+    use http_body_util::BodyExt as _;
+
+    let reservation = Arc::new(());
+    let len = 2 * UPSTREAM_BODY_SLICE_BYTES + 1;
+    let mut body = ReservedBody::new(
+        Bytes::from(vec![b'x'; len]),
+        Some(Box::new(reservation.clone())),
+    );
+    assert_eq!(body.size_hint().exact(), Some(len as u64));
+    let mut slices = Vec::new();
+    while !body.is_end_stream() {
+        assert_eq!(Arc::strong_count(&reservation), 2);
+        let frame = body.frame().await.unwrap().unwrap();
+        slices.push(frame.into_data().unwrap().len());
+    }
+    assert_eq!(
+        slices,
+        [UPSTREAM_BODY_SLICE_BYTES, UPSTREAM_BODY_SLICE_BYTES, 1]
+    );
+    assert_eq!(Arc::strong_count(&reservation), 1);
+
+    let abandoned = Arc::new(());
+    drop(ReservedBody::new(
+        Bytes::from_static(b"{}"),
+        Some(Box::new(abandoned.clone())),
+    ));
+    assert_eq!(Arc::strong_count(&abandoned), 1);
+}

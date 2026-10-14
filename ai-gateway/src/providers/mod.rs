@@ -107,17 +107,32 @@ pub(crate) struct RequestBody {
     pub model_range: Range<usize>,
     /// The caller asked for a streamed response (`"stream": true`).
     pub streaming: bool,
-    /// Capacity held for the body, released once the provider connection has sent it.
+    /// Capacity held for the body, released once its last slice reaches the provider
+    /// connection.
     pub reservation: Option<BodyReservation>,
 }
 
 pub(crate) type BodyReservation = Box<dyn Send + Sync>;
 
-/// A fixed-length upstream body that drops its reservation when it has been sent or
-/// abandoned, so a long provider wait does not keep counting it.
-struct ReservedBody {
-    bytes: Option<Bytes>,
+/// The connection buffers whole frames before checking how much it has queued, so the
+/// body goes out in slices to keep unsent bytes bounded while the reservation is held.
+const UPSTREAM_BODY_SLICE_BYTES: usize = 64 * 1024;
+
+/// A fixed-length upstream body that drops its reservation once its last slice has been
+/// taken or it is abandoned, so a long provider wait does not keep counting it. The
+/// slices share one allocation, which is freed when the last of them has been written.
+pub(crate) struct ReservedBody {
+    remaining: Bytes,
     reservation: Option<BodyReservation>,
+}
+
+impl ReservedBody {
+    pub(crate) fn new(bytes: Bytes, reservation: Option<BodyReservation>) -> Self {
+        Self {
+            remaining: bytes,
+            reservation,
+        }
+    }
 }
 
 impl http_body::Body for ReservedBody {
@@ -129,23 +144,25 @@ impl http_body::Body for ReservedBody {
         _: &mut Context<'_>,
     ) -> Poll<Option<Result<http_body::Frame<Bytes>, Infallible>>> {
         let this = self.get_mut();
-        if let Some(bytes) = this.bytes.take() {
-            return Poll::Ready(Some(Ok(http_body::Frame::data(bytes))));
+        if this.remaining.is_empty() {
+            this.reservation = None;
+            return Poll::Ready(None);
         }
-        this.reservation = None;
-        Poll::Ready(None)
+        let slice = this
+            .remaining
+            .split_to(this.remaining.len().min(UPSTREAM_BODY_SLICE_BYTES));
+        if this.remaining.is_empty() {
+            this.reservation = None;
+        }
+        Poll::Ready(Some(Ok(http_body::Frame::data(slice))))
     }
 
     fn is_end_stream(&self) -> bool {
-        self.bytes.is_none()
+        self.remaining.is_empty()
     }
 
     fn size_hint(&self) -> http_body::SizeHint {
-        http_body::SizeHint::with_exact(
-            self.bytes
-                .as_ref()
-                .map_or(0, |bytes| u64::try_from(bytes.len()).unwrap_or(u64::MAX)),
-        )
+        http_body::SizeHint::with_exact(u64::try_from(self.remaining.len()).unwrap_or(u64::MAX))
     }
 }
 
@@ -298,10 +315,7 @@ impl ProviderTransport {
             .headers(transport::request_headers(headers, api_format))
             .header(header::ACCEPT_ENCODING, "identity")
             .header(credential_name, credential);
-        upstream = upstream.body(reqwest::Body::wrap(ReservedBody {
-            bytes: Some(body),
-            reservation,
-        }));
+        upstream = upstream.body(reqwest::Body::wrap(ReservedBody::new(body, reservation)));
         // A stream, or a call that does not generate, that goes quiet before its
         // headers is stalled. A non-streamed generation sends nothing until the whole
         // response is generated.
