@@ -43,8 +43,6 @@ export const documentedPromptFixtures: NormalizedIOFixture[] = [
           {
             source: "input",
             role: "user",
-            // A bare string prompt declares no role.
-            ...(typeof input.prompt === "string" ? { roleInferred: true } : {}),
             parts: [{ type: "text", text: "Weather in San Francisco?" }],
           },
         ],
@@ -625,7 +623,6 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
       messages: [
         {
           role: "user",
-          roleInferred: true,
           parts: [
             {
               type: "text",

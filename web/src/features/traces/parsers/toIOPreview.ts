@@ -215,7 +215,6 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
   const mainMessage = hasMainMessage
     ? ({
         role: message.role,
-        ...(message.roleInferred ? { roleInferred: true } : {}),
         // `senderName` is deliberately not mapped to ChatML `name`: the
         // renderer titles messages name-over-role, and this view titles by
         // role.

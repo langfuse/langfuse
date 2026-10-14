@@ -3,6 +3,7 @@
 import {
   type ChatMlMessage,
   getMessageTitle,
+  hasChatRoles,
   hasRenderableContent,
   hasAdditionalData,
   hasPassthroughJson,
@@ -37,6 +38,42 @@ describe("chat-message-utils", () => {
       expect(
         getMessageTitle(createMessage({ role: undefined, name: undefined })),
       ).toBe("");
+    });
+  });
+
+  // Decides whether the Formatted preview titles a side by role or by
+  // Input / Output; both sides of a tool call must land on the latter.
+  describe("hasChatRoles", () => {
+    it("rejects plain strings, function arguments and loose records", () => {
+      expect(hasChatRoles("2026-10-05")).toBe(false);
+      expect(hasChatRoles({ command: "python3 -c 'print(1)'" })).toBe(false);
+      expect(hasChatRoles({ message: "Hi, I was charged twice" })).toBe(false);
+      expect(hasChatRoles({ sources: ["crm"], cache_hit: false })).toBe(false);
+      expect(hasChatRoles(null)).toBe(false);
+    });
+
+    it("accepts role-tagged messages, bare or in provider containers", () => {
+      expect(hasChatRoles([{ role: "user", content: "hi" }])).toBe(true);
+      expect(hasChatRoles({ role: "assistant", content: [] })).toBe(true);
+      expect(
+        hasChatRoles({ messages: [{ role: "system", content: "x" }] }),
+      ).toBe(true);
+      expect(
+        hasChatRoles({ choices: [{ message: { role: "assistant" } }] }),
+      ).toBe(true);
+      expect(
+        hasChatRoles({ candidates: [{ content: { role: "model" } }] }),
+      ).toBe(true);
+      expect(hasChatRoles('[{"role":"user","content":"hi"}]')).toBe(true);
+    });
+
+    it("accepts LangChain messages that carry a type instead of a role", () => {
+      expect(hasChatRoles([{ type: "human", content: "hi" }])).toBe(true);
+      expect(
+        hasChatRoles([
+          { lc: 1, id: ["HumanMessage"], kwargs: { content: "hi" } },
+        ]),
+      ).toBe(true);
     });
   });
 

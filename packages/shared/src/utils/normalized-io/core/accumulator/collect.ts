@@ -199,13 +199,10 @@ function emitRootSource(
     (rootSource.finishReasonCarrier
       ? normalizeFinishReason(rootSource.finishReasonCarrier)
       : undefined) ?? message.finishReason;
-  // A forced role (system carrier) is declared by the container, not inferred.
-  const { roleInferred, ...rest } = message;
   addMessage(
     messages,
     {
-      ...rest,
-      ...(roleInferred && !rootSource.roleOverride ? { roleInferred } : {}),
+      ...message,
       role: rootSource.roleOverride ?? message.role,
       ...(finishReason ? { finishReason } : {}),
     },

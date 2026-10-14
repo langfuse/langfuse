@@ -1,24 +1,77 @@
+import type { z } from "zod";
+import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import type { combineInputOutputMessages } from "@/src/utils/chatml";
 import type { IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
-import type { ChatMlMessage } from "@/src/features/traces/hooks/useChatMLParser";
 
-export type { ChatMlMessage };
+export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
 
 /**
- * Get display title for a message based on name or role. A message whose
- * role is only the side default is not a chat turn: title it by side. The
- * default role encodes the side (input → user, output → assistant), so the
- * title holds however inputs and outputs interleave.
+ * Get display title for a message based on name or role.
  */
 export function getMessageTitle(message: ChatMlMessage): string {
-  if (message.roleInferred) {
-    return message.role === "assistant" ? "Output" : "Input";
-  }
   return message.name ?? message.role ?? "";
 }
 
-/** Presentation flags are not message data. */
-const PRESENTATION_KEYS = new Set(["role", "content", "roleInferred"]);
+// Keys under which providers nest their conversation (OpenAI `messages` /
+// Responses `input` / `choices`, Gemini `contents` / `candidates`, AI SDK
+// `prompt`, LangChain `generations`, choice/candidate wrappers).
+const CHAT_CONTAINER_KEYS = [
+  "messages",
+  "input",
+  "output",
+  "contents",
+  "candidates",
+  "content",
+  "choices",
+  "message",
+  "prompt",
+  "generations",
+];
+
+// Message-type markers that stand in for a role (LangChain dict messages,
+// OpenAI Responses items).
+const CHAT_TYPE_MARKERS = new Set([
+  "human",
+  "ai",
+  "system",
+  "tool",
+  "user",
+  "assistant",
+  "message",
+]);
+
+/**
+ * Whether a raw observation input/output is a chat conversation: a message
+ * object with a `role`, or a provider container holding one, within a few
+ * levels. Plain strings, function arguments and loose records are not, and
+ * the preview labels them by side instead of by role.
+ */
+export function hasChatRoles(value: unknown, depth = 3): boolean {
+  if (depth < 0) return false;
+  if (typeof value === "string") {
+    const trimmed = value.trimStart();
+    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return false;
+    try {
+      return hasChatRoles(JSON.parse(value), depth);
+    } catch {
+      return false;
+    }
+  }
+  if (value === null || typeof value !== "object") return false;
+  if (Array.isArray(value)) {
+    return value.some((item) => hasChatRoles(item, depth - 1));
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.role === "string") return true;
+  if (typeof record.type === "string" && CHAT_TYPE_MARKERS.has(record.type)) {
+    return true;
+  }
+  // LangChain serialized message envelope.
+  if (record.lc !== undefined && typeof record.kwargs === "object") return true;
+  return CHAT_CONTAINER_KEYS.some(
+    (key) => key in record && hasChatRoles(record[key], depth - 1),
+  );
+}
 
 /**
  * Check if message has renderable content (text or audio).
@@ -37,7 +90,8 @@ export function hasRenderableContent(message: ChatMlMessage): boolean {
  */
 export function hasAdditionalData(message: ChatMlMessage): boolean {
   return Object.entries(message).some(
-    ([key, value]) => !PRESENTATION_KEYS.has(key) && value !== undefined,
+    ([key, value]) =>
+      key !== "role" && key !== "content" && value !== undefined,
   );
 }
 
@@ -50,9 +104,7 @@ export function withoutUnsetFields(
   message: ChatMlMessage,
 ): Record<string, unknown> {
   return Object.fromEntries(
-    Object.entries(message).filter(
-      ([key, value]) => key !== "roleInferred" && value !== undefined,
-    ),
+    Object.entries(message).filter(([, value]) => value !== undefined),
   );
 }
 

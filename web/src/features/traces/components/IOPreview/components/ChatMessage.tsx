@@ -37,6 +37,8 @@ export interface ChatMessageProps {
   toolCallNumbers?: number[];
   isOutputMessage?: boolean;
   contentMode?: IOPreviewContentMode;
+  /** Replaces the role title, e.g. "Input" / "Output" for non-chat I/O. */
+  titleOverride?: string;
 }
 
 /**
@@ -55,6 +57,7 @@ export function ChatMessage({
   toolCallNumbers,
   isOutputMessage,
   contentMode = "all",
+  titleOverride,
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
 
@@ -67,7 +70,7 @@ export function ChatMessage({
     />
   );
 
-  const title = getMessageTitle(message);
+  const title = titleOverride ?? getMessageTitle(message);
   const toolCalls = parseToolCallsFromMessage(message);
   const hasContent = hasRenderableContent(message);
   // Collapse from the raw role: the title is the message `name` when present,

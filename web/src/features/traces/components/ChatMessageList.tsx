@@ -33,6 +33,8 @@ export interface ChatMessageListProps {
   inputMessageCount?: number;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+  /** Sides whose raw I/O is not a chat conversation: titled by side, not role. */
+  nonChatSides?: { input: boolean; output: boolean };
 }
 
 /**
@@ -55,6 +57,7 @@ export function ChatMessageList({
   inputMessageCount,
   contentMode = "all",
   showSystemPrompt,
+  nonChatSides,
 }: ChatMessageListProps) {
   // Filter messages to only those with renderable content
   const messagesToRender = useMemo(
@@ -119,32 +122,38 @@ export function ChatMessageList({
     <div className="flex max-h-full min-h-0 flex-col gap-2">
       <div className="flex max-h-full min-h-0 flex-col gap-3">
         <div className="flex flex-col gap-3">
-          {visibleMessages.map(({ message, originalIndex }) => (
-            <div className="flex flex-col" key={originalIndex}>
-              <ChatMessage
-                message={message}
-                shouldRenderMarkdown={shouldRenderMarkdown}
-                currentView={currentView}
-                toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
-                isOutputMessage={originalIndex >= (inputMessageCount ?? 0)}
-                contentMode={contentMode}
-              />
-              {/* Show collapse/expand button after first message */}
-              {isCollapsed !== null &&
-                originalIndex === messagesToRender[0]?.originalIndex && (
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => setCollapsed((v) => !v)}
-                    className="text-muted-foreground hover:text-foreground mt-1 mb-2 w-fit px-0 underline hover:bg-transparent"
-                  >
-                    {isCollapsed
-                      ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more`
-                      : "Hide history"}
-                  </Button>
-                )}
-            </div>
-          ))}
+          {visibleMessages.map(({ message, originalIndex }) => {
+            const isOutputMessage = originalIndex >= (inputMessageCount ?? 0);
+            const side = isOutputMessage ? "output" : "input";
+            const sideTitle = isOutputMessage ? "Output" : "Input";
+            return (
+              <div className="flex flex-col" key={originalIndex}>
+                <ChatMessage
+                  message={message}
+                  shouldRenderMarkdown={shouldRenderMarkdown}
+                  currentView={currentView}
+                  toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
+                  isOutputMessage={isOutputMessage}
+                  contentMode={contentMode}
+                  titleOverride={nonChatSides?.[side] ? sideTitle : undefined}
+                />
+                {/* Show collapse/expand button after first message */}
+                {isCollapsed !== null &&
+                  originalIndex === messagesToRender[0]?.originalIndex && (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => setCollapsed((v) => !v)}
+                      className="text-muted-foreground hover:text-foreground mt-1 mb-2 w-fit px-0 underline hover:bg-transparent"
+                    >
+                      {isCollapsed
+                        ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more`
+                        : "Hide history"}
+                    </Button>
+                  )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Additional input section */}

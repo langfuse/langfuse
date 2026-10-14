@@ -164,13 +164,6 @@ export type NormalizedMessage = {
    * putting the agent name in the role field)
    */
   senderName?: string;
-  /**
-   * The payload declared no role; `role` is the observation-side default
-   * (input → user, output → assistant). Plain strings, function-span
-   * args/results and loose records are not chat turns, so renderers label
-   * these by side instead of by role.
-   */
-  roleInferred?: true;
   parts: NormalizedMessagePart[];
   // Turn metadata, not conversation content — a message field rather than a
   // part so text extraction, rendering, and tool-column paths stay untouched.

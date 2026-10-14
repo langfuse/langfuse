@@ -732,7 +732,6 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
       messages: [
         {
           role: "user",
-          roleInferred: true,
           parts: [
             {
               type: "text",

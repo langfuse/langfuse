@@ -10,6 +10,7 @@ import {
   hasRenderableChatMessages,
   useIOPreviewParser,
 } from "../../hooks/useIOPreviewParser";
+import { hasChatRoles } from "../../fns/chatMessageUtils";
 import { ChatMessageList } from "../ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import {
@@ -255,6 +256,15 @@ export function IOPreviewPretty({
 
   const showData = contentMode !== "conversation";
   const shouldRenderMessages = hasRenderableChatMessages(parserResult);
+  // Tool calls, spans and plain completions are not conversations: label
+  // those sides Input / Output rather than User / Assistant.
+  const nonChatSides = useMemo(
+    () => ({
+      input: parsedInput != null && !hasChatRoles(parsedInput),
+      output: parsedOutput != null && !hasChatRoles(parsedOutput),
+    }),
+    [parsedInput, parsedOutput],
+  );
 
   return (
     <div className={cn("space-y-3 pt-3", IO_SECTIONS_FLUSH_CLASS)}>
@@ -283,6 +293,7 @@ export function IOPreviewPretty({
             inputMessageCount={inputMessageCount}
             contentMode={contentMode}
             showSystemPrompt={showSystemPrompt}
+            nonChatSides={nonChatSides}
           />
           {showCorrections && (
             <CorrectedOutputField

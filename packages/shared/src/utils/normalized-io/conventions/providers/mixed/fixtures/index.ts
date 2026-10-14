@@ -2,7 +2,6 @@ import type { NormalizedIOFixture } from "../../fixture-types";
 import { looseProviderMessageShapesFixture } from "./loose-provider-message-shapes";
 import { outputOnlyPlainTextFixture } from "./output-only-plain-text";
 import { outputOnlyStructuredMessageFixture } from "./output-only-structured-message";
-import { plainSpanIOFixture } from "./plain-span-io";
 import { rawPassthroughToolCallsFixture } from "./raw-passthrough-tool-calls";
 
 // Verbatim stored observation IO from ChatML integration-example exports.
@@ -21,7 +20,6 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
       messages: [
         {
           role: "user",
-          roleInferred: true,
           parts: [
             {
               type: "text",
@@ -32,7 +30,6 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
         },
         {
           role: "assistant",
-          roleInferred: true,
           parts: [
             {
               type: "text",
@@ -126,7 +123,6 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
         },
         {
           role: "assistant",
-          roleInferred: true,
           parts: [
             {
               type: "text",
@@ -252,7 +248,6 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
       messages: [
         {
           role: "user",
-          roleInferred: true,
           parts: [
             {
               type: "data",
@@ -265,7 +260,6 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
         },
         {
           role: "assistant",
-          roleInferred: true,
           parts: [
             {
               type: "text",
@@ -285,6 +279,5 @@ export const mixedNormalizedIOFixtures = [
   looseProviderMessageShapesFixture,
   outputOnlyStructuredMessageFixture,
   outputOnlyPlainTextFixture,
-  plainSpanIOFixture,
   rawPassthroughToolCallsFixture,
 ];

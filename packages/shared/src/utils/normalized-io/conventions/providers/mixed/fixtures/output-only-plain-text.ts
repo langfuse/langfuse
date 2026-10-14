@@ -11,7 +11,6 @@ export const outputOnlyPlainTextFixture = {
     messages: [
       {
         role: "assistant",
-        roleInferred: true,
         parts: [{ type: "text", text: "plain answer" }],
         source: "output",
       },
