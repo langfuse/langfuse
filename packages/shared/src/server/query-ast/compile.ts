@@ -38,8 +38,9 @@ export type ClickhouseCompilable = {
  * without a tenancy scope — omitting it is a compile-time type error.
  * Soft-deleted rows are filtered out, tenancy is injected from that scope,
  * per-table dedup is applied from the registry, and the dialect compiler
- * refuses to emit SQL unless the tree was identity-stamped by those passes (a copied property is not enough). The
- * runtime `requireExecutionContext` guard remains as defense-in-depth for the
+ * refuses to emit SQL unless the tree was identity-stamped by the tenancy and
+ * dedup passes (a copied property is not enough). The runtime
+ * `requireExecutionContext` guard remains as defense-in-depth for the
  * one case the type cannot express (an empty `projectId`) and for callers
  * reaching this through an `any` boundary.
  */
