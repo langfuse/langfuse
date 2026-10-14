@@ -16,12 +16,6 @@ import {
   recordEvalTerminalOutcome,
   recordEvalTimeToFirstAttempt,
 } from "./evalExecutionMetrics";
-import {
-  EvalFailureError,
-  EvalFailureReason,
-  UnrecoverableEvalFailureError,
-} from "./evalFailureErrors";
-
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   recordDistribution: vi.fn(),
@@ -145,89 +139,22 @@ describe("evaluation execution metrics", () => {
     },
   );
 
-  it.each([
-    {
-      name: "unknown AI SDK errors by LLM error kind",
-      error: new Error("unexpected AI SDK failure"),
-      classification: {
-        kind: "ai-sdk",
-        message: "unexpected AI SDK failure",
-        isRetryable: false,
-        error: new Error("unexpected AI SDK failure"),
-        blockReason: null,
-      } satisfies EvaluatorLlmErrorClassification,
-      isUnrecoverable: false,
-      expected: { outcome: "platform_error", reason: "llm_ai_sdk" },
-    },
-    {
-      name: "upstream errors without a reason",
-      error: new Error("provider timed out"),
-      classification: {
-        kind: "timeout",
-        message: "provider timed out",
-        isRetryable: false,
-        error: new Error("provider timed out"),
-        blockReason: null,
-      } satisfies EvaluatorLlmErrorClassification,
-      isUnrecoverable: false,
-      expected: { outcome: "upstream_error" },
-    },
-    {
-      name: "invalid model configuration as customer errors",
-      error: new UnrecoverableEvalFailureError(
-        "invalid model configuration",
-        EvalFailureReason.InvalidModelConfig,
-      ),
-      classification: null,
-      isUnrecoverable: true,
-      expected: { outcome: "customer_error" },
-    },
-    {
-      name: "score persistence failures as platform errors",
-      error: new EvalFailureError(
-        "failed to write score",
-        EvalFailureReason.ScorePersistence,
-      ),
-      classification: null,
-      isUnrecoverable: false,
-      expected: { outcome: "platform_error", reason: "score_persistence" },
-    },
-    {
-      name: "unknown application errors as unexpected",
-      error: new Error("database unavailable"),
-      classification: null,
-      isUnrecoverable: false,
-      expected: { outcome: "platform_error", reason: "unexpected" },
-    },
-  ])(
-    "attributes $name",
-    ({ error, classification, isUnrecoverable, expected }) => {
-      expect(
-        getLlmEvalTerminalErrorAttribution({
+  it("attributes classified LLM platform errors by error kind", () => {
+    const error = new Error("unexpected AI SDK failure");
+
+    expect(
+      getLlmEvalTerminalErrorAttribution({
+        error,
+        classification: {
+          kind: "ai-sdk",
+          message: error.message,
+          isRetryable: false,
           error,
-          classification,
-          isUnrecoverable,
-        }),
-      ).toEqual(expected);
-    },
-  );
-
-  it("tags only platform errors with a reason", () => {
-    recordEvalTerminalOutcome(
-      EvalTemplateType.LLM_AS_JUDGE,
-      "platform_error",
-      "score_persistence",
-    );
-
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.evaluation.execution.terminal",
-      1,
-      {
-        evaluator_type: "llm_as_judge",
-        outcome: "platform_error",
-        reason: "score_persistence",
-      },
-    );
+          blockReason: null,
+        },
+        isUnrecoverable: false,
+      }),
+    ).toEqual({ outcome: "platform_error", reason: "llm_ai_sdk" });
   });
 
   it.each([

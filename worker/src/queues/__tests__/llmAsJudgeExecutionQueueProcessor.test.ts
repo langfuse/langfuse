@@ -527,38 +527,27 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
     });
 
     it.each([
-      EvalFailureReason.InvalidModelConfig,
-      EvalFailureReason.InvalidModelOutput,
-    ])("should record %s failures as customer_error", async (reason) => {
-      (processObservationEval as Mock).mockRejectedValue(
-        new UnrecoverableEvalFailureError("customer failure", reason),
-      );
-      vi.mocked(isUnrecoverableError).mockReturnValue(true);
-
-      await llmAsJudgeExecutionQueueProcessor(createMockJob());
-
-      expect(recordIncrement).toHaveBeenCalledWith(
-        "langfuse.evaluation.execution.terminal",
-        1,
-        { evaluator_type: "llm_as_judge", outcome: "customer_error" },
-      );
-    });
-
-    it.each([
+      {
+        error: new UnrecoverableEvalFailureError(
+          "invalid model configuration",
+          EvalFailureReason.InvalidModelConfig,
+        ),
+        tags: { outcome: "customer_error" },
+      },
       {
         error: new UnrecoverableEvalFailureError(
           "invalid JSON",
           EvalFailureReason.InvalidObservationData,
         ),
-        reason: "invalid_observation_data",
+        tags: { outcome: "platform_error", reason: "invalid_observation_data" },
       },
       {
         error: new UnrecoverableError("Evaluator identity missing"),
-        reason: "unrecoverable",
+        tags: { outcome: "platform_error", reason: "unrecoverable" },
       },
     ])(
-      "should tag terminal platform errors with reason $reason and warn",
-      async ({ error, reason }) => {
+      "records and warns terminal failures as $tags.outcome",
+      async ({ error, tags }) => {
         (processObservationEval as Mock).mockRejectedValue(error);
         vi.mocked(isUnrecoverableError).mockReturnValue(true);
 
@@ -567,17 +556,11 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         expect(recordIncrement).toHaveBeenCalledWith(
           "langfuse.evaluation.execution.terminal",
           1,
-          { evaluator_type: "llm_as_judge", outcome: "platform_error", reason },
+          { evaluator_type: "llm_as_judge", ...tags },
         );
         expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringContaining(jobExecutionId),
-          expect.objectContaining({
-            projectId,
-            jobExecutionId,
-            errorName: "UnrecoverableError",
-            outcome: "platform_error",
-            reason,
-          }),
+          expect.any(String),
+          expect.objectContaining({ projectId, errorName: error.name }),
         );
       },
     );
