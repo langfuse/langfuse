@@ -7,7 +7,7 @@ import {
   eventsTableTraceNameAggregationSql,
   eventsTableTraceNameSelectSql,
 } from "../../../eventsTable";
-import { expressionBuilder } from "kysely";
+import { expressionBuilder, sql, type SelectExpression } from "kysely";
 
 import { renderClickhouseExpression } from "../../query-ast/compile";
 import { metadataMap, traceSessionId } from "../../query-ast/extensions";
@@ -24,12 +24,13 @@ const eventsRef = expressionBuilder<
   "e"
 >();
 
-export const EVENTS_METADATA_MAP_SQL = renderClickhouseExpression(
-  metadataMap(
-    eventsRef.ref("e.metadata_names"),
-    eventsRef.ref("e.metadata_values"),
-  ),
+const eventsMetadataMap = metadataMap(
+  eventsRef.ref("e.metadata_names"),
+  eventsRef.ref("e.metadata_values"),
 );
+
+export const EVENTS_METADATA_MAP_SQL =
+  renderClickhouseExpression(eventsMetadataMap);
 
 const TRACE_SESSION_ID_SQL = renderClickhouseExpression(traceSessionId());
 
@@ -169,7 +170,7 @@ const EVENTS_FIELDS = {
   // Model fields
   providedModelName: 'e.provided_model_name as "provided_model_name"',
   internalModelId: 'e.model_id as "internal_model_id"',
-  modelParameters: 'e."model_parameters" as model_parameters',
+  modelParameters: "e.model_parameters as model_parameters",
 
   // Usage & cost fields
   providedUsageDetails: 'e.provided_usage_details as "provided_usage_details"',
@@ -534,31 +535,78 @@ const FIELD_SETS = {
 
 export type FieldSetName = keyof typeof FIELD_SETS;
 
+type EventsFieldKey = keyof typeof EVENTS_FIELDS;
+
+type EventsSelection = SelectExpression<
+  { e: ClickHouseDatabase["events_core"] },
+  "e"
+>;
+
+/** Fields whose EVENTS_FIELDS entry is a registry column reference. */
+type EventsColumnField = {
+  [K in EventsFieldKey]: (typeof EVENTS_FIELDS)[K] extends EventsSelection
+    ? K
+    : never;
+}[EventsFieldKey];
+
 /**
- * SELECT expressions (`expr as alias`) for the given field sets, in
- * EVENTS_FIELDS declaration order.
+ * Query-AST selections for fields that are not plain column references,
+ * built from the same source as their EVENTS_FIELDS entry.
  */
-export function eventsFieldSetSelectExpressions(
-  ...setNames: FieldSetName[]
-): string[] {
-  return eventsFieldSelectExpressions(setNames.flatMap((s) => FIELD_SETS[s]));
+const EVENTS_FIELD_EXPRESSIONS = {
+  traceName: sql.raw<string>(eventsTableTraceNameSelectSql).as("trace_name"),
+  metadata: eventsMetadataMap.as("metadata"),
+} satisfies Partial<
+  Record<Exclude<EventsFieldKey, EventsColumnField>, EventsSelection>
+>;
+
+type EventsExpressionField = keyof typeof EVENTS_FIELD_EXPRESSIONS;
+
+/** Field sets whose every field has a query-AST selection. */
+type SelectableFieldSetName = {
+  [S in FieldSetName]: (typeof FIELD_SETS)[S][number] extends
+    | EventsColumnField
+    | EventsExpressionField
+    ? S
+    : never;
+}[FieldSetName];
+
+function isEventsExpressionField(key: string): key is EventsExpressionField {
+  return Object.hasOwn(EVENTS_FIELD_EXPRESSIONS, key);
+}
+
+/**
+ * Query-AST selections for the given field sets, in EVENTS_FIELDS declaration
+ * order. Column fields are the EVENTS_FIELDS strings themselves, so Kysely
+ * checks each against the table registry.
+ */
+export function eventsFieldSetSelections(
+  ...setNames: SelectableFieldSetName[]
+): EventsSelection[] {
+  return orderedFieldKeys(setNames.flatMap((s) => FIELD_SETS[s])).map((key) =>
+    isEventsExpressionField(key)
+      ? EVENTS_FIELD_EXPRESSIONS[key]
+      : EVENTS_FIELDS[key],
+  );
 }
 
 // Canonicalize by EVENTS_FIELDS declaration order so SELECT column order does
 // not follow caller field-set order. Clustered ClickHouse reads align result
 // blocks by position; incompatible Map types (cost_details vs metadata) 500
 // when those columns swap places.
+function orderedFieldKeys<K extends string>(fieldKeys: readonly K[]): K[] {
+  return [...new Set(fieldKeys)].sort(
+    (a, b) =>
+      (EVENTS_FIELD_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
+      (EVENTS_FIELD_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER),
+  );
+}
+
 function eventsFieldSelectExpressions(fieldKeys: readonly string[]): string[] {
-  return [...new Set(fieldKeys)]
-    .sort(
-      (a, b) =>
-        (EVENTS_FIELD_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
-        (EVENTS_FIELD_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER),
-    )
-    .flatMap((fieldKey) => {
-      const fieldExpr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];
-      return fieldExpr ? [fieldExpr] : [];
-    });
+  return orderedFieldKeys(fieldKeys).flatMap((fieldKey) => {
+    const fieldExpr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];
+    return fieldExpr ? [fieldExpr] : [];
+  });
 }
 
 export const OBSERVATION_FIELD_GROUP_FIELD_NAMES = Object.fromEntries(
