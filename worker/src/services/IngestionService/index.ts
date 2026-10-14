@@ -1266,44 +1266,42 @@ export class IngestionService {
     // Bound internal callers too, before building the lookup or its cache key.
     available = available.slice(0, MAX_SKILLS_PER_OBSERVATION);
     loaded = loaded.slice(0, MAX_SKILLS_PER_OBSERVATION);
-    const versions = available.flatMap(({ skillName, langfuseSkillVersion }) =>
-      langfuseSkillVersion == null
-        ? []
-        : [{ name: skillName, version: langfuseSkillVersion }],
+    const versions = available.flatMap(({ skillName, skillVersion }) =>
+      skillVersion == null ? [] : [{ name: skillName, version: skillVersion }],
     );
     const skills = await this.skillCacheService.getReferences({
       projectId,
       versions,
     });
 
-    const availableSkills = available.map(
-      ({ skillName, langfuseSkillVersion }) => {
-        const skill = skills.find(
-          (skill) =>
-            skill.name === skillName && skill.version === langfuseSkillVersion,
+    const availableSkills = available.map(({ skillName, skillVersion }) => {
+      const skill = skills.find(
+        (skill) => skill.name === skillName && skill.version === skillVersion,
+      );
+      return {
+        skillName,
+        skillVersion: skill?.version ?? skillVersion,
+        langfuseSkillId: skill?.id,
+      };
+    });
+
+    const loadedResources = loaded.map(
+      ({ skillName, filePath, skillVersion }) => {
+        const candidates = availableSkills.filter(
+          (skill) => skill.skillName === skillName,
         );
+        if (candidates.length !== 1)
+          return { skillName, filePath, skillVersion };
+
+        const skill = candidates[0];
         return {
           skillName,
-          langfuseSkillVersion,
-          langfuseSkillId: skill?.id,
+          filePath,
+          langfuseSkillId: skill?.langfuseSkillId,
+          skillVersion: skill.skillVersion ?? skillVersion,
         };
       },
     );
-
-    const loadedResources = loaded.map(({ skillName, filePath }) => {
-      const candidates = availableSkills.filter(
-        (skill) => skill.skillName === skillName,
-      );
-      if (candidates.length !== 1) return { skillName, filePath };
-
-      const skill = candidates[0];
-      return {
-        skillName,
-        filePath,
-        langfuseSkillId: skill?.langfuseSkillId,
-        langfuseSkillVersion: skill?.langfuseSkillVersion,
-      };
-    });
 
     return {
       skills_available: type === "GENERATION" ? availableSkills : [],

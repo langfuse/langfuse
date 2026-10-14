@@ -1,25 +1,25 @@
 ALTER TABLE events_full {CLICKHOUSE_CLUSTER_CLAUSE}
-  ADD COLUMN IF NOT EXISTS skills_available Array(JSON(
+  ADD COLUMN IF NOT EXISTS skills_available Array(Tuple(
     langfuseSkillId Nullable(String),
-    langfuseSkillVersion Nullable(UInt32),
+    skillVersion Nullable(UInt32),
     skillName String
   )) DEFAULT [],
-  ADD COLUMN IF NOT EXISTS skills_resource_loaded Array(JSON(
+  ADD COLUMN IF NOT EXISTS skills_resource_loaded Array(Tuple(
     langfuseSkillId Nullable(String),
-    langfuseSkillVersion Nullable(UInt32),
+    skillVersion Nullable(UInt32),
     skillName String,
     filePath String
   )) DEFAULT []
   SETTINGS enable_full_text_index = 1{CLICKHOUSE_CLUSTERED_ONLY:, alter_sync = 2};
 ALTER TABLE events_core {CLICKHOUSE_CLUSTER_CLAUSE}
-  ADD COLUMN IF NOT EXISTS skills_available Array(JSON(
+  ADD COLUMN IF NOT EXISTS skills_available Array(Tuple(
     langfuseSkillId Nullable(String),
-    langfuseSkillVersion Nullable(UInt32),
+    skillVersion Nullable(UInt32),
     skillName String
   )) DEFAULT [],
-  ADD COLUMN IF NOT EXISTS skills_resource_loaded Array(JSON(
+  ADD COLUMN IF NOT EXISTS skills_resource_loaded Array(Tuple(
     langfuseSkillId Nullable(String),
-    langfuseSkillVersion Nullable(UInt32),
+    skillVersion Nullable(UInt32),
     skillName String,
     filePath String
   )) DEFAULT []

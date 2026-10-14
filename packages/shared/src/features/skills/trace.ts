@@ -8,12 +8,7 @@ export const SkillsAvailableSchema = z
     z.object({
       langfuseSkillId: z.string().min(1).max(256).nullish(),
       skillName: z.string().min(1).max(128),
-      langfuseSkillVersion: z
-        .number()
-        .int()
-        .min(1)
-        .max(2_147_483_647)
-        .nullish(),
+      skillVersion: z.number().int().min(1).max(2_147_483_647).nullish(),
     }),
   )
   .max(MAX_SKILLS_PER_OBSERVATION);
@@ -24,12 +19,7 @@ export const SkillsResourceLoadedSchema = z
       langfuseSkillId: z.string().min(1).max(256).nullish(),
       filePath: SkillFilePathSchema,
       skillName: z.string().min(1).max(128),
-      langfuseSkillVersion: z
-        .number()
-        .int()
-        .min(1)
-        .max(2_147_483_647)
-        .nullish(),
+      skillVersion: z.number().int().min(1).max(2_147_483_647).nullish(),
     }),
   )
   .max(MAX_SKILLS_PER_OBSERVATION);
