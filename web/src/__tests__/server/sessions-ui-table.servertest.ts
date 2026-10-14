@@ -8,7 +8,6 @@ import {
   createSessionScore,
   createTracesCh,
   getSessionsWithMetrics,
-  getSessionsWithMetricsFromEvents,
   getSessionMetricsFromEvents,
   getSessionsTable,
   getSessionsTableFromEvents,
@@ -24,10 +23,31 @@ import { env } from "@/src/env.mjs";
 
 const isEventsPath = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
+const metricsFields = [
+  "session_id",
+  "trace_count",
+  "user_ids",
+  "trace_tags",
+  "total_observations",
+  "duration",
+  "session_input_cost",
+  "session_output_cost",
+  "session_total_cost",
+  "session_input_usage",
+  "session_output_usage",
+  "session_total_usage",
+] as const;
+
 // Pick the right listing function based on env flag
-const sessionsTable = isEventsPath
-  ? getSessionsTableFromEvents
-  : getSessionsTable;
+async function sessionsTable(props: Parameters<typeof getSessionsTable>[0]) {
+  if (!isEventsPath) {
+    return getSessionsTable(props);
+  }
+  return getSessionsTableFromEvents({
+    ...props,
+    fields: ["session_id", "trace_count", "user_ids", "trace_tags"],
+  });
+}
 
 // Adapter for metrics: legacy takes filter/orderBy, events-based takes sessionIds
 async function sessionsWithMetrics(props: {
@@ -43,6 +63,7 @@ async function sessionsWithMetrics(props: {
   return getSessionMetricsFromEvents({
     projectId: props.projectId,
     sessionIds,
+    fields: metricsFields,
   });
 }
 
@@ -744,7 +765,7 @@ maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
 
     const [legacy, fromEvents] = await Promise.all([
       getSessionsWithMetrics({ projectId, filter }),
-      getSessionsWithMetricsFromEvents({ projectId, filter }),
+      getSessionsTableFromEvents({ projectId, filter, fields: metricsFields }),
     ]);
 
     expect(legacy).toHaveLength(1);
@@ -755,7 +776,6 @@ maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
 
     expect(e.session_id).toBe(l.session_id);
     expect(e.trace_count).toBe(l.trace_count);
-    expect([...e.trace_ids].sort()).toEqual([...l.trace_ids].sort());
     expect([...e.user_ids].sort()).toEqual([...l.user_ids].sort());
     expect(e.total_observations).toBe(l.total_observations);
 
@@ -847,6 +867,7 @@ maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
     const tableRows = await getSessionsTableFromEvents({
       projectId,
       filter: filterState,
+      fields: ["session_id"],
       orderBy: null,
       limit: 10,
       page: 0,
@@ -887,7 +908,7 @@ maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
 
     const [legacy, fromEvents] = await Promise.all([
       getSessionsWithMetrics({ projectId, filter }),
-      getSessionsWithMetricsFromEvents({ projectId, filter }),
+      getSessionsTableFromEvents({ projectId, filter, fields: metricsFields }),
     ]);
 
     expect(legacy).toHaveLength(1);

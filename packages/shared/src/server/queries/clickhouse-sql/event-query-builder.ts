@@ -1489,6 +1489,35 @@ export type SessionEventsMetricsRow = {
   session_total_usage: string;
 };
 
+export type SessionEventsField = keyof SessionEventsMetricsRow;
+
+/**
+ * ClickHouse returns the UInt64 counts as strings.
+ */
+export const normalizeSessionCounts = <T extends object>(row: T): T => {
+  const counts = row as Partial<
+    Pick<SessionEventsMetricsRow, "trace_count" | "total_observations">
+  >;
+  return {
+    ...row,
+    ...(counts.trace_count !== undefined && {
+      trace_count: Number(counts.trace_count),
+    }),
+    ...(counts.total_observations !== undefined && {
+      total_observations: Number(counts.total_observations),
+    }),
+  };
+};
+
+/**
+ * Callers list the session fields they read, so no aggregate is computed and
+ * shipped only to be dropped.
+ */
+export type SessionEventsFields<F extends SessionEventsField> = readonly [
+  F,
+  ...F[],
+];
+
 /**
  * Aggregation fields for session-level queries.
  * These fields use ClickHouse aggregation functions and require GROUP BY session_id.
@@ -1548,6 +1577,13 @@ export const SESSION_AGGREGATION_FIELD_SETS = {
 } as const;
 
 /**
+ * Every session field. Only for a CTE whose outer SELECT picks the columns;
+ * ClickHouse drops the aggregates the outer query does not read.
+ */
+export const ALL_SESSION_EVENTS_FIELDS =
+  SESSION_AGGREGATION_FIELD_SETS.base as unknown as SessionEventsFields<SessionEventsField>;
+
+/**
  * EventsSessionAggregationQueryBuilder - A fluent query builder for session-level
  * aggregated events table queries.
  *
@@ -1578,6 +1614,11 @@ export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder
     setNames
       .flatMap((s) => SESSION_AGGREGATION_FIELD_SETS[s])
       .forEach((field) => this.selectFields.add(field));
+    return this;
+  }
+
+  selectSessionFields(fields: readonly SessionEventsField[]): this {
+    fields.forEach((field) => this.selectFields.add(field));
     return this;
   }
 

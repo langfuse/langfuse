@@ -57,6 +57,7 @@ export {
   type ApiColumnMapping,
 } from "./public-api-filter-builder";
 export {
+  ALL_SESSION_EVENTS_FIELDS,
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   EventsAggregationQueryBuilder,
@@ -65,10 +66,13 @@ export {
   ExperimentsAggregationQueryBuilder,
   OBSERVATION_FIELD_GROUP_FIELD_NAMES,
   buildEventsFullTableSplitQuery,
+  normalizeSessionCounts,
   type CTESchema,
   type CTEWithSchema,
   type QueryWithParams,
   type ExperimentsAggregationFieldSetName,
+  type SessionEventsField,
+  type SessionEventsFields,
   type SessionEventsMetricsRow,
   type SplitQueryBuilder,
 } from "./clickhouse-sql/event-query-builder";

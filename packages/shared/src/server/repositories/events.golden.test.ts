@@ -325,6 +325,7 @@ describeWithClickhouse("golden: events simple aggregates family", () => {
     await getSessionMetricsFromEvents({
       projectId: FIXED_PROJECT_ID,
       sessionIds: [],
+      fields: ["session_id", "trace_count"],
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
@@ -333,6 +334,7 @@ describeWithClickhouse("golden: events simple aggregates family", () => {
     await getSessionMetricsFromEvents({
       projectId: FIXED_PROJECT_ID,
       sessionIds: FIXED_SESSION_IDS,
+      fields: ["session_id", "trace_count"],
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
@@ -341,6 +343,7 @@ describeWithClickhouse("golden: events simple aggregates family", () => {
     await getSessionMetricsFromEvents({
       projectId: FIXED_PROJECT_ID,
       sessionIds: FIXED_SESSION_IDS,
+      fields: ["session_id", "trace_count"],
       queryFromTimestamp: FIXED_FROM_TIMESTAMP,
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
