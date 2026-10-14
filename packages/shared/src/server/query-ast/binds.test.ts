@@ -1,9 +1,10 @@
+import { TupleParam } from "@clickhouse/client";
 import { sql as sql_ } from "kysely";
 import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
-import { useFinal } from "./extensions";
+import { tupleIn, useFinal } from "./extensions";
 
 const ctx = { projectId: "proj-1" };
 const START = new Date("2026-01-01T00:00:00.000Z");
@@ -376,6 +377,44 @@ describe("typed params from the column registry", () => {
     );
     expect(sql).toMatch(/limit \{p\d+:Int64\}/);
     expect(sql).not.toMatch(/limit \{p\d+:String\}/);
+  });
+
+  it("binds a TupleParam list as Array(Tuple(...)) for a tuple IN", () => {
+    const { sql, params } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .select("e.span_id")
+        .where((eb) =>
+          tupleIn(eb.refTuple("e.trace_id", "e.span_id"), [
+            new TupleParam(["t1", "s1"]),
+          ]),
+        ),
+    );
+    expect(sql).toMatch(
+      /\(e\.trace_id, e\.span_id\) in \{p\d+:Array\(Tuple\(String, String\)\)\}/,
+    );
+    expect(Object.values(params)).toContainEqual([
+      new TupleParam(["t1", "s1"]),
+    ]);
+  });
+
+  it("binds distinct bare TupleParams as separate Tuple(...) placeholders", () => {
+    const { sql, params } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select((eb) => [
+          eb.val(new TupleParam(["a", 1])).as("first"),
+          eb.val(new TupleParam(["b", 2])).as("second"),
+        ]),
+    );
+    const placeholders = sql.match(/\{p\d+:Tuple\(String, Int64\)\}/g);
+    expect(new Set(placeholders)).toHaveProperty("size", 2);
+    expect(Object.values(params)).toEqual(
+      expect.arrayContaining([
+        new TupleParam(["a", 1]),
+        new TupleParam(["b", 2]),
+      ]),
+    );
   });
 
   it("interns the same typed value to one placeholder across UNION branches", () => {

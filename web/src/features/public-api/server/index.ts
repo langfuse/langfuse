@@ -175,12 +175,7 @@ export {
   shadowAuthorize,
   type ShadowAuthParams,
 } from "./shadowAuth";
-export {
-  ErrorOrgApiKeyRequired,
-  writeOrgError,
-  writeProjectError,
-  writeScimError,
-} from "./writeError";
+export { writeOrgError, writeProjectError, writeScimError } from "./writeError";
 export {
   ObservationPromptVariableMappingInput,
   PromptVariableMappingRead,

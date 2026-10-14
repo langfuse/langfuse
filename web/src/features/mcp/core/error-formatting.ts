@@ -62,10 +62,7 @@ export function formatErrorForUser(error: unknown): McpError {
   }
 
   if (error instanceof ForbiddenError) {
-    return new McpError(
-      ErrorCode.InvalidRequest,
-      "Access forbidden. You do not have permission to access this resource.",
-    );
+    return new McpError(ErrorCode.InvalidRequest, error.message);
   }
 
   if (error instanceof LangfuseNotFoundError) {
