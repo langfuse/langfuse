@@ -108,6 +108,22 @@ describe("derived columns", () => {
     );
   });
 
+  it("leaves an enclosing SELECT's CTE named like a registry table alone", () => {
+    const db = getClickhouseKysely();
+    const query = db
+      .with("events_core", (qb) =>
+        qb.selectFrom("events_full as f").select("f.metadata as metadata"),
+      )
+      .selectFrom("events_full as o")
+      .select((eb) => [
+        eb.selectFrom("events_core").select("metadata").limit(1).as("m"),
+      ]);
+
+    expect(compile(query)).toMatchInlineSnapshot(
+      `"with events_core as (select mapFromArrays(arrayReverse(f.metadata_names), arrayReverse(f.metadata_values)) as metadata from events_full as f where f.project_id = {p1:String}) select (select metadata from events_core where project_id = {p1:String} limit {p2:Int64}) as m from events_full as o where o.project_id = {p1:String}"`,
+    );
+  });
+
   it("leaves a CTE named like a registry table alone", () => {
     const db = getClickhouseKysely();
     const query = db
