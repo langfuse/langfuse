@@ -345,10 +345,6 @@ impl OpenAiChatCompletionsCapture {
         self.facts.requested_model.as_deref()
     }
 
-    pub fn replace_requested_model(&mut self, model: Option<String>) {
-        self.facts.replace_requested_model(model);
-    }
-
     pub fn into_facts(mut self) -> ProviderFacts {
         if matches!(self.body, ResponseBody::Sse(_)) {
             self.end_body();

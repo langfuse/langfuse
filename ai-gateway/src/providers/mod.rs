@@ -233,7 +233,7 @@ impl ProviderTransport {
         let body = if let (true, Some(provider_model)) =
             (route.requires_model_rewrite(), provider_model)
         {
-            capture.replace_requested_model(provider_model);
+            capture.set_provider_model(provider_model);
             ProviderRequestBody::with_rewritten_model(body, provider_model)
         } else {
             ProviderRequestBody::Contiguous(body)
