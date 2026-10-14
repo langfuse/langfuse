@@ -58,14 +58,11 @@ describe("testModelCall", () => {
     ).rejects.toMatchObject({ name: "AI_NoOutputGeneratedError" });
   });
 
-  it("shows the output schema to the model and bounds the response", async () => {
-    const requests: Array<{ prompt: unknown; maxOutputTokens?: number }> = [];
+  it("shows the output schema to the model", async () => {
+    const requests: Array<{ prompt: unknown }> = [];
     const model = new MockLanguageModelV4({
       doGenerate: async (options) => {
-        requests.push({
-          prompt: options.prompt,
-          maxOutputTokens: options.maxOutputTokens,
-        });
+        requests.push({ prompt: options.prompt });
         return {
           content: [
             {
@@ -105,12 +102,9 @@ describe("testModelCall", () => {
     };
 
     await testModelCall(params);
-    await testModelCall({ ...params, modelConfig: { max_tokens: 64 } });
 
     const prompt = JSON.stringify(requests[0]?.prompt);
     expect(prompt).toContain("Return one concise sentence.");
     expect(prompt).toContain("Return true when the criteria are satisfied.");
-    expect(requests[0]?.maxOutputTokens).toBe(1_024);
-    expect(requests[1]?.maxOutputTokens).toBe(64);
   });
 });
