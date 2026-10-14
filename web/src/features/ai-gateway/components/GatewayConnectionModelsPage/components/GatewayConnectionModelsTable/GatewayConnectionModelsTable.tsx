@@ -160,7 +160,7 @@ export function GatewayConnectionModelsTable({
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border">
+      <div className="flex min-h-0 flex-1 flex-col">
         <GatewayConnectionModelsToolbar
           columns={columns}
           filteredModelIds={filteredModelIds}
@@ -174,26 +174,28 @@ export function GatewayConnectionModelsTable({
           onDisableAll={onDisableAll}
           onSearchChange={handleSearchChange}
         />
-        <DataTable
-          tableName="gateway-connection-models"
-          columns={columns}
-          data={{ isLoading: false, isError: false, data: rows }}
-          pagination={{
-            totalCount: sortedModels.length,
-            state: {
-              pageIndex: visiblePageIndex,
-              pageSize: pagination.pageSize,
-            },
-            onChange: handlePaginationChange,
-            options: PAGE_SIZE_OPTIONS,
-          }}
-          selectionStore={selectionStore}
-          rowHeight="s"
-          customRowHeights={ROW_HEIGHTS}
-          orderBy={orderBy}
-          setOrderBy={handleOrderByChange}
-          noResultsMessage="No models match the current search."
-        />
+        <div className="min-h-0 flex-1 overflow-hidden rounded-md border">
+          <DataTable
+            tableName="gateway-connection-models"
+            columns={columns}
+            data={{ isLoading: false, isError: false, data: rows }}
+            pagination={{
+              totalCount: sortedModels.length,
+              state: {
+                pageIndex: visiblePageIndex,
+                pageSize: pagination.pageSize,
+              },
+              onChange: handlePaginationChange,
+              options: PAGE_SIZE_OPTIONS,
+            }}
+            selectionStore={selectionStore}
+            rowHeight="s"
+            customRowHeights={ROW_HEIGHTS}
+            orderBy={orderBy}
+            setOrderBy={handleOrderByChange}
+            noResultsMessage="No models match the current search."
+          />
+        </div>
       </div>
       <GatewayConnectionModelsSelectionBar
         filteredModelIds={filteredModelIds}

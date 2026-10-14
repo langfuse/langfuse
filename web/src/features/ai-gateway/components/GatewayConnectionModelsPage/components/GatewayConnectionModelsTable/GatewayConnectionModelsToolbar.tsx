@@ -42,6 +42,7 @@ export function GatewayConnectionModelsToolbar({
     <DataTableToolbar
       tableName="gateway-connection-models"
       columns={columns}
+      className="px-0"
       searchConfig={{
         metadataSearchFields: ["Model"],
         updateQuery: onSearchChange,
