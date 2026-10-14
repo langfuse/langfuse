@@ -27,24 +27,6 @@ import {
   recordEvalTimeToFirstAttempt,
 } from "../features/evaluation/evalExecutionMetrics";
 
-function getTerminalEvalErrorLogContext(
-  payload: { projectId: string; jobExecutionId: string },
-  error: unknown,
-  llmError: EvaluatorLlmErrorClassification | null,
-) {
-  return {
-    projectId: payload.projectId,
-    jobExecutionId: payload.jobExecutionId,
-    errorName: error instanceof Error ? error.name : typeof error,
-    errorMessage: (error instanceof Error
-      ? error.message
-      : String(error)
-    ).slice(0, 500),
-    llmErrorKind: llmError?.kind,
-    llmStatusCode: llmError?.statusCode,
-  };
-}
-
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
 ) => {
@@ -444,3 +426,21 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
       throw e;
     }
   };
+
+function getTerminalEvalErrorLogContext(
+  payload: { projectId: string; jobExecutionId: string },
+  error: unknown,
+  llmError: EvaluatorLlmErrorClassification | null,
+) {
+  return {
+    projectId: payload.projectId,
+    jobExecutionId: payload.jobExecutionId,
+    errorName: error instanceof Error ? error.name : typeof error,
+    errorMessage: (error instanceof Error
+      ? error.message
+      : String(error)
+    ).slice(0, 500),
+    llmErrorKind: llmError?.kind,
+    llmStatusCode: llmError?.statusCode,
+  };
+}

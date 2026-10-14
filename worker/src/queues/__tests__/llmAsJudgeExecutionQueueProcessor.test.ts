@@ -10,6 +10,7 @@ import {
 import { Job } from "bullmq";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import {
+  EvalFailureError,
   EvalFailureReason,
   UnrecoverableEvalFailureError,
 } from "../../features/evaluation/evalFailureErrors";
@@ -612,38 +613,49 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       );
     });
 
-    it("should persist ERROR on the final BullMQ attempt", async () => {
-      const unexpectedError = new Error("Database connection failed");
-      (processObservationEval as Mock).mockRejectedValue(unexpectedError);
-
-      await expect(
-        llmAsJudgeExecutionQueueProcessor(
-          createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
+    it.each([
+      { error: new Error("Database connection failed"), reason: "unexpected" },
+      {
+        error: new EvalFailureError(
+          "Failed to write score",
+          EvalFailureReason.ScorePersistence,
         ),
-      ).rejects.toThrow(unexpectedError);
+        reason: "score_persistence",
+      },
+    ])(
+      "should persist ERROR on the final BullMQ attempt with reason $reason",
+      async ({ error, reason }) => {
+        (processObservationEval as Mock).mockRejectedValue(error);
 
-      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
-        where: {
-          id: jobExecutionId,
-          projectId,
-        },
-        data: {
-          status: JobExecutionStatus.ERROR,
-          endTime: expect.any(Date),
-          error: "An internal error occurred",
-          executionTraceId: "test-trace-id",
-        },
-      });
-      expect(recordIncrement).toHaveBeenCalledWith(
-        "langfuse.evaluation.execution.terminal",
-        1,
-        {
-          evaluator_type: "llm_as_judge",
-          outcome: "platform_error",
-          reason: "unexpected",
-        },
-      );
-    });
+        await expect(
+          llmAsJudgeExecutionQueueProcessor(
+            createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
+          ),
+        ).rejects.toThrow(error);
+
+        expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+          where: {
+            id: jobExecutionId,
+            projectId,
+          },
+          data: {
+            status: JobExecutionStatus.ERROR,
+            endTime: expect.any(Date),
+            error: "An internal error occurred",
+            executionTraceId: "test-trace-id",
+          },
+        });
+        expect(recordIncrement).toHaveBeenCalledWith(
+          "langfuse.evaluation.execution.terminal",
+          1,
+          {
+            evaluator_type: "llm_as_judge",
+            outcome: "platform_error",
+            reason,
+          },
+        );
+      },
+    );
   });
 
   describe("execution trace ID", () => {

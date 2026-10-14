@@ -19,31 +19,11 @@ export type EvalExecutionTerminalOutcome =
   | "customer_error"
   | "cancelled";
 
-type EvalPlatformErrorReason =
-  | Exclude<EvalFailureReason, CustomerEvalFailureReason>
-  | (typeof LLM_ERROR_KIND_REASONS)[keyof typeof LLM_ERROR_KIND_REASONS]
-  | "unrecoverable"
-  | "unexpected";
-
-type LlmEvalTerminalErrorAttribution =
-  | { outcome: "platform_error"; reason: EvalPlatformErrorReason }
-  | { outcome: "upstream_error" | "customer_error"; reason?: never };
-
-type CustomerEvalFailureReason =
-  | typeof EvalFailureReason.InvalidModelConfig
-  | typeof EvalFailureReason.InvalidModelOutput;
-
 const CUSTOMER_EVAL_FAILURE_REASONS: ReadonlySet<EvalFailureReason> =
   new Set<CustomerEvalFailureReason>([
     EvalFailureReason.InvalidModelConfig,
     EvalFailureReason.InvalidModelOutput,
   ]);
-
-function isCustomerEvalFailureReason(
-  reason: EvalFailureReason,
-): reason is CustomerEvalFailureReason {
-  return CUSTOMER_EVAL_FAILURE_REASONS.has(reason);
-}
 
 const LLM_ERROR_KIND_REASONS = {
   provider: "llm_provider",
@@ -112,18 +92,18 @@ export function getLlmEvalTerminalErrorAttribution(params: {
 }): LlmEvalTerminalErrorAttribution {
   const { error, classification, isUnrecoverable } = params;
 
-  if (classification) {
-    const outcome = getLlmEvalTerminalErrorOutcome(classification);
-    return outcome === "platform_error"
-      ? { outcome, reason: LLM_ERROR_KIND_REASONS[classification.kind] }
-      : { outcome };
-  }
-
   const failureReason = getEvalFailureReason(error);
   if (failureReason) {
     return isCustomerEvalFailureReason(failureReason)
       ? { outcome: "customer_error" }
       : { outcome: "platform_error", reason: failureReason };
+  }
+
+  if (classification) {
+    const outcome = getLlmEvalTerminalErrorOutcome(classification);
+    return outcome === "platform_error"
+      ? { outcome, reason: LLM_ERROR_KIND_REASONS[classification.kind] }
+      : { outcome };
   }
 
   return {
@@ -234,6 +214,26 @@ function getEvalScoreCountBucket(scoreCount: number): EvalScoreCountBucket {
   if (scoreCount <= 10) return "6-10";
   return "11+";
 }
+
+function isCustomerEvalFailureReason(
+  reason: EvalFailureReason,
+): reason is CustomerEvalFailureReason {
+  return CUSTOMER_EVAL_FAILURE_REASONS.has(reason);
+}
+
+type EvalPlatformErrorReason =
+  | Exclude<EvalFailureReason, CustomerEvalFailureReason>
+  | (typeof LLM_ERROR_KIND_REASONS)[keyof typeof LLM_ERROR_KIND_REASONS]
+  | "unrecoverable"
+  | "unexpected";
+
+type LlmEvalTerminalErrorAttribution =
+  | { outcome: "platform_error"; reason: EvalPlatformErrorReason }
+  | { outcome: "upstream_error" | "customer_error"; reason?: never };
+
+type CustomerEvalFailureReason =
+  | typeof EvalFailureReason.InvalidModelConfig
+  | typeof EvalFailureReason.InvalidModelOutput;
 
 export const __test = {
   getEvalScoreCountBucket,
