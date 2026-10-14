@@ -13,7 +13,7 @@ export class GatewayModelsRepository {
         provider: { in: params.providers },
         status: "ENABLED",
       },
-      orderBy: [{ routingPriority: "asc" }, { id: "asc" }],
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: { id: true, name: true, allowedModels: true },
     });
   }

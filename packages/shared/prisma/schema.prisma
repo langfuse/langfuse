@@ -356,15 +356,14 @@ model GatewayAiConnection {
   encryptedCredential String                  @map("encrypted_credentials")
   displaySecret       String                  @map("display_secret_key")
   createdById         String?                 @map("created_by_id")
-  routingPriority     Int                     @map("routing_priority")
   status              GatewayConnectionStatus @default(ENABLED)
   allowedModels       Json?                   @map("allowed_models") @db.JsonB
   createdAt           DateTime                @default(now()) @map("created_at")
   updatedAt           DateTime                @default(now()) @updatedAt @map("updated_at")
 
   @@unique([organizationId, name])
-  @@unique([organizationId, routingPriority])
-  @@index([organizationId, status, routingPriority])
+  @@index([organizationId, createdAt, id], map: "gateway_ai_conn_org_created_at_id_idx")
+  @@index([organizationId, status, createdAt, id], map: "gateway_ai_conn_org_status_created_at_id_idx")
   @@map("gateway_ai_connections")
 }
 

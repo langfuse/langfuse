@@ -240,43 +240,6 @@ export class GatewayProviderService {
     );
     return updated;
   }
-
-  async reorder(params: {
-    organizationId: string;
-    connectionIds: string[];
-    session: OrgAuthedContext["session"];
-  }) {
-    const existing = await this.listAll(params.organizationId);
-    const existingIds = new Set(existing.map((connection) => connection.id));
-    const requestedIds = new Set(params.connectionIds);
-    if (
-      requestedIds.size !== params.connectionIds.length ||
-      requestedIds.size !== existingIds.size ||
-      params.connectionIds.some((id) => !existingIds.has(id))
-    ) {
-      throw new InvalidRequestError(
-        "Reorder must contain every organization gateway connection exactly once",
-      );
-    }
-    await this.repository.reorderConnections({
-      organizationId: params.organizationId,
-      connectionIds: params.connectionIds,
-    });
-    const reordered = await this.listAll(params.organizationId);
-    await invalidateGatewayResolveCacheForOrganization(params.organizationId);
-    await auditLog(
-      {
-        session: params.session,
-        resourceType: "gatewayAiConnection",
-        resourceId: params.organizationId,
-        action: "reorder",
-        before: existing,
-        after: reordered,
-      },
-      this.prisma,
-    );
-    return reordered;
-  }
 }
 
 function rethrowConnectionMutationError(error: unknown): never {

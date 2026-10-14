@@ -41,7 +41,7 @@ export class GatewayResolveRepository {
                     provider: { in: params.providers },
                     status: "ENABLED",
                   },
-                  orderBy: { routingPriority: "asc" },
+                  orderBy: [{ createdAt: "asc" }, { id: "asc" }],
                   select: {
                     id: true,
                     name: true,

@@ -192,7 +192,7 @@ export class GatewayResolveCache {
   /**
    * Drops every cached resolve context for an organization. Call this after any
    * change that alters what /resolve would answer: connections, credentials,
-   * routing priority, connection status, or the gateway config.
+   * connection status, model access, or the gateway config.
    */
   async invalidateOrganization(organizationId: string) {
     if (!this.enabled) return;
