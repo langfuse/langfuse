@@ -38,6 +38,7 @@ import {
 } from "./attributes";
 import {
   isClaudeManagedAgentSessionCreation,
+  isClaudeManagedAgentSpan,
   ObservationTypeMapperRegistry,
 } from "./ObservationTypeMapper";
 import { env } from "../../env";
@@ -1200,10 +1201,11 @@ export class OtelIngestionProcessor {
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
         userId: this.extractUserId(attributes, decodeMetadataValues),
+        /** CMA session inference belongs to root traces and individual observations. */
         sessionId: this.extractSessionId(
           attributes,
           decodeMetadataValues,
-          instrumentationScopeName,
+          undefined,
         ),
         public: this.extractPublic(attributes),
         tags: this.extractTags(attributes, decodeMetadataValues),
@@ -2748,15 +2750,9 @@ export class OtelIngestionProcessor {
     instrumentationScopeName: string | undefined,
   ): string | undefined {
     const sessionIdKeys = ["langfuse.session.id", "session.id"];
-    const managedSessionId = attributes["anthropic.session.id"];
 
     /** Claude Managed Agents sessions span multiple threads; conversation IDs identify individual threads. */
-    if (
-      (instrumentationScopeName === "com.anthropic.claude-platform" ||
-        instrumentationScopeName?.startsWith("com.anthropic.sdk.")) &&
-      typeof managedSessionId === "string" &&
-      managedSessionId.trim().length > 0
-    ) {
+    if (isClaudeManagedAgentSpan(attributes, instrumentationScopeName)) {
       sessionIdKeys.push("anthropic.session.id");
     }
 

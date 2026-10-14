@@ -5821,6 +5821,24 @@ describe("OTel Resource Span Mapping", () => {
       },
     );
 
+    it("does not infer a trace session from CMA child spans", async () => {
+      const { legacyTrace, eventInputs } = await mapCmaSpans([
+        {
+          name: "anthropic.sessions.events.send",
+          parentSpanId: Buffer.alloc(8, 9),
+          attributes: {
+            "anthropic.session.id": "sesn_example",
+            "langfuse.trace.name": "app-request",
+          },
+        },
+      ]);
+      expect(legacyTrace).toMatchObject({
+        name: "app-request",
+        sessionId: undefined,
+      });
+      expect(eventInputs[0].sessionId).toBe("sesn_example");
+    });
+
     it.each([
       {
         scenario: "maps platform session creation to a span",
@@ -5829,7 +5847,7 @@ describe("OTel Resource Span Mapping", () => {
       },
       {
         scenario: "maps SDK session creation to a span",
-        scopeName: "com.anthropic.sdk.typescript",
+        scopeName: "com.anthropic.sdk.python",
         expectedType: "SPAN",
         expectedModel: undefined,
       },
