@@ -1,8 +1,8 @@
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { useRef, useState } from "react";
 import { skipToken } from "@tanstack/react-query";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { ControlledDialog } from "@/src/components/design-system/ControlledDialog/ControlledDialog";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input as NumericInput } from "@/src/components/ui/input";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
@@ -219,7 +219,7 @@ export function useTopicPipelineForm({
     />
   );
   const configuration = (
-    <DialogPrimitive.Root open={runOpen} onOpenChange={setRunOpen}>
+    <ControlledDialog open={runOpen} onOpenChange={setRunOpen}>
       <Dialog
         title={operation === "process" ? "Process traces" : "Update topics"}
         size="xxl"
@@ -379,7 +379,7 @@ export function useTopicPipelineForm({
           />
         </div>
       </Dialog>
-    </DialogPrimitive.Root>
+    </ControlledDialog>
   );
   return {
     primaryAction: facets.length > 0 ? primaryAction : null,
