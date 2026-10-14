@@ -18,7 +18,6 @@ import { ChatMessageList } from "@/src/features/traces/components/ChatMessageLis
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { toIOPreview } from "@/src/features/traces/parsers/toIOPreview";
-import { IO_SECTIONS_FLUSH_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 
 type Transcript = NonNullable<
@@ -185,7 +184,7 @@ function MessageList({
   );
 
   return (
-    <div className={IO_SECTIONS_FLUSH_CLASS}>
+    <div>
       <ChatMessageList
         messages={preview.allMessages}
         shouldRenderMarkdown={shouldRenderMarkdown}

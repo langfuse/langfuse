@@ -1,6 +1,5 @@
 /* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
-import { cn } from "@/src/utils/tailwind";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
@@ -19,7 +18,6 @@ import {
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
-import { IO_SECTIONS_FLUSH_CLASS } from "../../constants/ioSectionClasses";
 
 interface JsonInputOutputViewProps {
   parsedInput: unknown;
@@ -257,7 +255,7 @@ export function IOPreviewPretty({
   const shouldRenderMessages = hasRenderableChatMessages(parserResult);
 
   return (
-    <div className={cn("space-y-3 pt-3", IO_SECTIONS_FLUSH_CLASS)}>
+    <div className="space-y-2 pt-3">
       {showData && status ? (
         <StatusMessageSection status={status} currentView="pretty" />
       ) : null}

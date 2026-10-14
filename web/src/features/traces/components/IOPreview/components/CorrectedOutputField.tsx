@@ -322,7 +322,7 @@ export function CorrectedOutputField({
       />
       {compact ? (
         // The JSON Beta section renders its own title; only controls + body here.
-        <div className="group pt-3">
+        <div className="group pt-2">
           <div className="flex items-center justify-between py-1.5">
             {infoIcon}
             <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -332,7 +332,7 @@ export function CorrectedOutputField({
           {body}
         </div>
       ) : (
-        <div className="pt-3">
+        <div className="pt-2">
           <IOSection
             title={
               <>

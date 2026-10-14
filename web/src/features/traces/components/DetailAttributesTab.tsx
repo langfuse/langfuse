@@ -6,10 +6,7 @@ import { type MediaReturnType } from "@/src/features/media";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { IOSection } from "@/src/components/ui/IOSection";
 import { cn } from "@/src/utils/tailwind";
-import {
-  IO_SECTIONS_FLUSH_CLASS,
-  IO_STICKY_HEADERS_CLASS,
-} from "@/src/features/traces/constants/ioSectionClasses";
+import { IO_STICKY_HEADERS_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 import { AttributeRowActions } from "./ObservationDetailView/AttributeRowActions";
 import { LargeJsonFieldFallback } from "@/src/features/traces/components/IOPreview/components/LargeJsonFieldFallback";
@@ -69,7 +66,7 @@ export function DetailAttributesTab({
         IO_STICKY_HEADERS_CLASS,
       )}
     >
-      <div className={cn("space-y-3 pt-3", IO_SECTIONS_FLUSH_CLASS)}>
+      <div className="space-y-2 pt-3">
         {observation && hasAttributes ? (
           <PrettyJsonView
             title="Attributes"

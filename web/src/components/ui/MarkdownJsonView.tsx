@@ -20,6 +20,8 @@ type MarkdownJsonViewHeaderProps = {
   titleIcon?: React.ReactNode;
   /** Rendered before the title, e.g. a section caret. */
   leading?: React.ReactNode;
+  /** Card inset (matches the section body text) instead of the narrow default. */
+  inset?: boolean;
   handleOnCopy?: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   controlButtons?: React.ReactNode;
   /** Hosts that render their own copy control (e.g. inside the content box)
@@ -34,6 +36,7 @@ export function MarkdownJsonViewHeader({
   title,
   titleIcon,
   leading,
+  inset = false,
   handleOnCopy,
   controlButtons,
   hideCopyButton = false,
@@ -50,7 +53,12 @@ export function MarkdownJsonViewHeader({
   );
 
   return (
-    <div className="io-message-header flex h-8 flex-row items-center justify-between px-1 text-sm font-bold capitalize">
+    <div
+      className={cn(
+        "io-message-header flex h-8 flex-row items-center justify-between text-sm font-bold capitalize",
+        inset ? "px-3" : "px-1",
+      )}
+    >
       {/* Masked from session recordings: the title can be a customer-provided
           message `name` (or tool name) rather than a fixed role string. */}
       <div className="ph-no-capture flex items-center gap-2">

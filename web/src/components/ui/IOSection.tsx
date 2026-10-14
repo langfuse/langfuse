@@ -17,17 +17,17 @@ export type IOSectionProps = {
   /** Controlled state; the caret calls `onCollapsedChange`. */
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
-  /** `box`: grey box with inset. `inset`: inset only, for bodies made of
-      tiles (media). `bare`: nothing, for bodies that bring their own box
-      (status messages). */
-  body?: "box" | "inset" | "bare";
+  /** Off for bodies made of tiles (media): the header keeps the card inset
+      but sits on the panel, and the tiles render without a card behind them. */
+  card?: boolean;
   children: React.ReactNode;
 };
 
 /**
- * One I/O section of the trace view: a header row (caret, title, hover
- * controls) over a boxed body. The caret hides the whole body; a collapsed
- * section does not render its children.
+ * One I/O section of the trace view: a grey card holding a header row (caret,
+ * title, hover controls) and the body under it. The caret hides the whole
+ * body; a collapsed section is just the header bar and does not render its
+ * children.
  */
 export function IOSection({
   title,
@@ -38,7 +38,7 @@ export function IOSection({
   defaultCollapsed = false,
   collapsed,
   onCollapsedChange,
-  body = "box",
+  card = true,
   children,
 }: IOSectionProps) {
   const [internalCollapsed, setInternalCollapsed] = useState(defaultCollapsed);
@@ -57,10 +57,16 @@ export function IOSection({
 
   return (
     // overflow-clip (not hidden) so the sticky header can track the panel scroll.
-    <div className="group/iosection flex flex-col overflow-clip">
+    <div
+      className={cn(
+        "group/iosection flex flex-col overflow-clip",
+        card && "bg-surface-output rounded-md",
+      )}
+    >
       <MarkdownJsonViewHeader
         title={title}
         titleIcon={titleIcon}
+        inset
         leading={
           <button
             type="button"
@@ -79,15 +85,13 @@ export function IOSection({
         controlButtons={isCollapsed ? undefined : controlButtons}
       />
       {!isCollapsed && (
-        <div className="io-message-content ph-no-capture px-1 pt-1 pb-2">
-          <div
-            className={cn(
-              body !== "bare" && "px-3 py-2",
-              body === "box" && "bg-surface-output overflow-hidden rounded-md",
-            )}
-          >
-            {children}
-          </div>
+        <div
+          className={cn(
+            "io-message-content ph-no-capture px-3 pb-2",
+            !card && "pt-1",
+          )}
+        >
+          {children}
         </div>
       )}
     </div>

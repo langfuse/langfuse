@@ -34,17 +34,15 @@ export function StatusMessageSection({
     );
   }
 
-  // The status message paints its own level-coloured box.
   return (
     <IOSection
       title={presentation.title}
       onCopy={() => copyTextToClipboard(status.message)}
-      body="bare"
     >
       <StatusMessage
         level={status.level}
         message={status.message}
-        size="default"
+        size="compact"
       />
     </IOSection>
   );

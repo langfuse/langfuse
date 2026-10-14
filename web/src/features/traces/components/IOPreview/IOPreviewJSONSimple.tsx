@@ -11,8 +11,6 @@ import {
 } from "./fns/jsonViewSizeGate";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
-import { IO_SECTIONS_FLUSH_CLASS } from "../../constants/ioSectionClasses";
-import { cn } from "@/src/utils/tailwind";
 
 export interface IOPreviewJSONSimpleProps {
   input?: Prisma.JsonValue;
@@ -138,7 +136,7 @@ export function IOPreviewJSONSimple({
   const downloadName = observationId ?? traceId;
 
   return (
-    <div className={cn("pt-3", IO_SECTIONS_FLUSH_CLASS)}>
+    <div className="space-y-2 pt-3">
       {status ? (
         <StatusMessageSection status={status} currentView="json" />
       ) : null}
