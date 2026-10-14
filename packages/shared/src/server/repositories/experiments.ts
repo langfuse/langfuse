@@ -9,6 +9,7 @@ import { sql } from "kysely";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
+import { includeDeleted } from "../query-ast/extensions";
 import {
   EXPERIMENTS_AGGREGATION_FIELDS,
   EXPERIMENTS_AGGREGATION_FIELD_SETS,
@@ -364,6 +365,7 @@ export const getExperimentMetricsFromEvents = async (props: {
   const { projectId, experimentIds } = props;
   const builder = getClickhouseKysely()
     .selectFrom("events_core as e")
+    .$call(includeDeleted())
     .select(
       // Same field map as the experiments table builder, so both stay in sync.
       EXPERIMENTS_AGGREGATION_FIELD_SETS.metrics.map((field) =>

@@ -10,8 +10,8 @@ metadata, `FilterState` embedding) will land under
 This folder is a compile-only ClickHouse dialect on Kysely 0.28: real
 `OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata map
 subscripts; a mandatory tenancy injection pass keyed on `ExecutionContext`;
-per-table dedup lowering from the registry; schema-typed selection; virtual
-views as WITH CTEs; catalog parity.
+per-table soft-delete filtering and dedup lowering from the registry;
+schema-typed selection; virtual views as WITH CTEs; catalog parity.
 
 Two audiences: **[Using it](#using-it)** if you are calling the compiler from a
 repository, **[Developing the dialect](#developing-the-dialect)** if you are
@@ -25,12 +25,14 @@ changing how it emits SQL.
 - `schema.ts` — the physical table registry: one `defineTable` declaration per
   relation drives the Kysely row types (`ClickHouseDatabase`), the runtime
   column-type map (`COLUMN_DATA_TYPES`), the tenanted-table set
-  (`TENANTED_TABLES`), and the per-table dedup specs (`DEDUP_SPECS`) — instead
-  of hand-maintained tables that drift.
+  (`TENANTED_TABLES`), the per-table dedup specs (`DEDUP_SPECS`), and the
+  soft-delete flag columns (`SOFT_DELETE_COLUMNS`) — instead of
+  hand-maintained tables that drift.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
 - `extensions.ts` — the `$call` helpers: `arrayJoin`, `mapKeys`, `mapValues`,
-  `limitBy`, `useFinal`, `metadataValue`.
-- `views.ts` / `dedup.ts` — virtual views as CTEs and per-table dedup lowering.
+  `limitBy`, `useFinal`, `includeDeleted`, `metadataValue`.
+- `views.ts` / `dedup.ts` / `softDelete.ts` — virtual views as CTEs, per-table
+  dedup lowering, and soft-delete filtering.
 - `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
   dialect's expressivity.
 - `catalog.golden.test.ts` — catalog SQL baselines.
@@ -82,6 +84,11 @@ suffix to run there. Promote it to a required check once it has proven stable.
 - **Never filter `project_id` yourself.** The compile step injects
   `project_id = {projectId}` into every tenanted relation, so call sites pass
   only `{ projectId }` (see `../repositories/environments.ts`).
+- **Never filter `is_deleted` on a physical table yourself.** Tables that
+  declare `softDelete` in the registry (`events_core`, `events_full`) get
+  `is_deleted = 0` on every FROM/JOIN. A select that must see deleted rows
+  opts out with `$call(includeDeleted())`, e.g. a latest-version read that
+  drops tombstones after its `LIMIT 1 BY`.
 - **Dedup is declared per table and must be an existing production idiom.**
   `events_core` and `events_full` are `none` (immutable at read time — no
   LIMIT BY, no FINAL).
@@ -187,7 +194,11 @@ is where tenancy is enforced:
 
 1. A missing/empty `ExecutionContext` throws (`QueryCompileError`) — `ctx` is a
    required parameter, so omitting it is also a compile-time type error.
-2. `TenancyInjectionPlugin` walks every FROM/JOIN and injects
+2. `SoftDeleteFilterPlugin` adds `<flag> = 0` for every FROM/JOIN relation
+   whose table declares `softDelete`, except in selects marked with
+   `includeDeleted()`. It runs before tenancy, so the WHERE reads
+   `project_id = … and is_deleted = … and …`.
+3. `TenancyInjectionPlugin` walks every FROM/JOIN and injects
    `project_id = {projectId}` on each tenanted physical table, unless the tree
    already carries a predicate that _proves_ that scope: the equality's value
    must equal the context project, and — when more than one tenanted relation is
@@ -196,18 +207,18 @@ is where tenancy is enforced:
    name (if not) — so `scores AS traces` joined to `traces AS t` still scopes
    both. It then identity-stamps the tree (`WeakSet`); a copied
    `langfuseTenancy` property is not a valid stamp.
-3. `DedupLoweringPlugin` applies the table's declared read idiom
+4. `DedupLoweringPlugin` applies the table's declared read idiom
    (`none` / `limitBy` / `final`). `events_core` and `events_full` are
    `none` — immutable at read time, so the pass does not inject LIMIT BY or
    FINAL. `limitBy` is
    the existing legacy `ORDER BY <version> DESC LIMIT 1 BY <key>`.
    `final` remains fail-closed on the auto-lowering pass; callers opt in
    with `$call(useFinal(["scores"]))`. The pass restamps the rewritten root.
-4. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
+5. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
    present, so `qb.compile()` without the plugin also fails. Value binds take
    their ClickHouse type from the compared column's registry entry when one is
    in scope (`scores.value > 1` → `{p:Float64}`).
-5. Raw-SQL table sources (``selectFrom(sql`...`)``) and raw fragments embedding
+6. Raw-SQL table sources (``selectFrom(sql`...`)``) and raw fragments embedding
    a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`, as
    does any FROM/JOIN source that is neither a table reference nor a subquery
    (table functions such as `remote()`, `clusterAllReplicas()`, `merge()`).

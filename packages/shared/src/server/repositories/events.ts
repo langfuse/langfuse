@@ -40,6 +40,7 @@ import {
   byteLength,
   count,
   dateDiff,
+  includeDeleted,
   leftUTF8,
   limitBy,
   mapValue,
@@ -723,7 +724,6 @@ export const getObservationsWithPromptNameFromEvents = async (
     .select([uniq("span_id").as("count"), "prompt_name"])
     .where("prompt_name", "in", promptNames)
     .where("prompt_name", "!=", "")
-    .where("is_deleted", "=", 0)
     .$if(fromTimestamp != null, (qb) =>
       qb.where("start_time", ">=", fromTimestamp!),
     )
@@ -1092,6 +1092,7 @@ async function getObservationByIdFromEventsTableInternal({
       ? db.selectFrom("events_full as e")
       : db.selectFrom("events_core as e")
   )
+    .$call(includeDeleted())
     // Built per call: events.ts and the builder module import each other.
     .select(
       eventsFieldSetSelections(
@@ -1189,6 +1190,7 @@ export const getTraceByIdFromEventsTable = async ({
       ? qb.selectFrom("events_core as e")
       : qb.selectFrom("events_full as e");
     return from
+      .$call(includeDeleted())
       .select(traceAggregationSelects() as never)
       .where("trace_id", "in", [traceId])
       .$if(fromTimestamp != null, (inner) =>
@@ -1392,7 +1394,6 @@ function compileHasAnyFromEventsTable(opts: {
     .$if(opts.kind === "session", (qb) =>
       qb.where("session_id", "is not", null).where("session_id", "!=", ""),
     )
-    .where("is_deleted", "=", 0)
     .limit(1);
 
   return compileClickhouseQuery(query, ctx);
@@ -2625,6 +2626,7 @@ export async function getAgentGraphDataFromEventsTable(params: {
 
   const builder = db
     .selectFrom("events_core as e")
+    .$call(includeDeleted())
     .select((eb) => {
       const metadata = metadataMap(
         eb.ref("e.metadata_names"),
@@ -2792,6 +2794,7 @@ export const getObservationsBatchIOFromEventsTable = async <
   // for exact trace/observation matching.
   const builder = getClickhouseKysely()
     .selectFrom(truncated ? "events_core as e" : "events_full as e")
+    .$call(includeDeleted())
     .select((eb) => [
       "e.span_id as id",
       "e.trace_id as trace_id",
@@ -2830,6 +2833,7 @@ export const getObservationsBatchIOFromEventsTable = async <
       qb.where("e.trace_id", "in", (eb) =>
         eb
           .selectFrom("events_core")
+          .$call(includeDeleted())
           .select("trace_id")
           .where("trace_id", "in", traceIds)
           .groupBy("trace_id")
@@ -2929,6 +2933,7 @@ function compileObservationIOFieldRead<A extends string>(
 
   const query = db
     .selectFrom("events_full as e")
+    .$call(includeDeleted())
     .select((eb) =>
       select(
         opts.field === "metadata"
@@ -3048,6 +3053,7 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
   const ctx: ExecutionContext = { projectId: opts.projectId };
   const builder = db
     .selectFrom("events_full as e")
+    .$call(includeDeleted())
     .select((eb) => [
       "e.span_id as id",
       "e.input as input",
@@ -3114,6 +3120,7 @@ export const getObservationsTraceIdsFromEventsTable = async (opts: {
 
   const builder = db
     .selectFrom("events_core as e")
+    .$call(includeDeleted())
     .select(["e.trace_id as trace_id", "e.span_id as span_id"])
     .where("e.span_id", "in", observationIds);
 
@@ -3610,7 +3617,6 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
       "e.tags as tags",
     ])
     .where(sql<SqlBool>`${sql.raw(eventsTableTraceNameSql)} IS NOT NULL`)
-    .where("e.is_deleted", "=", 0)
     .where("e.trace_id", "in", props.traceIds)
     .$call(limitBy({ count: 1, columns: ["e.trace_id"] }));
 
@@ -3869,6 +3875,7 @@ export const getSessionMetricsFromEvents = async <
   const { projectId, sessionIds, fields, queryFromTimestamp } = props;
   const builder = getClickhouseKysely()
     .selectFrom("events_core as e")
+    .$call(includeDeleted())
     .select(
       fields.map((field) =>
         sql.raw(EVENTS_SESSION_AGGREGATION_FIELDS[field]),
@@ -3943,7 +3950,6 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
     )
     .where((eb) => eb.fn<SqlBool>("startsWith", ["e.source", eb.val("otel")]))
     .where("e.ingestion_sdk_name", "not in", [...INTERNAL_INGESTION_SDK_NAMES])
-    .where("e.is_deleted", "=", 0)
     .groupBy([
       "e.ingestion_sdk_name",
       "e.ingestion_sdk_version",
