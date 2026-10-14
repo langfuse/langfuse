@@ -34,6 +34,7 @@ import {
   getTraceByIdFromEventsTable,
   queryClickhouse,
   redis,
+  UsageDetails,
 } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
@@ -456,11 +457,18 @@ describe("AI gateway live end-to-end", () => {
               });
               const text = await response.text();
               expect(response.status, text).toBe(200);
-              const payload = JSON.parse(text) as { model?: string };
+              const payload = JSON.parse(text) as {
+                model?: string;
+                usage?: unknown;
+              };
               expect(payload.model).toEqual(
                 expect.stringMatching(providerModelPattern(model)),
               );
               expect(payload.model).not.toContain(":");
+              const expectedUsage = expectedProvidedUsage(
+                apiFormat,
+                payload.usage,
+              );
 
               const traceId = response.headers.get("langfuse-trace-id");
               const observationId = response.headers.get(
@@ -476,6 +484,11 @@ describe("AI gateway live end-to-end", () => {
                     projectId: defaultProjectId,
                     traceId: traceId!,
                   });
+                  if (!observation) {
+                    throw new Error(
+                      `Observation ${observationId} was not found`,
+                    );
+                  }
                   expect(observation.projectId).toBe(defaultProjectId);
                   expect(observation.traceId).toBe(traceId);
                   expect(observation.type).toBe("GENERATION");
@@ -483,11 +496,9 @@ describe("AI gateway live end-to-end", () => {
                     expect.stringMatching(providerModelPattern(model)),
                   );
                   expect(observation.model).not.toContain(":");
-                  const usage = [
-                    ...Object.values(observation.providedUsageDetails),
-                    ...Object.values(observation.usageDetails),
-                  ];
-                  expect(usage.some((value) => value > 0)).toBe(true);
+                  expect(observation.providedUsageDetails).toEqual(
+                    expectedUsage,
+                  );
                 },
                 90_000,
                 1_000,
@@ -875,6 +886,76 @@ function providerModelPattern(model: string) {
   );
 }
 
+function expectedProvidedUsage(
+  apiFormat: GatewayApiFormat,
+  usage: unknown,
+): Record<string, number> {
+  const projected = projectGatewayUsage(apiFormat, usage);
+  const parsed = projected ? UsageDetails.safeParse(projected) : null;
+  if (!parsed?.success || !parsed.data) {
+    throw new Error(
+      `Provider usage for ${apiFormat} did not convert: ${JSON.stringify(usage)}`,
+    );
+  }
+  if (!Object.values(parsed.data).some((value) => value > 0)) {
+    throw new Error(
+      `Provider usage for ${apiFormat} has no positive counters: ${JSON.stringify(usage)}`,
+    );
+  }
+  return parsed.data;
+}
+
+function projectGatewayUsage(apiFormat: GatewayApiFormat, usage: unknown) {
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
+  const record = usage as Record<string, unknown>;
+  if (apiFormat === "anthropic.messages") return record;
+  if (apiFormat === "openai.responses") {
+    return projectOpenAiUsage(
+      record,
+      ["input_tokens", "output_tokens", "total_tokens"],
+      ["input_tokens_details", "output_tokens_details"],
+    );
+  }
+  return projectOpenAiUsage(
+    record,
+    ["prompt_tokens", "completion_tokens", "total_tokens"],
+    ["prompt_tokens_details", "completion_tokens_details"],
+  );
+}
+
+function projectOpenAiUsage(
+  usage: Record<string, unknown>,
+  counters: readonly [string, string, string],
+  details: readonly [string, string],
+) {
+  const projected: Record<string, unknown> = {};
+  for (const key of counters) {
+    const value = usage[key];
+    if (!isCountedToken(value)) return null;
+    projected[key] = value;
+  }
+  for (const key of details) {
+    const value = usage[key];
+    if (value === null) {
+      projected[key] = null;
+      continue;
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const kept: Record<string, number | null> = {};
+    for (const [detailKey, detailValue] of Object.entries(value)) {
+      if (detailValue === null || isCountedToken(detailValue)) {
+        kept[detailKey] = detailValue;
+      }
+    }
+    projected[key] = kept;
+  }
+  return projected;
+}
+
+function isCountedToken(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
 async function withAllModelsAllowed(
   connectionId: string,
   run: () => Promise<void>,
@@ -961,7 +1042,14 @@ async function startGatewayProcess() {
   }
   const binary = resolveGatewayBinary();
   const port = await reserveLoopbackPort();
-  const stderr: string[] = [];
+  const logs: string[] = [];
+  const appendLog = (chunk: string) => {
+    logs.push(chunk);
+    const joined = logs.join("");
+    if (joined.length > 16_000) {
+      logs.splice(0, logs.length, joined.slice(-12_000));
+    }
+  };
   const child = spawn(binary, [], {
     env: {
       ...process.env,
@@ -973,22 +1061,23 @@ async function startGatewayProcess() {
       LANGFUSE_LOG_FORMAT: "json",
       LANGFUSE_LOG_LEVEL: "info",
     },
-    stdio: ["ignore", "ignore", "pipe"],
+    stdio: ["ignore", "pipe", "pipe"],
   });
-  child.stderr.setEncoding("utf8");
-  child.stderr.on("data", (chunk: string) => {
-    stderr.push(chunk);
-    const joined = stderr.join("");
-    if (joined.length > 16_000) {
-      stderr.splice(0, stderr.length, joined.slice(-12_000));
-    }
-  });
+  child.stdout?.setEncoding("utf8");
+  child.stderr?.setEncoding("utf8");
+  child.stdout?.on("data", appendLog);
+  child.stderr?.on("data", appendLog);
   const url = `http://127.0.0.1:${port}`;
   let startupError: Error | undefined;
   child.once("error", (error) => {
     startupError = error;
   });
-  await waitForGatewayReady(child, url, stderr, () => startupError);
+  try {
+    await waitForGatewayReady(child, url, logs, () => startupError);
+  } catch (error) {
+    await stopGatewayProcess(child);
+    throw error;
+  }
   return {
     url,
     stop: () => stopGatewayProcess(child),
@@ -998,7 +1087,7 @@ async function startGatewayProcess() {
 async function waitForGatewayReady(
   child: ChildProcess,
   url: string,
-  stderr: string[],
+  logs: string[],
   startupError: () => Error | undefined,
 ) {
   const deadline = Date.now() + 20_000;
@@ -1007,12 +1096,12 @@ async function waitForGatewayReady(
     const error = startupError();
     if (error) {
       throw new Error(
-        `AI gateway failed to start: ${error.message}\n${stderr.join("")}`,
+        `AI gateway failed to start: ${error.message}\n${logs.join("")}`,
       );
     }
-    if (child.exitCode != null) {
+    if (child.exitCode != null || child.signalCode != null) {
       throw new Error(
-        `AI gateway exited ${child.exitCode} before ready.\n${stderr.join("")}`,
+        `AI gateway exited ${child.exitCode ?? child.signalCode} before ready.\n${logs.join("")}`,
       );
     }
     try {
@@ -1026,11 +1115,13 @@ async function waitForGatewayReady(
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  throw new Error(`${lastError}\n${stderr.join("")}`);
+  throw new Error(`${lastError}\n${logs.join("")}`);
 }
 
 function stopGatewayProcess(child: ChildProcess) {
-  if (child.exitCode != null) return Promise.resolve();
+  if (child.exitCode != null || child.signalCode != null) {
+    return Promise.resolve();
+  }
   return new Promise<void>((resolve) => {
     const timer = setTimeout(() => {
       child.kill("SIGKILL");

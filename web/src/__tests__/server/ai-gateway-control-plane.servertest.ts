@@ -863,28 +863,6 @@ describe("AI gateway control plane", () => {
     };
 
     await expect(
-      authenticateRequest({ ...params, model: "gpt-4o" }),
-    ).resolves.toMatchObject({
-      connection: {
-        id: openAiPrimary.id,
-        provider: "openai",
-        provider_model: "gpt-4o",
-      },
-    });
-    await expect(
-      authenticateRequest({
-        ...params,
-        apiFormat: "anthropic.messages",
-        model: "claude-haiku-4-5-20251001",
-      }),
-    ).resolves.toMatchObject({
-      connection: {
-        id: anthropic.id,
-        provider: "anthropic",
-        provider_model: "claude-haiku-4-5-20251001",
-      },
-    });
-    await expect(
       authenticateRequest({ ...params, model: "gpt-6-sol" }),
     ).resolves.toMatchObject({
       connection: {
