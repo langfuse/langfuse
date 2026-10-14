@@ -42,12 +42,14 @@ export function useRegenerateTopics({
   canWrite,
   timeRange,
   executions,
+  executionsError,
 }: {
   projectId: string;
   facets: TopicFacet[];
   canWrite: boolean;
   timeRange: TopicTimeRange | null;
   executions: TopicExecutionList | undefined;
+  executionsError: string | null;
 }) {
   const settings = api.topics.modelSettings.useQuery({ projectId });
   const rules = api.topics.rules.useQuery({ projectId });
@@ -57,9 +59,28 @@ export function useRegenerateTopics({
     settings.data.clustering,
   );
   const rule = rules.data?.length === 1 ? rules.data[0] : null;
-  const candidates = ruleFacets(facets, rule);
+  const prerequisiteReason = (() => {
+    if (rules.error)
+      return `Could not load active Topics facets: ${rules.error.message}`;
+    if (!rules.isSuccess) return "Checking the active Topics facets…";
+    if (executionsError)
+      return `Could not check Topics runs: ${executionsError}`;
+    if (executions === undefined)
+      return "Checking for Topics runs in progress…";
+    return null;
+  })();
+  const candidates = rules.isSuccess ? ruleFacets(facets, rule) : [];
+  const runInProgress = Boolean(
+    executions?.some((execution) => isBusy(execution.status)),
+  );
   const summaryCounts = api.topics.summaryCounts.useQuery(
-    timeRange && configured && candidates.length > 0
+    timeRange &&
+      configured &&
+      canWrite &&
+      !settings.data?.blockedAt &&
+      !runInProgress &&
+      prerequisiteReason === null &&
+      candidates.length > 0
       ? {
           projectId,
           facets: candidates.map(({ facet, version }) => ({
@@ -79,27 +100,30 @@ export function useRegenerateTopics({
           count.facetVersion === candidate.version.version,
       )?.count ?? 0,
   }));
-  const disabledReason = regenerateDisabledReason({
-    canWrite,
-    settings: settings.isPending
-      ? "loading"
-      : {
-          configured,
-          pausedMessage: settings.data?.blockedAt
-            ? (settings.data.blockMessage ?? "")
-            : null,
-        },
-    runInProgress: Boolean(
-      executions?.some((execution) => isBusy(execution.status)),
-    ),
-    hasTimeRange: timeRange !== null,
-    facetCount: candidates.length,
-    summaries: {
-      isPending: summaryCounts.isPending,
-      error: summaryCounts.error?.message ?? null,
-      total: regenerateFacets.reduce((sum, facet) => sum + facet.summaries, 0),
-    },
-  });
+  const disabledReason =
+    prerequisiteReason ??
+    regenerateDisabledReason({
+      canWrite,
+      settings: settings.isPending
+        ? "loading"
+        : {
+            configured,
+            pausedMessage: settings.data?.blockedAt
+              ? (settings.data.blockMessage ?? "")
+              : null,
+          },
+      runInProgress,
+      hasTimeRange: timeRange !== null,
+      facetCount: candidates.length,
+      summaries: {
+        isPending: summaryCounts.isPending,
+        error: summaryCounts.error?.message ?? null,
+        total: regenerateFacets.reduce(
+          (sum, facet) => sum + facet.summaries,
+          0,
+        ),
+      },
+    });
   const lastRun =
     executions?.find((execution) => execution.input.operation === "update") ??
     null;
@@ -143,6 +167,7 @@ export function useRegenerateTopics({
     facets: regenerateFacets,
     lastRun,
     disabledReason,
+    prerequisiteReason,
     isSubmitting: trigger.isPending,
     error,
     clearError,
@@ -184,7 +209,7 @@ function regenerateDisabledReason({
     return "Choose the Topics models in Configure Topics first.";
   if (runInProgress)
     return "A Topics run is in progress. Regenerate when it finishes.";
-  if (!hasTimeRange) return "Select a time range of at most 90 days.";
+  if (!hasTimeRange) return "Choose a valid summary time range.";
   if (facetCount === 0)
     return "Turn on at least one facet in Configure Topics.";
   if (summaries.isPending) return "Counting stored summaries…";

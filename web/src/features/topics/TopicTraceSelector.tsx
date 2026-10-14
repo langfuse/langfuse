@@ -1,6 +1,6 @@
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { useState } from "react";
-import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { env } from "@/src/env.mjs";
 import { type ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import {
@@ -13,7 +13,7 @@ import {
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
-import { Input } from "@/src/components/ui/input";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -27,6 +27,7 @@ import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/components/DateRangeInput/DateRangeInput";
 import { parseTraceInput } from "./parse-trace-input";
+import { TOPICS_BACKFILL_TRACE_LIMIT } from "./backfill-limit";
 import {
   isValidTopicTimeRange,
   relativeTopicTimeRange,
@@ -59,12 +60,10 @@ const registry = {
 
 export function useTopicTraceSelector({
   projectId,
-  onOpenTrace,
   enabled,
   filterOptionsEnabled,
 }: {
   projectId: string;
-  onOpenTrace: () => void;
   enabled: boolean;
   filterOptionsEnabled: boolean;
 }) {
@@ -73,8 +72,7 @@ export function useTopicTraceSelector({
   const [filter, setFilter] = useState<FilterState>([]);
   const [timeWindow, setTimeWindow] = useState("7");
   const [range, setRange] = useState(() => relativeTopicTimeRange(7));
-  const [sample, setSample] = useState(false);
-  const [limit, setLimit] = useState("100");
+  const [limit, setLimit] = useState(String(TOPICS_BACKFILL_TRACE_LIMIT));
   const [sampling, setSampling] = useState<"random" | "latest">("random");
   const [paste, setPaste] = useState("");
   const [request, setRequest] = useState<PreviewInput | null>(null);
@@ -90,14 +88,16 @@ export function useTopicTraceSelector({
     setExcluded([]);
   };
   const validLimit =
-    !sample || (Number.isSafeInteger(Number(limit)) && Number(limit) >= 1);
+    Number.isSafeInteger(Number(limit)) &&
+    Number(limit) >= 1 &&
+    Number(limit) <= TOPICS_BACKFILL_TRACE_LIMIT;
   const validRange = isValidTopicTimeRange(range);
   const preview = api.topics.previewTraces.useQuery(
     request ?? {
       projectId,
       filter: [],
       ...range,
-      limit: null,
+      limit: TOPICS_BACKFILL_TRACE_LIMIT,
       sampling: "random",
       seed: "unselected",
     },
@@ -135,7 +135,13 @@ export function useTopicTraceSelector({
         projectId,
         typeof window === "undefined" ? "" : window.location.origin,
       );
+      if (pastedIds.length > TOPICS_BACKFILL_TRACE_LIMIT) {
+        throw new Error(
+          `Select at most ${TOPICS_BACKFILL_TRACE_LIMIT.toLocaleString()} traces per run.`,
+        );
+      }
     } catch (error) {
+      pastedIds = null;
       pasteError =
         error instanceof Error ? error.message : "Invalid trace IDs.";
     }
@@ -190,7 +196,7 @@ export function useTopicTraceSelector({
       projectId,
       filter,
       ...range,
-      limit: sample ? Number(limit) : null,
+      limit: Number(limit),
       sampling,
       seed: crypto.randomUUID(),
     });
@@ -238,51 +244,43 @@ export function useTopicTraceSelector({
                 }}
               />
             </label>
-            <label className="flex h-8 items-center gap-2 text-sm">
-              <Checkbox
-                checked={sample}
-                onCheckedChange={(value) => {
-                  setSample(value === true);
+            <label className="flex flex-col gap-1 text-sm">
+              Maximum traces
+              <div className="w-28">
+                <Input
+                  aria-label="Maximum traces"
+                  type="number"
+                  min={1}
+                  max={TOPICS_BACKFILL_TRACE_LIMIT}
+                  value={limit}
+                  onChange={(event) => {
+                    setLimit(event.target.value);
+                    setRequest(null);
+                  }}
+                />
+              </div>
+            </label>
+            <label className="flex w-44 flex-col gap-1 text-sm">
+              Selection
+              <SelectInput
+                aria-label="Trace sampling method"
+                placeholder="Selection"
+                options={[
+                  { value: "random", label: "Random sample" },
+                  { value: "latest", label: "Newest first" },
+                ]}
+                value={sampling}
+                onValueChange={(value) => {
+                  setSampling(value as "random" | "latest");
                   setRequest(null);
                 }}
               />
-              Sample traces
             </label>
-            {sample && (
-              <>
-                <label className="flex flex-col gap-1 text-sm">
-                  Sample up to
-                  <Input
-                    aria-label="Maximum traces"
-                    className="w-28"
-                    type="number"
-                    min={1}
-                    value={limit}
-                    onChange={(event) => {
-                      setLimit(event.target.value);
-                      setRequest(null);
-                    }}
-                  />
-                </label>
-                <label className="flex w-44 flex-col gap-1 text-sm">
-                  Selection
-                  <SelectInput
-                    aria-label="Trace sampling method"
-                    placeholder="Selection"
-                    options={[
-                      { value: "random", label: "Random sample" },
-                      { value: "latest", label: "Newest first" },
-                    ]}
-                    value={sampling}
-                    onValueChange={(value) => {
-                      setSampling(value as "random" | "latest");
-                      setRequest(null);
-                    }}
-                  />
-                </label>
-              </>
-            )}
           </div>
+          <p className="text-muted-foreground text-xs">
+            Process up to {TOPICS_BACKFILL_TRACE_LIMIT.toLocaleString()}{" "}
+            matching traces per run.
+          </p>
           {timeWindow === "custom" && (
             <DateRangeInput
               value={topicCalendarDates(range)}
@@ -345,7 +343,8 @@ export function useTopicTraceSelector({
             <Alert variant="destructive" size="sm">
               <Alert.Description>
                 <p className="break-words">
-                  Enter a positive whole number of traces.
+                  Enter between 1 and{" "}
+                  {TOPICS_BACKFILL_TRACE_LIMIT.toLocaleString()} traces.
                 </p>
               </Alert.Description>
             </Alert>
@@ -363,7 +362,7 @@ export function useTopicTraceSelector({
             <Button
               text={previewLabel}
               type="button"
-              variant="secondary"
+              variant={ready ? "secondary" : "primary"}
               disabled={
                 !validLimit ||
                 !validRange ||
@@ -399,13 +398,12 @@ export function useTopicTraceSelector({
                 traces={ready.traces}
                 excluded={excluded}
                 onExcludedChange={setExcluded}
-                onOpenTrace={onOpenTrace}
               />
             </>
           ) : (
             <p className="text-muted-foreground text-xs">
-              Preview the matching traces before running topics. Previewing does
-              not use a model.
+              First preview and select your traces. Then choose Summarize &amp;
+              embed to start the run. Previewing does not use a model.
             </p>
           )}
         </>
@@ -420,7 +418,8 @@ export function useTopicTraceSelector({
             className="min-h-32 font-mono text-xs"
           />
           <span className="text-muted-foreground font-normal">
-            Unique trace IDs from this project.
+            Up to {TOPICS_BACKFILL_TRACE_LIMIT.toLocaleString()} unique trace
+            IDs from this project.
             {pastedIds ? ` ${pastedIds.length} selected.` : ""}
           </span>
           {pasteError && (
@@ -467,22 +466,19 @@ function TracePreviewTable({
   traces,
   excluded,
   onExcludedChange,
-  onOpenTrace,
 }: {
   projectId: string;
   traces: TracePreview[];
   excluded: string[];
   onExcludedChange: (ids: string[]) => void;
-  onOpenTrace: () => void;
 }) {
-  const { openPeek } = usePeekNavigation({
-    tableName: "topics-traces",
-    isV4: false,
-    queryParams: ["observation", "display", "timestamp", "traceId"],
-  });
   const openTrace = (traceId: string) => {
-    onOpenTrace();
-    openPeek(traceId);
+    const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
+    window.open(
+      `${basePath}/project/${projectId}/traces/${encodeURIComponent(traceId)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
   };
   const [page, setPage] = useState(0);
   const excludedIds = new Set(excluded);
@@ -564,21 +560,17 @@ function TracePreviewTable({
     },
   ];
   return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <div className="max-h-96 overflow-auto rounded-md border">
-        <div className="min-w-[36rem]">
-          <Table
-            tableName="Topics trace preview"
-            columns={columns}
-            data={{
-              status: "success",
-              data: traces.slice(page * 20, (page + 1) * 20),
-            }}
-            onRowClick={(trace) => openTrace(trace.id)}
-            noResultsMessage="No traces match these filters and time range."
-          />
-        </div>
-      </div>
+    <div className="flex h-96 min-h-0 min-w-0 flex-col overflow-hidden rounded-md border">
+      <Table
+        tableName="Topics trace preview"
+        columns={columns}
+        data={{
+          status: "success",
+          data: traces.slice(page * 20, (page + 1) * 20),
+        }}
+        onRowClick={(trace) => openTrace(trace.id)}
+        noResultsMessage="No traces match these filters and time range."
+      />
       {pageCount > 1 && (
         <PaginationBar
           mode="offset"
