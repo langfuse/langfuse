@@ -548,11 +548,11 @@ function FacetPicker({
       </div>
       {browsed ? (
         <div className="flex flex-col gap-2">
-          {browsed.description ? (
-            <p className="text-muted-foreground text-sm">
+          {browsed.description && (
+            <p className="text-muted-foreground text-sm break-words">
               {browsed.description}
             </p>
-          ) : null}
+          )}
           <div className="bg-muted/50 max-h-48 overflow-y-auto rounded-md border px-3 py-2 text-sm leading-5 break-words whitespace-pre-wrap">
             {browsed.question}
           </div>
