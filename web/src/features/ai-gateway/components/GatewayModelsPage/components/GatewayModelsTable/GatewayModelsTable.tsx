@@ -111,7 +111,7 @@ function ProviderBadge({
   const ariaLabel = `${model.connectionName}, ${providerLabels[model.provider]}`;
 
   return canManageGateway ? (
-    <BadgeShell asChild color="filled" interactive>
+    <BadgeShell asChild color="filled">
       <Link
         href={buildGatewayModelsUrl(organizationId, model.connectionId)}
         aria-label={`Show models for ${ariaLabel}`}
