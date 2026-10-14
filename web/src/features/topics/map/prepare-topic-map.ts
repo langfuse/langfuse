@@ -38,6 +38,7 @@ export type MapPosition = { x: number; y: number };
 type MapRectangle = MapPosition & { width: number; height: number };
 type TopicMapNode = {
   point: MapPoint;
+  matchesFilters: boolean;
   center: MapPosition;
   worldPosition: MapPosition;
   rect: MapRectangle;
@@ -55,6 +56,7 @@ export type TopicMapNodeFrame = {
   size: Size;
   pointer: MapPosition;
   readingTopic: string | null;
+  matchingTraceIds: ReadonlySet<string> | undefined;
   zones: TopicMapModel["zones"];
   nodes: TopicMapNode[];
   nodeById: ReadonlyMap<string, TopicMapNode>;
@@ -246,6 +248,7 @@ export function prepareMapNodes(
   size: Size,
   pointer: MapPosition,
   readingTopic: string | null = null,
+  matchingTraceIds?: ReadonlySet<string>,
 ): TopicMapNodeFrame {
   const full = readingNodeSize(size);
   const blend = nodeDetailBlend(camera.zoom);
@@ -261,7 +264,10 @@ export function prepareMapNodes(
       y: projected.y + pointer.y * depth * 6,
     };
     const diameter = (5 + depth) * Math.sqrt(Math.min(camera.zoom, 16));
-    const growth = readingTopic && point.groupId !== readingTopic ? 0 : blend;
+    const matchesFilters =
+      (!readingTopic || point.groupId === readingTopic) &&
+      (!matchingTraceIds || matchingTraceIds.has(point.traceId));
+    const growth = matchesFilters ? blend : 0;
     const growWidth = (full.width - diameter) * growth;
     const growHeight = (full.height - diameter) * growth;
     const cellX = Math.floor(center.x / cellWidth);
@@ -272,6 +278,7 @@ export function prepareMapNodes(
     cells.set(key, cell);
     return {
       point,
+      matchesFilters,
       worldPosition,
       center,
       diameter,
@@ -328,6 +335,7 @@ export function prepareMapNodes(
     const textOpacity = smoothStep(76, 132, width) * smoothStep(30, 64, height);
     const node: TopicMapNode = {
       point: item.point,
+      matchesFilters: item.matchesFilters,
       center: item.center,
       worldPosition: item.worldPosition,
       rect: {
@@ -360,6 +368,7 @@ export function prepareMapNodes(
     size,
     pointer,
     readingTopic,
+    matchingTraceIds,
     zones: model.zones,
     nodes,
     nodeById,
@@ -379,7 +388,7 @@ type MapTextLabel = {
 };
 
 export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
-  const { camera, model, size, readingTopic } = frame;
+  const { camera, model, size, readingTopic, matchingTraceIds } = frame;
   const visibility = smoothStep(1.5, 3, camera.zoom);
   if (!visibility) return [];
   const detailOpacity = smoothStep(3.5, 7, camera.zoom);
@@ -440,6 +449,9 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
       height,
     };
     if (!visible(rect)) continue;
+    const matchesFilters =
+      !matchingTraceIds ||
+      zone.points.some((point) => matchingTraceIds.has(point.traceId));
     labels.push({
       id: zone.id,
       kind: "zone",
@@ -449,7 +461,9 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
       rect,
       fontSize,
       opacity:
-        visibility * (readingTopic && readingTopic !== zone.id ? 0.32 : 0.45),
+        visibility *
+        (readingTopic && readingTopic !== zone.id ? 0.32 : 0.45) *
+        (matchesFilters ? 1 : 0.15),
       detailOpacity,
     });
   }
@@ -533,11 +547,16 @@ export function zoneHalo(
   };
 }
 
+type MapHoverRectangle = MapRectangle & {
+  anchorY: number;
+  anchorFraction: 0 | 0.5 | 1;
+};
+
 function hoverRectangle(
   anchor: MapRectangle,
   size: Size,
   desired: Size,
-): MapRectangle | null {
+): MapHoverRectangle | null {
   if (size.width <= 0 || size.height <= 0) return null;
   const margin = Math.min(12, size.width / 4, size.height / 4);
   const width = Math.min(desired.width, size.width - margin * 2);
@@ -551,12 +570,27 @@ function hoverRectangle(
     top: number,
     w = width,
     h = height,
-  ): MapRectangle => ({
-    x: Math.min(Math.max(margin, left), size.width - w - margin),
-    y: Math.min(Math.max(margin, top), size.height - h - margin),
-    width: w,
-    height: h,
-  });
+  ): MapHoverRectangle => {
+    const x = Math.min(Math.max(margin, left), size.width - w - margin);
+    const y = Math.min(Math.max(margin, top), size.height - h - margin);
+    let anchorY = center.y;
+    let anchorFraction: MapHoverRectangle["anchorFraction"] = 0.5;
+    if (y + h <= anchor.y - 4) {
+      anchorY = y + h;
+      anchorFraction = 1;
+    } else if (y >= anchor.y + anchor.height + 4) {
+      anchorY = y;
+      anchorFraction = 0;
+    }
+    return {
+      x,
+      y,
+      width: w,
+      height: h,
+      anchorY,
+      anchorFraction,
+    };
+  };
   const candidates = [
     [anchor.x + anchor.width + 12, center.y - height / 2],
     [anchor.x - width - 12, center.y - height / 2],
@@ -576,13 +610,13 @@ function hoverRectangle(
   const regions = [
     {
       x: anchor.x + anchor.width + 12,
-      y: margin,
+      y: center.y - height / 2,
       width: size.width - margin - anchor.x - anchor.width - 12,
       height: size.height - margin * 2,
     },
     {
       x: margin,
-      y: margin,
+      y: center.y - height / 2,
       width: anchor.x - margin - 12,
       height: size.height - margin * 2,
     },
@@ -594,7 +628,7 @@ function hoverRectangle(
     },
     {
       x: margin,
-      y: margin,
+      y: anchor.y - height - 12,
       width: size.width - margin * 2,
       height: anchor.y - margin - 12,
     },
@@ -613,15 +647,16 @@ function hoverRectangle(
 
 type TraceHover = {
   point: MapPoint;
+  topicName: string | undefined;
   node: TopicMapNode;
   position: MapPosition;
-  card: MapRectangle;
+  card: MapHoverRectangle;
   excerpt: string;
   reading: boolean;
 };
 type ZoneHover = MapZone & {
   position: MapPosition;
-  label: MapRectangle;
+  label: MapHoverRectangle;
   detail: string;
 };
 export function prepareMapHover(
@@ -635,13 +670,16 @@ export function prepareMapHover(
       return { traces: [], zones: [] };
     const card = hoverRectangle(node.rect, frame.size, {
       width: 264,
-      height: 144,
+      height: 184,
     });
     return {
       traces: card
         ? [
             {
               point: node.point,
+              topicName: frame.model.zones.find(
+                (zone) => zone.id === node.point.groupId,
+              )?.name,
               node,
               position: node.center,
               card,

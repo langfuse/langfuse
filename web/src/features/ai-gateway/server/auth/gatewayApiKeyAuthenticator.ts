@@ -101,7 +101,11 @@ export class GatewayApiKeyAuthenticator {
         : null,
     };
 
-    await this.cache.set({ ...params, context });
+    await this.cache.set({
+      ...params,
+      context,
+      expiresAt: row.apiKey.expiresAt,
+    });
     return context;
   }
 }

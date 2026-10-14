@@ -463,19 +463,20 @@ export const KeyboardFocus = meta.story({
 
     firstPoint.focus();
 
-    const activeLabel = await waitFor(() => {
+    await waitFor(() => {
       const label = canvasElement.querySelector("[data-active-x-axis-label]");
       expect(label).toHaveTextContent("Sep 1");
-      return label;
+      expect(label).toHaveAttribute("font-weight", "700");
+      expect(
+        canvasElement.querySelector("[data-active-x-axis-label-background]"),
+      ).not.toBeInTheDocument();
     });
-    await expect(activeLabel).toHaveAttribute("font-weight", "700");
-    await expect(
-      canvasElement.querySelector("[data-active-x-axis-label-background]"),
-    ).not.toBeInTheDocument();
 
-    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-      "tooltip",
-    );
+    const tooltipHeading = await within(
+      canvasElement.ownerDocument.body,
+    ).findByText("Sep 1, 2026");
+    const tooltip = tooltipHeading.closest('[role="tooltip"]');
+    if (!tooltip) throw new Error("Tooltip not found");
     await expect(tooltip).toHaveTextContent("API");
     await expect(tooltip).toHaveTextContent("$18.00");
 

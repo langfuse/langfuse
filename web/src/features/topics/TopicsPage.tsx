@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { format } from "date-fns";
+import { useMemo, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -7,6 +6,14 @@ import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace
 import { useRouter } from "next/router";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import Page from "@/src/components/layouts/page";
+import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
+import { TimeRangePicker } from "@/src/components/date-picker";
+import { useGlobalDateRange } from "@/src/features/global-time-range/useGlobalDateRange";
+import {
+  DASHBOARD_AGGREGATION_OPTIONS,
+  TABLE_AGGREGATION_OPTIONS,
+  TIME_RANGES,
+} from "@/src/utils/date-range-utils";
 import { ErrorPage } from "@/src/components/error-page";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Button as PopoverButton } from "@/src/components/ui/button";
@@ -18,20 +25,10 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/src/components/ui/sheet";
-import { Input } from "@/src/components/design-system/Input/Input";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/components/DateRangeInput/DateRangeInput";
-import { Textarea } from "@/src/components/ui/textarea";
 import { PopoverController } from "@/src/components/ui/popover";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
@@ -42,17 +39,21 @@ import {
   type TopicOperation,
 } from "@langfuse/shared/topics";
 import { useTopicPipelineForm } from "./TopicPipelineForm";
+import { useTopicModelSettings } from "./TopicModelSettings";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsFilters } from "./TopicsFilters";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
-import { resolveTopicFacetId } from "./topic-facet-selection";
-import {
-  isValidTopicTimeRange,
-  relativeTopicTimeRange,
-  topicCalendarDates,
-  topicCalendarRange,
-} from "./time-range";
+import { isValidTopicTimeRange } from "./time-range";
+import { useTopicTraceFilters } from "./useTopicTraceFilters";
+
+const maxTimeRangeMs = TIME_RANGES.last90Days.minutes * 60_000;
+const sharedTimeRangePresets = [
+  ...new Set([...TABLE_AGGREGATION_OPTIONS, ...DASHBOARD_AGGREGATION_OPTIONS]),
+].sort((a, b) => TIME_RANGES[a].minutes - TIME_RANGES[b].minutes);
+const topicsTimeRangePresets = sharedTimeRangePresets.filter(
+  (range) => TIME_RANGES[range].minutes * 60_000 <= maxTimeRangeMs,
+);
 
 const operationLabels: Record<TopicOperation, string> = {
   process: "Process traces",
@@ -128,11 +129,12 @@ function TopicsWorkspaceView({
   facets: UseQueryResult<TopicFacet[], { message: string }>;
 }) {
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [timeWindow, setTimeWindow] = useState("7");
-  const [timeRange, setTimeRange] = useState(() => relativeTopicTimeRange(7));
-  const [selectedFacetId, setSelectedFacetId] = useState<string>();
+  const { timeRange, setTimeRange } = useGlobalDateRange({
+    allowedRanges: sharedTimeRangePresets,
+    fallback: "last7Days",
+  });
+  const [refreshedAt, setRefreshedAt] = useState(Date.now);
   const [tracePanel, setTracePanel] = useState<HTMLElement | null>(null);
-  const validTimeRange = isValidTopicTimeRange(timeRange);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
@@ -151,9 +153,6 @@ function TopicsWorkspaceView({
           : false,
     },
   );
-  const initialize = api.topics.initialize.useMutation({
-    onSuccess: () => utils.topics.facets.invalidate({ projectId }),
-  });
   const executionId =
     typeof router.query.executionId === "string"
       ? router.query.executionId
@@ -175,11 +174,40 @@ function TopicsWorkspaceView({
           : [],
     ),
   );
-  const rangeEnd = Math.max(timeRange.to.getTime(), completedAt);
-  const currentTimeRange =
-    timeWindow === "custom" || !Number.isFinite(rangeEnd)
-      ? timeRange
-      : relativeTopicTimeRange(Number(timeWindow), new Date(rangeEnd));
+  const { currentTimeRange, effectiveTimeRange, isTimeRangeCapped } =
+    useMemo(() => {
+      const to =
+        "from" in timeRange
+          ? timeRange.to
+          : new Date(Math.max(Date.now(), completedAt, refreshedAt));
+      const from =
+        "from" in timeRange
+          ? timeRange.from
+          : new Date(
+              to.getTime() -
+                (TIME_RANGES[timeRange.range as keyof typeof TIME_RANGES]
+                  .minutes ?? TIME_RANGES.last7Days.minutes) *
+                  60_000,
+            );
+      const isTimeRangeCapped = to.getTime() - from.getTime() > maxTimeRangeMs;
+      const currentTimeRange = {
+        from: isTimeRangeCapped
+          ? new Date(to.getTime() - maxTimeRangeMs)
+          : from,
+        to,
+      };
+      let effectiveTimeRange = timeRange;
+      if (isTimeRangeCapped) {
+        effectiveTimeRange =
+          "from" in timeRange ? currentTimeRange : { range: "last90Days" };
+      }
+      return {
+        currentTimeRange,
+        effectiveTimeRange,
+        isTimeRangeCapped,
+      };
+    }, [timeRange, completedAt, refreshedAt]);
+  const validTimeRange = isValidTopicTimeRange(currentTimeRange);
   const running =
     Boolean(executions.data?.some((execution) => busy(execution.status))) ||
     busy(selectedExecution.data?.status ?? "");
@@ -189,13 +217,10 @@ function TopicsWorkspaceView({
     refreshAfter: completedAt,
     timeRange: currentTimeRange,
   });
-  const selectedFacet = resolveTopicFacetId(
-    results.data ?? [],
-    selectedFacetId,
-  );
+  const traceFilters = useTopicTraceFilters(projectId, results.data ?? []);
+  const { selectedFacetId } = traceFilters;
   const refreshResults = () => {
-    if (timeWindow !== "custom")
-      setTimeRange(relativeTopicTimeRange(Number(timeWindow)));
+    setRefreshedAt(Date.now());
     utils.topics.currentResults.invalidate({ projectId });
   };
   const openExecution = (id: string) => {
@@ -221,60 +246,28 @@ function TopicsWorkspaceView({
   function openHistory() {
     setHistoryOpen(true);
   }
-  function selectTimeWindow(value: string) {
-    setTimeWindow(value);
-    setTimeRange(
-      value === "custom"
-        ? topicCalendarRange(topicCalendarDates(currentTimeRange))
-        : relativeTopicTimeRange(Number(value)),
-    );
-  }
-  function selectCalendarRange(
-    value: Parameters<typeof topicCalendarRange>[0],
-  ) {
-    setTimeRange(topicCalendarRange(value));
-  }
-  const {
-    primaryAction,
-    triggerAction,
-    openConfiguration,
-    configuration,
-    error,
-  } = useTopicPipelineForm({
+  const { primaryAction, triggerAction, configuration } = useTopicPipelineForm({
     projectId,
     facets: facets.data ?? [],
     canWrite,
     onTriggered: openExecution,
     timeRange: validTimeRange ? currentTimeRange : null,
-    facetEditor:
-      canWrite && (facets.data?.length ?? 0) > 0 ? (
-        <FacetEditor projectId={projectId} facets={facets.data ?? []} />
-      ) : null,
   });
-  const filterProps = {
-    facets: results.data ?? [],
-    selectedFacetId,
-    timeWindow,
-    onSelectFacet: setSelectedFacetId,
-    onSelectTimeWindow: selectTimeWindow,
-  };
+  const modelSettings = useTopicModelSettings({
+    projectId,
+    canWrite,
+    facets: facets.data ?? [],
+    facetsReady: facets.isSuccess,
+  });
   const actions = (
     <div className="ph-no-capture flex items-center justify-end gap-1">
+      {modelSettings.automaticProcessing}
+      {modelSettings.action}
       {primaryAction}
       <DropdownMenu
         ariaLabel="Topics actions"
         placement="bottom-end"
         items={[
-          ...((facets.data?.length ?? 0) > 0
-            ? [
-                {
-                  id: "configure",
-                  type: "item" as const,
-                  title: "Configure topics",
-                  onClick: openConfiguration,
-                },
-              ]
-            : []),
           {
             id: "history",
             type: "item",
@@ -309,37 +302,39 @@ function TopicsWorkspaceView({
             "Explore recurring themes across traces, one facet at a time.",
         },
         actionButtonsRight: actions,
-        actionButtonsLeft: <TopicsFilters {...filterProps} layout="header" />,
         actionButtonsMenu: ({ closeMenu }) => (
           <TopicsActionsMenu
-            hasFacets={(facets.data?.length ?? 0) > 0}
             triggerAction={triggerAction}
             closeMenu={closeMenu}
-            onOpenConfiguration={openConfiguration}
             onOpenHistory={openHistory}
             onRefresh={refreshResults}
-          >
-            <TopicsFilters {...filterProps} layout="menu" />
-          </TopicsActionsMenu>
+          />
         ),
       }}
     >
+      <PageHeaderControlsPortal>
+        <TimeRangePicker
+          timeRange={effectiveTimeRange}
+          onTimeRangeChange={setTimeRange}
+          timeRangePresets={topicsTimeRangePresets}
+          maxRangeMs={maxTimeRangeMs}
+          className="my-0 max-w-full overflow-x-auto"
+          triggerClassName="px-2"
+        />
+      </PageHeaderControlsPortal>
       <div className="ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
-        {timeWindow === "custom" && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <DateRangeInput
-              value={topicCalendarDates(timeRange)}
-              max={format(new Date(), "yyyy-MM-dd")}
-              fromAriaLabel="Topics start date"
-              toAriaLabel="Topics end date"
-              onValueChange={selectCalendarRange}
-            />
-          </div>
+        {isTimeRangeCapped && (
+          <p role="status" className="text-muted-foreground shrink-0 text-xs">
+            {"from" in timeRange
+              ? "Showing the final 90 days of your selected range."
+              : "Showing the last 90 days."}{" "}
+            Your selection is preserved on other pages.
+          </p>
         )}
         {!validTimeRange && (
-          <ErrorMessage message="Select a time range of at most 93 days." />
+          <ErrorMessage message="Select a time range of at most 90 days." />
         )}
-        {error && <ErrorMessage message={error} />}
+        {modelSettings.notice}
         {configuration}
         <Sheet
           open={historyOpen || executionId !== null}
@@ -420,129 +415,26 @@ function TopicsWorkspaceView({
             widthStorageKey="topicsPeekViewWidthFraction"
           />
           {validTimeRange && (
-            <CurrentTopics
-              projectId={projectId}
-              timeRange={currentTimeRange}
-              result={results}
-              selectedFacetId={selectedFacet}
-              tracePanelRef={setTracePanel}
-            />
+            <TopicsFilters
+              facets={results.data ?? []}
+              selectedFacetId={selectedFacetId}
+              onSelectFacet={traceFilters.selectFacet}
+            >
+              <CurrentTopics
+                projectId={projectId}
+                timeRange={currentTimeRange}
+                result={results}
+                selectedFacetId={selectedFacetId}
+                traceFilters={traceFilters}
+                tracePanelRef={setTracePanel}
+              />
+            </TopicsFilters>
           )}
           {facets.isLoading && <p>Loading facets…</p>}
           {facets.error && <ErrorMessage message={facets.error.message} />}
-          {facets.data?.length === 0 && (
-            <section className="flex flex-col items-start gap-3">
-              <h2 className="font-bold">Start with a question</h2>
-              <p className="text-muted-foreground text-sm">
-                Create built-in facets for intent, outcome, and issues, then add
-                custom facets for your own questions.
-              </p>
-              <Button
-                text="Create starter facets"
-                disabled={!canWrite || initialize.isPending}
-                onClick={() => initialize.mutate({ projectId })}
-              />
-              {initialize.error && (
-                <ErrorMessage message={initialize.error.message} />
-              )}
-            </section>
-          )}
         </div>
       </div>
     </Page>
-  );
-}
-
-function FacetEditor({
-  projectId,
-  facets,
-}: {
-  projectId: string;
-  facets: TopicFacet[];
-}) {
-  const utils = api.useUtils();
-  const [facetId, setFacetId] = useState("new");
-  const [name, setName] = useState("");
-  const [prompt, setPrompt] = useState("");
-  const isBuiltIn = facets.some(
-    (facet) => facet.id === facetId && facet.isBuiltIn,
-  );
-  const save = api.topics.saveFacet.useMutation({
-    onSuccess: () => utils.topics.facets.invalidate({ projectId }),
-  });
-  return (
-    <details className="border-t pt-6">
-      <summary className="cursor-pointer font-bold">
-        Add a facet or revise a question
-      </summary>
-      <div className="mt-4 flex flex-col gap-3">
-        <Select
-          value={facetId}
-          onValueChange={(value) => {
-            setFacetId(value);
-            const facet = facets.find((f) => f.id === value);
-            setName(facet?.name ?? "");
-            setPrompt(facet?.versions[0]?.prompt ?? "");
-          }}
-        >
-          <SelectTrigger aria-label="Facet to edit">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="ph-no-capture">
-            <SelectItem value="new">New facet</SelectItem>
-            {facets.map((facet) => (
-              <SelectItem
-                key={facet.id}
-                value={facet.id}
-                disabled={facet.isBuiltIn}
-              >
-                {facet.name} · {facet.isBuiltIn ? "built-in" : "new version"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
-          aria-label="Facet name"
-          placeholder="Facet name"
-          value={name}
-          disabled={facetId !== "new"}
-          onChange={(event) => setName(event.target.value)}
-        />
-        <Textarea
-          aria-label="Facet question"
-          placeholder="What should each trace summary describe?"
-          value={prompt}
-          disabled={isBuiltIn}
-          onChange={(event) => setPrompt(event.target.value)}
-        />
-        <p className="text-muted-foreground text-xs">
-          Built-in questions are read-only. Revising a custom question creates
-          an immutable version; existing summaries and maps retain their
-          original question.
-        </p>
-        <div className="self-start">
-          <Button
-            text="Save facet"
-            disabled={
-              isBuiltIn ||
-              save.isPending ||
-              !name.trim() ||
-              prompt.trim().length < 10
-            }
-            onClick={() =>
-              save.mutate({
-                projectId,
-                ...(facetId === "new" ? {} : { facetId }),
-                name,
-                prompt,
-              })
-            }
-          />
-        </div>
-        {save.error && <ErrorMessage message={save.error.message} />}
-        {save.isSuccess && <p className="text-sm">Facet saved.</p>}
-      </div>
-    </details>
   );
 }
 

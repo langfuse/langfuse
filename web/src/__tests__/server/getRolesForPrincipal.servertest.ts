@@ -52,7 +52,7 @@ describe("getRolesForPrincipal decision-equivalence", () => {
         tags: [],
       });
 
-      const roles = await getRolesForPrincipal(principalId);
+      const roles = await getRolesForPrincipal(prisma, principalId);
       expect(roles).toHaveLength(1);
       for (const policy of roles[0].policies) {
         expect(policy.resources.length).toBeGreaterThan(0);
@@ -101,7 +101,7 @@ describe("getRolesForPrincipal decision-equivalence", () => {
       tags: [],
     });
 
-    const roles = await getRolesForPrincipal(principalId);
+    const roles = await getRolesForPrincipal(prisma, principalId);
     expect(roles).toHaveLength(2);
     const organizationRole = roles.find(
       (role) => role.tenantId === OrganizationId(organization.orgId),
@@ -147,9 +147,9 @@ describe("getRolesForPrincipal decision-equivalence", () => {
       createdBy: UserId(creator.id),
     });
 
-    const policies = (await getRolesForPrincipal(ApiKeyId(key.id))).flatMap(
-      (role) => role.policies,
-    );
+    const policies = (
+      await getRolesForPrincipal(prisma, ApiKeyId(key.id))
+    ).flatMap((role) => role.policies);
 
     expect(policies).toEqual(
       systemRoleAccessRights.LEGACY_PROJECT_API_KEY.policies.map((p) => ({
@@ -174,9 +174,9 @@ describe("getRolesForPrincipal decision-equivalence", () => {
       createdBy: UserId(creator.id),
     });
 
-    const policies = (await getRolesForPrincipal(ApiKeyId(key.id))).flatMap(
-      (role) => role.policies,
-    );
+    const policies = (
+      await getRolesForPrincipal(prisma, ApiKeyId(key.id))
+    ).flatMap((role) => role.policies);
 
     expect(policies).toEqual(
       systemRoleAccessRights.LEGACY_ORGANIZATION_API_KEY.policies.map((p) => ({

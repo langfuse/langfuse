@@ -512,6 +512,33 @@ const FIELD_SETS = {
 
 export type FieldSetName = keyof typeof FIELD_SETS;
 
+/**
+ * SELECT expressions (`expr as alias`) for the given field sets, in
+ * EVENTS_FIELDS declaration order.
+ */
+export function eventsFieldSetSelectExpressions(
+  ...setNames: FieldSetName[]
+): string[] {
+  return eventsFieldSelectExpressions(setNames.flatMap((s) => FIELD_SETS[s]));
+}
+
+// Canonicalize by EVENTS_FIELDS declaration order so SELECT column order does
+// not follow caller field-set order. Clustered ClickHouse reads align result
+// blocks by position; incompatible Map types (cost_details vs metadata) 500
+// when those columns swap places.
+function eventsFieldSelectExpressions(fieldKeys: readonly string[]): string[] {
+  return [...new Set(fieldKeys)]
+    .sort(
+      (a, b) =>
+        (EVENTS_FIELD_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
+        (EVENTS_FIELD_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER),
+    )
+    .flatMap((fieldKey) => {
+      const fieldExpr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];
+      return fieldExpr ? [fieldExpr] : [];
+    });
+}
+
 export const OBSERVATION_FIELD_GROUP_FIELD_NAMES = Object.fromEntries(
   OBSERVATION_FIELD_GROUPS_PUBLIC_API.map((group) => [
     group,
@@ -525,7 +552,7 @@ export const OBSERVATION_FIELD_GROUP_FIELD_NAMES = Object.fromEntries(
  * Aggregation fields for trace-level queries
  * These fields use ClickHouse aggregation functions and require GROUP BY
  */
-const EVENTS_AGGREGATION_FIELDS = {
+export const EVENTS_AGGREGATION_FIELDS = {
   // Grouping keys (must be in GROUP BY)
   id: "trace_id AS id",
   projectId: "project_id",
@@ -1172,22 +1199,9 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
       fieldsToExclude.push("metadata");
     }
 
-    // Canonicalize by EVENTS_FIELDS declaration order so SELECT column order
-    // does not follow caller field-set order. Clustered ClickHouse reads align
-    // result blocks by position; incompatible Map types (cost_details vs
-    // metadata) 500 when those columns swap places.
-    const fieldsToProcess = [...this.selectFields]
-      .filter((f) => !fieldsToExclude.includes(f))
-      .sort(
-        (a, b) =>
-          (EVENTS_FIELD_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
-          (EVENTS_FIELD_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER),
-      );
-
-    const fieldExpressions: string[] = fieldsToProcess.flatMap((fieldKey) => {
-      const fieldExpr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];
-      return fieldExpr ? [fieldExpr] : [];
-    });
+    const fieldExpressions = eventsFieldSelectExpressions(
+      [...this.selectFields].filter((f) => !fieldsToExclude.includes(f)),
+    );
 
     // Add I/O fields if configured
     // Note: needsFullTable() is responsible for choosing events_core/events_full (truncated vs full I/O)
@@ -1479,7 +1493,7 @@ export type SessionEventsMetricsRow = {
  * Aggregation fields for session-level queries.
  * These fields use ClickHouse aggregation functions and require GROUP BY session_id.
  */
-const EVENTS_SESSION_AGGREGATION_FIELDS = {
+export const EVENTS_SESSION_AGGREGATION_FIELDS = {
   session_id: "session_id",
   max_timestamp: "max(start_time) AS max_timestamp",
   min_timestamp: "min(start_time) AS min_timestamp",
@@ -1519,7 +1533,7 @@ const EVENTS_SESSION_AGGREGATION_FIELDS = {
 /**
  * Field sets for session aggregation queries
  */
-const SESSION_AGGREGATION_FIELD_SETS = {
+export const SESSION_AGGREGATION_FIELD_SETS = {
   all: Object.keys(EVENTS_SESSION_AGGREGATION_FIELDS) as Array<
     keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS
   >,
@@ -1966,7 +1980,7 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
  * Aggregation fields for experiment-level queries.
  * These fields use ClickHouse aggregation functions and require GROUP BY experiment_id, project_id.
  */
-const EXPERIMENTS_AGGREGATION_FIELDS = {
+export const EXPERIMENTS_AGGREGATION_FIELDS = {
   // Base aggregated fields
   experimentId: "e.experiment_id AS experiment_id",
   experimentName: "any(e.experiment_name) AS experiment_name",
@@ -1993,7 +2007,7 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
 /**
  * Field sets for experiment aggregation queries.
  */
-const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
+export const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
   count: ["experimentId"] as const,
   base: [
     "experimentId",

@@ -11,6 +11,7 @@ import {
 } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { type SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { getSessionConversationEntries } from "../../fns/getSessionConversationEntries";
+import { type Observation } from "@langfuse/shared";
 
 type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
 
@@ -22,6 +23,8 @@ type WorkflowObservation = TranscriptObservation & {
   inputTruncated: boolean;
   outputTruncated: boolean;
   metadataTruncated: boolean;
+  level?: Observation["level"];
+  statusMessage?: Observation["statusMessage"];
 };
 
 type WorkflowTrace = Pick<TraceProps, "trace" | "turnNumber"> & {
@@ -1187,6 +1190,8 @@ const inAppAgentActions: Array<{
     input: Record<string, unknown>;
     output: unknown;
     outputAsText?: boolean;
+    level?: Observation["level"];
+    statusMessage?: Observation["statusMessage"];
   }>;
 }> = [
   {
@@ -1223,6 +1228,9 @@ const inAppAgentActions: Array<{
       {
         name: "langfuse_listObservations",
         latency: 0.233,
+        level: "WARNING",
+        statusMessage:
+          "Sample limited to 25 observations. More results are available on the next page.",
         input: {
           fields: ["id", "name", "level", "statusMessage"],
           fromStartTime: "2026-01-01T00:00:00Z",
@@ -1267,15 +1275,18 @@ const inAppAgentActions: Array<{
       {
         name: "bash",
         latency: 0.195,
+        level: "ERROR",
+        statusMessage:
+          "Could not parse one observation's status message. Re-fetch the sample before retrying.",
         input: {
           command: "jq 'group_by(.statusMessage)' synthetic-errors.json",
         },
         output: {
           startedAt: "2026-01-08T09:00:17Z",
           completedAt: "2026-01-08T09:00:17Z",
-          exitCode: 0,
-          stdout: "timeout: 9\ninvalid itinerary: 7\nmissing fare: 5\nother: 4",
-          stderr: "",
+          exitCode: 1,
+          stdout: "",
+          stderr: "jq: parse error: Invalid numeric literal",
         },
       },
     ],
@@ -1288,6 +1299,9 @@ const inAppAgentActions: Array<{
       {
         name: "langfuse_listObservations",
         latency: 0.219,
+        level: "WARNING",
+        statusMessage:
+          "Some observation payloads were truncated. Counts are complete, but examples may omit details.",
         input: {
           fields: ["id", "traceId", "input", "output", "statusMessage"],
           filter: [
@@ -1846,30 +1860,34 @@ Active filter: level is ERROR
       }),
       ...action.tools.map((tool, toolIndex) => {
         const toolCallId = `error-analysis-call-${actionIndex + 1}-${toolIndex + 1}`;
-        return codingAgentObservation({
-          traceId: inAppAgentTraceId,
-          id: `error-analysis-tool-${actionIndex + 1}-${toolIndex + 1}`,
-          parentObservationId: inAppAgentTurnId,
-          type: "TOOL",
-          name: tool.name,
-          offsetMs: action.offsetMs + Math.round(action.latency * 1_000),
-          latency: tool.latency,
-          input: JSON.stringify(tool.input),
-          output: tool.outputAsText
-            ? String(tool.output)
-            : JSON.stringify({
-                type: "tool-result",
-                toolCallId,
-                toolName: tool.name,
-                output: tool.output,
-              }),
-          metadata: {
-            ...inAppAgentMetadata,
-            parentMessageId: `message-demo-${actionIndex + 1}`,
-            toolCallApprovalSource: "automatic",
-            toolCallId,
-          },
-        });
+        return {
+          level: tool.level,
+          statusMessage: tool.statusMessage,
+          ...codingAgentObservation({
+            traceId: inAppAgentTraceId,
+            id: `error-analysis-tool-${actionIndex + 1}-${toolIndex + 1}`,
+            parentObservationId: inAppAgentTurnId,
+            type: "TOOL",
+            name: tool.name,
+            offsetMs: action.offsetMs + Math.round(action.latency * 1_000),
+            latency: tool.latency,
+            input: JSON.stringify(tool.input),
+            output: tool.outputAsText
+              ? String(tool.output)
+              : JSON.stringify({
+                  type: "tool-result",
+                  toolCallId,
+                  toolName: tool.name,
+                  output: tool.output,
+                }),
+            metadata: {
+              ...inAppAgentMetadata,
+              parentMessageId: `message-demo-${actionIndex + 1}`,
+              toolCallApprovalSource: "automatic",
+              toolCallId,
+            },
+          }),
+        };
       }),
     ];
   }),
@@ -1909,7 +1927,10 @@ const implementationCodingAgentTrace = {
 } satisfies TraceProps["trace"];
 
 type WorkflowFixture = Pick<TraceProps, "trace" | "turnNumber"> & {
-  observations: Array<TranscriptObservation & { environment: string }>;
+  observations: Array<
+    TranscriptObservation &
+      Pick<WorkflowObservation, "environment" | "level" | "statusMessage">
+  >;
 };
 
 const supportAgentWorkflow: WorkflowFixture[] = [
@@ -2020,16 +2041,151 @@ const manySimpleTurnsWorkflow: WorkflowFixture[] = Array.from(
   },
 );
 
+const toolContentExamples = [
+  {
+    name: "describe_chart",
+    content: [{ type: "text", text: "Monthly revenue increased." }],
+  },
+  {
+    name: "get_chart_data",
+    content: [{ points: 12, metric: "monthly-revenue" }],
+  },
+  {
+    name: "download_chart",
+    content: [
+      {
+        type: "image_url",
+        image_url: { url: "/revenue-chart.svg" },
+      },
+    ],
+  },
+  {
+    name: "inspect_chart",
+    content: [
+      { type: "vendor-chart", value: { chartId: "chart-annotations" } },
+    ],
+  },
+  {
+    name: "download_named_chart",
+    content: [
+      {
+        type: "file",
+        mediaType: "image/svg+xml",
+        filename: "revenue.svg",
+        data: { type: "url", url: "/revenue-chart.svg" },
+      },
+    ],
+  },
+  {
+    name: "download_svg_chart",
+    content: [
+      {
+        type: "file",
+        mediaType: "image/svg+xml",
+        data: { type: "url", url: "/revenue-chart.svg" },
+      },
+    ],
+  },
+  {
+    name: "download_report",
+    content: [
+      {
+        type: "file",
+        mediaType: "application/pdf",
+        data: { type: "url", url: "/revenue-report.pdf" },
+      },
+    ],
+  },
+  {
+    name: "get_unknown_attachment",
+    content: [{ type: "file", file: { file_id: "revenue-attachment" } }],
+  },
+  {
+    name: "generate_chart",
+    content: [
+      { type: "text", text: "Monthly revenue chart generated." },
+      { points: 24, metric: "mixed-revenue" },
+      {
+        type: "image_url",
+        image_url: { url: "/revenue-chart.svg" },
+      },
+      { type: "vendor-chart", value: { chartId: "chart-revenue" } },
+    ],
+  },
+];
+
+const mixedToolContentWorkflow: WorkflowFixture[] = [
+  {
+    trace: {
+      ...trace,
+      id: "mixed-tool-content-story",
+      name: "Generate chart with attachments",
+      observationCount: toolContentExamples.length + 1,
+    },
+    turnNumber: 1,
+    observations: [
+      {
+        id: "chart-generation",
+        traceId: "mixed-tool-content-story",
+        parentObservationId: null,
+        type: "GENERATION",
+        name: "Plan chart",
+        startTime: trace.timestamp,
+        endTime: new Date(trace.timestamp.getTime() + 1000),
+        environment: "storybook",
+        metadata: {},
+        input: JSON.stringify([
+          { role: "user", content: "Generate a chart of monthly revenue." },
+        ]),
+        output: JSON.stringify({
+          role: "assistant",
+          tool_calls: toolContentExamples.map(({ name }) => ({
+            id: `${name}-call`,
+            type: "function",
+            function: {
+              name,
+              arguments: '{"metric":"revenue"}',
+            },
+          })),
+        }),
+      },
+      ...toolContentExamples.map(({ name, content }, index) => ({
+        id: `${name}-tool`,
+        traceId: "mixed-tool-content-story",
+        parentObservationId: "chart-generation",
+        type: "TOOL" as const,
+        name,
+        startTime: new Date(trace.timestamp.getTime() + (index + 1) * 1000),
+        endTime: new Date(trace.timestamp.getTime() + (index + 2) * 1000),
+        environment: "storybook",
+        metadata: {},
+        input: JSON.stringify({ metric: "revenue" }),
+        output: JSON.stringify({
+          role: "tool",
+          content,
+        }),
+      })),
+    ],
+  },
+];
+
 const workflowTranscripts = new Map(
   [
     supportAgentWorkflow,
     codingAgentWorkflow,
     langfuseAssistantWorkflow,
     manySimpleTurnsWorkflow,
+    mixedToolContentWorkflow,
   ].map((workflow) => [
     workflow,
-    workflow.map(
-      (item): WorkflowTrace => ({
+    workflow.map((item): WorkflowTrace => {
+      const transcript = assembleTranscript(
+        orderObservations(item.observations),
+      );
+      const observationsById = new Map(
+        item.observations.map((observation) => [observation.id, observation]),
+      );
+      return {
         trace: item.trace,
         turnNumber: item.turnNumber,
         state: {
@@ -2037,13 +2193,29 @@ const workflowTranscripts = new Map(
           result: {
             state: "loaded",
             cutoff: false,
-            transcript: assembleTranscript(
-              orderObservations(item.observations),
-            ),
+            transcript: transcript
+              ? {
+                  ...transcript,
+                  threads: transcript.threads.map((thread) => ({
+                    ...thread,
+                    currentTurn: {
+                      ...thread.currentTurn,
+                      messages: thread.currentTurn.messages.map((message) => ({
+                        ...message,
+                        level: observationsById.get(message.observationId)
+                          ?.level,
+                        statusMessage: observationsById.get(
+                          message.observationId,
+                        )?.statusMessage,
+                      })),
+                    },
+                  })),
+                }
+              : null,
           },
         },
-      }),
-    ),
+      };
+    }),
   ]),
 );
 
@@ -2481,6 +2653,70 @@ const meta = preview.meta({
   parameters: { layout: "fullscreen" },
 });
 export default meta;
+
+export const MixedToolContent = meta.story({
+  name: "(Test) Mixed Tool Content",
+  args: { workflowTraces: mixedToolContentWorkflow },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const timeline = within(
+      canvas.getByLabelText("Session conversation timeline"),
+    );
+    await userEvent.click(
+      await timeline.findByRole("button", { name: /^Show tools:/ }),
+    );
+    for (const { name } of toolContentExamples) {
+      await userEvent.click(
+        timeline.getByRole("button", { name: `Expand ${name}` }),
+      );
+    }
+    await expect(
+      timeline.getByText("Monthly revenue increased."),
+    ).toBeVisible();
+    await expect(timeline.getByText(/monthly-revenue/)).toBeVisible();
+    await expect(timeline.getByText(/chart-annotations/)).toBeVisible();
+    await expect(
+      timeline.getByText(/chart-annotations/).closest("pre"),
+    ).toHaveTextContent("vendor-chart");
+    await expect(
+      timeline.getByText("Monthly revenue chart generated."),
+    ).toBeVisible();
+    await expect(timeline.getByText(/mixed-revenue/)).toBeVisible();
+    await expect(
+      timeline.getByText(/mixed-revenue/).closest("pre"),
+    ).toHaveTextContent("points");
+    const images = timeline.getAllByRole<HTMLImageElement>("img", {
+      name: /Embedded image|revenue.svg/,
+    });
+    await expect(images).toHaveLength(4);
+    for (const image of images) await expect(image).toBeVisible();
+    await waitFor(async () => {
+      for (const image of images) {
+        await expect(image.naturalWidth).toBeGreaterThan(0);
+      }
+    });
+    await expect(timeline.getByText(/chart-revenue/)).toBeVisible();
+    await expect(
+      timeline.getByText(/chart-revenue/).closest("pre"),
+    ).toHaveTextContent("vendor-chart");
+    await expect(timeline.queryByRole("note")).not.toBeInTheDocument();
+    for (const label of [
+      "revenue.svg",
+      "image/svg+xml",
+      "application/pdf",
+      "File",
+    ]) {
+      await expect(timeline.getByText(label, { exact: true })).toBeVisible();
+    }
+    await expect(
+      timeline.getByRole("link", { name: "/revenue-report.pdf" }),
+    ).toHaveAttribute("href", "/revenue-report.pdf");
+    const sidebar = within(canvas.getByRole("complementary"));
+    await expect(
+      sidebar.queryByRole("button", { name: "JSON message" }),
+    ).not.toBeInTheDocument();
+  },
+});
 
 export const ReasoningOnlyAndEmptySidebarStates = meta.story({
   name: "(Test) Reasoning-Only And Empty Sidebar States",

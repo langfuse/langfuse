@@ -58,16 +58,11 @@ type AuditableResource =
   | "ssoConfig"
   | "gatewayConfig"
   | "gatewayAiConnection"
+  | "topicConfig"
   // legacy resources
   | "membership";
 
-type AuditLog = {
-  resourceType: AuditableResource;
-  resourceId: string;
-  action: string;
-  before?: unknown;
-  after?: unknown;
-} & (
+export type AuditLogActor =
   | {
       userId: string;
       orgId: string;
@@ -90,8 +85,15 @@ type AuditLog = {
       apiKeyId: string;
       orgId: string;
       projectId?: string;
-    }
-);
+    };
+
+export type AuditLog = {
+  resourceType: AuditableResource;
+  resourceId: string;
+  action: string;
+  before?: unknown;
+  after?: unknown;
+} & AuditLogActor;
 
 // Mirrors each audit log record into the application logs so that actors can be
 // correlated with web/worker log lines (e.g. trace deletions) without querying

@@ -91,7 +91,6 @@ export {
   eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
-  promptEventsForMetrics,
   scoreBooleansAggregation,
 } from "./clickhouse-sql/query-fragments";
 export {
@@ -112,5 +111,4 @@ export { extractTimeFilter } from "./clickhouse-sql/filter-utils";
 export {
   isSeekEligibleFilter,
   scoreOnlyFiltersAreSeekEligible,
-  scoreOnlyFiltersHaveIndexedLookup,
 } from "./clickhouse-sql/score-seek-eligibility";

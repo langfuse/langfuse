@@ -1,5 +1,6 @@
 import { getAuthOptions } from "@/src/server/auth";
 import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import { getTurnstileRemoteIp } from "@/src/features/auth/server/verifyTurnstile";
 import { getCookieName } from "@/src/server/utils/cookies";
 import { isValidCallbackUrl } from "@/src/server/utils/nextAuthCallbackUrl";
 import { env } from "@/src/env.mjs";
@@ -169,9 +170,30 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   // Do whatever you want here, before the request is passed down to `NextAuth`
   // Pass Google Ads click attribution from first-party cookies so that new
   // SSO signups can be attributed to ad clicks (cloud_signup_complete event).
-  const authOptions = await getAuthOptions({
-    adClickIds: getAdClickIdsFromRequest(req),
-  });
+  // Password reset asks NextAuth's email provider for a code. The sign-in
+  // callback verifies this token before that email is sent.
+  //
+  // The Turnstile check itself lives in the `signIn` callback (auth.ts), which
+  // already limits it to the email provider's send request. This flag only
+  // controls when the token and client IP are read from the request body:
+  // for POST /api/auth/signin/email, the one request that consumes them. For
+  // every other request on this route, the request context is undefined and
+  // nothing in the body is inspected or forwarded.
+  const isPasswordResetEmailRequest =
+    req.method === "POST" &&
+    nextAuthAction === "signin" &&
+    nextAuthProvider === "email";
+  const authOptions = await getAuthOptions(
+    {
+      adClickIds: getAdClickIdsFromRequest(req),
+    },
+    isPasswordResetEmailRequest
+      ? {
+          turnstileToken: req.body?.turnstileToken,
+          turnstileRemoteIp: getTurnstileRemoteIp(req.headers),
+        }
+      : undefined,
+  );
   // https://github.com/nextauthjs/next-auth/issues/2408#issuecomment-1382629234
   // for api routes, we need to call the headers in the api route itself
   // disable caching for anything auth related

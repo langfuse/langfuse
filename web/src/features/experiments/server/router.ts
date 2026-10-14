@@ -693,6 +693,7 @@ export const experimentsRouter = createTRPCRouter({
           observationIds,
           excludeMetadata: true,
           includeHasMetadata: true,
+          preferredClickhouseService: "ReadOnly",
         }),
         getScoresForTraces({
           projectId: input.projectId,

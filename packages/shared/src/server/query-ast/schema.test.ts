@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   COLUMN_BIND_TYPES,
   COLUMN_DATA_TYPES,
+  TABLE_BIND_TYPES,
   DEDUP_SPECS,
   TENANTED_TABLES,
 } from "./schema";
@@ -10,14 +11,9 @@ import { schemaTypeAssertions, extensionTypeAssertions } from "./types.assert";
 
 describe("table registry derivation", () => {
   it("derives the tenanted table set from the registry", () => {
-    // Only relations in the registry are scoped. `events_full` is just as
-    // project-gated as `events_core` and would be `tenant: true` if modeled —
-    // it is absent only because the builder targets `events_core` (the MV
-    // projection) and never selects `events_full`. Since it is not in the row
-    // type and raw sources are rejected, it is unreachable, so it needs no
-    // entry. Add one (tenant defaults true) the day a query selects it.
     expect([...TENANTED_TABLES].sort()).toEqual([
       "events_core",
+      "events_full",
       "observations",
       "scores",
       "traces",
@@ -34,8 +30,9 @@ describe("table registry derivation", () => {
     expect(COLUMN_DATA_TYPES.metadata).toBe("map");
   });
 
-  it("declares events_core as immutable and leaves legacy tables undeclared", () => {
+  it("declares events_core and events_full as immutable and leaves legacy tables undeclared", () => {
     expect(DEDUP_SPECS.events_core).toEqual({ strategy: "none" });
+    expect(DEDUP_SPECS.events_full).toEqual({ strategy: "none" });
     expect(DEDUP_SPECS.traces).toBeUndefined();
     expect(DEDUP_SPECS.observations).toBeUndefined();
     expect(DEDUP_SPECS.scores).toBeUndefined();
@@ -43,7 +40,9 @@ describe("table registry derivation", () => {
 
   it("derives ClickHouse bind types from the same column declarations", () => {
     expect(COLUMN_BIND_TYPES.total_cost).toBe("Float64");
-    expect(COLUMN_BIND_TYPES.start_time).toBe("DateTime64(3)");
+    expect(TABLE_BIND_TYPES.events_core.start_time).toBe("DateTime64(6)");
+    expect(TABLE_BIND_TYPES.observations.start_time).toBe("DateTime64(3)");
+    expect(COLUMN_BIND_TYPES.start_time).toBeUndefined();
     expect(COLUMN_BIND_TYPES.project_id).toBe("String");
     expect(COLUMN_BIND_TYPES.metadata_names).toBe("Array(String)");
     expect(COLUMN_BIND_TYPES.is_deleted).toBe("UInt8");

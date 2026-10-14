@@ -70,13 +70,25 @@ describe("stripeBillingService", () => {
     vi.resetAllMocks();
   });
 
-  describe("cancel, reactivate and clear without an active subscription", () => {
+  describe("operations without an active subscription", () => {
     it.each([
       ["cancel", (s: BillingService) => s.cancel(ORG_ID)],
       ["reactivate", (s: BillingService) => s.reactivate(ORG_ID)],
       [
         "clearPlanSwitchSchedule",
         (s: BillingService) => s.clearPlanSwitchSchedule(ORG_ID),
+      ],
+      [
+        "changePlan",
+        (s: BillingService) => s.changePlan(ORG_ID, "prod_unknown"),
+      ],
+      [
+        "getCustomerPortalUrl",
+        (s: BillingService) => s.getCustomerPortalUrl(ORG_ID),
+      ],
+      [
+        "applyPromotionCode",
+        (s: BillingService) => s.applyPromotionCode(ORG_ID, "PROMO"),
       ],
     ])(
       "maps %s onto PRECONDITION_FAILED and does not call Stripe",
@@ -92,5 +104,13 @@ describe("stripeBillingService", () => {
         expect(subscriptions.update).not.toHaveBeenCalled();
       },
     );
+  });
+
+  it("rejects checkout for an unknown product with BAD_REQUEST", async () => {
+    findUnique.mockResolvedValue(stubOrg(null));
+
+    expect(
+      await trpcCode(service().createCheckoutSession(ORG_ID, "prod_unknown")),
+    ).toBe("BAD_REQUEST");
   });
 });

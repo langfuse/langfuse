@@ -10,19 +10,23 @@
  *     that apply those plugins while extending the builder's output row type,
  *     so produced aliases are type-checked and misspelled references are
  *     compile errors.
- *   - Typed expression helpers ({@link mapKeys}, {@link mapValues},
- *     {@link metadataValue}) that build ClickHouse map/array function calls and
- *     `metadata[key]` subscripts as real, parameter-bound nodes — never raw SQL
- *     strings — so they escape and compose like any other expression.
+ *   - Typed expression helpers ({@link mapKeys}, {@link metadataValue},
+ *     {@link medianExact}, …) that build ClickHouse aggregates, map/array
+ *     function calls and `metadata[key]` subscripts as real, parameter-bound
+ *     nodes — never raw SQL strings — so they escape and compose like any other
+ *     expression.
  */
 import {
+  AggregateFunctionNode,
   AliasNode,
+  BinaryOperationNode,
   ColumnNode,
   ExpressionWrapper,
   FromNode,
   FunctionNode,
   IdentifierNode,
   JoinNode,
+  OperatorNode,
   ReferenceNode,
   TableNode,
   ValueNode,
@@ -162,6 +166,110 @@ export function mapKeys<K = string>(column: string): Expression<K[]> {
 /** `mapValues(map)` as a typed array expression (element type defaults to string). */
 export function mapValues<V = string>(column: string): Expression<V[]> {
   return arrayFunction<V>("mapValues", column);
+}
+
+/** ClickHouse `uniq(column)`, an approximate distinct count. */
+export function uniq(
+  column: string,
+): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, string> {
+  return new ExpressionWrapper(
+    AggregateFunctionNode.create("uniq", [
+      columnRef(column),
+    ]) as unknown as OperationNode,
+  );
+}
+
+/** ClickHouse `count()`. Kysely's `eb.fn.countAll()` renders `count(*)`. */
+export function count(): ExpressionWrapper<
+  ClickHouseDatabase,
+  keyof ClickHouseDatabase,
+  string
+> {
+  return new ExpressionWrapper(
+    AggregateFunctionNode.create("count", []) as unknown as OperationNode,
+  );
+}
+
+/** ClickHouse `medianExact(expression)`. */
+export function medianExact(
+  expression: Expression<unknown>,
+): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, string> {
+  return new ExpressionWrapper(
+    AggregateFunctionNode.create("medianExact", [
+      expression.toOperationNode(),
+    ]) as unknown as OperationNode,
+  );
+}
+
+type DateDiffUnit = "millisecond" | "second" | "minute" | "hour" | "day";
+
+/** ClickHouse `dateDiff(unit, start, end)` between two columns. */
+export function dateDiff(
+  unit: DateDiffUnit,
+  start: string,
+  end: string,
+): Expression<number> {
+  return new ExpressionWrapper<
+    ClickHouseDatabase,
+    keyof ClickHouseDatabase,
+    number
+  >(
+    // ClickHouse requires the unit to be a constant, so it is inlined rather
+    // than bound. `DateDiffUnit` keeps it to known keywords.
+    FunctionNode.create("dateDiff", [
+      ValueNode.createImmediate(unit),
+      columnRef(start),
+      columnRef(end),
+    ]) as unknown as OperationNode,
+  );
+}
+
+/** `map[key]` subscript with a bound key. */
+export function mapValue<V = number>(
+  column: string,
+  key: string,
+): Expression<V> {
+  return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
+    ArrayIndexNode.create(
+      columnRef(column),
+      ValueNode.create(key),
+    ) as unknown as OperationNode,
+  );
+}
+
+/**
+ * Sum of the map values whose key contains `needle`, case-insensitively:
+ * `arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, needle) > 0, map)))`.
+ * The lambda is built as a `->` binary operation; Kysely has no lambda node.
+ */
+export function sumMapValuesWhereKeyContains(
+  column: string,
+  needle: string,
+): Expression<number> {
+  const keyMatches = BinaryOperationNode.create(
+    FunctionNode.create("positionCaseInsensitive", [
+      qualifiedColumn("x", "1"),
+      ValueNode.create(needle),
+    ]),
+    OperatorNode.create(">"),
+    ValueNode.createImmediate(0),
+  );
+  const lambda = BinaryOperationNode.create(
+    ColumnNode.create("x"),
+    OperatorNode.create("->"),
+    keyMatches,
+  );
+  return new ExpressionWrapper<
+    ClickHouseDatabase,
+    keyof ClickHouseDatabase,
+    number
+  >(
+    FunctionNode.create("arraySum", [
+      FunctionNode.create("mapValues", [
+        FunctionNode.create("mapFilter", [lambda, columnRef(column)]),
+      ]),
+    ]) as unknown as OperationNode,
+  );
 }
 
 /**

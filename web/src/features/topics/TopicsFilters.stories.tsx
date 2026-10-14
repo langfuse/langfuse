@@ -10,24 +10,18 @@ const filterArgs = {
     { facetId: "issues", name: "Issues" },
   ],
   selectedFacetId: undefined,
-  timeWindow: "7",
   onSelectFacet: fn(),
-  onSelectTimeWindow: fn(),
 };
 
 const meta = preview.meta({ component: TopicsFilters });
 
-export const Header = meta.story({
-  args: { ...filterArgs, layout: "header" },
-});
-
-export const Menu = meta.story({
-  args: { ...filterArgs, layout: "menu" },
+export const Default = meta.story({
+  args: filterArgs,
 });
 
 export const RetainsSelectionThroughRefresh = meta.story({
   name: "(Test) Retains selection through refresh and falls back after removal",
-  args: { ...filterArgs, layout: "header" },
+  args: filterArgs,
   render: (args) => {
     const [facets, setFacets] = useState(args.facets);
     const [selectedFacetId, setSelectedFacetId] = useState(
@@ -60,48 +54,19 @@ export const RetainsSelectionThroughRefresh = meta.story({
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-    const picker = canvas.getByRole("combobox", { name: "Topics facet" });
-    await expect(picker).toHaveTextContent("Intent");
-    await userEvent.click(picker);
-    await userEvent.click(body.getByRole("option", { name: "Issues" }));
+    const intent = canvas.getByRole("tab", { name: "Intent" });
+    const issues = canvas.getByRole("tab", { name: "Issues" });
+    await expect(intent).toHaveAttribute("aria-selected", "true");
+    await userEvent.click(issues);
     await expect(args.onSelectFacet).toHaveBeenCalledWith("issues");
-    await expect(picker).toHaveTextContent("Issues");
+    await expect(issues).toHaveAttribute("aria-selected", "true");
     await userEvent.click(
       canvas.getByRole("button", { name: "Refresh facets" }),
     );
-    await expect(picker).toHaveTextContent("Issues");
+    await expect(issues).toHaveAttribute("aria-selected", "true");
     await userEvent.click(
       canvas.getByRole("button", { name: "Remove selected facet" }),
     );
-    await expect(picker).toHaveTextContent("Intent");
-  },
-});
-
-export const MenuTimeRangeSelection = meta.story({
-  name: "(Test) Selects time range from menu controls",
-  args: { ...filterArgs, layout: "menu" },
-  render: (args) => {
-    const [timeWindow, setTimeWindow] = useState(args.timeWindow);
-    function selectTimeWindow(value: string) {
-      setTimeWindow(value);
-      args.onSelectTimeWindow(value);
-    }
-    return (
-      <TopicsFilters
-        {...args}
-        timeWindow={timeWindow}
-        onSelectTimeWindow={selectTimeWindow}
-      />
-    );
-  },
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-    const picker = canvas.getByRole("combobox", { name: "Topics time range" });
-    await userEvent.click(picker);
-    await userEvent.click(body.getByRole("option", { name: "Last 30 days" }));
-    await expect(args.onSelectTimeWindow).toHaveBeenCalledWith("30");
-    await expect(picker).toHaveTextContent("Last 30 days");
+    await expect(intent).toHaveAttribute("aria-selected", "true");
   },
 });

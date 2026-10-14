@@ -1638,44 +1638,47 @@ export const customerFixtures: NormalizedIOFixture[] = [
               type: "tool-result",
               toolCallId: "sample_id_1",
               output: {
-                parts: {
-                  org: {
-                    country: "Sample country",
-                    is_multi_entity: true,
-                    name: "Sample name",
-                    plan_label: "Sample plan_label",
-                    plan_tier_internal: "Sample plan_tier_internal",
-                    size_bucket: "Sample size_bucket",
+                type: "json",
+                value: {
+                  parts: {
+                    org: {
+                      country: "Sample country",
+                      is_multi_entity: true,
+                      name: "Sample name",
+                      plan_label: "Sample plan_label",
+                      plan_tier_internal: "Sample plan_tier_internal",
+                      size_bucket: "Sample size_bucket",
+                    },
+                    products: {
+                      enabled_entitlements_at_session_start_internal: [
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                      ],
+                    },
+                    session: {
+                      session_started_at: "Sample session_started_at",
+                    },
+                    setup: {
+                      erp_provider_internal: "Sample erp_provider_internal",
+                      erp_provider_label: "Sample erp_provider_label",
+                    },
+                    user: {
+                      department: "Sample department",
+                      first_name: "Sample first_name",
+                      is_manager: true,
+                      role_internal: "Sample role_internal",
+                      role_label: "Sample role_label",
+                    },
                   },
-                  products: {
-                    enabled_entitlements_at_session_start_internal: [
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                    ],
-                  },
-                  session: {
-                    session_started_at: "Sample session_started_at",
-                  },
-                  setup: {
-                    erp_provider_internal: "Sample erp_provider_internal",
-                    erp_provider_label: "Sample erp_provider_label",
-                  },
-                  user: {
-                    department: "Sample department",
-                    first_name: "Sample first_name",
-                    is_manager: true,
-                    role_internal: "Sample role_internal",
-                    role_label: "Sample role_label",
-                  },
+                  unavailable: [],
                 },
-                unavailable: [],
               },
             },
           ],
@@ -1701,13 +1704,16 @@ export const customerFixtures: NormalizedIOFixture[] = [
               type: "tool-result",
               toolCallId: "sample_id_2",
               output: {
-                instructions: "Sample instructions",
-                skills: [
-                  {
-                    name: "Sample name",
-                    description: "Sample description",
-                  },
-                ],
+                type: "json",
+                value: {
+                  instructions: "Sample instructions",
+                  skills: [
+                    {
+                      name: "Sample name",
+                      description: "Sample description",
+                    },
+                  ],
+                },
               },
             },
           ],
@@ -1734,7 +1740,7 @@ export const customerFixtures: NormalizedIOFixture[] = [
             {
               type: "tool-result",
               toolCallId: "sample_id_3",
-              output: "Sample tool result",
+              output: { type: "text", value: "Sample tool result" },
             },
           ],
         },
@@ -1802,34 +1808,37 @@ export const customerFixtures: NormalizedIOFixture[] = [
               type: "tool-result",
               toolCallId: "sample_id_6",
               output: {
-                output_path: "Sample output_path",
-                output_bytes: 41556,
-                output_summary: {
-                  format: "json",
-                  shape: {
-                    snippets: [
-                      {
-                        snippet: "Sample snippet",
-                        title: "Sample title",
-                        url: "Sample url",
-                        links: [
-                          {
-                            label: "Sample label",
-                            url: "Sample url",
-                          },
-                          "Sample links",
-                        ],
-                        similarity_score: "Sample similarity_score",
-                      },
-                      "Sample snippets",
-                    ],
-                    query: "Sample query",
+                type: "json",
+                value: {
+                  output_path: "Sample output_path",
+                  output_bytes: 41556,
+                  output_summary: {
+                    format: "json",
+                    shape: {
+                      snippets: [
+                        {
+                          snippet: "Sample snippet",
+                          title: "Sample title",
+                          url: "Sample url",
+                          links: [
+                            {
+                              label: "Sample label",
+                              url: "Sample url",
+                            },
+                            "Sample links",
+                          ],
+                          similarity_score: "Sample similarity_score",
+                        },
+                        "Sample snippets",
+                      ],
+                      query: "Sample query",
+                    },
+                    summary_truncated: true,
                   },
-                  summary_truncated: true,
+                  output_head: "Sample output_head",
+                  truncated: true,
+                  hint: "Sample hint",
                 },
-                output_head: "Sample output_head",
-                truncated: true,
-                hint: "Sample hint",
               },
             },
           ],
@@ -3319,7 +3328,10 @@ export const openAiChatCompletionToolSequenceFixture = {
           {
             type: "tool-result",
             toolCallId,
-            output: { condition: "sunny", temperature: 24 },
+            output: {
+              type: "json",
+              value: { condition: "sunny", temperature: 24 },
+            },
           },
         ],
         source: "input",
@@ -3331,7 +3343,7 @@ export const openAiChatCompletionToolSequenceFixture = {
             type: "tool-result",
             toolCallId: null,
             toolName: "run_python",
-            output: 42,
+            output: { type: "json", value: 42 },
           },
         ],
         source: "input",
@@ -3516,7 +3528,10 @@ export const openAiResponsesReasoningWithParallelCallsFixture = {
           {
             type: "tool-result",
             toolCallId: callId1,
-            output: "[Reduced refund policy doc excerpt]",
+            output: {
+              type: "text",
+              value: "[Reduced refund policy doc excerpt]",
+            },
           },
         ],
         source: "input",
@@ -3527,7 +3542,10 @@ export const openAiResponsesReasoningWithParallelCallsFixture = {
           {
             type: "tool-result",
             toolCallId: callId2,
-            output: "[Reduced annual plan terms excerpt]",
+            output: {
+              type: "text",
+              value: "[Reduced annual plan terms excerpt]",
+            },
           },
         ],
         source: "input",
@@ -3614,7 +3632,7 @@ export const openAiResponsesFunctionCallFixture = {
           {
             type: "tool-result",
             toolCallId: responsesToolCallId,
-            output: "The weather in Basel is cloudy.",
+            output: { type: "text", value: "The weather in Basel is cloudy." },
           },
         ],
         source: "input",
@@ -4036,7 +4054,7 @@ export const openAiResponsesBuiltInToolsAndMediaFixture = {
           {
             type: "tool-result",
             toolCallId: "call_custom_100",
-            output: "ok",
+            output: { type: "text", value: "ok" },
           },
         ],
         source: "output",
@@ -4369,7 +4387,7 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
             {
               type: "tool-result",
               toolCallId: "call_Kud0j0DxWSmLzv9W5m6qVqXn",
-              output: "The weather in Tokyo is sunny.",
+              output: { type: "text", value: "The weather in Tokyo is sunny." },
             },
           ],
           source: "input",

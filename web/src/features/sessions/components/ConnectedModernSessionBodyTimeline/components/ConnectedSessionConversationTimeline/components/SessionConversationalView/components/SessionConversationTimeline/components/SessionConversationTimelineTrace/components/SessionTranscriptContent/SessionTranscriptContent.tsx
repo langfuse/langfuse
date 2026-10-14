@@ -1,9 +1,13 @@
+import { SessionTimelinePart } from "./components/SessionTimelinePart/SessionTimelinePart";
+import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { assertUnreachable } from "@langfuse/shared";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { type TranscriptMessageGroup } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/groupTranscriptMessages";
 import { getSessionTranscriptRows } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptRows";
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
 import { SessionTimelineToolRow } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineToolRow/SessionTimelineToolRow";
 import { Wrench } from "lucide-react";
+import { getSessionToolOutputPreview } from "./components/SessionTimelineToolRow/getSessionToolOutputPreview";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { type SessionTraceTranscriptState } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
 import { SessionTimelineContentMessage } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineContentMessage/SessionTimelineContentMessage";
@@ -12,6 +16,9 @@ import { SessionTimelineCollapsibleRow } from "@/src/features/sessions/component
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { groupConsecutiveTools } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/fns/groupConsecutiveTools";
 import { cn } from "@/src/utils/tailwind";
+import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
+import { getSessionToolStatus } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/fns/getSessionToolStatus";
+import { SessionToolStatusCountBadge } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolStatusCountBadge/SessionToolStatusCountBadge";
 
 export function SessionTranscriptContent({
   result,
@@ -65,6 +72,10 @@ export function SessionTranscriptContent({
 type DisplayMessage = NormalizedMessage & {
   timing: { startTime: Date; endTime: Date | null } | null;
   observationId: string | null;
+  level?: NonNullable<
+    Extract<SessionTraceTranscriptState, { state: "loaded" }>["transcript"]
+  >["threads"][number]["currentTurn"]["messages"][number]["level"];
+  statusMessage?: string | null;
 };
 
 function SessionTranscriptThread({
@@ -157,7 +168,7 @@ function SessionTranscriptRow({
   const isSystem = row.message.role === "system";
   const metadata = (isTool || isSystem) &&
     (timing || row.message.observationId) && (
-      <div className="text-muted-foreground invisible flex items-center gap-3 font-mono text-xs group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible">
+      <div className="text-muted-foreground flex items-center gap-3 font-mono text-xs opacity-0 group-hover/collapsible-row:opacity-100 group-has-[:focus-visible]/collapsible-row:opacity-100 group-data-[expanded=true]/collapsible-row:opacity-100">
         {row.message.observationId && (
           <button
             type="button"
@@ -236,6 +247,33 @@ function SessionTranscriptToolGroup({
       </div>
     );
   }
+  const errors: Array<
+    Extract<
+      ComponentProps<typeof SessionToolTooltip>["content"],
+      { type: "group" }
+    >["errors"][number]
+  > = [];
+  const warnings: typeof errors = [];
+  for (const { row } of rows) {
+    if (row.type !== "tool") continue;
+    const name = row.call?.toolName ?? row.result?.toolName ?? "Tool";
+    const status = getSessionToolStatus({
+      level: row.message.level,
+      statusMessage: row.message.statusMessage,
+      isError: row.result?.isError,
+    });
+    if (status.level === "ERROR") {
+      errors.push({
+        name,
+        message: status.statusMessage || "Tool failed",
+      });
+    } else if (status.level === "WARNING") {
+      warnings.push({
+        name,
+        message: status.statusMessage || "Tool reported a warning",
+      });
+    }
+  }
   return (
     <SessionTimelineCollapsibleRow
       label={summary}
@@ -250,6 +288,42 @@ function SessionTranscriptToolGroup({
           requestId: props.scrollTarget?.requestId,
         })
       }
+      trailingContent={[
+        {
+          tools: errors,
+          label: "error" as const,
+        },
+        {
+          tools: warnings,
+          label: "warning" as const,
+        },
+      ].map(({ tools, label }) => {
+        if (tools.length === 0) return null;
+        const summary = `${tools.length} ${label}${tools.length === 1 ? "" : "s"}`;
+        return (
+          <SessionToolTooltip
+            key={label}
+            variant="timeline"
+            content={{
+              type: "group",
+              title,
+              errors: label === "error" ? tools : [],
+              warnings: label === "warning" ? tools : [],
+            }}
+          >
+            {({ getTriggerProps }) => (
+              <SessionToolStatusCountBadge
+                {...getTriggerProps()}
+                tabIndex={0}
+                aria-label={`Tool group: ${summary}`}
+                count={tools.length}
+                severity={label}
+                variant="timeline"
+              />
+            )}
+          </SessionToolTooltip>
+        );
+      })}
     >
       <div className="space-y-1">
         {rows.map((item) => (
@@ -268,12 +342,52 @@ function SessionTranscriptTool({
   trailingContent: ReactNode;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const preview = row.result
+    ? getSessionToolOutputPreview(row.result.output)
+    : undefined;
+  const status = getSessionToolStatus({
+    level: row.message.level,
+    statusMessage: row.message.statusMessage,
+    isError: row.result?.isError,
+  });
   return (
     <SessionTimelineToolRow
       name={row.call?.toolName ?? row.result?.toolName ?? "Tool"}
       input={row.call?.input}
-      output={row.result?.output}
-      isError={row.result?.isError}
+      output={preview?.value}
+      outputContent={
+        row.result?.output.type === "content" &&
+        row.result.output.value.length > 0
+          ? row.result.output.value.map((part, index) => {
+              if (part.type === "file") {
+                return (
+                  <SessionTimelinePart
+                    key={index}
+                    part={part}
+                    mediaVariant="tool-output"
+                  />
+                );
+              }
+              const value = (() => {
+                if (part.type === "text") return part.text;
+                if (part.type === "reasoning") return part.content;
+                if (part.type === "data" || part.type === "custom")
+                  return part.value;
+                return assertUnreachable(part);
+              })();
+              return (
+                <div key={index} className="flex max-h-96 min-w-0 flex-col">
+                  <Codeblock
+                    label="Tool output"
+                    value={value}
+                    allowFormatting
+                  />
+                </div>
+              );
+            })
+          : undefined
+      }
+      {...status}
       isExpanded={isExpanded}
       onExpandedChange={setIsExpanded}
       trailingContent={trailingContent}
