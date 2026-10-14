@@ -467,7 +467,17 @@ function TraceNavigationDetailLayout({
       cancelAnimationFrame(outerRaf);
       cancelAnimationFrame(innerRaf);
     };
-  }, [pendingExpand, reviewOpen, groupRef, panelRef, detailPanelRef, groupId]);
+  }, [
+    pendingExpand,
+    reviewOpen,
+    groupRef,
+    panelRef,
+    detailPanelRef,
+    groupId,
+    setIsDetailPanelCollapsed,
+    setIsNavigationPanelCollapsed,
+    setPendingExpand,
+  ]);
 
   // Guarded so it's a no-op (not a resize) when already open — safe to call on
   // every row click, which is how re-selecting the same node reopens it.
