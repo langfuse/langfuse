@@ -148,7 +148,8 @@ function filterSelect(
   }
 
   // An ON filter cannot drop a RIGHT/FULL JOIN's preserved rows, and a WHERE
-  // filter on the other side would turn the join into an inner one.
+  // filter on the other side would drop preserved rows that matched only
+  // deleted rows.
   const outerJoin = joins.find(({ join }) =>
     OUTER_PRESERVING_JOINS.has(join.joinType),
   );
