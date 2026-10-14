@@ -104,5 +104,11 @@ export function useTopicModelSettings({
       unavailable: Boolean(settings.data && !settings.data.processingAvailable),
       status,
     } satisfies TopicSetupNoticeState,
+    backfillReady: Boolean(
+      configured &&
+      rule &&
+      settings.data?.processingAvailable &&
+      !settings.data.blockMessage,
+    ),
   };
 }

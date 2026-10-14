@@ -1,10 +1,11 @@
 import { type ReactNode } from "react";
-import { History, Play, RefreshCw } from "lucide-react";
+import { DatabaseBackup, History, Play, RefreshCw } from "lucide-react";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 
 export function TopicsActionsMenu({
   children,
   triggerAction,
+  backfillAction,
   closeMenu,
   onOpenHistory,
   onRefresh,
@@ -12,6 +13,10 @@ export function TopicsActionsMenu({
   function processTraces() {
     closeMenu();
     triggerAction?.onSelect();
+  }
+  function runBackfill() {
+    closeMenu({ handoffFocus: true });
+    backfillAction.onSelect();
   }
   function openHistory() {
     closeMenu({ handoffFocus: true });
@@ -33,6 +38,12 @@ export function TopicsActionsMenu({
         />
       )}
       <HeaderActionMenuRow
+        label="Run backfill"
+        icon={<DatabaseBackup className="icon-base text-icon-foreground" />}
+        disabled={backfillAction.disabled}
+        onClick={runBackfill}
+      />
+      <HeaderActionMenuRow
         label="History"
         icon={<History className="icon-base text-icon-foreground" />}
         onClick={openHistory}
@@ -53,6 +64,7 @@ type TopicsActionsMenuProps = {
     disabled: boolean;
     onSelect: () => void;
   } | null;
+  backfillAction: { disabled: boolean; onSelect: () => void };
   closeMenu: (options?: { handoffFocus?: boolean }) => void;
   onOpenHistory: () => void;
   onRefresh: () => void;
