@@ -176,6 +176,13 @@ function getSecureOutboundDispatcher(
           // This lookup runs at socket connection time, so DNS rebinding between
           // the earlier URL validation and the actual HTTP connection is blocked.
           lookup: createSecureOutboundLookup(validationOptions),
+          // Each address family gets a full second before the next one is
+          // tried. Node's 250ms default aborts a handshake that loses its
+          // first SYN, whose retransmit waits about a second. A blackholed
+          // family then delays the fallback by one second, inside the
+          // caller's request budget.
+          autoSelectFamily: true,
+          autoSelectFamilyAttemptTimeout: 1_000,
         },
       }),
   );
