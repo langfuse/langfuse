@@ -468,21 +468,21 @@ export function traceSessionId(): ChExpression<string> {
 }
 
 /**
- * Lower `metadata[key]` to a traced array-subscript + `indexOf` node.
- * The key is a bound `ValueNode`, not a SQL literal.
+ * Lower `metadata[key]` to a subscript of {@link metadataMap}, so the last
+ * entry of a duplicated key wins. The key is a bound `ValueNode`, not a SQL
+ * literal.
  */
 export function metadataValue(
   tableAlias: string,
   key: string,
-): ExpressionWrapper<ClickHouseDatabase, "events_core", string | number> {
-  return new ExpressionWrapper(
-    ArrayIndexNode.create(
-      qualifiedColumn(tableAlias, "metadata_values"),
-      FunctionNode.create("indexOf", [
-        qualifiedColumn(tableAlias, "metadata_names"),
-        ValueNode.create(key),
-      ]),
-    ) as unknown as OperationNode,
+): ChExpression<string> {
+  const column = (name: string) =>
+    new ExpressionWrapper<ClickHouseDatabase, "events_core", string[]>(
+      qualifiedColumn(tableAlias, name),
+    );
+  return mapValue<string>(
+    metadataMap(column("metadata_names"), column("metadata_values")),
+    key,
   );
 }
 

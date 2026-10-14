@@ -161,3 +161,22 @@ describeWithClickhouseLocal("catalog tier 5-7 execution", () => {
     });
   }
 });
+
+describeWithClickhouseLocal("catalog metadata semantics", () => {
+  it("metadata_group_by takes the last value of a duplicated metadata key", () => {
+    const entry = CATALOG.find((e) => e.id === "metadata_group_by");
+    expect(entry).toBeDefined();
+    if (!entry) return;
+
+    const compiled = compileClickhouseQuery(entry.build(), {
+      projectId: CATALOG_PROJECT_ID,
+    });
+    const executable = substituteNamedParams(compiled.sql, compiled.params);
+    const output = executeClickhouseLocal(`${CATALOG_MEMORY_DDL}
+      INSERT INTO events_core (project_id, metadata_names, metadata_values)
+      VALUES ('${CATALOG_PROJECT_ID}', ['model', 'other', 'model'], ['first', 'x', 'last']);
+      ${executable}`);
+
+    expect(output).toBe("last\t1");
+  });
+});

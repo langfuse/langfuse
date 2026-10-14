@@ -8,7 +8,7 @@ metadata, `FilterState` embedding) will land under
 `packages/shared/src/query-ast/`.
 
 This folder is a compile-only ClickHouse dialect on Kysely 0.28: real
-`OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata `indexOf`
+`OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata map
 subscripts; a mandatory tenancy injection pass keyed on `ExecutionContext`;
 per-table dedup lowering from the registry; schema-typed selection; virtual
 views as WITH CTEs; catalog parity.
@@ -136,13 +136,13 @@ db.selectFrom("scores as s")
 // … from scores as s final
 ```
 
-**Select a metadata value** (`metadataValue` — lowers `metadata[key]` to a bound `indexOf` subscript):
+**Select a metadata value** (`metadataValue` — lowers `metadata[key]` to a bound subscript of `metadataMap`, so the last duplicate key wins):
 
 ```ts
 db.selectFrom("events_core as e")
   .select((eb) => [metadataValue("e", "my_key").as("my_val")])
-  .where((eb) => eb(metadataValue("e", "my_key"), ">", 2));
-// select metadata_values[indexof(e.metadata_names, {p:String})] as my_val …
+  .where((eb) => eb(metadataValue("e", "my_key"), "=", "x"));
+// select mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[{p:String}] as my_val …
 ```
 
 ## Developing the dialect
@@ -162,7 +162,7 @@ preserve it:
 | ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE. | no    |
 | LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                               | no    |
 | FINAL              | Plugin wraps a FROM/JOIN table expression in `FinalTableNode`. Compiler emits `final` after that expression (`scores as s final`). `$call(useFinal(["scores"]))`. Tables declared `dedup: none` throw.     | no    |
-| metadata `indexOf` | Helper builds an `ArrayIndexNode` whose index child is a `FunctionNode` (`indexOf`) over a bound `ValueNode` key. Transformer + compiler special-case the node. No plugin.                                 | no    |
+| metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a bound `ValueNode` key. Transformer + compiler special-case the node. No plugin.                                       | no    |
 | Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                               | no    |
 
 These are real node objects whose children are traced Kysely
