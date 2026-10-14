@@ -954,7 +954,7 @@ maybeEventsTable("sessions from events: metadata filters", () => {
     ];
 
     const [rows, count] = await Promise.all([
-      getSessionsTableFromEvents({ projectId, filter }),
+      getSessionsTableFromEvents({ projectId, filter, fields: ["session_id"] }),
       getSessionsTableCountFromEvents({ projectId, filter }),
     ]);
 
