@@ -280,7 +280,7 @@
     "@types/lodash": "^4.17.24",
     "@types/node": "^24.3.0",
     "@types/nodemailer": "^8.0.1",
-    "@types/react": "19.3.0",
+    "@types/react": "19.2.14",
     "dotenv-cli": "^7.4.4",
     "eslint": "catalog:",
     "prisma": "^6.19.3",
@@ -289,7 +289,7 @@
     "vitest": "^4.1.11"
   },
   "peerDependencies": {
-    "@types/react": "~19.3.0",
-    "react": "~19.3.0"
+    "@types/react": "~19.2.14",
+    "react": "~19.2.4"
   }
 }

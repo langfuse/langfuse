@@ -174,6 +174,7 @@ export function ConnectedDashboardTable() {
                 <div className="flex min-h-0 flex-1 flex-col">
                   <DashboardTable
                     projectId={projectId}
+                    topBorder={false}
                     hasAccess={hasAccess}
                     loadingRowCount={Math.min(paginationState.pageSize, 8)}
                     onEdit={(dashboard) => {

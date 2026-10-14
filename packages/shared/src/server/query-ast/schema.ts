@@ -6,8 +6,8 @@
  *    comparisons).
  *  - `COLUMN_DATA_TYPES` — the coarse runtime type map the aggregate type-check
  *    pass consults (`typecheck.ts`).
- *  - `COLUMN_BIND_TYPES` — the ClickHouse bind types the compiler uses when a
- *    value is compared to a known column (`compiler.ts`).
+ *  - `TABLE_BIND_TYPES` / `COLUMN_BIND_TYPES` — the ClickHouse bind types the
+ *    compiler uses when a value is compared to a known column (`compiler.ts`).
  *  - `TENANTED_TABLES` — the relations the tenancy pass must scope
  *    (`tenancy.ts`).
  *  - `DEDUP_SPECS` — the per-table read idiom the lowering pass applies
@@ -28,26 +28,39 @@ export type ChColumnType =
   | "String"
   | "Float"
   | "DateTime"
+  | "DateTime64(6)"
   | "UInt8"
+  | "UInt16"
+  | "Nullable(UInt16)"
+  | "Nullable(DateTime64(6))"
   | "Array(String)"
   | "Map(String, Float)"
+  | "Map(String, UInt64)"
+  | "Map(String, Decimal(18,12))"
   | "Map(String, String)";
 
 type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
   ? string
   : T extends "Float"
     ? number
-    : T extends "UInt8"
+    : T extends "UInt8" | "UInt16"
       ? number
-      : T extends "DateTime"
-        ? Date
-        : T extends "Array(String)"
-          ? string[]
-          : T extends "Map(String, Float)"
-            ? Record<string, number>
-            : T extends "Map(String, String)"
-              ? Record<string, string>
-              : never;
+      : T extends "Nullable(UInt16)"
+        ? number | null
+        : T extends "DateTime" | "DateTime64(6)"
+          ? Date
+          : T extends "Nullable(DateTime64(6))"
+            ? Date | null
+            : T extends "Array(String)"
+              ? string[]
+              : T extends
+                    | "Map(String, Float)"
+                    | "Map(String, UInt64)"
+                    | "Map(String, Decimal(18,12))"
+                ? Record<string, number>
+                : T extends "Map(String, String)"
+                  ? Record<string, string>
+                  : never;
 
 /** Coarse runtime category the aggregate type-check pass reasons about. */
 export type ColumnDataType = "string" | "number" | "date" | "array" | "map";
@@ -56,9 +69,15 @@ const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
   String: "string",
   Float: "number",
   UInt8: "number",
+  UInt16: "number",
+  "Nullable(UInt16)": "number",
   DateTime: "date",
+  "DateTime64(6)": "date",
+  "Nullable(DateTime64(6))": "date",
   "Array(String)": "array",
   "Map(String, Float)": "map",
+  "Map(String, UInt64)": "map",
+  "Map(String, Decimal(18,12))": "map",
   "Map(String, String)": "map",
 };
 
@@ -105,14 +124,22 @@ function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
 const EVENTS_COLUMNS = {
   environment: "String",
   project_id: "String",
-  start_time: "DateTime",
+  start_time: "DateTime64(6)",
   span_id: "String",
   trace_id: "String",
-  event_ts: "DateTime",
+  event_ts: "DateTime64(6)",
   type: "String",
   total_cost: "Float",
   experiment_id: "String",
   prompt_id: "String",
+  prompt_name: "String",
+  prompt_version: "Nullable(UInt16)",
+  usage_details: "Map(String, UInt64)",
+  cost_details: "Map(String, Decimal(18,12))",
+  ingestion_sdk_name: "String",
+  ingestion_sdk_version: "String",
+  telemetry_sdk_language: "String",
+  source: "String",
   is_deleted: "UInt8",
   metadata_names: "Array(String)",
   metadata_values: "Array(String)",
@@ -120,8 +147,15 @@ const EVENTS_COLUMNS = {
   session_id: "String",
   name: "String",
   parent_span_id: "String",
-  end_time: "DateTime",
+  end_time: "Nullable(DateTime64(6))",
   tags: "Array(String)",
+  input: "String",
+  output: "String",
+  tool_calls: "Array(String)",
+  tool_call_names: "Array(String)",
+  experiment_item_expected_output: "String",
+  experiment_item_metadata_names: "Array(String)",
+  experiment_item_metadata_values: "Array(String)",
 } as const satisfies Record<string, ChColumnType>;
 
 const TABLE_REGISTRY = {
@@ -234,17 +268,51 @@ const BIND_TYPE: Record<ChColumnType, string> = {
   String: "String",
   Float: "Float64",
   UInt8: "UInt8",
+  UInt16: "UInt16",
+  // A bound value is never NULL; NULL checks compile to `IS NULL`.
+  "Nullable(UInt16)": "UInt16",
   DateTime: "DateTime64(3)",
+  "DateTime64(6)": "DateTime64(6)",
+  "Nullable(DateTime64(6))": "DateTime64(6)",
   "Array(String)": "Array(String)",
   "Map(String, Float)": "Map(String, Float64)",
+  "Map(String, UInt64)": "Map(String, UInt64)",
+  "Map(String, Decimal(18,12))": "Map(String, Decimal(18, 12))",
   "Map(String, String)": "Map(String, String)",
 };
 
-export const COLUMN_BIND_TYPES: Record<string, string> = Object.fromEntries(
-  Object.values(TABLE_REGISTRY).flatMap((table) =>
-    Object.entries(table.columns).map(([name, chType]) => [
-      name,
-      BIND_TYPE[chType],
-    ]),
-  ),
+/** Bind type per column, per registry table. */
+export const TABLE_BIND_TYPES: Record<
+  string,
+  Record<string, string>
+> = Object.fromEntries(
+  Object.entries(TABLE_REGISTRY).map(([table, spec]) => [
+    table,
+    Object.fromEntries(
+      Object.entries(spec.columns).map(([name, chType]) => [
+        name,
+        BIND_TYPE[chType],
+      ]),
+    ),
+  ]),
 );
+
+/**
+ * Bind type by bare column name, for operands whose relation is opaque to the
+ * compiler (e.g. a table-function source). Only names with the same bind type in
+ * every table are kept, since `start_time` is `DateTime64(6)` on events but
+ * `DateTime64(3)` on observations.
+ */
+export const COLUMN_BIND_TYPES: Record<string, string> = (() => {
+  const byName = new Map<string, Set<string>>();
+  for (const columns of Object.values(TABLE_BIND_TYPES)) {
+    for (const [name, bindType] of Object.entries(columns)) {
+      byName.set(name, (byName.get(name) ?? new Set()).add(bindType));
+    }
+  }
+  return Object.fromEntries(
+    [...byName]
+      .filter(([, types]) => types.size === 1)
+      .map(([name, types]) => [name, [...types][0]]),
+  );
+})();

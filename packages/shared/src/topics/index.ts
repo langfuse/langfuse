@@ -67,7 +67,6 @@ export const topicsModelSettingsSchema = z.object({
   embeddingDimensions:
     topicEmbeddingConfigSchema.shape.embeddingDimensions.unwrap(),
   clustering: topicsModelSlotSchema.nullable(),
-  enabled: z.boolean(),
 });
 export type TopicsModelSettings = z.infer<typeof topicsModelSettingsSchema>;
 export const topicProcessingConfigSchema = z.object({
@@ -149,9 +148,20 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
   // Enabled custom facets keep their rule assignment; they are edited elsewhere.
   customFacetIds: z.array(topicIdSchema).default([]),
   filter: topicRuleConfigSchema.shape.filter,
-  sampling: z.number().min(0).max(1),
 });
 export type TopicsSetup = z.infer<typeof topicsSetupSchema>;
+
+/**
+ * Turns automatic processing of new traces on or off. Sampling applies only to
+ * automatic processing; omit it to keep the rule's stored rate.
+ */
+export const topicsAutomaticProcessingSchema = z.object({
+  enabled: z.boolean(),
+  sampling: z.number().min(0).max(1).optional(),
+});
+export type TopicsAutomaticProcessing = z.infer<
+  typeof topicsAutomaticProcessingSchema
+>;
 
 export type TopicRule = z.infer<typeof topicRuleSettingsSchema> & {
   id: string;

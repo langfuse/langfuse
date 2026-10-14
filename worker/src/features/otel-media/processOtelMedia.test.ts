@@ -218,7 +218,7 @@ describe("processOtelEventMedia", () => {
     };
     const processMedia = vi.fn().mockResolvedValue(processResult);
 
-    await processOtelEventMedia({
+    const mediaPresence = await processOtelEventMedia({
       targets: createDirectOtelMediaTargets([
         eventInput,
         { traceId: "trace-id", spanId: "without-media-fields" },
@@ -231,6 +231,7 @@ describe("processOtelEventMedia", () => {
       processMedia,
     });
 
+    expect(mediaPresence).toBe("present");
     expect(processMedia).toHaveBeenCalledWith(
       expect.objectContaining({
         targets: [
@@ -287,14 +288,18 @@ describe("processOtelEventMedia", () => {
     expect(mocks.recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.processing_duration_ms",
       expect.any(Number),
-      { write_path: "direct", media_path: "reference" },
+      {
+        write_path: "direct",
+        media_path: "reference",
+        media_presence: "present",
+      },
     );
   });
 
   it("does not create a processing span when there are no media fields", async () => {
     const processMedia = vi.fn();
 
-    await processOtelEventMedia({
+    const mediaPresence = await processOtelEventMedia({
       targets: createDirectOtelMediaTargets([
         { traceId: "trace-id", spanId: "observation-id" },
       ]),
@@ -304,6 +309,7 @@ describe("processOtelEventMedia", () => {
       processMedia,
     });
 
+    expect(mediaPresence).toBe("absent");
     expect(processMedia).not.toHaveBeenCalled();
     expect(mocks.instrumentAsync).not.toHaveBeenCalled();
   });
@@ -325,12 +331,16 @@ describe("processOtelEventMedia", () => {
         fileKey: "file-key",
         processMedia,
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe("unknown");
 
     expect(mocks.recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.processing_duration_ms",
       expect.any(Number),
-      { write_path: "direct", media_path: "reference" },
+      {
+        write_path: "direct",
+        media_path: "reference",
+        media_presence: "unknown",
+      },
     );
     expect(mocks.recordDistribution).not.toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.batch_byte_length",
