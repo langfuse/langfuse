@@ -72,9 +72,13 @@ export function useSelection(): SelectionContextValue {
 
 interface SelectionProviderProps {
   children: ReactNode;
+  defaultObservationId: string | null;
 }
 
-export function SelectionProvider({ children }: SelectionProviderProps) {
+export function SelectionProvider({
+  children,
+  defaultObservationId,
+}: SelectionProviderProps) {
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
     StringParam,
@@ -175,7 +179,7 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
 
   const value = useMemo<SelectionContextValue>(
     () => ({
-      selectedNodeId: currentObservationId ?? null,
+      selectedNodeId: currentObservationId ?? defaultObservationId,
       setSelectedNodeId,
       collapsedNodes,
       toggleCollapsed,
@@ -192,6 +196,7 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
     }),
     [
       currentObservationId,
+      defaultObservationId,
       setSelectedNodeId,
       collapsedNodes,
       toggleCollapsed,

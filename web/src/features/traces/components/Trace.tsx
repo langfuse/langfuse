@@ -1,4 +1,5 @@
-import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
+import { type ScoreDomain } from "@langfuse/shared";
+import { type buildTraceUiData } from "@/src/features/traces/fns/treeBuilding";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
@@ -42,10 +43,7 @@ import { SkeletonGroup } from "@/src/components/ui/skeleton";
 export type TraceProps = {
   isLoading?: false;
   observations: Array<ObservationReturnTypeWithMetadata>;
-  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
-    input: string | null;
-    output: string | null;
-  };
+  trace: Parameters<typeof buildTraceUiData>[0];
   scores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
   projectId: string;
@@ -94,10 +92,27 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
       ? "peek-observation-focused"
       : traceContext;
   const desktopLayout = DESKTOP_LAYOUTS[desktopLayoutKey];
+  const defaultObservationId = useMemo(() => {
+    // Only v4 (events-based) traces carry rootObservationType. Their trace
+    // summary is already shown in the header, so default to observation details.
+    // V3 traces lack this field and keep the trace-level detail view as default.
+    if (props.isLoading === true || !props.trace.rootObservationType)
+      return null;
+    if (props.trace.rootObservationId) return props.trace.rootObservationId;
+
+    let firstRoot: ObservationReturnTypeWithMetadata | undefined;
+    for (const observation of props.observations) {
+      if (observation.parentObservationId) continue;
+      if (!firstRoot || observation.startTime < firstRoot.startTime) {
+        firstRoot = observation;
+      }
+    }
+    return firstRoot?.id ?? null;
+  }, [props]);
 
   return (
     <ViewPreferencesProvider traceContext={traceContext}>
-      <SelectionProvider>
+      <SelectionProvider defaultObservationId={defaultObservationId}>
         {props.isLoading === true ? (
           <TraceLoading desktopLayout={desktopLayout} />
         ) : (
