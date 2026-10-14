@@ -1102,20 +1102,7 @@ async function getObservationByIdFromEventsTableInternal({
   )
     .select(observationByIdSelects() as never)
     .$if(fetchWithInputOutput, (qb) =>
-      qb.select((eb) =>
-        renderingProps.truncated
-          ? [
-              leftUTF8(
-                eb.ref("input"),
-                env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT,
-              ).as("input"),
-              leftUTF8(
-                eb.ref("output"),
-                env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT,
-              ).as("output"),
-            ]
-          : ["input", "output"],
-      ),
+      qb.select(observationIoSelects(renderingProps.truncated)),
     )
     .where("span_id", "=", id)
     .$if(startTime != null, (qb) =>
@@ -1152,6 +1139,20 @@ async function getObservationByIdFromEventsTableInternal({
     tags: { projectId },
     preferredClickhouseService,
   });
+}
+
+/** `input`/`output`, capped to the server-side char limit on a truncated read. */
+function observationIoSelects(
+  truncated: boolean | undefined,
+): ReadonlyArray<
+  "input" | "output" | AliasedExpression<string, "input" | "output">
+> {
+  if (!truncated) return ["input", "output"];
+  const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
+  return [
+    leftUTF8("input", charLimit).as("input"),
+    leftUTF8("output", charLimit).as("output"),
+  ];
 }
 
 /**
@@ -1307,8 +1308,8 @@ function traceIoSelects(excludeInputOutput: boolean, truncated: boolean) {
   if (truncated) {
     const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
     return [
-      leftUTF8(sql<string>`t.input`, charLimit).as("input"),
-      leftUTF8(sql<string>`t.output`, charLimit).as("output"),
+      leftUTF8("t.input", charLimit).as("input"),
+      leftUTF8("t.output", charLimit).as("output"),
     ];
   }
   return [sql`t.input`, sql`t.output`];
