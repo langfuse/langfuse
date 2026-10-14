@@ -75,6 +75,19 @@ export class GatewayModelCatalogService {
     );
   }
 
+  async listModelConnections(organizationId: string) {
+    const connections = await this.listAllConnections(
+      organizationId,
+      "ENABLED",
+    );
+    return connections.map(({ id, name, provider, allowedModels }) => ({
+      id,
+      name,
+      provider,
+      allowedModels,
+    }));
+  }
+
   async refreshModels(params: {
     organizationId: string;
     connectionId: string;

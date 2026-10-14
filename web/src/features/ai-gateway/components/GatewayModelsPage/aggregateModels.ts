@@ -1,9 +1,10 @@
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
+import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
 import type { RouterOutputs } from "@/src/utils/api";
 
-type Connection = RouterOutputs["aiGateway"]["listConnections"]["data"][number];
+type Connection = RouterOutputs["aiGateway"]["listModelConnections"][number];
 type RefreshResult = RouterOutputs["aiGateway"]["refreshModels"][number];
 
 const providerFormats = {
@@ -15,12 +16,9 @@ export type ApiFormat = (typeof providerFormats)[GatewayProvider][number];
 
 type ModelRow = {
   id: string;
-  availableVia: Array<{
-    connectionId: string;
-    connectionName: string;
-    provider: GatewayProvider;
-    enabled: boolean;
-  }>;
+  connectionId: string;
+  connectionName: string;
+  provider: GatewayProvider;
   apiFormats: ApiFormat[];
 };
 
@@ -31,7 +29,7 @@ export function aggregateModels(
   const resultsByConnectionId = new Map(
     results.map((result) => [result.connectionId, result]),
   );
-  const models = new Map<string, ModelRow>();
+  const models: ModelRow[] = [];
   const seenConnectionIds = new Set<string>();
 
   for (const connection of connections) {
@@ -43,34 +41,16 @@ export function aggregateModels(
     for (const modelId of result.models.toSorted((left, right) =>
       left.localeCompare(right),
     )) {
-      const availableVia = {
+      if (!isGatewayModelAllowed(allowedModels, modelId)) continue;
+      models.push({
+        id: formatGatewayModelSlug(connection.name, modelId),
         connectionId: connection.id,
         connectionName: connection.name,
         provider: connection.provider,
-        enabled: isGatewayModelAllowed(allowedModels, modelId),
-      };
-      const existing = models.get(modelId);
-      if (existing) {
-        existing.availableVia.push(availableVia);
-        if (availableVia.enabled) {
-          existing.apiFormats = [
-            ...new Set([
-              ...existing.apiFormats,
-              ...providerFormats[connection.provider],
-            ]),
-          ];
-        }
-        continue;
-      }
-      models.set(modelId, {
-        id: modelId,
-        availableVia: [availableVia],
-        apiFormats: availableVia.enabled
-          ? [...providerFormats[connection.provider]]
-          : [],
+        apiFormats: [...providerFormats[connection.provider]],
       });
     }
   }
 
-  return [...models.values()];
+  return models;
 }

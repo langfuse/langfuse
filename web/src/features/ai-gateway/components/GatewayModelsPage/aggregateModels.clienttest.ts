@@ -5,7 +5,7 @@ type Connection = Parameters<typeof aggregateModels>[1][number];
 type Result = Parameters<typeof aggregateModels>[0][number];
 
 describe("aggregateModels", () => {
-  it("keeps existing model positions when another connection page loads", () => {
+  it("returns one qualified row for each allowed connection and model pair", () => {
     const first = {
       id: "first",
       name: "First",
@@ -31,35 +31,39 @@ describe("aggregateModels", () => {
       },
     ] as Result[];
 
-    expect(aggregateModels(results, [first]).map((model) => model.id)).toEqual([
-      "b-model",
-      "shared-model",
-      "z-model",
-    ]);
-    expect(
-      aggregateModels(results, [first, second]).map((model) => model.id),
-    ).toEqual(["b-model", "shared-model", "z-model", "a-model"]);
-    expect(
-      aggregateModels(results, [first, second]).find(
-        (model) => model.id === "shared-model",
-      )?.availableVia,
-    ).toEqual([
+    expect(aggregateModels(results, [first, second])).toEqual([
       {
         connectionId: "first",
         connectionName: "First",
+        id: "First:b-model",
         provider: "OPENAI",
-        enabled: true,
+        apiFormats: ["OpenAI Responses", "OpenAI Chat Completions"],
+      },
+      {
+        connectionId: "first",
+        connectionName: "First",
+        id: "First:shared-model",
+        provider: "OPENAI",
+        apiFormats: ["OpenAI Responses", "OpenAI Chat Completions"],
+      },
+      {
+        connectionId: "first",
+        connectionName: "First",
+        id: "First:z-model",
+        provider: "OPENAI",
+        apiFormats: ["OpenAI Responses", "OpenAI Chat Completions"],
       },
       {
         connectionId: "second",
         connectionName: "Second",
+        id: "Second:shared-model",
         provider: "ANTHROPIC",
-        enabled: true,
+        apiFormats: ["Anthropic Messages"],
       },
     ]);
   });
 
-  it("does not duplicate badges for connections repeated across pages", () => {
+  it("hides disallowed models and ignores repeated connections", () => {
     const connection = {
       id: "first",
       name: "First",
@@ -72,15 +76,6 @@ describe("aggregateModels", () => {
       models: ["model"],
     } as Result;
 
-    expect(
-      aggregateModels([result], [connection, connection])[0]?.availableVia,
-    ).toEqual([
-      {
-        connectionId: "first",
-        connectionName: "First",
-        provider: "OPENAI",
-        enabled: false,
-      },
-    ]);
+    expect(aggregateModels([result], [connection, connection])).toEqual([]);
   });
 });

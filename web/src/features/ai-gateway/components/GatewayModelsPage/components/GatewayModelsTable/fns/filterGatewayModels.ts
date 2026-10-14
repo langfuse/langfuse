@@ -14,9 +14,6 @@ export function filterGatewayModels(
     (model) =>
       (normalizedSearch.length === 0 ||
         model.id.toLowerCase().includes(normalizedSearch)) &&
-      (provider === "all" ||
-        model.availableVia.some(
-          (connection) => connection.provider === provider,
-        )),
+      (provider === "all" || model.provider === provider),
   );
 }

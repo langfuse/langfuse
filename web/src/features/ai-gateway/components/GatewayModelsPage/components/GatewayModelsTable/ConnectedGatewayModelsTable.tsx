@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 
 import Header from "@/src/components/layouts/header";
@@ -19,6 +19,8 @@ const ALL_PROVIDERS = "all";
 
 export function ConnectedGatewayModelsTable({
   models,
+  organizationId,
+  canManageGateway,
   failedProviderCount,
   providerCount,
   hasProviders,
@@ -26,11 +28,10 @@ export function ConnectedGatewayModelsTable({
   isLoading,
   syncError,
   onSync,
-  hasMoreProviders,
-  isLoadingMoreProviders,
-  onLoadMoreProviders,
 }: {
   models: GatewayModelRow[];
+  organizationId: string;
+  canManageGateway: boolean;
   failedProviderCount: number;
   providerCount: number;
   hasProviders: boolean;
@@ -38,30 +39,24 @@ export function ConnectedGatewayModelsTable({
   isLoading: boolean;
   syncError: boolean;
   onSync: () => void | Promise<void>;
-  hasMoreProviders: boolean;
-  isLoadingMoreProviders: boolean;
-  onLoadMoreProviders: () => unknown;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [provider, setProvider] = useState<GatewayProvider | "all">(
     ALL_PROVIDERS,
   );
-  const [pageIndex, setPageIndex] = useState(0);
-  const [pendingPage, setPendingPage] = useState<{
-    index: number;
-    filterKey: string;
-  } | null>(null);
-  const pageSize = 10;
+  const [paginationState, setPaginationState] = useState({
+    pageIndex: 0,
+    pageSize: 50,
+  });
   const providerOptions = useMemo<
     Array<{ value: GatewayProvider | "all"; label: string }>
   >(
     () => [
       { value: ALL_PROVIDERS, label: "All providers" },
-      ...uniqueSorted(
-        models.flatMap((model) =>
-          model.availableVia.map((connection) => connection.provider),
-        ),
-      ).map((value) => ({ value, label: providerLabels[value] })),
+      ...uniqueSorted(models.map((model) => model.provider)).map((value) => ({
+        value,
+        label: providerLabels[value],
+      })),
     ],
     [models],
   );
@@ -69,39 +64,19 @@ export function ConnectedGatewayModelsTable({
     () => filterGatewayModels(models, searchQuery, provider),
     [models, provider, searchQuery],
   );
-  const filterKey = JSON.stringify([searchQuery, provider]);
-  useEffect(() => {
-    if (pendingPage && pendingPage.filterKey !== filterKey) {
-      setPendingPage(null);
-    }
-  }, [filterKey, pendingPage]);
   const lastAvailablePageIndex = Math.max(
     0,
-    Math.ceil(filteredModels.length / pageSize) - 1,
+    Math.ceil(filteredModels.length / paginationState.pageSize) - 1,
   );
-  const currentPageIndex =
-    pendingPage?.filterKey === filterKey &&
-    pendingPage.index * pageSize < filteredModels.length
-      ? pendingPage.index
-      : Math.min(pageIndex, lastAvailablePageIndex);
+  const currentPageIndex = Math.min(
+    paginationState.pageIndex,
+    lastAvailablePageIndex,
+  );
   const pagination: PaginationBarProps = {
-    mode: "cursor",
-    state: { pageIndex: currentPageIndex, pageSize },
-    hasNextPage:
-      (currentPageIndex + 1) * pageSize < filteredModels.length ||
-      hasMoreProviders,
-    isLoadingNextPage: isLoadingMoreProviders,
-    onChange: ({ pageIndex: nextPageIndex }) => {
-      if (nextPageIndex * pageSize < filteredModels.length) {
-        setPendingPage(null);
-        setPageIndex(nextPageIndex);
-        return;
-      }
-      if (!hasMoreProviders || isLoadingMoreProviders) return;
-      setPageIndex(currentPageIndex);
-      setPendingPage({ index: nextPageIndex, filterKey });
-      onLoadMoreProviders();
-    },
+    mode: "offset",
+    totalCount: filteredModels.length,
+    state: { ...paginationState, pageIndex: currentPageIndex },
+    onChange: setPaginationState,
   };
   const emptyMessage = getEmptyMessage({
     hasProviders,
@@ -115,10 +90,12 @@ export function ConnectedGatewayModelsTable({
       <Header
         title="Gateway models"
         actionButtons={
-          <Button variant="secondary" loading={isLoading} onClick={onSync}>
-            <RefreshCw className="icon-base mr-1.5" />
-            {hasSynced ? "Retry sync" : "Sync models"}
-          </Button>
+          canManageGateway ? (
+            <Button variant="secondary" loading={isLoading} onClick={onSync}>
+              <RefreshCw className="icon-base mr-1.5" />
+              {hasSynced ? "Retry sync" : "Sync models"}
+            </Button>
+          ) : undefined
         }
       />
       <p className="text-muted-foreground text-sm">
@@ -150,8 +127,14 @@ export function ConnectedGatewayModelsTable({
           <div className="w-80 max-w-full">
             <SearchInput
               value={searchQuery}
-              onChange={setSearchQuery}
-              onSubmit={setSearchQuery}
+              onChange={(value) => {
+                setSearchQuery(value);
+                setPaginationState((state) => ({ ...state, pageIndex: 0 }));
+              }}
+              onSubmit={(value) => {
+                setSearchQuery(value);
+                setPaginationState((state) => ({ ...state, pageIndex: 0 }));
+              }}
               placeholder="Search models"
             />
           </div>
@@ -160,21 +143,26 @@ export function ConnectedGatewayModelsTable({
               aria-label="Filter by provider"
               value={provider}
               options={providerOptions}
-              onValueChange={setProvider}
+              onValueChange={(value) => {
+                setProvider(value);
+                setPaginationState((state) => ({ ...state, pageIndex: 0 }));
+              }}
               placeholder="All providers"
             />
           </div>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border-x border-b">
           <GatewayModelsTable
+            organizationId={organizationId}
+            canManageGateway={canManageGateway}
             data={
               isLoading
                 ? { status: "loading" }
                 : {
                     status: "success",
                     data: filteredModels.slice(
-                      currentPageIndex * pageSize,
-                      (currentPageIndex + 1) * pageSize,
+                      currentPageIndex * paginationState.pageSize,
+                      (currentPageIndex + 1) * paginationState.pageSize,
                     ),
                   }
             }

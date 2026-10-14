@@ -65,6 +65,10 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     organizationId: organization?.id,
     scope: "organizationLlmApiKeys:read",
   });
+  const canReadGateway = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "gateway:read",
+  });
   const canReadUsage = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "organizationUsage:read",
@@ -92,7 +96,8 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showAuditLogs,
     isLangfuseCloud,
     showV4Migration,
-    showAiGateway: canManageGateway && isAiGatewayEnabled,
+    showAiGatewayManagement: canManageGateway && isAiGatewayEnabled,
+    showAiGatewayModels: canReadGateway && isAiGatewayEnabled,
     showOrganizationLlmConnections: canReadOrganizationLlmConnections,
     showFeaturePreviews:
       canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
@@ -107,7 +112,8 @@ const getOrganizationSettingsPages = ({
   showAuditLogs,
   isLangfuseCloud,
   showV4Migration,
-  showAiGateway,
+  showAiGatewayManagement,
+  showAiGatewayModels,
   showOrganizationLlmConnections,
   showFeaturePreviews,
 }: {
@@ -128,7 +134,8 @@ const getOrganizationSettingsPages = ({
   showAuditLogs: boolean;
   isLangfuseCloud: boolean;
   showV4Migration: boolean;
-  showAiGateway: boolean;
+  showAiGatewayManagement: boolean;
+  showAiGatewayModels: boolean;
   showOrganizationLlmConnections: boolean;
   showFeaturePreviews: boolean;
 }): OrganizationSettingsPage[] => [
@@ -318,7 +325,7 @@ const getOrganizationSettingsPages = ({
         projects={organization.projects}
       />
     ),
-    show: showAiGateway,
+    show: showAiGatewayManagement,
   },
   {
     title: "Provider credentials",
@@ -332,7 +339,7 @@ const getOrganizationSettingsPages = ({
       "anthropic",
     ],
     content: <GatewayProvidersPage organizationId={organization.id} />,
-    show: showAiGateway,
+    show: showAiGatewayManagement,
   },
   {
     title: "Models",
@@ -340,7 +347,7 @@ const getOrganizationSettingsPages = ({
     section: "AI Gateway",
     cmdKKeywords: ["gateway", "models", "discovery", "sync"],
     content: <GatewayModelsPage organizationId={organization.id} />,
-    show: showAiGateway,
+    show: showAiGatewayModels,
   },
   {
     title: "Gateway keys",
@@ -348,7 +355,7 @@ const getOrganizationSettingsPages = ({
     section: "AI Gateway",
     cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
     content: <GatewayApiKeysPage organizationId={organization.id} />,
-    show: showAiGateway,
+    show: showAiGatewayManagement,
   },
 ];
 

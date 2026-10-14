@@ -53,6 +53,15 @@ function requireGatewayAdmin(params: { session: Session; orgId: string }) {
   });
 }
 
+function requireGatewayRead(params: { session: Session; orgId: string }) {
+  requireGatewayEnabledForOrganization(params.orgId);
+  throwIfNoOrganizationAccess({
+    session: params.session,
+    organizationId: params.orgId,
+    scope: "gateway:read",
+  });
+}
+
 export const aiGatewayRouter = createTRPCRouter({
   getConfig: protectedOrganizationProcedure
     .input(organizationInput)
@@ -196,10 +205,19 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
+  listModelConnections: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayRead({ session: ctx.session, orgId: input.orgId });
+      return new GatewayModelCatalogService(ctx.prisma).listModelConnections(
+        input.orgId,
+      );
+    }),
+
   refreshModels: protectedOrganizationProcedure
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      requireGatewayRead({ session: ctx.session, orgId: input.orgId });
       return new GatewayModelCatalogService(ctx.prisma).refreshAllModels(
         input.orgId,
       );

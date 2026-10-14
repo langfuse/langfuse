@@ -1,5 +1,8 @@
 import { SiAnthropic, SiOpenai } from "react-icons/si";
+import Link from "next/link";
+import { useMemo } from "react";
 
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import {
   Table,
   type TableProps,
@@ -8,69 +11,116 @@ import {
   PaginationBar,
   type PaginationBarProps,
 } from "@/src/components/design-system/PaginationBar/PaginationBar";
-import { createBadgeListTableColumn } from "@/src/components/design-system/table/columns/createBadgeListTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import type { ApiFormat } from "@/src/features/ai-gateway/components/GatewayModelsPage/aggregateModels";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import type { GatewayModelRow } from "./fns/filterGatewayModels";
 
 const TABLE_NAME = "gateway-models";
 
-const gatewayModelsColumns: LangfuseColumnDef<GatewayModelRow>[] = [
-  createTextTableColumn<GatewayModelRow>({
-    accessorKey: "id",
-    header: "Model",
-    size: 200,
-  }),
-  createBadgeListTableColumn<
-    GatewayModelRow,
-    GatewayModelRow["availableVia"][number]
-  >({
-    accessorKey: "availableVia",
-    header: "Available via",
-    size: 360,
-    getBadge: (connection) => ({
-      key: connection.connectionId,
-      value: connection.connectionName,
-      variant: connection.enabled ? "secondary" : "tertiary",
-      icon: providerIcons[connection.provider],
-      ariaLabel: `${connection.connectionName}, ${providerLabels[connection.provider]}, ${connection.enabled ? "enabled" : "disabled"}`,
-    }),
-  }),
-  {
-    accessorKey: "apiFormats",
-    header: "Routes",
-    size: 280,
-    cell: ({ row }) =>
-      row.original.apiFormats.length > 0
-        ? row.original.apiFormats
-            .map((format) => apiFormatLabels[format])
-            .join(", ")
-        : "Not routed",
-  },
-];
-
 export function GatewayModelsTable({
+  organizationId,
+  canManageGateway,
   data,
   noResultsMessage,
   pagination,
 }: {
+  organizationId: string;
+  canManageGateway: boolean;
   data: TableProps<GatewayModelRow>["data"];
   noResultsMessage: string;
   pagination: PaginationBarProps;
 }) {
+  const columns = useMemo(
+    () => createGatewayModelsColumns({ organizationId, canManageGateway }),
+    [canManageGateway, organizationId],
+  );
+
   return (
     <>
       <Table
         tableName={TABLE_NAME}
-        columns={gatewayModelsColumns}
+        columns={columns}
         data={data}
         noResultsMessage={noResultsMessage}
       />
       <PaginationBar {...pagination} />
     </>
+  );
+}
+
+function createGatewayModelsColumns({
+  organizationId,
+  canManageGateway,
+}: {
+  organizationId: string;
+  canManageGateway: boolean;
+}): LangfuseColumnDef<GatewayModelRow>[] {
+  return [
+    createTextTableColumn<GatewayModelRow>({
+      accessorKey: "id",
+      header: "Model",
+      size: 360,
+      trailingAction: { type: "copy-to-clipboard" },
+    }),
+    {
+      accessorKey: "connectionName",
+      header: "Provider",
+      size: 280,
+      cell: ({ row }) => (
+        <ProviderBadge
+          model={row.original}
+          organizationId={organizationId}
+          canManageGateway={canManageGateway}
+        />
+      ),
+    },
+    {
+      accessorKey: "apiFormats",
+      header: "Routes",
+      size: 280,
+      cell: ({ row }) =>
+        row.original.apiFormats
+          .map((format) => apiFormatLabels[format])
+          .join(", "),
+    },
+  ];
+}
+
+function ProviderBadge({
+  model,
+  organizationId,
+  canManageGateway,
+}: {
+  model: GatewayModelRow;
+  organizationId: string;
+  canManageGateway: boolean;
+}) {
+  const ProviderIcon = providerIcons[model.provider];
+  const content = (
+    <>
+      <ProviderIcon aria-hidden className="size-3 shrink-0" />
+      <span className="truncate py-0.5">{model.connectionName}</span>
+    </>
+  );
+  const ariaLabel = `${model.connectionName}, ${providerLabels[model.provider]}`;
+
+  return canManageGateway ? (
+    <BadgeShell asChild color="filled" interactive>
+      <Link
+        href={buildGatewayModelsUrl(organizationId, model.connectionId)}
+        aria-label={`Show models for ${ariaLabel}`}
+      >
+        {content}
+      </Link>
+    </BadgeShell>
+  ) : (
+    <BadgeShell color="filled" aria-label={ariaLabel}>
+      {content}
+    </BadgeShell>
   );
 }
 

@@ -244,6 +244,26 @@ describe("AI gateway control plane", () => {
     ).rejects.toThrow("active project in the organization");
   });
 
+  it.each([Role.MEMBER, Role.VIEWER])(
+    "allows %s to read models without granting gateway management",
+    async (role) => {
+      const { caller, org } = await prepare(role);
+
+      await expect(
+        caller.aiGateway.listModelConnections({ orgId: org.id }),
+      ).resolves.toEqual([]);
+      await expect(
+        caller.aiGateway.refreshModels({ orgId: org.id }),
+      ).resolves.toEqual([]);
+      await expect(
+        caller.aiGateway.listConnections({ orgId: org.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(
+        caller.aiGateway.getConfig({ orgId: org.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    },
+  );
+
   it("stores provider credentials encrypted and never returns them", async () => {
     const { caller, org } = await prepare();
     const credential = "sk-test-gateway-redaction";
@@ -269,6 +289,16 @@ describe("AI gateway control plane", () => {
     const listed = await caller.aiGateway.listConnections({ orgId: org.id });
     expect(listed.data[0]).not.toHaveProperty("encryptedCredential");
     expect(JSON.stringify(listed)).not.toContain(credential);
+    await expect(
+      caller.aiGateway.listModelConnections({ orgId: org.id }),
+    ).resolves.toEqual([
+      {
+        id: created.id,
+        name: "OpenAI primary",
+        provider: "OPENAI",
+        allowedModels: null,
+      },
+    ]);
 
     const stored = await prisma.gatewayAiConnection.findUniqueOrThrow({
       where: { id: created.id },

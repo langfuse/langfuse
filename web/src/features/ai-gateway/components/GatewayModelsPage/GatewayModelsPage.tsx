@@ -3,6 +3,7 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ConnectedGatewayModelsTable } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayModelsTable/ConnectedGatewayModelsTable";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { aggregateModels } from "./aggregateModels";
 
@@ -12,10 +13,13 @@ export function GatewayModelsPage({
   organizationId: string;
 }) {
   const utils = api.useUtils();
-  const connectionsQuery = api.aiGateway.listConnections.useInfiniteQuery(
-    { orgId: organizationId, limit: 100 },
-    { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
-  );
+  const canManageGateway = useHasOrganizationAccess({
+    organizationId,
+    scope: "gateway:manage",
+  });
+  const connectionsQuery = api.aiGateway.listModelConnections.useQuery({
+    orgId: organizationId,
+  });
   const modelsQuery = api.aiGateway.refreshModels.useQuery(
     { orgId: organizationId },
     { enabled: connectionsQuery.isSuccess },
@@ -34,8 +38,7 @@ export function GatewayModelsPage({
     return <ModelsLoadError retry={() => connectionsQuery.refetch()} />;
   }
 
-  const connections =
-    connectionsQuery.data?.pages.flatMap((page) => page.data) ?? [];
+  const connections = connectionsQuery.data ?? [];
   const results = modelsQuery.data ?? null;
   const rows = results ? aggregateModels(results, connections) : [];
   const failedResults = results?.filter((result) => !result.success) ?? [];
@@ -49,6 +52,8 @@ export function GatewayModelsPage({
   return (
     <ConnectedGatewayModelsTable
       models={rows}
+      organizationId={organizationId}
+      canManageGateway={canManageGateway}
       failedProviderCount={failedResults.length}
       providerCount={results?.length ?? connections.length}
       hasProviders={connections.length > 0}
@@ -60,9 +65,6 @@ export function GatewayModelsPage({
       }
       syncError={modelsQuery.isError || syncModelsMutation.isError}
       onSync={sync}
-      hasMoreProviders={Boolean(connectionsQuery.hasNextPage)}
-      isLoadingMoreProviders={connectionsQuery.isFetchingNextPage}
-      onLoadMoreProviders={() => connectionsQuery.fetchNextPage()}
     />
   );
 }
