@@ -1086,19 +1086,38 @@ types:
       - CORRECTION
       - TEXT
 
+  # Classic public-API error body returned by withMiddlewares /
+  # createAuthedProjectAPIRoute (res.json({ message, error })).
+  # Distinct from PublicApiError / unstablePublicApiError, which use `code`.
+  ApiError:
+    docs: |
+      Error body returned by the public API for common HTTP errors
+      (400/401/403/404/405). Matches the existing runtime payload shape;
+      not the structured PublicApiError contract used by evaluators and
+      unstable endpoints.
+    properties:
+      message:
+        type: string
+        docs: Human-readable description of the failure.
+      error:
+        type: unknown
+        docs: >
+          Error name (for example LangfuseNotFoundError) or validation
+          issues for malformed requests.
+
 errors:
   Error:
     status-code: 400
-    type: unknown
+    type: ApiError
   UnauthorizedError:
     status-code: 401
-    type: unknown
+    type: ApiError
   AccessDeniedError:
     status-code: 403
-    type: unknown
+    type: ApiError
   NotFoundError:
     status-code: 404
-    type: unknown
+    type: ApiError
   MethodNotAllowedError:
     status-code: 405
-    type: unknown
+    type: ApiError
