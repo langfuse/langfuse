@@ -31,6 +31,8 @@ import {
   ReferenceNode,
   TableNode,
   ValueNode,
+  sql,
+  type AliasedRawBuilder,
   type Expression,
   type KyselyPlugin,
   type OperationNode,
@@ -326,6 +328,42 @@ export function toJSONString(
   expression: Expression<unknown>,
 ): ChExpression<string> {
   return functionCall("toJSONString", [expression]);
+}
+
+/**
+ * Column name a field-map entry produces:
+ * `'e.trace_id as "trace_id"'` → `"trace_id"`.
+ */
+type FieldMapAlias<S extends string> =
+  S extends `${string} ${"as" | "AS"} ${infer Rest}`
+    ? FieldMapAlias<Rest>
+    : S extends `"${infer Name}"`
+      ? Name
+      : S;
+
+type FieldMapSelection<S extends string> =
+  S extends `${string} ${"as" | "AS"} ${string}`
+    ? AliasedRawBuilder<unknown, FieldMapAlias<S>>
+    : S;
+
+const FIELD_MAP_ALIAS = /^(.*)\s+as\s+"?(\w+)"?\s*$/is;
+
+/**
+ * A legacy builder field-map entry (`EVENTS_AGGREGATION_FIELDS`,
+ * `EVENTS_SESSION_AGGREGATION_FIELDS`, …) as a select expression typed by the
+ * column it produces, so AST queries and the builders read one SQL source.
+ * `"sum(x) AS total"` becomes `sum(x)` aliased `total`; an entry without an
+ * alias (`"project_id"`, `"e.event_ts"`) stays a column reference and is
+ * checked against the registry.
+ */
+export function fieldMapSelect<S extends string>(
+  entry: S,
+): FieldMapSelection<S>;
+export function fieldMapSelect(
+  entry: string,
+): string | AliasedRawBuilder<unknown, string> {
+  const match = FIELD_MAP_ALIAS.exec(entry);
+  return match ? sql.raw(match[1]).as(match[2]) : entry;
 }
 
 function dateArg(value: Expression<Date> | Date): OperationNodeSource {

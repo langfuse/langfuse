@@ -10,6 +10,7 @@ import {
 } from "./errors";
 import {
   arrayMap,
+  fieldMapSelect,
   leftUTF8,
   mapValue,
   metadataMap,
@@ -242,6 +243,23 @@ describe("renderClickhouseExpression", () => {
   it("rejects a bound value", () => {
     expect(() => renderClickhouseExpression(mapValue(metadata, "key"))).toThrow(
       /cannot bind parameters/,
+    );
+  });
+});
+
+describe("fieldMapSelect", () => {
+  it("aliases at the trailing AS and keeps bare columns as references", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events_core as e")
+      .select([
+        fieldMapSelect("CAST(e.total_cost AS String) AS cost"),
+        fieldMapSelect('e.trace_id as "trace_id"'),
+        fieldMapSelect("e.event_ts"),
+      ]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    expect(compiled).toContain(
+      "select CAST(e.total_cost AS String) as cost, e.trace_id as trace_id, e.event_ts from",
     );
   });
 });

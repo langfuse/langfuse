@@ -52,7 +52,7 @@ export const getSessionTracesFromEvents = async (props: {
   const { projectId, sessionId } = props;
   const builder = getClickhouseKysely()
     .selectFrom("events_full as e")
-    .select(traceAggregationSelects() as never)
+    .select(traceAggregationSelects())
     .where("e.session_id", "=", sessionId)
     .where("e.is_deleted", "=", 0)
     .groupBy(["trace_id", "project_id"])

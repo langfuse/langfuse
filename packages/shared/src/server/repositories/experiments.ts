@@ -5,10 +5,10 @@ import { env } from "../../env";
 import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
-import { sql } from "kysely";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
+import { fieldMapSelect } from "../query-ast/extensions";
 import {
   EXPERIMENTS_AGGREGATION_FIELDS,
   EXPERIMENTS_AGGREGATION_FIELD_SETS,
@@ -367,8 +367,8 @@ export const getExperimentMetricsFromEvents = async (props: {
     .select(
       // Same field map as the experiments table builder, so both stay in sync.
       EXPERIMENTS_AGGREGATION_FIELD_SETS.metrics.map((field) =>
-        sql.raw(EXPERIMENTS_AGGREGATION_FIELDS[field]),
-      ) as never,
+        fieldMapSelect(EXPERIMENTS_AGGREGATION_FIELDS[field]),
+      ),
     )
     .where("e.experiment_id", "in", experimentIds)
     .where("e.experiment_id", "!=", "")

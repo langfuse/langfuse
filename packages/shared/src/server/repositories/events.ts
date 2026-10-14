@@ -40,6 +40,7 @@ import {
   byteLength,
   count,
   dateDiff,
+  fieldMapSelect,
   leftUTF8,
   limitBy,
   mapValue,
@@ -1189,7 +1190,7 @@ export const getTraceByIdFromEventsTable = async ({
       ? qb.selectFrom("events_core as e")
       : qb.selectFrom("events_full as e");
     return from
-      .select(traceAggregationSelects() as never)
+      .select(traceAggregationSelects())
       .where("trace_id", "in", [traceId])
       .$if(fromTimestamp != null, (inner) =>
         inner.where(
@@ -1204,7 +1205,7 @@ export const getTraceByIdFromEventsTable = async ({
 
   const metadataSelect = excludeMetadata
     ? sql`map()`.as("metadata")
-    : sql`t.metadata`;
+    : "t.metadata";
 
   const builder = db
     .with("traces", (qb) =>
@@ -1212,20 +1213,20 @@ export const getTraceByIdFromEventsTable = async ({
     )
     .selectFrom("traces as t")
     .select([
-      sql`t.id`,
-      sql`t.name`,
-      sql`t.user_id`,
-      sql`t.release`,
-      sql`t.version`,
-      sql`t.project_id`,
-      sql`t.environment`,
-      sql`t.public`,
-      sql`t.bookmarked`,
-      sql`t.tags`,
-      sql`t.session_id`,
-      sql`t.timestamp`,
-      sql`t.created_at`,
-      sql`t.updated_at`,
+      "t.id",
+      "t.name",
+      "t.user_id",
+      "t.release",
+      "t.version",
+      "t.project_id",
+      "t.environment",
+      "t.public",
+      "t.bookmarked",
+      "t.tags",
+      "t.session_id",
+      "t.timestamp",
+      "t.created_at",
+      "t.updated_at",
       metadataSelect,
       sql`0`.as("is_deleted"),
       ...traceIoSelects(excludeInputOutput, truncated),
@@ -1267,9 +1268,7 @@ export const getTraceByIdFromEventsTable = async ({
 };
 
 export function traceAggregationSelects() {
-  return Object.values(EVENTS_AGGREGATION_FIELDS).map((field) =>
-    sql.raw(field),
-  );
+  return Object.values(EVENTS_AGGREGATION_FIELDS).map(fieldMapSelect);
 }
 
 /** Earliest start_time an observation of a trace anchored at `anchor` can have. */
@@ -1280,7 +1279,12 @@ function observationsToTraceLowerBound(anchor: Date): Date {
   );
 }
 
-function traceIoSelects(excludeInputOutput: boolean, truncated: boolean) {
+function traceIoSelects(
+  excludeInputOutput: boolean,
+  truncated: boolean,
+): ReadonlyArray<
+  "t.input" | "t.output" | AliasedExpression<unknown, "input" | "output">
+> {
   if (excludeInputOutput) return [sql`''`.as("input"), sql`''`.as("output")];
   if (truncated) {
     const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
@@ -1289,7 +1293,7 @@ function traceIoSelects(excludeInputOutput: boolean, truncated: boolean) {
       leftUTF8("t.output", charLimit).as("output"),
     ];
   }
-  return [sql`t.input`, sql`t.output`];
+  return ["t.input", "t.output"];
 }
 
 /**
@@ -3871,8 +3875,8 @@ export const getSessionMetricsFromEvents = async <
     .selectFrom("events_core as e")
     .select(
       fields.map((field) =>
-        sql.raw(EVENTS_SESSION_AGGREGATION_FIELDS[field]),
-      ) as never,
+        fieldMapSelect(EVENTS_SESSION_AGGREGATION_FIELDS[field]),
+      ),
     )
     .where("session_id", "in", sessionIds)
     .$if(queryFromTimestamp != null, (qb) =>
