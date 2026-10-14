@@ -111,7 +111,8 @@ export function prepareEvaluatorGallery({
           ]
         : [];
     }),
-    ...(filteredCustom.length
+    // Kept while the sidebar lists it, so selecting it lands even at 0 matches.
+    ...(hasCustomTemplates
       ? [
           {
             key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,

@@ -85,12 +85,16 @@ describe("prepareEvaluatorGallery", () => {
       { key: "coding-agents", count: 0 },
       { key: "custom", count: 0 },
     ]);
-    expect(gallery.sections).toHaveLength(1);
-    expect(gallery.sections[0]?.templates).toEqual([
-      expect.objectContaining({
-        source: "managed",
-        key: "answer-groundedness",
-      }),
+    expect(
+      gallery.sections.map(({ key, templates }) => ({
+        key,
+        templates: templates.map((template) =>
+          template.source === "managed" ? template.key : template.id,
+        ),
+      })),
+    ).toEqual([
+      { key: "retrieval", templates: ["answer-groundedness"] },
+      { key: "custom", templates: [] },
     ]);
   });
 });

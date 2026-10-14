@@ -102,4 +102,16 @@ describe("visibleGallerySections", () => {
       visibleGallerySections(sections, "custom").map((section) => section.key),
     ).toEqual(["custom"]);
   });
+
+  it("keeps an empty Your templates only when it is selected", () => {
+    const emptyCustom = { ...customSection, templates: [] };
+    const withEmpty = [emptyCustom, qualitySection];
+
+    expect(
+      visibleGallerySections(withEmpty, "all").map((section) => section.key),
+    ).toEqual(["quality"]);
+    expect(
+      visibleGallerySections(withEmpty, "custom").map((section) => section.key),
+    ).toEqual(["custom"]);
+  });
 });

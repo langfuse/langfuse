@@ -1,9 +1,9 @@
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
-import { EvaluatorGallerySectionHeader } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySectionHeader/EvaluatorGallerySectionHeader";
-import { EvaluatorRecommendedCard } from "./components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
-import { EvaluatorRecommendedCards } from "./components/EvaluatorRecommendedCards/EvaluatorRecommendedCards";
+import { EvaluatorGallerySectionHeader } from "@/src/features/evals/v2/components/EvaluatorGallerySectionHeader/EvaluatorGallerySectionHeader";
+import { EvaluatorRecommendedCard } from "@/src/features/evals/v2/components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
+import { EvaluatorRecommendedCards } from "@/src/features/evals/v2/components/EvaluatorRecommendedCards/EvaluatorRecommendedCards";
 import { EvaluatorTemplateRow } from "./components/EvaluatorTemplateRow/EvaluatorTemplateRow";
 import type {
   GalleryTemplate,

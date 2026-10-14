@@ -2,8 +2,11 @@ import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 
-import { EvaluatorGallerySectionHeader } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySectionHeader/EvaluatorGallerySectionHeader";
-import { EvaluatorMethodTile } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorMethodTile/EvaluatorMethodTile";
+import { EvaluatorGallerySectionHeader } from "@/src/features/evals/v2/components/EvaluatorGallerySectionHeader/EvaluatorGallerySectionHeader";
+import { cn } from "@/src/utils/tailwind";
+
+import { EvaluatorMethodTile } from "./components/EvaluatorMethodTile/EvaluatorMethodTile";
+import styles from "./EvaluatorGalleryStartRow.module.css";
 
 const EVALUATOR_START_OPTIONS = [
   {
@@ -63,9 +66,12 @@ function StartOptionCard({
     <button
       type="button"
       onClick={handleCreate}
-      className="bg-background hover:shadow-card-hover flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-left"
+      className={cn(
+        styles.card,
+        "bg-background flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-left",
+      )}
     >
-      <EvaluatorMethodTile type={option.type} size="lg" />
+      <EvaluatorMethodTile type={option.type} />
       <span className="flex min-w-0 flex-col">
         <span className="flex items-center gap-1.5 text-xs font-bold">
           {option.title}

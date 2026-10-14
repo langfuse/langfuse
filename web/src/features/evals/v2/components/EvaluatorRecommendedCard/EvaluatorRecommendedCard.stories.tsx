@@ -1,9 +1,9 @@
 import { fn, userEvent, expect } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 
-import preview from "../../../../../../../../../../.storybook/preview";
+import preview from "../../../../../../.storybook/preview";
 import { EvaluatorRecommendedCard } from "./EvaluatorRecommendedCard";
-import type { GalleryTemplate } from "../../../../../../types/templateGallery";
+import type { GalleryTemplate } from "../../types/templateGallery";
 
 const template = {
   source: "managed",

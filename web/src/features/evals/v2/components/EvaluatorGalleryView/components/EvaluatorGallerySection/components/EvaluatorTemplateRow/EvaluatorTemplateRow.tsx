@@ -1,4 +1,4 @@
-import { EvaluatorGalleryMethodBadge } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
+import { EvaluatorGalleryMethodBadge } from "@/src/features/evals/v2/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
 import { getGalleryTemplatePresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
 

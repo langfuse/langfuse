@@ -5,12 +5,14 @@ import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import type { ManagedTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import { cn } from "@/src/utils/tailwind";
 
+import styles from "./EvaluatorGalleryScorePreview.module.css";
+
 const MAX_VISIBLE_SCORES = 1;
 
 const MESH_TINT: Partial<Record<EvalTemplateType, string>> = {
-  [EvalTemplateTypeEnum.LLM_AS_JUDGE]: "preview-mesh-judge",
-  [EvalTemplateTypeEnum.DECISION_MODEL]: "preview-mesh-decision-model",
-  [EvalTemplateTypeEnum.CODE]: "preview-mesh-code",
+  [EvalTemplateTypeEnum.LLM_AS_JUDGE]: styles.judge,
+  [EvalTemplateTypeEnum.DECISION_MODEL]: styles.decisionModel,
+  [EvalTemplateTypeEnum.CODE]: styles.code,
 };
 
 /** Sample `name: value` chips on a type-tinted mesh, styled like trace score badges. */
@@ -30,8 +32,9 @@ export function EvaluatorGalleryScorePreview({
     <div
       aria-hidden="true"
       className={cn(
-        "preview-mesh flex h-20 items-center justify-center gap-1 overflow-hidden rounded-md px-3",
+        styles.preview,
         MESH_TINT[type],
+        "flex h-20 items-center justify-center gap-1 overflow-hidden rounded-md px-3",
       )}
     >
       <div className="flex max-w-full min-w-0 items-center justify-center gap-1">
@@ -44,7 +47,10 @@ export function EvaluatorGalleryScorePreview({
                 </span>
                 <span className="py-0.5">:</span>
               </span>
-              <span className="text-foreground py-0.5 font-mono text-nowrap">
+              <span
+                className="text-foreground truncate py-0.5 font-mono"
+                title={score.value}
+              >
                 {score.value}
               </span>
             </BadgeShell>
@@ -58,6 +64,7 @@ export function EvaluatorGalleryScorePreview({
           </BadgeShell>
         ) : null}
       </div>
+      {/* Shown while the parent card (group/card) is hovered. */}
       <div className="bg-foreground/40 text-background absolute inset-0 hidden items-center justify-center backdrop-blur-xs group-hover/card:flex">
         <span className="flex items-center gap-1 text-sm font-bold">
           Use template

@@ -59,10 +59,6 @@
   --spacing-banner-offset: var(--banner-offset);
   --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
 
-  /* Card lifted on hover. */
-  --shadow-card-hover:
-    0 1px 2px 0 rgb(0 0 0 / 0.06), 0 6px 14px -2px rgb(0 0 0 / 0.12);
-
   --color-primary-accent: hsl(var(--primary-accent));
   --color-primary-accent-fill: var(--primary-accent-fill);
   --color-link: hsl(var(--link));
@@ -972,57 +968,6 @@
     black calc(100% - var(--spacing) * 3),
     transparent
   );
-}
-
-/* Preview backdrop for gallery cards: muted-gray base, a faint two-tone mesh and
-   light grain. Tint it with --preview-mesh-a / --preview-mesh-b (see the
-   preview-mesh-* type utilities, one hue per type); untinted it stays neutral. */
-@utility preview-mesh {
-  position: relative;
-  isolation: isolate;
-  background:
-    radial-gradient(
-      70% 120% at 25% 10%,
-      color-mix(in srgb, var(--preview-mesh-a, transparent) 11%, transparent),
-      transparent 70%
-    ),
-    radial-gradient(
-      60% 100% at 80% 90%,
-      color-mix(in srgb, var(--preview-mesh-b, transparent) 6%, transparent),
-      transparent 70%
-    ),
-    hsl(var(--muted-gray));
-  &::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    opacity: 0.15;
-    mix-blend-mode: multiply;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  }
-  @variant dark {
-    &::after {
-      mix-blend-mode: screen;
-      opacity: 0.06;
-    }
-  }
-}
-
-@utility preview-mesh-judge {
-  --preview-mesh-a: hsl(var(--dark-blue));
-  --preview-mesh-b: hsl(var(--dark-blue));
-}
-
-@utility preview-mesh-decision-model {
-  --preview-mesh-a: var(--color-category-violet);
-  --preview-mesh-b: var(--color-category-violet);
-}
-
-@utility preview-mesh-code {
-  --preview-mesh-a: var(--color-category-orange);
-  --preview-mesh-b: var(--color-category-orange);
 }
 
 @utility scrollbar-visible {

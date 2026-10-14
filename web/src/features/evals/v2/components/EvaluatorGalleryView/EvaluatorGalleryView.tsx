@@ -75,7 +75,9 @@ export function EvaluatorGalleryView({
       ? activeSection
       : EVALUATOR_GALLERY_ALL_SECTION_KEY;
   const displayedSections = visibleGallerySections(sections, resolvedSection);
-  const hasTemplates = displayedSections.length > 0;
+  const hasTemplates = displayedSections.some(
+    (section) => section.templates.length > 0,
+  );
   const isSingleSection = resolvedSection !== EVALUATOR_GALLERY_ALL_SECTION_KEY;
   const selectSection = (key: string) => {
     if (key !== resolvedSection) onSearchChange("");

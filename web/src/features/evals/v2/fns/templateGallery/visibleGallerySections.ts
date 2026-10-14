@@ -56,9 +56,11 @@ export function visibleGallerySections(
   );
 
   if (isGalleryAllSection(activeSection) || !selectedSection) {
-    return recommendedSection
-      ? [recommendedSection, ...remainingSections]
-      : remainingSections;
+    return (
+      recommendedSection
+        ? [recommendedSection, ...remainingSections]
+        : remainingSections
+    ).filter((section) => section.templates.length > 0);
   }
 
   return [selectedSection];

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { EvaluatorGallerySectionHeader } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySectionHeader/EvaluatorGallerySectionHeader";
+import { EvaluatorGallerySectionHeader } from "@/src/features/evals/v2/components/EvaluatorGallerySectionHeader/EvaluatorGallerySectionHeader";
 
 export function EvaluatorRecommendedCards({
   label,

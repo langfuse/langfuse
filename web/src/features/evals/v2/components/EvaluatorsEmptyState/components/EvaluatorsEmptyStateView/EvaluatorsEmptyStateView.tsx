@@ -1,5 +1,5 @@
-import { EvaluatorRecommendedCard } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
-import { EvaluatorRecommendedCards } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorRecommendedCards/EvaluatorRecommendedCards";
+import { EvaluatorRecommendedCard } from "@/src/features/evals/v2/components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
+import { EvaluatorRecommendedCards } from "@/src/features/evals/v2/components/EvaluatorRecommendedCards/EvaluatorRecommendedCards";
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
 
 type EvaluatorsEmptyStateViewProps = {

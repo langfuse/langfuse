@@ -5,28 +5,20 @@ import { cn } from "@/src/utils/tailwind";
 
 type EvaluatorMethodTileProps = {
   type: EvalTemplateType;
-  size?: "sm" | "lg";
 };
 
 /** The type icon on its pastel tile. */
-export function EvaluatorMethodTile({
-  type,
-  size = "sm",
-}: EvaluatorMethodTileProps) {
+export function EvaluatorMethodTile({ type }: EvaluatorMethodTileProps) {
   const { Icon, tileClassName } = EVALUATOR_METHOD_PRESENTATION[type];
 
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center justify-center",
-        size === "lg" ? "size-10 rounded-md" : "size-5 rounded-sm",
+        "inline-flex size-10 shrink-0 items-center justify-center rounded-md",
         tileClassName,
       )}
     >
-      <Icon
-        className={size === "lg" ? "icon-base" : "icon-sm"}
-        aria-hidden="true"
-      />
+      <Icon className="icon-base" aria-hidden="true" />
     </span>
   );
 }
