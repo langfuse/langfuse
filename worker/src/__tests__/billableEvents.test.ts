@@ -23,12 +23,10 @@ const skipUnlessBillableEvents = (ctx: TestContext) =>
     "billable_events is created by ch:dev-tables only",
   );
 
-const MINUTE = 60 * 1000;
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const THREE_DAYS_AGO = Date.now() - 72 * HOUR;
-
-const toUtcDate = (clickhouseDateTime: string) =>
-  new Date(`${clickhouseDateTime.replace(" ", "T")}Z`);
 
 const getBillableRows = (projectId: string) =>
   queryClickhouse<{
@@ -45,34 +43,26 @@ const getBillableRows = (projectId: string) =>
     params: { projectId },
   });
 
-const countsInWindow = async (projectId: string, windowStart: Date) => {
+const countsInWindow = async (
+  projectId: string,
+  windowFrom: Date,
+  windowTo: Date,
+) => {
   const rows = await getBillableUnitCountsByProjectInWindow({
-    windowStart,
+    windowFrom,
+    windowTo,
     projectId,
   });
   return Object.fromEntries(rows.map((row) => [row.eventType, row.count]));
 };
 
-/** Sums the billed units over every window the project has rows in. */
-const billedUnitsAcrossWindows = async (projectId: string) => {
-  const windows = await queryClickhouse<{ window: string }>({
-    query: `
-      SELECT DISTINCT toStartOfFifteenMinutes(ingested_at) AS window
-      FROM billable_events
-      WHERE project_id = {projectId: String}
-    `,
-    params: { projectId },
-  });
-  const totals: Partial<Record<BillableEventType, number>> = {};
-  for (const { window } of windows) {
-    const counts = await countsInWindow(projectId, toUtcDate(window));
-    for (const [eventType, count] of Object.entries(counts)) {
-      const type = eventType as BillableEventType;
-      totals[type] = (totals[type] ?? 0) + count;
-    }
-  }
-  return totals;
-};
+/** Billed units of rows the MVs just wrote, whose ingested_at is now. */
+const billedUnitsAroundNow = (projectId: string) =>
+  countsInWindow(
+    projectId,
+    new Date(Date.now() - HOUR),
+    new Date(Date.now() + HOUR),
+  );
 
 /** Inserts ledger rows directly, to place them in chosen ingestion windows. */
 const insertBillableEvents = (
@@ -185,7 +175,7 @@ describe("billable_events materialized views", () => {
     await createScoresCh([
       createTraceScore({ project_id: projectId, trace_id: traceId }),
     ]);
-    const billedBeforeDelete = await billedUnitsAcrossWindows(projectId);
+    const billedBeforeDelete = await billedUnitsAroundNow(projectId);
     expect(billedBeforeDelete).toEqual({ observation: 2, trace: 1, score: 1 });
 
     await deleteEventsByTraceIds(projectId, [traceId]);
@@ -196,55 +186,63 @@ describe("billable_events materialized views", () => {
       params: { projectId },
     });
     expect(Number(remainingEvents[0].count)).toBe(0);
-    expect(await billedUnitsAcrossWindows(projectId)).toEqual(
-      billedBeforeDelete,
-    );
+    expect(await billedUnitsAroundNow(projectId)).toEqual(billedBeforeDelete);
   });
 });
 
 describe("getBillableUnitCountsByProjectInWindow", () => {
-  // A fixed, 15-minute aligned window start; each test uses its own project.
+  // A fixed window start; each test uses its own project.
   const T0 = new Date("2026-01-05T00:00:00.000Z");
   const at = (offsetMs: number) => new Date(T0.getTime() + offsetMs);
 
-  it("bills a re-sent unit again only after 24 hours without it", async (ctx) => {
+  it("deduplicates within the window and against the 24 hours before it", async (ctx) => {
     await skipUnlessBillableEvents(ctx);
     const projectId = randomUUID();
     await insertBillableEvents(projectId, [
-      { eventType: "trace", eventId: "resent-within-24h", at: at(MINUTE) },
-      { eventType: "trace", eventId: "resent-within-24h", at: at(24 * HOUR) },
-      { eventType: "trace", eventId: "resent-after-24h", at: at(MINUTE) },
+      { eventType: "trace", eventId: "twice-in-window", at: at(0) },
+      { eventType: "trace", eventId: "twice-in-window", at: at(40 * MINUTE) },
+      // The lookback starts exactly 24 hours before windowFrom.
+      { eventType: "trace", eventId: "resent-within-24h", at: at(-24 * HOUR) },
+      { eventType: "trace", eventId: "resent-within-24h", at: at(5 * MINUTE) },
       {
         eventType: "trace",
         eventId: "resent-after-24h",
-        at: at(24 * HOUR + 15 * MINUTE),
+        at: at(-24 * HOUR - SECOND),
       },
+      { eventType: "trace", eventId: "resent-after-24h", at: at(5 * MINUTE) },
+      // windowTo is exclusive, so this belongs to the next window.
+      { eventType: "trace", eventId: "at-window-end", at: at(HOUR) },
     ]);
 
-    expect(await countsInWindow(projectId, T0)).toEqual({ trace: 2 });
-    // The lookback for this window starts at T0 and still sees both ids.
-    expect(await countsInWindow(projectId, at(24 * HOUR))).toEqual({});
-    // The lookback for this window starts after T0.
-    expect(
-      await countsInWindow(projectId, at(24 * HOUR + 15 * MINUTE)),
-    ).toEqual({ trace: 1 });
+    expect(await countsInWindow(projectId, T0, at(HOUR))).toEqual({
+      trace: 2,
+    });
+    expect(await countsInWindow(projectId, at(HOUR), at(2 * HOUR))).toEqual({
+      trace: 1,
+    });
   });
 
   it("bills a multi-day trace once while its gaps stay under 24 hours", async (ctx) => {
     await skipUnlessBillableEvents(ctx);
     const projectId = randomUUID();
-    const windows = [0, 20 * HOUR, 40 * HOUR, 60 * HOUR].map(at);
+    const windowStarts = [0, 20 * HOUR, 40 * HOUR, 60 * HOUR].map(at);
     await insertBillableEvents(
       projectId,
-      windows.map((windowStart) => ({
+      windowStarts.map((windowFrom) => ({
         eventType: "trace",
         eventId: "long-running-trace",
-        at: windowStart,
+        at: windowFrom,
       })),
     );
 
     const counts = await Promise.all(
-      windows.map((windowStart) => countsInWindow(projectId, windowStart)),
+      windowStarts.map((windowFrom) =>
+        countsInWindow(
+          projectId,
+          windowFrom,
+          new Date(windowFrom.getTime() + 15 * MINUTE),
+        ),
+      ),
     );
     expect(counts).toEqual([{ trace: 1 }, {}, {}, {}]);
   });
@@ -259,22 +257,21 @@ describe("getBillableUnitCountsByProjectInWindow", () => {
       { eventType: "observation", eventId: "id-2", at: at(14 * MINUTE) },
       { eventType: "trace", eventId: "id-1", at: at(MINUTE) },
       { eventType: "score", eventId: "id-3", at: at(MINUTE) },
-      // Next window.
-      { eventType: "score", eventId: "id-4", at: at(15 * MINUTE) },
     ]);
     // The same id in another project is a separate unit.
     await insertBillableEvents(projectB, [
       { eventType: "observation", eventId: "id-1", at: at(MINUTE) },
     ]);
 
-    expect(await countsInWindow(projectA, T0)).toEqual({
+    expect(await countsInWindow(projectA, T0, at(15 * MINUTE))).toEqual({
       observation: 2,
       trace: 1,
       score: 1,
     });
 
     const allProjects = await getBillableUnitCountsByProjectInWindow({
-      windowStart: T0,
+      windowFrom: T0,
+      windowTo: at(15 * MINUTE),
     });
     expect(
       allProjects.filter((row) => row.projectId === projectA),
@@ -284,9 +281,9 @@ describe("getBillableUnitCountsByProjectInWindow", () => {
     ]);
   });
 
-  it("rejects a window start that is not aligned to 15 minutes", async () => {
+  it("rejects a window that does not end after it starts", async () => {
     await expect(
-      getBillableUnitCountsByProjectInWindow({ windowStart: at(MINUTE) }),
-    ).rejects.toThrow("aligned to 15 minutes");
+      getBillableUnitCountsByProjectInWindow({ windowFrom: T0, windowTo: T0 }),
+    ).rejects.toThrow("must end after it starts");
   });
 });

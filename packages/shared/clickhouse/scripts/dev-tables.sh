@@ -124,9 +124,9 @@ SELECT
 FROM traces;
 
 -- Billing ledger: one row per billable unit (observation, trace, score) each
--- time it is ingested. A unit is billed in a 15-minute window of ingested_at
--- when its id appears there and not in the 24 hours before the window starts
--- (getBillableUnitCountsByProjectInWindow).
+-- time it is ingested. A unit is billed once in a billing window of
+-- ingested_at when its id appears there and not in the 24 hours before the
+-- window starts (getBillableUnitCountsByProjectInWindow).
 CREATE TABLE IF NOT EXISTS billable_events (
     ingested_at DateTime('UTC') DEFAULT now(),
     project_id String,
