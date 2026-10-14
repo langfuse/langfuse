@@ -343,6 +343,11 @@ describe("AI gateway control plane", () => {
             models: ["disabled-model", "enabled-model"],
           },
         ]);
+        await new GatewayModelCatalogService(prisma).clearModelCache(
+          setup.org.id,
+          connection.id,
+        );
+        fetchSpy.mockClear();
         await expect(
           readCaller.aiGateway.refreshModels({ orgId: setup.org.id }),
         ).resolves.toEqual([
@@ -352,6 +357,7 @@ describe("AI gateway control plane", () => {
             models: ["enabled-model"],
           },
         ]);
+        expect(fetchSpy).not.toHaveBeenCalled();
       } finally {
         fetchSpy.mockRestore();
       }

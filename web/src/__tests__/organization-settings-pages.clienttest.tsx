@@ -7,6 +7,7 @@ import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
+import { env } from "@/src/env.mjs";
 
 vi.mock("@/src/components/PagedSettingsContainer", () => ({
   PagedSettingsContainer: () => null,
@@ -208,6 +209,29 @@ describe("useOrganizationSettingsPages", () => {
         .filter((page) => page.show)
         .map((page) => page.slug),
     ).toEqual(["ai-gateway-models"]);
+  });
+
+  it("hides AI Gateway models for read-only access to the demo organization", () => {
+    vi.mocked(useQueryProjectOrOrganization).mockReturnValue({
+      organization: { ...organization, id: "demo-org" },
+      project: null,
+    } as unknown as ReturnType<typeof useQueryProjectOrOrganization>);
+    vi.mocked(useHasOrganizationAccess).mockImplementation(
+      ({ scope }) => scope === "gateway:read",
+    );
+    vi.mocked(useIsFeatureEnabled).mockReturnValue(true);
+    const originalDemoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID;
+    Object.assign(env, { NEXT_PUBLIC_DEMO_ORG_ID: "demo-org" });
+
+    try {
+      const { result } = renderHook(() => useOrganizationSettingsPages());
+
+      expect(
+        result.current.find((page) => page.slug === "ai-gateway-models")?.show,
+      ).toBe(false);
+    } finally {
+      Object.assign(env, { NEXT_PUBLIC_DEMO_ORG_ID: originalDemoOrgId });
+    }
   });
 
   it("hides all AI Gateway settings when the internal flag is disabled", () => {
