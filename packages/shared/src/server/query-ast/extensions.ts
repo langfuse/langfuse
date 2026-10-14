@@ -327,6 +327,22 @@ export function toJSONString(
   return functionCall("toJSONString", [expression]);
 }
 
+function dateArg(value: Expression<Date> | Date): OperationNodeSource {
+  return value instanceof Date ? ValueNode.create(value) : value;
+}
+
+/** ClickHouse `toDate(value)`; a JS `Date` is bound. */
+export function toDate(value: Expression<Date> | Date): ChExpression<Date> {
+  return functionCall("toDate", [dateArg(value)]);
+}
+
+/** ClickHouse `toStartOfMinute(value)`; a JS `Date` is bound. */
+export function toStartOfMinute(
+  value: Expression<Date> | Date,
+): ChExpression<Date> {
+  return functionCall("toStartOfMinute", [dateArg(value)]);
+}
+
 /** ClickHouse `arrayReverse(array)`. */
 function arrayReverse<T>(array: Expression<T[]>): ChExpression<T[]> {
   return functionCall("arrayReverse", [array]);

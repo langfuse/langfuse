@@ -46,7 +46,9 @@ import {
   medianExact,
   metadataMap,
   sumMapValuesWhereKeyContains,
+  toDate,
   toJSONString,
+  toStartOfMinute,
   traceSessionId,
   tupleIn,
   uniq,
@@ -1099,9 +1101,9 @@ async function getObservationByIdFromEventsTableInternal({
     .$if(startTime != null, (qb) =>
       qb.where((eb) =>
         eb(
-          eb.fn("toStartOfMinute", ["start_time"]),
+          toStartOfMinute(eb.ref("start_time")),
           "=",
-          eb.fn("toStartOfMinute", [eb.val(startTime!)]),
+          toStartOfMinute(startTime!),
         ),
       ),
     )
@@ -1239,11 +1241,7 @@ export const getTraceByIdFromEventsTable = async ({
     ])
     .$if(timestamp != null, (qb) =>
       qb.where((eb) =>
-        eb(
-          eb.fn("toDate", [eb.ref("t.timestamp")]),
-          "=",
-          eb.fn("toDate", [eb.val(timestamp!)]),
-        ),
+        eb(toDate(eb.ref("t.timestamp")), "=", toDate(timestamp!)),
       ),
     )
     .orderBy("t.timestamp", "desc")
@@ -3950,11 +3948,7 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
     ])
     .where("e.start_time", ">=", sevenDaysAgo)
     .where((eb) =>
-      eb(
-        eb.fn("toDate", ["e.start_time"]),
-        ">=",
-        eb.fn("toDate", [eb.val(sevenDaysAgo)]),
-      ),
+      eb(toDate(eb.ref("e.start_time")), ">=", toDate(sevenDaysAgo)),
     )
     .where((eb) => eb.fn<SqlBool>("startsWith", ["e.source", eb.val("otel")]))
     .where("e.ingestion_sdk_name", "not in", [...INTERNAL_INGESTION_SDK_NAMES])
