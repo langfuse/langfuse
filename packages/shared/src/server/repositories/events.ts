@@ -134,13 +134,16 @@ import {
 } from "./observations";
 import { convertEventsObservation } from "./observations_converters";
 import {
+  eventsTraceName,
+  OBSERVATION_BY_ID_SELECTS,
+  SESSION_AGGREGATION_SELECTS,
+  TRACE_AGGREGATION_SELECTS,
+} from "./events-selects";
+import {
   EventsQueryBuilder,
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
-  EVENTS_AGGREGATION_FIELDS,
-  EVENTS_SESSION_AGGREGATION_FIELDS,
-  eventsFieldSetSelections,
   type QueryWithParams,
   normalizeSessionCounts,
   type SessionEventsField,
@@ -163,7 +166,6 @@ import {
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import {
   eventsTableCols,
-  eventsTableTraceNameSql,
   normalizeEventsTraceName,
   type NumericEventsTableColumnId,
 } from "../../eventsTable";
@@ -1101,15 +1103,7 @@ async function getObservationByIdFromEventsTableInternal({
       : db.selectFrom("events_core as e")
   )
     .$call(includeDeleted())
-    // Built per call: events.ts and the builder module import each other.
-    .select(
-      eventsFieldSetSelections(
-        "byIdBase",
-        "byIdModel",
-        "byIdPrompt",
-        "byIdTimestamps",
-      ),
-    )
+    .select(OBSERVATION_BY_ID_SELECTS)
     .$if(fetchWithInputOutput, (qb) =>
       qb.select(observationIoSelects(renderingProps.truncated)),
     )
@@ -1197,7 +1191,7 @@ export const getTraceByIdFromEventsTable = async ({
       : qb.selectFrom("events_full as e");
     return from
       .$call(includeDeleted())
-      .select(traceAggregationSelects() as never)
+      .select(TRACE_AGGREGATION_SELECTS)
       .where("trace_id", "in", [traceId])
       .$if(fromTimestamp != null, (inner) =>
         inner.where(
@@ -1207,12 +1201,12 @@ export const getTraceByIdFromEventsTable = async ({
         ),
       )
       .groupBy(["trace_id", "project_id"])
-      .orderBy(sql`timestamp`, "desc");
+      .orderBy("timestamp", "desc");
   };
 
   const metadataSelect = excludeMetadata
     ? sql`map()`.as("metadata")
-    : sql`t.metadata`;
+    : "t.metadata";
 
   const builder = db
     .with("traces", (qb) =>
@@ -1220,20 +1214,20 @@ export const getTraceByIdFromEventsTable = async ({
     )
     .selectFrom("traces as t")
     .select([
-      sql`t.id`,
-      sql`t.name`,
-      sql`t.user_id`,
-      sql`t.release`,
-      sql`t.version`,
-      sql`t.project_id`,
-      sql`t.environment`,
-      sql`t.public`,
-      sql`t.bookmarked`,
-      sql`t.tags`,
-      sql`t.session_id`,
-      sql`t.timestamp`,
-      sql`t.created_at`,
-      sql`t.updated_at`,
+      "t.id",
+      "t.name",
+      "t.user_id",
+      "t.release",
+      "t.version",
+      "t.project_id",
+      "t.environment",
+      "t.public",
+      "t.bookmarked",
+      "t.tags",
+      "t.session_id",
+      "t.timestamp",
+      "t.created_at",
+      "t.updated_at",
       metadataSelect,
       sql`0`.as("is_deleted"),
       ...traceIoSelects(excludeInputOutput, truncated),
@@ -1272,12 +1266,6 @@ export const getTraceByIdFromEventsTable = async ({
   return res.shift();
 };
 
-export function traceAggregationSelects() {
-  return Object.values(EVENTS_AGGREGATION_FIELDS).map((field) =>
-    sql.raw(field),
-  );
-}
-
 /** Earliest start_time an observation of a trace anchored at `anchor` can have. */
 function observationsToTraceLowerBound(anchor: Date): Date {
   return new Date(
@@ -1286,7 +1274,12 @@ function observationsToTraceLowerBound(anchor: Date): Date {
   );
 }
 
-function traceIoSelects(excludeInputOutput: boolean, truncated: boolean) {
+function traceIoSelects(
+  excludeInputOutput: boolean,
+  truncated: boolean,
+): ReadonlyArray<
+  "t.input" | "t.output" | AliasedExpression<unknown, "input" | "output">
+> {
   if (excludeInputOutput) return [sql`''`.as("input"), sql`''`.as("output")];
   if (truncated) {
     const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
@@ -1295,7 +1288,7 @@ function traceIoSelects(excludeInputOutput: boolean, truncated: boolean) {
       leftUTF8("t.output", charLimit).as("output"),
     ];
   }
-  return [sql`t.input`, sql`t.output`];
+  return ["t.input", "t.output"];
 }
 
 /**
@@ -3641,11 +3634,11 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
     .selectFrom("events_core as e")
     .select([
       "e.trace_id as id",
-      sql.raw(eventsTableTraceNameSql).as("name"),
+      eventsTraceName.as("name"),
       "e.user_id as user_id",
       "e.tags as tags",
     ])
-    .where(sql<SqlBool>`${sql.raw(eventsTableTraceNameSql)} IS NOT NULL`)
+    .where(eventsTraceName, "is not", null)
     .where("e.trace_id", "in", props.traceIds)
     .$call(limitBy({ count: 1, columns: ["e.trace_id"] }));
 
@@ -3906,11 +3899,7 @@ export const getSessionMetricsFromEvents = async <
   const builder = getClickhouseKysely()
     .selectFrom("events_core as e")
     .$call(includeDeleted())
-    .select(
-      fields.map((field) =>
-        sql.raw(EVENTS_SESSION_AGGREGATION_FIELDS[field]),
-      ) as never,
-    )
+    .select(fields.map((field) => SESSION_AGGREGATION_SELECTS[field]))
     .where("session_id", "in", sessionIds)
     .$if(queryFromTimestamp != null, (qb) =>
       qb.where(

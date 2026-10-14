@@ -7,11 +7,7 @@ import {
   eventsTableTraceNameAggregationSql,
   eventsTableTraceNameSelectSql,
 } from "../../../eventsTable";
-import type {
-  SkillsAvailable,
-  SkillsResourceLoaded,
-} from "../../../features/skills/trace";
-import { expressionBuilder, sql, type SelectExpression } from "kysely";
+import { expressionBuilder } from "kysely";
 
 import { renderClickhouseExpression } from "../../query-ast/compile";
 import { metadataMap, traceSessionId } from "../../query-ast/extensions";
@@ -542,76 +538,6 @@ const FIELD_SETS = {
 } as const;
 
 export type FieldSetName = keyof typeof FIELD_SETS;
-
-type EventsFieldKey = keyof typeof EVENTS_FIELDS;
-
-type EventsSelection = SelectExpression<
-  { e: ClickHouseDatabase["events_core"] },
-  "e"
->;
-
-/** Fields whose EVENTS_FIELDS entry is a registry column reference. */
-type EventsColumnField = {
-  [K in EventsFieldKey]: (typeof EVENTS_FIELDS)[K] extends EventsSelection
-    ? K
-    : never;
-}[EventsFieldKey];
-
-/**
- * Query-AST selections for fields that are not plain column references,
- * built from the same source as their EVENTS_FIELDS entry.
- */
-const EVENTS_FIELD_EXPRESSIONS = {
-  traceName: sql.raw<string>(eventsTableTraceNameSelectSql).as("trace_name"),
-  metadata: eventsMetadataMap.as("metadata"),
-  skillsAvailable: sql
-    .ref<SkillsAvailable>("e.skills_available")
-    .as("skills_available"),
-  skillsResourceLoaded: sql
-    .ref<SkillsResourceLoaded>("e.skills_resource_loaded")
-    .as("skills_resource_loaded"),
-} satisfies Partial<
-  Record<Exclude<EventsFieldKey, EventsColumnField>, EventsSelection>
->;
-
-type EventsExpressionField = keyof typeof EVENTS_FIELD_EXPRESSIONS;
-
-/** Field sets whose every field has a query-AST selection. */
-type SelectableFieldSetName = {
-  [S in FieldSetName]: (typeof FIELD_SETS)[S][number] extends
-    | EventsColumnField
-    | EventsExpressionField
-    ? S
-    : never;
-}[FieldSetName];
-
-type EventsFieldSelection<K> = K extends EventsExpressionField
-  ? (typeof EVENTS_FIELD_EXPRESSIONS)[K]
-  : K extends EventsColumnField
-    ? (typeof EVENTS_FIELDS)[K]
-    : never;
-
-function isEventsExpressionField(key: string): key is EventsExpressionField {
-  return Object.hasOwn(EVENTS_FIELD_EXPRESSIONS, key);
-}
-
-/**
- * Query-AST selections for the given field sets, in EVENTS_FIELDS declaration
- * order. Column fields are the EVENTS_FIELDS strings themselves, so Kysely
- * checks each against the table registry and infers the selected row.
- */
-export function eventsFieldSetSelections<S extends SelectableFieldSetName>(
-  ...setNames: S[]
-): Array<EventsFieldSelection<(typeof FIELD_SETS)[S][number]>>;
-export function eventsFieldSetSelections(
-  ...setNames: SelectableFieldSetName[]
-): EventsSelection[] {
-  return orderedFieldKeys(setNames.flatMap((s) => FIELD_SETS[s])).map((key) =>
-    isEventsExpressionField(key)
-      ? EVENTS_FIELD_EXPRESSIONS[key]
-      : EVENTS_FIELDS[key],
-  );
-}
 
 // Canonicalize by EVENTS_FIELDS declaration order so SELECT column order does
 // not follow caller field-set order. Clustered ClickHouse reads align result
@@ -2180,7 +2106,7 @@ export const EXPERIMENTS_AGGREGATION_FIELDS = {
 /**
  * Field sets for experiment aggregation queries.
  */
-export const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
+const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
   count: ["experimentId"] as const,
   base: [
     "experimentId",
