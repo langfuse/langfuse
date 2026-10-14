@@ -23,7 +23,7 @@ export const KeepsPromptWhenNotSent = meta.story({
     await expect(args.onSubmit).toHaveBeenCalledWith("flag medical advice");
     await expect(textarea).toHaveValue("flag medical advice");
     await expect(await canvas.findByRole("status")).toHaveTextContent(
-      /Couldn't send/,
+      /Not sent/,
     );
   },
 });

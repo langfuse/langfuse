@@ -75,8 +75,8 @@ export function EvaluatorGalleryAiBox({
       <div className="flex items-center justify-end gap-3">
         {notSent ? (
           <p role="status" className="text-muted-foreground text-xs">
-            Couldn&apos;t send. The assistant may be busy or rate limited, try
-            again shortly.
+            Not sent. The assistant may be busy or rate limited, try again
+            shortly.
           </p>
         ) : null}
         <Button
