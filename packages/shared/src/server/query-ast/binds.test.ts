@@ -340,16 +340,6 @@ describe("typed params from the column registry", () => {
       expect(sql).toMatch(/is_deleted = \{p\d+:Int64\}/);
     });
 
-    it("uses the name-only type for a table-function source", () => {
-      const { sql } = compile(
-        db
-          .selectFrom((eb) => eb.fn("numbers", [eb.lit(10)]).as("n"))
-          .selectAll()
-          .where(db.dynamic.ref("n.is_deleted"), "=", 0),
-      );
-      expect(sql).toMatch(/n\.is_deleted = \{p\d+:UInt8\}/);
-    });
-
     it("uses the name-only type for a qualifier declared nowhere", () => {
       const { sql } = compile(
         db

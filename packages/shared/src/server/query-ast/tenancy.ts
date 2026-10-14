@@ -61,9 +61,11 @@ type Relation =
  * tenanted physical relation that does not already have that predicate, then
  * stamps the tree so {@link ClickHouseQueryCompiler} will compile it.
  *
- * Any `RawNode` whose SQL fragments introduce a relation (`SELECT` / `FROM` /
- * `JOIN`) is rejected — not only FROM/JOIN table sources. Kysely's own
- * keyword fragments (`asc` / `desc`) are not relations and are allowed.
+ * FROM/JOIN sources must be table references or subqueries; anything else,
+ * such as a table function, is rejected. Any `RawNode` whose SQL fragments
+ * introduce a relation (`SELECT` / `FROM` / `JOIN`) is rejected — not only
+ * FROM/JOIN table sources. Kysely's own keyword fragments (`asc` / `desc`) are
+ * not relations and are allowed.
  */
 export class TenancyInjectionPlugin implements KyselyPlugin {
   constructor(private readonly ctx: ExecutionContext) {
@@ -186,6 +188,11 @@ function assertRelationAllowed(relation: Relation): void {
   if (relation.kind === "raw") {
     throw new UnscopedRelationError(
       "Raw SQL table sources are rejected: they can introduce an unscoped relation that the tenancy pass cannot prove. Use a traced table reference instead.",
+    );
+  }
+  if (relation.kind === "other") {
+    throw new UnscopedRelationError(
+      "Only table references and subqueries are accepted as FROM/JOIN sources: a table function such as remote() or merge() reads a relation the tenancy pass cannot scope.",
     );
   }
 }
