@@ -1,7 +1,6 @@
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, RefreshCw, Trash2 } from "lucide-react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
@@ -98,7 +97,14 @@ export function GatewayConnectionModelsPage({
             />
             <div className="flex items-center justify-between gap-4">
               <h2 className="text-lg font-bold">{connection.name}</h2>
-              <div className="-translate-y-px">
+              <div className="flex -translate-y-px items-center gap-2">
+                <IconButton
+                  icon={RefreshCw}
+                  label="Refresh provider models"
+                  variant="outline"
+                  disabled={isRetrying || isDeleting}
+                  onClick={retryDiscovery}
+                />
                 <IconButton
                   icon={Trash2}
                   label="Delete provider credential"
@@ -131,18 +137,10 @@ export function GatewayConnectionModelsPage({
           <Alert variant="destructive">
             <Alert.Title>Models could not be loaded</Alert.Title>
             <Alert.Description>
-              The provider returned a model discovery error. Retry the
-              connection before changing model access.
+              The provider returned a model discovery error. Refresh the
+              provider before changing model access.
             </Alert.Description>
           </Alert>
-          <div>
-            <Button
-              text="Retry"
-              variant="secondary"
-              loading={isRetrying}
-              onClick={retryDiscovery}
-            />
-          </div>
         </div>
       )}
     </div>
