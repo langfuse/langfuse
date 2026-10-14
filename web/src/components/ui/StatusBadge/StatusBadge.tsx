@@ -22,6 +22,7 @@ const statusCategories = {
   pending: ["pending", "waiting", "queued", "running", "processing"],
   delayed: ["delayed"],
   inactive: ["disabled", "inactive", "archived", "cancelled", "debug"],
+  notConfigured: ["not configured"],
   paused: ["paused"],
   completed: ["completed", "done", "finished"],
   error: ["error", "failed", "triggered"],
@@ -68,6 +69,12 @@ const categoryStyles: Record<
     text: "text-primary",
     dotOuter: "bg-muted-foreground",
     dotInner: "bg-muted-foreground",
+  },
+  notConfigured: {
+    background: "bg-muted-gray/50",
+    text: "text-muted-foreground",
+    dotOuter: "bg-muted-foreground/50",
+    dotInner: "bg-muted-foreground/50",
   },
   paused: {
     background: "bg-light-yellow",

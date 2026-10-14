@@ -418,7 +418,7 @@ const IntegrationCardHeader = (props: {
 }) => (
   <div className="mb-4 flex items-center justify-between gap-2">
     <div className="flex items-center gap-2">{props.children}</div>
-    {props.status && <StatusBadge type={props.status} />}
+    <StatusBadge type={props.status ?? "not configured"} />
   </div>
 );
 
