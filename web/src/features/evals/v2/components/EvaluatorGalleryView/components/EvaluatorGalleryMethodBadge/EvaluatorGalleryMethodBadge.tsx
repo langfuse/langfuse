@@ -65,11 +65,11 @@ export function EvaluatorGalleryMethodBadge({
 }: {
   type: EvalTemplateType;
 }) {
-  const { label } = METHOD_BADGES[type];
+  const { Icon, label } = METHOD_BADGES[type];
 
   return (
     <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap">
-      <EvaluatorMethodTile type={type} />
+      <Icon className="icon-sm" aria-hidden="true" />
       {label}
     </span>
   );
