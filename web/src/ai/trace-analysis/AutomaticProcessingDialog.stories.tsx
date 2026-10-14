@@ -1,7 +1,7 @@
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
+import { DialogController } from "@/src/app/design-system/DialogController/DialogController";
 import { AutomaticProcessingDialog } from "./AutomaticProcessingDialog";
 
 const models = {
@@ -15,9 +15,12 @@ const meta = preview.meta({
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
-      <DialogPrimitive.Root open>
-        <Story />
-      </DialogPrimitive.Root>
+      <DialogController<null>
+        initialState={() => null}
+        renderDialog={() => <Story />}
+      >
+        {() => null}
+      </DialogController>
     ),
   ],
   args: {

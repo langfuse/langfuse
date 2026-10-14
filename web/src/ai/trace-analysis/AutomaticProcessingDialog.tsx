@@ -25,7 +25,7 @@ type AutomaticProcessingDialogProps = {
 const COST_NOTE =
   "Each sampled trace makes LLM calls on your connections, so cost depends on your trace volume, the selected models, and the sampling rate.";
 
-/** Dialog content; render it inside a Radix `Dialog.Root`. */
+/** Dialog content; render it from `AutomaticProcessingDialogController`. */
 export function AutomaticProcessingDialog({
   error,
   initialEnabled,

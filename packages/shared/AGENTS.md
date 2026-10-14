@@ -28,6 +28,10 @@
   generation in the full thread.
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
+- Billing ledger: the append-only `billable_events` table (created by
+  `clickhouse/scripts/dev-tables.sh`, applied by hand on Cloud, not
+  migration-managed) read via `src/server/repositories/billable-events.ts`.
+  Keep it out of every delete, retention and cleaner path.
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
   `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server

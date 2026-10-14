@@ -1,6 +1,7 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
+import { DialogController } from "@/src/app/design-system/DialogController/DialogController";
 import {
   ConfigureTopicsDialog,
   type ConfigureTopicsDraft,
@@ -70,8 +71,19 @@ const filledDraft = {
 const meta = preview.meta({
   component: ConfigureTopicsDialog,
   parameters: { layout: "fullscreen" },
+  decorators: [
+    (Story) => (
+      <DialogController<null>
+        initialState={() => null}
+        renderDialog={() => <Story />}
+      >
+        {() => null}
+      </DialogController>
+    ),
+  ],
   args: {
     providerGroups,
+    closeDialog: fn(),
     onConfigureProviders: fn(),
     onSave: fn(),
   },
@@ -80,18 +92,14 @@ const meta = preview.meta({
 export const NeedsSetup = meta.story({
   args: {
     draft: emptyDraft,
-    defaultOpen: true,
     notice: "none",
-    triggerVariant: "primary",
   },
 });
 
 export const Configured = meta.story({
   args: {
     draft: filledDraft,
-    defaultOpen: true,
     notice: "none",
-    triggerVariant: "secondary",
   },
 });
 
@@ -99,9 +107,7 @@ export const SavesTheSheet = meta.story({
   name: "(Test) Save sends facets, filter, and idle time",
   args: {
     draft: filledDraft,
-    defaultOpen: true,
     notice: "none",
-    triggerVariant: "secondary",
   },
   play: async ({ args }) => {
     const body = within(document.body);
@@ -129,13 +135,11 @@ export const SavesTheSheet = meta.story({
 export const Paused = meta.story({
   args: {
     draft: { ...filledDraft, automaticProcessing: false },
-    defaultOpen: true,
     notice: "paused",
     shortLabel: "LLM connection missing",
     pausedAgo: "3 days ago",
     message:
       'The LLM connection "Amazon Bedrock" was deleted. Choose another connection in Configure Topics, then turn automatic processing back on.',
-    triggerVariant: "primary",
   },
 });
 
@@ -143,9 +147,7 @@ export const SavesTurnedOffWithoutModelTests = meta.story({
   name: "(Test) Save with automatic processing off ignores failing unchanged models",
   args: {
     draft: { ...filledDraft, automaticProcessing: false },
-    defaultOpen: true,
     notice: "none",
-    triggerVariant: "secondary",
     slotChecks: {
       summary: { status: "ok" },
       embedding: { status: "ok" },
@@ -165,9 +167,7 @@ export const BlocksSaveWhileRunningWithFailingModel = meta.story({
   name: "(Test) Save with automatic processing on needs every model to pass",
   args: {
     draft: filledDraft,
-    defaultOpen: true,
     notice: "none",
-    triggerVariant: "secondary",
     slotChecks: {
       summary: { status: "ok" },
       embedding: { status: "ok" },
