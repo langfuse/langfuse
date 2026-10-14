@@ -15,7 +15,7 @@ export function EvaluatorRecommendedCardSurface({
   children: ReactNode;
 }) {
   return (
-    <div className="group/card bg-background hover:shadow-card-hover relative flex h-full flex-col overflow-hidden rounded-xl border text-left">
+    <div className="group/card bg-background hover:shadow-card-hover relative flex h-full flex-col overflow-hidden rounded-lg border text-left">
       {children}
     </div>
   );
@@ -34,7 +34,7 @@ export function EvaluatorRecommendedCardContent({
 }) {
   return (
     <>
-      <div className="px-2 pt-2">{preview}</div>
+      <div className="px-1 pt-1">{preview}</div>
       <div className="flex flex-1 flex-col px-3 pt-3 pb-3">
         <span className="line-clamp-2 text-xs font-bold" title={title}>
           {title}
