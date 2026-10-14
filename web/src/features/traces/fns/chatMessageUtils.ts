@@ -12,67 +12,6 @@ export function getMessageTitle(message: ChatMlMessage): string {
   return message.name ?? message.role ?? "";
 }
 
-// Keys under which providers nest their conversation (OpenAI `messages` /
-// Responses `input` / `choices`, Gemini `contents` / `candidates`, AI SDK
-// `prompt`, LangChain `generations`, choice/candidate wrappers).
-const CHAT_CONTAINER_KEYS = [
-  "messages",
-  "input",
-  "output",
-  "contents",
-  "candidates",
-  "content",
-  "choices",
-  "message",
-  "prompt",
-  "generations",
-];
-
-// Message-type markers that stand in for a role (LangChain dict messages,
-// OpenAI Responses items).
-const CHAT_TYPE_MARKERS = new Set([
-  "human",
-  "ai",
-  "system",
-  "tool",
-  "user",
-  "assistant",
-  "message",
-]);
-
-/**
- * Whether a raw observation input/output is a chat conversation: a message
- * object with a `role`, or a provider container holding one, within a few
- * levels. Plain strings, function arguments and loose records are not, and
- * the preview labels them by side instead of by role.
- */
-export function hasChatRoles(value: unknown, depth = 3): boolean {
-  if (depth < 0) return false;
-  if (typeof value === "string") {
-    const trimmed = value.trimStart();
-    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return false;
-    try {
-      return hasChatRoles(JSON.parse(value), depth);
-    } catch {
-      return false;
-    }
-  }
-  if (value === null || typeof value !== "object") return false;
-  if (Array.isArray(value)) {
-    return value.some((item) => hasChatRoles(item, depth - 1));
-  }
-  const record = value as Record<string, unknown>;
-  if (typeof record.role === "string") return true;
-  if (typeof record.type === "string" && CHAT_TYPE_MARKERS.has(record.type)) {
-    return true;
-  }
-  // LangChain serialized message envelope.
-  if (record.lc !== undefined && typeof record.kwargs === "object") return true;
-  return CHAT_CONTAINER_KEYS.some(
-    (key) => key in record && hasChatRoles(record[key], depth - 1),
-  );
-}
-
 /**
  * Check if message has renderable content (text or audio).
  */

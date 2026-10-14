@@ -14,6 +14,7 @@ import {
 import { SectionMedia } from "@/src/features/traces/components/IOPreview/components/SectionMedia";
 import {
   type ChatMlMessage,
+  getMessageTitle,
   shouldRenderMessageForContentMode,
 } from "@/src/features/traces/fns/chatMessageUtils";
 import { type MediaReturnType } from "@/src/features/media";
@@ -33,8 +34,8 @@ export interface ChatMessageListProps {
   inputMessageCount?: number;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
-  /** Sides whose raw I/O is not a chat conversation: titled by side, not role. */
-  nonChatSides?: { input: boolean; output: boolean };
+  /** Title messages Input / Output by side instead of by role. */
+  titleBySide?: boolean;
 }
 
 /**
@@ -57,7 +58,7 @@ export function ChatMessageList({
   inputMessageCount,
   contentMode = "all",
   showSystemPrompt,
-  nonChatSides,
+  titleBySide = false,
 }: ChatMessageListProps) {
   // Filter messages to only those with renderable content
   const messagesToRender = useMemo(
@@ -124,18 +125,17 @@ export function ChatMessageList({
         <div className="flex flex-col gap-3">
           {visibleMessages.map(({ message, originalIndex }) => {
             const isOutputMessage = originalIndex >= (inputMessageCount ?? 0);
-            const side = isOutputMessage ? "output" : "input";
             const sideTitle = isOutputMessage ? "Output" : "Input";
             return (
               <div className="flex flex-col" key={originalIndex}>
                 <ChatMessage
                   message={message}
+                  title={titleBySide ? sideTitle : getMessageTitle(message)}
                   shouldRenderMarkdown={shouldRenderMarkdown}
                   currentView={currentView}
                   toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
                   isOutputMessage={isOutputMessage}
                   contentMode={contentMode}
-                  titleOverride={nonChatSides?.[side] ? sideTitle : undefined}
                 />
                 {/* Show collapse/expand button after first message */}
                 {isCollapsed !== null &&

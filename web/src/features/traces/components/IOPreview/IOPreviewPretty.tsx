@@ -1,7 +1,12 @@
 /* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
+import {
+  type ObservationType,
+  type Prisma,
+  type ScoreDomain,
+  deepParseJson,
+} from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { type MediaReturnType } from "@/src/features/media";
@@ -10,7 +15,6 @@ import {
   hasRenderableChatMessages,
   useIOPreviewParser,
 } from "../../hooks/useIOPreviewParser";
-import { hasChatRoles } from "../../fns/chatMessageUtils";
 import { ChatMessageList } from "../ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import {
@@ -106,6 +110,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   hideOutput?: boolean;
   hideInput?: boolean;
   observationId?: string;
+  observationType?: ObservationType;
   projectId: string;
   traceId: string;
   environment?: string;
@@ -147,6 +152,7 @@ export function IOPreviewPretty({
   onInputExpansionChange,
   onOutputExpansionChange,
   observationId,
+  observationType,
   projectId,
   traceId,
   environment = "default",
@@ -256,15 +262,11 @@ export function IOPreviewPretty({
 
   const showData = contentMode !== "conversation";
   const shouldRenderMessages = hasRenderableChatMessages(parserResult);
-  // Tool calls, spans and plain completions are not conversations: label
-  // those sides Input / Output rather than User / Assistant.
-  const nonChatSides = useMemo(
-    () => ({
-      input: parsedInput != null && !hasChatRoles(parsedInput),
-      output: parsedOutput != null && !hasChatRoles(parsedOutput),
-    }),
-    [parsedInput, parsedOutput],
-  );
+  // Only generations hold a conversation; tools, spans, agents and the rest
+  // are titled Input / Output rather than by role. (`isGenerationLike` is
+  // wider: it also covers TOOL and AGENT, which carry model usage, not chat.)
+  const titleBySide =
+    observationType !== undefined && observationType !== "GENERATION";
 
   return (
     <div className={cn("space-y-3 pt-3", IO_SECTIONS_FLUSH_CLASS)}>
@@ -293,7 +295,7 @@ export function IOPreviewPretty({
             inputMessageCount={inputMessageCount}
             contentMode={contentMode}
             showSystemPrompt={showSystemPrompt}
-            nonChatSides={nonChatSides}
+            titleBySide={titleBySide}
           />
           {showCorrections && (
             <CorrectedOutputField
