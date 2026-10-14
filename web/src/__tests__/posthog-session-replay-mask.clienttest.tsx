@@ -3,11 +3,11 @@
 import type { PostHogConfig } from "posthog-js";
 import { createElement } from "react";
 import { render, screen } from "@testing-library/react";
-import { AutocompleteListbox } from "@/src/features/search-bar/components/AutocompleteListbox";
-import { ComposerWithPreview } from "@/src/features/search-bar/components/ComposerWithPreview";
-import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer";
-import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
-import { createSearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
+import { AutocompleteListbox } from "@/src/app/search/components/AutocompleteListbox";
+import { ComposerWithPreview } from "@/src/app/search/components/ComposerWithPreview";
+import { SearchComposer } from "@/src/app/search/components/SearchComposer";
+import { SearchBarStoreProvider } from "@/src/app/search/store/SearchBarStoreProvider";
+import { createSearchBarStore } from "@/src/app/search/store/searchBarStore";
 
 const { initMock } = vi.hoisted(() => ({
   initMock: vi.fn(),
@@ -88,7 +88,7 @@ describe("PostHog session replay privacy", () => {
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.i.posthog.com");
     vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", "EU");
 
-    await import("@/src/pages/_app");
+    await import("@/pages/_app");
 
     expect(initMock).toHaveBeenCalledTimes(1);
     const config = initMock.mock.calls[0]![1] as Partial<PostHogConfig>;
@@ -110,7 +110,7 @@ describe("PostHog session replay privacy", () => {
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com");
     vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", "HIPAA");
 
-    await import("@/src/pages/_app");
+    await import("@/pages/_app");
 
     expect(initMock).not.toHaveBeenCalled();
   });
@@ -120,7 +120,7 @@ describe("PostHog session replay privacy", () => {
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.i.posthog.com");
     vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", "");
 
-    await import("@/src/pages/_app");
+    await import("@/pages/_app");
 
     expect(initMock).toHaveBeenCalledTimes(1);
     const config = initMock.mock.calls[0]![1] as Partial<PostHogConfig>;

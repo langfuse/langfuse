@@ -4,11 +4,11 @@ import {
   buildWorkerSourceModule,
   GENERATED_FILE,
 } from "../../../../scripts/build-json-parser-worker.mjs";
-import { JSON_PARSER_WORKER_SOURCE } from "@/src/workers/generated/json-parser.worker.source";
+import { JSON_PARSER_WORKER_SOURCE } from "@/src/app/workers/generated/json-parser.worker.source";
 import type {
   ParseRequest,
   ParseResponse,
-} from "@/src/workers/json-parser.protocol";
+} from "@/src/app/workers/json-parser.protocol";
 import { readFileSync } from "node:fs";
 
 /**

@@ -24,7 +24,7 @@ declare module "*.md" {
 }
 
 // Vite raw-text imports (Storybook): used by the Theme Tokens gallery to
-// parse src/styles/globals.css at build time.
+// parse src/app/styles/globals.css at build time.
 declare module "*.css?raw" {
   const content: string;
   export default content;

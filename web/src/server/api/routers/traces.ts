@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { aggregateScores } from "@/src/features/scores/server";
+import { auditLog } from "@/src/identity/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/identity/access-control";
+import { aggregateScores } from "@/src/scores/server";
 import {
   applyCommentFilters,
   traceException,
@@ -57,19 +57,19 @@ import {
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
-import { createBatchActionJob } from "@/src/features/table/server";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
-import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server";
+import { createBatchActionJob } from "@/src/app/tables/server";
+import { throwIfNoEntitlement } from "@/src/entitlements/server";
+import { sanitizeLegacyTracingSearch } from "@/src/tracing/traces/server";
 import {
   type AgentGraphDataResponse,
   AgentGraphDataSchema,
-} from "@/src/features/trace-graph-view/server";
+} from "@/src/tracing/trace-graph/server";
 import { env } from "@/src/env.mjs";
 import {
   toDomainWithStringifiedMetadata,
   toDomainArrayWithStringifiedMetadata,
-} from "@/src/utils/clientSideDomainTypes";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+} from "@/src/app/utils/clientSideDomainTypes";
+import { scoreFilters } from "@/src/scores/lib/scoreColumns";
 import partition from "lodash/partition";
 
 const TraceCountOptions = z

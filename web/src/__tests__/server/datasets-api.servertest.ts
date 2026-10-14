@@ -7,7 +7,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   buildStableDatasetRunItemResponseEventsOnly,
   createStableExperimentId,
-} from "@/src/features/datasets/server/publicDatasetService";
+} from "@/src/datasets/server/publicDatasetService";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
@@ -29,7 +29,7 @@ import {
   DeleteDatasetItemV1Response,
   DeleteDatasetRunV1Response,
   GetDatasetRunItemsV1Response,
-} from "@/src/features/public-api/types/datasets";
+} from "@/src/public-api/types/datasets";
 import {
   createObservation,
   createObservationsCh,

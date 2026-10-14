@@ -73,18 +73,15 @@ vi.mock("@langfuse/shared/src/server", () => ({
   },
 }));
 
-vi.mock(
-  "@/src/features/public-api/server/structuredPublicApiErrorContract",
-  () => ({
-    structuredPublicApiErrorContract: "structured",
-    createStructuredPublicApiRateLimitError:
-      mockCreateStructuredPublicApiRateLimitError,
-    sendStructuredPublicApiErrorResponse:
-      mockSendStructuredPublicApiErrorResponse,
-  }),
-);
+vi.mock("@/src/public-api/server/structuredPublicApiErrorContract", () => ({
+  structuredPublicApiErrorContract: "structured",
+  createStructuredPublicApiRateLimitError:
+    mockCreateStructuredPublicApiRateLimitError,
+  sendStructuredPublicApiErrorResponse:
+    mockSendStructuredPublicApiErrorResponse,
+}));
 
-import { sendRateLimitResponse } from "@/src/features/public-api/server/RateLimitService";
+import { sendRateLimitResponse } from "@/src/public-api/server/RateLimitService";
 
 describe("sendRateLimitResponse", () => {
   const upgradePath = {

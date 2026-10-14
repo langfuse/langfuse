@@ -1,0 +1,27 @@
+import { Badge } from "@/src/app/design-system/Badge/Badge";
+import { formatIntervalSeconds } from "@/src/app/utils/dates";
+
+export function LatencyBadge({ latencySeconds }: { latencySeconds: number }) {
+  return (
+    <Badge
+      font="mono"
+      color="ghost"
+      text={formatIntervalSeconds(latencySeconds)}
+    />
+  );
+}
+
+export function TimeToFirstTokenBadge({
+  timeToFirstToken,
+}: {
+  timeToFirstToken: number;
+}) {
+  return (
+    <Badge
+      font="mono"
+      color="ghost"
+      label="ttft"
+      text={formatIntervalSeconds(timeToFirstToken)}
+    />
+  );
+}

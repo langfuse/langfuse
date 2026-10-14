@@ -1,0 +1,387 @@
+/* eslint-disable no-nested-ternary */
+import { Badge } from "@/src/app/design-system/legacy-primitives/badge";
+import { Button } from "@/src/app/design-system/legacy-primitives/button";
+import { ConnectedIOTableCell } from "@/src/app/tables/common-components/ConnectedIOTableCell";
+import { useActiveCell } from "@/src/datasets/contexts/ActiveCellContext";
+import { useDatasetCompareFields } from "@/src/datasets/contexts/DatasetCompareFieldsContext";
+import { api } from "@/src/app/utils/api";
+import { formatIntervalSeconds } from "@/src/app/utils/dates";
+import { cn } from "@/src/app/utils/tailwind";
+import { ClockIcon, ListTree } from "lucide-react";
+import { usdFormatter } from "@/src/app/utils/numbers";
+import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
+import {
+  type ScoreColumn,
+  ScoreRow,
+  useMergedAggregates,
+  useMergeScoreColumns,
+} from "@/src/scores";
+import { useRouter } from "next/router";
+import { useHasProjectAccess } from "@/src/identity/access-control";
+import { useTrpcError } from "@/src/app/hooks/useTrpcError";
+import { type ScoreAggregate } from "@langfuse/shared";
+import { computeScoreDiffs } from "@/src/datasets/lib/computeScoreDiffs";
+import { useMemo } from "react";
+import { type BaselineDiff } from "@/src/datasets/lib/calculateBaselineDiff";
+import { DiffLabel } from "@/src/datasets/components/DiffLabel";
+import { useResourceMetricsDiff } from "@/src/datasets/hooks/useResourceMetricsDiff";
+import { NotFoundCard } from "@/src/datasets/components/NotFoundCard";
+import { usePostHogClientCapture } from "@/src/analytics/internal/posthog";
+
+const DatasetAggregateCellContent = ({
+  projectId,
+  value,
+  scores,
+  serverScoreColumns,
+  scoreDiffs,
+  baselineRunValue,
+}: {
+  projectId: string;
+  value: EnrichedDatasetRunItem;
+  scores: ScoreAggregate;
+  serverScoreColumns: ScoreColumn[];
+  scoreDiffs?: Record<string, BaselineDiff>;
+  baselineRunValue?: EnrichedDatasetRunItem;
+}) => {
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const silentHttpCodes = [404];
+  const { selectedFields } = useDatasetCompareFields();
+  const { activeCell, setActiveCell } = useActiveCell();
+
+  const hasAnnotationWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "scores:save",
+  });
+
+  // Merge server columns with cache-only columns
+  const mergedScoreColumns = useMergeScoreColumns(serverScoreColumns);
+
+  // Subtract 1 day from the run item creation timestamp as a buffer in case the trace happened before the run
+  const fromTimestamp = new Date(
+    value.createdAt.getTime() - 24 * 60 * 60 * 1000,
+  );
+
+  // conditionally fetch the trace or observation depending on the presence of observationId
+  const trace = api.traces.byId.useQuery(
+    { traceId: value.trace.id, projectId, fromTimestamp },
+    {
+      enabled: value.observation === undefined,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: false,
+      staleTime: Infinity,
+      meta: { silentHttpCodes },
+    },
+  );
+  const observation = api.observations.byId.useQuery(
+    {
+      observationId: value.observation?.id as string, // disabled when observationId is undefined
+      projectId,
+      traceId: value.trace.id,
+    },
+    {
+      enabled: value.observation !== undefined,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: false,
+      staleTime: Infinity,
+      meta: { silentHttpCodes },
+    },
+  );
+
+  const data = value.observation === undefined ? trace.data : observation.data;
+  const isLoading =
+    value.observation === undefined ? trace.isLoading : observation.isLoading;
+
+  const { isSilentError } = useTrpcError(
+    value.observation === undefined ? trace.error : observation.error,
+    silentHttpCodes,
+  );
+
+  const { latency, totalCost, latencyDiff, totalCostDiff } =
+    useResourceMetricsDiff(value, baselineRunValue);
+
+  // Note that we implement custom handling for opening peek view from cell
+  const handleOpenPeek = () => {
+    // Mirrors usePeekNavigation's peek:opened (this open bypasses the hook);
+    // re-clicking the already-peeked cell is a no-op and emits nothing.
+    if (
+      router.query.peek !== value.trace.id ||
+      router.query.observation !== value.observation?.id
+    ) {
+      capture("peek:opened", {
+        routePattern: router.pathname,
+        wasOpen: router.query.peek !== undefined,
+        isV4: false,
+        tableName: "datasetCompareRuns",
+      });
+    }
+    const newQuery: Record<string, string | string[] | undefined> = {
+      ...router.query,
+      peek: value.trace.id,
+    };
+
+    // Always set observation - either to the ID or undefined to remove it
+    if (value.observation?.id) {
+      newQuery.observation = value.observation.id;
+    } else {
+      delete newQuery.observation;
+    }
+
+    router.push(
+      {
+        pathname: router.pathname,
+        query: newQuery,
+      },
+      undefined,
+      { shallow: true },
+    );
+  };
+
+  const handleOpenReview = () => {
+    const opened = setActiveCell({
+      datasetRunId: value.datasetRunId,
+      traceId: value.trace.id,
+      observationId: value.observation?.id,
+      scoreAggregates: scores,
+      environment: data?.environment,
+    });
+    if (opened && !isActiveCell) {
+      capture("annotation:entry_click", {
+        type: "trace",
+        entryPoint: "annotate_button",
+        source: "DatasetCompare",
+        targetType: value.observation ? "observation" : "trace",
+        isV4: false,
+      });
+    }
+  };
+
+  const isActiveCell =
+    activeCell?.traceId === value.trace.id &&
+    activeCell?.observationId === value.observation?.id;
+
+  return (
+    <div
+      className={cn(
+        "group flex h-full w-full flex-col overflow-hidden rounded-md border-2 border-transparent",
+        isActiveCell && "border-accent-dark-blue",
+      )}
+    >
+      {/* Displays trace/observation output */}
+      <div
+        className={cn(
+          "relative h-[50%] min-h-8 w-full min-w-0 shrink-0 overflow-auto",
+          !selectedFields.includes("output") && "hidden",
+        )}
+      >
+        {isSilentError ? (
+          <NotFoundCard
+            itemType={value.observation ? "observation" : "trace"}
+            singleLine={false}
+          />
+        ) : isLoading || !data ? (
+          <ConnectedIOTableCell isLoading variant="output" />
+        ) : (
+          <ConnectedIOTableCell
+            data={data.output ?? null}
+            variant="output"
+            enableExpandOnHover
+          />
+        )}
+      </div>
+      {/* Displays scores */}
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 overflow-hidden px-1 py-2",
+          !selectedFields.includes("scores") && "hidden",
+        )}
+      >
+        <div className="@container w-full min-w-0 overflow-hidden">
+          <div className="grid max-h-full w-full grid-cols-1 gap-1 overflow-y-auto @[500px]:grid-cols-2">
+            {mergedScoreColumns.length > 0 ? (
+              mergedScoreColumns.map((scoreColumn) => (
+                <ScoreRow
+                  key={scoreColumn.key}
+                  projectId={projectId}
+                  name={scoreColumn.name}
+                  source={scoreColumn.source}
+                  aggregate={scores[scoreColumn.key] ?? null}
+                  diff={scoreDiffs?.[scoreColumn.key] ?? null}
+                />
+              ))
+            ) : (
+              <span className="text-muted-foreground text-xs">No scores</span>
+            )}
+          </div>
+        </div>
+      </div>
+      {/* Displays resource metrics and action buttons */}
+      {!isLoading && (
+        <div className="mt-auto flex min-h-6 shrink-0 items-center justify-between gap-2 px-1 pb-1">
+          <div
+            className={cn(
+              "flex flex-row flex-wrap gap-1",
+              !selectedFields.includes("resourceMetrics") && "hidden",
+            )}
+          >
+            {!!latency &&
+              (latencyDiff ? (
+                <DiffLabel
+                  diff={latencyDiff}
+                  preferNegativeDiff={true}
+                  formatValue={(value) => formatIntervalSeconds(value)}
+                  className="ml-1"
+                />
+              ) : (
+                <Badge variant="tertiary" className="font-normal">
+                  <ClockIcon className="icon-sm mr-1 mb-0.5" />
+                  <span className="capitalize">
+                    {formatIntervalSeconds(latency)}
+                  </span>
+                </Badge>
+              ))}
+            {totalCost &&
+              (totalCostDiff ? (
+                <DiffLabel
+                  diff={totalCostDiff}
+                  preferNegativeDiff={true}
+                  formatValue={(value) => usdFormatter(value, 2, 4)}
+                  className="ml-1"
+                />
+              ) : (
+                <Badge variant="tertiary" className="font-normal">
+                  <span className="mr-0.5">{usdFormatter(totalCost)}</span>
+                </Badge>
+              ))}
+          </div>
+          {!(isSilentError || isLoading) && (
+            <div className="flex flex-row gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              {/* Triggers review/annotation */}
+              <Button
+                disabled={!hasAnnotationWriteAccess}
+                variant="outline"
+                className="h-6 px-1 text-xs"
+                onClick={handleOpenReview}
+              >
+                Annotate
+              </Button>
+              {/* Triggers peek view */}
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-6 w-6 p-0"
+                title="View trace/observation"
+                onClick={handleOpenPeek}
+              >
+                <ListTree className="icon-base text-icon-foreground" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const DatasetAggregateCellAgainstBaseline = ({
+  value,
+  projectId,
+  serverScoreColumns,
+  baselineRunValue,
+}: {
+  projectId: string;
+  value: EnrichedDatasetRunItem;
+  serverScoreColumns: ScoreColumn[];
+  baselineRunValue: EnrichedDatasetRunItem;
+}) => {
+  // Merge cached score writes into aggregates for optimistic display
+  const displayScores = useMergedAggregates(
+    value.scores,
+    value.trace.id,
+    value.observation?.id,
+  );
+
+  const baselineScores = useMergedAggregates(
+    baselineRunValue.scores,
+    baselineRunValue.trace.id,
+    baselineRunValue.observation?.id,
+  );
+
+  // Compute diffs between current and baseline scores
+  const scoreDiffs = useMemo(
+    () => computeScoreDiffs(displayScores, baselineScores),
+    [displayScores, baselineScores],
+  );
+
+  return (
+    <DatasetAggregateCellContent
+      projectId={projectId}
+      value={value}
+      serverScoreColumns={serverScoreColumns}
+      scores={displayScores}
+      scoreDiffs={scoreDiffs}
+      baselineRunValue={baselineRunValue}
+    />
+  );
+};
+
+const DatasetAggregateCell = ({
+  value,
+  projectId,
+  serverScoreColumns,
+}: {
+  projectId: string;
+  value: EnrichedDatasetRunItem;
+  serverScoreColumns: ScoreColumn[];
+}) => {
+  // Merge cached score writes into aggregates for optimistic display
+  const displayScores = useMergedAggregates(
+    value.scores,
+    value.trace.id,
+    value.observation?.id,
+  );
+
+  return (
+    <DatasetAggregateCellContent
+      projectId={projectId}
+      value={value}
+      serverScoreColumns={serverScoreColumns}
+      scores={displayScores}
+    />
+  );
+};
+
+type DatasetAggregateTableCellProps = {
+  projectId: string;
+  value: EnrichedDatasetRunItem;
+  serverScoreColumns: ScoreColumn[];
+  isBaselineRun: boolean;
+  baselineRunValue?: EnrichedDatasetRunItem;
+};
+
+export const DatasetAggregateTableCell = ({
+  projectId,
+  value,
+  serverScoreColumns,
+  isBaselineRun,
+  baselineRunValue,
+}: DatasetAggregateTableCellProps) => {
+  return baselineRunValue && !isBaselineRun ? (
+    <DatasetAggregateCellAgainstBaseline
+      projectId={projectId}
+      value={value}
+      serverScoreColumns={serverScoreColumns}
+      baselineRunValue={baselineRunValue}
+    />
+  ) : (
+    <DatasetAggregateCell
+      projectId={projectId}
+      value={value}
+      serverScoreColumns={serverScoreColumns}
+    />
+  );
+};

@@ -91,10 +91,11 @@ jobs:
             const hasStorybookChanges = paths.some(
               (path) =>
                 path.startsWith("web/.storybook/") ||
-                path.startsWith("web/src/components/") ||
-                (path.startsWith("web/src/features/") &&
+                path.startsWith("web/src/app/components/") ||
+                path.startsWith("web/src/app/design-system/") ||
+                (path.startsWith("web/src/") &&
                   path.includes("/components/")) ||
-                path === "web/src/styles/globals.css" ||
+                path === "web/src/app/styles/globals.css" ||
                 /\.stories\.[^/]+$/.test(path) ||
                 path === ".github/workflows/storybook-preview.yml",
             );
@@ -105,8 +106,8 @@ jobs:
             // trees; the Rust service lives under ai-gateway/.
             const hasAiGatewayChanges = paths.some(
               (path) =>
-                path.startsWith("web/src/features/ai-gateway/") ||
-                path.startsWith("web/src/pages/api/internal/ai-gateway/") ||
+                path.startsWith("web/src/ai/gateway/management-ui/") ||
+                path.startsWith("web/pages/api/internal/ai-gateway/") ||
                 path.startsWith("ai-gateway/"),
             );
             if (hasAiGatewayChanges) labels.push("ai-gateway-preview");

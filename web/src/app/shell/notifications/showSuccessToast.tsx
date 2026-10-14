@@ -1,0 +1,25 @@
+import { toast } from "sonner";
+import {
+  SuccessNotification,
+  type SuccessNotificationProps,
+} from "@/src/app/shell/notifications/SuccessNotification";
+
+export const showSuccessToast = ({
+  duration = 5000,
+  ...params
+}: Omit<SuccessNotificationProps, "onDismiss"> & { duration?: number }) => {
+  return toast.custom(
+    (t) => (
+      <SuccessNotification {...params} onDismiss={() => toast.dismiss(t)} />
+    ),
+    {
+      duration,
+      style: {
+        padding: "1rem",
+        border: "1px solid var(--dark-green)",
+        borderRadius: "0.5rem",
+        backgroundColor: "var(--dark-green)",
+      },
+    },
+  );
+};

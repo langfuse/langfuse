@@ -5,7 +5,7 @@ import {
   WebCalloutRateLimitService,
   resetWebCalloutInFlightLimitsForTests,
   withWebCalloutInFlightLimit,
-} from "@/src/features/web-callouts/server/rateLimit";
+} from "@/src/integrations/web-callouts/server/rateLimit";
 import { env } from "@/src/env.mjs";
 
 const mocks = vi.hoisted(() => ({

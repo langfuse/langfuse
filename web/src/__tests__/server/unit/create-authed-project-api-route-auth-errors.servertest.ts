@@ -46,7 +46,7 @@ const {
   },
 }));
 
-vi.mock("@/src/features/public-api/server/apiAuth", () => ({
+vi.mock("@/src/public-api/server/apiAuth", () => ({
   ApiAuthService: class {
     verifyAuthHeaderAndReturnScope = mockVerifyAuthHeaderAndReturnScope;
   },
@@ -86,7 +86,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   },
 }));
 
-vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
+vi.mock("@/src/public-api/server/RateLimitService", () => ({
   RateLimitService: {
     getInstance: () => ({
       rateLimitRequest: mockRateLimitRequest,
@@ -94,20 +94,17 @@ vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   },
 }));
 
-vi.mock("@/src/features/public-api/server/withMiddlewares", () => ({
+vi.mock("@/src/public-api/server/withMiddlewares", () => ({
   isZodError: vi.fn(() => false),
 }));
 
-vi.mock(
-  "@/src/features/public-api/server/structuredPublicApiErrorContract",
-  () => ({
-    structuredPublicApiErrorContract: "structured",
-    createStructuredPublicApiAuthError: mockCreateStructuredPublicApiAuthError,
-    createStructuredPublicApiRequestValidationError: vi.fn(),
-    sendStructuredPublicApiErrorResponse:
-      mockSendStructuredPublicApiErrorResponse,
-  }),
-);
+vi.mock("@/src/public-api/server/structuredPublicApiErrorContract", () => ({
+  structuredPublicApiErrorContract: "structured",
+  createStructuredPublicApiAuthError: mockCreateStructuredPublicApiAuthError,
+  createStructuredPublicApiRequestValidationError: vi.fn(),
+  sendStructuredPublicApiErrorResponse:
+    mockSendStructuredPublicApiErrorResponse,
+}));
 
 vi.mock("@/src/env.mjs", () => ({ env: mockEnv }));
 
@@ -117,11 +114,11 @@ vi.mock("@opentelemetry/api", () => ({
   },
 }));
 
-vi.mock("@/src/utils/exceptions", () => ({
+vi.mock("@/src/app/utils/exceptions", () => ({
   isPrismaException: mockIsPrismaException,
 }));
 
-import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/public-api/server/createAuthedProjectAPIRoute";
 
 describe("createAuthedProjectAPIRoute auth error handling", () => {
   const deprecation = {

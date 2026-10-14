@@ -8,7 +8,7 @@ import {
   type LegacyDecision,
   type NewDecision,
   type Telemetry,
-} from "@/src/features/public-api/server/shadowAuthDiff";
+} from "@/src/public-api/server/shadowAuthDiff";
 
 const capture = () => {
   const calls: { stat: string; tags: Record<string, string | number> }[] = [];

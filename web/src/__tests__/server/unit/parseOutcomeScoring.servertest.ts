@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { deriveParseOutcomeScores } from "@/src/features/search-bar/server/parseOutcomeScoring";
-import type { GeneratedFilters } from "@/src/features/search-bar/server/parseFilterCompletion";
+import { deriveParseOutcomeScores } from "@/src/app/search/server/parseOutcomeScoring";
+import type { GeneratedFilters } from "@/src/app/search/server/parseFilterCompletion";
 
 // Only `.length` of `filters` matters to the derivation, so a loosely-typed
 // stand-in keeps these cases focused on the outcome shape rather than real

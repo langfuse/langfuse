@@ -1,11 +1,11 @@
 import type { RateLimitResult } from "@langfuse/shared";
 import { ClickHouseResourceError } from "@langfuse/shared/src/server";
-import { EvaluatorVersionConflictError } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
+import { EvaluatorVersionConflictError } from "@/src/evaluators/v2/server/evaluators/evaluatorErrors";
 import {
   createStructuredPublicApiRateLimitError,
   structuredPublicApiErrorContract,
   toStructuredPublicApiError,
-} from "@/src/features/public-api/server";
+} from "@/src/public-api/server";
 
 describe("structured public api error contract", () => {
   it("uses one contract marker", () => {

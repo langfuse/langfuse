@@ -4,8 +4,8 @@ import {
   isChbUpgrade,
   mapChbPlanCodeToStripeProductId,
   mapStripeProductIdToChbPlanCode,
-} from "@/src/ee/features/billing/utils/chbCatalogue";
-import { stripeProducts } from "@/src/ee/features/billing/utils/stripeCatalogue";
+} from "@/src/ee/billing/utils/chbCatalogue";
+import { stripeProducts } from "@/src/ee/billing/utils/stripeCatalogue";
 
 describe("chbCatalogue", () => {
   it("bridges every Stripe product to a CHB plan code and back", () => {

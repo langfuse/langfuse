@@ -10,7 +10,7 @@ import {
   computeMonotonicPercent,
   fetchDashboardSSERows,
   useSSEDashboardQuery,
-} from "@/src/hooks/useSSEDashboardQuery";
+} from "@/src/app/hooks/useSSEDashboardQuery";
 
 describe("parseSSEBuffer", () => {
   it("should parse a single complete progress event", () => {

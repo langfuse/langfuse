@@ -257,9 +257,7 @@ async function callRoute(
   method: HttpMethod,
   headers: Record<string, string>,
 ): Promise<number> {
-  const mod = await import(
-    /* @vite-ignore */ `@/src/pages/api/public/${route}`
-  );
+  const mod = await import(/* @vite-ignore */ `@/pages/api/public/${route}`);
   const handler = mod.default as (
     req: NextApiRequest,
     res: NextApiResponse,
@@ -321,7 +319,7 @@ async function runMatrix(mode: MigrationMode): Promise<Record<string, number>> {
 
 /** walkRoutes lists every route file under pages/api/public/ as a table-style route key. */
 function walkRoutes(): string[] {
-  const base = path.resolve(process.cwd(), "src/pages/api/public");
+  const base = path.resolve(process.cwd(), "pages/api/public");
   const routes: string[] = [];
   const walk = (dir: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {

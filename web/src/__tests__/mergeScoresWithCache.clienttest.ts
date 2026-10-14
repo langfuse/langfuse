@@ -6,9 +6,9 @@ import {
   mergeAnnotationScoresWithCache,
   type CachedScore,
   type AnnotationScore,
-} from "@/src/features/scores";
+} from "@/src/scores";
 import { type ScoreDomain, type ScoreAggregate } from "@langfuse/shared";
-import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { type WithStringifiedMetadata } from "@/src/app/utils/clientSideDomainTypes";
 
 describe("mergeScoresWithCache", () => {
   it("should return server scores when cache is empty", () => {

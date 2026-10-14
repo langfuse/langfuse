@@ -3,11 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   McpEvaluatorInput,
   toEvaluatorServiceInput,
-} from "@/src/features/mcp/server/evals/tools/evaluatorInput";
+} from "@/src/public-api/mcp/server/evals/tools/evaluatorInput";
 import {
   assertRuleAssignmentsReplaceableViaMcp,
   toMcpEvaluationRule,
-} from "@/src/features/mcp/server/evals/rule-service";
+} from "@/src/public-api/mcp/server/evals/rule-service";
 
 const decisionModelInput = {
   name: "Support classifier",

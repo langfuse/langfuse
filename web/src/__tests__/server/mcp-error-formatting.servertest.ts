@@ -18,8 +18,11 @@ import { ZodError, z } from "zod";
 import {
   formatErrorForUser,
   wrapErrorHandling,
-} from "@/src/features/mcp/core/error-formatting";
-import { UserInputError, ApiServerError } from "@/src/features/mcp/core/errors";
+} from "@/src/public-api/mcp/core/error-formatting";
+import {
+  UserInputError,
+  ApiServerError,
+} from "@/src/public-api/mcp/core/errors";
 import {
   UnauthorizedError,
   ForbiddenError,

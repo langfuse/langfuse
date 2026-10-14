@@ -31,8 +31,10 @@
     "storybook": "dotenv -e ../.env -- storybook dev -p 6006",
     "structure:stats": "node scripts/structure/stats.mjs",
     "structure:move": "node scripts/structure/move.mjs",
+    "structure:check": "node scripts/structure/check-layout.mjs",
+    "structure:test": "node --test scripts/structure/*.test.mjs",
     "build-storybook": "dotenv -e ../.env -- storybook build",
-    "sfdc:backfill": "dotenv -e ../.env -- tsx src/ee/features/sfdc-sync/scripts/backfillSfdcLeads.ts"
+    "sfdc:backfill": "dotenv -e ../.env -- tsx src/ee/salesforce/scripts/backfillSfdcLeads.ts"
   },
   "dependencies": {
     "@ag-ui/client": "^0.0.52",

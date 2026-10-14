@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatJson } from "@/src/utils/formatJson";
+import { formatJson } from "@/src/app/utils/formatJson";
 
 describe("formatJson", () => {
   it("only changes whitespace, preserving numbers, escapes, and key order", () => {

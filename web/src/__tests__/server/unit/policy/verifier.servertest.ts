@@ -4,12 +4,15 @@ import { InternalServerError } from "@langfuse/shared";
 import { type ApiKey } from "@langfuse/shared/src/db";
 import { hashSecretKey, verifySecretKey } from "@langfuse/shared/src/server";
 
-import { Verifier, invalidCredentials } from "@/src/features/apiKey/verifier";
+import {
+  Verifier,
+  invalidCredentials,
+} from "@/src/public-api/project-api-keys/verifier";
 import {
   type FindApiKeyResult,
   type ApiKeyRepository,
-} from "@/src/features/apiKey/apiKeyRepository";
-import { parseAuthorizationHeader } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
+} from "@/src/public-api/project-api-keys/apiKeyRepository";
+import { parseAuthorizationHeader } from "@/src/public-api/project-api-keys/helpers/parseAuthorizationHeader";
 
 vi.mock(import("@langfuse/shared/src/server"), async (importOriginal) => {
   const actual = await importOriginal();

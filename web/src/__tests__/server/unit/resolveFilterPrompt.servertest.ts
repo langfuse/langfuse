@@ -1,20 +1,20 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/src/features/natural-language-filters/server", () => ({
+vi.mock("@/src/app/search/natural-language/server", () => ({
   getLangfuseClient: vi.fn(),
 }));
 
 import { logger } from "@langfuse/shared/src/server";
-import { getLangfuseClient } from "@/src/features/natural-language-filters/server";
+import { getLangfuseClient } from "@/src/app/search/natural-language/server";
 import {
   buildFieldCatalog,
   buildFilterSystemPrompt,
   nullableFieldIds,
-} from "@/src/features/search-bar/server/buildFilterPrompt";
+} from "@/src/app/search/server/buildFilterPrompt";
 import {
   resolveFilterSystemPrompt,
   SEARCH_BAR_FILTER_PROMPT_NAME,
-} from "@/src/features/search-bar/server/resolveFilterPrompt";
+} from "@/src/app/search/server/resolveFilterPrompt";
 
 const mockedGetLangfuseClient = vi.mocked(getLangfuseClient);
 

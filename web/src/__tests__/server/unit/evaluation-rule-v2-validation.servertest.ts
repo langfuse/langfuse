@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   CreateRuleSchema,
   RuleSelectionSchema,
-} from "@/src/features/evals/v2/server/rules/ruleTypes";
+} from "@/src/evaluators/v2/server/rules/ruleTypes";
 
 describe("evaluation rule v2 input validation", () => {
   it("accepts rule names longer than 200 characters", () => {

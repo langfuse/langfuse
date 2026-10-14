@@ -125,12 +125,12 @@ import {
   resetSfdcServiceCacheForTests,
   toSfdcPlan,
   syncOrgPlanChangeToSfdc,
-} from "@/src/ee/features/sfdc-sync/server";
-import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+} from "@/src/ee/salesforce/server";
+import { createProjectMembershipsOnSignup } from "@/src/identity/auth/lib/createProjectMembershipsOnSignup";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { handleUpdateMembership } from "@/src/ee/features/admin-api/server/memberships";
-import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { handleUpdateMembership } from "@/src/ee/public-api/enterprise-admin/server/memberships";
+import { type AuthorizationContext } from "@/src/identity/auth/policy/types";
 import { CloudConfigSchema, Role } from "@langfuse/shared";
 import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
 import { type PrismaClient } from "@langfuse/shared/src/db";

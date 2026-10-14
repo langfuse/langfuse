@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { assertExportSourceAllowed } from "@/src/features/analytics-integrations/server/assertExportSourceAllowed";
+import { assertExportSourceAllowed } from "@/src/analytics/customer-integrations/common/server/assertExportSourceAllowed";
 import {
   areEnrichedWritesActive,
   areLegacyWritesActive,

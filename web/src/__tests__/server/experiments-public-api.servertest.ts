@@ -12,7 +12,7 @@ import {
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
 import { env } from "@/src/env.mjs";
-import { GetExperimentsV1Response } from "@/src/features/public-api/types/experiments";
+import { GetExperimentsV1Response } from "@/src/public-api/types/experiments";
 
 const getExperiments = (url: string, auth: string) =>
   makeZodVerifiedAPICall(GetExperimentsV1Response, "GET", url, undefined, auth);

@@ -19,27 +19,27 @@ const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
 // explicit story titles are rejected by the title plugin.
 const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
   {
-    directory: "src/components/design-system/table/columns",
+    directory: "src/app/design-system/table/columns",
     titlePrefix: "Design/Components/Table/Columns",
   },
   {
-    directory: "src/components/design-system/table/components",
+    directory: "src/app/design-system/table/components",
     titlePrefix: "Design/Components/Table/Cells",
   },
   {
-    directory: "src/features/ai-gateway/components",
+    directory: "src/ai/gateway/management-ui/components",
     titlePrefix: "Features/AI Gateway",
   },
   {
-    directory: "src/features/evals/v2/components",
+    directory: "src/evaluators/v2/components",
     titlePrefix: "Features/Evaluations",
   },
   {
-    directory: "src/features/in-app-agent/components",
+    directory: "src/ai/assistant/components",
     titlePrefix: "Features/In-App Agent",
   },
   {
-    directory: "src/features/traces/components",
+    directory: "src/tracing/traces/components",
     titlePrefix: "Features/Traces",
   },
 ];
@@ -74,8 +74,13 @@ const config: StorybookConfig = {
     },
     // Components in the design-system are automatically shown under Design.
     {
-      directory: "../src/components/design-system",
-      files: `**/*.stories.${STORY_EXTENSIONS}`,
+      directory: "../src/app/design-system",
+      files: `*.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Design/Components",
+    },
+    {
+      directory: "../src/app/design-system",
+      files: `!(legacy-primitives|animation-primitives)/**/*.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Design/Components",
     },
     // Design-system reference pages shown directly under Design.
@@ -85,7 +90,7 @@ const config: StorybookConfig = {
       titlePrefix: "Design",
     })),
     // All other component stories belong to the flat Playground by default.
-    // Outside components/design-system the exclusion is by path, so a generic
+    // Outside app/design-system the exclusion is by path, so a generic
     // basename like Charts.stories.tsx elsewhere still reaches the Playground;
     // the design-system directory is excluded in full. Disjoint globs because
     // !(...)
@@ -100,19 +105,25 @@ const config: StorybookConfig = {
     },
     {
       directory: "../src",
-      files: `!(components)/**/*.stories.${STORY_EXTENSIONS}`,
+      files: `!(app)/**/*.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Playground",
     },
     {
-      directory: "../src/components",
+      directory: "../src/app",
       files: `*.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Playground",
     },
     {
-      directory: "../src/components",
+      directory: "../src/app",
       files: `!(design-system)/**/*.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Playground",
     },
+    // Former ui/magicui primitives keep their Playground titles.
+    ...["legacy-primitives", "animation-primitives"].map((directory) => ({
+      directory: `../src/app/design-system/${directory}`,
+      files: `**/*.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Playground",
+    })),
   ],
   experimental_indexers: flattenStoryIndexTitles(STORY_TITLE_GROUPS),
   features: {

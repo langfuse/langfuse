@@ -10,8 +10,8 @@ import {
   isStaleChunkParseErrorEvent,
   STALE_CHUNK_LOAD_FINGERPRINT,
   STALE_CHUNK_PARSE_FINGERPRINT,
-} from "@/src/utils/sentryFilters";
-import { applyCachedV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
+} from "@/src/app/utils/sentryFilters";
+import { applyCachedV4BetaEnabledSentryTag } from "@/src/app/utils/sentryV4BetaTag";
 
 // Isolation-scope tags are copied onto the pageload transaction at start.
 // Session hydrate (and the v4 flag) arrives after that, so apply the last-known

@@ -29,7 +29,7 @@ vi.mock("langfuse", () => ({
 import {
   deriveParseOutcomeScores,
   recordParseOutcomeScores,
-} from "@/src/features/search-bar/server/parseOutcomeScoring";
+} from "@/src/app/search/server/parseOutcomeScoring";
 
 describe("recordParseOutcomeScores (mocked Langfuse client)", () => {
   it("scores the trace once per derived score and flushes the batch", () => {

@@ -18,11 +18,11 @@ vi.mock("@langfuse/shared/src/server", () => ({
   },
 }));
 
-import { TURNSTILE_ACTIONS } from "@/src/features/auth/constants";
+import { TURNSTILE_ACTIONS } from "@/src/identity/auth/constants";
 import {
   getTurnstileRemoteIp,
   verifyTurnstileToken,
-} from "@/src/features/auth/server/verifyTurnstile";
+} from "@/src/identity/auth/server/verifyTurnstile";
 
 const fetchMock = vi.fn();
 

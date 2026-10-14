@@ -14,7 +14,7 @@
 # Run it from inside the checkout you are about to change, or point it at one
 # with --dir / $LANGFUSE_REPO.
 #
-#   lf-context.sh web/src/features/experiments/components/table/ExperimentsTable.tsx
+#   lf-context.sh web/src/experiments/components/table/ExperimentsTable.tsx
 #   lf-context.sh 65bbc753c
 #   lf-context.sh 16912
 #   lf-context.sh LFE-15711
@@ -48,7 +48,7 @@ USAGE
   lf-context.sh <target> [options]
 
   <target> is auto-detected:
-    a path      web/src/features/experiments/.../ExperimentsTable.tsx   (or an absolute path)
+    a path      web/src/experiments/.../ExperimentsTable.tsx   (or an absolute path)
     a sha       65bbc753c            (7-40 hex chars, or anything git can rev-parse)
     a PR        16912  /  #16912     (all digits, <= 6)
     a ticket    LFE-15711            (<KEY>-<number>)

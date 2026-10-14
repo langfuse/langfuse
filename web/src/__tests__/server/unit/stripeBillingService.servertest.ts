@@ -12,11 +12,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
 
-vi.mock("@/src/ee/features/billing/utils/stripe", () => ({
+vi.mock("@/src/ee/billing/utils/stripe", () => ({
   stripeClient: undefined,
 }));
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/identity/audit-logs/server", () => ({
   auditLog: mocks.auditLog,
 }));
 
@@ -25,7 +25,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   return { ...actual, logger: mocks.logger };
 });
 
-import { BillingService } from "@/src/ee/features/billing/server/stripe/stripeBillingService";
+import { BillingService } from "@/src/ee/billing/server/stripe/stripeBillingService";
 import { type OrgAuthedContext } from "@/src/server/api/trpc";
 
 const ORG_ID = "org-1";

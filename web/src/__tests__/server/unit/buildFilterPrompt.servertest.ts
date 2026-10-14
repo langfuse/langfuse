@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { FIELDS } from "@/src/features/search-bar/lib/fields";
+import { FIELDS } from "@/src/app/search/lib/fields";
 import {
   buildFieldCatalog,
   buildFilterSystemPrompt,
   nullableFieldIds,
-} from "@/src/features/search-bar/server/buildFilterPrompt";
+} from "@/src/app/search/server/buildFilterPrompt";
 
 describe("buildFieldCatalog / nullableFieldIds", () => {
   it("builds one catalog line per registered field", () => {

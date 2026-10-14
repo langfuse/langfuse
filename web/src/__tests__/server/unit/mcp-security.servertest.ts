@@ -9,7 +9,7 @@ const mockEnv = vi.hoisted(() => ({
 vi.mock("@/src/env.mjs", () => mockEnv);
 
 import type { NextApiRequest } from "next";
-import { validateMcpRequestSecurity } from "@/src/features/mcp/server/security";
+import { validateMcpRequestSecurity } from "@/src/public-api/mcp/server/security";
 
 const mockRequest = (headers: NextApiRequest["headers"]): NextApiRequest =>
   ({ headers }) as NextApiRequest;

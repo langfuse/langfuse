@@ -15,8 +15,8 @@ import {
   createOrgProjectAndApiKey,
   getObservationById,
 } from "@langfuse/shared/src/server";
-import { createPromptForApi } from "@/src/features/prompts/server";
-import handler from "@/src/pages/api/public/prompts";
+import { createPromptForApi } from "@/src/prompt-management/server";
+import handler from "@/pages/api/public/prompts";
 
 describe("/api/public/prompts API Endpoint", () => {
   let auth: string;

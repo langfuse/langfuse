@@ -13,7 +13,7 @@ import {
 } from "@langfuse/shared";
 import { nanoid } from "nanoid";
 
-import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
+import { type PromptsMetaResponse } from "@/src/prompt-management/server/actions/getPromptsMeta";
 import {
   createApiKey,
   createBasicAuthHeader,
@@ -31,9 +31,9 @@ import {
 } from "@/src/__tests__/server/mcp-helpers";
 import { randomUUID } from "node:crypto";
 import waitForExpect from "wait-for-expect";
-import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
-import { promptNameHandler } from "@/src/features/prompts/server/handlers/promptNameHandler";
-import { promptsHandler } from "@/src/features/prompts/server/handlers/promptsHandler";
+import { createPrompt } from "@/src/prompt-management/server/actions/createPrompt";
+import { promptNameHandler } from "@/src/prompt-management/server/handlers/promptNameHandler";
+import { promptsHandler } from "@/src/prompt-management/server/handlers/promptsHandler";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";

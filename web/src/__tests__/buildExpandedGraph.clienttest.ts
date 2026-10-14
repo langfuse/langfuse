@@ -1,12 +1,12 @@
 import {
   buildExpandedGraph,
   MAX_EXPANDED_EDGES,
-} from "@/src/features/trace-graph-view/buildExpandedGraph";
+} from "@/src/tracing/trace-graph/buildExpandedGraph";
 import {
   type AgentGraphDataResponse,
   LANGFUSE_START_NODE_NAME,
   LANGFUSE_END_NODE_NAME,
-} from "@/src/features/trace-graph-view/types";
+} from "@/src/tracing/trace-graph/types";
 
 describe("buildExpandedGraph", () => {
   const obs = (

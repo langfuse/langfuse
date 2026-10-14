@@ -1,0 +1,1495 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-style-props */
+import React, {
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  memo,
+} from "react";
+import { cn } from "@/src/app/utils/tailwind";
+import { deepParseJson } from "@langfuse/shared";
+import { decodeUnicodeInJson } from "@/src/app/utils/decodeUnicodeInJson";
+import { Skeleton } from "@/src/app/design-system/legacy-primitives/skeleton";
+import { type MediaReturnType } from "@/src/tracing/media";
+import { LangfuseMediaView } from "@/src/app/design-system/legacy-primitives/LangfuseMediaView";
+import { MarkdownJsonViewHeader } from "@/src/app/design-system/legacy-primitives/MarkdownJsonView";
+import { copyTextToClipboard } from "@/src/app/utils/clipboard";
+import { JSONView } from "@/src/app/design-system/legacy-primitives/CodeJsonViewer";
+import { Button } from "@/src/app/design-system/legacy-primitives/button";
+import { useClickWithoutSelection } from "@/src/app/hooks/useClickWithoutSelection";
+import {
+  ChevronDown,
+  ChevronRight,
+  UnfoldVertical,
+  FoldVertical,
+} from "lucide-react";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getExpandedRowModel,
+  flexRender,
+  type ExpandedState,
+  type Row,
+} from "@tanstack/react-table";
+import { type LangfuseColumnDef } from "@/src/app/tables/common-components/types";
+
+// Custom expanded state type that allows false ("user intentionally collapsed all")
+type LangfuseExpandedState = ExpandedState | false;
+import { ChatMlArraySchema } from "@/src/app/components/schemas/ChatMlSchema";
+import { MarkdownView } from "@/src/app/design-system/legacy-primitives/MarkdownViewer";
+import {
+  filterAlreadyRenderedMedia,
+  getRenderedInlineMediaIds,
+  getStandaloneMediaReferenceStrings,
+} from "@/src/app/design-system/legacy-primitives/markdown-media.utils";
+import {
+  StringOrMarkdownSchema,
+  containsAnyMarkdown,
+} from "@/src/app/components/schemas/MarkdownSchema";
+
+import { useMarkdownRenderCharacterLimit } from "@/src/app/hooks/useMarkdownRenderCharacterLimit";
+import {
+  convertRowIdToKeyPath,
+  getSmartExpansionState,
+  type JsonTableRow,
+  transformJsonToTableData,
+} from "@/src/app/tables/common-components/utils/jsonExpansionUtils";
+import {
+  ValueCell,
+  getValueStringLength,
+  type MetadataFilterActions,
+} from "@/src/app/tables/common-components/ValueCell";
+import {
+  ItemBadge,
+  type LangfuseItemType,
+} from "@/src/app/components/ItemBadge";
+import { isLargeRenderString } from "@/src/app/design-system/legacy-primitives/largeStringGate";
+import { LargeStringFallback } from "@/src/app/design-system/legacy-primitives/LargeStringFallback";
+
+const INDENTATION_PER_LEVEL = 16;
+const INDENTATION_BASE = 12;
+const KEY_CLASSES = "text-muted-foreground font-mono text-xs/5 wrap-break-word";
+const CELL_CLASSES =
+  "border-border/60 py-1 pr-2 pl-1 align-top whitespace-normal";
+
+// Constants for smart expansion logic
+// Used for nested objects to control smart expansion depth
+const DEFAULT_MAX_ROWS = 20;
+// Used for root-level objects where user has no parent to expand from. Therefore,
+// set higher to ensure objects like metadata with many keys are still displayed
+const DEFAULT_MAX_ROWS_IF_ROOT = 100;
+
+const MAX_CELL_DISPLAY_CHARS = 2000;
+
+const ASSISTANT_TITLES = ["assistant", "Output", "model"];
+
+const PREVIEW_TEXT_CLASSES = "text-gray-500 dark:text-gray-400";
+
+type PrettyJsonViewTone = "danger" | "warning" | "muted" | "neutral";
+
+const PRETTY_JSON_VIEW_TONE_CLASSES: Record<
+  PrettyJsonViewTone,
+  { container: string; row: string; cell: string }
+> = {
+  danger: {
+    container:
+      "border-red-100 bg-red-50 text-red-900 dark:border-dark-red/20 dark:bg-light-red/35 dark:text-red-300",
+    row: "hover:bg-light-red/50 dark:hover:bg-light-red/35",
+    cell: "border-dark-red/20 dark:border-dark-red/15",
+  },
+  warning: {
+    container:
+      "border-yellow-100 bg-yellow-50 text-yellow-900 dark:border-dark-yellow/20 dark:bg-light-yellow/35 dark:text-yellow-300",
+    row: "hover:bg-light-yellow/50 dark:hover:bg-light-yellow/35",
+    cell: "border-dark-yellow/20 dark:border-dark-yellow/15",
+  },
+  muted: {
+    container: "border-transparent bg-surface-output text-foreground-secondary",
+    row: "hover:bg-muted",
+    cell: "border-border",
+  },
+  neutral: {
+    container: "border-transparent bg-surface-output text-foreground-secondary",
+    row: "hover:bg-muted",
+    cell: "border-border",
+  },
+};
+
+// decodeUnicodeInJson was extracted to a standalone module so that other JSON
+// viewers (e.g. CodeJsonViewer) can reuse it without creating an import cycle.
+// Re-exported here for backward compatibility with existing imports and tests.
+export {
+  decodeUnicodeInJson,
+  DECODE_UNICODE_MAX_NODES,
+  DECODE_UNICODE_MAX_DEPTH,
+} from "@/src/app/utils/decodeUnicodeInJson";
+
+function shouldShowValue(value: unknown, showNullValues: boolean): boolean {
+  if (showNullValues) return true;
+  return value !== null && value !== "" && value !== 0;
+}
+
+function filterTableRows(
+  rows: JsonTableRow[],
+  showNullValues: boolean,
+): JsonTableRow[] {
+  if (showNullValues) return rows;
+
+  return rows
+    .filter((row) => shouldShowValue(row.value, showNullValues))
+    .map((row) => ({
+      ...row,
+      subRows: row.subRows
+        ? filterTableRows(row.subRows, showNullValues)
+        : row.subRows,
+    }));
+}
+
+function getEmptyValueDisplay(value: unknown): string | null {
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+  if (value === "") return "empty string";
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 0
+  ) {
+    return "empty object";
+  }
+  return null;
+}
+
+function getContainerClasses(
+  title: string | undefined,
+  scrollable: boolean | undefined,
+  codeClassName: string | undefined,
+  baseClasses = "whitespace-pre-wrap wrap-break-word p-3 text-xs",
+  borderless = false,
+) {
+  const toned = ASSISTANT_TITLES.includes(title || "");
+  return cn(
+    baseClasses,
+    toned ? "bg-surface-output dark:border-border" : "",
+    borderless
+      ? "rounded-md overflow-clip"
+      : scrollable
+        ? ""
+        : "rounded-sm border",
+    codeClassName,
+  );
+}
+
+function isChatMLFormat(json: unknown): boolean {
+  if (!json || typeof json !== "object") return false;
+
+  if (Array.isArray(json)) {
+    const directArray = ChatMlArraySchema.safeParse(json);
+    if (directArray.success) {
+      // had some false positives, so we really check for role AND content to validate ChatML
+      const hasRoleAndContent = json.some(
+        (item) =>
+          typeof item === "object" &&
+          item !== null &&
+          "role" in item &&
+          "content" in item,
+      );
+      return hasRoleAndContent;
+    }
+  }
+
+  if ("messages" in json && Array.isArray((json as any).messages)) {
+    const messagesArray = ChatMlArraySchema.safeParse((json as any).messages);
+    if (messagesArray.success) return true;
+  }
+
+  if (Array.isArray(json) && json.length === 1 && Array.isArray(json[0])) {
+    const nestedArray = ChatMlArraySchema.safeParse(json[0]);
+    if (nestedArray.success) return true;
+  }
+
+  return false;
+}
+
+function isMarkdownContent(
+  json: unknown,
+  characterLimit: number,
+): {
+  isMarkdown: boolean;
+  content?: string;
+} {
+  const contentSize = JSON.stringify(json || {}).length;
+  if (contentSize > characterLimit) {
+    return { isMarkdown: false };
+  }
+
+  if (typeof json === "string") {
+    const markdownResult = StringOrMarkdownSchema.safeParse(json);
+    if (markdownResult.success) {
+      return { isMarkdown: true, content: json };
+    }
+  }
+
+  // also render as MD if object has one key and the value is a markdown like string
+  if (
+    typeof json === "object" &&
+    json !== null &&
+    !Array.isArray(json) &&
+    json.constructor === Object
+  ) {
+    const entries = Object.entries(json);
+    if (entries.length === 1) {
+      const [, value] = entries[0];
+      if (typeof value === "string") {
+        if (containsAnyMarkdown(value)) {
+          return { isMarkdown: true, content: value };
+        }
+      }
+    }
+  }
+
+  return { isMarkdown: false };
+}
+
+function getValueType(value: unknown): JsonTableRow["type"] {
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+  if (Array.isArray(value)) return "array";
+  return typeof value as JsonTableRow["type"];
+}
+
+function hasChildren(value: unknown, valueType: JsonTableRow["type"]): boolean {
+  return (
+    (valueType === "object" &&
+      Object.keys(value as Record<string, unknown>).length > 0) ||
+    (valueType === "array" && Array.isArray(value) && value.length > 0)
+  );
+}
+
+function generateChildRows(row: JsonTableRow): JsonTableRow[] {
+  if (!row.rawChildData || row.childrenGenerated) {
+    return row.subRows || [];
+  }
+
+  const children = transformJsonToTableData(
+    row.rawChildData,
+    row.key,
+    row.level + 1,
+    row.id,
+    false, // Don't use lazy loading for children
+  );
+
+  return children;
+}
+
+function generateAllChildrenRecursively(
+  row: JsonTableRow,
+  onRowGenerated?: (rowId: string) => void,
+): void {
+  if (row.rawChildData && !row.childrenGenerated) {
+    const children = generateChildRows(row);
+    row.subRows = children;
+    row.childrenGenerated = true;
+
+    // this row now has generated children for state preservation (expand all)
+    onRowGenerated?.(row.id);
+
+    children.forEach((child) => {
+      generateAllChildrenRecursively(child, onRowGenerated);
+    });
+  }
+}
+
+function handleRowExpansion(
+  row: Row<JsonTableRow>,
+  onLazyLoadChildren?: (rowId: string) => void,
+  expandedCells?: Set<string>,
+  toggleCellExpansion?: (cellId: string) => void,
+) {
+  // row expansion takes precedence over cell expansion
+  if (row.original.hasChildren) {
+    const originalRow = row.original;
+    if (originalRow.rawChildData && !originalRow.childrenGenerated) {
+      onLazyLoadChildren?.(originalRow.id);
+    }
+    row.toggleExpanded();
+    return;
+  }
+
+  // does the row have children, then expand row
+  const cellId = `${row.id}-value`;
+  const { value } = row.original;
+  const valueStringLength = getValueStringLength(value);
+  const needsCellExpansion = valueStringLength > MAX_CELL_DISPLAY_CHARS;
+
+  if (needsCellExpansion && expandedCells && toggleCellExpansion) {
+    toggleCellExpansion(cellId);
+  }
+}
+
+interface JsonTableRowProps {
+  row: Row<JsonTableRow>;
+  rowIndex: number;
+  topLevelRowRef?: React.RefObject<HTMLTableRowElement | null>;
+  onLazyLoadChildren?: (rowId: string) => void;
+  expandedCells: Set<string>;
+  toggleCellExpansion: (cellId: string) => void;
+  stickyTopLevelKey: boolean;
+  toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
+}
+
+const JsonTableRowComponent = memo(
+  ({
+    row,
+    rowIndex,
+    topLevelRowRef,
+    onLazyLoadChildren,
+    expandedCells,
+    toggleCellExpansion,
+    stickyTopLevelKey,
+    toneClasses,
+  }: JsonTableRowProps) => {
+    // Hook is now at top level of this component ✅
+    const isExpandable =
+      row.original.hasChildren ||
+      getValueStringLength(row.original.value) > MAX_CELL_DISPLAY_CHARS;
+
+    const { props: rowClickProps } = useClickWithoutSelection({
+      onClick: () => {
+        handleRowExpansion(
+          row,
+          onLazyLoadChildren,
+          expandedCells,
+          toggleCellExpansion,
+        );
+      },
+      enabled: isExpandable,
+    });
+
+    return (
+      <tr
+        ref={
+          rowIndex === 0 && row.original.level === 0
+            ? topLevelRowRef
+            : undefined
+        }
+        data-observation-id={row.id}
+        {...rowClickProps}
+        className={cn(
+          "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
+          isExpandable ? "cursor-pointer" : "",
+          row.original.level === 0 && stickyTopLevelKey
+            ? "bg-background sticky top-0 z-10 shadow-xs"
+            : "",
+          toneClasses?.row,
+        )}
+      >
+        {row.getVisibleCells().map((cell) => (
+          <td
+            key={cell.id}
+            className={cn(
+              "h-full border-b [:last-child_>_&]:border-b-0",
+              CELL_CLASSES,
+              cell.column.id === "value" && "[&>div]:wrap-anywhere",
+              toneClasses?.cell,
+            )}
+            style={{ width: `${cell.column.columnDef.size}%` }}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </td>
+        ))}
+      </tr>
+    );
+  },
+);
+
+JsonTableRowComponent.displayName = "JsonTableRow";
+
+function JsonPrettyTable({
+  data,
+  expandAllRef,
+  onExpandStateChange,
+  noBorder = false,
+  expanded,
+  onExpandedChange,
+  onLazyLoadChildren,
+  onForceUpdate,
+  smartDefaultsLevel,
+  expandedCells,
+  toggleCellExpansion,
+  stickyTopLevelKey = false,
+  showObservationTypeBadge = false,
+  metadataActions,
+  rowActions,
+  toneClasses,
+}: {
+  data: JsonTableRow[];
+  expandAllRef?: React.RefObject<(() => void) | null>;
+  onExpandStateChange?: (allExpanded: boolean) => void;
+  noBorder?: boolean;
+  expanded: ExpandedState;
+  onExpandedChange: (
+    updater: ExpandedState | ((prev: ExpandedState) => ExpandedState),
+  ) => void;
+  onLazyLoadChildren?: (rowId: string) => void;
+  onForceUpdate?: () => void;
+  smartDefaultsLevel?: number | null;
+  expandedCells: Set<string>;
+  toggleCellExpansion: (cellId: string) => void;
+  stickyTopLevelKey?: boolean;
+  showObservationTypeBadge?: boolean;
+  metadataActions?: MetadataFilterActions;
+  rowActions?: (row: Row<JsonTableRow>) => React.ReactNode;
+  toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
+  /** Drop the Path / Value header row. */
+}) {
+  const topLevelRowRef = useRef<HTMLTableRowElement>(null);
+  const [topLevelRowHeight, setTopLevelRowHeight] = useState(32);
+
+  useEffect(() => {
+    if (stickyTopLevelKey && topLevelRowRef.current) {
+      setTopLevelRowHeight(topLevelRowRef.current.offsetHeight);
+    }
+  }, [stickyTopLevelKey, data, expanded]);
+
+  const indentationWidthFor = (row: Row<JsonTableRow>) =>
+    row.original.level * INDENTATION_PER_LEVEL + INDENTATION_BASE;
+
+  const renderKeyText = (key: string) =>
+    key.includes(".")
+      ? key.split(".").map((segment, index, segments) => (
+          <span key={index}>
+            {segment}
+            {index < segments.length - 1 && (
+              <>
+                .<wbr />
+              </>
+            )}
+          </span>
+        ))
+      : key;
+
+  const renderKey = (row: Row<JsonTableRow>) => {
+    const indentationWidth = indentationWidthFor(row);
+
+    const itemBadgeType =
+      showObservationTypeBadge &&
+      row.original.level === 0 &&
+      row.original.value &&
+      typeof row.original.value === "object" &&
+      !Array.isArray(row.original.value) &&
+      "type" in row.original.value &&
+      typeof (row.original.value as any).type === "string" &&
+      (row.original.value as any).type
+        ? ((row.original.value as any).type as LangfuseItemType)
+        : null;
+
+    return (
+      <div className="flex w-max max-w-[40cqw] min-w-40 items-start gap-1 text-xs/5 wrap-break-word">
+        <div
+          className="flex h-[1lh] shrink-0 items-center justify-end"
+          style={{ width: `${indentationWidth}px` }}
+        >
+          {row.original.hasChildren ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRowExpansion(
+                  row,
+                  onLazyLoadChildren,
+                  expandedCells,
+                  toggleCellExpansion,
+                );
+              }}
+              className="text-muted-foreground hover:text-foreground h-4 w-4 p-0 hover:bg-transparent"
+            >
+              {row.getIsExpanded() ? (
+                <ChevronDown className="icon-base text-icon-foreground" />
+              ) : (
+                <ChevronRight className="icon-base text-icon-foreground" />
+              )}
+            </Button>
+          ) : null}
+        </div>
+        <span className={cn("min-w-0 cursor-text", KEY_CLASSES)}>
+          {itemBadgeType && (
+            <span className="mr-1 inline-block align-middle">
+              <ItemBadge type={itemBadgeType} isSmall={true} />
+            </span>
+          )}
+          {renderKeyText(row.original.key)}
+        </span>
+      </div>
+    );
+  };
+
+  const renderValue = (row: Row<JsonTableRow>) => (
+    <ValueCell
+      row={row}
+      expandedCells={expandedCells}
+      toggleCellExpansion={toggleCellExpansion}
+      preserveStringWhitespace={row.original.key === "code_eval_source_code"}
+      metadataActions={metadataActions}
+      rowActions={rowActions}
+    />
+  );
+
+  const keyColumn: LangfuseColumnDef<JsonTableRow, unknown> = {
+    accessorKey: "key",
+    header: "Path",
+    size: 1,
+    cell: ({ row }) => {
+      const content = renderKey(row);
+      const valueLength = getValueStringLength(row.original.value);
+      const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS / 3; // already long if we don't truncate
+
+      if (isLongValue) {
+        let topPosition = "0";
+        if (stickyTopLevelKey) {
+          topPosition =
+            row.original.level === 0 ? "0" : `${topLevelRowHeight}px`;
+        }
+
+        return (
+          <div className="sticky z-5 -my-1 py-1" style={{ top: topPosition }}>
+            {content}
+          </div>
+        );
+      }
+
+      return content;
+    },
+  };
+
+  const valueColumn: LangfuseColumnDef<JsonTableRow, unknown> = {
+    accessorKey: "value",
+    header: "Value",
+    size: 99,
+    cell: ({ row }) => renderValue(row),
+  };
+
+  const columns: LangfuseColumnDef<JsonTableRow, unknown>[] = [
+    keyColumn,
+    valueColumn,
+  ];
+
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
+    getSubRows: (row) => row.subRows,
+    getRowId: (row) => convertRowIdToKeyPath(row.id),
+    state: {
+      expanded,
+    },
+    onExpandedChange: onExpandedChange,
+    enableColumnResizing: false,
+    autoResetExpanded: false,
+  });
+
+  const allRowsExpanded = useMemo(() => {
+    const allRows = table.getRowModel().flatRows;
+    const expandableRows = allRows.filter((row) => row.original.hasChildren);
+    return (
+      expandableRows.length > 0 &&
+      expandableRows.every((row) => row.getIsExpanded())
+    );
+    // expanded is required for the collapse button to work
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table, expanded]);
+
+  // Notify parent of expand state changes
+  useEffect(() => {
+    onExpandStateChange?.(allRowsExpanded);
+  }, [allRowsExpanded, onExpandStateChange]);
+
+  const expandRowsWithLazyLoading = useCallback(
+    (
+      rowFilter: (rows: Row<JsonTableRow>[]) => Row<JsonTableRow>[],
+      shouldCollapse = false,
+    ) => {
+      if (shouldCollapse) {
+        onExpandedChange({});
+        return;
+      }
+
+      const allRows = table.getRowModel().flatRows;
+      const expandableRows = allRows.filter((row) => row.original.hasChildren);
+      const targetRows = rowFilter(expandableRows);
+
+      const rowsNeedingParsing = targetRows.filter(
+        (row) => row.original.rawChildData && !row.original.childrenGenerated,
+      );
+
+      if (rowsNeedingParsing.length > 0) {
+        const generatedRowIds: string[] = [];
+
+        rowsNeedingParsing.forEach((row) => {
+          generateAllChildrenRecursively(row.original, (rowId) => {
+            generatedRowIds.push(rowId);
+          });
+        });
+
+        if (generatedRowIds.length > 0) {
+          onLazyLoadChildren?.(generatedRowIds.join(","));
+        }
+
+        onForceUpdate?.();
+        // setTimeout re-renders table once new data is available
+        setTimeout(() => {
+          const newExpanded: ExpandedState = {};
+          const updatedAllRows = table.getRowModel().flatRows;
+          const updatedExpandableRows = updatedAllRows.filter(
+            (row) => row.original.hasChildren,
+          );
+          const updatedTargetRows = rowFilter(updatedExpandableRows);
+
+          updatedTargetRows.forEach((row) => {
+            newExpanded[row.id] = true;
+          });
+
+          onExpandedChange(newExpanded);
+        }, 0);
+      } else {
+        // No lazy loading needed, just set expansion state
+        const newExpanded: ExpandedState = {};
+        targetRows.forEach((row) => {
+          newExpanded[row.id] = true;
+        });
+        onExpandedChange(newExpanded);
+      }
+    },
+    [table, onExpandedChange, onLazyLoadChildren, onForceUpdate],
+  );
+
+  const handleToggleExpandAll = useCallback(() => {
+    expandRowsWithLazyLoading(
+      (expandableRows) => expandableRows, // All expandable rows
+      allRowsExpanded, // Should collapse if already expanded
+    );
+  }, [allRowsExpanded, expandRowsWithLazyLoading]);
+
+  useEffect(() => {
+    if (expandAllRef) {
+      expandAllRef.current = handleToggleExpandAll;
+    }
+  }, [expandAllRef, handleToggleExpandAll]);
+
+  useEffect(() => {
+    if (smartDefaultsLevel != null && smartDefaultsLevel > 0) {
+      expandRowsWithLazyLoading((expandableRows) =>
+        expandableRows.filter((row) => row.depth < smartDefaultsLevel),
+      );
+    }
+  }, [smartDefaultsLevel, expandRowsWithLazyLoading]);
+
+  return (
+    <div className={cn("w-full", !noBorder && "rounded-sm border")}>
+      <table className="w-full table-auto caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
+        <thead className="sr-only">
+          <tr>
+            <th scope="col">Path</th>
+            <th scope="col">Value</th>
+          </tr>
+        </thead>
+        <tbody className="text-xs [&_tr:last-child]:border-0">
+          {table.getRowModel().rows.map((row, rowIndex) => (
+            <JsonTableRowComponent
+              key={row.id}
+              row={row}
+              rowIndex={rowIndex}
+              topLevelRowRef={
+                rowIndex === 0 && row.original.level === 0
+                  ? topLevelRowRef
+                  : undefined
+              }
+              onLazyLoadChildren={onLazyLoadChildren}
+              expandedCells={expandedCells}
+              toggleCellExpansion={toggleCellExpansion}
+              stickyTopLevelKey={stickyTopLevelKey}
+              toneClasses={toneClasses}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function PrettyJsonView(props: {
+  json?: unknown;
+  parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
+  title?: string;
+  titleIcon?: React.ReactNode;
+  /** Drop the Path / Value header row. */
+  className?: string;
+  isLoading?: boolean;
+  isParsing?: boolean;
+  codeClassName?: string;
+  collapseStringsAfterLength?: number | null;
+  media?: MediaReturnType[];
+  scrollable?: boolean;
+  controlButtons?: React.ReactNode;
+  currentView?: "pretty" | "json";
+  externalExpansionState?: Record<string, boolean> | boolean;
+  onExternalExpansionChange?: (
+    expansion: Record<string, boolean> | boolean,
+  ) => void;
+  showNullValues?: boolean;
+  stickyTopLevelKey?: boolean;
+  showObservationTypeBadge?: boolean;
+  tone?: PrettyJsonViewTone;
+  /** Content to render between header and main content (e.g., thinking blocks) */
+  afterHeader?: React.ReactNode;
+  /** When set, rows show an actions menu with copy + add-to-filter shortcuts
+      (metadata views only). */
+  metadataActions?: MetadataFilterActions;
+  /** Replaces the built-in row menu, for tables with their own actions. */
+  rowActions?: (row: Row<JsonTableRow>) => React.ReactNode;
+  /** Collapse long string content to a preview (from raw `role === "system"`,
+      since the title can carry a message `name` instead of the role). */
+  isSystemPrompt?: boolean;
+}) {
+  const toneClasses = props.tone
+    ? PRETTY_JSON_VIEW_TONE_CLASSES[props.tone]
+    : undefined;
+  const codeClassName = cn(props.codeClassName, toneClasses?.container);
+  // Large plain-string gate (LFE-10991): a multi-MB top-level string skips
+  // deepParseJson's object-only `maxSize` guard, so without this it would run
+  // several full-length main-thread passes (parse, the markdown-probe
+  // `JSON.stringify`, unicode decode — some of them twice, including inside the
+  // always-mounted hidden JSON viewer) and mount the unvirtualized react18-json
+  // tree with the whole string, blocking the tab and inflating memory. The body
+  // renders a bounded preview + download instead.
+  //
+  // Gate on the SETTLED value only. During an async worker parse the parsed
+  // value is not ready (`parsedJson === undefined`, `isParsing` true) and the
+  // raw `json` may be a *stringified* payload whose JSON-quoted form is itself
+  // >2M chars (e.g. the JSON tab passes raw `json` alongside a not-yet-ready
+  // `parsedJson`). Gating on that raw form would flash the fallback — and offer
+  // a quoted-form download — before the parse settles to the real value. The
+  // unvirtualized render we protect against does not run during parse anyway,
+  // so fall through to the normal loading/parsing state in that window.
+  const largeStringValue = useMemo(() => {
+    if (props.isParsing) return null;
+    const settled =
+      props.parsedJson !== undefined ? props.parsedJson : props.json;
+    return isLargeRenderString(settled) ? settled : null;
+  }, [props.parsedJson, props.json, props.isParsing]);
+
+  // Use pre-parsed data if available, otherwise parse on-demand
+  const parsedJson = useMemo(() => {
+    // Skip all parse/decode work on very large plain strings (see gate above);
+    // the raw string is rendered through the bounded fallback, not decoded.
+    if (largeStringValue !== null) {
+      return largeStringValue;
+    }
+
+    // If pre-parsed data is provided, use it directly (skip parsing)
+    if (props.parsedJson !== undefined) {
+      return decodeUnicodeInJson(props.parsedJson);
+    }
+
+    // If still parsing in Web Worker, return null (will show loading state)
+    if (props.isParsing) {
+      return null;
+    }
+
+    // Fast path: if already an object, likely no parsing needed
+    if (typeof props.json !== "string") {
+      return decodeUnicodeInJson(props.json);
+    }
+
+    // Only parse strings, with size/depth limits
+    const result = deepParseJson(props.json, {
+      maxSize: 500_000,
+      maxDepth: 2,
+    });
+
+    // Decode \uXXXX escapes so Python SDK (ensure_ascii=True) traces display
+    // non-ASCII characters correctly in the trace detail view.
+    return decodeUnicodeInJson(result);
+  }, [props.json, props.parsedJson, props.isParsing, largeStringValue]);
+
+  const tableBorderless = Boolean(props.title) && !props.tone;
+
+  // JSONView internally calls deepParseJson (with maxDepth:3) which mutates
+  // nested string fields in place. Because baseTableData[].rawChildData holds
+  // references back into parsedJson, sharing parsedJson with JSONView would
+  // corrupt the table's lazy-loaded children whenever JSONView renders (even
+  // while hidden via display:none). Pass a deep clone so the two views stay
+  // independent.
+  const jsonViewInput = useMemo(() => {
+    if (parsedJson === null || parsedJson === undefined) return props.json;
+    if (typeof parsedJson !== "object") return parsedJson;
+    return structuredClone(parsedJson);
+  }, [parsedJson, props.json]);
+
+  const actualCurrentView = props.currentView ?? "pretty";
+  const expandAllRef = useRef<(() => void) | null>(null);
+  const [allRowsExpanded, setAllRowsExpanded] = useState(false);
+
+  // For JSON view: derive collapsed state from external expansion state
+  // false or empty object = collapsed, true or object with keys = expanded
+  const deriveJsonCollapsedFromExternal = useCallback(
+    (extState: Record<string, boolean> | boolean | undefined): boolean => {
+      if (extState === undefined) return false; // default: not collapsed
+      if (extState === false) return true; // explicitly collapsed
+      if (extState === true) return false; // explicitly expanded
+      // empty object = collapsed (user collapsed all)
+      if (typeof extState === "object" && Object.keys(extState).length === 0)
+        return true;
+      return false; // has keys = not collapsed
+    },
+    [],
+  );
+
+  const [jsonIsCollapsed, setJsonIsCollapsed] = useState(() =>
+    deriveJsonCollapsedFromExternal(props.externalExpansionState),
+  );
+
+  // Sync jsonIsCollapsed when external state changes (e.g., navigating between observations)
+  const prevExternalStateRef = useRef(props.externalExpansionState);
+  useEffect(() => {
+    if (prevExternalStateRef.current !== props.externalExpansionState) {
+      const newCollapsed = deriveJsonCollapsedFromExternal(
+        props.externalExpansionState,
+      );
+      prevExternalStateRef.current = props.externalExpansionState;
+      setJsonIsCollapsed(newCollapsed);
+    }
+  }, [props.externalExpansionState, deriveJsonCollapsedFromExternal]);
+  const [expandedRowsWithChildren, setExpandedRowsWithChildren] = useState<
+    Set<string>
+  >(new Set());
+  const [expandedCells, setExpandedCells] = useState<Set<string>>(new Set());
+  const [, setForceUpdate] = useState(0);
+
+  // View's own state, lower precedence than optionally supplied external expansion state
+  const [internalExpansionState, setInternalExpansionState] =
+    useState<LangfuseExpandedState>({});
+
+  const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
+  const characterLimit = useMarkdownRenderCharacterLimit();
+  const { isMarkdown, content: markdownContent } = useMemo(
+    // Skip the markdown probe for gated large strings: isMarkdownContent runs
+    // `JSON.stringify` on the whole value, an O(n) pass over the multi-MB string.
+    () =>
+      largeStringValue !== null
+        ? { isMarkdown: false as const, content: undefined }
+        : isMarkdownContent(parsedJson, characterLimit),
+    [parsedJson, largeStringValue, characterLimit],
+  );
+
+  const baseTableData = useMemo(() => {
+    try {
+      if (
+        largeStringValue === null &&
+        actualCurrentView === "pretty" &&
+        parsedJson !== null &&
+        parsedJson !== undefined &&
+        !isChatML &&
+        !isMarkdown
+      ) {
+        // early abort check for smart expansion
+        if (parsedJson?.constructor === Object) {
+          const topLevelKeys = Object.keys(
+            parsedJson as Record<string, unknown>,
+          );
+          if (topLevelKeys.length > DEFAULT_MAX_ROWS_IF_ROOT) {
+            // return empty array to skip expansion directly
+            return [];
+          }
+        }
+
+        // lazy load JSON data, generate only top-level rows initially; children on expand
+        const createTopLevelRows = (
+          obj: Record<string, unknown>,
+        ): JsonTableRow[] => {
+          const entries = Object.entries(obj);
+          const rows: JsonTableRow[] = [];
+
+          entries.forEach(([key, value]) => {
+            const valueType = getValueType(value);
+            const childrenExist = hasChildren(value, valueType);
+
+            const row: JsonTableRow = {
+              id: key,
+              key,
+              value,
+              type: valueType,
+              hasChildren: childrenExist,
+              level: 0,
+              childrenGenerated: false,
+            };
+
+            if (childrenExist) {
+              row.rawChildData = value;
+              row.subRows = []; // empty initially for lazy loading
+            }
+            rows.push(row);
+          });
+          return rows;
+        };
+
+        let result: JsonTableRow[];
+
+        // top-level is an object, start with its properties directly
+        if (parsedJson?.constructor === Object) {
+          result = createTopLevelRows(parsedJson as Record<string, unknown>);
+        } else {
+          result = transformJsonToTableData(parsedJson, "", 0, "", true);
+        }
+
+        return result;
+      }
+
+      return [];
+    } catch (error) {
+      console.error("Error transforming JSON to table data:", error);
+      return [];
+    }
+  }, [parsedJson, isChatML, isMarkdown, actualCurrentView, largeStringValue]);
+
+  // state precedence: external state before smart expansion
+  const finalExpansionState: ExpandedState = useMemo(() => {
+    if (baseTableData.length === 0) return {};
+
+    if (props.externalExpansionState === false) {
+      // user collapsed all
+      return {};
+    }
+    if (props.externalExpansionState === true) {
+      // user expanded all
+      return true;
+    }
+    if (
+      typeof props.externalExpansionState === "object" &&
+      props.externalExpansionState !== null &&
+      Object.keys(props.externalExpansionState).length > 0
+    ) {
+      // user set specific expansions - apply with prefix matching
+
+      // Extract expanded paths for prefix matching
+      const expandedPaths = Object.entries(props.externalExpansionState)
+        .filter(([, isExpanded]) => isExpanded)
+        .map(([path]) => path);
+
+      // Apply prefix matching: for each expanded path, expand all its ancestors
+      // Example: if "messages.0.content.text" is expanded, also expand:
+      // "messages", "messages.0", "messages.0.content"
+      const enhancedState: Record<string, boolean> = {
+        ...props.externalExpansionState,
+      };
+
+      expandedPaths.forEach((path) => {
+        const parts = path.split(".");
+        // Generate all ancestor paths
+        for (let i = 1; i < parts.length; i++) {
+          const ancestorPath = parts.slice(0, i).join(".");
+          if (enhancedState[ancestorPath] === undefined) {
+            enhancedState[ancestorPath] = true;
+          }
+        }
+      });
+
+      return enhancedState;
+    }
+
+    // No external state -> use smart expansion. Short primitive lists stay
+    // collapsed because the parent-row preview already shows their contents.
+    return getSmartExpansionState(baseTableData, DEFAULT_MAX_ROWS);
+  }, [baseTableData, props.externalExpansionState]);
+
+  // actual expansion state used by the table (combines initial + user changes)
+  const actualExpansionState = useMemo(() => {
+    if (finalExpansionState === true) return true;
+
+    // Ensure both states are objects with fallback
+    const finalState = (finalExpansionState as Record<string, boolean>) || {};
+    const internalState =
+      (internalExpansionState as Record<string, boolean>) || {};
+
+    // Smart expansion only applies on initial load (when no user interactions yet)
+    if (Object.keys(internalState).length > 0) {
+      // user made changes, use them
+      return internalState;
+    } else if (internalExpansionState === false) {
+      // user collapsed all
+      return false;
+    }
+    return finalState;
+  }, [finalExpansionState, internalExpansionState]);
+
+  // table data with lazy-loaded children
+  const tableData = useMemo(() => {
+    const updateRowWithChildren = (rows: JsonTableRow[]): JsonTableRow[] => {
+      return rows.map((row) => {
+        let updatedRow = row;
+
+        // Generate children if:
+        // 1. Row is in expandedRowsWithChildren (user clicked lazy loading), OR
+        // 2. Row should be expanded according to actualExpansionState (smart expansion)
+        const keyPath = convertRowIdToKeyPath(row.id);
+        const shouldHaveChildren =
+          expandedRowsWithChildren.has(row.id) ||
+          (actualExpansionState !== true &&
+            actualExpansionState &&
+            actualExpansionState[keyPath]);
+
+        if (shouldHaveChildren && row.rawChildData && !row.childrenGenerated) {
+          const children = generateChildRows(row);
+          updatedRow = {
+            ...row,
+            subRows: children,
+            childrenGenerated: true,
+          };
+        }
+
+        if (updatedRow.subRows && updatedRow.subRows.length > 0) {
+          updatedRow = {
+            ...updatedRow,
+            subRows: updateRowWithChildren(updatedRow.subRows),
+          };
+        }
+
+        return updatedRow;
+      });
+    };
+
+    const dataWithChildren = updateRowWithChildren(baseTableData);
+    return filterTableRows(dataWithChildren, props.showNullValues ?? true);
+  }, [
+    baseTableData,
+    expandedRowsWithChildren,
+    actualExpansionState,
+    props.showNullValues,
+  ]);
+
+  const handleLazyLoadChildren = useCallback((rowId: string) => {
+    setExpandedRowsWithChildren((prev) => {
+      const newSet = new Set(prev);
+      // we track the IDs for batch updates when lazy loading children
+      if (rowId.includes(",")) {
+        rowId.split(",").forEach((id) => newSet.add(id));
+      } else {
+        newSet.add(rowId);
+      }
+
+      return newSet;
+    });
+  }, []);
+
+  const handleForceUpdate = useCallback(() => {
+    setForceUpdate((prev) => prev + 1);
+  }, []);
+
+  const toggleCellExpansion = useCallback((cellId: string) => {
+    setExpandedCells((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(cellId)) {
+        newSet.delete(cellId);
+      } else {
+        newSet.add(cellId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const { onExternalExpansionChange } = props;
+  const handleTableExpandedChange = useCallback(
+    (
+      updater:
+        | ExpandedState
+        | ((prev: ExpandedState) => ExpandedState)
+        | boolean,
+    ) => {
+      // always update internal state of the table
+      let newState: ExpandedState;
+      if (typeof updater === "function") {
+        newState = updater(
+          actualExpansionState === false ? {} : actualExpansionState,
+        );
+        const finalState: LangfuseExpandedState =
+          typeof newState === "object" && Object.keys(newState).length === 0
+            ? false
+            : newState;
+        setInternalExpansionState(finalState);
+
+        // update external state if state changed by user (callback provided)
+        if (onExternalExpansionChange) {
+          if (typeof newState === "boolean") {
+            onExternalExpansionChange(newState);
+            return;
+          }
+
+          const keyBasedState = Object.fromEntries(
+            Object.entries(newState).filter(([, expanded]) => expanded),
+          );
+
+          // user collapsed all items -> set state to false (instead of empty object)
+          const finalExternalState =
+            Object.keys(keyBasedState).length === 0 ? false : keyBasedState;
+          onExternalExpansionChange(finalExternalState);
+        }
+      } else if (typeof updater !== "boolean") {
+        newState = updater;
+        const finalState: LangfuseExpandedState =
+          typeof newState === "object" && Object.keys(newState).length === 0
+            ? false
+            : newState;
+        setInternalExpansionState(finalState);
+
+        // Handle external state updates for expand/collapse all button
+        if (onExternalExpansionChange && typeof newState === "object") {
+          if (Object.keys(newState).length === 0) {
+            // user collapsed all
+            onExternalExpansionChange(false);
+          } else {
+            onExternalExpansionChange(newState);
+          }
+        }
+      }
+    },
+    [onExternalExpansionChange, actualExpansionState],
+  );
+
+  const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
+    if (event) {
+      event.preventDefault();
+    }
+    const textToCopy = stringifyJsonNode(parsedJson);
+    copyTextToClipboard(textToCopy);
+
+    if (event) {
+      event.currentTarget.focus();
+    }
+  };
+
+  const handleJsonToggleCollapse = () => {
+    const newCollapsed = !jsonIsCollapsed;
+    setJsonIsCollapsed(newCollapsed);
+    if (props.onExternalExpansionChange) {
+      props.onExternalExpansionChange(!newCollapsed);
+    }
+  };
+
+  const hasExpandableRows = useMemo(() => {
+    if (typeof parsedJson !== "object" || parsedJson === null) return false;
+    return Object.values(parsedJson as Record<string, unknown>).some((value) =>
+      hasChildren(value, getValueType(value)),
+    );
+  }, [parsedJson]);
+  const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
+  const isPrettyView = actualCurrentView === "pretty";
+  const isMarkdownMode = isMarkdown && isPrettyView;
+  const standaloneMediaReferenceStrings =
+    typeof markdownContent === "string"
+      ? getStandaloneMediaReferenceStrings(markdownContent)
+      : [];
+  const shouldRenderStandaloneMedia =
+    isMarkdownMode && standaloneMediaReferenceStrings.length > 0;
+  const remainingMarkdownMedia = filterAlreadyRenderedMedia(
+    props.media,
+    getRenderedInlineMediaIds({
+      markdown: markdownContent ?? "",
+    }),
+  );
+  const shouldUseTableView =
+    largeStringValue === null &&
+    isPrettyView &&
+    !isChatML &&
+    !isMarkdown &&
+    !emptyValueDisplay;
+
+  const getBackgroundColorClass = () =>
+    ASSISTANT_TITLES.includes(props.title || "")
+      ? "bg-surface-output rounded-md overflow-clip"
+      : "";
+
+  const body = (
+    <>
+      {largeStringValue !== null ? (
+        <LargeStringFallback title={props.title} value={largeStringValue} />
+      ) : props.isLoading || props.isParsing ? (
+        <div className="io-message-content ph-no-capture">
+          <div
+            className={cn(
+              getContainerClasses(props.title, props.scrollable, codeClassName),
+            )}
+          >
+            <div className="space-y-2 p-3">
+              <Skeleton className="h-3 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+              <Skeleton className="h-3 w-2/3" />
+              {props.isParsing && (
+                <div className="text-muted-foreground mt-2 text-xs">
+                  Parsing in background...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : emptyValueDisplay && isPrettyView ? (
+        <div className="io-message-content ph-no-capture">
+          <div
+            className={cn(
+              "flex items-center",
+              getContainerClasses(
+                props.title,
+                props.scrollable,
+                codeClassName,
+                undefined,
+                tableBorderless,
+              ),
+            )}
+          >
+            <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
+              {emptyValueDisplay}
+            </span>
+          </div>
+        </div>
+      ) : isMarkdownMode ? (
+        <div className="io-message-content ph-no-capture">
+          {shouldRenderStandaloneMedia ? (
+            standaloneMediaReferenceStrings.map((referenceString, index) => (
+              <LangfuseMediaView
+                key={`${referenceString}-${index}`}
+                mediaReferenceString={referenceString}
+              />
+            ))
+          ) : (
+            <MarkdownView
+              markdown={markdownContent || ""}
+              media={props.media}
+              isSystemPrompt={props.isSystemPrompt}
+            />
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Always render JsonPrettyTable to preserve internal React Table state */}
+          <div
+            className="io-message-content ph-no-capture"
+            style={{ display: shouldUseTableView ? "flex" : "none" }}
+          >
+            <div
+              className={cn(
+                getContainerClasses(
+                  props.title,
+                  props.scrollable,
+                  codeClassName,
+                  "flex text-xs wrap-break-word whitespace-pre-wrap",
+                  tableBorderless,
+                ),
+                "@container w-full",
+              )}
+            >
+              {props.isLoading ? (
+                <Skeleton className="m-3 h-3 w-3/4" />
+              ) : (
+                <JsonPrettyTable
+                  data={tableData}
+                  expandAllRef={expandAllRef}
+                  onExpandStateChange={setAllRowsExpanded}
+                  noBorder={true}
+                  expanded={
+                    actualExpansionState === false ? {} : actualExpansionState
+                  }
+                  onExpandedChange={handleTableExpandedChange}
+                  onLazyLoadChildren={handleLazyLoadChildren}
+                  onForceUpdate={handleForceUpdate}
+                  smartDefaultsLevel={null}
+                  expandedCells={expandedCells}
+                  toggleCellExpansion={toggleCellExpansion}
+                  stickyTopLevelKey={props.stickyTopLevelKey}
+                  showObservationTypeBadge={props.showObservationTypeBadge}
+                  metadataActions={props.metadataActions}
+                  rowActions={props.rowActions}
+                  toneClasses={toneClasses}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Always render JSONView to preserve its state too */}
+          <div
+            className="io-message-content ph-no-capture"
+            style={{ display: shouldUseTableView ? "none" : "block" }}
+          >
+            <JSONView
+              // Use the unicode-decoded payload so that \uXXXX escapes from
+              // Python SDK ensure_ascii=True render as original characters.
+              // Pass a clone to avoid JSONView's internal deepParseJson
+              // mutating the shared parsedJson / rawChildData tree.
+              json={jsonViewInput}
+              title={props.title} // Title value used for background styling
+              hideTitle={true} // But hide the title, we display it
+              className=""
+              isLoading={props.isLoading}
+              codeClassName={codeClassName}
+              collapseStringsAfterLength={props.collapseStringsAfterLength}
+              media={props.media}
+              scrollable={props.scrollable}
+              externalJsonCollapsed={jsonIsCollapsed}
+              onToggleCollapse={handleJsonToggleCollapse}
+            />
+          </div>
+        </>
+      )}
+      {shouldRenderStandaloneMedia && remainingMarkdownMedia.length > 0 && (
+        <>
+          <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
+            Media
+          </div>
+          <div className="ph-no-capture flex flex-wrap gap-2 px-2 pt-1 pb-4">
+            {remainingMarkdownMedia.map((m) => (
+              <LangfuseMediaView
+                mediaAPIReturnValue={m}
+                variant="icon"
+                key={m.mediaId}
+              />
+            ))}
+          </div>
+        </>
+      )}
+      {props.media &&
+        props.media.length > 0 &&
+        isPrettyView &&
+        !isMarkdownMode && (
+          <>
+            <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
+              Media
+            </div>
+            <div className="ph-no-capture flex flex-wrap gap-2 px-2 pt-1 pb-4">
+              {props.media.map((m) => (
+                <LangfuseMediaView
+                  mediaAPIReturnValue={m}
+                  variant="icon"
+                  key={m.mediaId}
+                />
+              ))}
+            </div>
+          </>
+        )}
+    </>
+  );
+
+  const expandCollapseButton = (
+    <>
+      {shouldUseTableView && hasExpandableRows && (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={() => expandAllRef.current?.()}
+          className="text-muted-foreground hover:text-foreground hover:bg-transparent"
+          title={allRowsExpanded ? "Collapse all rows" : "Expand all rows"}
+        >
+          {allRowsExpanded ? (
+            <FoldVertical className="icon-base text-icon-foreground" />
+          ) : (
+            <UnfoldVertical className="icon-base text-icon-foreground" />
+          )}
+        </Button>
+      )}
+      {!shouldUseTableView && !isMarkdownMode && !largeStringValue && (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={handleJsonToggleCollapse}
+          className="text-muted-foreground hover:text-foreground hover:bg-transparent"
+          title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
+        >
+          {jsonIsCollapsed ? (
+            <UnfoldVertical className="icon-base text-icon-foreground" />
+          ) : (
+            <FoldVertical className="icon-base text-icon-foreground" />
+          )}
+        </Button>
+      )}
+    </>
+  );
+
+  return (
+    <div
+      className={cn(
+        "flex max-h-full min-h-0 flex-col",
+        "group/iosection",
+        props.className,
+        props.scrollable ? "overflow-hidden" : "",
+      )}
+    >
+      {props.title ? (
+        <MarkdownJsonViewHeader
+          title={props.title}
+          titleIcon={props.titleIcon}
+          handleOnCopy={handleOnCopy}
+          hoverRevealControls
+          controlButtons={
+            <>
+              {expandCollapseButton}
+              {props.controlButtons}
+            </>
+          }
+        />
+      ) : null}
+      {props.afterHeader}
+      {props.scrollable ? (
+        <div
+          className={cn(
+            "flex h-full min-h-0 overflow-hidden",
+            isMarkdownMode
+              ? getBackgroundColorClass()
+              : shouldUseTableView && tableBorderless
+                ? ""
+                : "rounded-sm border",
+          )}
+        >
+          <div className="max-h-full min-h-0 w-full overflow-y-auto">
+            {body}
+          </div>
+        </div>
+      ) : isMarkdownMode ? (
+        <div className={getBackgroundColorClass()}>{body}</div>
+      ) : (
+        body
+      )}
+    </div>
+  );
+}
+
+// TODO: deduplicate with CodeJsonViewer.tsx
+function stringifyJsonNode(node: unknown) {
+  // return single string nodes without quotes
+  if (typeof node === "string") {
+    return node;
+  }
+
+  try {
+    return JSON.stringify(
+      node,
+      (key, value) => {
+        switch (typeof value) {
+          case "bigint":
+            return String(value) + "n";
+          case "number":
+          case "boolean":
+          case "object":
+          case "string":
+            return value as string;
+          default:
+            return String(value);
+        }
+      },
+      4,
+    );
+  } catch (error) {
+    console.error("JSON stringify error", error);
+    return "Error: JSON.stringify failed";
+  }
+}

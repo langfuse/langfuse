@@ -45,7 +45,7 @@ deliberately **custom events** (the actions are semantic, not DOM-stable).
 `libraries/js/usage.mdx` (Super properties): `posthog.register(...)` sets props **auto-attached to every
 subsequent `capture`** (NOT a person/group prop) — `register_once` for first-touch, `unregister` to
 remove. This is **the documented "global dimension on every event" mechanism** → validates Langfuse's
-`v4BetaEnabled` super property in `web/src/pages/_app.tsx`. `person-properties.mdx`: `$set`/`$set_once` on
+`v4BetaEnabled` super property in `web/pages/_app.tsx`. `person-properties.mdx`: `$set`/`$set_once` on
 the profile (cohorts/flags); 512KB/person; `$set` = last _ingested_ value (ordering caveat).
 `send-events.mdx`: "always include more properties than you might need." Group properties = a 4th (B2B)
 scope.

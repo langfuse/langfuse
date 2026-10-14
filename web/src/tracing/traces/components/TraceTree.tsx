@@ -1,0 +1,100 @@
+import { VirtualizedTree } from "./VirtualizedTree";
+import { VirtualizedTreeNodeWrapper } from "./VirtualizedTreeNodeWrapper";
+import { SpanContent } from "./SpanContent";
+import { useTraceData } from "@/src/tracing/traces/contexts/TraceDataContext";
+import { useSelection } from "@/src/tracing/traces/contexts/SelectionContext";
+import { useHandlePrefetchObservation } from "@/src/tracing/traces/hooks/useHandlePrefetchObservation";
+import { useSelectTraceNode } from "@/src/tracing/traces/hooks/useSelectTraceNode";
+import { type TreeNode } from "../types/treeNode";
+import { metricEmphasisFor } from "@/src/tracing/traces/fns/metricEmphasis";
+
+/**
+ * TraceTree - Composition of VirtualizedTree + TreeNodeWrapper + SpanContent.
+ *
+ * Connects three layers:
+ * - VirtualizedTree (virtualization)
+ * - TreeNodeWrapper (tree structure rendering)
+ * - SpanContent (span-specific content)
+ *
+ * This composition pattern allows each component to have a single responsibility.
+ */
+
+export function TraceTree({ isLoading = false }: { isLoading?: boolean }) {
+  if (isLoading) return <TraceTreeLoading />;
+  return <LoadedTraceTree />;
+}
+
+/** A small tree's rows, so the placeholder has the shape of a trace. */
+const LOADING_ROWS = [
+  { depth: 0, hasChildren: true, isLastSibling: true, treeLines: [] },
+  { depth: 1, hasChildren: false, isLastSibling: false, treeLines: [] },
+  { depth: 1, hasChildren: true, isLastSibling: false, treeLines: [] },
+  { depth: 2, hasChildren: false, isLastSibling: false, treeLines: [true] },
+  { depth: 2, hasChildren: false, isLastSibling: true, treeLines: [true] },
+  { depth: 1, hasChildren: true, isLastSibling: true, treeLines: [] },
+  { depth: 2, hasChildren: false, isLastSibling: false, treeLines: [false] },
+  { depth: 2, hasChildren: false, isLastSibling: true, treeLines: [false] },
+];
+
+function TraceTreeLoading() {
+  return (
+    <div className="h-full overflow-y-auto">
+      {LOADING_ROWS.map(({ hasChildren, ...metadata }, index) => (
+        <VirtualizedTreeNodeWrapper
+          key={index}
+          isLoading
+          metadata={metadata}
+          hasChildren={hasChildren}
+        >
+          <SpanContent isLoading />
+        </VirtualizedTreeNodeWrapper>
+      ))}
+    </div>
+  );
+}
+
+function LoadedTraceTree() {
+  const { roots, comments, metricEmphasis } = useTraceData();
+  const { selectedNodeId, collapsedNodes, toggleCollapsed } = useSelection();
+  const { handleHover } = useHandlePrefetchObservation();
+  const handleSelectNode = useSelectTraceNode("tree");
+
+  return (
+    <VirtualizedTree
+      roots={roots}
+      collapsedNodes={collapsedNodes}
+      selectedNodeId={selectedNodeId}
+      onToggleCollapse={toggleCollapsed}
+      onSelectNode={handleSelectNode}
+      renderNode={({
+        node,
+        treeMetadata,
+        isSelected,
+        isCollapsed,
+        onToggleCollapse,
+        onSelect,
+      }) => {
+        const typedNode = node as TreeNode;
+        return (
+          <VirtualizedTreeNodeWrapper
+            metadata={treeMetadata}
+            nodeType={typedNode.type}
+            hasChildren={typedNode.children.length > 0}
+            isCollapsed={isCollapsed}
+            onToggleCollapse={onToggleCollapse}
+            isSelected={isSelected}
+            onSelect={onSelect}
+          >
+            <SpanContent
+              node={typedNode}
+              emphasis={metricEmphasisFor(typedNode, metricEmphasis)}
+              commentCount={comments.get(typedNode.id)}
+              onSelect={onSelect}
+              onHover={() => handleHover(typedNode)}
+            />
+          </VirtualizedTreeNodeWrapper>
+        );
+      }}
+    />
+  );
+}

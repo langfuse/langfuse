@@ -17,9 +17,9 @@ import {
 } from "@langfuse/shared/rbac";
 
 import { env } from "@/src/env.mjs";
-import { authorize } from "@/src/features/rbac/authorize";
-import { type ShadowAuthParams } from "@/src/features/public-api/server";
-import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { authorize } from "@/src/identity/access-control/authorize";
+import { type ShadowAuthParams } from "@/src/public-api/server";
+import { type AuthorizationContext } from "@/src/identity/auth/policy/types";
 
 // The seam is imported dynamically so the authenticator singleton captures
 // the admin key set in beforeAll.
@@ -206,11 +206,11 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
     (env as any).ADMIN_API_KEY = adminApiKey;
 
     ({ shadowAuth } =
-      (await import("@/src/features/public-api/server/shadowAuth")) as unknown as {
+      (await import("@/src/public-api/server/shadowAuth")) as unknown as {
         shadowAuth: ShadowAuth;
       });
     ({ authenticator } =
-      (await import("@/src/features/apiKey/authenticator")) as unknown as {
+      (await import("@/src/public-api/project-api-keys/authenticator")) as unknown as {
         authenticator: Authenticator;
       });
 

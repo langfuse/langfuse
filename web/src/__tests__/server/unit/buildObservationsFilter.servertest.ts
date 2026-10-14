@@ -26,7 +26,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 import {
   generateObservationsForPublicApi,
   getObservationsCountForPublicApi,
-} from "@/src/features/public-api/server/observations";
+} from "@/src/public-api/server/observations";
 import { FilterList, StringFilter } from "@langfuse/shared/src/server";
 
 const BASE = {

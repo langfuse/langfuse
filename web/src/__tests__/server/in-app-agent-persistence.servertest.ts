@@ -38,13 +38,13 @@ import {
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
-} from "@/src/features/in-app-agent/ids";
-import type { InAppAgentWatchFrame } from "@/src/features/in-app-agent/watchFrames";
+} from "@/src/ai/assistant/ids";
+import type { InAppAgentWatchFrame } from "@/src/ai/assistant/watchFrames";
 import {
   deserializeInAppAgentDisplayState,
   projectInAppAgentMessagesForDisplay,
-} from "@/src/features/in-app-agent/lib/display";
-import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
+} from "@/src/ai/assistant/lib/display";
+import { inAppAgentRouter } from "@/src/ai/assistant/server/router";
 import {
   ensureOwnedConversation,
   getConversationEvents,
@@ -56,7 +56,7 @@ import {
   toPersistableAgentEvent,
 } from "@langfuse/shared/in-app-agent/server/persistence";
 import { finishClaimedRun } from "@langfuse/shared/in-app-agent/server/runLifecycle";
-import { watchConversationFrames } from "@/src/features/in-app-agent/server/watch";
+import { watchConversationFrames } from "@/src/ai/assistant/server/watch";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 vi.mock("@/src/server/auth", () => ({

@@ -14,11 +14,11 @@ import { env } from "@/src/env.mjs";
 import {
   listExperimentItemsForPublicApi,
   listExperimentsForPublicApi,
-} from "@/src/features/experiments/server/public";
+} from "@/src/experiments/server/public";
 import {
   queryExperimentItemsForPublicApi,
   queryExperimentSummariesForPublicApi,
-} from "@/src/features/experiments/server/public/repository";
+} from "@/src/experiments/server/public/repository";
 
 const maybe =
   env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"

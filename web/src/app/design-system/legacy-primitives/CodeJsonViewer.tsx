@@ -1,0 +1,287 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-style-props */
+import { useMemo, useState } from "react";
+import { Button } from "@/src/app/design-system/legacy-primitives/button";
+import { FoldVertical, UnfoldVertical } from "lucide-react";
+import { cn } from "@/src/app/utils/tailwind";
+import { default as React18JsonView } from "react18-json-view";
+import "react18-json-view/src/dark.css";
+import { deepParseJson } from "@langfuse/shared";
+import { decodeUnicodeInJson } from "@/src/app/utils/decodeUnicodeInJson";
+import { Skeleton } from "@/src/app/design-system/legacy-primitives/skeleton";
+import { useTheme } from "next-themes";
+import { type MediaReturnType } from "@/src/tracing/media";
+import { LangfuseMediaView } from "@/src/app/design-system/legacy-primitives/LangfuseMediaView";
+import { classifyMediaValue } from "@/src/app/design-system/legacy-primitives/media/mediaUtils";
+import { MediaReferenceTag } from "@/src/app/design-system/legacy-primitives/media/MediaReferenceTag";
+import { MarkdownJsonViewHeader } from "@/src/app/design-system/legacy-primitives/MarkdownJsonView";
+import {
+  renderRichPromptContent,
+  usePromptReferenceProjectId,
+} from "@/src/app/design-system/legacy-primitives/PromptReferences";
+import { copyTextToClipboard } from "@/src/app/utils/clipboard";
+
+export const IO_TABLE_CHAR_LIMIT = 10000;
+
+export function JSONView(props: {
+  json?: unknown;
+  title?: string;
+  hideTitle?: boolean;
+  className?: string;
+  isLoading?: boolean;
+  codeClassName?: string;
+  collapseStringsAfterLength?: number | null;
+  media?: MediaReturnType[];
+  scrollable?: boolean;
+  borderless?: boolean;
+  controlButtons?: React.ReactNode;
+  externalJsonCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+  collapseDepth?: number;
+  /** Skip normalization of prepared payloads to preserve exact source strings and field-marker identities. */
+  preserveStrings?: boolean;
+  customizeNode?: (node: unknown) => React.ReactElement | undefined;
+}) {
+  // some users ingest stringified json nested in json, parse it. Also decode
+  // \uXXXX escapes (e.g. Japanese ingested with Python ensure_ascii=True) so
+  // non-ASCII content renders as real characters. Already-decoded strings are
+  // a no-op (decodeUnicodeEscapesOnly returns early when there is no backslash).
+  const parsedJson = useMemo(
+    () =>
+      props.preserveStrings
+        ? props.json
+        : decodeUnicodeInJson(deepParseJson(props.json)),
+    [props.json, props.preserveStrings],
+  );
+  const { resolvedTheme } = useTheme();
+  const promptReferenceProjectId = usePromptReferenceProjectId();
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
+
+  const collapseStringsAfterLength =
+    props.collapseStringsAfterLength === null
+      ? 100_000_000 // if null, show all (100M chars)
+      : (props.collapseStringsAfterLength ?? 500);
+
+  const isFullyCollapsed = props.externalJsonCollapsed ?? internalCollapsed;
+  const collapsed = isFullyCollapsed ? 1 : (props.collapseDepth ?? false);
+
+  const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
+    if (event) {
+      event.preventDefault();
+    }
+    const textToCopy = stringifyJsonNode(parsedJson);
+    copyTextToClipboard(textToCopy);
+
+    // Keep focus on the copy button to prevent focus shifting
+    if (event) {
+      event.currentTarget.focus();
+    }
+  };
+
+  const handleToggleCollapse = () => {
+    if (props.onToggleCollapse) {
+      props.onToggleCollapse();
+    } else {
+      setInternalCollapsed(!internalCollapsed);
+    }
+  };
+
+  const body = (
+    <>
+      <div
+        className={cn(
+          "io-message-content ph-no-capture flex max-w-full min-w-0 gap-2 text-xs wrap-break-word whitespace-pre-wrap",
+          props.borderless ? "" : "p-2",
+          props.title === "assistant" || props.title === "Output"
+            ? "bg-surface-output dark:border-border"
+            : "",
+          props.scrollable || props.borderless || props.title
+            ? ""
+            : "rounded-sm border",
+          props.codeClassName,
+        )}
+      >
+        {props.isLoading ? (
+          <Skeleton className="h-3 w-3/4" />
+        ) : promptReferenceProjectId && typeof parsedJson === "string" ? (
+          <code
+            className="max-w-full min-w-0 wrap-break-word whitespace-pre-wrap"
+            dir="auto"
+            style={{ unicodeBidi: "plaintext" }}
+          >
+            {renderRichPromptContent(parsedJson)}
+          </code>
+        ) : (
+          <div
+            className="max-w-full min-w-0 flex-1"
+            onClick={() => {
+              // If externally collapsed and user clicks to expand, sync the state
+              if (props.externalJsonCollapsed && props.onToggleCollapse) {
+                props.onToggleCollapse();
+              }
+            }}
+          >
+            <React18JsonView
+              src={parsedJson}
+              theme="github"
+              dark={resolvedTheme === "dark"}
+              collapsed={collapsed}
+              collapseObjectsAfterLength={isFullyCollapsed ? 0 : 20}
+              collapseStringsAfterLength={collapseStringsAfterLength}
+              collapseStringMode="word"
+              customizeCollapseStringUI={(fullSTring, truncated) =>
+                truncated ? (
+                  <div className="opacity-50">{`\n...expand (${Math.max(fullSTring.length - collapseStringsAfterLength, 0)} more characters)`}</div>
+                ) : (
+                  ""
+                )
+              }
+              displaySize={isFullyCollapsed ? "collapsed" : "expanded"}
+              matchesURL={true}
+              // Render previewable media (Langfuse refs, data URIs, media URLs)
+              // as a hover-to-peek chip instead of the raw string; everything
+              // else falls through to the default value rendering.
+              customizeNode={({ node }) => {
+                const customNode = props.customizeNode?.(node);
+                if (customNode !== undefined) return customNode;
+                const descriptor = classifyMediaValue(node);
+                return descriptor ? (
+                  <MediaReferenceTag descriptor={descriptor} />
+                ) : undefined;
+              }}
+              customizeCopy={(node) => stringifyJsonNode(node)}
+              className="w-full max-w-full min-w-0"
+            />
+          </div>
+        )}
+      </div>
+      {props.media && props.media.length > 0 && (
+        <>
+          <div className="text-muted-foreground my-1 px-0 py-1 text-xs">
+            Media
+          </div>
+          <div className="ph-no-capture flex flex-wrap gap-2 pt-1 pb-4">
+            {props.media.map((m) => (
+              <LangfuseMediaView
+                mediaAPIReturnValue={m}
+                variant="icon"
+                key={m.mediaId}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+
+  return (
+    <div
+      className={cn(
+        "group/iosection flex max-h-full min-h-0 max-w-full min-w-0 flex-col",
+        props.className,
+        props.scrollable ? "overflow-hidden" : "",
+      )}
+    >
+      {props.title && !props.hideTitle ? (
+        <MarkdownJsonViewHeader
+          hoverRevealControls
+          title={props.title}
+          handleOnCopy={handleOnCopy}
+          controlButtons={
+            <>
+              {props.controlButtons}
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={handleToggleCollapse}
+                className="hover:bg-border -mr-2"
+                title={isFullyCollapsed ? "Expand all" : "Collapse all"}
+              >
+                {isFullyCollapsed ? (
+                  <UnfoldVertical className="icon-sm text-icon-foreground" />
+                ) : (
+                  <FoldVertical className="icon-sm text-icon-foreground" />
+                )}
+              </Button>
+            </>
+          }
+        />
+      ) : null}
+      {props.scrollable ? (
+        <div className="flex h-full min-h-0 max-w-full overflow-hidden rounded-sm border">
+          <div className="max-h-full min-h-0 w-full max-w-full min-w-0 overflow-y-auto">
+            {body}
+          </div>
+        </div>
+      ) : (
+        body
+      )}
+    </div>
+  );
+}
+
+export const JsonSkeleton = ({
+  numRows = 10,
+  borderless = false,
+  className,
+}: {
+  numRows?: number;
+  borderless?: boolean;
+  className?: string;
+}) => {
+  const isSingleLine = numRows === 1;
+
+  return (
+    <div
+      className={cn(
+        isSingleLine ? "w-full" : "w-[400px]",
+        "rounded-md",
+        borderless ? "" : "border",
+        className,
+      )}
+    >
+      <div className="flex flex-col gap-1">
+        {[...Array<number>(numRows)].map((_, i) => (
+          <Skeleton
+            className={cn(
+              "h-4 w-full",
+              !isSingleLine && i === numRows - 1 ? "w-3/4" : undefined,
+            )}
+            key={i}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// TODO: deduplicate with PrettyJsonView.tsx
+export function stringifyJsonNode(node: unknown) {
+  // return single string nodes without quotes
+  if (typeof node === "string") {
+    return node;
+  }
+
+  try {
+    return JSON.stringify(
+      node,
+      (_key, value) => {
+        switch (typeof value) {
+          case "bigint":
+            return String(value) + "n";
+          case "number":
+          case "boolean":
+          case "object":
+          case "string":
+            return value as string;
+          default:
+            return String(value);
+        }
+      },
+      4,
+    );
+  } catch (error) {
+    console.error("JSON stringify error", error);
+    return "Error: JSON.stringify failed";
+  }
+}

@@ -10,7 +10,7 @@ import {
 } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import { getOrgUsageBreakdown } from "@/src/features/organization-usage/server/usageBreakdown";
+import { getOrgUsageBreakdown } from "@/src/billing/usage/server/usageBreakdown";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 

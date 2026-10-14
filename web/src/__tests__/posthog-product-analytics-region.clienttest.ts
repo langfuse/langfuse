@@ -27,7 +27,7 @@ vi.mock("posthog-js/react", () => ({
 
 const importAppShell = async () => {
   vi.resetModules();
-  await import("@/src/pages/_app");
+  await import("@/pages/_app");
 };
 
 // Every region that keeps product analytics, plus self-hosted (region unset).

@@ -9,7 +9,7 @@ import {
   createApiKeyCacheKey,
   redis,
 } from "@langfuse/shared/src/server";
-import handler from "../../pages/api/admin/api-keys";
+import handler from "../../../pages/api/admin/api-keys";
 import {
   clearRedisKeysByPatternSafely,
   createRedisTestClient,

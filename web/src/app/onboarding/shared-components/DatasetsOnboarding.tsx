@@ -1,0 +1,71 @@
+import {
+  SplashScreen,
+  type ValueProposition,
+} from "@/src/app/design-system/legacy-primitives/splash-screen";
+import { ButtonWithIcon } from "@/src/app/components/ButtonWithIcon";
+import { DialogTrigger } from "@/src/app/design-system/legacy-primitives/dialog";
+import { CreateDatasetDialogController } from "@/src/datasets/components/CreateDatasetDialogController";
+import { Database, Beaker, Zap, Code, LockIcon, PlusIcon } from "lucide-react";
+
+export function DatasetsOnboarding({ projectId }: { projectId: string }) {
+  const valuePropositions: ValueProposition[] = [
+    {
+      title: "Continuous improvement",
+      description:
+        "Create datasets from production edge cases to improve your application",
+      icon: Zap,
+    },
+    {
+      title: "Pre-deployment testing",
+      description: "Benchmark new releases before deploying to production",
+      icon: Beaker,
+    },
+    {
+      title: "Structured testing",
+      description:
+        "Run experiments on collections of inputs and expected outputs",
+      icon: Database,
+    },
+    {
+      title: "Custom workflows",
+      description:
+        "Build custom workflows around your datasets via the API and SDKs, e.g. for fine-tuning, few-shotting",
+      icon: Code,
+    },
+  ];
+
+  return (
+    <SplashScreen
+      title="Get Started with Datasets & Experiments"
+      description="Datasets in Langfuse are collections of inputs (and expected outputs) for your LLM application. You can run Experiments against these datasets to test new releases before deployment to production."
+      valuePropositions={valuePropositions}
+      primaryAction={{
+        label: "Create Dataset",
+        component: (
+          <CreateDatasetDialogController
+            projectId={projectId}
+            target={{ type: "root" }}
+          >
+            {({ disabled, openDialog }) => (
+              <DialogTrigger asChild>
+                <ButtonWithIcon
+                  size="lg"
+                  disabled={disabled !== undefined}
+                  onClick={openDialog}
+                  variant="default"
+                  icon={disabled === undefined ? PlusIcon : LockIcon}
+                  text="New dataset"
+                />
+              </DialogTrigger>
+            )}
+          </CreateDatasetDialogController>
+        ),
+      }}
+      secondaryAction={{
+        label: "Learn More",
+        href: "https://langfuse.com/docs/datasets",
+      }}
+      videoSrc="https://static.langfuse.com/prod-assets/onboarding/datasets-overview-v1.mp4"
+    />
+  );
+}

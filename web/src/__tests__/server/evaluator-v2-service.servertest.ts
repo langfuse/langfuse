@@ -8,9 +8,9 @@ import {
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import type * as EnvModule from "@/src/env.mjs";
-import type * as EvaluatorPreflightModule from "@/src/features/evals/server/evaluator-preflight";
-import type * as TestEvaluatorModule from "@/src/features/evals/v2/server/evaluators/testEvaluator";
-import type * as EvaluatorValidationModule from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
+import type * as EvaluatorPreflightModule from "@/src/evaluators/server/evaluator-preflight";
+import type * as TestEvaluatorModule from "@/src/evaluators/v2/server/evaluators/testEvaluator";
+import type * as EvaluatorValidationModule from "@/src/evaluators/v2/server/evaluators/evaluatorValidation";
 import {
   afterAll,
   afterEach,
@@ -21,18 +21,18 @@ import {
   it,
   vi,
 } from "vitest";
-import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import { EvaluatorService } from "@/src/evaluators/v2/server/evaluators/evaluatorService";
 import {
   EvaluatorConfigurationError,
   EvaluatorModelConfigurationError,
   EvaluatorVersionConflictError,
-} from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
-import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
+} from "@/src/evaluators/v2/server/evaluators/evaluatorErrors";
+import * as evaluatorRepository from "@/src/evaluators/v2/server/evaluators/evaluatorRepository";
 import {
   type CreateEvaluatorInput,
   type NormalizedEvaluatorDefinition,
   EvaluatorVersionsSchema,
-} from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+} from "@/src/evaluators/v2/server/evaluators/evaluatorTypes";
 
 const mocks = vi.hoisted(() => ({
   generateLangfuseAIText: vi.fn(),
@@ -70,7 +70,7 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
 });
 
 vi.mock(
-  "@/src/features/evals/v2/server/evaluators/testEvaluator",
+  "@/src/evaluators/v2/server/evaluators/testEvaluator",
   async (importOriginal) => ({
     ...(await importOriginal<typeof TestEvaluatorModule>()),
     testEvaluator: mocks.testEvaluator,
@@ -78,7 +78,7 @@ vi.mock(
 );
 
 vi.mock(
-  "@/src/features/evals/v2/server/evaluators/evaluatorValidation",
+  "@/src/evaluators/v2/server/evaluators/evaluatorValidation",
   async (importOriginal) => ({
     ...(await importOriginal<typeof EvaluatorValidationModule>()),
     assertEvaluatorConfigurationValid: mocks.assertEvaluatorConfigurationValid,
@@ -86,7 +86,7 @@ vi.mock(
 );
 
 vi.mock(
-  "@/src/features/evals/server/evaluator-preflight",
+  "@/src/evaluators/server/evaluator-preflight",
   async (importOriginal) => ({
     ...(await importOriginal<typeof EvaluatorPreflightModule>()),
     getEvaluatorDefinitionPreflightError:

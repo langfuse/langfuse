@@ -4,7 +4,7 @@ import { RESOURCE_LIMIT_ERROR_MESSAGE } from "@langfuse/shared";
 import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
-} from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
+} from "@/src/analytics/visualization/chart-library/chartLoadingStateUtils";
 
 describe("getChartLoadingStateProps", () => {
   test("returns spinner-only loading props while query is pending", () => {

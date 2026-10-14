@@ -4,7 +4,10 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { hasProjectAccess, throwIfNoProjectAccess } from "@/src/features/rbac";
+import {
+  hasProjectAccess,
+  throwIfNoProjectAccess,
+} from "@/src/identity/access-control";
 import {
   TableViewService,
   CreateTableViewPresetsInput,

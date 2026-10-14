@@ -1,0 +1,883 @@
+{
+  "domains": [
+    {
+      "path": "src/prompt-management",
+      "title": "prompt management"
+    },
+    {
+      "path": "src/playground",
+      "title": "playground"
+    },
+    {
+      "path": "src/ai/assistant",
+      "title": "ai / assistant"
+    },
+    {
+      "path": "src/playground/structured-output",
+      "title": "playground / structured output"
+    },
+    {
+      "path": "src/playground/tools",
+      "title": "playground / tools"
+    },
+    {
+      "path": "src/evaluators",
+      "title": "evaluators"
+    },
+    {
+      "path": "src/experiments",
+      "title": "experiments"
+    },
+    {
+      "path": "src/datasets",
+      "title": "datasets"
+    },
+    {
+      "path": "src/scores",
+      "title": "scores"
+    },
+    {
+      "path": "src/app/folder-navigation",
+      "title": "app / folder navigation"
+    },
+    {
+      "path": "src/public-api",
+      "title": "public api"
+    },
+    {
+      "path": "src/automation",
+      "title": "automation"
+    },
+    {
+      "path": "src/alerts",
+      "title": "alerts"
+    },
+    {
+      "path": "src/developer-experience",
+      "title": "developer experience"
+    },
+    {
+      "path": "src/identity/accounts",
+      "title": "identity / accounts"
+    },
+    {
+      "path": "src/identity/organizations",
+      "title": "identity / organizations"
+    },
+    {
+      "path": "src/identity/projects",
+      "title": "identity / projects"
+    },
+    {
+      "path": "src/identity/auth",
+      "title": "identity / auth"
+    },
+    {
+      "path": "src/identity/access-control",
+      "title": "identity / access control"
+    },
+    {
+      "path": "src/entitlements",
+      "title": "entitlements"
+    },
+    {
+      "path": "src/identity/audit-logs",
+      "title": "identity / audit logs"
+    },
+    {
+      "path": "src/ai/assistant/availability",
+      "title": "ai / assistant / availability"
+    },
+    {
+      "path": "src/ai/model-catalog",
+      "title": "ai / model catalog"
+    },
+    {
+      "path": "src/ai/provider-connections",
+      "title": "ai / provider connections"
+    },
+    {
+      "path": "src/annotation/queues",
+      "title": "annotation / queues"
+    },
+    {
+      "path": "src/annotation/comments",
+      "title": "annotation / comments"
+    },
+    {
+      "path": "src/scores/corrections",
+      "title": "scores / corrections"
+    },
+    {
+      "path": "src/scores/configuration",
+      "title": "scores / configuration"
+    },
+    {
+      "path": "src/analytics/score-reporting",
+      "title": "analytics / score reporting"
+    },
+    {
+      "path": "src/public-api/project-api-keys",
+      "title": "public api / project api keys"
+    },
+    {
+      "path": "src/public-api/mcp",
+      "title": "public api / mcp"
+    },
+    {
+      "path": "src/automation/slack",
+      "title": "automation / slack"
+    },
+    {
+      "path": "src/operations/background-migrations",
+      "title": "operations / background migrations"
+    },
+    {
+      "path": "src/background-jobs/batch-actions",
+      "title": "background jobs / batch actions"
+    },
+    {
+      "path": "src/data-export/on-demand",
+      "title": "data export / on demand"
+    },
+    {
+      "path": "src/data-export/object-storage",
+      "title": "data export / object storage"
+    },
+    {
+      "path": "src/integrations/web-callouts",
+      "title": "integrations / web callouts"
+    },
+    {
+      "path": "src/analytics/dashboards",
+      "title": "analytics / dashboards"
+    },
+    {
+      "path": "src/analytics/visualization",
+      "title": "analytics / visualization"
+    },
+    {
+      "path": "src/analytics/metrics",
+      "title": "analytics / metrics"
+    },
+    {
+      "path": "src/analytics/exploration",
+      "title": "analytics / exploration"
+    },
+    {
+      "path": "src/tracing/observations",
+      "title": "tracing / observations"
+    },
+    {
+      "path": "src/tracing/traces",
+      "title": "tracing / traces"
+    },
+    {
+      "path": "src/sessions",
+      "title": "sessions"
+    },
+    {
+      "path": "src/tracing/users",
+      "title": "tracing / users"
+    },
+    {
+      "path": "src/tracing/media",
+      "title": "tracing / media"
+    },
+    {
+      "path": "src/tracing/trace-graph",
+      "title": "tracing / trace graph"
+    },
+    {
+      "path": "src/tracing/legacy-tables",
+      "title": "tracing / legacy tables"
+    },
+    {
+      "path": "src/app/search",
+      "title": "app / search"
+    },
+    {
+      "path": "src/app/tables",
+      "title": "app / tables"
+    },
+    {
+      "path": "src/release-management/feature-flags",
+      "title": "release management / feature flags"
+    },
+    {
+      "path": "src/release-management/feature-previews",
+      "title": "release management / feature previews"
+    },
+    {
+      "path": "src/sdk",
+      "title": "sdk"
+    },
+    {
+      "path": "src/app/onboarding",
+      "title": "app / onboarding"
+    },
+    {
+      "path": "src/app/support",
+      "title": "app / support"
+    },
+    {
+      "path": "src/identity/auth/passwords",
+      "title": "identity / auth / passwords"
+    },
+    {
+      "path": "src/ai/gateway/management-ui",
+      "title": "ai / gateway / management ui"
+    },
+    {
+      "path": "src/analytics/score-reporting/chart-view",
+      "title": "analytics / score reporting / chart view"
+    },
+    {
+      "path": "src/migrations/v4/backend",
+      "title": "migrations / v4 / backend"
+    },
+    {
+      "path": "src/migrations/v4/upgrade-experience",
+      "title": "migrations / v4 / upgrade experience"
+    },
+    {
+      "path": "src/analytics/customer-integrations/common",
+      "title": "analytics / customer integrations / common"
+    },
+    {
+      "path": "src/analytics/customer-integrations/posthog",
+      "title": "analytics / customer integrations / posthog"
+    },
+    {
+      "path": "src/analytics/customer-integrations/mixpanel",
+      "title": "analytics / customer integrations / mixpanel"
+    },
+    {
+      "path": "src/analytics/exploration/prototypes",
+      "title": "analytics / exploration / prototypes"
+    },
+    {
+      "path": "src/analytics/internal/posthog",
+      "title": "analytics / internal / posthog"
+    },
+    {
+      "path": "src/analytics/internal/self-hosted-telemetry",
+      "title": "analytics / internal / self hosted telemetry"
+    },
+    {
+      "path": "src/app/search/filters",
+      "title": "app / search / filters"
+    },
+    {
+      "path": "src/app/search/natural-language",
+      "title": "app / search / natural language"
+    },
+    {
+      "path": "src/app/search/time-range",
+      "title": "app / search / time range"
+    },
+    {
+      "path": "src/app/tables/column-visibility",
+      "title": "app / tables / column visibility"
+    },
+    {
+      "path": "src/app/tables/sorting",
+      "title": "app / tables / sorting"
+    },
+    {
+      "path": "src/app/tables/tagging",
+      "title": "app / tables / tagging"
+    },
+    {
+      "path": "src/app/onboarding/setup",
+      "title": "app / onboarding / setup"
+    },
+    {
+      "path": "src/app/support/feedback",
+      "title": "app / support / feedback"
+    },
+    {
+      "path": "src/app/shell/cloud-status-notification",
+      "title": "app / shell / cloud status notification"
+    },
+    {
+      "path": "src/app/shell/command-k-menu",
+      "title": "app / shell / command k menu"
+    },
+    {
+      "path": "src/app/shell/navigate-detail-pages",
+      "title": "app / shell / navigate detail pages"
+    },
+    {
+      "path": "src/app/shell/navigation",
+      "title": "app / shell / navigation"
+    },
+    {
+      "path": "src/app/shell/notifications",
+      "title": "app / shell / notifications"
+    },
+    {
+      "path": "src/app/shell/payment-banner",
+      "title": "app / shell / payment banner"
+    },
+    {
+      "path": "src/app/shell/preview-deployment-banner",
+      "title": "app / shell / preview deployment banner"
+    },
+    {
+      "path": "src/app/shell/theming",
+      "title": "app / shell / theming"
+    },
+    {
+      "path": "src/app/shell/top-banner",
+      "title": "app / shell / top banner"
+    },
+    {
+      "path": "src/app/shell/version-update",
+      "title": "app / shell / version update"
+    },
+    {
+      "path": "src/ee/public-api/enterprise-admin",
+      "title": "ee / public api / enterprise admin"
+    },
+    {
+      "path": "src/ee/identity/audit-logs/viewer",
+      "title": "ee / identity / audit logs / viewer"
+    },
+    {
+      "path": "src/ee/billing",
+      "title": "ee / billing"
+    },
+    {
+      "path": "src/ee/identity/auth/sso-runtime",
+      "title": "ee / identity / auth / sso runtime"
+    },
+    {
+      "path": "src/ee/salesforce",
+      "title": "ee / salesforce"
+    },
+    {
+      "path": "src/ee/identity/auth/sso-settings",
+      "title": "ee / identity / auth / sso settings"
+    },
+    {
+      "path": "src/ee/app/branding",
+      "title": "ee / app / branding"
+    },
+    {
+      "path": "src/ee/identity/auth/verified-domains",
+      "title": "ee / identity / auth / verified domains"
+    },
+    {
+      "path": "src/integrations/media-storage",
+      "title": "integrations / media storage"
+    },
+    {
+      "path": "src/billing/usage",
+      "title": "billing / usage"
+    },
+    {
+      "path": "src/app/settings",
+      "title": "app / settings"
+    },
+    {
+      "path": "src/ai/skills",
+      "title": "ai / skills"
+    },
+    {
+      "path": "src/ai/trace-analysis",
+      "title": "ai / trace analysis"
+    }
+  ],
+  "sharedRoots": [
+    "src/app/components",
+    "src/app/constants",
+    "src/app/context",
+    "src/app/design-system",
+    "src/app/design-system/animation-primitives",
+    "src/app/design-system/legacy-primitives",
+    "src/app/fns",
+    "src/app/hooks",
+    "src/app/onboarding/shared-components",
+    "src/app/shell/layouts",
+    "src/app/shell/navigation/shared-components",
+    "src/app/stores",
+    "src/app/styles",
+    "src/app/tables/common-components",
+    "src/app/utils"
+  ],
+  "moves": [
+    {
+      "from": "src/app",
+      "to": "app"
+    },
+    {
+      "from": "src/pages",
+      "to": "pages"
+    },
+    {
+      "from": "src/instrumentation.ts",
+      "to": "instrumentation.ts"
+    },
+    {
+      "from": "src/features/prompts",
+      "to": "src/prompt-management"
+    },
+    {
+      "from": "src/features/playground",
+      "to": "src/playground"
+    },
+    {
+      "from": "src/features/in-app-agent",
+      "to": "src/ai/assistant"
+    },
+    {
+      "from": "src/features/llm-schemas",
+      "to": "src/playground/structured-output"
+    },
+    {
+      "from": "src/features/llm-tools",
+      "to": "src/playground/tools"
+    },
+    {
+      "from": "src/features/evals",
+      "to": "src/evaluators"
+    },
+    {
+      "from": "src/features/experiments",
+      "to": "src/experiments"
+    },
+    {
+      "from": "src/features/datasets",
+      "to": "src/datasets"
+    },
+    {
+      "from": "src/features/scores",
+      "to": "src/scores"
+    },
+    {
+      "from": "src/features/folders",
+      "to": "src/app/folder-navigation"
+    },
+    {
+      "from": "src/features/public-api",
+      "to": "src/public-api"
+    },
+    {
+      "from": "src/features/automations",
+      "to": "src/automation"
+    },
+    {
+      "from": "src/features/monitors",
+      "to": "src/alerts"
+    },
+    {
+      "from": "src/features/developer-tools",
+      "to": "src/developer-experience"
+    },
+    {
+      "from": "src/features/account",
+      "to": "src/identity/accounts"
+    },
+    {
+      "from": "src/features/organizations",
+      "to": "src/identity/organizations"
+    },
+    {
+      "from": "src/features/projects",
+      "to": "src/identity/projects"
+    },
+    {
+      "from": "src/features/auth",
+      "to": "src/identity/auth"
+    },
+    {
+      "from": "src/features/rbac",
+      "to": "src/identity/access-control"
+    },
+    {
+      "from": "src/features/entitlements",
+      "to": "src/entitlements"
+    },
+    {
+      "from": "src/features/audit-logs",
+      "to": "src/identity/audit-logs"
+    },
+    {
+      "from": "src/features/ai-features",
+      "to": "src/ai/assistant/availability"
+    },
+    {
+      "from": "src/features/models",
+      "to": "src/ai/model-catalog"
+    },
+    {
+      "from": "src/features/llm-api-key",
+      "to": "src/ai/provider-connections"
+    },
+    {
+      "from": "src/features/annotation-queues",
+      "to": "src/annotation/queues"
+    },
+    {
+      "from": "src/features/comments",
+      "to": "src/annotation/comments"
+    },
+    {
+      "from": "src/features/corrections",
+      "to": "src/scores/corrections"
+    },
+    {
+      "from": "src/features/score-configs",
+      "to": "src/scores/configuration"
+    },
+    {
+      "from": "src/features/score-analytics",
+      "to": "src/analytics/score-reporting"
+    },
+    {
+      "from": "src/features/apiKey",
+      "to": "src/public-api/project-api-keys"
+    },
+    {
+      "from": "src/features/mcp",
+      "to": "src/public-api/mcp"
+    },
+    {
+      "from": "src/features/slack",
+      "to": "src/automation/slack"
+    },
+    {
+      "from": "src/features/background-migrations",
+      "to": "src/operations/background-migrations"
+    },
+    {
+      "from": "src/features/batch-actions",
+      "to": "src/background-jobs/batch-actions"
+    },
+    {
+      "from": "src/features/batch-exports",
+      "to": "src/data-export/on-demand"
+    },
+    {
+      "from": "src/features/blobstorage-integration",
+      "to": "src/data-export/object-storage"
+    },
+    {
+      "from": "src/features/web-callouts",
+      "to": "src/integrations/web-callouts"
+    },
+    {
+      "from": "src/features/dashboard",
+      "to": "src/analytics/dashboards"
+    },
+    {
+      "from": "src/features/widgets",
+      "to": "src/analytics/visualization"
+    },
+    {
+      "from": "src/features/metrics",
+      "to": "src/analytics/metrics"
+    },
+    {
+      "from": "src/features/chart-view",
+      "to": "src/analytics/exploration"
+    },
+    {
+      "from": "src/features/events",
+      "to": "src/tracing/observations"
+    },
+    {
+      "from": "src/features/traces",
+      "to": "src/tracing/traces"
+    },
+    {
+      "from": "src/features/sessions",
+      "to": "src/sessions"
+    },
+    {
+      "from": "src/features/users",
+      "to": "src/tracing/users"
+    },
+    {
+      "from": "src/features/media",
+      "to": "src/tracing/media"
+    },
+    {
+      "from": "src/features/trace-graph-view",
+      "to": "src/tracing/trace-graph"
+    },
+    {
+      "from": "src/features/tracing-tables",
+      "to": "src/tracing/legacy-tables"
+    },
+    {
+      "from": "src/features/search-bar",
+      "to": "src/app/search"
+    },
+    {
+      "from": "src/features/table",
+      "to": "src/app/tables"
+    },
+    {
+      "from": "src/features/feature-flags",
+      "to": "src/release-management/feature-flags"
+    },
+    {
+      "from": "src/features/feature-previews",
+      "to": "src/release-management/feature-previews"
+    },
+    {
+      "from": "src/features/sdk-version",
+      "to": "src/sdk"
+    },
+    {
+      "from": "src/features/onboarding",
+      "to": "src/app/onboarding"
+    },
+    {
+      "from": "src/features/support-chat",
+      "to": "src/app/support"
+    },
+    {
+      "from": "src/features/auth-credentials",
+      "to": "src/identity/auth/passwords"
+    },
+    {
+      "from": "src/features/ai-gateway",
+      "to": "src/ai/gateway/management-ui"
+    },
+    {
+      "from": "src/features/scores-chart-view",
+      "to": "src/analytics/score-reporting/chart-view"
+    },
+    {
+      "from": "src/features/v4",
+      "to": "src/migrations/v4/backend"
+    },
+    {
+      "from": "src/features/v4-migration",
+      "to": "src/migrations/v4/upgrade-experience"
+    },
+    {
+      "from": "src/features/analytics-integrations",
+      "to": "src/analytics/customer-integrations/common"
+    },
+    {
+      "from": "src/features/posthog-integration",
+      "to": "src/analytics/customer-integrations/posthog"
+    },
+    {
+      "from": "src/features/mixpanel-integration",
+      "to": "src/analytics/customer-integrations/mixpanel"
+    },
+    {
+      "from": "src/features/chart-view-prototype",
+      "to": "src/analytics/exploration/prototypes"
+    },
+    {
+      "from": "src/features/posthog-analytics",
+      "to": "src/analytics/internal/posthog"
+    },
+    {
+      "from": "src/features/telemetry",
+      "to": "src/analytics/internal/self-hosted-telemetry"
+    },
+    {
+      "from": "src/features/filters",
+      "to": "src/app/search/filters"
+    },
+    {
+      "from": "src/features/natural-language-filters",
+      "to": "src/app/search/natural-language"
+    },
+    {
+      "from": "src/features/global-time-range",
+      "to": "src/app/search/time-range"
+    },
+    {
+      "from": "src/features/column-visibility",
+      "to": "src/app/tables/column-visibility"
+    },
+    {
+      "from": "src/features/orderBy",
+      "to": "src/app/tables/sorting"
+    },
+    {
+      "from": "src/features/tag",
+      "to": "src/app/tables/tagging"
+    },
+    {
+      "from": "src/features/setup",
+      "to": "src/app/onboarding/setup"
+    },
+    {
+      "from": "src/features/feedback",
+      "to": "src/app/support/feedback"
+    },
+    {
+      "from": "src/features/cloud-status-notification",
+      "to": "src/app/shell/cloud-status-notification"
+    },
+    {
+      "from": "src/features/command-k-menu",
+      "to": "src/app/shell/command-k-menu"
+    },
+    {
+      "from": "src/features/navigate-detail-pages",
+      "to": "src/app/shell/navigate-detail-pages"
+    },
+    {
+      "from": "src/features/navigation",
+      "to": "src/app/shell/navigation"
+    },
+    {
+      "from": "src/features/notifications",
+      "to": "src/app/shell/notifications"
+    },
+    {
+      "from": "src/features/payment-banner",
+      "to": "src/app/shell/payment-banner"
+    },
+    {
+      "from": "src/features/preview-deployment-banner",
+      "to": "src/app/shell/preview-deployment-banner"
+    },
+    {
+      "from": "src/features/theming",
+      "to": "src/app/shell/theming"
+    },
+    {
+      "from": "src/features/top-banner",
+      "to": "src/app/shell/top-banner"
+    },
+    {
+      "from": "src/features/version-update",
+      "to": "src/app/shell/version-update"
+    },
+    {
+      "from": "src/ee/features/admin-api",
+      "to": "src/ee/public-api/enterprise-admin"
+    },
+    {
+      "from": "src/ee/features/audit-log-viewer",
+      "to": "src/ee/identity/audit-logs/viewer"
+    },
+    {
+      "from": "src/ee/features/billing",
+      "to": "src/ee/billing"
+    },
+    {
+      "from": "src/ee/features/multi-tenant-sso",
+      "to": "src/ee/identity/auth/sso-runtime"
+    },
+    {
+      "from": "src/ee/features/sfdc-sync",
+      "to": "src/ee/salesforce"
+    },
+    {
+      "from": "src/ee/features/sso-settings",
+      "to": "src/ee/identity/auth/sso-settings"
+    },
+    {
+      "from": "src/ee/features/ui-customization",
+      "to": "src/ee/app/branding"
+    },
+    {
+      "from": "src/ee/features/verified-domains",
+      "to": "src/ee/identity/auth/verified-domains"
+    },
+    {
+      "from": "src/components/design-system",
+      "to": "src/app/design-system"
+    },
+    {
+      "from": "src/components/ui",
+      "to": "src/app/design-system/legacy-primitives"
+    },
+    {
+      "from": "src/components/magicui",
+      "to": "src/app/design-system/animation-primitives"
+    },
+    {
+      "from": "src/components/table",
+      "to": "src/app/tables/common-components"
+    },
+    {
+      "from": "src/components/nav",
+      "to": "src/app/shell/navigation/shared-components"
+    },
+    {
+      "from": "src/components/layouts",
+      "to": "src/app/shell/layouts"
+    },
+    {
+      "from": "src/components/onboarding",
+      "to": "src/app/onboarding/shared-components"
+    },
+    {
+      "from": "src/components",
+      "to": "src/app/components"
+    },
+    {
+      "from": "src/hooks",
+      "to": "src/app/hooks"
+    },
+    {
+      "from": "src/fns",
+      "to": "src/app/fns"
+    },
+    {
+      "from": "src/constants",
+      "to": "src/app/constants"
+    },
+    {
+      "from": "src/context",
+      "to": "src/app/context"
+    },
+    {
+      "from": "src/stores",
+      "to": "src/app/stores"
+    },
+    {
+      "from": "src/styles",
+      "to": "src/app/styles"
+    },
+    {
+      "from": "src/utils",
+      "to": "src/app/utils"
+    },
+    {
+      "from": "src/polyfills",
+      "to": "src/app/polyfills"
+    },
+    {
+      "from": "src/workers",
+      "to": "src/app/workers"
+    },
+    {
+      "from": "src/features/README.md",
+      "to": "docs/public-api-legacy.md"
+    },
+    {
+      "from": "src/features/external-media-storage",
+      "to": "src/integrations/media-storage"
+    },
+    {
+      "from": "src/features/organization-usage",
+      "to": "src/billing/usage"
+    },
+    {
+      "from": "src/features/settings",
+      "to": "src/app/settings"
+    },
+    {
+      "from": "src/features/skills",
+      "to": "src/ai/skills"
+    },
+    {
+      "from": "src/features/topics",
+      "to": "src/ai/trace-analysis"
+    }
+  ]
+}

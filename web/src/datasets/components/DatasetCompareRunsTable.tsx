@@ -1,0 +1,310 @@
+/* eslint-disable no-nested-ternary */
+import { DataTable } from "@/src/app/tables/common-components/data-table";
+import { DataTableToolbar } from "@/src/app/tables/common-components/data-table-toolbar";
+import { FilteredRunPills } from "@/src/app/tables/common-components/filtered-run-pills";
+import { type LangfuseColumnDef } from "@/src/app/tables/common-components/types";
+import { createLinkTableColumn } from "@/src/app/design-system/table/columns/createLinkTableColumn";
+import { createIOTableColumn } from "@/src/app/design-system/table/columns/createIOTableColumn";
+import { useColumnVisibility } from "@/src/app/tables/column-visibility";
+import { getDatasetRunAggregateColumnProps } from "@/src/datasets/components/DatasetRunAggregateColumnHelpers";
+import { useDatasetRunAggregateColumns } from "@/src/datasets/hooks/useDatasetRunAggregateColumns";
+import { useEffect, useMemo } from "react";
+import { usePaginationState } from "@/src/app/hooks/usePaginationState";
+import { api } from "@/src/app/utils/api";
+import { Checkbox } from "@/src/app/design-system/Checkbox/Checkbox";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/app/tables/common-components/data-table-row-height-switch";
+import { useDetailPageLists } from "@/src/app/shell/navigate-detail-pages";
+import {
+  DatasetCompareFieldsProvider,
+  useDatasetCompareFields,
+} from "@/src/datasets/contexts/DatasetCompareFieldsContext";
+import { useColumnFilterState } from "@/src/app/search/filters";
+import { type Prisma } from "@langfuse/shared";
+import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
+import { usePeekNavigation } from "@/src/app/tables/common-components/peek/hooks/usePeekNavigation";
+import { TablePeekViewTraceDetail } from "@/src/app/tables/common-components/peek/peek-trace-detail";
+
+export type DatasetCompareRunRowData = {
+  id: string;
+  input: Prisma.JsonValue;
+  expectedOutput: Prisma.JsonValue;
+  metadata: Prisma.JsonValue;
+  // runs holds grouped column with individual run metrics
+  runs?: Record<string, EnrichedDatasetRunItem>;
+};
+
+function DatasetCompareRunsTableInternal(props: {
+  projectId: string;
+  datasetId: string;
+  runIds: string[];
+}) {
+  const { toggleField, isFieldSelected, setSelectedFields } =
+    useDatasetCompareFields();
+  const {
+    updateColumnFilters: updateRunFilters,
+    getFiltersForColumnById: getFiltersForRun,
+    convertToColumnFilterList,
+  } = useColumnFilterState();
+  const { setDetailPageList } = useDetailPageLists();
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "datasetCompareRuns",
+    "m",
+  );
+
+  useEffect(() => {
+    const allFilters = convertToColumnFilterList();
+    allFilters.forEach((filter) => {
+      if (!props.runIds.includes(filter.runId)) {
+        updateRunFilters(filter.runId, []);
+      }
+    });
+  }, [props.runIds, convertToColumnFilterList, updateRunFilters]);
+
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
+  });
+  const activeRunFilters = convertToColumnFilterList();
+  const hasActiveRunFilters = activeRunFilters.length > 0;
+
+  const datasetItemsWithRunData = api.datasets.datasetItemsWithRunData.useQuery(
+    {
+      projectId: props.projectId,
+      datasetId: props.datasetId,
+      runIds: props.runIds,
+      filterByRun: activeRunFilters,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+    },
+  );
+
+  const totalCountQuery = api.datasets.runItemCompareCount.useQuery({
+    projectId: props.projectId,
+    datasetId: props.datasetId,
+    runIds: props.runIds,
+    filterByRun: activeRunFilters,
+  });
+
+  const totalCount = totalCountQuery.data?.totalCount ?? null;
+
+  useEffect(() => {
+    if (datasetItemsWithRunData.isSuccess) {
+      setDetailPageList(
+        "datasetCompareRuns",
+        datasetItemsWithRunData.data?.data.map((item) => ({
+          id: item.id,
+        })),
+      );
+    }
+    // Note: setDetailPageList dependency is not stable as the context provider creates a new function on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datasetItemsWithRunData.isSuccess, datasetItemsWithRunData.data]);
+
+  const { closePeek, expandPeek } = usePeekNavigation({
+    // traceId: not written here, but cleared (and preferred by the trace
+    // reader) so a stray param cannot pin the peek to a foreign trace
+    // (LFE-11041).
+    queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: "datasetCompareRuns",
+    isV4: false,
+    expandConfig: {
+      basePath: `/project/${props.projectId}/traces`,
+    },
+  });
+
+  const peekConfig = useMemo(
+    () => ({
+      itemType: "TRACE" as const,
+      closePeek,
+      expandPeek,
+      tableName: "datasetCompareRuns",
+      isV4: false,
+      // openPeek is handled by DatasetAggregateTableCell's custom handleOpenPeek
+    }),
+    [closePeek, expandPeek],
+  );
+
+  const { runAggregateColumns, isLoading: cellsLoading } =
+    useDatasetRunAggregateColumns({
+      projectId: props.projectId,
+      runIds: props.runIds,
+      datasetId: props.datasetId,
+      updateRunFilters,
+      getFiltersForRun,
+    });
+
+  const columns: LangfuseColumnDef<DatasetCompareRunRowData>[] = [
+    createLinkTableColumn<DatasetCompareRunRowData>({
+      accessorKey: "id",
+      header: "Item id",
+      size: 90,
+      enableHiding: true,
+      defaultHidden: true,
+      getCell: (id) => {
+        if (!id) return undefined;
+        return {
+          type: "link",
+          props: {
+            path: `/project/${props.projectId}/datasets/${props.datasetId}/items/${encodeURIComponent(id)}`,
+            value: id,
+          },
+        };
+      },
+    }),
+    createIOTableColumn<DatasetCompareRunRowData>({
+      accessorKey: "input",
+      header: "Input",
+      size: 200,
+      enableHiding: true,
+    }),
+    createIOTableColumn<DatasetCompareRunRowData>({
+      accessorKey: "expectedOutput",
+      header: "Expected Output",
+      size: 200,
+      enableHiding: true,
+      variant: "output",
+    }),
+    createIOTableColumn<DatasetCompareRunRowData>({
+      accessorKey: "metadata",
+      header: "Metadata",
+      size: 200,
+      enableHiding: true,
+      defaultHidden: true,
+    }),
+    {
+      ...getDatasetRunAggregateColumnProps(cellsLoading),
+      columns: runAggregateColumns,
+    },
+  ];
+
+  const rows =
+    datasetItemsWithRunData.data?.data.map((item) => ({
+      ...item,
+      runs: item.runData,
+    })) ?? [];
+
+  const [columnVisibility, setColumnVisibility] =
+    useColumnVisibility<DatasetCompareRunRowData>(
+      "datasetCompareRunsColumnVisibility",
+      columns,
+    );
+
+  return (
+    <>
+      <DataTableToolbar
+        tableName="dataset-compare-runs"
+        columns={columns}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
+        additionalColumnSettings={{
+          isDefault:
+            isFieldSelected("output") &&
+            isFieldSelected("scores") &&
+            isFieldSelected("resourceMetrics"),
+          content: (
+            <div className="px-3 py-2">
+              <p className="text-muted-foreground px-2 pb-1 text-xs">
+                Within each experiment
+              </p>
+              {(
+                [
+                  ["output", "Output"],
+                  ["scores", "Scores"],
+                  ["resourceMetrics", "Latency and cost"],
+                ] as const
+              ).map(([field, label]) => (
+                <label
+                  key={field}
+                  htmlFor={`dataset-compare-${field}`}
+                  className="hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded-md p-2 text-sm"
+                >
+                  <Checkbox
+                    id={`dataset-compare-${field}`}
+                    checked={isFieldSelected(field)}
+                    onCheckedChange={() => toggleField(field)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          ),
+          onRestoreDefaults: () =>
+            setSelectedFields(["output", "scores", "resourceMetrics"]),
+        }}
+      />
+      {hasActiveRunFilters && (
+        <FilteredRunPills
+          projectId={props.projectId}
+          datasetId={props.datasetId}
+          filteredRuns={activeRunFilters}
+          className="px-2 pb-2"
+        />
+      )}
+      <DataTable
+        tableName="datasetCompareRuns"
+        columns={columns}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+        data={
+          datasetItemsWithRunData.isPending
+            ? { isLoading: true, isError: false }
+            : datasetItemsWithRunData.isError
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: datasetItemsWithRunData.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: rows,
+                }
+        }
+        pagination={{
+          totalCount: totalCount,
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
+        rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
+        customRowHeights={{
+          s: "h-48",
+          m: "h-64",
+          l: "h-96",
+        }}
+        noResultsMessage={
+          hasActiveRunFilters ? (
+            <div className="text-muted-foreground flex flex-col items-center gap-1 text-sm">
+              <span>No dataset run items match the current filters.</span>
+              <span className="text-xs">
+                Adjust or clear filters to compare items again.
+              </span>
+            </div>
+          ) : undefined
+        }
+        peekView={peekConfig}
+      />
+      <TablePeekViewTraceDetail {...peekConfig} projectId={props.projectId} />
+    </>
+  );
+}
+
+export function DatasetCompareRunsTable(props: {
+  projectId: string;
+  datasetId: string;
+  runIds: string[];
+}) {
+  return (
+    <DatasetCompareFieldsProvider>
+      <DatasetCompareRunsTableInternal {...props} />
+    </DatasetCompareFieldsProvider>
+  );
+}

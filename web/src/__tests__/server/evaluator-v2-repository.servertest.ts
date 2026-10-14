@@ -4,9 +4,9 @@ import { encrypt } from "@langfuse/shared/encryption";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
-import { EvaluatorVersionConflictError } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
-import type { EvaluatorDefinitionForPersistence } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import * as evaluatorRepository from "@/src/evaluators/v2/server/evaluators/evaluatorRepository";
+import { EvaluatorVersionConflictError } from "@/src/evaluators/v2/server/evaluators/evaluatorErrors";
+import type { EvaluatorDefinitionForPersistence } from "@/src/evaluators/v2/server/evaluators/evaluatorTypes";
 
 const orgIds: string[] = [];
 let projectId = "";

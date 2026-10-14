@@ -65,7 +65,7 @@ This is the canonical shared review checklist for Langfuse.
 ## Banner Height System
 
 - Use `top-banner-offset` instead of `top-0` for any elements that are positioned `sticky`, `fixed`, or `absolute` with a global reference point (e.g., `top-0`). This ensures proper spacing when system banners (payment, maintenance, etc.) are displayed.
-- The banner height is managed through CSS variables (`--banner-height` and `--banner-offset`) defined in `web/src/styles/globals.css`.
+- The banner height is managed through CSS variables (`--banner-height` and `--banner-offset`) defined in `web/src/app/styles/globals.css`.
 - Banner components (like PaymentBanner) dynamically update `--banner-height` using ResizeObserver to track their actual height, ensuring accurate positioning even when banners resize (e.g., on mobile wrapping).
 - Available Tailwind utilities:
   - `top-banner-offset` / `pt-banner-offset` - For sticky/fixed/absolute positioning and padding
@@ -108,7 +108,7 @@ This is the canonical shared review checklist for Langfuse.
 
 ## API Documentation
 
-- Whenever a file in `web/src/features/public-api/types` changes, the `fern/apis` definition probably needs to be adjusted, too.
+- Whenever a file in `web/src/public-api/types` changes, the `fern/apis` definition probably needs to be adjusted, too.
 - `nullish` types should map to `optional<nullable<T>>` in fern.
 - `nullable` types should map to `nullable<T>` in fern.
 - `optional` types should map to `optional<T>` in fern.

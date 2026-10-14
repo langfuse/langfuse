@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   type CachedResolveContext,
   GatewayResolveCache,
-} from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+} from "@/src/ai/gateway/management-ui/server/resolve/gatewayResolveCache";
 
 vi.mock("@/src/env.mjs", () => ({
   env: {

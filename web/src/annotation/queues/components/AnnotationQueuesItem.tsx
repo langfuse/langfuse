@@ -1,0 +1,66 @@
+import { SupportOrUpgradePage } from "@/src/ee/billing";
+import { useHasProjectAccess } from "@/src/identity/access-control";
+import { AnnotationQueueItemPage } from "@/src/annotation/queues/components/AnnotationQueueItemPage";
+import { api } from "@/src/app/utils/api";
+import Page from "@/src/app/shell/layouts/page";
+
+export const AnnotationQueuesItem = ({
+  annotationQueueId,
+  projectId,
+  itemId,
+}: {
+  annotationQueueId: string;
+  projectId: string;
+  itemId?: string;
+}) => {
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "annotationQueues:read",
+  });
+
+  const queue = api.annotationQueues.byId.useQuery(
+    {
+      queueId: annotationQueueId,
+      projectId,
+    },
+    {
+      enabled: Boolean(projectId) && Boolean(annotationQueueId),
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
+
+  if (!hasAccess) return <SupportOrUpgradePage />;
+
+  return (
+    <Page
+      headerProps={{
+        title: itemId
+          ? `${queue.data?.name}: ${itemId}`
+          : (queue.data?.name ?? annotationQueueId),
+        itemType: "QUEUE_ITEM",
+        breadcrumb: [
+          {
+            name: "Annotation Queues",
+            href: `/project/${projectId}/annotation-queues`,
+          },
+          {
+            name: queue.data?.name ?? annotationQueueId,
+            href: `/project/${projectId}/annotation-queues/${annotationQueueId}`,
+          },
+        ],
+      }}
+    >
+      <AnnotationQueueItemPage
+        key={JSON.stringify([projectId, annotationQueueId])}
+        projectId={projectId}
+        annotationQueueId={annotationQueueId}
+        queryItemId={itemId}
+      />
+    </Page>
+  );
+};

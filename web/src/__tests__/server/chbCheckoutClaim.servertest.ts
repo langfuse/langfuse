@@ -22,9 +22,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type ChbApiClient,
   type ChbCheckoutSession,
-} from "@/src/ee/features/billing/server/chb/chbApiClient";
-import { ChbBillingService } from "@/src/ee/features/billing/server/chb/chbBillingService";
-import { mapChbPlanCodeToStripeProductId } from "@/src/ee/features/billing/utils/chbCatalogue";
+} from "@/src/ee/billing/server/chb/chbApiClient";
+import { ChbBillingService } from "@/src/ee/billing/server/chb/chbBillingService";
+import { mapChbPlanCodeToStripeProductId } from "@/src/ee/billing/utils/chbCatalogue";
 import { type OrgAuthedContext } from "@/src/server/api/trpc";
 
 const CORE_PRODUCT_ID = mapChbPlanCodeToStripeProductId("LANGFUSE_CORE")!;

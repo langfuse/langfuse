@@ -48,9 +48,9 @@ import {
   verifyAuditLog,
   waitFor,
 } from "./mcp-helpers";
-import "@/src/features/mcp/server/bootstrap";
-import { config as mcpRouteConfig } from "@/src/pages/api/public/mcp";
-import { toolRegistry } from "@/src/features/mcp/server/registry";
+import "@/src/public-api/mcp/server/bootstrap";
+import { config as mcpRouteConfig } from "@/pages/api/public/mcp";
+import { toolRegistry } from "@/src/public-api/mcp/server/registry";
 import {
   handleCreateAnnotationQueue,
   handleCreateAnnotationQueueAssignment,
@@ -62,12 +62,12 @@ import {
   handleListAnnotationQueueItems,
   handleListAnnotationQueues,
   handleUpdateAnnotationQueueItem,
-} from "@/src/features/mcp/server/annotationQueues/tools";
+} from "@/src/public-api/mcp/server/annotationQueues/tools";
 import {
   handleCreateComment,
   handleGetComment,
   handleListComments,
-} from "@/src/features/mcp/server/comments/tools";
+} from "@/src/public-api/mcp/server/comments/tools";
 import {
   handleBatchUpsertDatasetItems,
   handleCreateDatasetRunItem,
@@ -83,18 +83,18 @@ import {
   handleUpsertDataset,
   handleUpsertDatasetItem,
   upsertDatasetTool,
-} from "@/src/features/mcp/server/datasets/tools";
-import { handleGetHealth } from "@/src/features/mcp/server/health/tools";
+} from "@/src/public-api/mcp/server/datasets/tools";
+import { handleGetHealth } from "@/src/public-api/mcp/server/health/tools";
 import {
   handleCreateModel,
   handleDeleteModel,
   handleGetModel,
   handleListModels,
-} from "@/src/features/mcp/server/models/tools";
-import { handleCreateScoreConfig } from "@/src/features/mcp/server/scores/tools/createScoreConfig";
-import { handleGetScoreConfig } from "@/src/features/mcp/server/scores/tools/getScoreConfig";
-import { handleListScoreConfigs } from "@/src/features/mcp/server/scores/tools/listScoreConfigs";
-import { handleUpdateScoreConfig } from "@/src/features/mcp/server/scores/tools/updateScoreConfig";
+} from "@/src/public-api/mcp/server/models/tools";
+import { handleCreateScoreConfig } from "@/src/public-api/mcp/server/scores/tools/createScoreConfig";
+import { handleGetScoreConfig } from "@/src/public-api/mcp/server/scores/tools/getScoreConfig";
+import { handleListScoreConfigs } from "@/src/public-api/mcp/server/scores/tools/listScoreConfigs";
+import { handleUpdateScoreConfig } from "@/src/public-api/mcp/server/scores/tools/updateScoreConfig";
 
 const createScoreConfig = async (projectId: string) =>
   prisma.scoreConfig.create({

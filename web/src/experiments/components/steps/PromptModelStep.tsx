@@ -1,0 +1,452 @@
+/* eslint-disable no-nested-ternary */
+import React, { useState } from "react";
+import { Button } from "@/src/app/design-system/legacy-primitives/button";
+import {
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/src/app/design-system/legacy-primitives/form";
+import { ModelParameters } from "@/src/app/components/ModelParameters";
+import {
+  InputCommandEmpty,
+  InputCommandGroup,
+  InputCommandInput,
+  InputCommandList,
+  InputCommand,
+  InputCommandItem,
+} from "@/src/app/design-system/legacy-primitives/input-command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/app/design-system/legacy-primitives/popover";
+import { CheckIcon, PlusIcon, EyeIcon, TriangleAlert } from "lucide-react";
+import { DropdownIndicator } from "@/src/app/design-system/DropdownIndicator/DropdownIndicator";
+import { CreateOrEditLLMSchemaDialog } from "@/src/playground";
+import {
+  hasPromptToolStructuredOutputConflict,
+  PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
+  type LlmSchema,
+} from "@langfuse/shared";
+import { Switch } from "@/src/app/design-system/Switch/Switch";
+import { api } from "@/src/app/utils/api";
+import { CardDescription } from "@/src/app/design-system/legacy-primitives/card";
+import { cn } from "@/src/app/utils/tailwind";
+import { type PromptModelStepProps } from "@/src/experiments/types/stepProps";
+import { StepHeader } from "@/src/experiments/components/shared/StepHeader";
+import { toPromptLabelListItems } from "@/src/prompt-management/utils";
+import { LabelList } from "@/src/app/design-system/LabelList/LabelList";
+
+export const PromptModelStep: React.FC<PromptModelStepProps> = ({
+  projectId,
+  formState,
+  promptModelState,
+  modelState,
+  structuredOutputState,
+}) => {
+  const { form } = formState;
+  const {
+    promptsByName,
+    selectedPromptName,
+    setSelectedPromptName,
+    selectedPromptVersion,
+    setSelectedPromptVersion,
+    selectedPromptToolConfig,
+  } = promptModelState;
+  const {
+    modelParams,
+    updateModelParamValue,
+    setModelParamEnabled,
+    availableModels,
+    providerModelCombinations,
+    availableProviders,
+  } = modelState;
+  const {
+    structuredOutputEnabled,
+    setStructuredOutputEnabled,
+    setSelectedSchemaName,
+  } = structuredOutputState;
+  const [open, setOpen] = useState(false);
+  const [selectedSchema, setSelectedSchema] = useState<LlmSchema | null>(null);
+  const [schemaPopoverOpen, setSchemaPopoverOpen] = useState(false);
+  const [schemaDialogOpen, setSchemaDialogOpen] = useState(false);
+  const [schemaDialogRequest, setSchemaDialogRequest] = useState<{
+    id: number;
+    existingLlmSchema: LlmSchema | null;
+  }>();
+
+  const openSchemaDialog = (existingLlmSchema: LlmSchema | null) => {
+    setSchemaDialogRequest((previous) => ({
+      id: (previous?.id ?? 0) + 1,
+      existingLlmSchema,
+    }));
+    setSchemaDialogOpen(true);
+  };
+  const hasToolStructuredOutputConflict = hasPromptToolStructuredOutputConflict(
+    selectedPromptToolConfig,
+    structuredOutputEnabled,
+  );
+
+  const savedSchemas = api.llmSchemas.getAll.useQuery(
+    { projectId },
+    {
+      enabled: Boolean(projectId),
+      staleTime: 1000 * 60 * 5, // 5 minutes
+    },
+  );
+
+  const handleToggleStructuredOutput = (checked: boolean) => {
+    setStructuredOutputEnabled(checked);
+
+    if (checked) {
+      // If turning on and schemas exist, auto-select first one
+      if (
+        savedSchemas.data &&
+        savedSchemas.data.length > 0 &&
+        !selectedSchema
+      ) {
+        const firstSchema = savedSchemas.data[0];
+        setSelectedSchema(firstSchema);
+        setSelectedSchemaName(firstSchema.name);
+        form.setValue(
+          "structuredOutputSchema",
+          firstSchema.schema as Record<string, unknown>,
+        );
+      }
+    } else {
+      // If turning off, clear the form field
+      setSelectedSchemaName(null);
+      form.setValue("structuredOutputSchema", undefined);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <StepHeader
+        title="Prompt & Model Configuration"
+        description="Select the prompt version and configure the model parameters for your experiment."
+      />
+
+      <FormField
+        control={form.control}
+        name="promptId"
+        render={() => (
+          <FormItem>
+            <FormLabel>Prompt</FormLabel>
+            <div className="mb-2 flex gap-2">
+              <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="w-2/3 justify-between gap-2 px-2 font-normal"
+                  >
+                    {selectedPromptName || "Select a prompt"}
+                    <DropdownIndicator />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-(--radix-popover-trigger-width) overflow-auto p-0"
+                  align="start"
+                >
+                  <InputCommand>
+                    <InputCommandInput
+                      placeholder="Search prompts..."
+                      className="h-9"
+                      variant="bottom"
+                    />
+                    <InputCommandList>
+                      <InputCommandEmpty>No prompt found.</InputCommandEmpty>
+                      <InputCommandGroup>
+                        {promptsByName &&
+                          Object.entries(promptsByName).map(
+                            ([name, promptData]) => (
+                              <InputCommandItem
+                                key={name}
+                                onSelect={() => {
+                                  setSelectedPromptName(name);
+                                  const latestVersion = promptData[0];
+                                  setSelectedPromptVersion(
+                                    latestVersion.version,
+                                  );
+                                  form.setValue("promptId", latestVersion.id);
+                                  form.clearErrors("promptId");
+                                }}
+                              >
+                                {name}
+                                <CheckIcon
+                                  className={cn(
+                                    "icon-base ml-auto",
+                                    name === selectedPromptName
+                                      ? "opacity-100"
+                                      : "opacity-0",
+                                  )}
+                                />
+                              </InputCommandItem>
+                            ),
+                          )}
+                      </InputCommandGroup>
+                    </InputCommandList>
+                  </InputCommand>
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    disabled={!selectedPromptName}
+                    variant="outline"
+                    role="combobox"
+                    className="w-1/3 justify-between gap-2 px-2 font-normal"
+                  >
+                    {selectedPromptVersion
+                      ? `Version ${selectedPromptVersion}`
+                      : "Version"}
+                    <DropdownIndicator />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-(--radix-popover-trigger-width) p-0"
+                  align="start"
+                >
+                  <InputCommand>
+                    <InputCommandInput
+                      placeholder="Search versions..."
+                      className="h-9"
+                    />
+                    <InputCommandList>
+                      <InputCommandEmpty>No version found.</InputCommandEmpty>
+                      <InputCommandGroup className="overflow-y-auto">
+                        {promptsByName &&
+                        selectedPromptName &&
+                        promptsByName[selectedPromptName] ? (
+                          promptsByName[selectedPromptName].map((prompt) => (
+                            <InputCommandItem
+                              key={prompt.id}
+                              onSelect={() => {
+                                setSelectedPromptVersion(prompt.version);
+                                form.setValue("promptId", prompt.id);
+                                form.clearErrors("promptId");
+                              }}
+                            >
+                              <div className="flex min-w-0 flex-1 items-center gap-2">
+                                <span className="shrink-0">
+                                  Version {prompt.version}
+                                </span>
+                                {prompt.labels.length > 0 && (
+                                  <div className="min-w-0">
+                                    <LabelList
+                                      labels={toPromptLabelListItems(
+                                        prompt.labels,
+                                      )}
+                                      maxVisible={2}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                              <CheckIcon
+                                className={cn(
+                                  "icon-base ml-auto shrink-0",
+                                  prompt.version === selectedPromptVersion
+                                    ? "opacity-100"
+                                    : "opacity-0",
+                                )}
+                              />
+                            </InputCommandItem>
+                          ))
+                        ) : (
+                          <InputCommandItem disabled>
+                            No versions available
+                          </InputCommandItem>
+                        )}
+                      </InputCommandGroup>
+                    </InputCommandList>
+                  </InputCommand>
+                </PopoverContent>
+              </Popover>
+            </div>
+            {selectedPromptToolConfig.status === "invalid" && (
+              <p className="text-dark-yellow flex items-center gap-1.5 text-sm">
+                <TriangleAlert className="icon-base shrink-0" />
+                Invalid tool config detected on this prompt version. Its tools
+                will be ignored when running the experiment.
+              </p>
+            )}
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="modelConfig"
+        render={() => (
+          <FormItem>
+            <ModelParameters
+              customHeader={<FormLabel>Model</FormLabel>}
+              {...{
+                modelParams,
+                availableModels,
+                providerModelCombinations,
+                availableProviders,
+                updateModelParamValue: updateModelParamValue,
+                setModelParamEnabled,
+                isEmbedded: true,
+              }}
+            />
+            {form.formState.errors.modelConfig && (
+              <p
+                id="modelConfig"
+                className="text-destructive text-sm font-bold"
+              >
+                {[
+                  form.formState.errors.modelConfig?.model?.message,
+                  form.formState.errors.modelConfig?.provider?.message,
+                ].join(", ")}
+              </p>
+            )}
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="structuredOutputSchema"
+        render={({ field }) => (
+          <FormItem>
+            <div className="flex items-center justify-between">
+              <FormLabel>Structured output (optional)</FormLabel>
+              <Switch
+                checked={structuredOutputEnabled}
+                onCheckedChange={handleToggleStructuredOutput}
+              />
+            </div>
+
+            {structuredOutputEnabled && (
+              <>
+                {savedSchemas.data && savedSchemas.data.length > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <Popover
+                      open={schemaPopoverOpen}
+                      onOpenChange={setSchemaPopoverOpen}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={schemaPopoverOpen}
+                          className="flex-1 justify-between gap-2 px-2 font-normal"
+                        >
+                          {selectedSchema?.name || "Select schema"}
+                          <DropdownIndicator />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-(--radix-popover-trigger-width) p-0"
+                        align="start"
+                      >
+                        <InputCommand>
+                          <InputCommandInput
+                            placeholder="Search schemas..."
+                            className="h-9"
+                            variant="bottom"
+                          />
+                          <InputCommandList>
+                            <InputCommandEmpty>
+                              No schema found.
+                            </InputCommandEmpty>
+                            <InputCommandGroup>
+                              {savedSchemas.data.map((schema) => (
+                                <InputCommandItem
+                                  key={schema.id}
+                                  onSelect={() => {
+                                    setSelectedSchema(schema);
+                                    setSelectedSchemaName(schema.name);
+                                    field.onChange(
+                                      schema.schema as Record<string, unknown>,
+                                    );
+                                    setSchemaPopoverOpen(false);
+                                  }}
+                                >
+                                  {schema.name}
+                                  <CheckIcon
+                                    className={cn(
+                                      "icon-base ml-auto",
+                                      selectedSchema?.id === schema.id
+                                        ? "opacity-100"
+                                        : "opacity-0",
+                                    )}
+                                  />
+                                </InputCommandItem>
+                              ))}
+                            </InputCommandGroup>
+                          </InputCommandList>
+                        </InputCommand>
+                      </PopoverContent>
+                    </Popover>
+
+                    {selectedSchema && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`View schema ${selectedSchema.name}`}
+                        onClick={() => openSchemaDialog(selectedSchema)}
+                      >
+                        <EyeIcon className="icon-base text-icon-foreground" />
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => openSchemaDialog(null)}
+                  >
+                    <PlusIcon className="icon-base text-icon-foreground mr-2" />
+                    Add schema
+                  </Button>
+                )}
+                {schemaDialogRequest && (
+                  <CreateOrEditLLMSchemaDialog
+                    key={schemaDialogRequest.id}
+                    projectId={projectId}
+                    open={schemaDialogOpen}
+                    onOpenChange={setSchemaDialogOpen}
+                    existingLlmSchema={
+                      schemaDialogRequest.existingLlmSchema ?? undefined
+                    }
+                    onSave={(schema) => {
+                      setSelectedSchema(schema);
+                      setSelectedSchemaName(schema.name);
+                      field.onChange(schema.schema as Record<string, unknown>);
+                    }}
+                    onDelete={() => {
+                      setSelectedSchema(null);
+                      setSelectedSchemaName(null);
+                      field.onChange(undefined);
+                    }}
+                  />
+                )}
+              </>
+            )}
+
+            <CardDescription
+              className={cn(
+                hasToolStructuredOutputConflict && "text-destructive",
+              )}
+            >
+              {hasToolStructuredOutputConflict
+                ? PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE
+                : structuredOutputEnabled
+                  ? "Configure the schema for structured LLM outputs"
+                  : "Enable to enforce a specific output format"}
+            </CardDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </div>
+  );
+};

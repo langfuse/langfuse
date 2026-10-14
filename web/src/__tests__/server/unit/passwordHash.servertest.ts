@@ -6,7 +6,7 @@ import {
   hashPassword,
   passwordRequiresReset,
   verifyPassword,
-} from "@/src/features/auth-credentials/lib/passwordHash";
+} from "@/src/identity/auth/passwords/lib/passwordHash";
 
 const { fips, compare } = vi.hoisted(() => ({
   fips: { required: "false" as "true" | "false" },

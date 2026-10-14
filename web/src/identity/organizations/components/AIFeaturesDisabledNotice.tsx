@@ -1,0 +1,53 @@
+import { type ReactNode } from "react";
+import { ExternalLink } from "lucide-react";
+
+import { Button } from "@/src/app/design-system/legacy-primitives/button";
+import { useHasOrganizationAccess } from "@/src/identity/access-control";
+
+export function openAIFeaturesSettings(organizationId: string) {
+  window.open(
+    `/organization/${organizationId}/settings`,
+    "_blank",
+    "noopener,noreferrer",
+  );
+}
+
+export function AIFeaturesDisabledNotice({
+  organizationId,
+  children,
+  onSettingsOpened,
+}: {
+  organizationId: string | undefined;
+  children: ReactNode;
+  onSettingsOpened?: () => void;
+}) {
+  const canUpdateOrgSettings = useHasOrganizationAccess({
+    organizationId,
+    scope: "organization:update",
+  });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-muted-foreground text-sm">
+        {children}
+        {!canUpdateOrgSettings
+          ? " Ask your organization administrator to enable AI features in organization settings."
+          : null}
+      </p>
+      {canUpdateOrgSettings && organizationId ? (
+        <Button
+          onClick={() => {
+            openAIFeaturesSettings(organizationId);
+            onSettingsOpened?.();
+          }}
+          variant="outline"
+          size="sm"
+          className="w-fit"
+        >
+          Enable in Organization Settings
+          <ExternalLink className="icon-base text-icon-foreground ml-2" />
+        </Button>
+      ) : null}
+    </div>
+  );
+}

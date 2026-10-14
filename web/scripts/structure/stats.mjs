@@ -21,6 +21,7 @@ import extractTsConfig from "dependency-cruiser/config-utl/extract-ts-config";
 import { buildCensus } from "./census.mjs";
 import * as d from "./detectors.mjs";
 import { computeNextItems, RULE_LABELS } from "./next.mjs";
+import { RULE_IDS, parseRuleId } from "./rules.mjs";
 
 /** @typedef {import("./detectors.mjs").Violation} Violation */
 
@@ -54,7 +55,12 @@ process.chdir(webRoot);
 const t0 = Date.now();
 const dcConfig = require(`${webRoot}/.dependency-cruiser.js`);
 const cruiseResult = await cruise(
-  ["src"],
+  [
+    "src",
+    ...["app", "pages", "instrumentation.ts"].filter((root) =>
+      existsSync(`${webRoot}/${root}`),
+    ),
+  ],
   {
     includeOnly: dcConfig.options.includeOnly,
     doNotFollow: dcConfig.options.doNotFollow,
@@ -281,7 +287,7 @@ if (flag("next")) {
           byRule: Object.fromEntries(
             [...it.byRule].map(([id, n]) => [
               id,
-              { count: n, rule: RULE_LABELS[id] },
+              { count: n, rule: RULE_LABELS[id], ruleId: RULE_IDS[id] },
             ]),
           ),
           headline: it.headline,
@@ -314,7 +320,7 @@ if (flag("next")) {
     );
     for (const [id, n] of [...it.byRule.entries()].sort((a, b) => b[1] - a[1]))
       console.log(
-        `    ${String(n).padStart(3)}× rule ${String(id).padEnd(2)} ${dim(`— ${RULE_LABELS[id] ?? ""}`)}`,
+        `    ${String(n).padStart(3)}× ${RULE_IDS[id]} ${dim(`— ${RULE_LABELS[id] ?? ""}`)}`,
       );
     for (const s of it.samples) console.log(dim(`         e.g. ${s}`));
     console.log();
@@ -339,7 +345,11 @@ if (flag("json")) {
         rules: Object.fromEntries(
           [...results].map(([id, v]) => [
             id,
-            { count: v.length, violations: v.map((x) => x.key) },
+            {
+              ruleId: RULE_IDS[id],
+              count: v.length,
+              violations: v.map((x) => x.key),
+            },
           ]),
         ),
         metrics,
@@ -363,20 +373,22 @@ const fmtDelta = (delta) => {
 };
 
 if (ruleFilter) {
-  const id = Number(ruleFilter);
+  const id = parseRuleId(ruleFilter) ?? NaN;
   const rule = RULES.find((r) => r.id === id);
   if (!rule) {
-    console.error(`unknown rule: ${ruleFilter} (1-20)`);
+    console.error(
+      `unknown rule: ${ruleFilter} (use 1-20 or a readable rule ID)`,
+    );
     process.exit(1);
   }
   if (!rule.get) {
     console.log(
-      `rule ${id} (${rule.title}) is ${rule.mech}-enforced — nothing to list`,
+      `${RULE_IDS[id]} (${rule.title}) is ${rule.mech}-enforced — nothing to list`,
     );
     process.exit(0);
   }
   const viols = results.get(id) ?? [];
-  console.log(bold(`rule ${id} — ${rule.title}`));
+  console.log(bold(`${RULE_IDS[id]} — ${rule.title}`));
   console.log(
     `${viols.length} violation${viols.length === 1 ? "" : "s"}${scope ? ` in ${scope}` : ""}\n`,
   );
@@ -401,7 +413,9 @@ if (flag("diff")) {
     if (!fixed.length && !added.length) continue;
     anything = true;
     console.log(
-      bold(`rule ${r.id} — ${r.title}  (${fmtDelta(now.size - base.size)})`),
+      bold(
+        `${RULE_IDS[r.id]} — ${r.title}  (${fmtDelta(now.size - base.size)})`,
+      ),
     );
     for (const k of fixed) console.log(green("  − ") + dim(k));
     for (const k of added) console.log(red("  + ") + k);
@@ -422,7 +436,11 @@ console.log(
   ),
 );
 console.log();
-console.log(dim(" rule  count      Δ  mechanism  title"));
+console.log(
+  dim(
+    " rule ID                                     count      Δ  mechanism  title",
+  ),
+);
 let total = 0;
 let baseTotal = 0;
 let hasBaseline = false;
@@ -440,7 +458,7 @@ for (const r of RULES) {
     }
   }
   console.log(
-    `${String(r.id).padStart(5)}  ${count.padStart(5)}  ${delta.padStart(useColor && delta ? 14 : 5)}  ${r.mech.padEnd(9)}  ${r.title}`,
+    `${RULE_IDS[r.id].padEnd(43)}  ${count.padStart(5)}  ${delta.padStart(useColor && delta ? 14 : 5)}  ${r.mech.padEnd(9)}  ${r.title}`,
   );
 }
 console.log();
@@ -454,7 +472,7 @@ for (const [k, val] of Object.entries(metrics))
 console.log();
 console.log(
   dim(
-    "drill down:  pnpm structure:stats --rule 8 [--scope src/features/traces]",
+    "drill down:  pnpm structure:stats --rule rule-8-no-deep-feature-imports [--scope src/tracing]",
   ),
 );
 if (!baseline)

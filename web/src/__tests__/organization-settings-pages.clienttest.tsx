@@ -1,66 +1,66 @@
 import { renderHook } from "@testing-library/react";
 
-import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
-import { useIsCloudBillingAvailable } from "@/src/ee/features/billing";
-import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
+import { useHasEntitlement, usePlan } from "@/src/entitlements";
+import { useIsFeatureEnabled } from "@/src/release-management/feature-flags";
+import { useQueryProjectOrOrganization } from "@/src/identity/projects";
+import { useHasOrganizationAccess } from "@/src/identity/access-control";
+import { useIsCloudBillingAvailable } from "@/src/ee/billing";
+import { useV4UpgradeUiFlag } from "@/src/migrations/v4/upgrade-experience/useV4UpgradeUiEnabled";
+import { useOrganizationSettingsPages } from "@/src/identity/organizations/OrganizationSettingsPage";
 
-vi.mock("@/src/components/PagedSettingsContainer", () => ({
+vi.mock("@/src/app/components/PagedSettingsContainer", () => ({
   PagedSettingsContainer: () => null,
 }));
 
-vi.mock("@/src/components/layouts/header", () => ({
+vi.mock("@/src/app/shell/layouts/header", () => ({
   default: () => null,
 }));
 
 vi.mock(
-  "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable",
+  "@/src/identity/access-control/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable",
   () => ({
     ConnectedMembershipInvitesSettingsTable: () => null,
   }),
 );
 
 vi.mock(
-  "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable",
+  "@/src/identity/access-control/components/MembersSettingsTable/ConnectedMembersSettingsTable",
   () => ({ ConnectedMembersSettingsTable: () => null }),
 );
 
-vi.mock("@/src/components/ui/CodeJsonViewer", () => ({
+vi.mock("@/src/app/design-system/legacy-primitives/CodeJsonViewer", () => ({
   JSONView: () => null,
 }));
 
-vi.mock("@/src/features/organizations/components/RenameOrganization", () => ({
+vi.mock("@/src/identity/organizations/components/RenameOrganization", () => ({
   default: () => null,
 }));
 
-vi.mock("@/src/components/SettingsDangerZone", () => ({
+vi.mock("@/src/app/components/SettingsDangerZone", () => ({
   SettingsDangerZone: () => null,
 }));
 
 vi.mock(
-  "@/src/features/organizations/components/DeleteOrganizationDialogController",
+  "@/src/identity/organizations/components/DeleteOrganizationDialogController",
   () => ({
     DeleteOrganizationDialogController: () => null,
   }),
 );
 
-vi.mock("@/src/ee/features/billing/components/BillingSettings", () => ({
+vi.mock("@/src/ee/billing/components/BillingSettings", () => ({
   BillingSettings: () => null,
 }));
 
-vi.mock("@/src/features/organization-usage", () => ({
+vi.mock("@/src/billing/usage", () => ({
   OrganizationUsageBreakdown: () => null,
 }));
 
-vi.mock("@/src/features/entitlements/hooks", () => ({
+vi.mock("@/src/entitlements/hooks", () => ({
   useHasEntitlement: vi.fn(),
   usePlan: vi.fn(),
 }));
 
-vi.mock("@/src/ee/features/sso-settings", () => ({
+vi.mock("@/src/ee/identity/auth/sso-settings", () => ({
   SSOSettings: () => null,
 }));
 
@@ -69,43 +69,46 @@ vi.mock("@langfuse/shared", async () => ({
   isCloudPlan: vi.fn(() => false),
 }));
 
-vi.mock("@/src/features/projects/hooks", () => ({
+vi.mock("@/src/identity/projects/hooks", () => ({
   useQueryProjectOrOrganization: vi.fn(),
 }));
 
-vi.mock("@/src/features/public-api/components/ApiKeyList", () => ({
+vi.mock("@/src/public-api/components/ApiKeyList", () => ({
   ApiKeyList: () => null,
 }));
 
-vi.mock("@/src/features/organizations/components/AIFeatureSwitch", () => ({
+vi.mock("@/src/identity/organizations/components/AIFeatureSwitch", () => ({
   default: () => null,
 }));
 
-vi.mock("@/src/ee/features/billing/utils/isCloudBilling", () => ({
+vi.mock("@/src/ee/billing/utils/isCloudBilling", () => ({
   useIsCloudBillingAvailable: vi.fn(),
 }));
 
-vi.mock("@/src/ee/features/audit-log-viewer", () => ({
+vi.mock("@/src/ee/identity/audit-logs/viewer", () => ({
   OrgAuditLogsSettingsPage: () => null,
 }));
 
-vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
+vi.mock("@/src/identity/access-control/utils/checkOrganizationAccess", () => ({
   useHasOrganizationAccess: vi.fn(),
 }));
 
-vi.mock("@/src/components/layouts/container-page", () => ({
+vi.mock("@/src/app/shell/layouts/container-page", () => ({
   default: () => null,
 }));
 
-vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
+vi.mock("@/src/migrations/v4/upgrade-experience/useV4UpgradeUiEnabled", () => ({
   useV4UpgradeUiFlag: vi.fn(),
 }));
 
-vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
-  default: vi.fn(),
-}));
+vi.mock(
+  "@/src/release-management/feature-flags/hooks/useIsFeatureEnabled",
+  () => ({
+    default: vi.fn(),
+  }),
+);
 
-vi.mock("@/src/features/ai-gateway", () => ({
+vi.mock("@/src/ai/gateway/management-ui", () => ({
   GatewayApiKeysPage: () => null,
   GatewayConfigurationPage: () => null,
   GatewayModelsPage: () => null,

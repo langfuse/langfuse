@@ -1,0 +1,149 @@
+/* eslint-disable @repo/no-style-props */
+import { useMemo } from "react";
+import { DashboardCard } from "@/src/analytics/dashboards/components/cards/DashboardCard";
+import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";
+import {
+  extractTimeSeriesData,
+  fillMissingValuesAndTransform,
+  isEmptyTimeSeries,
+} from "@/src/analytics/dashboards/components/hooks";
+import {
+  type DashboardDateRangeAggregationOption,
+  dashboardDateRangeAggregationSettings,
+} from "@/src/app/utils/date-range-utils";
+import { getScoreDataTypeIcon } from "@/src/scores";
+import { NoDataOrLoading } from "@/src/app/components/NoDataOrLoading";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/analytics/dashboards/lib/dashboardUiTableToViewMapping";
+import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { Chart } from "@/src/analytics/visualization";
+import { timeSeriesToDataPoints } from "@/src/analytics/dashboards/lib/chart-data-adapters";
+import { useScheduledDashboardExecuteQuery } from "@/src/analytics/dashboards/hooks/useDashboardQueryScheduler";
+
+// Static — hoisted so its reference is stable across re-renders (keeps the
+// memoized <Chart> from reconciling on dashboard scheduler re-renders).
+const SCORES_CHART_CONFIG = {
+  type: "LINE_TIME_SERIES",
+  show_data_point_dots: false,
+} as const;
+
+export function ChartScores(props: {
+  className?: string;
+  agg: DashboardDateRangeAggregationOption;
+  globalFilterState: FilterState;
+  fromTimestamp: Date;
+  toTimestamp: Date;
+  projectId: string;
+  isLoading?: boolean;
+  metricsVersion: ViewVersion;
+  schedulerId?: string;
+  syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
+}) {
+  const scoresQuery: QueryType = {
+    view: "scores-numeric",
+    dimensions: [{ field: "name" }, { field: "dataType" }, { field: "source" }],
+    metrics: [{ measure: "value", aggregation: "avg" }],
+    filters: mapLegacyUiTableFilterToView(
+      "scores-numeric",
+      props.globalFilterState,
+    ),
+    timeDimension: {
+      granularity:
+        dashboardDateRangeAggregationSettings[props.agg].dateTrunc ?? "day",
+    },
+    fromTimestamp: props.fromTimestamp.toISOString(),
+    toTimestamp: props.toTimestamp.toISOString(),
+    orderBy: null,
+  };
+
+  const scores = useScheduledDashboardExecuteQuery(
+    {
+      projectId: props.projectId,
+      query: scoresQuery,
+      version: props.metricsVersion,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      queryId: `${props.schedulerId ?? "home:chart-scores"}:scores`,
+      enabled: !props.isLoading,
+    },
+  );
+
+  // Memoize the transform on the (scheduler-stable) query result so the chart's
+  // data prop keeps a stable reference across dashboard re-renders. (LFE-10549)
+  const extractedScores = useMemo(
+    () =>
+      scores.data
+        ? fillMissingValuesAndTransform(
+            extractTimeSeriesData(
+              scores.data as DatabaseRow[],
+              "time_dimension",
+              [
+                {
+                  uniqueIdentifierColumns: [
+                    {
+                      accessor: "data_type",
+                      formatFct: (value) =>
+                        getScoreDataTypeIcon(value as ScoreDataTypeType),
+                    },
+                    { accessor: "name" },
+                    {
+                      accessor: "source",
+                      formatFct: (value) => `(${value.toLowerCase()})`,
+                    },
+                  ],
+                  valueColumn: "avg_value",
+                },
+              ],
+            ),
+          )
+        : [],
+    [scores.data],
+  );
+
+  const chartData = useMemo(
+    () => timeSeriesToDataPoints(extractedScores),
+    [extractedScores],
+  );
+
+  return (
+    <DashboardCard
+      className={props.className}
+      title="Scores"
+      description="Moving average per score"
+      isLoading={props.isLoading || scores.isPending}
+    >
+      {!isEmptyTimeSeries({ data: extractedScores }) ? (
+        // The height is the flex basis (floor); grow lets the chart absorb
+        // extra tile height. On grid (lg) screens the floor is smaller so
+        // tiles fit narrow viewports — grow recovers the height above the
+        // grid's rowHeight floor. (LFE-10813)
+        <div className="h-80 w-full shrink-0 grow lg:h-56">
+          <Chart
+            chartType="LINE_TIME_SERIES"
+            data={chartData}
+            rowLimit={100}
+            chartConfig={SCORES_CHART_CONFIG}
+            syncId={props.syncId}
+            sync={props.sync}
+          />
+        </div>
+      ) : (
+        <NoDataOrLoading
+          isLoading={props.isLoading || scores.isPending}
+          description="Scores evaluate LLM quality and can be created manually or using the SDK."
+          href="https://langfuse.com/docs/evaluation/overview"
+          className="h-auto grow"
+        />
+      )}
+    </DashboardCard>
+  );
+}

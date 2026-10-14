@@ -18,27 +18,27 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-vi.mock("@/src/features/evals/server/evaluator-preflight", () => ({
+vi.mock("@/src/evaluators/server/evaluator-preflight", () => ({
   getEvaluatorDefinitionPreflightError:
     mocks.getEvaluatorDefinitionPreflightError,
 }));
 
-vi.mock("@/src/features/evals/server/isCodeEvalEnabled", () => ({
+vi.mock("@/src/evaluators/server/isCodeEvalEnabled", () => ({
   isCodeEvalEnabled: mocks.isCodeEvalEnabled,
   isCodeEvalSourceCodeLanguageSupported:
     mocks.isCodeEvalSourceCodeLanguageSupported,
 }));
 
-import { assertEvaluatorConfigurationValid } from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
+import { assertEvaluatorConfigurationValid } from "@/src/evaluators/v2/server/evaluators/evaluatorValidation";
 import {
   EvaluatorConfigurationError,
   EvaluatorModelConfigurationError,
-} from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
-import { toStructuredPublicApiError } from "@/src/features/public-api/server/structuredPublicApiErrorContract";
+} from "@/src/evaluators/v2/server/evaluators/evaluatorErrors";
+import { toStructuredPublicApiError } from "@/src/public-api/server/structuredPublicApiErrorContract";
 import {
   CreateEvaluatorSchema,
   ListEvaluatorsSchema,
-} from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+} from "@/src/evaluators/v2/server/evaluators/evaluatorTypes";
 
 describe("evaluator configuration validation", () => {
   beforeEach(() => {

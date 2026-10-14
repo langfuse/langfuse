@@ -18,7 +18,7 @@ types:
         docs: ISO date after which the endpoint may stop working, when a removal date is committed.
 
   # Objects
-  # Source: web/src/features/public-api/types/observations.ts - APIObservationV2
+  # Source: web/src/public-api/types/observations.ts - APIObservationV2
   ObservationV2:
     docs: |
       An observation from the v2 API with field-group-based selection.
@@ -200,7 +200,7 @@ types:
       totalCost:
         docs: USD total cost, defaults to input+output
         type: optional<double>
-  # Source: web/src/features/public-api/types/score-configs.ts - APIScoreConfig
+  # Source: web/src/public-api/types/score-configs.ts - APIScoreConfig
   ScoreConfig:
     docs: Configuration for a score
     properties:
@@ -335,7 +335,7 @@ types:
       - string
     docs: The value of the score. Must be passed as string for categorical and text scores, and numeric for boolean and numeric scores
 
-  # Source: web/src/features/public-api/types/comments.ts - APIComment
+  # Source: web/src/public-api/types/comments.ts - APIComment
   Comment:
     properties:
       id: string
@@ -349,7 +349,7 @@ types:
         type: optional<nullable<string>>
         docs: The user ID of the comment author
 
-  # Source: web/src/features/public-api/types/datasets.ts - APIDataset
+  # Source: web/src/public-api/types/datasets.ts - APIDataset
   Dataset:
     properties:
       id: string
@@ -369,7 +369,7 @@ types:
       projectId: string
       createdAt: datetime
       updatedAt: datetime
-  # Source: web/src/features/public-api/types/datasets.ts - APIDatasetItem
+  # Source: web/src/public-api/types/datasets.ts - APIDatasetItem
   DatasetItem:
     properties:
       id: string
@@ -399,7 +399,7 @@ types:
       mediaReferences:
         type: list<DatasetItemMediaReference>
         docs: Resolved Langfuse media references found in input, expectedOutput, and metadata.
-  # Source: web/src/features/public-api/types/datasets.ts - APIDatasetItemMediaReference
+  # Source: web/src/public-api/types/datasets.ts - APIDatasetItemMediaReference
   DatasetItemMediaReference:
     properties:
       field:
@@ -439,7 +439,7 @@ types:
       urlExpiry:
         type: string
         docs: The expiry date and time of the download URL
-  # Source: web/src/features/public-api/types/models.ts - APIModelDefinition
+  # Source: web/src/public-api/types/models.ts - APIModelDefinition
   Model:
     docs: |
       Model definition used for transforming usage into USD cost and/or tokenization.

@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { PYTHON_CODE_EVAL_CONTRACT } from "@/src/features/evals/utils/code-eval-template-starter-examples";
+import { PYTHON_CODE_EVAL_CONTRACT } from "@/src/evaluators/utils/code-eval-template-starter-examples";
 
 // The Python Lambda runner reconstructs the payload into dataclasses (unlike
 // the Node runner, which passes it through verbatim), so the contract shown

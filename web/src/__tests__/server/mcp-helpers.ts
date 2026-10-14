@@ -10,8 +10,8 @@ import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
-import type { ServerContext } from "@/src/features/mcp/types";
-import { authenticator } from "@/src/features/apiKey/server";
+import type { ServerContext } from "@/src/public-api/mcp/types";
+import { authenticator } from "@/src/public-api/project-api-keys/server";
 
 /**
  * Creates a complete MCP test setup including:

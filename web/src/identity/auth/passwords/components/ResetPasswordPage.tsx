@@ -1,0 +1,388 @@
+import { useEffect, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import Head from "next/head";
+import { Button } from "@/src/app/design-system/legacy-primitives/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/src/app/design-system/legacy-primitives/form";
+import { Input } from "@/src/app/design-system/legacy-primitives/input";
+import { PasswordInput } from "@/src/app/design-system/PasswordInput/PasswordInput";
+import { LangfuseIcon } from "@/src/app/design-system/LangfuseIcon/LangfuseIcon";
+import { signIn, useSession } from "next-auth/react";
+import { ArrowLeft } from "lucide-react";
+import { api } from "@/src/app/utils/api";
+import { useRouter } from "next/router";
+import { RequestResetPasswordEmailButton } from "@/src/identity/auth/passwords/components/ResetPasswordButton";
+import { TRPCClientError } from "@trpc/client";
+import Link from "next/link";
+import { ErrorPage } from "@/src/app/components/error-page";
+import { usePostHogClientCapture } from "@/src/analytics/internal/posthog";
+import { passwordSchema } from "@/src/identity/auth";
+import { useLangfuseCloudRegion } from "@/src/identity/organizations";
+import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/identity/auth/passwords/lib/credentialsUtils";
+import { getDemoTargetPath } from "@/src/app/onboarding/lib/demoCallbackRedirect";
+import { env } from "@/src/env.mjs";
+import { TURNSTILE_ACTIONS } from "@/src/identity/auth/constants";
+import {
+  TurnstileWidget,
+  type TurnstileWidgetHandle,
+} from "@/src/identity/auth/components/TurnstileWidget";
+
+const resetPasswordSchema = z
+  .object({
+    token: z.string().regex(/^\d{6}$/, {
+      message: "Verification code must be 6 digits.",
+    }),
+    password: passwordSchema,
+    confirmPassword: passwordSchema,
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
+export function ResetPasswordPage({
+  passwordResetAvailable,
+  initialEmail = "",
+  intent = "reset",
+}: {
+  passwordResetAvailable: boolean;
+  initialEmail?: string;
+  intent?: "reset" | "setup";
+}) {
+  const session = useSession();
+  const router = useRouter();
+  const { isLangfuseCloud, region } = useLangfuseCloudRegion();
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [email, setEmail] = useState(initialEmail);
+  const [codeRequested, setCodeRequested] = useState(
+    // The intent check keeps a URL-supplied initialEmail from opening the code
+    // step for an address no email was ever sent to.
+    intent === "setup" && Boolean(initialEmail),
+  );
+
+  const capture = usePostHogClientCapture();
+
+  const isSetMode =
+    intent === "setup" || session.data?.user?.hasPassword === false;
+  const setupTargetPath =
+    isSetMode && router.isReady
+      ? getDemoTargetPath(router.query.targetPath)
+      : undefined;
+  const setupPasswordPath = setupTargetPath
+    ? `/auth/setup-password?targetPath=${encodeURIComponent(setupTargetPath)}`
+    : "/auth/setup-password";
+
+  const mutResetPassword = api.credentials.resetPassword.useMutation();
+  const effectiveEmail = session.data?.user?.email ?? email;
+  const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const [turnstileToken, setTurnstileToken] = useState<string>();
+  const [turnstileAction, setTurnstileAction] = useState<
+    typeof TURNSTILE_ACTIONS.login | typeof TURNSTILE_ACTIONS.passwordReset
+  >(TURNSTILE_ACTIONS.login);
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
+
+  const form = useForm({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: {
+      token: "",
+      password: "",
+      confirmPassword: "",
+    },
+  });
+
+  useEffect(() => {
+    if (intent !== "setup" || initialEmail) return;
+
+    const storedEmail = sessionStorage.getItem(
+      PASSWORD_SETUP_EMAIL_STORAGE_KEY,
+    );
+    if (storedEmail) {
+      setEmail(storedEmail);
+      setCodeRequested(true);
+    }
+  }, [initialEmail, intent]);
+
+  async function onSubmit(values: z.infer<typeof resetPasswordSchema>) {
+    setFormError(null);
+    setIsSuccess(false);
+    if (!z.email().safeParse(effectiveEmail).success) {
+      setFormError("Enter a valid email address.");
+      return;
+    }
+    capture(
+      isSetMode
+        ? "auth:set_password_form_submit"
+        : "auth:update_password_form_submit",
+    );
+    try {
+      await mutResetPassword.mutateAsync({
+        email: effectiveEmail,
+        token: values.token,
+        password: values.password,
+      });
+
+      if (isSetMode) {
+        sessionStorage.removeItem(PASSWORD_SETUP_EMAIL_STORAGE_KEY);
+      }
+
+      let target = setupTargetPath ?? "/";
+      if (isSetMode && isLangfuseCloud && region !== "DEV") {
+        target = setupTargetPath
+          ? `/onboarding?targetPath=${encodeURIComponent(setupTargetPath)}`
+          : "/onboarding";
+      }
+      // A password update revokes every existing JWT, including this
+      // browser's, so the current session always has to be re-established.
+      const signInResult = await signIn("credentials", {
+        email: effectiveEmail,
+        password: values.password,
+        redirect: false,
+        ...(turnstileToken ? { turnstileToken } : {}),
+      });
+      turnstileRef.current?.reset();
+      if (!signInResult?.ok) {
+        target = "/auth/sign-in";
+      }
+
+      setIsSuccess(true);
+      setTimeout(() => {
+        router.push(target);
+        setIsSuccess(false);
+      }, 2000);
+    } catch (error) {
+      if (error instanceof TRPCClientError) {
+        setFormError(error.message);
+      } else {
+        console.error(error);
+        setFormError("An unknown error occurred");
+      }
+    }
+  }
+
+  if (!passwordResetAvailable)
+    return (
+      <ErrorPage
+        title="Not available"
+        message="Password reset is not configured on this instance"
+        additionalButton={{
+          label: "Setup instructions",
+          href: "https://langfuse.com/self-hosting/security/authentication-and-sso#auth-email-password",
+        }}
+      />
+    );
+
+  const title = isSetMode ? "Set your password" : "Reset your password";
+  const pageTitle = isSetMode ? "Set password" : "Reset password";
+  const submitLabel = isSetMode ? "Set password" : "Update Password";
+  const successMessage = isSetMode
+    ? "Password set successfully. Redirecting ..."
+    : "Password successfully updated. Redirecting ...";
+
+  return (
+    <>
+      <Head>
+        <title>{pageTitle} | Langfuse</title>
+      </Head>
+      <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <Link href="/">
+            <div className="mx-auto w-fit">
+              <LangfuseIcon />
+            </div>
+          </Link>
+          <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
+            {title}
+          </h2>
+          {!isSetMode && session.status !== "authenticated" && (
+            <div className="mt-2 flex justify-center">
+              <Button asChild variant="ghost">
+                <Link href="/auth/sign-in">
+                  <ArrowLeft className="icon-base text-icon-foreground mr-2" />
+                  Back to sign in
+                </Link>
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-card mt-10 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-12">
+          <div className="space-y-6">
+            <Form {...form}>
+              <form
+                className="space-y-6"
+                onSubmit={form.handleSubmit(onSubmit)}
+              >
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="jsdoe@example.com"
+                      disabled={session.status === "authenticated"}
+                      allowPasswordManager
+                      autoComplete="email"
+                      value={effectiveEmail}
+                      onChange={(event) => setEmail(event.target.value)}
+                    />
+                  </FormControl>
+                </FormItem>
+                {codeRequested ? (
+                  <>
+                    <p className="text-muted-foreground text-sm">
+                      Enter the 6-digit code from your email together with your
+                      new password. The code is valid for 3 minutes.
+                    </p>
+                    <FormField
+                      control={form.control}
+                      name="token"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Verification code</FormLabel>
+                          <FormControl>
+                            <Input
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              maxLength={6}
+                              placeholder="6-digit code"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            {isSetMode ? "Password" : "New Password"}
+                          </FormLabel>
+                          <FormControl>
+                            <PasswordInput
+                              allowPasswordManager
+                              autoComplete="new-password"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="confirmPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            {isSetMode
+                              ? "Confirm Password"
+                              : "Confirm New Password"}
+                          </FormLabel>
+                          <FormControl>
+                            <PasswordInput
+                              allowPasswordManager
+                              autoComplete="new-password"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {turnstileSiteKey ? (
+                      <TurnstileWidget
+                        ref={turnstileRef}
+                        siteKey={turnstileSiteKey}
+                        action={turnstileAction}
+                        onTokenChange={setTurnstileToken}
+                      />
+                    ) : null}
+                    <div className="pt-4">
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={
+                          mutResetPassword.isPending ||
+                          (Boolean(turnstileSiteKey) &&
+                            (turnstileAction !== TURNSTILE_ACTIONS.login ||
+                              !turnstileToken))
+                        }
+                        loading={mutResetPassword.isPending}
+                      >
+                        {submitLabel}
+                      </Button>
+                    </div>
+                    <RequestResetPasswordEmailButton
+                      email={effectiveEmail}
+                      callbackUrl={isSetMode ? setupPasswordPath : undefined}
+                      onEmailSent={() => {
+                        setCodeRequested(true);
+                        setTurnstileToken(undefined);
+                        setTurnstileAction(TURNSTILE_ACTIONS.login);
+                      }}
+                      label="Send another code"
+                      sharedTurnstile={
+                        turnstileSiteKey
+                          ? {
+                              token: turnstileToken,
+                              action: turnstileAction,
+                              onPreparePasswordReset: () => {
+                                setTurnstileToken(undefined);
+                                setTurnstileAction(
+                                  TURNSTILE_ACTIONS.passwordReset,
+                                );
+                              },
+                              onRejectToken: () => {
+                                turnstileRef.current?.reset();
+                              },
+                            }
+                          : undefined
+                      }
+                    />
+                  </>
+                ) : (
+                  <RequestResetPasswordEmailButton
+                    email={effectiveEmail}
+                    callbackUrl={isSetMode ? setupPasswordPath : undefined}
+                    onEmailSent={() => setCodeRequested(true)}
+                  />
+                )}
+              </form>
+            </Form>
+            {formError ? (
+              <div className="text-destructive text-center text-sm font-bold">
+                {formError}
+              </div>
+            ) : null}
+            {isSuccess && (
+              <div className="text-center text-sm font-bold">
+                {successMessage}
+              </div>
+            )}
+          </div>
+        </div>
+        {!isSetMode && session.status !== "authenticated" && (
+          <div className="text-muted-foreground mx-auto mt-10 max-w-lg text-center text-xs">
+            You will only receive an email if an account with this email exists
+            and you have signed up with email and password. If you used an
+            authentication provider like Google, Gitlab, Okta, or GitHub, please{" "}
+            <Link href="/auth/sign-in" className="underline">
+              sign in
+            </Link>
+            .
+          </div>
+        )}
+      </div>
+    </>
+  );
+}

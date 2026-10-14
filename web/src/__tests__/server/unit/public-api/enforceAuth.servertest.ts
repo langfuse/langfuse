@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import { ForbiddenError } from "@langfuse/shared";
 
-import { __test } from "@/src/features/public-api/server/enforceAuth";
+import { __test } from "@/src/public-api/server/enforceAuth";
 import {
   type AuthorizationContext,
   type BoundResource,
-} from "@/src/features/auth/policy/types";
+} from "@/src/identity/auth/policy/types";
 
 const { getOrgId, getProjectId } = __test;
 

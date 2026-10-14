@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseAuthorizationHeader } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
+import { parseAuthorizationHeader } from "@/src/public-api/project-api-keys/helpers/parseAuthorizationHeader";
 
 const basicHeader = (pub: string, secret: string) =>
   `Basic ${btoa(`${pub}:${secret}`)}`;

@@ -4,64 +4,64 @@ Snapshot source: `gh repo list langfuse --limit 1000 --json name,description,isP
 
 ## Core Routes
 
-| Need | Start Here | Then Check |
-| --- | --- | --- |
-| Product UI, API routes, tRPC, auth, billing, prompts, datasets, evals, traces, sessions, scores, models | `langfuse/langfuse` | `web/src/features/**`, `web/src/pages/**`, `web/src/app/**`, `packages/shared/src/**` |
-| Ingestion, queues, async jobs, exports, retention, evaluation runners, background workers | `langfuse/langfuse` | `worker/src/**`, `packages/shared/src/server/**` |
-| Shared domain types, repositories, services, Postgres/ClickHouse queries | `langfuse/langfuse` | `packages/shared/src/domain/**`, `packages/shared/src/server/**`, `packages/shared/src/server/queries/**` |
-| Public API schema and generated server/client definitions | `langfuse/langfuse` | `fern/apis/server/definition/**`, `fern/apis/client/definition/**`, generated clients |
-| Docs, changelog, blog, handbook, cookbook, integrations, website components | `langfuse/langfuse-docs` | `content/**`, `app/**`, `components/**`, `components-mdx/**`, `cookbook/**` |
-| JS/TS SDKs and integrations | `langfuse/langfuse-js` | `packages/client`, `packages/core`, `packages/tracing`, `packages/otel`, `packages/openai`, `packages/langchain` |
-| Python SDK | `langfuse/langfuse-python` | `langfuse/**`, `langfuse/api/**`, `tests/**` |
-| Java SDK | `langfuse/langfuse-java` | Generated Java client and tests |
-| Cloud infrastructure, Terraform, ClickHouse operations, load tests, infra scripts | `langfuse/infrastructure` | `terraform/**`, `clickhouse/**`, `scripts/**`, `load-tests/**` |
-| Kubernetes / Helm deployment | `langfuse/langfuse-k8s` | Helm chart and Kubernetes templates |
-| Terraform deployment modules | `langfuse/langfuse-terraform-aws`, `langfuse/langfuse-terraform-gcp`, `langfuse/langfuse-terraform-azure` | Provider-specific module files |
-| Terraform provider | `langfuse/terraform-provider-langfuse` | Provider resources, generated schema, tests |
-| Public agent skill for using Langfuse | `langfuse/skills` | `skills/langfuse/SKILL.md` and its references |
-| Internal Langfuse team skills | `langfuse/langfuse-internal-skills` | Top-level skill folders in this repo |
-| CLI | `langfuse/langfuse-cli` | `src/**`, `bin/**`, `openapi.yml` |
-| MCP prompt-management server | `langfuse/mcp-server-langfuse` | `src/**` |
-| n8n node | `langfuse/n8n-nodes-langfuse` | Node package source |
-| GitHub Action for experiments | `langfuse/experiment-action` | `action.yml`, `src/**`, `schemas/**` |
-| Examples | `langfuse/langfuse-examples` | Example app directories |
-| API reference site | `langfuse/langfuse-api-reference` | Static/generated API reference assets |
+| Need                                                                                                    | Start Here                                                                                                | Then Check                                                                                                       |
+| ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Product UI, API routes, tRPC, auth, billing, prompts, datasets, evals, traces, sessions, scores, models | `langfuse/langfuse`                                                                                       | `web/src/features/**`, `web/pages/**`, `web/src/app/**`, `packages/shared/src/**`                                |
+| Ingestion, queues, async jobs, exports, retention, evaluation runners, background workers               | `langfuse/langfuse`                                                                                       | `worker/src/**`, `packages/shared/src/server/**`                                                                 |
+| Shared domain types, repositories, services, Postgres/ClickHouse queries                                | `langfuse/langfuse`                                                                                       | `packages/shared/src/domain/**`, `packages/shared/src/server/**`, `packages/shared/src/server/queries/**`        |
+| Public API schema and generated server/client definitions                                               | `langfuse/langfuse`                                                                                       | `fern/apis/server/definition/**`, `fern/apis/client/definition/**`, generated clients                            |
+| Docs, changelog, blog, handbook, cookbook, integrations, website components                             | `langfuse/langfuse-docs`                                                                                  | `content/**`, `app/**`, `components/**`, `components-mdx/**`, `cookbook/**`                                      |
+| JS/TS SDKs and integrations                                                                             | `langfuse/langfuse-js`                                                                                    | `packages/client`, `packages/core`, `packages/tracing`, `packages/otel`, `packages/openai`, `packages/langchain` |
+| Python SDK                                                                                              | `langfuse/langfuse-python`                                                                                | `langfuse/**`, `langfuse/api/**`, `tests/**`                                                                     |
+| Java SDK                                                                                                | `langfuse/langfuse-java`                                                                                  | Generated Java client and tests                                                                                  |
+| Cloud infrastructure, Terraform, ClickHouse operations, load tests, infra scripts                       | `langfuse/infrastructure`                                                                                 | `terraform/**`, `clickhouse/**`, `scripts/**`, `load-tests/**`                                                   |
+| Kubernetes / Helm deployment                                                                            | `langfuse/langfuse-k8s`                                                                                   | Helm chart and Kubernetes templates                                                                              |
+| Terraform deployment modules                                                                            | `langfuse/langfuse-terraform-aws`, `langfuse/langfuse-terraform-gcp`, `langfuse/langfuse-terraform-azure` | Provider-specific module files                                                                                   |
+| Terraform provider                                                                                      | `langfuse/terraform-provider-langfuse`                                                                    | Provider resources, generated schema, tests                                                                      |
+| Public agent skill for using Langfuse                                                                   | `langfuse/skills`                                                                                         | `skills/langfuse/SKILL.md` and its references                                                                    |
+| Internal Langfuse team skills                                                                           | `langfuse/langfuse-internal-skills`                                                                       | Top-level skill folders in this repo                                                                             |
+| CLI                                                                                                     | `langfuse/langfuse-cli`                                                                                   | `src/**`, `bin/**`, `openapi.yml`                                                                                |
+| MCP prompt-management server                                                                            | `langfuse/mcp-server-langfuse`                                                                            | `src/**`                                                                                                         |
+| n8n node                                                                                                | `langfuse/n8n-nodes-langfuse`                                                                             | Node package source                                                                                              |
+| GitHub Action for experiments                                                                           | `langfuse/experiment-action`                                                                              | `action.yml`, `src/**`, `schemas/**`                                                                             |
+| Examples                                                                                                | `langfuse/langfuse-examples`                                                                              | Example app directories                                                                                          |
+| API reference site                                                                                      | `langfuse/langfuse-api-reference`                                                                         | Static/generated API reference assets                                                                            |
 
 ## Repositories
 
-| Repo | Visibility | Language | Route When |
-| --- | --- | --- | --- |
-| `.github` | Public | n/a | Organization profile, default community health, org-wide GitHub metadata. |
-| `202604-offsite-slides` | Private | TypeScript | Internal offsite slide deck work. Only route here when the user names it or asks for those slides. |
-| `analytics` | Private | Shell | Analytic data pipeline and documentation, cost/data marts, analytics scripts. |
-| `background-jobs` | Private | TypeScript | Sparse metadata, older private background-job work. Inspect README before using. |
-| `experiment-action` | Public | TypeScript | GitHub Action workflow support for running Langfuse experiments. |
-| `infrastructure` | Private | HCL | Langfuse Cloud infrastructure, Terraform, ClickHouse ops, infra scripts, load tests. |
-| `langfuse` | Public | TypeScript | Main product monorepo: web app, API, worker, shared packages, generated API definitions. |
-| `langfuse-api-reference` | Public | HTML | Generated or static API reference site. |
-| `langfuse-cli` | Public | TypeScript | CLI wrapper around Langfuse API. |
-| `langfuse-docs` | Public | MDX | Docs, changelog, blog, integrations, cookbook, handbook, marketing/docs website. |
-| `langfuse-examples` | Public | TypeScript | Example apps showing deployment and Langfuse usage. |
-| `langfuse-ghsa-gccw-7cqr-2cjm` | Private | TypeScript | Security advisory remediation/reproduction work for that GHSA. Treat as sensitive. |
-| `langfuse-internal-skills` | Private | Python | Internal team skills for support, PR funnel, social copy, meeting notes, Plain search, writing, and routing. |
-| `langfuse-java` | Public | Java | Auto-generated Java client for the Langfuse API. |
-| `langfuse-js` | Public | TypeScript | JS/TS SDK packages and integrations for tracing, OpenAI, LangChain, OTel, prompts, datasets, scores. |
-| `langfuse-k8s` | Public | Go Template | Community-maintained Kubernetes config and Helm chart. |
-| `langfuse-ops` | Private | JavaScript | Private ops utilities. Inspect README/scripts before using. |
-| `langfuse-playground` | Private | Python | Private playground/prototype code. Use when named or search evidence points here. |
-| `langfuse-python` | Public | Python | Python SDK, generated API client, decorators, OTel, LangChain/OpenAI integration tests. |
-| `langfuse-terraform-aws` | Public | HCL | Terraform module for AWS deployment. |
-| `langfuse-terraform-azure` | Public | HCL | Terraform module for Azure deployment. |
-| `langfuse-terraform-gcp` | Public | HCL | Terraform module for GCP deployment. |
-| `mcp-server-langfuse` | Public | TypeScript | MCP server for Langfuse prompt management. |
-| `n8n-nodes-langfuse` | Public | JavaScript | n8n node for Langfuse prompt management. |
-| `nofilter` | Private | TypeScript | Hackathon/prototype repo. Use only when named or search evidence points here. |
-| `oss-llmops-stack` | Public | n/a | Modular OSS LLMOps stack combining LiteLLM and Langfuse. |
-| `platform` | Private | Python | Sparse metadata, private platform repo. Inspect README before routing non-obvious work here. |
-| `skills` | Public | Python | Public installable Langfuse agent skill for using Langfuse and its docs/API. |
-| `task-search-bar` | Private | TypeScript | Small private task/prototype repo. Use when named. |
-| `terraform-provider-langfuse` | Public | Go | Terraform provider for managing Langfuse resources. |
-| `tmp-langfuse-otel-js` | Private | TypeScript | Temporary repo for new JS SDK v4 / OTel work. Check whether work has moved to `langfuse-js`. |
+| Repo                           | Visibility | Language    | Route When                                                                                                   |
+| ------------------------------ | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------ |
+| `.github`                      | Public     | n/a         | Organization profile, default community health, org-wide GitHub metadata.                                    |
+| `202604-offsite-slides`        | Private    | TypeScript  | Internal offsite slide deck work. Only route here when the user names it or asks for those slides.           |
+| `analytics`                    | Private    | Shell       | Analytic data pipeline and documentation, cost/data marts, analytics scripts.                                |
+| `background-jobs`              | Private    | TypeScript  | Sparse metadata, older private background-job work. Inspect README before using.                             |
+| `experiment-action`            | Public     | TypeScript  | GitHub Action workflow support for running Langfuse experiments.                                             |
+| `infrastructure`               | Private    | HCL         | Langfuse Cloud infrastructure, Terraform, ClickHouse ops, infra scripts, load tests.                         |
+| `langfuse`                     | Public     | TypeScript  | Main product monorepo: web app, API, worker, shared packages, generated API definitions.                     |
+| `langfuse-api-reference`       | Public     | HTML        | Generated or static API reference site.                                                                      |
+| `langfuse-cli`                 | Public     | TypeScript  | CLI wrapper around Langfuse API.                                                                             |
+| `langfuse-docs`                | Public     | MDX         | Docs, changelog, blog, integrations, cookbook, handbook, marketing/docs website.                             |
+| `langfuse-examples`            | Public     | TypeScript  | Example apps showing deployment and Langfuse usage.                                                          |
+| `langfuse-ghsa-gccw-7cqr-2cjm` | Private    | TypeScript  | Security advisory remediation/reproduction work for that GHSA. Treat as sensitive.                           |
+| `langfuse-internal-skills`     | Private    | Python      | Internal team skills for support, PR funnel, social copy, meeting notes, Plain search, writing, and routing. |
+| `langfuse-java`                | Public     | Java        | Auto-generated Java client for the Langfuse API.                                                             |
+| `langfuse-js`                  | Public     | TypeScript  | JS/TS SDK packages and integrations for tracing, OpenAI, LangChain, OTel, prompts, datasets, scores.         |
+| `langfuse-k8s`                 | Public     | Go Template | Community-maintained Kubernetes config and Helm chart.                                                       |
+| `langfuse-ops`                 | Private    | JavaScript  | Private ops utilities. Inspect README/scripts before using.                                                  |
+| `langfuse-playground`          | Private    | Python      | Private playground/prototype code. Use when named or search evidence points here.                            |
+| `langfuse-python`              | Public     | Python      | Python SDK, generated API client, decorators, OTel, LangChain/OpenAI integration tests.                      |
+| `langfuse-terraform-aws`       | Public     | HCL         | Terraform module for AWS deployment.                                                                         |
+| `langfuse-terraform-azure`     | Public     | HCL         | Terraform module for Azure deployment.                                                                       |
+| `langfuse-terraform-gcp`       | Public     | HCL         | Terraform module for GCP deployment.                                                                         |
+| `mcp-server-langfuse`          | Public     | TypeScript  | MCP server for Langfuse prompt management.                                                                   |
+| `n8n-nodes-langfuse`           | Public     | JavaScript  | n8n node for Langfuse prompt management.                                                                     |
+| `nofilter`                     | Private    | TypeScript  | Hackathon/prototype repo. Use only when named or search evidence points here.                                |
+| `oss-llmops-stack`             | Public     | n/a         | Modular OSS LLMOps stack combining LiteLLM and Langfuse.                                                     |
+| `platform`                     | Private    | Python      | Sparse metadata, private platform repo. Inspect README before routing non-obvious work here.                 |
+| `skills`                       | Public     | Python      | Public installable Langfuse agent skill for using Langfuse and its docs/API.                                 |
+| `task-search-bar`              | Private    | TypeScript  | Small private task/prototype repo. Use when named.                                                           |
+| `terraform-provider-langfuse`  | Public     | Go          | Terraform provider for managing Langfuse resources.                                                          |
+| `tmp-langfuse-otel-js`         | Private    | TypeScript  | Temporary repo for new JS SDK v4 / OTel work. Check whether work has moved to `langfuse-js`.                 |
 
 ## Main Product Monorepo
 
@@ -70,9 +70,9 @@ Start at the sibling checkout `langfuse` in the same parent directory as the cur
 Important areas:
 
 - `web/src/features/**`: feature-oriented UI, hooks, server modules, pages, and components.
-- `web/src/pages/**`: Next.js pages and API routes.
+- `web/pages/**`: Next.js pages and API routes.
 - `web/src/app/**`: App-router routes and app-level APIs.
-- `web/src/components/**`: shared UI, trace display, tables, layouts, design-system components.
+- `web/src/app/components/**`: shared UI, trace display, tables, layouts, design-system components.
 - `packages/shared/src/domain/**`: shared domain interfaces and business types.
 - `packages/shared/src/server/**`: repositories, services, auth, cache, ClickHouse/Postgres queries, S3, Redis, pricing, LLM helpers.
 - `packages/shared/src/server/queries/**`: ClickHouse and Postgres SQL query builders.

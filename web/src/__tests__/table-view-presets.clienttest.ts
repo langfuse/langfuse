@@ -3,14 +3,14 @@
 import {
   validateOrderBy,
   validateFilters,
-} from "@/src/components/table/table-view-presets/validation";
+} from "@/src/app/tables/common-components/table-view-presets/validation";
 import {
   type ColumnDefinition,
   type FilterState,
   type OrderByState,
 } from "@langfuse/shared";
-import { experimentsFilterConfig } from "@/src/features/experiments/components/table/filter-config";
-import { experimentItemsFilterConfig } from "@/src/features/experiments/config/experiment-items-filter-config";
+import { experimentsFilterConfig } from "@/src/experiments/components/table/filter-config";
+import { experimentItemsFilterConfig } from "@/src/experiments/config/experiment-items-filter-config";
 
 // Mock data for testing
 const mockColumns = [

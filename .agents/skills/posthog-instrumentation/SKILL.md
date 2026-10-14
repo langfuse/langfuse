@@ -31,7 +31,7 @@ should emit an event — do not skip the question silently.
 ## The Langfuse pattern (match it exactly)
 
 - **Hook:** `usePostHogClientCapture()` → `capture(eventName, props?)`
-  ([`usePostHogClientCapture.ts`](../../../web/src/features/posthog-analytics/usePostHogClientCapture.ts)).
+  ([`usePostHogClientCapture.ts`](../../../web/src/analytics/internal/posthog/usePostHogClientCapture.ts)).
   The component calls the hook's `capture` — it never imports or touches
   `posthog` directly. The only client-side exceptions are app-shell
   infrastructure in `_app.tsx` (`$pageview`, `identify`, `register`).
@@ -47,7 +47,7 @@ should emit an event — do not skip the question silently.
   `valueCount`), `is`/`has` prefix for booleans (`isV4`, `hasFreeText`),
   `Date`/`Timestamp` suffix for times.
 - **Global dimensions** ride as a **super property** registered once in
-  [`_app.tsx`](../../../web/src/pages/_app.tsx) (e.g. `v4BetaEnabled` via
+  [`_app.tsx`](../../../web/pages/_app.tsx) (e.g. `v4BetaEnabled` via
   `posthog.register`, removed on sign-out via `posthog.unregister`) so they
   attach to every event. Also put a per-event copy on events where the value
   at the moment of the action matters (Rule 4). For org/project-level
@@ -58,7 +58,7 @@ should emit an event — do not skip the question silently.
   event names distinct from any frontend event — keep it that way; reusing a
   name across client and server double-counts.
 - **The HIPAA region runs NO product analytics.** Both entry points gate on
-  [`productAnalyticsAvailability.ts`](../../../web/src/features/posthog-analytics/productAnalyticsAvailability.ts):
+  [`productAnalyticsAvailability.ts`](../../../web/src/analytics/internal/posthog/productAnalyticsAvailability.ts):
   the browser SDK (`posthog-js`) is only initialized when
   `getPostHogClientConfig()` returns a config — `init()` itself fetches remote
   config, so skip it rather than opting out after. The server SDK

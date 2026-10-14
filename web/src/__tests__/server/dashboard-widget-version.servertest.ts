@@ -17,7 +17,7 @@ import { requiresV2 } from "@langfuse/shared/query";
 import {
   mapLegacyUiTableFilterToView,
   mapWidgetUiTableFilterToView,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+} from "@/src/analytics/dashboards/lib/dashboardUiTableToViewMapping";
 
 describe("dashboard widget minVersion", () => {
   let projectId: string;

@@ -703,7 +703,7 @@ apps/
 // CORRECT: Extract to a package
 packages/
   utils/
-    src/utils.ts
+    src/app/utils.ts
 ```
 
 ### Accessing Files Across Package Boundaries

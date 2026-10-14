@@ -283,7 +283,7 @@ export const adminProcedure = withOtelTracingProcedure
 
 ## Public API Middleware
 
-**Files:** `web/src/features/public-api/server/`
+**Files:** `web/src/public-api/server/`
 
 ### withMiddlewares Pattern
 
@@ -344,7 +344,7 @@ export function withMiddlewares(handlers: Handlers) {
 **Usage:**
 
 ```typescript
-// web/src/pages/api/public/datasets/[datasetName]/items.ts
+// web/pages/api/public/datasets/[datasetName]/items.ts
 export default withMiddlewares({
   GET: getDatasetItemsHandler,
   POST: createDatasetItemHandler,
@@ -416,7 +416,7 @@ export const createAuthedProjectAPIRoute = <TQuery, TBody, TResponse>(
 **Usage:**
 
 ```typescript
-// web/src/pages/api/public/traces/[traceId].ts
+// web/pages/api/public/traces/[traceId].ts
 export default createAuthedProjectAPIRoute({
   name: "Get Trace",
   querySchema: GetTraceV1Query,

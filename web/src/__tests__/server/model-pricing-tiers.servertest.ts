@@ -10,7 +10,7 @@ import {
   GetModelsV1Response,
   PostModelsV1Response,
   PutModelV1Response,
-} from "@/src/features/public-api/types/models";
+} from "@/src/public-api/types/models";
 
 import {
   validateRegexPattern,

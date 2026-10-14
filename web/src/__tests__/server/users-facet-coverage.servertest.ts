@@ -13,13 +13,13 @@
  */
 import { randomUUID } from "crypto";
 
-import { observationEventsFilterConfig } from "@/src/features/events/server";
-import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
+import { observationEventsFilterConfig } from "@/src/tracing/observations/server";
+import { traceFilterConfig } from "@/src/app/search/filters/config/traces-config";
 import {
   usersEventsFilterConfig,
   usersFilterConfig,
-} from "@/src/features/filters/config/users-config";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+} from "@/src/app/search/filters/config/users-config";
+import type { FilterConfig } from "@/src/app/search/filters/lib/filter-config";
 import { type ColumnDefinition, type FilterState } from "@langfuse/shared";
 import {
   createEvent,

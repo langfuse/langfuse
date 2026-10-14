@@ -11,7 +11,7 @@ import {
   makeAPICall,
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
-import { GetObservationsV1Response } from "@/src/features/public-api/types/observations";
+import { GetObservationsV1Response } from "@/src/public-api/types/observations";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 

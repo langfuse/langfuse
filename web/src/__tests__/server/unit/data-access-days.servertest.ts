@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/entitlements/server";
 const NOW = new Date("2026-08-28T12:00:00.000Z");
 
 describe("clampToDataAccessDays", () => {

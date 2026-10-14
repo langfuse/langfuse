@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 import {
   CreateAnnotationQueueAssignmentResponse,
   DeleteAnnotationQueueAssignmentResponse,
-} from "@/src/features/public-api/types/annotation-queues";
+} from "@/src/public-api/types/annotation-queues";
 
 describe("/api/public/annotation-queues/:queueId/assignments API", () => {
   let auth: string;

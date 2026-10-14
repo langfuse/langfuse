@@ -1,7 +1,7 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { resolveTxtFresh } from "@/src/ee/features/verified-domains/server/dnsLookup";
+import { resolveTxtFresh } from "@/src/ee/identity/auth/verified-domains/server/dnsLookup";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { Role } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
@@ -9,7 +9,7 @@ import type { Session } from "next-auth";
 import type { Mock } from "vitest";
 import { v4 as uuidv4 } from "uuid";
 
-vi.mock("@/src/ee/features/verified-domains/server/dnsLookup", () => ({
+vi.mock("@/src/ee/identity/auth/verified-domains/server/dnsLookup", () => ({
   resolveTxtFresh: vi.fn(),
 }));
 

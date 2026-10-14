@@ -10,7 +10,7 @@ import {
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 
-import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { type AuthorizationContext } from "@/src/identity/auth/policy/types";
 
 const generateAuth = (username: string, password: string) => {
   const auth = Buffer.from(`${username}:${password}`).toString("base64");

@@ -1,4 +1,4 @@
-import { VERSION } from "@/src/constants/VERSION";
+import { VERSION } from "@/src/app/constants/VERSION";
 import { env } from "@/src/env.mjs";
 import {
   createTRPCRouter,

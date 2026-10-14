@@ -3,7 +3,7 @@ import type { Span } from "@opentelemetry/api";
 import type { Session } from "next-auth";
 import * as z from "zod";
 
-vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
+vi.mock("@/src/analytics/internal/posthog/server/backendActivity", () => ({
   recordBackendActivity: vi.fn().mockResolvedValue(undefined),
 }));
 

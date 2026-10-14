@@ -10,14 +10,14 @@ import {
   createCodeEvaluator,
   createEvaluationRule,
 } from "@/src/__tests__/server/stable-evaluation-public-api-test-utils";
-import { EvaluatorService, RuleService } from "@/src/features/evals/server";
+import { EvaluatorService, RuleService } from "@/src/evaluators/server";
 import {
   DeleteEvaluationRuleResponse,
   EvaluationRule,
   Evaluator,
   ListEvaluationRulesResponse,
   PublicApiError,
-} from "@/src/features/public-api";
+} from "@/src/public-api";
 
 const createLegacyRule = (projectId: string, name: string) =>
   prisma.evaluationRule.create({

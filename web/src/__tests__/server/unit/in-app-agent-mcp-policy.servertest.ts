@@ -7,9 +7,9 @@ import {
 import {
   bootstrapMcpFeatures,
   type McpToolName,
-} from "@/src/features/mcp/server/bootstrap";
-import { toolRegistry } from "@/src/features/mcp/server/registry";
-import { skillsFeature } from "@/src/features/mcp/server/skills";
+} from "@/src/public-api/mcp/server/bootstrap";
+import { toolRegistry } from "@/src/public-api/mcp/server/registry";
+import { skillsFeature } from "@/src/public-api/mcp/server/skills";
 
 describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
   it("keeps Skills MCP tools unregistered", () => {

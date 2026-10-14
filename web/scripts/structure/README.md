@@ -2,24 +2,24 @@
 
 `structure:stats` says what is wrong and ranks what to fix next;
 `structure:move` does the mechanical half of the fix. The loop they exist for is
-many small, boring PRs, each visibly dropping the count:
+explicit ownership decisions followed by scoped, verified moves:
 
-1. `pnpm structure:stats --next --scope <area>` → take item #1.
+1. `pnpm structure:stats --next --scope <area>` → inspect evidence and the source-layout guide before choosing work.
 2. Mechanical part via `pnpm structure:move`; judgment part (splits, renames,
    authoring an `index.ts`) by hand.
 3. Re-run stats. The PR body is the item headline plus the before/after counts
    from `--diff` ("rule 6: 104 → 63"). One item per PR; no baseline
    regeneration unless it is the point of the PR.
 
-# structure:stats — the RFC dashboard
+# structure:stats — the structure dashboard
 
-Counts violations of the [web project-structure RFC](https://linear.app/clickhouse/document/langfuse-web-project-code-structure-rfc-ecbc304915d6)
-(meta LFE-14748) per rule, so migration progress is one visible number.
+Reports structural findings by readable rule ID. Numeric IDs remain compatible.
+Counts support investigation; domain ownership is defined in the repository guide.
 
 ```sh
 pnpm structure:stats                          # per-rule counts (+ Δ vs baseline)
-pnpm structure:stats --rule 8                 # list rule 8's offending imports
-pnpm structure:stats --scope src/features/traces   # counts for one subtree
+pnpm structure:stats --rule rule-8-no-deep-feature-imports # inspect boundary findings
+pnpm structure:stats --scope src/tracing/traces   # counts for one subtree
 pnpm structure:stats --diff                   # what got fixed / added vs baseline
 pnpm structure:stats --baseline               # re-snapshot .structure-baseline.json
 pnpm structure:stats --next [n]               # top n ranked work items (default 6)
@@ -41,12 +41,19 @@ rescores. Leverage = violations cleared × rule weight (`RULE_WEIGHTS` in
 `next.mjs` — runtime hazards outrank naming nits). The intended loop:
 `--next --scope <area>` → fix item 1 as its own PR → re-run.
 
+## Layout enforcement
+
+`pnpm structure:check` validates declared roots and framework entrypoints in CI.
+`pnpm structure:test` exercises domain boundaries, rule selection and relocation.
+Existing import-rule debt remains reported by `structure:stats`.
+
 ## structure:move — a move with the imports carried along
 
 ```sh
 pnpm structure:move <from...> <to-dir>   # move files and/or folders, batched
+pnpm structure:move --plan source-structure.json --dry-run # explicit relocation plan
 pnpm structure:move <from> <to-file>     # rename (one source, file target)
-pnpm structure:move --dry-run src/hooks/useFoo.ts src/features/bar/hooks
+pnpm structure:move --dry-run src/app/hooks/useFoo.ts src/scores/hooks
 ```
 
 A target ending in a source extension is a rename rather than a move into a
@@ -124,13 +131,13 @@ Splitting a file and directory renames are not part of the surface
 | ------ | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | 1–4    | component/hook/fn/store/context file shape + naming; a `fns/` module folder groups one engine | census (TS parse)                                                        |
 | 5      | kind folders closed list (+ `constants`, `types`; `docs` anywhere)                            | census (dir walk)                                                        |
-| 6      | single-feature files live in the feature; **pages drive features** — a page route under `/sessions` owns `features/sessions`, even if another feature also imports the file | graph (used-in inversion + page slug) |
+| 6      | single-feature files live in the feature; **pages drive features** — a page route under `/sessions` owns `src/sessions`, even if another feature also imports the file | graph (used-in inversion + page slug) |
 | 7      | no importing another component's internals                                                    | graph + `.dependency-cruiser.js`                                         |
 | 8      | cross-feature imports via a feature surface (`index.ts`, `server/index.ts`)                   | graph + `.dependency-cruiser.js`                                         |
 | 9      | `index.ts` at a feature root and its `server/` root                                           | census                                                                   |
 | 10     | no client → `server/` (types excepted)                                                        | graph + `.dependency-cruiser.js`                                         |
 | 11     | no runtime import cycles                                                                      | graph + `.dependency-cruiser.js`                                         |
-| 12     | `src/pages` files import only a Page component                                                | graph + `.dependency-cruiser.js`                                         |
+| 12     | `pages` files import only a Page component                                                | graph + `.dependency-cruiser.js`                                         |
 | 13     | `components/ui` frozen                                                                        | census (file count, baseline ratchets adds)                              |
 | 14, 15 | design-system purity; git-mv moves                                                            | review / process — not counted                                           |
 | 16     | ESLint ignores at file level only                                                             | census (line-level disables)                                             |
@@ -145,13 +152,12 @@ approximations under-count some nested-component cases — see its header).
 
 ## RFC amendments the detectors now encode
 
-Found by migrating `features/traces` and approved in-flight; the Linear RFC is
-the source of truth and carries the prose (handed over via the LFE-14804
-mailbox).
+Current placement and boundary guidance lives in `web/docs/source-structure.md`.
+`web/source-structure.json` declares nested public capabilities and shared roots.
 
 - **Pages drive features (rule 6).** When placing a shared folder, the Next.js
   page route that mounts it owns the destination feature — e.g. files used by
-  `pages/.../sessions/[sessionId]` belong in `features/sessions`, even if
+  `pages/.../sessions/[sessionId]` belong in `src/sessions`, even if
   `annotation-queues` also imports them. Do not filter pages out of the
   consumer set and treat the remaining feature as the sole owner (that is how
   ModernSession briefly lived under annotation-queues).

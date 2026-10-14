@@ -3,9 +3,9 @@ import { type FilterState } from "@langfuse/shared";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { type ChartViewConfig } from "@/src/features/chart-view/types";
-import { buildChartQuery } from "@/src/features/chart-view/lib/buildChartQuery";
-import { toChartFilters } from "@/src/features/chart-view/lib/chartFilterCompatibility";
+import { type ChartViewConfig } from "@/src/analytics/exploration/types";
+import { buildChartQuery } from "@/src/analytics/exploration/lib/buildChartQuery";
+import { toChartFilters } from "@/src/analytics/exploration/lib/chartFilterCompatibility";
 
 /**
  * The chart view narrows the table's filters with `toChartFilters` and hands

@@ -62,7 +62,7 @@ ruleTester.run("no-raw-icon-size", rule, {
     {
       code: `import { Info } from "lucide-react";
              const x = <Info className="h-4 w-4" strokeWidth={1.5} />;`,
-      filename: "src/components/legacy/Foo.tsx",
+      filename: "src/app/components/legacy/Foo.tsx",
       options: [{ exceptions: ["components/legacy/"] }],
     },
     // Non-numeric size string and non-string/number size literal are not

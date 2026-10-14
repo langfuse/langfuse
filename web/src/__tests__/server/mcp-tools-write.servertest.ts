@@ -21,19 +21,16 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 // Code evaluators are gated behind deployment config; enable them for the
 // code-path coverage below without depending on a real dispatcher.
-vi.mock(
-  "@/src/features/evals/server/isCodeEvalEnabled",
-  async (importActual) => ({
-    ...(await importActual<object>()),
-    isCodeEvalEnabled: vi.fn(() => true),
-    isCodeEvalSourceCodeLanguageSupported: vi.fn(() => true),
-  }),
-);
+vi.mock("@/src/evaluators/server/isCodeEvalEnabled", async (importActual) => ({
+  ...(await importActual<object>()),
+  isCodeEvalEnabled: vi.fn(() => true),
+  isCodeEvalSourceCodeLanguageSupported: vi.fn(() => true),
+}));
 
 // Skip evaluator configuration validation so these tool tests do not require
 // a provisioned default eval model.
 vi.mock(
-  "@/src/features/evals/server/evaluator-preflight",
+  "@/src/evaluators/server/evaluator-preflight",
   async (importActual) => ({
     ...(await importActual<object>()),
     getEvaluatorDefinitionConfigurationError: vi.fn(async () => null),
@@ -57,61 +54,61 @@ import {
 import {
   DeleteDatasetRunMcpInput,
   PostDatasetItemMcpInput,
-} from "@/src/features/mcp/server/datasets/schema";
+} from "@/src/public-api/mcp/server/datasets/schema";
 
 // Import MCP tool handlers directly
-import { handleCreateTextPrompt } from "@/src/features/mcp/server/prompts/tools/createTextPrompt";
-import { handleCreateChatPrompt } from "@/src/features/mcp/server/prompts/tools/createChatPrompt";
-import { handleUpdatePromptLabels } from "@/src/features/mcp/server/prompts/tools/updatePromptLabels";
-import { handleCreateAnnotationQueue } from "@/src/features/mcp/server/annotationQueues/tools";
+import { handleCreateTextPrompt } from "@/src/public-api/mcp/server/prompts/tools/createTextPrompt";
+import { handleCreateChatPrompt } from "@/src/public-api/mcp/server/prompts/tools/createChatPrompt";
+import { handleUpdatePromptLabels } from "@/src/public-api/mcp/server/prompts/tools/updatePromptLabels";
+import { handleCreateAnnotationQueue } from "@/src/public-api/mcp/server/annotationQueues/tools";
 import {
   createEvaluatorTool,
   handleCreateEvaluator,
-} from "@/src/features/mcp/server/evals/tools/createEvaluator";
+} from "@/src/public-api/mcp/server/evals/tools/createEvaluator";
 import {
   updateEvaluatorTool,
   handleUpdateEvaluator,
-} from "@/src/features/mcp/server/evals/tools/updateEvaluator";
+} from "@/src/public-api/mcp/server/evals/tools/updateEvaluator";
 import {
   createEvaluationRuleTool,
   handleCreateEvaluationRule,
-} from "@/src/features/mcp/server/evals/tools/createEvaluationRule";
+} from "@/src/public-api/mcp/server/evals/tools/createEvaluationRule";
 import {
   updateEvaluationRuleTool,
   handleUpdateEvaluationRule,
-} from "@/src/features/mcp/server/evals/tools/updateEvaluationRule";
+} from "@/src/public-api/mcp/server/evals/tools/updateEvaluationRule";
 import {
   deleteEvaluationRuleTool,
   handleDeleteEvaluationRule,
-} from "@/src/features/mcp/server/evals/tools/deleteEvaluationRule";
+} from "@/src/public-api/mcp/server/evals/tools/deleteEvaluationRule";
 import {
   deleteEvaluatorTool,
   handleDeleteEvaluator,
-} from "@/src/features/mcp/server/evals/tools/deleteEvaluator";
+} from "@/src/public-api/mcp/server/evals/tools/deleteEvaluator";
 import {
   handleTestEvaluator,
   testEvaluatorTool,
-} from "@/src/features/mcp/server/evals/tools/testEvaluator";
+} from "@/src/public-api/mcp/server/evals/tools/testEvaluator";
 import {
   deleteExternalMediaStorageTool,
   handleConfigureExternalMediaStorage,
   handleDeleteExternalMediaStorage,
   handleGetExternalMediaStorage,
-} from "@/src/features/mcp/server/externalMediaStorage/tools";
-import { externalMediaStorageFeature } from "@/src/features/mcp/server/externalMediaStorage";
-import { evalsFeature } from "@/src/features/mcp/server/evals";
-import { handleGetEvaluationRule } from "@/src/features/mcp/server/evals/tools/getEvaluationRule";
-import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+} from "@/src/public-api/mcp/server/externalMediaStorage/tools";
+import { externalMediaStorageFeature } from "@/src/public-api/mcp/server/externalMediaStorage";
+import { evalsFeature } from "@/src/public-api/mcp/server/evals";
+import { handleGetEvaluationRule } from "@/src/public-api/mcp/server/evals/tools/getEvaluationRule";
+import { EvaluatorService } from "@/src/evaluators/v2/server/evaluators/evaluatorService";
 import {
   attachEvaluatorToEvaluationRuleTool,
   detachEvaluatorFromEvaluationRuleTool,
   handleAttachEvaluatorToEvaluationRule,
   handleDetachEvaluatorFromEvaluationRule,
-} from "@/src/features/mcp/server/evals/tools/manageEvaluationRuleEvaluators";
+} from "@/src/public-api/mcp/server/evals/tools/manageEvaluationRuleEvaluators";
 import {
   createDashboardWidgetTool,
   handleCreateDashboardWidget,
-} from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
+} from "@/src/public-api/mcp/server/dashboardWidgets/tools/createDashboardWidget";
 import {
   handleAddDashboardPlacement,
   handleCreateDashboard,
@@ -123,7 +120,7 @@ import {
   handleUpdateDashboardPlacement,
   handleUpdateDashboard,
   handleUpdateDashboardWidget,
-} from "@/src/features/mcp/server/dashboardWidgets/tools/dashboardCrud";
+} from "@/src/public-api/mcp/server/dashboardWidgets/tools/dashboardCrud";
 
 const createScoreConfig = async (projectId: string) =>
   prisma.scoreConfig.create({

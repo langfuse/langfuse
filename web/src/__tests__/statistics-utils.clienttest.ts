@@ -10,7 +10,7 @@ import {
   interpretF1Score,
   interpretOverallAgreement,
   type ConfusionMatrixRow,
-} from "@/src/features/score-analytics/lib/statistics-utils";
+} from "@/src/analytics/score-reporting/lib/statistics-utils";
 
 describe("Cohen's Kappa Calculation", () => {
   it("should calculate perfect agreement (κ = 1.0)", () => {

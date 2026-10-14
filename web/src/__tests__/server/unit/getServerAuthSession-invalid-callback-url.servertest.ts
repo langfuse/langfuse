@@ -34,7 +34,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   instrumentAsync: mockInstrumentAsync,
 }));
 
-vi.mock("@/src/ee/features/multi-tenant-sso/utils", () => ({
+vi.mock("@/src/ee/identity/auth/sso-runtime/utils", () => ({
   findMultiTenantSsoConfig: vi.fn(),
   getSsoAuthProviderIdForDomain: vi.fn(),
   loadSsoProviders: vi.fn().mockResolvedValue([]),

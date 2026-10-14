@@ -59,6 +59,13 @@ const SIBLING_TAGS = [
 
 // --- args -------------------------------------------------------------------
 const args = process.argv.slice(2);
+if (args.includes("--plan")) {
+  const planPath = args[args.indexOf("--plan") + 1];
+  if (!planPath) throw new Error("--plan requires a JSON file");
+  const { runRelocation } = await import("./relocate.mjs");
+  runRelocation(planPath, args);
+  process.exit(0);
+}
 /** @type {(name: string) => boolean} */
 const flag = (name) => args.includes(`--${name}`);
 const positional = args.filter((a) => !a.startsWith("--"));

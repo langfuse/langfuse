@@ -7,13 +7,13 @@ vi.mock("next/router", () => ({
   useRouter: vi.fn(),
 }));
 
-vi.mock("@/src/features/traces/TracePage", () => ({
+vi.mock("@/src/tracing/traces/TracePage", () => ({
   TracePage: ({ traceId }: { traceId: string }) => (
     <div data-testid="trace-page">{traceId}</div>
   ),
 }));
 
-vi.mock("@/src/features/sessions/SessionPages", () => ({
+vi.mock("@/src/sessions/SessionPages", () => ({
   SessionPage: ({ sessionId }: { sessionId: string }) => (
     <div data-testid="session-page">{sessionId}</div>
   ),
@@ -22,25 +22,25 @@ vi.mock("@/src/features/sessions/SessionPages", () => ({
   ),
 }));
 
-vi.mock("@/src/features/events/hooks/useReadPath", () => ({
+vi.mock("@/src/tracing/observations/hooks/useReadPath", () => ({
   useReadPath: () => ({ isV4: false, isResolved: true }),
 }));
 
-vi.mock("@/src/features/widgets", () => ({
+vi.mock("@/src/analytics/visualization", () => ({
   WidgetForm: ({ projectId }: { projectId: string }) => (
     <div data-testid="widget-form">{projectId}</div>
   ),
 }));
 
-vi.mock("@/src/features/widgets/utils", () => ({
+vi.mock("@/src/analytics/visualization/utils", () => ({
   getDefaultView: () => "traces",
 }));
 
-vi.mock("@/src/features/dashboard/components/SelectDashboardDialog", () => ({
+vi.mock("@/src/analytics/dashboards/components/SelectDashboardDialog", () => ({
   SelectDashboardDialog: () => null,
 }));
 
-vi.mock("@/src/utils/api", () => ({
+vi.mock("@/src/app/utils/api", () => ({
   api: {
     dashboardWidgets: {
       create: {
@@ -55,34 +55,31 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+vi.mock("@/src/analytics/internal/posthog/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
-vi.mock("@/src/components/layouts/page", () => ({
+vi.mock("@/src/app/shell/layouts/page", () => ({
   default: ({ children }: { children: ReactNode }) => (
     <div data-testid="page">{children}</div>
   ),
 }));
 
-vi.mock(
-  "@/src/features/annotation-queues/components/AnnotationQueuesItem",
-  () => ({
-    AnnotationQueuesItem: ({
-      annotationQueueId,
-    }: {
-      annotationQueueId: string;
-    }) => <div data-testid="annotation-queue-item">{annotationQueueId}</div>,
-  }),
-);
+vi.mock("@/src/annotation/queues/components/AnnotationQueuesItem", () => ({
+  AnnotationQueuesItem: ({
+    annotationQueueId,
+  }: {
+    annotationQueueId: string;
+  }) => <div data-testid="annotation-queue-item">{annotationQueueId}</div>,
+}));
 
-vi.mock("@/src/features/annotation-queues/pages/AnnotationQueueItems", () => ({
+vi.mock("@/src/annotation/queues/pages/AnnotationQueueItems", () => ({
   default: ({ queueId }: { queueId?: string }) => (
     <div data-testid="annotation-queue-items">{queueId ?? "mounted"}</div>
   ),
 }));
 
-vi.mock("@/src/features/datasets/components/DatasetRunsTable", () => ({
+vi.mock("@/src/datasets/components/DatasetRunsTable", () => ({
   DatasetRunsTable: ({
     projectId,
     datasetId,
@@ -96,18 +93,18 @@ vi.mock("@/src/features/datasets/components/DatasetRunsTable", () => ({
   ),
 }));
 
-vi.mock("@/src/features/experiments/components/table", () => ({
+vi.mock("@/src/experiments/components/table", () => ({
   ExperimentsTable: ({ projectId }: { projectId: string }) => (
     <div data-testid="experiments-table">{projectId}</div>
   ),
 }));
 
-import TracePageRoute from "@/src/pages/project/[projectId]/traces/[traceId]";
-import SessionPageRoute from "@/src/features/sessions/SessionDetailPage";
-import AnnotationQueueItemRoute from "@/src/pages/project/[projectId]/annotation-queues/[queueId]/items/[itemId]";
-import AnnotationQueueItemsIndexRoute from "@/src/pages/project/[projectId]/annotation-queues/[queueId]/index";
-import DatasetExperimentsRoute from "@/src/pages/project/[projectId]/datasets/[datasetId]/experiments/index";
-import NewWidgetRoute from "@/src/pages/project/[projectId]/widgets/new";
+import TracePageRoute from "@/pages/project/[projectId]/traces/[traceId]";
+import SessionPageRoute from "@/src/sessions/SessionDetailPage";
+import AnnotationQueueItemRoute from "@/pages/project/[projectId]/annotation-queues/[queueId]/items/[itemId]";
+import AnnotationQueueItemsIndexRoute from "@/pages/project/[projectId]/annotation-queues/[queueId]/index";
+import DatasetExperimentsRoute from "@/pages/project/[projectId]/datasets/[datasetId]/experiments/index";
+import NewWidgetRoute from "@/pages/project/[projectId]/widgets/new";
 
 function mockRouterQuery(query: Record<string, string | string[] | undefined>) {
   (useRouter as Mock).mockReturnValue({

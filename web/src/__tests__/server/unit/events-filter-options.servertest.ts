@@ -1,11 +1,11 @@
-import type * as EventsServiceModule from "@/src/features/events/server/eventsService";
+import type * as EventsServiceModule from "@/src/tracing/observations/server/eventsService";
 
 const mocks = vi.hoisted(() => ({
   getEventFilterOptions: vi.fn(async () => ({})),
 }));
 
 vi.mock(
-  "@/src/features/events/server/eventsService",
+  "@/src/tracing/observations/server/eventsService",
   async (importOriginal) => {
     const actual = await importOriginal<typeof EventsServiceModule>();
 
@@ -19,8 +19,8 @@ vi.mock(
 import type { Session } from "next-auth";
 import { describe, expect, it, vi } from "vitest";
 
-import { eventsRouter } from "@/src/features/events/server/eventsRouter";
-import { partitionEventFilterOptionsFilter } from "@/src/features/events/server/eventsService";
+import { eventsRouter } from "@/src/tracing/observations/server/eventsRouter";
+import { partitionEventFilterOptionsFilter } from "@/src/tracing/observations/server/eventsService";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { FilterState } from "@langfuse/shared";
 

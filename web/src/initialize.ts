@@ -1,9 +1,9 @@
 import { env } from "@/src/env.mjs";
-import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+import { createUserEmailPassword } from "@/src/identity/auth/passwords/lib/credentialsServerUtils";
 import { prisma } from "@langfuse/shared/src/db";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { hasEntitlementBasedOnPlan } from "@/src/entitlements/server";
+import { getOrganizationPlanServerSide } from "@/src/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";
 import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {

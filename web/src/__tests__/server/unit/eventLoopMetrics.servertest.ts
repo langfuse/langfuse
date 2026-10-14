@@ -40,7 +40,7 @@ it("delivers a stalled window even when another metric just flushed, then delive
     .mockResolvedValue({});
   const { recordGauge } = await import("@langfuse/shared/src/server");
   const { startEventLoopMetrics, stopEventLoopMetrics } =
-    await import("@/src/utils/eventLoopMetrics");
+    await import("@/src/app/utils/eventLoopMetrics");
   stop = stopEventLoopMetrics;
   startEventLoopMetrics();
 

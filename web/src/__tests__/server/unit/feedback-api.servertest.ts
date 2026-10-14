@@ -15,18 +15,18 @@ const { mockRateLimitRequest, mockSubmitFeedback, mockShadowAuth } = vi.hoisted(
   }),
 );
 
-vi.mock("@/src/features/feedback/server/FeedbackService", () => ({
+vi.mock("@/src/app/support/feedback/server/FeedbackService", () => ({
   submitFeedback: mockSubmitFeedback,
 }));
 
 // Stub the auth seam the route actually uses so the test is independent of the
 // active API_AUTH_MIGRATION mode.
-vi.mock("@/src/features/public-api/server/shadowAuth", async () => ({
-  ...(await vi.importActual("@/src/features/public-api/server/shadowAuth")),
+vi.mock("@/src/public-api/server/shadowAuth", async () => ({
+  ...(await vi.importActual("@/src/public-api/server/shadowAuth")),
   shadowAuth: mockShadowAuth,
 }));
 
-vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
+vi.mock("@/src/public-api/server/RateLimitService", () => ({
   RateLimitService: {
     getInstance: () => ({
       rateLimitRequest: mockRateLimitRequest,
@@ -34,7 +34,7 @@ vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   },
 }));
 
-import handler from "@/src/pages/api/public/feedback";
+import handler from "@/pages/api/public/feedback";
 
 const validScope = {
   projectId: "project-1",

@@ -1,0 +1,48 @@
+import { z } from "zod";
+
+import {
+  getMedia,
+  updateMediaUploadStatus,
+  GetMediaQuerySchema,
+  GetMediaResponseSchema,
+  PatchMediaBodySchema,
+} from "@/src/tracing/media/server";
+import { createAuthedProjectAPIRoute } from "@/src/public-api/server/createAuthedProjectAPIRoute";
+import { withMiddlewares } from "@/src/public-api/server/withMiddlewares";
+import { ForbiddenError } from "@langfuse/shared";
+
+export default withMiddlewares({
+  GET: createAuthedProjectAPIRoute({
+    name: "Get Media data",
+    action: "media:read",
+    querySchema: GetMediaQuerySchema,
+    responseSchema: GetMediaResponseSchema,
+    fn: async ({ query, auth }) => {
+      if (auth.scope.accessLevel !== "project") throw new ForbiddenError();
+
+      const { projectId } = auth.scope;
+      const { mediaId } = query;
+
+      return await getMedia({ projectId, mediaId });
+    },
+  }),
+
+  PATCH: createAuthedProjectAPIRoute({
+    name: "Update Media Uploaded At",
+    action: "media:create",
+    querySchema: z.object({
+      mediaId: z.string(),
+    }),
+    bodySchema: PatchMediaBodySchema,
+    responseSchema: z.void(),
+    rateLimitResource: "media-upload",
+    fn: async ({ query, body, auth }) => {
+      if (auth.scope.accessLevel !== "project") throw new ForbiddenError();
+
+      const { projectId } = auth.scope;
+      const { mediaId } = query;
+
+      await updateMediaUploadStatus({ projectId, mediaId, body });
+    },
+  }),
+});

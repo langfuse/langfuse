@@ -4,7 +4,7 @@ import {
   MAX_ACTIVE_EVALUATION_RULES,
   assertActiveRuleLimitNotExceeded,
   countActiveEvaluationRules,
-} from "@/src/features/evals/v2/server/rules/ruleErrors";
+} from "@/src/evaluators/v2/server/rules/ruleErrors";
 
 function prismaWithActiveCount(activeCount: number) {
   const count = vi.fn().mockResolvedValue(activeCount);

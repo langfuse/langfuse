@@ -5,17 +5,17 @@ const { mockHandleGenerateScores, mockHandleGetScoresCount } = vi.hoisted(
   }),
 );
 
-vi.mock("@/src/features/public-api/server/scores", () => ({
+vi.mock("@/src/public-api/server/scores", () => ({
   _handleGenerateScoresForPublicApi: mockHandleGenerateScores,
   _handleGetScoresCountForPublicApi: mockHandleGetScoresCount,
   convertScoreToPublicApi: vi.fn((score) => score),
 }));
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/identity/audit-logs/server", () => ({
   auditLog: vi.fn(),
 }));
 
-import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { ScoresApiService } from "@/src/public-api/server/scores-api-service";
 import { LISTABLE_SCORE_TYPES } from "@langfuse/shared";
 import type { ScoreQueryType } from "@langfuse/shared/src/server";
 

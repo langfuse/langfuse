@@ -62,7 +62,7 @@ explicitly chooses that. Langfuse must work under browser translation.
 - Narrow row containers may subscribe to local store slices and queries.
 - View components should receive stable props and perform no effects.
 - Feature-scoped row containers belong under `src/features/*`; shared
-  `src/components/*` row exports should be context-free.
+  `src/app/components/*` row exports should be context-free.
 - Scrolling may rerender the virtualizer. It should not rerender unchanged
   expensive row content.
 - Do not use a global store to preserve row state across virtualization. Use a

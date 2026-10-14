@@ -2,8 +2,8 @@ import { randomUUID } from "crypto";
 import { hash } from "bcryptjs";
 import type { CredentialsConfig } from "next-auth/providers/credentials";
 import type * as SharedEnvModule from "@langfuse/shared/src/env";
-import { PASSWORD_RESET_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
-import { hashPassword } from "@/src/features/auth-credentials/lib/passwordHash";
+import { PASSWORD_RESET_REQUIRED_MESSAGE } from "@/src/identity/auth/constants";
+import { hashPassword } from "@/src/identity/auth/passwords/lib/passwordHash";
 import { getAuthOptions } from "@/src/server/auth";
 import { prisma } from "@langfuse/shared/src/db";
 

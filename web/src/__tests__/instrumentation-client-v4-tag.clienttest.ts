@@ -10,7 +10,7 @@
 import {
   V4_BETA_ENABLED_SENTRY_TAG,
   V4_BETA_ENABLED_STORAGE_KEY,
-} from "@/src/utils/sentryV4BetaTag";
+} from "@/src/app/utils/sentryV4BetaTag";
 
 const { initMock, setTagMock, callOrder } = vi.hoisted(() => {
   const callOrder: string[] = [];

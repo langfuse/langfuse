@@ -24,7 +24,7 @@ event handlers, named actions, or plain derived values.
 
 ## The #1 Anti-Pattern: Effects That Derive Or Prepare Data
 
-Real case, `web/src/features/monitors/pages/EditMonitorPage.tsx`:
+Real case, `web/src/alerts/pages/EditMonitorPage.tsx`:
 
 ```tsx
 const [liveName, setLiveName] = useState("");
@@ -98,7 +98,7 @@ still loading, the form lives deeper in the tree: a `DataPreparerAndController`
 fetches, shows a loading state, then passes `initialValues` and `onSubmit` to a
 pure `FormComponent` that only renders fields and submits.
 
-Real case, `web/src/features/playground/page/components/CreateOrEditLLMToolDialog.tsx`:
+Real case, `web/src/playground/page/components/CreateOrEditLLMToolDialog.tsx`:
 `useForm` is created at the top of the dialog with create-mode defaults, then a
 "populate form when in edit mode" effect calls `form.reset(...)` once the
 existing tool is available. The fix is structural, not a better effect: decide

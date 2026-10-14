@@ -7,7 +7,7 @@ import {
   createTracesCh,
   type TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
-import handler from "../../pages/api/dashboard/execute-query-stream";
+import handler from "../../../pages/api/dashboard/execute-query-stream";
 
 // --- Auth mock (only thing we need to mock — no real session in tests) ---
 

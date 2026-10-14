@@ -16,7 +16,7 @@ vi.mock("@/src/env.mjs", () => ({ env }));
 
 const { shadowAuthDiff } = vi.hoisted(() => ({ shadowAuthDiff: vi.fn() }));
 
-vi.mock("@/src/features/public-api/server/shadowAuthDiff", () => ({
+vi.mock("@/src/public-api/server/shadowAuthDiff", () => ({
   shadowAuthDiff,
 }));
 
@@ -24,11 +24,11 @@ import {
   shadowAuthorize,
   __dangerouslySkipAuthz,
   type ApiAction,
-} from "@/src/features/public-api/server";
+} from "@/src/public-api/server";
 import { type Prisma } from "@langfuse/shared/src/db";
-import { authorizeProtectedLabelMutation } from "@/src/features/prompts/server/utils/authorizeProtectedLabelMutation";
-import { type Policy } from "@/src/features/rbac/types";
-import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { authorizeProtectedLabelMutation } from "@/src/prompt-management/server/utils/authorizeProtectedLabelMutation";
+import { type Policy } from "@/src/identity/access-control/types";
+import { type AuthorizationContext } from "@/src/identity/auth/policy/types";
 
 const PRJ = "prj_1";
 const ORG = "org_1";

@@ -43,7 +43,7 @@ vi.mock("posthog-node", () => ({
 const loadServerPosthog = async () => {
   vi.resetModules();
   const { ServerPosthog } =
-    await import("@/src/features/posthog-analytics/ServerPosthog");
+    await import("@/src/analytics/internal/posthog/ServerPosthog");
   return new ServerPosthog();
 };
 

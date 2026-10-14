@@ -7,7 +7,7 @@ import {
   buildRemoteExperimentRequest,
   ensureRemoteExperimentSecret,
   processRemoteExperimentHeaders,
-} from "@/src/features/datasets/server/remoteExperimentHelpers";
+} from "@/src/datasets/server/remoteExperimentHelpers";
 
 describe("buildRemoteExperimentRequest", () => {
   const plaintextSecret = `lf-whsec_${"a".repeat(64)}`;

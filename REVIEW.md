@@ -14,7 +14,7 @@ references. This file overrides conflicting guidance for reviews.
   outbound requests, secrets, and telemetry
 - [ClickHouse](.agents/skills/clickhouse-best-practices/SKILL.md)
 - [React](.agents/skills/react-component-guidelines/SKILL.md) and
-  [design system](web/src/components/design-system/README.md)
+  [design system](web/src/app/design-system/README.md)
 - [Frontend data and state](.agents/skills/frontend-large-feature-architecture/SKILL.md)
 - [Storybook](.agents/skills/storybook/SKILL.md)
 - [Architecture](.agents/ARCHITECTURE_PRINCIPLES.md)
@@ -36,7 +36,7 @@ Use their technical rules, not their implementation or handoff workflows.
 
 ### Components and state
 
-- Use `web/src/components/design-system/` primitives and their styling rules.
+- Use `web/src/app/design-system/` primitives and their styling rules.
   Add variants instead of custom `className` values.
 - Export one component per file. Match the filename to the component and name
   its props type `<ComponentName>Props`.

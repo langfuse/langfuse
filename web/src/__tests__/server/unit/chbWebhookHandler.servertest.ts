@@ -54,22 +54,22 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/identity/audit-logs/server", () => ({
   auditLog: mocks.auditLog,
 }));
 
-vi.mock("@/src/ee/features/billing/server/chb/chbProjectEvents", () => ({
+vi.mock("@/src/ee/billing/server/chb/chbProjectEvents", () => ({
   sendChbProjectEvent: mocks.sendChbProjectEvent,
 }));
 
-vi.mock("@/src/ee/features/billing/server/chb/chbApiClient", () => ({
+vi.mock("@/src/ee/billing/server/chb/chbApiClient", () => ({
   getChbApiClient: mocks.getChbApiClient,
 }));
 
 import {
   chbWebhookHandler,
   verifyChbSignature,
-} from "@/src/ee/features/billing/server/chb/chbWebhookHandler";
+} from "@/src/ee/billing/server/chb/chbWebhookHandler";
 import { logger } from "@langfuse/shared/src/server";
 
 vi.spyOn(logger, "error").mockImplementation((() => {}) as never);

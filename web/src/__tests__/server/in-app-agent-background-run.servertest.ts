@@ -23,7 +23,7 @@ import {
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
-} from "@/src/features/in-app-agent/ids";
+} from "@/src/ai/assistant/ids";
 import { ensureOwnedConversation } from "@langfuse/shared/in-app-agent/server/persistence";
 import {
   IN_APP_AGENT_HEARTBEAT_STALE_MS,
@@ -31,7 +31,7 @@ import {
   IN_APP_AGENT_RUN_MAX_DURATION_MS,
 } from "@langfuse/shared/in-app-agent/server/tunables";
 import { env } from "@/src/env.mjs";
-import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
+import { inAppAgentRouter } from "@/src/ai/assistant/server/router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 import type * as SharedServerModule from "@langfuse/shared/src/server";
@@ -83,7 +83,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
-vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
+vi.mock("@/src/public-api/server/RateLimitService", () => ({
   RateLimitService: {
     getInstance: () => ({
       rateLimitRequest: rateLimitMocks.rateLimitRequest,

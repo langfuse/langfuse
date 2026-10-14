@@ -11,7 +11,7 @@ import { PromptType } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import waitForExpect from "wait-for-expect";
-import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
+import { entitlementAccess } from "@/src/entitlements/constants/entitlements";
 
 function createCaller({
   projectId,

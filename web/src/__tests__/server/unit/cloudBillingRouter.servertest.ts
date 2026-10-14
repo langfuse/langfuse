@@ -9,11 +9,11 @@ const mocks = vi.hoisted(() => ({
   isCloudBillingEnabled: vi.fn(() => true),
 }));
 
-vi.mock("@/src/ee/features/billing/server/resolveBillingService", () => ({
+vi.mock("@/src/ee/billing/server/resolveBillingService", () => ({
   resolveBillingService: mocks.resolveBillingService,
 }));
 
-vi.mock("@/src/features/entitlements/server", async (importOriginal) => {
+vi.mock("@/src/entitlements/server", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
@@ -21,19 +21,19 @@ vi.mock("@/src/features/entitlements/server", async (importOriginal) => {
   };
 });
 
-vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
+vi.mock("@/src/identity/access-control/utils/checkOrganizationAccess", () => ({
   throwIfNoOrganizationAccess: mocks.throwIfNoOrganizationAccess,
 }));
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/identity/audit-logs/server", () => ({
   auditLog: mocks.auditLog,
 }));
 
-vi.mock("@/src/ee/features/billing/utils/isCloudBillingEnabled", () => ({
+vi.mock("@/src/ee/billing/utils/isCloudBillingEnabled", () => ({
   isCloudBillingEnabled: mocks.isCloudBillingEnabled,
 }));
 
-import { cloudBillingRouter } from "@/src/ee/features/billing/server/cloudBillingRouter";
+import { cloudBillingRouter } from "@/src/ee/billing/server/cloudBillingRouter";
 import { logger } from "@langfuse/shared/src/server";
 
 /** Metadata payloads passed to `logger.error`, where the labels land. */

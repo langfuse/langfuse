@@ -11,11 +11,11 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   isForceV3ExperienceProject: isForceV3ExperienceProjectMock,
 }));
 
-vi.mock("@/src/features/evals/v2/pages/EvaluatorsPage", () => ({
+vi.mock("@/src/evaluators/v2/pages/EvaluatorsPage", () => ({
   default: () => null,
 }));
 
-import { getServerSideProps } from "@/src/pages/project/[projectId]/evals";
+import { getServerSideProps } from "@/pages/project/[projectId]/evals";
 
 const makeContext = (projectId: string): GetServerSidePropsContext =>
   ({ params: { projectId } }) as unknown as GetServerSidePropsContext;

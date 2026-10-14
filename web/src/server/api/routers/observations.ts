@@ -5,7 +5,7 @@ import {
 import { LangfuseNotFoundError, parseIO } from "@langfuse/shared";
 import { getObservationById } from "@langfuse/shared/src/server";
 import { z } from "zod";
-import { toDomainWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { toDomainWithStringifiedMetadata } from "@/src/app/utils/clientSideDomainTypes";
 
 export const observationsRouter = createTRPCRouter({
   byId: protectedGetTraceProcedure

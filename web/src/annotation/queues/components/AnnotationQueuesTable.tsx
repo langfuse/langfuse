@@ -1,0 +1,289 @@
+/* eslint-disable no-nested-ternary */
+import { DataTable } from "@/src/app/tables/common-components/data-table";
+import { type LangfuseColumnDef } from "@/src/app/tables/common-components/types";
+import { api } from "@/src/app/utils/api";
+import { safeExtract } from "@/src/app/utils/map-utils";
+import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import { type RouterOutput } from "@/src/app/utils/types";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/app/tables/column-visibility";
+import { DataTableToolbar } from "@/src/app/tables/common-components/data-table-toolbar";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useCompactRows,
+  useRowHeightLocalStorage,
+} from "@/src/app/tables/common-components/data-table-row-height-switch";
+import { CreateOrEditAnnotationQueueButton } from "@/src/annotation/queues/components/CreateOrEditAnnotationQueueButton";
+import { ClipboardPen, Lock } from "lucide-react";
+import { Button } from "@/src/app/design-system/legacy-primitives/button";
+import { cn } from "@/src/app/utils/tailwind";
+import { createLinkTableColumn } from "@/src/app/design-system/table/columns/createLinkTableColumn";
+import { createNumberTableColumn } from "@/src/app/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/app/design-system/table/columns/createTextTableColumn";
+import Link from "next/link";
+import { useHasProjectAccess } from "@/src/identity/access-control";
+import { DeleteAnnotationQueueButton } from "@/src/annotation/queues/components/DeleteAnnotationQueueButton";
+import { getScoreDataTypeIcon } from "@/src/scores";
+import { type ScoreConfigDataType } from "@langfuse/shared";
+
+type RowData = {
+  key: {
+    id: string;
+    name: string;
+  };
+  description?: string;
+  countCompletedItems: number;
+  countPendingItems: number;
+  scoreConfigs: { id: string; name: string; dataType: ScoreConfigDataType }[];
+  createdAt: string;
+  isAssigned: boolean;
+};
+
+function AnnotationQueueScoreConfigs({
+  fallbackCompact,
+  scoreConfigs,
+}: {
+  fallbackCompact: boolean;
+  scoreConfigs: RowData["scoreConfigs"];
+}) {
+  const compact = useCompactRows(fallbackCompact);
+  return (
+    <span
+      className={cn(
+        "grid h-full items-center overflow-auto",
+        compact && "leading-3",
+      )}
+    >
+      {scoreConfigs
+        .map(
+          (config) => `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
+        )
+        .join(", ")}
+    </span>
+  );
+}
+
+export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "annotationQueues",
+    "s",
+  );
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+  );
+
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
+  });
+
+  const queues = api.annotationQueues.all.useQuery({
+    projectId: projectId,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
+  });
+
+  const hasAccess = useHasProjectAccess({
+    projectId: projectId,
+    scope: "annotationQueues:CUD",
+  });
+
+  const columns: LangfuseColumnDef<RowData>[] = [
+    createLinkTableColumn<RowData, RowData["key"]>({
+      accessorKey: "key",
+      header: "Name",
+      size: 150,
+      isPinnedLeft: true,
+      isFixedPosition: true,
+      getCell: (key) => {
+        if (key && "id" in key && typeof key.id === "string") {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/annotation-queues/${key.id}`,
+              value: key.name,
+            },
+          };
+        }
+
+        return undefined;
+      },
+    }),
+    createTextTableColumn<RowData>({
+      accessorKey: "description",
+      header: "Description",
+      enableHiding: true,
+      size: 200,
+    }),
+    createNumberTableColumn<RowData>({
+      accessorKey: "countCompletedItems",
+      header: "Completed Items",
+      enableHiding: true,
+      size: 90,
+      formatter: (value) => String(value),
+    }),
+    createNumberTableColumn<RowData>({
+      accessorKey: "countPendingItems",
+      header: "Pending Items",
+      enableHiding: true,
+      size: 90,
+      formatter: (value) => String(value),
+    }),
+    {
+      accessorKey: "scoreConfigs",
+      header: "Score Configs",
+      id: "scoreConfigs",
+      enableHiding: true,
+      size: 200,
+      cell: ({ row }) => {
+        const scoreConfigs: RowData["scoreConfigs"] =
+          row.getValue("scoreConfigs");
+
+        return (
+          <AnnotationQueueScoreConfigs
+            fallbackCompact={compactRows}
+            scoreConfigs={scoreConfigs}
+          />
+        );
+      },
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Created",
+      id: "createdAt",
+      enableHiding: true,
+      size: 150,
+    },
+    {
+      accessorKey: "processAction",
+      header: "Process",
+      id: "processAction",
+      isFixedPosition: true,
+      cell: ({ row }) => {
+        const key: RowData["key"] = row.getValue("key");
+        return !hasAccess ? (
+          <Button size="sm" disabled>
+            <Lock className="icon-base mr-1" />
+            <span className="text-xs">Process queue</span>
+          </Button>
+        ) : (
+          <Button size="sm" asChild>
+            <Link
+              href={`/project/${projectId}/annotation-queues/${key.id}/items`}
+            >
+              <ClipboardPen className="icon-base mr-1" />
+              <span className="text-xs">Process queue</span>
+            </Link>
+          </Button>
+        );
+      },
+    },
+    {
+      accessorKey: "actions",
+      header: "Actions",
+      id: "actions",
+      size: 70,
+      isFixedPosition: true,
+      cell: ({ row }) => {
+        const key: RowData["key"] = row.getValue("key");
+        return (
+          <div className="flex items-center gap-1">
+            <CreateOrEditAnnotationQueueButton
+              projectId={projectId}
+              queueId={key.id}
+              variant="ghost"
+              size="icon-xs"
+              isTableAction
+            />
+            <DeleteAnnotationQueueButton
+              projectId={projectId}
+              queueId={key.id}
+            />
+          </div>
+        );
+      },
+    },
+  ];
+
+  const convertToTableRow = (
+    item: RouterOutput["annotationQueues"]["all"]["queues"][number],
+  ): RowData => {
+    return {
+      key: { id: item.id, name: item.name },
+      description: item.description ?? undefined,
+      scoreConfigs: item.scoreConfigs,
+      createdAt: item.createdAt.toLocaleString(),
+      countCompletedItems: item.countCompletedItems,
+      countPendingItems: item.countPendingItems,
+      isAssigned: item.isCurrentUserAssigned,
+    };
+  };
+
+  const [columnVisibility, setColumnVisibility] = useColumnVisibility<RowData>(
+    "queuesColumnVisibility",
+    columns,
+  );
+
+  const [columnOrder, setColumnOrder] = useColumnOrder<RowData>(
+    "queuesColumnOrder",
+    columns,
+  );
+
+  return (
+    <>
+      <DataTableToolbar
+        tableName="annotation-queues"
+        columns={columns}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
+      />
+      <DataTable
+        tableName="annotationQueues"
+        columns={columns}
+        data={
+          queues.isLoading
+            ? { isLoading: true, isError: false }
+            : queues.isError
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: queues.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: safeExtract(queues.data, "queues", []).map((t) =>
+                    convertToTableRow(t),
+                  ),
+                }
+        }
+        pagination={{
+          totalCount: queues.data?.totalCount ?? null,
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
+        rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
+        getRowClassName={(row) =>
+          row.isAssigned ? "bg-primary/5 border-l-4 border-l-primary/40" : ""
+        }
+      />
+    </>
+  );
+}

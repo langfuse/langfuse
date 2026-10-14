@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/identity/audit-logs/server", () => ({
   auditLog: mocks.auditLog,
 }));
 
@@ -34,9 +34,9 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 import {
   type ChbApiClient,
   ChbPaymentRequiredError,
-} from "@/src/ee/features/billing/server/chb/chbApiClient";
-import { ChbBillingService } from "@/src/ee/features/billing/server/chb/chbBillingService";
-import { mapChbPlanCodeToStripeProductId } from "@/src/ee/features/billing/utils/chbCatalogue";
+} from "@/src/ee/billing/server/chb/chbApiClient";
+import { ChbBillingService } from "@/src/ee/billing/server/chb/chbBillingService";
+import { mapChbPlanCodeToStripeProductId } from "@/src/ee/billing/utils/chbCatalogue";
 import { type OrgAuthedContext } from "@/src/server/api/trpc";
 
 const ORG_ID = "org-1";

@@ -5,12 +5,12 @@ import { buildComponentRelationshipGraph } from "./componentRelationshipData";
 describe("buildComponentRelationshipGraph", () => {
   it("builds component-level edges from alias and relative imports", () => {
     const graph = buildComponentRelationshipGraph({
-      "../../src/components/design-system/Button/Button.tsx": "export {}",
-      "../../src/components/design-system/Dialog/Dialog.tsx":
-        'import { Button } from "@/src/components/design-system/Button/Button";',
-      "../../src/components/design-system/Form/Form.tsx":
+      "../../src/app/design-system/Button/Button.tsx": "export {}",
+      "../../src/app/design-system/Dialog/Dialog.tsx":
+        'import { Button } from "@/src/app/design-system/Button/Button";',
+      "../../src/app/design-system/Form/Form.tsx":
         'export { Dialog } from "../Dialog/Dialog";',
-      "../../src/components/design-system/Form/Form.stories.tsx":
+      "../../src/app/design-system/Form/Form.stories.tsx":
         'import { Checkbox } from "../Checkbox/Checkbox";',
     });
 
@@ -39,11 +39,11 @@ describe("buildComponentRelationshipGraph", () => {
 
   it("keeps nested design-system areas readable", () => {
     const graph = buildComponentRelationshipGraph({
-      "../../src/components/design-system/table/columns/createTextTableColumn.tsx":
+      "../../src/app/design-system/table/columns/createTextTableColumn.tsx":
         'import { EmptyValue } from "../components/EmptyValue/EmptyValue";',
-      "../../src/components/design-system/table/components/EmptyValue/EmptyValue.tsx":
+      "../../src/app/design-system/table/components/EmptyValue/EmptyValue.tsx":
         "export {};",
-      "../../src/components/design-system/internal/InputControl/InputControl.tsx":
+      "../../src/app/design-system/internal/InputControl/InputControl.tsx":
         "export {};",
     });
 
@@ -68,9 +68,9 @@ describe("buildComponentRelationshipGraph", () => {
 
   it("excludes imports that leave the design-system directory", () => {
     const graph = buildComponentRelationshipGraph({
-      "../../src/components/design-system/Button/Button.tsx":
+      "../../src/app/design-system/Button/Button.tsx":
         'import { Dialog } from "../../Dialog/Dialog";',
-      "../../src/components/design-system/Dialog/Dialog.tsx": "export {};",
+      "../../src/app/design-system/Dialog/Dialog.tsx": "export {};",
     });
 
     expect(graph.edges).toEqual([]);
@@ -78,8 +78,7 @@ describe("buildComponentRelationshipGraph", () => {
 
   it("groups new lowercase top-level directories automatically", () => {
     const graph = buildComponentRelationshipGraph({
-      "../../src/components/design-system/utilities/formatLabel.ts":
-        "export {};",
+      "../../src/app/design-system/utilities/formatLabel.ts": "export {};",
     });
 
     expect(graph.nodes[0]).toMatchObject({

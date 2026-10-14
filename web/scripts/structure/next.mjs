@@ -1,3 +1,5 @@
+import domainIndex from "./domains.cjs";
+
 // "What to fix next": turns per-rule violations into ranked work items,
 // each sized for one small PR.
 //
@@ -26,7 +28,7 @@ export const RULE_LABELS = {
   5: "kind folders are a closed list: components|hooks|contexts|stores|fns|server",
   6: "a file used by one feature lives in that feature",
   7: "no importing another component's internals",
-  8: "features import other features only through their index.ts",
+  8: "capabilities import other capabilities only through public client/server entrypoints",
   9: "index.ts only at feature roots, named re-exports only",
   10: "client code does not import from server/ (types excepted)",
   11: "no runtime import cycles",
@@ -47,19 +49,20 @@ const NO_ROLLUP = new Set([12]);
 
 // Too coarse to ever be one PR — never offered as items themselves.
 const NON_CANDIDATES = new Set([
+  ...domainIndex.sharedRoots,
   "src",
   "src/ee",
   "src/features",
   "src/ee/features",
-  "src/components",
-  "src/pages",
-  "src/app",
-  "src/hooks",
+  "src/app/components",
+  "pages",
+  "app",
+  "src/app/hooks",
   "src/contexts",
-  "src/stores",
-  "src/fns",
-  "src/utils",
-  "src/constants",
+  "src/app/stores",
+  "src/app/fns",
+  "src/app/utils",
+  "src/app/constants",
   "src/lib",
   "src/server",
 ]);

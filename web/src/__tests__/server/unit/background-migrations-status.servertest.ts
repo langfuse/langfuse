@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 
 import { env } from "@/src/env.mjs";
-import { backgroundMigrationsRouter } from "@/src/features/background-migrations/server/background-migrations-router";
+import { backgroundMigrationsRouter } from "@/src/operations/background-migrations/server/background-migrations-router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { type BackgroundMigration } from "@langfuse/shared";
 

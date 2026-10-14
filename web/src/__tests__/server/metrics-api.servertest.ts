@@ -4,7 +4,7 @@ import {
   makeZodVerifiedAPICallSilent,
   makeAPICall,
 } from "@/src/__tests__/test-utils";
-import { GetMetricsV1Response } from "@/src/features/public-api/types/metrics";
+import { GetMetricsV1Response } from "@/src/public-api/types/metrics";
 import {
   createBasicAuthHeader,
   createTrace,

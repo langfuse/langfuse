@@ -1,4 +1,4 @@
-import { polymorphicValue } from "@/src/features/public-api/server/scores-api-v3";
+import { polymorphicValue } from "@/src/public-api/server/scores-api-v3";
 
 describe("polymorphicValue", () => {
   it.each([

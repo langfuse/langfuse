@@ -130,7 +130,7 @@ instance when updating.
 - Local feature state is promoted to a global store even though it only belongs
   to one mounted page instance.
 - `useMemo` is used to own a local external store instance.
-- A shared `src/components/*` component calls a feature-scoped store hook. That
+- A shared `src/app/components/*` component calls a feature-scoped store hook. That
   silently breaks other callers that do not mount the feature provider.
 - Memoization is the only fix. `memo` helps, but it does not fix a bad state
   boundary.

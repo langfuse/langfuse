@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { auditLog } from "@/src/identity/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/identity/access-control";
 import {
   applyCommentFilters,
   traceException,
@@ -54,11 +54,11 @@ import {
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
 import chunk from "lodash/chunk";
-import { aggregateScores } from "@/src/features/scores/server";
+import { aggregateScores } from "@/src/scores/server";
 import {
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
-} from "@/src/utils/clientSideDomainTypes";
+} from "@/src/app/utils/clientSideDomainTypes";
 
 const storableSessionIdInput = z.string().refine(isStorableTraceSessionId, {
   message:

@@ -1,5 +1,5 @@
 import { createMocks } from "node-mocks-http";
-import handler from "@/src/pages/api/public/ingestion";
+import handler from "@/pages/api/public/ingestion";
 import { type NextApiResponse, type NextApiRequest } from "next";
 import { Prisma } from "@langfuse/shared/src/db";
 

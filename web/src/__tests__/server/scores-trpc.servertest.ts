@@ -49,9 +49,9 @@ import {
   getScoreById,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { observationScopeFilter } from "@/src/features/filters/config/scores-config";
-import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
-import { planCommit } from "@/src/features/search-bar/lib/commit";
+import { observationScopeFilter } from "@/src/app/search/filters/config/scores-config";
+import { SCORES_FIELD_REGISTRY } from "@/src/scores/constants/scoresSearchRegistry";
+import { planCommit } from "@/src/app/search/lib/commit";
 import { randomUUID } from "crypto";
 
 const maybeEvents =

@@ -1,7 +1,7 @@
 import type { Span } from "@opentelemetry/api";
 import { InvalidRequestError } from "@langfuse/shared";
 import { z } from "zod";
-import type { ServerContext } from "@/src/features/mcp/types";
+import type { ServerContext } from "@/src/public-api/mcp/types";
 
 const { addUserToSpanMock, fakeSpan, instrumentAsyncMock } = vi.hoisted(() => {
   const fakeSpan = {
@@ -24,7 +24,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   instrumentAsync: instrumentAsyncMock,
 }));
 
-import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
+import { runMcpTool } from "@/src/public-api/mcp/core/run-mcp-tool";
 
 const context: ServerContext = {
   projectId: "project-id",

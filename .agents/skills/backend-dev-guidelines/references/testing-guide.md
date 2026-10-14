@@ -75,7 +75,7 @@ Test full REST API endpoints end-to-end using HTTP requests.
 
 ```typescript
 import { makeZodVerifiedAPICall } from "../helpers";
-import { PostDatasetsV1Response } from "@/src/features/public-api/types/datasets";
+import { PostDatasetsV1Response } from "@/src/public-api/types/datasets";
 
 describe("Dataset API", () => {
   it("should create dataset", async () => {

@@ -1,5 +1,5 @@
 import { globalIgnores } from "eslint/config";
-import { globSync } from "node:fs";
+import { globSync, readFileSync } from "node:fs";
 import boundaries from "eslint-plugin-boundaries";
 import checkFile from "eslint-plugin-check-file";
 import reactYouMightNotNeedAnEffect from "eslint-plugin-react-you-might-not-need-an-effect";
@@ -7,6 +7,22 @@ import storybook from "eslint-plugin-storybook";
 import eslintPluginTailwindcss from "eslint-plugin-tailwindcss";
 
 import nextConfig from "@repo/eslint-config/next";
+
+/** @type {{domains: {path: string}[], moves: {from: string, to: string}[]}} */
+const sourceStructure = JSON.parse(
+  readFileSync(new URL("./source-structure.json", import.meta.url), "utf8"),
+);
+// Primitives moved beside the design system retain their original rule scopes.
+const designSystemFiles = [
+  "src/app/design-system/*.{ts,tsx}",
+  "src/app/design-system/!(legacy-primitives|animation-primitives)/**/*.{ts,tsx}",
+];
+const appComponentRoots = sourceStructure.moves
+  .filter(
+    ({ from }) =>
+      from === "src/components" || from.startsWith("src/components/"),
+  )
+  .map(({ to }) => to);
 
 // Restricted import patterns that apply everywhere. Flat config replaces (not
 // merges) a rule that is configured twice, so every block that configures
@@ -40,7 +56,7 @@ const restrictedImportPatterns = [
 ];
 
 // One seam owns error capture: raw Sentry capture APIs are restricted to the
-// reportError seam (src/utils/reportError.ts) so classification (`expected`),
+// reportError seam (src/app/utils/reportError.ts) so classification (`expected`),
 // `area` tagging, and non-Error coercion live in exactly one place. The
 // capture contract lives in the seam's doc comment and in
 // .agents/skills/sentry-instrumentation/SKILL.md (human-facing version:
@@ -50,7 +66,7 @@ const sentryCapturePattern = {
   regex: "^@sentry/nextjs$",
   importNames: ["captureException", "captureMessage"],
   message:
-    "Do not capture directly — route through the reportError seam (@/src/utils/reportError) or a helper that wraps it (captureUnknownError, reportParserWorkerError), so one seam owns error classification. See the reportError doc comment and .agents/skills/sentry-instrumentation/SKILL.md.",
+    "Do not capture directly — route through the reportError seam (@/src/app/utils/reportError) or a helper that wraps it (captureUnknownError, reportParserWorkerError), so one seam owns error classification. See the reportError doc comment and .agents/skills/sentry-instrumentation/SKILL.md.",
 };
 
 const toastImportPattern = {
@@ -112,37 +128,37 @@ export default [
         {
           overlayFamilies: [
             {
-              module: "@/src/components/ui/dialog",
+              module: "@/src/app/design-system/legacy-primitives/dialog",
               root: "Dialog",
               trigger: "DialogTrigger",
               contents: ["DialogContent"],
             },
             {
-              module: "@/src/components/ui/alert-dialog",
+              module: "@/src/app/design-system/legacy-primitives/alert-dialog",
               root: "AlertDialog",
               trigger: "AlertDialogTrigger",
               contents: ["AlertDialogContent"],
             },
             {
-              module: "@/src/components/ui/dropdown-menu",
+              module: "@/src/app/design-system/legacy-primitives/dropdown-menu",
               root: "DropdownMenu",
               trigger: "DropdownMenuTrigger",
               contents: ["DropdownMenuContent", "DropdownMenuSubContent"],
             },
             {
-              module: "@/src/components/ui/drawer",
+              module: "@/src/app/design-system/legacy-primitives/drawer",
               root: "Drawer",
               trigger: "DrawerTrigger",
               contents: ["DrawerContent"],
             },
             {
-              module: "@/src/components/ui/popover",
+              module: "@/src/app/design-system/legacy-primitives/popover",
               root: "Popover",
               trigger: "PopoverTrigger",
               contents: ["PopoverContent"],
             },
             {
-              module: "@/src/components/ui/sheet",
+              module: "@/src/app/design-system/legacy-primitives/sheet",
               root: "Sheet",
               trigger: "SheetTrigger",
               contents: ["SheetContent"],
@@ -151,12 +167,12 @@ export default [
           overlayControllerFamilies: [
             {
               module:
-                "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController",
+                "@/src/app/design-system/ConfirmationDialogController/ConfirmationDialogController",
               root: "ConfirmationDialogController",
             },
             {
               module:
-                "@/src/components/design-system/DialogController/DialogController",
+                "@/src/app/design-system/DialogController/DialogController",
               root: "DialogController",
             },
           ],
@@ -175,7 +191,7 @@ export default [
     ],
     settings: {
       tailwindcss: {
-        cssConfigPath: "src/styles/globals.css",
+        cssConfigPath: "src/app/styles/globals.css",
       },
     },
     rules: {
@@ -229,7 +245,7 @@ export default [
     rules: {
       "@repo/no-unnecessary-cn": [
         "warn",
-        { importPath: "@/src/utils/tailwind" },
+        { importPath: "@/src/app/utils/tailwind" },
       ],
     },
   },
@@ -261,7 +277,7 @@ export default [
       "src/**/*.clienttest.{ts,tsx}",
       "src/**/*.servertest.{ts,tsx}",
       "src/**/*.stories.{ts,tsx}",
-      "src/components/layouts/**",
+      "src/app/shell/layouts/**",
     ],
     rules: {
       "@repo/no-null-render": "error",
@@ -273,7 +289,7 @@ export default [
   // params, or SSR is a page-level concern, so this rule does not apply.
   {
     name: "langfuse/web/no-null-render-pages",
-    files: ["src/pages/**/*.{ts,tsx}"],
+    files: ["pages/**/*.{ts,tsx}"],
     rules: {
       "@repo/no-null-render": "off",
     },
@@ -304,12 +320,12 @@ export default [
   // with their own structure.
   {
     name: "langfuse/web/design-system-component-structure",
-    files: ["src/components/design-system/**/*.{ts,tsx}"],
+    files: designSystemFiles,
     ignores: [
-      "src/components/design-system/charts/**",
-      "src/components/design-system/factories/**",
-      "src/components/design-system/internal/**",
-      "src/components/design-system/table/**",
+      "src/app/design-system/charts/**",
+      "src/app/design-system/factories/**",
+      "src/app/design-system/internal/**",
+      "src/app/design-system/table/**",
     ],
     plugins: {
       "check-file": checkFile,
@@ -318,19 +334,19 @@ export default [
       "check-file/folder-match-with-fex": [
         "error",
         {
-          "*.{ts,tsx}": "src/components/design-system/*/",
+          "*.{ts,tsx}": "src/app/design-system/*/",
         },
       ],
       "check-file/folder-naming-convention": [
         "error",
         {
-          "src/components/design-system/*/": "PASCAL_CASE",
+          "src/app/design-system/*/": "PASCAL_CASE",
         },
       ],
       "check-file/filename-naming-convention": [
         "error",
         {
-          "src/components/design-system/*/*.{ts,tsx}": "<0>",
+          "src/app/design-system/*/*.{ts,tsx}": "<0>",
         },
         {
           ignoreMiddleExtensions: true,
@@ -341,11 +357,13 @@ export default [
 
   {
     name: "langfuse/web/design-system-component-exports",
-    files: ["src/components/design-system/*/*.{ts,tsx}"],
+    files: [
+      "src/app/design-system/!(legacy-primitives|animation-primitives)/*.{ts,tsx}",
+    ],
     ignores: [
-      "src/components/design-system/**/*.stories.{ts,tsx}",
-      "src/components/design-system/charts/**",
-      "src/components/design-system/table/**",
+      "src/app/design-system/**/*.stories.{ts,tsx}",
+      "src/app/design-system/charts/**",
+      "src/app/design-system/table/**",
     ],
     rules: {
       "@repo/filename-matches-export": "error",
@@ -356,8 +374,8 @@ export default [
   {
     ...reactYouMightNotNeedAnEffect.configs.recommended,
     name: "langfuse/web/design-system-rules",
-    files: ["src/components/design-system/**/*.{ts,tsx}"],
-    ignores: ["src/components/design-system/**/*.stories.tsx"],
+    files: designSystemFiles,
+    ignores: ["src/app/design-system/**/*.stories.tsx"],
     plugins: {
       ...reactYouMightNotNeedAnEffect.configs.recommended.plugins,
       boundaries,
@@ -371,16 +389,17 @@ export default [
       "boundaries/files": [
         {
           category: "design-system",
-          pattern: "src/components/design-system/**",
+          pattern:
+            "src/app/design-system/!(legacy-primitives|animation-primitives)/**",
         },
-        {
+        ...appComponentRoots.map((root) => ({
           category: "app-component",
-          pattern: "src/components/**",
-        },
-        {
+          pattern: `${root}/**`,
+        })),
+        ...sourceStructure.domains.map(({ path }) => ({
           category: "feature",
-          pattern: "src/features/**",
-        },
+          pattern: `${path}/**`,
+        })),
       ],
     },
     rules: {
@@ -403,7 +422,7 @@ export default [
                 },
               },
               message:
-                "Design-system files must not import from the outer `src/components` tree or from `src/features`.",
+                "Design-system files must not import application components or product capabilities.",
             },
           ],
         },
@@ -413,8 +432,8 @@ export default [
 
   {
     name: "langfuse/web/component-margin-rules",
-    files: ["src/components/**/*.{ts,tsx}"],
-    ignores: ["src/components/**/*.stories.{ts,tsx}"],
+    files: appComponentRoots.map((root) => `${root}/**/*.{ts,tsx}`),
+    ignores: appComponentRoots.map((root) => `${root}/**/*.stories.{ts,tsx}`),
     rules: {
       // Margin makes components harder to compose and should therefore be applied by the parent.
       // See: https://mxstbr.com/thoughts/margin for a discussion of this pattern.
@@ -429,7 +448,7 @@ export default [
   {
     ...reactYouMightNotNeedAnEffect.configs.recommended,
     name: "langfuse/web/in-app-agent",
-    files: ["src/features/in-app-agent/**/*.{ts,tsx}"],
+    files: ["src/ai/assistant/**/*.{ts,tsx}"],
     rules: {
       ...reactYouMightNotNeedAnEffect.configs.recommended.rules,
       "@typescript-eslint/consistent-type-definitions": ["warn", "type"],
@@ -461,7 +480,7 @@ export default [
       "@repo/no-raw-icon-size": [
         "error",
         {
-          exceptions: ["src/components/design-system/Spinner/Spinner.tsx"],
+          exceptions: ["src/app/design-system/Spinner/Spinner.tsx"],
           requireSize: true,
         },
       ],
@@ -494,16 +513,16 @@ export default [
   {
     name: "langfuse/web/overlays-no-zindex-escape",
     files: [
-      "src/components/ui/dialog.tsx",
-      "src/components/ui/alert-dialog.tsx",
-      "src/components/ui/sheet.tsx",
-      "src/components/ui/drawer.tsx",
-      "src/components/ui/popover.tsx",
-      "src/components/ui/dropdown-menu.tsx",
-      "src/components/ui/select.tsx",
-      "src/components/design-system/HoverCardController/HoverCardController.tsx",
-      "src/components/design-system/ControlledHoverCard/ControlledHoverCard.tsx",
-      "src/components/ui/tooltip.tsx",
+      "src/app/design-system/legacy-primitives/dialog.tsx",
+      "src/app/design-system/legacy-primitives/alert-dialog.tsx",
+      "src/app/design-system/legacy-primitives/sheet.tsx",
+      "src/app/design-system/legacy-primitives/drawer.tsx",
+      "src/app/design-system/legacy-primitives/popover.tsx",
+      "src/app/design-system/legacy-primitives/dropdown-menu.tsx",
+      "src/app/design-system/legacy-primitives/select.tsx",
+      "src/app/design-system/HoverCardController/HoverCardController.tsx",
+      "src/app/design-system/ControlledHoverCard/ControlledHoverCard.tsx",
+      "src/app/design-system/legacy-primitives/tooltip.tsx",
     ],
     rules: {
       "@repo/no-overlay-zindex": ["error", { mode: "wrapper" }],
@@ -540,7 +559,7 @@ export default [
 
   {
     name: "langfuse/web/design-system-allow-internal-imports",
-    files: ["src/components/design-system/**/*.{ts,tsx}"],
+    files: designSystemFiles,
     rules: {
       "no-restricted-imports": [
         "error",
@@ -557,7 +576,7 @@ export default [
 
   {
     name: "langfuse/web/design-system-internal-naming",
-    files: ["src/components/design-system/internal/**/*.{ts,tsx}"],
+    files: ["src/app/design-system/internal/**/*.{ts,tsx}"],
     plugins: {
       "check-file": checkFile,
     },
@@ -565,8 +584,8 @@ export default [
       "check-file/folder-naming-convention": [
         "warn",
         {
-          "src/components/design-system/*/": "KEBAB_CASE",
-          "src/components/design-system/internal/*/": "PASCAL_CASE",
+          "src/app/design-system/*/": "KEBAB_CASE",
+          "src/app/design-system/internal/*/": "PASCAL_CASE",
         },
       ],
     },
@@ -574,14 +593,14 @@ export default [
 
   {
     name: "langfuse/web/design-system-internal-charts-naming",
-    files: ["src/components/design-system/internal/charts/**/*.{ts,tsx}"],
+    files: ["src/app/design-system/internal/charts/**/*.{ts,tsx}"],
     rules: {
       "check-file/folder-naming-convention": [
         "warn",
         {
-          "src/components/design-system/*/": "KEBAB_CASE",
-          "src/components/design-system/internal/*/": "KEBAB_CASE",
-          "src/components/design-system/internal/charts/*/": "PASCAL_CASE",
+          "src/app/design-system/*/": "KEBAB_CASE",
+          "src/app/design-system/internal/*/": "KEBAB_CASE",
+          "src/app/design-system/internal/charts/*/": "PASCAL_CASE",
         },
       ],
     },
@@ -593,7 +612,7 @@ export default [
   // get the shared restrictions without the Sentry capture pattern.
   {
     name: "langfuse/web/restricted-imports-sentry-seam",
-    files: ["src/utils/reportError.ts", "instrumentation-client.ts"],
+    files: ["src/app/utils/reportError.ts", "instrumentation-client.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -610,9 +629,9 @@ export default [
   {
     name: "langfuse/web/toast-seam",
     files: [
-      "src/features/notifications/showErrorToast.tsx",
-      "src/features/notifications/showSuccessToast.tsx",
-      "src/features/notifications/showToast.tsx",
+      "src/app/shell/notifications/showErrorToast.tsx",
+      "src/app/shell/notifications/showSuccessToast.tsx",
+      "src/app/shell/notifications/showToast.tsx",
     ],
     rules: {
       "no-restricted-imports": [

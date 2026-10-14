@@ -3,7 +3,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { env } from "@/src/env.mjs";
-import handler from "@/src/pages/api/internal/ai-gateway/v1/models";
+import handler from "@/pages/api/internal/ai-gateway/v1/models";
 
 // `env` is typed readonly, but the route reads it at call time, so overriding
 // the field is how a test controls configuration.

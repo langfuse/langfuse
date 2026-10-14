@@ -6,7 +6,7 @@
  *
  * Every value on this page — font stacks, the two weight roles, the text-*
  * size tokens and their canonical weights — is parsed at build time from
- * `src/styles/globals.css` (see parseThemeTokens.ts), so the page cannot
+ * `src/app/styles/globals.css` (see parseThemeTokens.ts), so the page cannot
  * drift from the stylesheet.
  */
 import {
@@ -240,7 +240,7 @@ export function Typography() {
             <>
               Two typefaces, two weights, {sizeTokens.length} sizes. Parsed at
               build time from{" "}
-              <code className="font-mono">src/styles/globals.css</code>.
+              <code className="font-mono">src/app/styles/globals.css</code>.
             </>
           }
           meta={

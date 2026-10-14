@@ -17,19 +17,19 @@ vi.mock("@/src/env.mjs", () => ({ env }));
 
 const { shadowAuthDiff } = vi.hoisted(() => ({ shadowAuthDiff: vi.fn() }));
 
-vi.mock("@/src/features/public-api/server/shadowAuthDiff", () => ({
+vi.mock("@/src/public-api/server/shadowAuthDiff", () => ({
   shadowAuthDiff,
 }));
 
-import { __test } from "@/src/features/mcp/server/mcpServer";
-import type { ToolDefinition } from "@/src/features/mcp/core/define-tool";
+import { __test } from "@/src/public-api/mcp/server/mcpServer";
+import type { ToolDefinition } from "@/src/public-api/mcp/core/define-tool";
 import {
   __dangerouslySkipAuthz,
   type ApiAction,
-} from "@/src/features/public-api/server";
-import type { ServerContext } from "@/src/features/mcp/types";
-import { type Policy } from "@/src/features/rbac/types";
-import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+} from "@/src/public-api/server";
+import type { ServerContext } from "@/src/public-api/mcp/types";
+import { type Policy } from "@/src/identity/access-control/types";
+import { type AuthorizationContext } from "@/src/identity/auth/policy/types";
 
 const { assertToolAuthorized } = __test;
 

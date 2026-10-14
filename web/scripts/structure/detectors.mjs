@@ -1,3 +1,7 @@
+import domainModule from "./domains.cjs";
+/** @type {ReturnType<typeof domainModule.createDomainIndex>} */
+const domainIndex = domainModule;
+
 // Rule detectors for the project-structure RFC (see .dependency-cruiser.js
 // header for the RFC link). Pure functions: (graph, census) -> violations.
 //
@@ -26,10 +30,6 @@ const KIND_DIRS = new Set([
 ]);
 const KINDS_LIST = [...KIND_DIRS].join("|");
 
-/** A feature's server-side public surface (RFC rule 9, amended). */
-const FEATURE_SERVER_INDEX =
-  /^src\/(?:ee\/)?features\/[^/]+\/server\/index\.tsx?$/;
-
 // `docs/` holds prose, not code, and is allowed at any level: it is where a
 // README goes so it is not loose in a code folder.
 const DOC_DIRS = new Set(["docs"]);
@@ -38,12 +38,6 @@ const DOC_DIRS = new Set(["docs"]);
 export const isTestish = (p) =>
   /(^|\/)(__tests__|__e2e__|__mocks__)\//.test(p) ||
   /\.(clienttest|servertest|test|spec|stories)\.[jt]sx?$/.test(p);
-
-/** @type {(p: string) => string | null} */
-const featureRoot = (p) => {
-  const m = p.match(/^src\/(?:ee\/)?features\/[^/]+\//);
-  return m ? m[0] : null;
-};
 
 /** @type {(p: string) => string} */
 const base = (p) => p.slice(p.lastIndexOf("/") + 1);
@@ -98,7 +92,8 @@ export function rule7(modules) {
 // Rule 8 — features import other features only through a surface: the root
 // index from client code, server/index.ts from server code (rule 9, amended).
 /** @param {Module[]} modules @returns {Violation[]} */
-export function rule8(modules) {
+export function rule8(modules, domains = domainIndex) {
+  const featureRoot = domains.featureRoot;
   const out = [];
   for (const mod of modules) {
     const from = featureRoot(mod.source);
@@ -110,7 +105,7 @@ export function rule8(modules) {
         continue;
       // the same exception .dependency-cruiser.js carries, so the census and
       // CI agree on the server surface
-      if (FEATURE_SERVER_INDEX.test(dep.resolved)) continue;
+      if (domains.isServerSurface(dep.resolved)) continue;
       out.push(v(`${mod.source} -> ${dep.resolved}`, mod.source, dep.resolved));
     }
   }
@@ -123,9 +118,9 @@ export function rule10(modules) {
   /** @type {(p: string) => boolean} */
   const serverish = (p) =>
     /(^|\/)server\//.test(p) ||
-    /^src\/(pages|app)\/api\//.test(p) ||
+    /^(?:src\/(pages|app)|app|pages)\/api\//.test(p) ||
     /(^|\/)scripts\//.test(p) || // CLI entrypoints run server-side
-    /^src\/instrumentation/.test(p);
+    /^(?:src\/)?instrumentation/.test(p);
   const out = [];
   for (const mod of modules) {
     if (serverish(mod.source) || isTestish(mod.source)) continue;
@@ -166,16 +161,13 @@ export function rule11(modules) {
 // index) and exports route config. _app/_document/_error and pages/api are
 // out of scope.
 /** @param {Module[]} modules @returns {Violation[]} */
-export function rule12(modules) {
+export function rule12(modules, domains = domainIndex) {
   const out = [];
   for (const mod of modules) {
-    if (!/^src\/pages\//.test(mod.source)) continue;
-    if (/^src\/pages\/(api\/|_)/.test(mod.source)) continue;
+    if (!/^(?:src\/)?pages\//.test(mod.source)) continue;
+    if (/^(?:src\/)?pages\/(api\/|_)/.test(mod.source)) continue;
     for (const dep of mod.dependencies) {
-      const ok =
-        /^src\/(?:ee\/)?features\/[^/]+\/(index\.tsx?|[A-Z][A-Za-z0-9]*Page\.tsx)$/.test(
-          dep.resolved,
-        );
+      const ok = domains.isPageSurface(dep.resolved);
       if (!ok)
         out.push(
           v(`${mod.source} -> ${dep.resolved}`, mod.source, dep.resolved),
@@ -189,7 +181,8 @@ export function rule12(modules) {
 // a feature's tests never reach another feature's __tests__; the global
 // __tests__ never imports a feature's.
 /** @param {Module[]} modules @param {string[]} files @returns {Violation[]} */
-export function rule19(modules, files) {
+export function rule19(modules, files, domains = domainIndex) {
+  const featureRoot = domains.featureRoot;
   const out = [];
   for (const mod of modules) {
     for (const dep of mod.dependencies) {
@@ -235,8 +228,8 @@ export function rule19(modules, files) {
 export function rule20(modules) {
   /** @type {(p: string) => boolean} */
   const entry = (p) =>
-    /^src\/(pages|app)\//.test(p) || // Next.js routing entries
-    /^src\/(middleware|instrumentation|env)/.test(p) ||
+    /^(?:src\/pages|src\/app\/api|app|pages)\//.test(p) || // Next.js routing entries
+    /^(?:src\/)?(middleware|instrumentation|env)/.test(p) ||
     /^src\/workers\//.test(p) || // loaded via `new Worker(url)` — invisible to the graph
     /(^|\/)scripts\//.test(p) || // package.json script entrypoints
     /\.d\.ts$/.test(p);
@@ -273,11 +266,11 @@ function featureSlugFromRouteSegment(segment) {
  */
 export function pageOwnedFeatureSlug(pagePath) {
   if (
-    !/^src\/pages\//.test(pagePath) ||
-    /^src\/pages\/(api\/|_)/.test(pagePath)
+    !/^(?:src\/)?pages\//.test(pagePath) ||
+    /^(?:src\/)?pages\/(api\/|_)/.test(pagePath)
   )
     return null;
-  const parts = pagePath.slice("src/pages/".length).split("/");
+  const parts = pagePath.slice("pages/".length).split("/");
   // project/[projectId]/sessions/... → sessions; project/.../models.tsx → models
   if (parts[0] === "project" && parts.length >= 3)
     return featureSlugFromRouteSegment(parts[2]);
@@ -293,14 +286,14 @@ export function pageOwnedFeatureSlug(pagePath) {
 }
 
 /** @param {Module[]} modules @returns {Violation[]} */
-export function rule6(modules) {
-  const SHARED =
-    /^src\/(components|hooks|utils|constants|contexts|stores|fns|lib)\//;
+export function rule6(modules, domains = domainIndex) {
+  const featureRoot = domains.featureRoot;
+  const SHARED = { test: domains.isShared };
   const bySource = new Map(modules.map((m) => [m.source, m]));
   /** @type {(p: string) => string | null} */
   const home = (p) => {
     if (featureRoot(p)) return featureRoot(p);
-    if (p.startsWith("src/pages/")) return "pages";
+    if (p.startsWith("pages/")) return "pages";
     if (SHARED.test(p)) return null; // resolve transitively
     return "other";
   };
@@ -328,7 +321,7 @@ export function rule6(modules) {
     const slugs = new Set();
     for (const d of bySource.get(p)?.dependents ?? []) {
       if (isTestish(d)) continue;
-      if (d.startsWith("src/pages/")) {
+      if (d.startsWith("pages/")) {
         const s = pageOwnedFeatureSlug(d);
         if (s) slugs.add(s);
         continue;
@@ -345,7 +338,7 @@ export function rule6(modules) {
     const slugs = [...pageSlugs(m.source)];
     // Unambiguous page ownership wins over "only used by feature X".
     if (slugs.length === 1) {
-      const dest = `src/features/${slugs[0]}`;
+      const dest = domains.destinationForRoute(slugs[0]);
       out.push(
         v(
           `${m.source} -> page-owned feature ${slugs[0]} (pages drive features)`,
@@ -368,7 +361,8 @@ export function rule6(modules) {
 
 // Survey metric — mutually importing feature pairs (the untangling worklist).
 /** @param {Module[]} modules @returns {string[]} */
-export function mutualFeaturePairs(modules) {
+export function mutualFeaturePairs(modules, domains = domainIndex) {
+  const featureRoot = domains.featureRoot;
   /** @type {Set<string>} */
   const edges = new Set();
   for (const mod of modules) {
@@ -390,11 +384,12 @@ export function mutualFeaturePairs(modules) {
 // Survey metric — deep imports into features from outside any feature
 // (excluding the legitimate pages -> Page-component path).
 /** @param {Module[]} modules @returns {Violation[]} */
-export function outsideDeepImports(modules) {
+export function outsideDeepImports(modules, domains = domainIndex) {
+  const featureRoot = domains.featureRoot;
   const out = [];
   for (const mod of modules) {
     if (featureRoot(mod.source)) continue;
-    const isPage = /^src\/pages\//.test(mod.source);
+    const isPage = /^(?:src\/)?pages\//.test(mod.source);
     for (const dep of mod.dependencies) {
       const to = featureRoot(dep.resolved);
       if (!to) continue;
@@ -414,7 +409,6 @@ export function outsideDeepImports(modules) {
 
 // Census scopes: the RFC is explicit for features; src/components legacy
 // subtrees (ui, table, ...) are tracked by rules 6/13 and the survey instead.
-const FEATURE_SCOPE = /^src\/(?:ee\/)?features\//;
 
 /** @type {(p: string) => boolean} */
 const isContextModule = (p) => /^[A-Z][A-Za-z0-9]*Context\.tsx?$/.test(base(p));
@@ -426,7 +420,7 @@ const isHookFile = (p) => /^use[A-Z]/.test(stem(p));
 export function rule1(files, exportsOf) {
   const out = [];
   for (const f of files) {
-    if (!f.endsWith(".tsx") || isTestish(f) || /^src\/pages\//.test(f))
+    if (!f.endsWith(".tsx") || isTestish(f) || /^(?:src\/)?pages\//.test(f))
       continue;
     if (isHookFile(f) || isContextModule(f)) continue; // rule 3 territory
     const ex = exportsOf(f);
@@ -450,7 +444,7 @@ export function rule1(files, exportsOf) {
 export function rule2(files, exportsOf) {
   const out = [];
   for (const f of files) {
-    if (!f.endsWith(".tsx") || isTestish(f) || /^src\/pages\//.test(f))
+    if (!f.endsWith(".tsx") || isTestish(f) || /^(?:src\/)?pages\//.test(f))
       continue;
     if (isHookFile(f) || isContextModule(f)) continue;
     const ex = exportsOf(f);
@@ -533,11 +527,12 @@ export function rule4(files, exportsOf) {
 // Rule 5 — kind folders are a closed list; component folders live under
 // components/. server/ internals are unspecified by the RFC and skipped.
 /** @param {string[]} dirs @returns {Violation[]} */
-export function rule5(dirs) {
+export function rule5(dirs, domains = domainIndex) {
+  const featureRoot = domains.featureRoot;
   const out = [];
   for (const d of dirs) {
-    if (!FEATURE_SCOPE.test(d)) continue;
-    if (/^src\/(?:ee\/)?features\/[^/]+$/.test(d)) continue; // the feature root itself
+    if (!featureRoot(d)) continue;
+    if (domains.isFeatureRoot(d)) continue; // the feature root itself
     if (/(^|\/)(server|__tests__)\//.test(d + "/")) {
       if (!/(^|\/)(server|__tests__)$/.test(d)) continue; // below server|__tests__: skip
     }
@@ -558,7 +553,7 @@ export function rule5(dirs) {
       }
     }
     if (KIND_DIRS.has(name)) {
-      const featRootDir = /^src\/(?:ee\/)?features\/[^/]+$/.test(parent);
+      const featRootDir = domains.isFeatureRoot(parent);
       if (!featRootDir && !PASCAL.test(parentName))
         out.push(
           v(
@@ -579,19 +574,19 @@ export function rule5(dirs) {
 // Rule 9 — index.ts only at feature roots; named re-exports only, no
 // export *, no logic. src/pages (routing) and src/server are out of scope.
 /** @param {string[]} files @param {ExportsOf} exportsOf @returns {Violation[]} */
-export function rule9(files, exportsOf) {
+export function rule9(files, exportsOf, domains = domainIndex) {
+  const featureRoot = domains.featureRoot;
   const out = [];
-  const SCOPE =
-    /^src\/(?:ee\/)?(features|components|hooks|contexts|stores|fns|utils|constants|lib)\//;
+  /** @type {{test: (path: string) => boolean}} */
+  const SCOPE = {
+    test: (path) => !!featureRoot(path) || domains.isShared(path),
+  };
   for (const f of files) {
     if (!/(^|\/)index\.[jt]sx?$/.test(f) || !SCOPE.test(f)) continue;
     // A feature has two surfaces: the root index (client-safe) and
     // server/index.ts (server-side). Anything deeper in server/ is unspecified.
-    if (/(^|\/)server\//.test(f) && !FEATURE_SERVER_INDEX.test(f)) continue;
-    if (
-      /^src\/(?:ee\/)?features\/[^/]+\/index\.tsx?$/.test(f) ||
-      FEATURE_SERVER_INDEX.test(f)
-    ) {
+    if (/(^|\/)server\//.test(f) && !domains.isServerSurface(f)) continue;
+    if (domains.isPublicSurface(f)) {
       const ex = exportsOf(f);
       if (ex.some((e) => e.kind === "star")) out.push(v(`${f}: export *`, f));
       if (ex.some((e) => e.kind === "value"))
@@ -608,7 +603,11 @@ export function rule9(files, exportsOf) {
 /** @param {string[]} files @returns {Violation[]} */
 export function rule13(files) {
   return files
-    .filter((f) => /^src\/components\/ui\//.test(f) && !isTestish(f))
+    .filter(
+      (f) =>
+        /^(?:src\/components|src\/app\/components)\/ui\//.test(f) &&
+        !isTestish(f),
+    )
     .map((f) => v(f, f));
 }
 
@@ -674,8 +673,8 @@ export function kebabFiles(files) {
 export function thinPages(files, contentOf) {
   const pages = files.filter(
     (f) =>
-      /^src\/pages\//.test(f) &&
-      !/^src\/pages\/api\//.test(f) &&
+      /^(?:src\/)?pages\//.test(f) &&
+      !/^(?:src\/)?pages\/api\//.test(f) &&
       /\.[jt]sx?$/.test(f),
   );
   const thin = pages.filter(

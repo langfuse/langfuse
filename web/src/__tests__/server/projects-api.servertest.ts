@@ -18,12 +18,12 @@ import {
 import { randomUUID } from "crypto";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
-import projectApiKeysHandler from "@/src/pages/api/public/projects/[projectId]/apiKeys";
-import projectApiKeyHandler from "@/src/pages/api/public/projects/[projectId]/apiKeys/[apiKeyId]";
+import projectApiKeysHandler from "@/pages/api/public/projects/[projectId]/apiKeys";
+import projectApiKeyHandler from "@/pages/api/public/projects/[projectId]/apiKeys/[apiKeyId]";
 import {
   organizationApiKeyCreationSchema,
   projectApiKeyCreationSchema,
-} from "@/src/ee/features/admin-api/server/apiKeys";
+} from "@/src/ee/public-api/enterprise-admin/server/apiKeys";
 import { env } from "@/src/env.mjs";
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {

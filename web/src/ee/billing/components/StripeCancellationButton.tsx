@@ -1,0 +1,199 @@
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
+import { Button } from "@/src/app/design-system/legacy-primitives/button";
+import {
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/src/app/design-system/legacy-primitives/dialog";
+import { useBillingInformation } from "./useBillingInformation";
+import { api } from "@/src/app/utils/api";
+import { useState } from "react";
+import { showSuccessToast, showToast } from "@/src/app/shell/notifications";
+import { classifyTrpcToastError } from "@/src/app/utils/trpcErrorClassification";
+import { nanoid } from "nanoid";
+
+export const StripeCancellationButton = ({
+  orgId,
+  variant,
+  className,
+}: {
+  orgId: string;
+  variant: "secondary" | "default";
+  className?: string;
+}) => {
+  const { cancellation } = useBillingInformation();
+  const [loading, setLoading] = useState(false);
+  const [_opId, setOpId] = useState<string | null>(null);
+
+  const cancelMutation = api.cloudBilling.cancelStripeSubscription.useMutation({
+    onSuccess: () => {
+      showSuccessToast({
+        operation: "subscription.cancel",
+        title: "Subscription will be cancelled at period end",
+        description: "",
+      });
+      setLoading(false);
+      setOpId(null);
+      setTimeout(() => window.location.reload(), 500);
+    },
+    onError: (error) => {
+      setLoading(false);
+      setOpId(null);
+      showToast({
+        type: "ERROR",
+        title: "Failed to cancel subscription",
+        analytics: classifyTrpcToastError(error, "subscription.cancel"),
+      });
+    },
+  });
+
+  const reactivateMutation =
+    api.cloudBilling.reactivateStripeSubscription.useMutation({
+      onSuccess: () => {
+        showSuccessToast({
+          operation: "subscription.reactivate",
+          title: "Subscription reactivated",
+          description: "",
+        });
+        setLoading(false);
+        setOpId(null);
+        setTimeout(() => window.location.reload(), 500);
+      },
+      onError: (error) => {
+        setLoading(false);
+        setOpId(null);
+        showToast({
+          type: "ERROR",
+          title: "Failed to reactivate subscription",
+          analytics: classifyTrpcToastError(error, "subscription.reactivate"),
+        });
+      },
+    });
+
+  const onReactivate = async () => {
+    try {
+      setLoading(true);
+      // idempotency key for mutation operations with the stripe api
+      let opId = _opId;
+      if (!opId) {
+        opId = nanoid();
+        setOpId(opId);
+      }
+      await reactivateMutation.mutateAsync({ orgId, opId });
+    } catch (error) {
+      showToast({
+        type: "ERROR",
+        title: "Failed to reactivate subscription",
+        analytics: classifyTrpcToastError(error, "subscription.reactivate"),
+      });
+    }
+  };
+
+  const onCancel = async () => {
+    try {
+      setLoading(true);
+      // idempotency key for mutation operations with the stripe api
+      let opId = _opId;
+      if (!opId) {
+        opId = nanoid();
+        setOpId(opId);
+      }
+      await cancelMutation.mutateAsync({ orgId, opId });
+    } catch (error) {
+      showToast({
+        type: "ERROR",
+        title: "Failed to cancel subscription",
+        analytics: classifyTrpcToastError(error, "subscription.cancel"),
+      });
+    }
+  };
+
+  // Reactivate with confirm dialog
+  if (cancellation?.isCancelled) {
+    return (
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button
+            variant={variant}
+            disabled={loading}
+            title="Reactivate Subscription"
+            className={className}
+          >
+            {loading ? "Working…" : "Reactivate Subscription"}
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-lg">
+              Confirm Reactivation: Keep Your Subscription
+            </DialogTitle>
+          </DialogHeader>
+          <DialogBody className="text-sm">
+            <p>
+              Reactivating removes the scheduled cancellation. Your subscription
+              will continue beyond the current billing period and renew until
+              you cancel again.
+            </p>
+            <p>
+              Your features and usage billing remain unchanged. By confirming,
+              you agree to future renewals and charges.
+            </p>
+          </DialogBody>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="secondary">Cancel</Button>
+            </DialogClose>
+            <Button variant="default" onClick={onReactivate} disabled={loading}>
+              {loading ? "Reactivating…" : "Confirm Reactivation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // Cancel with confirm dialog
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button
+          variant={variant}
+          disabled={loading}
+          title="Cancel Subscription"
+        >
+          Cancel Subscription
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="text-lg">Confirm Cancellation</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="text-sm">
+          <p>
+            Your subscription will not renew. You will retain access until the
+            end of the current billing period
+          </p>
+          <p>
+            Usage during the remainder of the period is still billed under your
+            current plan. By confirming, you schedule the cancellation for
+            period end. You can reactivate before that date if you change your
+            mind.
+          </p>
+        </DialogBody>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="secondary">Keep Subscription</Button>
+          </DialogClose>
+          <Button variant="destructive" onClick={onCancel} disabled={loading}>
+            {loading ? "Cancelling…" : "Confirm Cancellation"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};

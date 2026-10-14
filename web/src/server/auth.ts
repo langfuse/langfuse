@@ -12,16 +12,16 @@ import {
   hashPassword,
   passwordRequiresReset,
   verifyPassword,
-} from "@/src/features/auth-credentials/lib/passwordHash";
+} from "@/src/identity/auth/passwords/lib/passwordHash";
 import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/server";
-import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
+} from "@/src/release-management/feature-flags/server";
+import { isGatewayEnabledForOrganization } from "@/src/ai/gateway/management-ui/server/availability";
 import { env } from "@/src/env.mjs";
-import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
-import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
+import { createProjectMembershipsOnSignup } from "@/src/identity/auth/lib/createProjectMembershipsOnSignup";
+import { getSessionLoginAt } from "@/src/identity/auth/lib/sessionExpiration";
+import { type AdClickIds } from "@/src/identity/auth/lib/signupAttribution";
 import {
   type AdapterUser,
   type Adapter,
@@ -55,18 +55,18 @@ import {
   findMultiTenantSsoConfig,
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
-} from "@/src/ee/features/multi-tenant-sso/server";
+} from "@/src/ee/identity/auth/sso-runtime/server";
 import {
   ENTERPRISE_SSO_REQUIRED_MESSAGE,
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
   PASSWORD_RESET_REQUIRED_MESSAGE,
   TURNSTILE_ACTIONS,
   TURNSTILE_FAILED_MESSAGE,
-} from "@/src/features/auth/constants";
+} from "@/src/identity/auth/constants";
 import {
   getTurnstileRemoteIp,
   verifyTurnstileToken,
-} from "@/src/features/auth/server/verifyTurnstile";
+} from "@/src/identity/auth/server/verifyTurnstile";
 import { z } from "zod";
 import { CloudConfigSchema, projectRoleAccessRights } from "@langfuse/shared";
 import {
@@ -83,14 +83,14 @@ import {
 import {
   getOrganizationPlanServerSide,
   getSelfHostedInstancePlanServerSide,
-} from "@/src/features/entitlements/server/getPlan";
-import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
-import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
+} from "@/src/entitlements/server/getPlan";
+import { getSSOBlockedDomains } from "@/src/identity/auth/passwords/server/signupApiHandler";
+import { createSupportEmailHash } from "@/src/app/support/createSupportEmailHash";
 import {
   canToggleV4,
   isV4UpgradeUiAvailable,
-} from "@/src/features/events/server";
-import { canCreateOrganizations } from "@/src/features/organizations/server";
+} from "@/src/tracing/observations/server";
+import { canCreateOrganizations } from "@/src/identity/organizations/server";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({

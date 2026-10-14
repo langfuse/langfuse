@@ -4,12 +4,12 @@ import type { ElkNode } from "elkjs";
 import ELK from "elkjs/lib/elk.bundled.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Button } from "@/src/components/design-system/Button/Button";
+import { Button } from "@/src/app/design-system/Button/Button";
 
 import { buildComponentRelationshipGraph } from "./componentRelationshipData";
 
 const sourceModules = import.meta.glob(
-  "../../src/components/design-system/**/*.{ts,tsx}",
+  "../../src/app/design-system/**/*.{ts,tsx}",
   {
     query: "?raw",
     import: "default",

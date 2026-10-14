@@ -1,0 +1,126 @@
+/* eslint-disable no-nested-ternary */
+// Langfuse Cloud only
+
+import { useHasOrganizationAccess } from "@/src/identity/access-control";
+import Header from "@/src/app/shell/layouts/header";
+import { useHasEntitlement } from "@/src/entitlements";
+import { useRouter } from "next/router";
+import { Alert } from "@/src/app/design-system/Alert/Alert";
+
+import { BillingUsageChart } from "./BillingUsageChart";
+import { BillingActionButtons } from "./BillingActionButtons";
+import { BillingScheduleNotification } from "./BillingScheduleNotification";
+import { ConnectedBillingInvoiceTable } from "./ConnectedBillingInvoiceTable";
+import { BillingDiscountView } from "./BillingDiscountView";
+import { BillingPlanPeriodView } from "@/src/ee/billing/components/BillingPlanPeriodView";
+import { useIsCloudBillingAvailable } from "@/src/ee/billing/utils/isCloudBilling";
+import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
+import { useBillingInformation } from "./useBillingInformation";
+import { api } from "@/src/app/utils/api";
+import { OrganizationUsageBreakdown } from "@/src/billing/usage";
+import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/billing/constants";
+
+export const BillingSettings = () => {
+  const router = useRouter();
+  const orgId = router.query.organizationId as string | undefined;
+  const hasAccess = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "langfuseCloudBilling:CRUD",
+  });
+
+  const isCloudBillingAvailable = useIsCloudBillingAvailable();
+  const isCloudBillingEntitled = useHasEntitlement("cloud-billing");
+  const isSpendAlertEntitled = useHasEntitlement("cloud-spend-alerts");
+  const {
+    organization,
+    billingProvider,
+    hasActiveSubscription,
+    planLabel,
+    cancellation,
+    scheduledPlanSwitch,
+  } = useBillingInformation();
+  const usage = api.cloudBilling.getUsage.useQuery(
+    { orgId: organization?.id ?? "" },
+    {
+      enabled: Boolean(
+        organization &&
+        isCloudBillingAvailable &&
+        isCloudBillingEntitled &&
+        hasAccess,
+      ),
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+  const showBillingDiscount = Boolean(
+    organization?.cloudConfig?.stripe?.activeSubscriptionId &&
+    billingProvider !== "clickhouse",
+  );
+
+  if (!hasAccess) {
+    return (
+      <Alert>
+        <Alert.Title>Access Denied</Alert.Title>
+        <Alert.Description>
+          You do not have permission to view the billing settings of this
+          organization.
+        </Alert.Description>
+      </Alert>
+    );
+  }
+
+  return (
+    <div>
+      {cancellation ? (
+        <BillingScheduleNotification
+          type="cancellation"
+          planLabel={planLabel}
+          cancellation={cancellation}
+        />
+      ) : scheduledPlanSwitch ? (
+        <BillingScheduleNotification
+          type="scheduled-plan-switch"
+          planLabel={planLabel}
+          scheduledPlanSwitch={scheduledPlanSwitch}
+        />
+      ) : null}
+
+      <Header title="Usage & Billing" />
+      <div className="space-y-6">
+        {usage.data !== null && (
+          <BillingUsageChart
+            usage={usage.data}
+            hobbyPlanLimit={
+              organization?.cloudConfig?.monthlyObservationLimit ??
+              MAX_EVENTS_FREE_PLAN
+            }
+            plan={organization?.plan ?? "cloud:hobby"}
+          />
+        )}
+        {organization && <OrganizationUsageBreakdown orgId={organization.id} />}
+        <BillingPlanPeriodView />
+        {showBillingDiscount && organization && (
+          <BillingDiscountView
+            orgId={organization.id}
+            hasStripeCustomer={Boolean(
+              organization.cloudConfig?.stripe?.customerId,
+            )}
+          />
+        )}
+        <BillingActionButtons />
+        {isCloudBillingAvailable &&
+          organization &&
+          Boolean(
+            organization.cloudConfig?.stripe?.customerId ??
+            organization.cloudConfig?.clickhouse?.organizationId,
+          ) && <ConnectedBillingInvoiceTable key={organization.id} />}
+        {isSpendAlertEntitled && orgId && hasActiveSubscription && (
+          <SpendAlertsSection orgId={orgId} />
+        )}
+      </div>
+    </div>
+  );
+};

@@ -8,8 +8,8 @@ export type ComponentRelationshipGraph = {
   edges: { id: string; source: string; target: string }[];
 };
 
-const DESIGN_SYSTEM_PATH = "/src/components/design-system/";
-const DESIGN_SYSTEM_ALIAS = "@/src/components/design-system/";
+const DESIGN_SYSTEM_PATH = "/src/app/design-system/";
+const DESIGN_SYSTEM_ALIAS = "@/src/app/design-system/";
 const SOURCE_FILE_PATTERN = /\.(?:ts|tsx)$/;
 const NON_COMPONENT_FILE_PATTERN =
   /\.(?:stories|clienttest|servertest|test|spec)\.(?:ts|tsx)$/;

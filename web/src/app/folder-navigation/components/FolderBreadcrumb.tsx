@@ -1,0 +1,65 @@
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/src/app/design-system/legacy-primitives/breadcrumb";
+import { createBreadcrumbItems } from "@/src/app/folder-navigation/utils";
+import { Home } from "lucide-react";
+
+/**
+ * Breadcrumb navigation for folders.
+ *
+ * @param currentFolderPath - Name-based folder path for navigation
+ * @param navigateToFolder - Callback to navigate to a folder
+ */
+export const FolderBreadcrumb = ({
+  currentFolderPath,
+  navigateToFolder,
+}: {
+  currentFolderPath: string;
+  navigateToFolder: (folderPath: string | undefined) => void;
+}) => {
+  return (
+    <div className="ml-2 pt-2">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink
+              className="cursor-pointer hover:underline"
+              onClick={() => navigateToFolder(undefined)}
+            >
+              <Home className="icon-base" />
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          {createBreadcrumbItems(currentFolderPath).flatMap(
+            (item, index, array) => [
+              index > 0 && (
+                <BreadcrumbSeparator
+                  key={`sep-${item.folderPath}`}
+                  className="text-foreground-tertiary"
+                >
+                  /
+                </BreadcrumbSeparator>
+              ),
+              <BreadcrumbItem key={item.folderPath}>
+                {index === array.length - 1 ? (
+                  <BreadcrumbPage>{item.name}</BreadcrumbPage>
+                ) : (
+                  <BreadcrumbLink
+                    className="cursor-pointer hover:underline"
+                    onClick={() => navigateToFolder(item.folderPath)}
+                  >
+                    {item.name}
+                  </BreadcrumbLink>
+                )}
+              </BreadcrumbItem>,
+            ],
+          )}
+        </BreadcrumbList>
+      </Breadcrumb>
+    </div>
+  );
+};

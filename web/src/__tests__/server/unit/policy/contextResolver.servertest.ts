@@ -8,16 +8,16 @@ import {
 import { InternalServerError } from "@langfuse/shared";
 import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 
-import { authorize } from "@/src/features/rbac/authorize";
+import { authorize } from "@/src/identity/access-control/authorize";
 import {
   OrganizationRepository,
   type OrganizationWithProjects,
-} from "@/src/features/auth/policy/organizationRepository";
+} from "@/src/identity/auth/policy/organizationRepository";
 import {
   ContextResolver,
   type ResolveContextParams,
-} from "@/src/features/auth/policy/contextResolver";
-import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+} from "@/src/identity/auth/policy/contextResolver";
+import { type AuthorizationContext } from "@/src/identity/auth/policy/types";
 
 const ORG = "org_1";
 const PRJ = "prj_1";

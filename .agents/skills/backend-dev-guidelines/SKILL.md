@@ -106,9 +106,9 @@ For an additive field/filter:
 ## Live Examples
 
 - tRPC router with project auth and Zod input:
-  `web/src/features/events/server/eventsRouter.ts`.
+  `web/src/tracing/observations/server/eventsRouter.ts`.
 - Public API route with middleware and typed request/response schemas:
-  `web/src/pages/api/public/datasets/index.ts`.
+  `web/pages/api/public/datasets/index.ts`.
 - Worker queue processor with typed jobs, logging, and retry behavior:
   `worker/src/queues/evalQueue.ts`.
 - Tenant filters for Prisma and ClickHouse:
@@ -132,13 +132,13 @@ For an additive field/filter:
 
 ## Reference Map
 
-| Topic                               | Read this when                                                           | File                                                                               |
-| ----------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| Architecture and package boundaries | You need the web/worker/shared split, request flow, or queue lifecycle   | [references/architecture-overview.md](references/architecture-overview.md)         |
-| Routing and controllers             | You are writing tRPC procedures, public API routes, or queue entrypoints | [references/routing-and-controllers.md](references/routing-and-controllers.md)     |
-| Middleware and auth                 | You are changing request auth, permissions, or middleware composition    | [references/middleware-guide.md](references/middleware-guide.md)                   |
-| Services and repositories           | You are placing business logic, repository code, or DI patterns          | [references/services-and-repositories.md](references/services-and-repositories.md) |
-| Database access                     | You are touching Prisma, ClickHouse, tenant filters, or query patterns   | [references/database-patterns.md](references/database-patterns.md)                 |
-| New concepts in shared code         | You are adding a field, option, flag, or enum member to a shared abstraction | [references/new-concepts.md](references/new-concepts.md)                            |
-| Configuration                       | You are adding env vars, startup config, or runtime toggles              | [references/configuration.md](references/configuration.md)                         |
-| Testing                             | You are adding or updating backend tests                                 | [references/testing-guide.md](references/testing-guide.md)                         |
+| Topic                               | Read this when                                                               | File                                                                               |
+| ----------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Architecture and package boundaries | You need the web/worker/shared split, request flow, or queue lifecycle       | [references/architecture-overview.md](references/architecture-overview.md)         |
+| Routing and controllers             | You are writing tRPC procedures, public API routes, or queue entrypoints     | [references/routing-and-controllers.md](references/routing-and-controllers.md)     |
+| Middleware and auth                 | You are changing request auth, permissions, or middleware composition        | [references/middleware-guide.md](references/middleware-guide.md)                   |
+| Services and repositories           | You are placing business logic, repository code, or DI patterns              | [references/services-and-repositories.md](references/services-and-repositories.md) |
+| Database access                     | You are touching Prisma, ClickHouse, tenant filters, or query patterns       | [references/database-patterns.md](references/database-patterns.md)                 |
+| New concepts in shared code         | You are adding a field, option, flag, or enum member to a shared abstraction | [references/new-concepts.md](references/new-concepts.md)                           |
+| Configuration                       | You are adding env vars, startup config, or runtime toggles                  | [references/configuration.md](references/configuration.md)                         |
+| Testing                             | You are adding or updating backend tests                                     | [references/testing-guide.md](references/testing-guide.md)                         |

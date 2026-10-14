@@ -3,7 +3,7 @@
 import {
   getDefaultView,
   shouldUseWidgetSSE,
-} from "@/src/features/widgets/utils";
+} from "@/src/analytics/visualization/utils";
 
 describe("getDefaultView", () => {
   it("should return 'observations' when v4 beta is enabled", () => {

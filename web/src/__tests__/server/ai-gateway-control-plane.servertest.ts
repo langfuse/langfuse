@@ -20,18 +20,18 @@ import {
   createInnerTRPCContext,
   type OrgAuthedContext,
 } from "@/src/server/api/trpc";
-import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
+import { GatewayApiKeyAuthenticator } from "@/src/ai/gateway/management-ui/server/auth/gatewayApiKeyAuthenticator";
 import {
   type GatewayResolveError,
   GatewayResolveService,
-} from "@/src/features/ai-gateway/server/resolve/resolveService";
-import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
-import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
-import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
+} from "@/src/ai/gateway/management-ui/server/resolve/resolveService";
+import { GatewayModelsService } from "@/src/ai/gateway/management-ui/server/provider/models/gatewayModelsService";
+import { GatewayApiKeyService } from "@/src/ai/gateway/management-ui/server/apiKey/gatewayApiKeyService";
+import { GatewayConfigService } from "@/src/ai/gateway/management-ui/server/config/gatewayConfigService";
 import {
   GatewayModelCatalogService,
   GatewayProviderService,
-} from "@/src/features/ai-gateway/server/provider";
+} from "@/src/ai/gateway/management-ui/server/provider";
 import { createEs256JwtVerifier } from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";

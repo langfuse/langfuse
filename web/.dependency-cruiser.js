@@ -15,11 +15,58 @@ const COMPONENT_ENTRY = "(^|/)([A-Z][A-Za-z0-9]*)/(\\2|index)\\.(ts|tsx)$";
 const TEST_FILES =
   "(^|/)(__tests__|__e2e__|__mocks__)/|\\.(clienttest|servertest|test|spec|stories)\\.[jt]sx?$";
 
+const domains = require("./scripts/structure/domains.cjs");
+const { RULE_IDS } = require("./scripts/structure/rules.mjs");
+const rootPattern = domains.roots.map(domains.escapeRegex).join("|");
+const surfaces = rootPattern
+  ? `^(?:${rootPattern})/(?:index|server/index)\\.tsx?$`
+  : "(?!)";
+const domainRules = domains.roots.flatMap((root) => {
+  const own = domains.descendantPattern(root);
+  const target = `^${domains.escapeRegex(root)}/`;
+  const label = root.replace(/\//g, "-");
+  return [
+    {
+      name: `${RULE_IDS[8]}-${label}`,
+      severity: "warn",
+      comment:
+        "Declared capabilities expose client and server entrypoints; nested capabilities have independent boundaries.",
+      from: { path: own },
+      to: {
+        path: rootPattern
+          ? `^(?:${rootPattern}|src/(?:ee/)?features/[^/]+)/`
+          : "(?!)",
+        pathNot: [
+          own,
+          surfaces,
+          "^src/(?:ee/)?features/[^/]+/(?:index|server/index)\\.tsx?$",
+        ],
+      },
+    },
+    {
+      name: `${RULE_IDS[19]}-${label}`,
+      severity: "warn",
+      from: { path: own },
+      to: {
+        path: `^(?:${rootPattern}|src/(?:ee/)?features/[^/]+)/(?:__tests__/|.*/__tests__/)`,
+        pathNot: [own],
+      },
+    },
+    {
+      name: `${RULE_IDS[19]}-global-${label}`,
+      severity: "warn",
+      from: { path: "^src/__tests__/" },
+      to: { path: `${target}(?:__tests__/|.*/__tests__/)` },
+    },
+  ];
+});
+
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
   forbidden: [
+    ...domainRules,
     {
-      name: "rfc11-no-runtime-cycles",
+      name: `${RULE_IDS[11]}`,
       comment:
         "Rule 11: no import cycles. Cycles broken by a type-only edge are " +
         "excluded — they are not a runtime hazard (tracked in structure:stats).",
@@ -28,7 +75,7 @@ module.exports = {
       to: { circular: true, viaOnly: { dependencyTypesNot: ["type-only"] } },
     },
     {
-      name: "rfc08-features-via-index",
+      name: `${RULE_IDS[8]}-legacy`,
       comment:
         "Rule 8: features import other features only through a surface — " +
         "`<feature>` from client code, `<feature>/server` from server code. " +
@@ -37,16 +84,19 @@ module.exports = {
       severity: "warn",
       from: { path: "^(src/(?:ee/)?features/[^/]+)/" },
       to: {
-        path: "^src/(?:ee/)?features/[^/]+/",
+        path: rootPattern
+          ? `^(?:${rootPattern}|src/(?:ee/)?features/[^/]+)/`
+          : "^src/(?:ee/)?features/[^/]+/",
         pathNot: [
           "^$1/",
+          surfaces,
           "^src/(?:ee/)?features/[^/]+/index\\.tsx?$",
           "^src/(?:ee/)?features/[^/]+/server/index\\.tsx?$",
         ],
       },
     },
     {
-      name: "rfc10-no-client-to-server",
+      name: `${RULE_IDS[10]}`,
       comment:
         "Rule 10: client code does not import from server/ — `import type` " +
         "is the exception. Server contexts and tests are out of scope.",
@@ -54,16 +104,16 @@ module.exports = {
       from: {
         pathNot: [
           "(^|/)server/",
-          "^src/(pages|app)/api/",
+          "^(?:src/(pages|app)|app|pages)/api/",
           "(^|/)scripts/",
-          "^src/instrumentation",
+          "^(?:src/)?instrumentation",
           TEST_FILES,
         ],
       },
       to: { path: "(^|/)server/", dependencyTypesNot: ["type-only"] },
     },
     {
-      name: "rfc07-no-component-internals",
+      name: `${RULE_IDS[7]}`,
       comment:
         "Rule 7: no importing another component's internals — cross a " +
         "component folder (a PascalCase dir) only via its root file. This " +
@@ -77,7 +127,7 @@ module.exports = {
       },
     },
     {
-      name: "rfc07-no-component-internals-from-outside",
+      name: `${RULE_IDS[7]}-from-outside`,
       comment:
         "Rule 7, importer outside any component folder: internals of any " +
         "component are off limits; use its root file.",
@@ -89,25 +139,30 @@ module.exports = {
       },
     },
     {
-      name: "rfc12-pages-import-page-components",
+      name: `${RULE_IDS[12]}`,
       comment:
         "Rule 12: a src/pages file is a thin shim — it imports a feature's " +
         "Page component (or the feature index) and exports route config. " +
         "_app/_document/_error and pages/api are out of scope.",
       severity: "warn",
       from: {
-        path: "^src/pages/",
-        pathNot: ["^src/pages/api/", "^src/pages/_"],
+        path: "^(?:src/)?pages/",
+        pathNot: ["^(?:src/)?pages/api/", "^(?:src/)?pages/_"],
       },
       to: {
         path: "^src",
         pathNot: [
           "^src/(?:ee/)?features/[^/]+/(index\\.tsx?|[A-Z][A-Za-z0-9]*Page\\.tsx)$",
+          ...(rootPattern
+            ? [
+                `^(?:${rootPattern})/(?:index\\.tsx?|[A-Z][A-Za-z0-9]*Page\\.tsx)$`,
+              ]
+            : []),
         ],
       },
     },
     {
-      name: "rfc19-tests-only-from-tests",
+      name: `${RULE_IDS[19]}-only-tests`,
       comment:
         "Rule 19: only tests and __tests__ modules import from __tests__.",
       severity: "warn",
@@ -115,7 +170,7 @@ module.exports = {
       to: { path: "(^|/)__tests__/" },
     },
     {
-      name: "rfc19-no-cross-feature-tests",
+      name: `${RULE_IDS[19]}-legacy-cross-feature`,
       comment:
         "Rule 19: one feature's tests don't reach another feature's __tests__.",
       severity: "warn",
@@ -129,7 +184,7 @@ module.exports = {
       },
     },
     {
-      name: "rfc19-global-tests-never-import-feature-tests",
+      name: `${RULE_IDS[19]}-legacy-global`,
       comment:
         "Rule 19: a feature's __tests__ can use the global one, never the reverse.",
       severity: "warn",
@@ -144,7 +199,7 @@ module.exports = {
   ],
   options: {
     doNotFollow: { path: "node_modules" },
-    includeOnly: "^src",
+    includeOnly: "^(?:(?:src|app|pages)/|instrumentation[.]ts$)",
     tsPreCompilationDeps: true,
     tsConfig: { fileName: "tsconfig.json" },
   },

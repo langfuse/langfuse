@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { randomUUID } from "crypto";
-import { GetMetricsDailyV1Response } from "@/src/features/public-api/types/metrics";
+import { GetMetricsDailyV1Response } from "@/src/public-api/types/metrics";
 
 describe("/api/public/metrics/daily API Endpoint", () => {
   it("should get correct results from daily metrics", async () => {

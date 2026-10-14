@@ -1,7 +1,7 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
-import { createScoreAnalyticsRouter } from "@/src/features/score-analytics/server/scoreAnalyticsRouter";
+import { createScoreAnalyticsRouter } from "@/src/analytics/score-reporting/server/scoreAnalyticsRouter";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {

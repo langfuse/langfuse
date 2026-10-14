@@ -1,15 +1,15 @@
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 
-import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
+import { isPrismaRecordNotFoundError } from "@/src/analytics/customer-integrations/common/server";
+import { auditLog } from "@/src/identity/audit-logs/server";
+import { isValidPostgresRegex } from "@/src/ai/model-catalog/server/isValidPostgresRegex";
 import {
   GetModelResultSchema,
   ModelLastUsedQueryResult,
   UpsertModelSchema,
-} from "@/src/features/models/validation";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+} from "@/src/ai/model-catalog/validation";
+import { throwIfNoProjectAccess } from "@/src/identity/access-control";
 import {
   createTRPCRouter,
   protectedProjectProcedure,

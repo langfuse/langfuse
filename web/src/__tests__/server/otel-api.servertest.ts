@@ -14,7 +14,7 @@ import {
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomBytes } from "crypto";
 import { env } from "@/src/env.mjs";
-import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
+import { $root } from "@/pages/api/public/otel/otlp-proto/generated/root";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";

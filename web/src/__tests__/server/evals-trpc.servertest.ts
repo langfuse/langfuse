@@ -12,7 +12,7 @@ import {
 } from "@langfuse/shared";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { LegacyEvalCompatibilityService } from "@/src/features/evals/server/legacyCompatibilityService";
+import { LegacyEvalCompatibilityService } from "@/src/evaluators/server/legacyCompatibilityService";
 
 const organizationIds: string[] = [];
 const numericOutputDefinition = createNumericEvalOutputDefinition({

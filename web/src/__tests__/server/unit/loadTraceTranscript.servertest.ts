@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { assembleTranscript } from "@langfuse/shared/src/server/transcript/transcript";
-import { loadTraceTranscript } from "@/src/features/events/server/loadTraceTranscript";
+import { loadTraceTranscript } from "@/src/tracing/observations/server/loadTraceTranscript";
 
 const mocks = vi.hoisted(() => ({
   assemble: vi.fn(),

@@ -20,10 +20,10 @@ import prettier from "prettier";
 
 const webDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-export const WORKER_ENTRY = "src/workers/json-parser.worker.ts";
+export const WORKER_ENTRY = "src/app/workers/json-parser.worker.ts";
 export const GENERATED_FILE = path.join(
   webDir,
-  "src/workers/generated/json-parser.worker.source.ts",
+  "src/app/workers/generated/json-parser.worker.source.ts",
 );
 
 /**

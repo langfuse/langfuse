@@ -37,18 +37,18 @@ properly (below).
 
 - **Report caught unknowns through the shared helpers, not raw
   `captureException`:**
-  - [`captureUnknownError(context, value, extra?)`](../../../web/src/utils/captureUnknownError.ts)
+  - [`captureUnknownError(context, value, extra?)`](../../../web/src/app/utils/captureUnknownError.ts)
     — turns any caught value into a legible `Error` (real `Error`s pass through
     with their stack; everything else is synthesized), tags `area`, and logs via
     `console.warn` so the console integration does not double-capture.
-  - [`reportWorkerLoadError({area, source, event, extra?})`](../../../web/src/utils/reportWorkerLoadError.ts)
+  - [`reportWorkerLoadError({area, source, event, extra?})`](../../../web/src/app/utils/reportWorkerLoadError.ts)
     — extracts the real fields from a Worker `ErrorEvent`
     (message/filename/lineno/colno) instead of stringifying it to
     `[object ErrorEvent]`. Every worker's `onerror` reports through this one;
-    [`reportParserWorkerError(hook, event)`](../../../web/src/hooks/parserWorkerError.ts)
+    [`reportParserWorkerError(hook, event)`](../../../web/src/app/hooks/parserWorkerError.ts)
     is the JSON-parser worker's thin wrapper over it.
 - **Filter predicates belong in
-  [`web/src/utils/sentryFilters.ts`](../../../web/src/utils/sentryFilters.ts)**
+  [`web/src/app/utils/sentryFilters.ts`](../../../web/src/app/utils/sentryFilters.ts)**
   (documented, unit-tested), called from `beforeSend` in
   [`web/instrumentation-client.ts`](../../../web/instrumentation-client.ts) (the
   only `Sentry.init` in the codebase — `beforeSend`,
@@ -58,7 +58,7 @@ properly (below).
   (`isNoisyHttpClientPollEvent`, `isDenylistedNoiseEvent`,
   `isReactDevtoolsInternalEvent`). Keep it that way.
 - **Classify tRPC errors at the seam,** not per call site: `handleTrpcError`
-  ([`web/src/utils/api.ts`](../../../web/src/utils/api.ts)) is the single
+  ([`web/src/app/utils/api.ts`](../../../web/src/app/utils/api.ts)) is the single
   chokepoint every query/mutation error flows through — the place to drop
   expected codes and tag the rest (the seam-classification lever, PR #15243).
 - **Tag `area`, keep the message static.** `captureException(err, { tags: { area },

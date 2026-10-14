@@ -11,7 +11,7 @@
  */
 import { type ReactNode } from "react";
 
-import { cn } from "@/src/utils/tailwind";
+import { cn } from "@/src/app/utils/tailwind";
 
 /** The app's eyebrow-label convention: tiny, mono, uppercase, tracked. */
 export function Eyebrow({ children }: { children: ReactNode }) {

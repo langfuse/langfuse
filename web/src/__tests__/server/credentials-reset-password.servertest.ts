@@ -6,7 +6,7 @@ import { env } from "@/src/env.mjs";
 import {
   hashPassword,
   verifyPassword,
-} from "@/src/features/auth-credentials/lib/passwordHash";
+} from "@/src/identity/auth/passwords/lib/passwordHash";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";

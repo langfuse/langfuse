@@ -65,7 +65,7 @@ For the golden example and full reasoning, read
   frequently changing state directly in provider values.
 - Rendered rows/cells/items should be view-only or narrow containers. Put
   effects, subscriptions, data loading, and workflows outside expensive views.
-- Shared `src/components/*` exports should stay context-free or receive
+- Shared `src/app/components/*` exports should stay context-free or receive
   explicit props. Put view-scoped Zustand consumers in `src/features/*`.
 - Large feature folders should have a concise `README.md` owner map.
 - Migrate real features toward this model whenever you touch them: improve

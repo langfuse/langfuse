@@ -6,19 +6,19 @@ import {
   SCORE_COLUMNS,
   type FieldDef,
   withFieldOptions,
-} from "@/src/features/search-bar/lib/fields";
+} from "@/src/app/search/lib/fields";
 import {
   buildFilterContextMessage,
   buildFilterSystemPrompt,
   specForField,
-} from "@/src/features/search-bar/server/buildFilterPrompt";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
-import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+} from "@/src/app/search/server/buildFilterPrompt";
+import { filterStateToQueryText } from "@/src/app/search/lib/filter-state-to-query";
+import { RULE_FIELD_REGISTRY } from "@/src/evaluators/v2/constants/ruleSearchRegistry";
 import {
   EVALUATOR_FIELD_REGISTRY,
   RULE_SAMPLE_FIELD_REGISTRY,
-} from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
-import { parseGeneratedFilters } from "@/src/features/search-bar/server/parseFilterCompletion";
+} from "@/src/evaluators/v2/constants/evaluatorSearchRegistry";
+import { parseGeneratedFilters } from "@/src/app/search/server/parseFilterCompletion";
 
 // A representative `singleFilter` for the FilterState `type` the prompt tells
 // the model to emit for this field. Used to assert the prompt's per-field

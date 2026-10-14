@@ -4,7 +4,7 @@ import { Readable } from "stream";
 import { createMocks } from "node-mocks-http";
 import { LangfuseNotFoundError, UnauthorizedError } from "@langfuse/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import handler from "../../pages/api/traces/[traceId]/observations/[observationId]/io/[field]";
+import handler from "../../../pages/api/traces/[traceId]/observations/[observationId]/io/[field]";
 
 const {
   mockGetServerAuthSession,
@@ -24,8 +24,8 @@ vi.mock("../../server/auth", () => ({
 }));
 
 // Override only the trace authorizer; keep the rest of the module real.
-vi.mock("../../features/traces/server/buildTraceExport", async () => ({
-  ...(await vi.importActual("../../features/traces/server/buildTraceExport")),
+vi.mock("../../tracing/traces/server/buildTraceExport", async () => ({
+  ...(await vi.importActual("../../tracing/traces/server/buildTraceExport")),
   getAuthorizedTrace: (...args: unknown[]) => mockGetAuthorizedTrace(...args),
 }));
 

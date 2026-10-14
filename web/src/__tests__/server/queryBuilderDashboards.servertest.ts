@@ -9,7 +9,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { type QueryType } from "@langfuse/shared/query";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { mapLegacyUiTableFilterToView } from "@/src/analytics/dashboards/lib/dashboardUiTableToViewMapping";
 
 describe("selfServeDashboards", () => {
   // Single project ID for all tests

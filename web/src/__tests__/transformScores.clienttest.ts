@@ -1,12 +1,12 @@
 // @vitest-environment node
 
-import { transformToAnnotationScores } from "@/src/features/scores";
+import { transformToAnnotationScores } from "@/src/scores";
 import {
   type ScoreDomain,
   type ScoreAggregate,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
-import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { type WithStringifiedMetadata } from "@/src/app/utils/clientSideDomainTypes";
 
 const mockConfigs: ScoreConfigDomain[] = [
   {

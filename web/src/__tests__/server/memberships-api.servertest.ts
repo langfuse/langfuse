@@ -6,22 +6,22 @@ import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { Role } from "@langfuse/shared";
-import projectMembershipRoute from "@/src/pages/api/public/projects/[projectId]/memberships";
+import projectMembershipRoute from "@/pages/api/public/projects/[projectId]/memberships";
 import { env } from "@/src/env.mjs";
 import { createMocks } from "node-mocks-http";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import * as auditLogs from "@/src/features/audit-logs/server";
-import { authenticator } from "@/src/features/apiKey/server";
-import { type AuthorizationContext } from "@/src/features/auth/policy/types";
-import * as sfdc from "@/src/ee/features/sfdc-sync/server";
+import * as auditLogs from "@/src/identity/audit-logs/server";
+import { authenticator } from "@/src/public-api/project-api-keys/server";
+import { type AuthorizationContext } from "@/src/identity/auth/policy/types";
+import * as sfdc from "@/src/ee/salesforce/server";
 import {
   handleUpdateMembership,
   handleDeleteMembership,
-} from "@/src/ee/features/admin-api/server/memberships";
+} from "@/src/ee/public-api/enterprise-admin/server/memberships";
 import {
   handleUpdateMembership as handleUpdateProjectMembership,
   handleDeleteMembership as handleDeleteProjectMembership,
-} from "@/src/ee/features/admin-api/server/projects/projectById/memberships";
+} from "@/src/ee/public-api/enterprise-admin/server/projects/projectById/memberships";
 import {
   createApiKey,
   createBasicAuthHeader,

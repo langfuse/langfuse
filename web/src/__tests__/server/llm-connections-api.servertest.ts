@@ -7,7 +7,7 @@ import {
   DeleteLlmConnectionV1Response,
   GetLlmConnectionsV1Response,
   PutLlmConnectionV1Response,
-} from "@/src/features/public-api/types/llm-connections";
+} from "@/src/public-api/types/llm-connections";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { LLMAdapter } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";

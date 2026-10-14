@@ -1,6 +1,6 @@
 # Self-hosted IBM Plex Mono
 
-`web/src/styles/fonts.ts` loads these two faces through `next/font/local` and
+`web/src/app/styles/fonts.ts` loads these two faces through `next/font/local` and
 `--font-mono` in `globals.css` points at them, so they back every `font-mono`
 surface: CodeMirror editors (the prompt editor, JSON viewers), code blocks and
 ids.
@@ -35,7 +35,7 @@ Subsetting to Google Fonts' published subsets instead (`latin`, `latin-ext`,
 `cyrillic`, `cyrillic-ext`, `vietnamese`) is also not enough: their union is 678
 codepoints and omits characters the full family has, such as U+2074 (⁴).
 
-`web/src/styles/fonts.clienttest.ts` asserts this contract against the shipped
+`web/src/app/styles/fonts.clienttest.ts` asserts this contract against the shipped
 binaries.
 
 IBM Plex Mono 2.3 has no Greek. Greek text falls back and there is no fix for

@@ -4,7 +4,7 @@
  * model, the app's overlay layer order, animation tokens, and the breakpoint
  * conventions.
  *
- * Token values are parsed at build time from `src/styles/globals.css` (see
+ * Token values are parsed at build time from `src/app/styles/globals.css` (see
  * parseThemeTokens.ts), so the page cannot drift from the stylesheet. The
  * layer order is read from its source of truth, `context/layerOrder.ts`.
  *
@@ -13,7 +13,7 @@
  */
 import { type CSSProperties } from "react";
 
-import { LAYER_ORDER } from "@/src/context/LayerContext/layers";
+import { LAYER_ORDER } from "@/src/app/context/LayerContext/layers";
 
 import {
   CollapsedSection,
@@ -400,7 +400,7 @@ export function Layout() {
             <>
               Radii, layout offsets, surface layering, overlay order,
               animations. Parsed at build time from{" "}
-              <code className="font-mono">src/styles/globals.css</code>; the
+              <code className="font-mono">src/app/styles/globals.css</code>; the
               layer order from{" "}
               <code className="font-mono">context/layerOrder.ts</code>.
             </>

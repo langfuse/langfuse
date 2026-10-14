@@ -1,4 +1,4 @@
-import { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/router";
+import { CreateEvalTemplateInputSchema } from "@/src/evaluators/server/router";
 import {
   createBooleanEvalOutputDefinition,
   createCategoricalEvalOutputDefinition,

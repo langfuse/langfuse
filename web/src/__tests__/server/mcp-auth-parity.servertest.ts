@@ -16,7 +16,7 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 
-import mcpHandler from "@/src/pages/api/public/mcp";
+import mcpHandler from "@/pages/api/public/mcp";
 
 // Sweeps the MCP endpoint's connection auth across migration modes and key
 // kinds, recording each cell's status. Shadow and enforce must equal legacy

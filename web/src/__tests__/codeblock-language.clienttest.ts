@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";
+import { normalizeCodeblockLanguage } from "@/src/app/utils/normalizeCodeblockLanguage";
 
 describe("normalizeCodeblockLanguage", () => {
   it("preserves supported languages and aliases", () => {

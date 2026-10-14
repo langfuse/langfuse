@@ -1,0 +1,208 @@
+import * as React from "react";
+import {
+  type ScoreSourceType,
+  type AggregatedScoreData,
+} from "@langfuse/shared";
+import { MessageCircleMore } from "lucide-react";
+import { HoverCard } from "@/src/app/design-system/HoverCard/HoverCard";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/app/design-system/legacy-primitives/tooltip";
+import { api } from "@/src/app/utils/api";
+import { JSONView } from "@/src/app/design-system/legacy-primitives/CodeJsonViewer";
+import { Skeleton } from "@/src/app/design-system/legacy-primitives/skeleton";
+import { type BaselineDiff, DiffLabel } from "@/src/datasets";
+
+const resolveScoreValue = (aggregate: AggregatedScoreData): string => {
+  if (aggregate.type === "NUMERIC") {
+    return aggregate.average.toFixed(4);
+  }
+  return aggregate.values.map((value: string) => value).join(", ");
+};
+
+const ScoreDetailRow = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) => (
+  <div className="flex justify-between gap-2">
+    <span className="text-muted-foreground w-14 font-bold">{label}</span>
+    <div className="min-w-0 flex-1 text-right">
+      {typeof value === "string" ? (
+        <span className="wrap-break-word">{value}</span>
+      ) : (
+        value
+      )}
+    </div>
+  </div>
+);
+
+const ScoreValueSection = ({
+  aggregate,
+  diff,
+}: {
+  aggregate: AggregatedScoreData | null;
+  diff?: BaselineDiff;
+}) => {
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      {aggregate ? (
+        <>
+          <span className="line-clamp-1 font-bold">
+            {aggregate.type === "NUMERIC"
+              ? aggregate.average.toFixed(2)
+              : resolveScoreValue(aggregate)}
+          </span>
+          {diff && (
+            <DiffLabel diff={diff} formatValue={(value) => value.toFixed(2)} />
+          )}
+        </>
+      ) : (
+        <span className="text-muted-foreground text-sm">-</span>
+      )}
+      {aggregate?.comment && (
+        <div className="flex h-3 w-3 items-center justify-center">
+          <MessageCircleMore className="icon-sm text-muted-foreground" />
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const ScoreRow = ({
+  projectId,
+  name,
+  source,
+  aggregate,
+  diff,
+}: {
+  projectId: string;
+  name: string;
+  source: ScoreSourceType;
+  aggregate: AggregatedScoreData | null;
+  diff?: BaselineDiff;
+}) => {
+  const [isHovered, setIsHovered] = React.useState(false);
+
+  // ensure only loaded if user actually just hovered over the score
+  const { data: metadata } = api.scores.getScoreMetadataById.useQuery(
+    {
+      projectId,
+      id: aggregate?.id as string,
+    },
+    {
+      enabled:
+        isHovered &&
+        Boolean(aggregate && aggregate.id && aggregate.hasMetadata),
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  if (!aggregate) {
+    return (
+      <div className="flex h-6 w-full items-center gap-2">
+        <span
+          className="text-muted-foreground w-32 shrink-0 truncate"
+          title={name}
+        >
+          {name}
+        </span>
+        <ScoreValueSection aggregate={aggregate} diff={diff} />
+      </div>
+    );
+  }
+
+  return (
+    <HoverCard
+      openDelay={700}
+      closeDelay={100}
+      onOpenChange={setIsHovered}
+      placement="top-start"
+      content={
+        <div className="max-h-[40vh] w-[300px] cursor-pointer overflow-y-auto p-3">
+          <div className="cursor-pointer space-y-3">
+            <h4 className="text-sm font-bold">{name}</h4>
+
+            <div className="space-y-2 text-xs">
+              <ScoreDetailRow
+                label="Value"
+                value={resolveScoreValue(aggregate)}
+              />
+              <ScoreDetailRow label="Source" value={source} />
+
+              {aggregate.comment && (
+                <ScoreDetailRow
+                  label="Comment"
+                  value={
+                    <span
+                      title={aggregate.comment}
+                      className="line-clamp-10 max-h-[240px] overflow-hidden wrap-break-word"
+                      style={{
+                        textAlign: "justify",
+                        textAlignLast: "right",
+                      }}
+                    >
+                      {aggregate.comment}
+                    </span>
+                  }
+                />
+              )}
+
+              {aggregate.hasMetadata && (
+                <ScoreDetailRow
+                  label="Metadata"
+                  value={
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="line-clamp-1 cursor-help">
+                          {(() => {
+                            try {
+                              return metadata &&
+                                Object.keys(metadata).length > 0
+                                ? JSON.stringify(metadata)
+                                : "Loading...";
+                            } catch {
+                              return "Invalid JSON";
+                            }
+                          })()}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent className="w-[400px] text-xs wrap-break-word">
+                        {metadata && Object.keys(metadata).length > 0 ? (
+                          <JSONView
+                            codeClassName="border-none p-0 overflow-y-auto max-h-[40vh]"
+                            json={metadata}
+                          />
+                        ) : (
+                          <Skeleton className="h-12 w-full" />
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  }
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <div className="flex h-6 w-full items-center gap-2">
+          <span className="w-32 shrink-0 truncate font-bold" title={name}>
+            {name}
+          </span>
+          <div className="cursor-pointer" tabIndex={0} {...getTriggerProps()}>
+            <ScoreValueSection aggregate={aggregate} diff={diff} />
+          </div>
+        </div>
+      )}
+    </HoverCard>
+  );
+};

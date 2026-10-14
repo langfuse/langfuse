@@ -12,9 +12,9 @@ import {
   type ReactNode,
 } from "react";
 import { SessionProvider } from "next-auth/react";
-import { TooltipProvider } from "../src/components/ui/tooltip";
-import { LayerProvider } from "../src/context/LayerContext/LayerContext";
-import { ThemeProvider } from "../src/features/theming/ThemeProvider";
+import { TooltipProvider } from "../src/app/design-system/legacy-primitives/tooltip";
+import { LayerProvider } from "../src/app/context/LayerContext/LayerContext";
+import { ThemeProvider } from "../src/app/shell/theming/ThemeProvider";
 import "./storybook.css";
 import "./docs.css";
 // Mirror the global CSS that _app.tsx imports so vendored components

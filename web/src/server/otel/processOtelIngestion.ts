@@ -1,4 +1,4 @@
-import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
+import { $root } from "@/pages/api/public/otel/otlp-proto/generated/root";
 import {
   createS3ThrottledIngestionError,
   getCurrentSpan,

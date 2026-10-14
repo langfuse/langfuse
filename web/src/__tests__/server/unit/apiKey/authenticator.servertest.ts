@@ -14,15 +14,15 @@ import {
   hashSecretKey,
 } from "@langfuse/shared/src/server";
 
-import { Authenticator } from "@/src/features/apiKey/server";
-import { AuthenticatorCache } from "@/src/features/apiKey/authenticatorCache";
+import { Authenticator } from "@/src/public-api/project-api-keys/server";
+import { AuthenticatorCache } from "@/src/public-api/project-api-keys/authenticatorCache";
 import {
   OrganizationRepository,
   type OrganizationWithProjects,
-} from "@/src/features/auth/policy/organizationRepository";
-import { ContextResolver } from "@/src/features/auth/policy/contextResolver";
-import { Verifier } from "@/src/features/apiKey/verifier";
-import { type ApiKeyRepository } from "@/src/features/apiKey/apiKeyRepository";
+} from "@/src/identity/auth/policy/organizationRepository";
+import { ContextResolver } from "@/src/identity/auth/policy/contextResolver";
+import { Verifier } from "@/src/public-api/project-api-keys/verifier";
+import { type ApiKeyRepository } from "@/src/public-api/project-api-keys/apiKeyRepository";
 import { env } from "@/src/env.mjs";
 
 const SALT = "test-salt";

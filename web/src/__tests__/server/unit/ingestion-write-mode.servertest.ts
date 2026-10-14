@@ -4,10 +4,10 @@ import { createMocks } from "node-mocks-http";
 
 import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 import { processEventBatch } from "@langfuse/shared/src/server";
-import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { type AuthorizationContext } from "@/src/identity/auth/policy/types";
 import handler, {
   filterBatchForEventsOnly,
-} from "@/src/pages/api/public/ingestion";
+} from "@/pages/api/public/ingestion";
 
 const { migration, shadowAuth, recordIncrement } = vi.hoisted(() => ({
   migration: { mode: "shadow" as "legacy" | "shadow" | "enforce" },
@@ -28,7 +28,7 @@ vi.mock(import("@/src/env.mjs"), async (importOriginal) => {
   };
 });
 
-vi.mock(import("@/src/features/public-api/server"), async (importOriginal) => ({
+vi.mock(import("@/src/public-api/server"), async (importOriginal) => ({
   ...(await importOriginal()),
   shadowAuth,
 }));
@@ -42,8 +42,10 @@ vi.mock(import("@langfuse/shared/src/server"), async (importOriginal) => {
   };
 });
 
-vi.mock("@/src/features/telemetry", () => ({ telemetry: vi.fn() }));
-vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
+vi.mock("@/src/analytics/internal/self-hosted-telemetry", () => ({
+  telemetry: vi.fn(),
+}));
+vi.mock("@/src/public-api/server/RateLimitService", () => ({
   RateLimitService: {
     getInstance: () => ({
       rateLimitRequest: vi.fn().mockResolvedValue(undefined),

@@ -50,15 +50,20 @@
         "src/server/otel/otelIngestionWorker.ts",
         // Web Worker entry bundled into a string module by
         // scripts/build-json-parser-worker.mjs, never imported by the app.
-        "src/workers/json-parser.worker.ts",
+        "src/app/workers/json-parser.worker.ts",
       ],
       "ignoreFiles": [
         // Standalone benchmark invoked directly with Node rather than imported by the application.
-        "src/features/traces/components/AdvancedJsonViewer/lazy/benchByteJsonIndex.ts",
+        "src/tracing/traces/components/AdvancedJsonViewer/lazy/benchByteJsonIndex.ts",
         "src/__tests__/mocks/**",
       ],
       // Include runtime JavaScript modules such as src/env.mjs in dependency analysis.
-      "project": ["src/**/*.{ts,tsx,mjs}", ".storybook/docs/*.{ts,tsx}"],
+      "project": [
+        "src/**/*.{ts,tsx,mjs}",
+        "app/**/*.{ts,tsx}",
+        "pages/**/*.{ts,tsx}",
+        ".storybook/docs/*.{ts,tsx}",
+      ],
       "ignoreDependencies": [
         // Tailwind loads this plugin from an @plugin directive in globals.css.
         "@tailwindcss/forms",

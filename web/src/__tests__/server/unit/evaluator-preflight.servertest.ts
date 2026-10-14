@@ -22,7 +22,7 @@ import {
 import {
   getEvaluatorDefinitionConfigurationError,
   getEvaluatorDefinitionPreflightError,
-} from "@/src/features/evals/server/evaluator-preflight";
+} from "@/src/evaluators/server/evaluator-preflight";
 
 const numericOutputDefinition = createNumericEvalOutputDefinition({
   reasoningDescription: "Why the score was assigned",

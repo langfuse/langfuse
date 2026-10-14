@@ -149,7 +149,7 @@ Use workspace protocol for internal packages:
   "exports": {
     ".": "./src/index.ts",
     "./button": "./src/button.tsx",
-    "./utils": "./src/utils.ts"
+    "./utils": "./src/app/utils.ts"
   }
 }
 ```
@@ -210,7 +210,7 @@ apps/
 // GOOD
 packages/
   utils/           # Proper shared package
-    src/utils.ts
+    src/app/utils.ts
 ```
 
 ### Too Many Root Dependencies

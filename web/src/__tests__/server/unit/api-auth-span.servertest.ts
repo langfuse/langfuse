@@ -32,11 +32,11 @@ vi.mock("@/src/env.mjs", () => ({
   },
 }));
 
-vi.mock("@/src/features/entitlements/server/getPlan", () => ({
+vi.mock("@/src/entitlements/server/getPlan", () => ({
   getOrganizationPlanServerSide: () => "oss",
 }));
 
-vi.mock("@/src/utils/exceptions", () => ({
+vi.mock("@/src/app/utils/exceptions", () => ({
   isPrismaException: () => false,
 }));
 
@@ -78,7 +78,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   verifySecretKey: vi.fn(),
 }));
 
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/public-api/server/apiAuth";
 
 const createBasicAuthHeader = (publicKey: string, secretKey: string) =>
   `Basic ${Buffer.from(`${publicKey}:${secretKey}`).toString("base64")}`;

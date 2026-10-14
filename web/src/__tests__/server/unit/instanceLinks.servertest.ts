@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   parseInstanceLinks,
   findCurrentInstance,
-} from "@/src/ee/features/ui-customization/instanceLinks";
+} from "@/src/ee/app/branding/instanceLinks";
 
 describe("parseInstanceLinks", () => {
   afterEach(() => {

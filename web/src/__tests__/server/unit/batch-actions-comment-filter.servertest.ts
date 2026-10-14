@@ -20,7 +20,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/identity/audit-logs/server", () => ({
   auditLog: vi.fn(),
 }));
 
@@ -34,9 +34,9 @@ import {
   type BatchActionQuery,
 } from "@langfuse/shared";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { addToDatasetRouter } from "@/src/features/batch-actions/server/addToDatasetRouter";
-import { runEvaluationRouter } from "@/src/features/batch-actions/server/runEvaluationRouter";
-import { batchActionRouter } from "@/src/features/batch-actions/server/batchActionRouter";
+import { addToDatasetRouter } from "@/src/background-jobs/batch-actions/server/addToDatasetRouter";
+import { runEvaluationRouter } from "@/src/background-jobs/batch-actions/server/runEvaluationRouter";
+import { batchActionRouter } from "@/src/background-jobs/batch-actions/server/batchActionRouter";
 import { env } from "@/src/env.mjs";
 
 const mutableEnv = env as unknown as {

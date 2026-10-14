@@ -1,5 +1,5 @@
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
-import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
+import { PostTracesV1Response } from "@/src/public-api/types/traces";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";

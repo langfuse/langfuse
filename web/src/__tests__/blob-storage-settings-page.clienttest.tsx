@@ -15,7 +15,7 @@ vi.mock("next/link", () => ({
   default: ({ children }: { children: ReactNode }) => <a>{children}</a>,
 }));
 
-vi.mock("@/src/components/layouts/container-page", () => ({
+vi.mock("@/src/app/shell/layouts/container-page", () => ({
   default: ({
     children,
     headerProps,
@@ -30,54 +30,57 @@ vi.mock("@/src/components/layouts/container-page", () => ({
   ),
 }));
 
-vi.mock("@/src/components/layouts/header", () => ({
+vi.mock("@/src/app/shell/layouts/header", () => ({
   default: ({ title }: { title: string }) => <h2>{title}</h2>,
 }));
 
-vi.mock("@/src/components/ui/StatusBadge/StatusBadge", () => ({
-  StatusBadge: () => null,
-}));
+vi.mock(
+  "@/src/app/design-system/legacy-primitives/StatusBadge/StatusBadge",
+  () => ({
+    StatusBadge: () => null,
+  }),
+);
 
-vi.mock("@/src/components/ui/button", () => ({
+vi.mock("@/src/app/design-system/legacy-primitives/button", () => ({
   Button: ({ children }: { children: ReactNode }) => (
     <button>{children}</button>
   ),
 }));
 
-vi.mock("@/src/components/ui/card", () => ({
+vi.mock("@/src/app/design-system/legacy-primitives/card", () => ({
   Card: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock(
-  "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton",
+  "@/src/analytics/customer-integrations/common/components/IntegrationSettingsSkeleton",
   () => ({
     IntegrationSettingsSkeleton: () => <div>Loading configuration</div>,
   }),
 );
 
 vi.mock(
-  "@/src/features/blobstorage-integration/components/BlobStorageIntegrationContainer",
+  "@/src/data-export/object-storage/components/BlobStorageIntegrationContainer",
   () => ({
     BlobStorageIntegrationContainer: () => <div>Blob storage form</div>,
   }),
 );
 
 vi.mock(
-  "@/src/features/blobstorage-integration/components/BlobStorageStatusSection",
+  "@/src/data-export/object-storage/components/BlobStorageStatusSection",
   () => ({
     BlobStorageStatusSection: () => <div>Blob storage status</div>,
   }),
 );
 
-vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+vi.mock("@/src/identity/access-control/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => mocks.hasAccess,
 }));
 
-vi.mock("@/src/features/entitlements/hooks", () => ({
+vi.mock("@/src/entitlements/hooks", () => ({
   useHasEntitlement: () => mocks.hasEntitlement,
 }));
 
-vi.mock("@/src/utils/api", () => ({
+vi.mock("@/src/app/utils/api", () => ({
   api: {
     blobStorageIntegration: {
       get: {
@@ -87,7 +90,7 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-import BlobStorageIntegrationPage from "@/src/features/blobstorage-integration/BlobStorageIntegrationPage";
+import BlobStorageIntegrationPage from "@/src/data-export/object-storage/BlobStorageIntegrationPage";
 
 describe("BlobStorageIntegrationPage entitlement gate", () => {
   beforeEach(() => {

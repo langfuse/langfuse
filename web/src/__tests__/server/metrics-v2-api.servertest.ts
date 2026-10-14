@@ -3,7 +3,7 @@ import {
   makeZodVerifiedAPICall,
   makeAPICall,
 } from "@/src/__tests__/test-utils";
-import { GetMetricsV1Response } from "@/src/features/public-api/types/metrics";
+import { GetMetricsV1Response } from "@/src/public-api/types/metrics";
 import {
   createEvent,
   createEventsCh,
@@ -14,7 +14,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
-import { isMetricsV2Available } from "@/src/pages/api/public/v2/metrics";
+import { isMetricsV2Available } from "@/pages/api/public/v2/metrics";
 
 const hasV2Apis = isMetricsV2Available();
 const maybe = hasV2Apis ? describe : describe.skip;

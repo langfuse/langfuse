@@ -6,9 +6,9 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 
-import { Authenticator } from "@/src/features/apiKey/server";
-import { authorize } from "@/src/features/rbac/authorize";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { Authenticator } from "@/src/public-api/project-api-keys/server";
+import { authorize } from "@/src/identity/access-control/authorize";
+import { ApiAuthService } from "@/src/public-api/server/apiAuth";
 
 describe("policy authenticate() composition", () => {
   let fixture: Awaited<ReturnType<typeof createOrgProjectAndApiKey>>;

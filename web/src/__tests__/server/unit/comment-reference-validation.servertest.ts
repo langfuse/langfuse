@@ -1,5 +1,5 @@
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
+import { validateCommentReferenceObject } from "@/src/annotation/comments/validateCommentReferenceObject";
 
 const mocks = vi.hoisted(() => ({
   getObservationById: vi.fn(),

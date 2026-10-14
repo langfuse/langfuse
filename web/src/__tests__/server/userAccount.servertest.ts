@@ -11,8 +11,8 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
   getFeaturePreviewOptOutFlag,
   INTERNAL_FEATURE_FLAG,
-} from "@/src/features/feature-flags/server";
-import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
+} from "@/src/release-management/feature-flags/server";
+import { getSessionLoginAt } from "@/src/identity/auth/lib/sessionExpiration";
 import { getAuthOptions } from "@/src/server/auth";
 
 describe("userAccountRouter.setFeaturePreviewEnabled", () => {

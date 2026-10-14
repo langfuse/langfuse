@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   advanceSessionsExpiredAtForUser,
   getSessionLoginAt,
-} from "@/src/features/auth/lib/sessionExpiration";
+} from "@/src/identity/auth/lib/sessionExpiration";
 import { prisma } from "@langfuse/shared/src/db";
 
 describe("session expiration", () => {

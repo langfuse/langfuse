@@ -7,15 +7,15 @@ const { getFileContents, shadowAuth } = vi.hoisted(() => ({
   shadowAuth: vi.fn(),
 }));
 
-vi.mock("@/src/features/skills/server", () => ({
+vi.mock("@/src/ai/skills/server", () => ({
   SkillService: class {
     getFileContents = getFileContents;
   },
 }));
 
-vi.mock("@/src/features/public-api/server/shadowAuth", () => ({ shadowAuth }));
+vi.mock("@/src/public-api/server/shadowAuth", () => ({ shadowAuth }));
 
-vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
+vi.mock("@/src/public-api/server/RateLimitService", () => ({
   RateLimitService: {
     getInstance: () => ({
       rateLimitRequest: async () => ({ isRateLimited: () => false }),
@@ -23,19 +23,19 @@ vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   },
 }));
 
-vi.mock("@/src/features/ai-gateway/server", () => ({
+vi.mock("@/src/ai/gateway/management-ui/server", () => ({
   verifyGatewayIngestionAuthorization: vi.fn(),
 }));
 
-vi.mock("@/src/features/public-api/server", async () => {
+vi.mock("@/src/public-api/server", async () => {
   const { createAuthedProjectAPIRoute } =
-    await import("@/src/features/public-api/server/createAuthedProjectAPIRoute");
+    await import("@/src/public-api/server/createAuthedProjectAPIRoute");
   const { withMiddlewares } =
-    await import("@/src/features/public-api/server/withMiddlewares");
+    await import("@/src/public-api/server/withMiddlewares");
   return { createAuthedProjectAPIRoute, withMiddlewares };
 });
 
-import handler from "@/src/pages/api/public/unstable/skills/files/content";
+import handler from "@/pages/api/public/unstable/skills/files/content";
 
 const hashes = [
   Buffer.alloc(32, 251).toString("base64"),

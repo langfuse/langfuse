@@ -1,0 +1,1038 @@
+@import "tailwindcss" source("../..");
+@plugin "@tailwindcss/typography";
+
+@source "../../../pages";
+@source "../../../node_modules/@ferrucc-io/emoji-picker/dist";
+@source "../../../node_modules/streamdown/dist/*.js";
+
+@plugin "@tailwindcss/forms";
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:where(.dark, .dark *));
+/* Session metrics bar is open above a stacked annotation column. */
+@custom-variant session-review-stack (&:is([data-trace-review-open][data-review-orientation=vertical] *));
+
+/* App font tokens. The typeface is deliberately DEFERRED: the app ships the
+   system stacks while the token system (families here, weight roles below,
+   text-* size+weight tokens) stays fully font-relative. Adopting a webfont
+   later = load it via next/font in a src/app/styles/fonts.ts (declare its vars on
+   :root from _app — next/font CSS is silently dropped in _document), prepend
+   its var to the stacks below, and retune the two weight-role numbers
+   (history: IBM Plex wanted bold 500, Inter bold 600). The theme-lab panel
+   can preview typefaces live without shipping them. Deliberately a plain
+   @theme block (not `inline`): preflight reads var(--font-sans) at runtime,
+   and only non-inline themes emit the :root custom property. `static`: emit
+   the weight-role vars even when unused in source — the theme-lab tool and
+   inline styles read them at runtime. */
+@theme static {
+  --font-sans:
+    ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono:
+    var(--font-plex-mono, "IBM Plex Mono"), ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Weight ROLES — exactly TWO weights exist in this app: regular and bold.
+     Both are font-relative, so components never hardcode numbers.
+     `--font-weight-bold` deliberately overrides Tailwind's built-in bold
+     (700): the `font-bold` utility IS the bold role. font-medium /
+     font-semibold / raw numbers are drift — use font-bold or nothing. */
+  --font-weight-regular: 400;
+  --font-weight-bold: 600;
+}
+
+@theme inline {
+  /* Disable unused built-in Tailwind color palettes. */
+  --color-lime-*: initial;
+  --color-cyan-*: initial;
+  --color-sky-*: initial;
+  --color-fuchsia-*: initial;
+  --color-rose-*: initial;
+  --color-neutral-*: initial;
+  --color-stone-*: initial;
+  --color-slate-*: initial;
+  --color-zinc-*: initial;
+  --color-indigo-*: initial;
+
+  /* TODO: Disable the remaining default palettes: red, orange, amber, yellow,
+     green, emerald, teal, blue, violet, purple, pink, gray. */
+
+  --spacing-banner-offset: var(--banner-offset);
+  --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
+
+  --color-primary-accent: hsl(var(--primary-accent));
+  --color-primary-accent-fill: var(--primary-accent-fill);
+  --color-link: hsl(var(--link));
+  --color-link-hover: hsl(var(--link-hover));
+  --color-preview-banner: hsl(var(--preview-banner));
+  --color-preview-banner-foreground: hsl(var(--preview-banner-foreground));
+  --color-preview-banner-border: hsl(var(--preview-banner-border));
+  --color-preview-banner-link: hsl(var(--preview-banner-link));
+  --color-preview-banner-link-hover: hsl(var(--preview-banner-link-hover));
+  --color-control-fill: hsl(var(--control-fill));
+  --color-control-track: hsl(var(--control-track));
+  --color-control-border: hsl(var(--control-border));
+  --color-foreground-tertiary: hsl(var(--foreground-tertiary));
+  --color-foreground-secondary: hsl(var(--foreground-secondary));
+  --color-icon-foreground: hsl(var(--icon-foreground));
+  --color-surface-code: hsl(var(--surface-code));
+  --color-surface-code-header: hsl(var(--surface-code-header));
+  --color-surface-sunken: hsl(var(--surface-sunken));
+  --color-surface-output: hsl(var(--surface-output));
+  /* Sticky table chrome; hosts on another surface set --surface-context. */
+  --color-surface: var(--surface-context, hsl(var(--background)));
+  --color-muted-magenta: hsl(var(--muted-magenta));
+  --color-muted-blue: hsl(var(--muted-blue));
+  --color-muted-green: hsl(var(--muted-green));
+  --color-muted-gray: hsl(var(--muted-gray));
+
+  --color-observation-trace: var(--observation-trace);
+  --color-observation-trace-line: var(--observation-trace-line);
+  --color-observation-trace-fill: var(--observation-trace-fill);
+  --color-observation-span: var(--observation-span);
+  --color-observation-span-line: var(--observation-span-line);
+  --color-observation-span-fill: var(--observation-span-fill);
+  --color-observation-generation: var(--observation-generation);
+  --color-observation-generation-line: var(--observation-generation-line);
+  --color-observation-generation-fill: var(--observation-generation-fill);
+  --color-observation-event: var(--observation-event);
+  --color-observation-event-line: var(--observation-event-line);
+  --color-observation-event-fill: var(--observation-event-fill);
+  --color-observation-agent: var(--observation-agent);
+  --color-observation-agent-line: var(--observation-agent-line);
+  --color-observation-agent-fill: var(--observation-agent-fill);
+  --color-observation-evaluator: var(--observation-evaluator);
+  --color-observation-evaluator-line: var(--observation-evaluator-line);
+  --color-observation-evaluator-fill: var(--observation-evaluator-fill);
+  --color-observation-tool: var(--observation-tool);
+  --color-observation-tool-line: var(--observation-tool-line);
+  --color-observation-tool-fill: var(--observation-tool-fill);
+  --color-observation-chain: var(--observation-chain);
+  --color-observation-chain-line: var(--observation-chain-line);
+  --color-observation-chain-fill: var(--observation-chain-fill);
+  --color-observation-retriever: var(--observation-retriever);
+  --color-observation-retriever-line: var(--observation-retriever-line);
+  --color-observation-retriever-fill: var(--observation-retriever-fill);
+  --color-observation-embedding: var(--observation-embedding);
+  --color-observation-embedding-line: var(--observation-embedding-line);
+  --color-observation-embedding-fill: var(--observation-embedding-fill);
+  --color-observation-guardrail: var(--observation-guardrail);
+  --color-observation-guardrail-line: var(--observation-guardrail-line);
+  --color-observation-guardrail-fill: var(--observation-guardrail-fill);
+  --color-accent-light-green: hsl(var(--accent-light-green));
+  --color-accent-dark-green: hsl(var(--accent-dark-green));
+  /* These six status tokens hold complete oklch colors (tints carry baked
+     alpha), unlike the hsl-triplet tokens around them — do not wrap in hsl(). */
+  --color-light-red: var(--light-red);
+  --color-dark-red: var(--dark-red);
+  --color-light-yellow: var(--light-yellow);
+  --color-dark-yellow: var(--dark-yellow);
+  --color-light-green: var(--light-green);
+  --color-dark-green: var(--dark-green);
+  --color-light-blue: hsl(var(--light-blue));
+  --color-dark-blue: hsl(var(--dark-blue));
+  --color-accent-light-blue: hsl(var(--accent-light-blue));
+  --color-accent-dark-blue: hsl(var(--accent-dark-blue));
+  --color-light-violet: hsl(var(--light-violet));
+  --color-dark-violet: hsl(var(--dark-violet));
+  --color-light-teal: hsl(var(--light-teal));
+  --color-dark-teal: hsl(var(--dark-teal));
+
+  /* Match the canvas palette in features/topics/topic-map-colors.ts. */
+  --color-category-violet: #7c3aed;
+  --color-category-sky: #0284c7;
+  --color-category-emerald: #059669;
+  --color-category-amber: #d97706;
+  --color-category-pink: #db2777;
+  --color-category-indigo: #4f46e5;
+  --color-category-teal: #0d9488;
+  --color-category-orange: #c2410c;
+  --color-category-lime: #65a30d;
+  --color-category-fuchsia: #a21caf;
+
+  /* Search-bar query syntax highlighting (key:value token parts). Operators
+     (`:` `-` `(` `)`) reuse muted-foreground, so no token for them here. */
+  --color-qlang-field: hsl(var(--qlang-field));
+  --color-qlang-value: hsl(var(--qlang-value));
+  --color-qlang-number: hsl(var(--qlang-number));
+  --color-qlang-keyword: hsl(var(--qlang-keyword));
+
+  --color-json-value-string: var(--json-value-string);
+  --color-json-value-number: var(--json-value-number);
+  --color-json-value-boolean: var(--json-value-boolean);
+  --color-json-value-nullish: var(--json-value-nullish);
+
+  --color-border: hsl(var(--border));
+  --color-border-contrast: hsl(var(--border-contrast));
+  --color-line-dotted: hsl(var(--line-dotted));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-tertiary: hsl(var(--tertiary));
+  --color-tertiary-foreground: hsl(var(--tertiary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-modal: hsl(var(--modal));
+  --color-modal-foreground: hsl(var(--modal-foreground));
+  --color-header: hsl(var(--header));
+  --color-header-foreground: hsl(var(--header-foreground));
+  --color-sidebar: hsl(var(--sidebar-background));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --color-find-match-background: hsl(var(--find-match-background));
+  --color-find-match-selected-background: hsl(
+    var(--find-match-selected-background)
+  );
+  --color-find-match-selected-foreground: hsl(
+    var(--find-match-selected-foreground)
+  );
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+
+  /* Text styles: each size token carries its size (whole pixels at a 16px
+     root), line-height and canonical weight, so `text-*` alone yields a
+     complete style. Heavier text opts in via `font-bold`, never a raw number. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: calc(16 / 11);
+  --text-2xs--font-weight: var(--font-weight-regular);
+  --text-xs: 0.75rem;
+  --text-xs--line-height: calc(18 / 12);
+  --text-xs--font-weight: var(--font-weight-regular);
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: calc(20 / 13);
+  --text-sm--font-weight: var(--font-weight-regular);
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.5;
+  --text-base--font-weight: var(--font-weight-regular);
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.35;
+  --text-lg--font-weight: var(--font-weight-regular);
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.3;
+  --text-xl--font-weight: var(--font-weight-regular);
+  --text-2xl: 1.375rem;
+  --text-2xl--line-height: 1.25;
+  --text-2xl--font-weight: var(--font-weight-regular);
+  --text-3xl: 1.5rem;
+  --text-3xl--line-height: 1.25;
+  --text-3xl--font-weight: var(--font-weight-regular);
+
+  --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-appear: appear 0.2s ease-out forwards;
+  --animate-appear-delayed: appear 0s linear 150ms forwards;
+  /* Cycle length comes from REFETCH_SWEEP_MS in components/table/data-table.tsx,
+     which sets --table-refetch-cycle on the element: the same number also
+     releases the busy flag on a whole sweep, so the two must not drift. */
+  --animate-table-refetch: table-refetch var(--table-refetch-cycle, 1.4s) linear
+    infinite;
+  --animate-table-refetch-in: table-refetch-fade-in 200ms ease-out;
+
+  /* Sweeps the highlight of the table's refetch bar across its track. It starts
+     and ends fully outside the (clipped) track, so the jump back to the start is
+     never visible — inside the track it reads as a blink every cycle. Linear,
+     because eased motion makes that wrap even more obvious. The highlight is a
+     third of the track wide, hence -100%/300% of its own width. */
+  @keyframes table-refetch {
+    from {
+      transform: translateX(-100%);
+    }
+
+    to {
+      transform: translateX(300%);
+    }
+  }
+
+  @keyframes table-refetch-fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes rainbow {
+    0% {
+      background-position: 0%;
+    }
+
+    100% {
+      background-position: 200%;
+    }
+  }
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+
+    to {
+      height: 0;
+    }
+  }
+
+  @keyframes appear {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+
+  Uses the theme-aware --border token: the `* { @apply border-border }` reset
+  below already wins for real elements, so this only governs pseudo-elements —
+  which previously got a light-only gray-200 in both themes.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: hsl(var(--border));
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 3.7% 15.9%; /* zinc-800 */
+
+    --muted: 240 4.8% 95.9%; /* zinc-100 */
+    --muted-foreground: 240 3.8% 46.1%; /* zinc-500 */
+    /* Text between body and muted: content that is not a heading or label. */
+    --foreground-secondary: 240 5.2% 33.9%; /* zinc-600 */
+    /* Faintest text tier: placeholders, disabled, hints — one step below
+       muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
+       on white — flagged in review, kept per design preference for now. */
+    --foreground-tertiary: 240 5% 64.9%; /* zinc-400 */
+    /* Icon glyphs next to text: same tier as muted-foreground. */
+    --icon-foreground: 240 3.8% 46.1%; /* zinc-500 */
+    /* Code blocks sit a step BELOW their surrounding surface ("code is a
+         well"), matching the docs site's --surface-code convention. */
+    --surface-code: 0 0% 92%;
+    --surface-code-header: 0 0% 86%;
+    --surface-sunken: 0 0% 99%; /* between white and zinc-50 */
+    --surface-output: 240 4.8% 95.9%; /* zinc-100 */
+
+    --popover: 0 0% 100%;
+    --popover-foreground: var(--foreground);
+
+    --card: 0 0% 100%;
+    --card-foreground: var(--foreground);
+
+    /* Blocking overlay surfaces (Dialog/AlertDialog/Sheet/Drawer/peek).
+       Light themes keep the alternating white model (Carbon: light layers
+       alternate, dark layers step lighter), so this matches --background. */
+    --modal: 0 0% 100%;
+    --modal-foreground: var(--foreground);
+
+    --header: 0 0% 98%; /* zinc-50 */
+    --header-foreground: var(--foreground);
+
+    --border: 240 5.9% 90%; /* zinc-200 */
+    /* Structural/viz lines (tree connectors, timeline grid + bar outlines):
+       one clear step stronger than the hairline --border. */
+    --border-contrast: 240 4.9% 83.9%; /* zinc-300 */
+    --line-dotted: 240 5.2% 33.9%; /* zinc-600 */
+    --input: 240 5.9% 90%; /* zinc-200 */
+
+    --primary: 240 5.9% 10%; /* zinc-900 */
+    --primary-foreground: 0 0% 98%; /* zinc-50 */
+
+    --secondary: 240 4.8% 95.9%; /* zinc-100 */
+    --secondary-foreground: 240 5.9% 10%; /* zinc-900 */
+
+    --tertiary: 240 5.9% 90%; /* zinc-200 */
+    --tertiary-foreground: 240 5.9% 10%; /* zinc-900 */
+
+    --accent: 240 4.8% 95.9%; /* zinc-100 */
+    --accent-foreground: 240 3.7% 15.9%; /* zinc-800 */
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%; /* zinc-50 */
+
+    --ring: 240 5% 64.9%; /* zinc-400 */
+
+    --primary-accent: 243 75.4% 58.6%;
+    --primary-accent-fill: hsl(var(--primary-accent));
+    /* Hyperlinks get their own pair (tabs/selection stay on primary-accent):
+       same lavender family as dark, but muted — links shouldn't be the
+       loudest thing on a light page — with a clearly darker hover step. */
+    --link: 246 40% 50%;
+    --link-hover: 246 55% 36%;
+    /* Preview-deployment strip (PR previews only): soft blue tint with text
+       darker than the fill, links a step brighter than body text. Values are
+       the blue-100/950/200/700/800 ramp. */
+    --preview-banner: 214 95% 93%;
+    --preview-banner-foreground: 226 57% 21%;
+    --preview-banner-border: 213 97% 87%;
+    --preview-banner-link: 224 76% 48%;
+    --preview-banner-link-hover: 226 71% 40%;
+    /* Checked selection controls (checkbox/switch): monochrome in BOTH
+       modes — dark fill + light glyph in light, muted-white fill + dark
+       glyph in dark. Deliberately dimmer than --primary in dark so checked
+       controls don't outshine content (fills read louder than text).
+       --control-track is the switch's off-state track. */
+    --control-fill: 240 5.9% 10%; /* zinc-900 */
+    --control-track: 240 5.9% 90%; /* zinc-200 */
+    /* Unchecked control boundary — quieter than the near-black fill in light,
+       a touch above --input in dark so the box still reads on the canvas. */
+    --control-border: 240 5% 64.9%; /* zinc-400 */
+
+    --muted-green: 84 81% 44%;
+    --muted-magenta: 330 90% 70%;
+    --muted-blue: 239 84% 67%;
+    --muted-gray: 240 5.9% 90%; /* zinc-200 */
+
+    /* Observation type hues: one lightness and chroma so no type outweighs another */
+    /* -line: stroked icons and borders. -fill: tiles and bars under white icons. */
+    --observation-trace: oklch(68% 0.18 163);
+    --observation-trace-line: oklch(55% 0.21 163);
+    --observation-trace-fill: oklch(61% 0.2 163);
+    --observation-span: oklch(68% 0.18 265);
+    --observation-span-line: oklch(55% 0.21 265);
+    --observation-span-fill: oklch(61% 0.2 265);
+    --observation-generation: oklch(68% 0.18 335);
+    --observation-generation-line: oklch(55% 0.21 335);
+    --observation-generation-fill: oklch(61% 0.2 335);
+    --observation-event: oklch(68% 0.18 115);
+    --observation-event-line: oklch(55% 0.21 115);
+    --observation-event-fill: oklch(61% 0.2 115);
+    --observation-agent: oklch(68% 0.18 310);
+    --observation-agent-line: oklch(55% 0.21 310);
+    --observation-agent-fill: oklch(61% 0.2 310);
+    --observation-evaluator: oklch(68% 0.18 285);
+    --observation-evaluator-line: oklch(55% 0.21 285);
+    --observation-evaluator-fill: oklch(61% 0.2 285);
+    --observation-tool: oklch(68% 0.18 55);
+    --observation-tool-line: oklch(55% 0.21 55);
+    --observation-tool-fill: oklch(61% 0.2 55);
+    --observation-chain: oklch(68% 0.18 0);
+    --observation-chain-line: oklch(55% 0.21 0);
+    --observation-chain-fill: oklch(61% 0.2 0);
+    --observation-retriever: oklch(68% 0.18 145);
+    --observation-retriever-line: oklch(55% 0.21 145);
+    --observation-retriever-fill: oklch(61% 0.2 145);
+    --observation-embedding: oklch(68% 0.18 85);
+    --observation-embedding-line: oklch(55% 0.21 85);
+    --observation-embedding-fill: oklch(61% 0.2 85);
+    --observation-guardrail: oklch(68% 0.18 25);
+    --observation-guardrail-line: oklch(55% 0.21 25);
+    --observation-guardrail-fill: oklch(61% 0.2 25);
+
+    --accent-light-green: 138 76.5% 98%;
+    --accent-dark-green: 112 100% 32%;
+
+    /* Status pairs: light-* tinted fills (alpha baked in), dark-* the
+       readable text/icon color on them. */
+    --light-red: oklch(93.6% 0.032 17.717 / 0.7);
+    --dark-red: oklch(63.7% 0.237 25.331);
+
+    --light-yellow: oklch(97.3% 0.071 103.193 / 0.7);
+    --dark-yellow: oklch(47.6% 0.114 61.907);
+
+    --light-green: oklch(95% 0.052 163.051 / 0.7);
+    --dark-green: oklch(43.2% 0.095 166.913);
+
+    --light-blue: 214 94.6% 92.7%;
+    --dark-blue: 227.1 75.7% 41.1%;
+
+    --accent-light-blue: 251 95.2% 91.8%;
+    --accent-dark-blue: 224 76.3% 38%;
+
+    /* Violet + teal hue pairs, same bg/fg recipe as the light-X/dark-X pairs
+       above. Added for the score-level color coding (ScoreTag, LFE-10596):
+       observation=blue, trace=violet, session=teal, experiment=yellow — the
+       blue and yellow pairs are reused from above. */
+    --light-violet: 251 91% 95.5%;
+    --dark-violet: 262 72% 54%;
+
+    --light-teal: 167 85% 89%;
+    --dark-teal: 175 84% 28%;
+
+    /* Search-bar query syntax highlighting — a DELIBERATE editor-style syntax
+       theme (like a code editor's theme), intentionally its own thing rather
+       than the app palette: field=violet, value=green, number=orange,
+       keyword=blue. Scoped to the filter grammar (key:value pills); retune
+       freely, a designer can own these later. Operators reuse muted-foreground.
+       Values from the langfuse-search-bar prototype. */
+    --qlang-field: 263.4 69.3% 42.2%; /* violet-800 */
+    --qlang-value: 162.9 93.5% 24.3%; /* emerald-700 */
+    --qlang-number: 17.5 88.3% 40.4%; /* orange-700 */
+    --qlang-keyword: 224.3 76.3% 48%; /* blue-700 */
+
+    --json-value-string: var(--color-green-800);
+    --json-value-number: var(--color-blue-800);
+    --json-value-boolean: var(--color-orange-800);
+    --json-value-nullish: var(--color-gray-500);
+
+    --radius: 0.5rem;
+    --sidebar-background: var(--surface-sunken);
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 5.2% 93.5%; /* between zinc-100 and zinc-200 */
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 240 5.9% 90%; /* zinc-200 */
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    --find-match-background: 60 60% 85%;
+    --find-match-selected-background: 60 100% 50%;
+    --find-match-selected-foreground: 0 0% 0%;
+
+    --chart-1: 239 84% 66%;
+    --chart-2: 188 94% 30%;
+    --chart-3: 240 4% 48%;
+    --chart-4: 271 91% 61%;
+    --chart-5: 48 96% 29%;
+    --chart-6: 0 84% 50%;
+    --chart-7: 84 81% 28%;
+    --chart-8: 330 81% 49%;
+    --chart-grid: var(--muted-gray);
+    --color-1: oklch(66.2% 0.225 25.9);
+    --color-2: oklch(60.4% 0.26 302);
+    --color-3: oklch(69.6% 0.165 251);
+    --color-4: oklch(80.2% 0.134 225);
+    --color-5: oklch(90.7% 0.231 133);
+
+    /* Banner height system for fixed/sticky positioning
+       Banner components dynamically update --banner-height via JS */
+    --banner-height: 0px;
+    --banner-offset: calc(
+      env(safe-area-inset-top, 0px) + var(--banner-height, 0px)
+    );
+
+    /* `env()` is CSS-only, so mirror the insets into custom properties that JS
+       can read (getComputedStyle resolves them to px). Non-zero only because
+       the viewport meta sets `viewport-fit=cover` — see pages/_app.tsx. */
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-right: env(safe-area-inset-right, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-left: env(safe-area-inset-left, 0px);
+  }
+
+  .dark {
+    /* Surface ladder — "layers become one step lighter with each added
+       layer" (Carbon's dark-theme layering model; Hex and Cloudflare Kumo
+       follow the same structure). The GLOBAL FRAME (header/sidebar chrome)
+       is the darkest tier; the content canvas sits one step above it, and
+       every stacked layer steps up from there:
+         chrome 2% < canvas 6% < card 7.5% < modal 9% < popover 12%.
+       The bottom step is the widest (chrome→canvas) — equal pp steps read
+       smaller near black, and the frame/content split carries the layout.
+       Popovers outrank modals because menus/tooltips open on top of dialogs.
+       Never paint a surface darker than what it floats above (Carbon rule).
+       --surface-code stays BELOW its surroundings — it is the one recessed
+       tier ("code is a well"). Elevation is carried by these lightness steps
+       plus hairline borders, not shadows. */
+    /* Neutral (zero-saturation) ladder — de-tinted per Trang's call after a
+       cool/neutral/warm A-B. Text hierarchy comes from the WIDE GAP between
+       tiers: emphasis 91% > body 70% > meta 54% > faint 40% (body tuned live 2026-07-16), with sidebar nav
+       dimmer than content until active. Bright tiers cap near 91% (the docs
+       site caps at 90%) — never near-white. Don't compress the ramp — the
+       gap is the hierarchy. */
+    --background: 0 0% 6%;
+    --foreground: 0 0% 70%;
+
+    --muted: 0 0% 11.6%;
+    --muted-foreground: 0 0% 54%;
+    --foreground-secondary: 0 0% 62%;
+    --foreground-tertiary: 0 0% 40%;
+    --icon-foreground: 0 0% 54%;
+    --surface-code: 0 0% 2.3%;
+    --surface-code-header: 0 0% 8.2%;
+    --surface-sunken: 0 0% 8%; /* one step below the modal */
+    --surface-output: var(--popover);
+
+    --popover: 0 0% 12%;
+    --popover-foreground: var(--foreground);
+
+    --card: 0 0% 7.5%;
+    --card-foreground: var(--foreground);
+
+    --modal: 0 0% 9%;
+    --modal-foreground: var(--foreground);
+
+    --header: 0 0% 2%;
+    --header-foreground: var(--foreground);
+
+    /* Hairline must read on EVERY surface tier, including popover (12%). */
+    --border: 0 0% 20%;
+    --border-contrast: 0 0% 26%;
+    --line-dotted: 0 0% 42%;
+    --input: 0 0% 18%;
+
+    --primary: 0 0% 90%;
+    --primary-foreground: 0 0% 3.5%;
+
+    --secondary: 0 0% 11.6%;
+    --secondary-foreground: 0 0% 88%;
+
+    --tertiary: 0 0% 16.5%;
+    --tertiary-foreground: 0 0% 88%;
+
+    /* One clear step above --popover (12%) — focus:bg-accent is the only
+       focus cue in menus/selects/⌘K, and 14.3% was a near-invisible ~1.13:1. */
+    --accent: 0 0% 18%;
+    --accent-foreground: 0 0% 70%;
+
+    --destructive: 0 78.7% 63.1%;
+    --destructive-foreground: 0 0% 100%;
+
+    --ring: 246 55% 70%;
+
+    --primary-accent: 246 55% 70%;
+    --primary-accent-fill: oklch(50% 0.11 287);
+    --link: 246 55% 70%;
+    --link-hover: 246 95% 85%;
+    /* Preview-deployment strip: fill is blue-500/25 precomposed over the 6%
+       canvas, border is blue-300/20 precomposed over that fill — the strip
+       needs opaque colors. Body text stays on the neutral foreground tier;
+       links are blue-400/300. */
+    --preview-banner: 217 47% 19%;
+    --preview-banner-foreground: 0 0% 70%;
+    --preview-banner-border: 215 37% 31%;
+    --preview-banner-link: 213 94% 68%;
+    --preview-banner-link-hover: 212 96% 78%;
+    --control-fill: 0 0% 78%;
+    --control-track: 0 0% 24%;
+    /* Matches --border-contrast: unchecked checkboxes/radios read by their
+       border alone; 20% was ~1.58:1 on the canvas. */
+    --control-border: 0 0% 26%;
+
+    --muted-blue: 215 95% 73.1%;
+    --muted-green: 142 76.7% 73.1%;
+    --muted-magenta: 330 76.7% 73.1%;
+
+    --observation-trace: oklch(75% 0.12 163);
+    --observation-trace-line: oklch(76% 0.11 163);
+    --observation-trace-fill: oklch(50% 0.11 163);
+    --observation-span: oklch(75% 0.12 265);
+    --observation-span-line: oklch(76% 0.11 265);
+    --observation-span-fill: oklch(50% 0.11 265);
+    --observation-generation: oklch(75% 0.12 335);
+    --observation-generation-line: oklch(76% 0.11 335);
+    --observation-generation-fill: oklch(50% 0.11 335);
+    --observation-event: oklch(75% 0.12 115);
+    --observation-event-line: oklch(76% 0.11 115);
+    --observation-event-fill: oklch(50% 0.11 115);
+    --observation-agent: oklch(75% 0.12 310);
+    --observation-agent-line: oklch(76% 0.11 310);
+    --observation-agent-fill: oklch(50% 0.11 310);
+    --observation-evaluator: oklch(75% 0.12 285);
+    --observation-evaluator-line: oklch(76% 0.11 285);
+    --observation-evaluator-fill: oklch(50% 0.11 285);
+    --observation-tool: oklch(75% 0.12 55);
+    --observation-tool-line: oklch(76% 0.11 55);
+    --observation-tool-fill: oklch(50% 0.11 55);
+    --observation-chain: oklch(75% 0.12 0);
+    --observation-chain-line: oklch(76% 0.11 0);
+    --observation-chain-fill: oklch(50% 0.11 0);
+    --observation-retriever: oklch(75% 0.12 145);
+    --observation-retriever-line: oklch(76% 0.11 145);
+    --observation-retriever-fill: oklch(50% 0.11 145);
+    --observation-embedding: oklch(75% 0.12 85);
+    --observation-embedding-line: oklch(76% 0.11 85);
+    --observation-embedding-fill: oklch(50% 0.11 85);
+    --observation-guardrail: oklch(75% 0.12 25);
+    --observation-guardrail-line: oklch(76% 0.11 25);
+    --observation-guardrail-fill: oklch(50% 0.11 25);
+    /* Stays clearly above --card so chart grids (--chart-grid) and disabled
+       badge fills stay discernible on elevated surfaces, without the harshness
+       of --border-contrast (26%). */
+    --muted-gray: 0 0% 16%;
+
+    /* Status pairs: light-* are dark tinted backgrounds (alpha baked in),
+       dark-* the readable text/icon color on them. */
+    --light-red: oklch(39.6% 0.141 25.723 / 0.7);
+    /* Lightened for dark mode like its green and yellow siblings below — left
+       at the light-mode step it was darker than the fill it sits on (2.74:1;
+       5.35:1 here, against green's 6.49 and yellow's 6.43). */
+    --dark-red: oklch(76.5% 0.177 27.325);
+
+    --light-yellow: oklch(55.4% 0.135 66.442 / 0.4);
+    --dark-yellow: oklch(79.5% 0.184 86.047);
+
+    --light-green: oklch(37.8% 0.077 168.94 / 0.7);
+    --dark-green: oklch(76.5% 0.177 163.223);
+
+    --light-blue: 209 45% 15%;
+    --dark-blue: 209 88% 60%;
+
+    /* accent-light-green doubles as a full-height output/diff surface
+       (PrettyJsonView), so it stays a whisper above --card, not chip-strength. */
+    --accent-light-green: 134 15% 9%;
+    --accent-dark-green: 134 50% 55%;
+
+    --accent-light-blue: 240 32.4% 13.9%;
+    --accent-dark-blue: 246 70% 76%;
+
+    /* Score-level violet + teal (see :root): dark tinted bg + bright fg. */
+    --light-violet: 258 40% 16%;
+    --dark-violet: 255 92% 76%;
+
+    --light-teal: 175 40% 12%;
+    --dark-teal: 172 66% 50%;
+
+    /* Search-bar query syntax highlighting (dark). Brighter than light so the
+       key/value read against the dark surface. See :root for the contract. */
+    --qlang-field: 255 92% 76%;
+    --qlang-value: 158 64% 52%;
+    --qlang-number: 27 96% 61%;
+    --qlang-keyword: 213 94% 68%;
+
+    --json-value-string: hsl(142 40% 60%);
+    --json-value-number: hsl(213 50% 68%);
+    --json-value-boolean: hsl(27 50% 61%);
+    --json-value-nullish: var(--color-gray-400);
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 4%; /* one step below the page */
+    --sidebar-foreground: 0 0% 60%;
+    --sidebar-primary: 0 0% 90%;
+    --sidebar-primary-foreground: 0 0% 3.5%;
+    --sidebar-accent: 0 0% 10%;
+    --sidebar-accent-foreground: 0 0% 91%;
+    --sidebar-border: 0 0% 12%;
+    --sidebar-ring: 246 55% 70%;
+
+    --find-match-background: 60 100% 20%;
+    --find-match-selected-background: 60 100% 50%;
+    --find-match-selected-foreground: 0 0% 0%;
+
+    --chart-1: 239 96% 69%;
+    --chart-2: 188 94% 30%;
+    --chart-3: 240 4% 48%;
+    --chart-4: 271 91% 61%;
+    --chart-5: 48 96% 29%;
+    --chart-6: 0 84% 50%;
+    --chart-7: 84 81% 28%;
+    --chart-8: 330 81% 49%;
+    --chart-grid: var(--muted-gray);
+    --color-1: oklch(66.2% 0.225 25.9);
+    --color-2: oklch(60.4% 0.26 302);
+    --color-3: oklch(69.6% 0.165 251);
+    --color-4: oklch(80.2% 0.134 225);
+    --color-5: oklch(90.7% 0.231 133);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  button:not(:disabled):not([aria-disabled="true"]),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  html,
+  body {
+    /* Prevent pull-to-refresh and rubber-banding on the page level only */
+    overscroll-behavior-y: none;
+  }
+
+  /* The page never zooms, so a pinch belongs to the surface under it (omitting
+     `pinch-zoom` is the block; the viewport meta lives in pages/_app.tsx).
+     Naming `html, body` alone is NOT enough: WebKit ignores root-level
+     `touch-action` for page pinch, just as it ignores `user-scalable=no`, and
+     overlays portal OUT of `#__next` into the layer containers, so each needs
+     the declaration. Deliberately layered — vaul injects
+     `[data-vaul-drawer]{touch-action:none}` unlayered, which beats any layer;
+     that is stricter, so the drawer keeps owning its drag. Surfaces that own a
+     gesture set their own `touch-action` (a `touch-*` utility wins over this). */
+  html,
+  body,
+  div#__next,
+  [data-overlay-root] > [data-layer] > * {
+    touch-action: pan-x pan-y;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+  }
+
+  html,
+  body,
+  div#__next,
+  div#__next > div {
+    height: 100%;
+  }
+
+  /* The whole app renders inside #__next. Isolating it into its own stacking
+     context caps every z-index in the app (page header, modals, popovers, …)
+     so none can escape it. LayerProvider appends the overlay layer containers
+     as <body> siblings AFTER #__next, so they paint on top purely by
+     DOM order — see context/LayerContext/LayerContext.tsx. This is what lets layers carry no
+     z-index of their own; z-index stays a LOCAL tool for ordering within a
+     single layer. */
+  div#__next {
+    isolation: isolate;
+  }
+
+  /* Overlay layer roots (see context/LayerContext/LayerContext.tsx). The
+     stack is click-through; each layer is its own isolated stacking context and
+     they order by DOM order (later = on top). The layer containers are
+     `pointer-events: none` so the EMPTY regions around an overlay pass clicks
+     through to the app behind (e.g. the non-modal table peek leaves the rest of
+     the page clickable). Each portaled overlay is appended as a DIRECT CHILD of
+     its layer container (Radix/Vaul `*.Portal` `container`, or `<Layer>`'s
+     `createPortal`), so we opt those overlay roots — and thus their subtrees —
+     back into pointer events here. This makes interactivity correct-by-
+     construction for EVERY overlay routed through a layer, including non-modal
+     ones (peek, Popover, HoverCard, Tooltip) where Radix does NOT manage
+     pointer-events itself (it only sets `auto` when it disables outside pointer
+     events, i.e. modal Dialog/Sheet/AlertDialog/Drawer and DropdownMenu/Select).
+     Without this, a non-modal overlay inherits the container's `none` and is
+     fully click-through — clicks fall to the app underneath. A specific child
+     can still opt back out with its own `pointer-events: none` (e.g. a
+     decorative arrow) — that wins by specificity/cascade. */
+  [data-overlay-root] {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+  }
+  [data-overlay-root] > [data-layer] {
+    position: absolute;
+    inset: 0;
+    isolation: isolate;
+    pointer-events: none;
+  }
+  [data-overlay-root] > [data-layer] > * {
+    pointer-events: auto;
+  }
+}
+
+@layer base {
+  input[type="number"].appearance-none::-webkit-inner-spin-button,
+  input[type="number"].appearance-none::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"].appearance-none {
+    -moz-appearance: textfield;
+    appearance: none;
+  }
+}
+
+@layer utilities {
+  /* react-grid-layout: no tile/container transitions at all — layout
+     changes snap into place. The animations added no value and burned CPU
+     on window resizes and dashboard switches. */
+  .react-grid-layout,
+  .react-grid-item {
+    transition: none !important;
+  }
+
+  /* Custom styles for react-grid-layout resize handle */
+  .react-resizable-handle {
+    position: absolute;
+    bottom: 5px !important;
+    right: 5px !important;
+    background-image: none !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .react-resizable-handle::after {
+    content: "";
+    width: 10px !important;
+    height: 10px !important;
+    border-right: 2px solid currentColor !important;
+    border-bottom: 2px solid currentColor !important;
+  }
+}
+
+/* Icon size scale: icon-sm 12px, icon-base 14px (default), icon-lg 20px, icon-xl 28px. */
+@utility icon-sm {
+  width: calc(var(--spacing) * 3);
+  height: calc(var(--spacing) * 3);
+}
+
+@utility icon-base {
+  width: calc(var(--spacing) * 3.5);
+  height: calc(var(--spacing) * 3.5);
+}
+
+@utility icon-lg {
+  width: calc(var(--spacing) * 5);
+  height: calc(var(--spacing) * 5);
+}
+
+@utility icon-xl {
+  width: calc(var(--spacing) * 7);
+  height: calc(var(--spacing) * 7);
+}
+
+/* A scrollport that says so. Overlay scrollbars — the platform default on
+   macOS, and Chrome's default everywhere — paint nothing until a scroll is
+   already under way, so a region holding more than it shows is
+   indistinguishable from one whose content was truncated: the reader has no
+   reason to try the wheel. This paints a thin scrollbar whenever the content
+   overflows, and still nothing when it fits. `scrollbar-color` also opts
+   Firefox out of overlay scrollbars, which it uses by default too. */
+/* Spaced dotted underline for values with a hover breakdown; drawn below the
+   box so it never changes layout. */
+@utility underline-dotted {
+  position: relative;
+  overflow-clip-margin: var(--spacing);
+  &::after {
+    content: "";
+    position: absolute;
+    right: calc(var(--spacing) * -1);
+    bottom: -1px;
+    left: calc(var(--spacing) * -1);
+    height: 1px;
+    background-image: linear-gradient(
+      to right,
+      hsl(var(--foreground-secondary)) 1px,
+      transparent 1px
+    );
+    background-repeat: repeat-x;
+    background-size: 4px 1px;
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black calc(var(--spacing) * 2),
+      black calc(100% - var(--spacing) * 2),
+      transparent
+    );
+    pointer-events: none;
+  }
+}
+
+/* Vertical twin of underline-dotted, e.g. timeline connectors. */
+@utility dotted-line-y {
+  background-image: linear-gradient(
+    to bottom,
+    hsl(var(--line-dotted)) 1px,
+    transparent 1px
+  );
+  background-repeat: repeat-y;
+  background-size: 1px 4px;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black calc(var(--spacing) * 3),
+    black calc(100% - var(--spacing) * 3),
+    transparent
+  );
+}
+
+@utility scrollbar-visible {
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.6);
+  }
+
+  /* Firefox has no `::-webkit-scrollbar`, so the standard properties are its
+     only way in — and they must NOT reach Chrome, where they take precedence
+     and switch the always-painted scrollbar above back off for an overlay one.
+     Hence the gate rather than declaring both unconditionally. */
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+  }
+}
+
+/* Tailwind's `sr-only` verbatim, plus `top: 0; left: 0`. Without them the box
+   sits at its static position, and since it is absolute, its containing block
+   is the nearest positioned ancestor — usually far outside the scroll container
+   it visually lives in. A scroll container only clips descendants it is a
+   containing block for, so an `sr-only` below the fold escaped the clip and
+   grew the app shell's scrollable overflow, scrolling the whole document.
+   Pinning it to the containing block's origin keeps it inside every box that
+   should clip it. `not-sr-only` still wins: it sets `position: static`, which
+   makes these offsets inert. */
+@utility sr-only {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/*
+ * Fix for Vaul drawer blocking text selection
+ * Vaul applies user-select: none to the entire drawer on desktop via CSS media query
+ * We override this for drawers that set blockTextSelection={false}
+ * See: node_modules/vaul/dist/index.js line 84
+ */
+[data-vaul-drawer][data-allow-text-selection="true"],
+[data-vaul-drawer][data-allow-text-selection="true"] * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}

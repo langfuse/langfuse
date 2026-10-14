@@ -16,14 +16,14 @@ import { env } from "@/src/env.mjs";
 import {
   TURNSTILE_ACTIONS,
   TURNSTILE_FAILED_MESSAGE,
-} from "@/src/features/auth/constants";
+} from "@/src/identity/auth/constants";
 import {
   hashPassword,
   verifyPassword,
-} from "@/src/features/auth-credentials/lib/passwordHash";
-import { verifyTurnstileToken } from "@/src/features/auth/server/verifyTurnstile";
-import type * as VerifyTurnstileModule from "@/src/features/auth/server/verifyTurnstile";
-import auth from "@/src/pages/api/auth/[...nextauth]";
+} from "@/src/identity/auth/passwords/lib/passwordHash";
+import { verifyTurnstileToken } from "@/src/identity/auth/server/verifyTurnstile";
+import type * as VerifyTurnstileModule from "@/src/identity/auth/server/verifyTurnstile";
+import auth from "@/pages/api/auth/[...nextauth]";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { getAuthOptions } from "@/src/server/auth";
@@ -31,7 +31,7 @@ import { getCookieName } from "@/src/server/utils/cookies";
 import { prisma } from "@langfuse/shared/src/db";
 
 vi.mock(
-  "@/src/features/auth/server/verifyTurnstile",
+  "@/src/identity/auth/server/verifyTurnstile",
   async (importOriginal) => {
     const actual = await importOriginal<typeof VerifyTurnstileModule>();
     return {

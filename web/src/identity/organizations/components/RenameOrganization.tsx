@@ -1,0 +1,129 @@
+import { useHasOrganizationAccess } from "@/src/identity/access-control";
+import { Button } from "@/src/app/design-system/legacy-primitives/button";
+import { Input } from "@/src/app/design-system/legacy-primitives/input";
+import { api, reportTrpcErrorWithoutToast } from "@/src/app/utils/api";
+import type * as z from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormMessage,
+} from "@/src/app/design-system/legacy-primitives/form";
+import { projectNameSchema } from "@/src/identity/auth";
+import Header from "@/src/app/shell/layouts/header";
+import { usePostHogClientCapture } from "@/src/analytics/internal/posthog";
+import { useQueryOrganization } from "@/src/identity/organizations/hooks";
+import { Card } from "@/src/app/design-system/legacy-primitives/card";
+import { LockIcon } from "lucide-react";
+import { useSession } from "next-auth/react";
+
+export default function RenameOrganization() {
+  const { update: updateSession } = useSession();
+  const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
+  const organization = useQueryOrganization();
+  const hasAccess = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organization:update",
+  });
+
+  const orgName =
+    organization && "name" in organization ? organization.name : "";
+
+  const form = useForm({
+    resolver: zodResolver(projectNameSchema),
+    defaultValues: {
+      name: "",
+    },
+  });
+  const renameOrganization = api.organizations.update.useMutation({
+    onSuccess: () => {
+      updateSession();
+      // Admins resolve org/project context from these queries, not the session
+      utils.organizations.byId.invalidate();
+      utils.projects.byId.invalidate();
+    },
+    onError: (error) => form.setError("name", { message: error.message }),
+  });
+
+  function onSubmit(values: z.infer<typeof projectNameSchema>) {
+    if (!organization || !hasAccess) return;
+    capture("organization_settings:rename_form_submit");
+    renameOrganization
+      .mutateAsync({
+        orgId: organization.id,
+        name: values.name,
+      })
+      .then(() => {
+        form.reset();
+      })
+      .catch((error) => reportTrpcErrorWithoutToast(error, "organizations"));
+  }
+
+  return (
+    <div>
+      <Header title="Organization Name" />
+      <Card className="mb-4 p-3">
+        {form.getValues().name !== "" ? (
+          <p className="text-primary mb-4 text-sm">
+            Your Organization will be renamed from &quot;
+            {orgName}
+            &quot; to &quot;
+            <b>{form.watch().name}</b>&quot;.
+          </p>
+        ) : (
+          <p className="mb-4 text-sm">
+            Your Organization is currently named &quot;<b>{orgName}</b>
+            &quot;.
+          </p>
+        )}
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex-1"
+            id="rename-organization-form"
+          >
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <div className="relative">
+                      <Input
+                        placeholder={orgName}
+                        {...field}
+                        className="flex-1"
+                        disabled={!hasAccess}
+                      />
+                      {!hasAccess && (
+                        <span title="No access">
+                          <LockIcon className="text-muted icon-base absolute top-1/2 right-3 -translate-y-1/2 transform" />
+                        </span>
+                      )}
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {hasAccess && (
+              <Button
+                variant="secondary"
+                type="submit"
+                loading={renameOrganization.isPending}
+                disabled={form.getValues().name === "" || !hasAccess}
+                className="mt-4"
+              >
+                Save
+              </Button>
+            )}
+          </form>
+        </Form>
+      </Card>
+    </div>
+  );
+}

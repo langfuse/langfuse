@@ -65,7 +65,7 @@ vi.mock("@/src/env.mjs", () => ({
   },
 }));
 
-import handler from "@/src/pages/api/auth/[...nextauth]";
+import handler from "@/pages/api/auth/[...nextauth]";
 
 const callbackUrlCookieName = "next-auth.callback-url";
 

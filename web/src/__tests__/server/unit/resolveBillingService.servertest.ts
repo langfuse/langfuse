@@ -12,16 +12,16 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
 
-vi.mock("@/src/ee/features/billing/server/chb/chbApiClient", () => ({
+vi.mock("@/src/ee/billing/server/chb/chbApiClient", () => ({
   getChbApiClient: mocks.getChbApiClient,
 }));
 
-vi.mock("@/src/ee/features/billing/server/stripe/stripeBillingService", () => ({
+vi.mock("@/src/ee/billing/server/stripe/stripeBillingService", () => ({
   createBillingServiceFromContext: mocks.createBillingServiceFromContext,
 }));
 
-import { resolveBillingService } from "@/src/ee/features/billing/server";
-import { ChbBillingService } from "@/src/ee/features/billing/server/chb/chbBillingService";
+import { resolveBillingService } from "@/src/ee/billing/server";
+import { ChbBillingService } from "@/src/ee/billing/server/chb/chbBillingService";
 import { logger } from "@langfuse/shared/src/server";
 
 vi.spyOn(logger, "error").mockImplementation((() => {}) as never);

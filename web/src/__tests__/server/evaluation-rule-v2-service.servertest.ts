@@ -13,8 +13,8 @@ import {
   it,
   vi,
 } from "vitest";
-import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
-import { MAX_ACTIVE_EVALUATION_RULES } from "@/src/features/evals/v2/server/rules/ruleErrors";
+import { RuleService } from "@/src/evaluators/v2/server/rules/ruleService";
+import { MAX_ACTIVE_EVALUATION_RULES } from "@/src/evaluators/v2/server/rules/ruleErrors";
 
 const telemetryMocks = vi.hoisted(() => ({
   getTotalCostByRule: vi.fn(),

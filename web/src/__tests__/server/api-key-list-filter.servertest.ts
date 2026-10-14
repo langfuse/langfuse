@@ -10,10 +10,10 @@ import {
   SystemRoleId,
   UserId,
 } from "@langfuse/shared/rbac";
-import { handleGetApiKeys as handleGetProjectApiKeys } from "@/src/ee/features/admin-api/server/projects/projectById/apiKeys";
-import { handleDeleteApiKey as handleDeleteProjectApiKey } from "@/src/ee/features/admin-api/server/projects/projectById/apiKeys/apiKeyById";
-import { handleGetApiKeys as handleGetOrganizationApiKeys } from "@/src/ee/features/admin-api/server/organizations/apiKeys";
-import { handleDeleteApiKey as handleDeleteOrganizationApiKey } from "@/src/ee/features/admin-api/server/organizations/apiKeys/apiKeyById";
+import { handleGetApiKeys as handleGetProjectApiKeys } from "@/src/ee/public-api/enterprise-admin/server/projects/projectById/apiKeys";
+import { handleDeleteApiKey as handleDeleteProjectApiKey } from "@/src/ee/public-api/enterprise-admin/server/projects/projectById/apiKeys/apiKeyById";
+import { handleGetApiKeys as handleGetOrganizationApiKeys } from "@/src/ee/public-api/enterprise-admin/server/organizations/apiKeys";
+import { handleDeleteApiKey as handleDeleteOrganizationApiKey } from "@/src/ee/public-api/enterprise-admin/server/organizations/apiKeys/apiKeyById";
 import type { NextApiRequest, NextApiResponse } from "next";
 
 function createMockResponse() {

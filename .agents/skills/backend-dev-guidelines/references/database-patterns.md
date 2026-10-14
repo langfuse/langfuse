@@ -376,7 +376,7 @@ What this means for query authors:
 
 - **`WHERE is_deleted = 0` filters on these four tables are
   dead weight in practice.** A few legacy reads still carry
-  them (e.g. `web/src/features/score-analytics/server/`); new
+  them (e.g. `web/src/analytics/score-reporting/server/`); new
   code should not add them unless soft-delete writes have
   actually been introduced.
 

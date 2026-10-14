@@ -67,7 +67,7 @@ restate them here so the security sweep stays self-contained.
 - Do sensitive mutations (integration config changes, role or scope changes,
   exports, deletions) emit `auditLog` with the right `action` and
   `resourceType`? Match existing wiring in
-  `web/src/features/blobstorage-integration/blobstorage-integration-router.ts`
+  `web/src/data-export/object-storage/blobstorage-integration-router.ts`
   and similar routers.
 
 ## Client Telemetry and Session Replay

@@ -17,9 +17,9 @@ import {
   Sidebar,
   SidebarProvider,
   SidebarTrigger,
-} from "@/src/components/ui/sidebar";
-import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
-import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
+} from "@/src/app/design-system/legacy-primitives/sidebar";
+import { LayerProvider } from "@/src/app/context/LayerContext/LayerContext";
+import { V4IntroDialog } from "@/src/tracing/observations/components/V4IntroDialog";
 
 vi.mock("next/router", () => ({
   useRouter: () => ({ events: { on: vi.fn(), off: vi.fn() } }),

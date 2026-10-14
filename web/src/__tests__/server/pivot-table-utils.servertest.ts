@@ -31,7 +31,7 @@ import {
   type DatabaseRow,
   type PivotTableRow,
   getNextSortState,
-} from "@/src/features/widgets/utils/pivot-table-utils";
+} from "@/src/analytics/visualization/utils/pivot-table-utils";
 
 describe("pivot-table-utils", () => {
   const MAX_PIVOT_TABLE_DIMENSIONS = 2;

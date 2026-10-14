@@ -34,7 +34,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-import { chbMetricsApiHandler } from "@/src/ee/features/billing/server/chb/chbMetricsApiHandler";
+import { chbMetricsApiHandler } from "@/src/ee/billing/server/chb/chbMetricsApiHandler";
 import { logger } from "@langfuse/shared/src/server";
 
 const loggerError = vi

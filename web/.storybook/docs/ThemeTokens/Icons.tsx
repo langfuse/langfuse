@@ -49,7 +49,7 @@ export function Icons() {
             <>
               Four sizes, one default colour, lucide default stroke. Sizes are
               utilities in{" "}
-              <code className="font-mono">src/styles/globals.css</code>.
+              <code className="font-mono">src/app/styles/globals.css</code>.
             </>
           }
           meta="icon-sm · icon-base · icon-lg · icon-xl · text-icon-foreground"

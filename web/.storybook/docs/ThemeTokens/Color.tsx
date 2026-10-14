@@ -4,7 +4,7 @@
  * grouped by role, purpose-first blurbs). The surface layering model lives on
  * the Layout page.
  *
- * Every value is parsed at build time from `src/styles/globals.css` (see
+ * Every value is parsed at build time from `src/app/styles/globals.css` (see
  * parseThemeTokens.ts), so the page cannot drift from the stylesheet. Dense
  * rows show light and dark side by side with a compact live usage sample;
  * samples repaint under the active Storybook theme (toolbar switcher).
@@ -852,7 +852,7 @@ export function Color() {
           lede={
             <>
               Parsed at build time from{" "}
-              <code className="font-mono">src/styles/globals.css</code>. The
+              <code className="font-mono">src/app/styles/globals.css</code>. The
               toolbar switcher previews light/dark.
             </>
           }

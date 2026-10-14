@@ -1,7 +1,7 @@
 /**
  * Shared machinery for the Design reference pages (Color, Typography,
  * Layout, Charts). Everything token-shaped is parsed at build time from
- * `src/styles/globals.css` (see parseThemeTokens.ts), so the pages can never
+ * `src/app/styles/globals.css` (see parseThemeTokens.ts), so the pages can never
  * drift from the stylesheet.
  *
  * Two things live here:
@@ -14,7 +14,7 @@
 import { ChevronRight } from "lucide-react";
 import { type ReactNode, useSyncExternalStore } from "react";
 
-import globalsCss from "../../../src/styles/globals.css?raw";
+import globalsCss from "../../../src/app/styles/globals.css?raw";
 import {
   CropFrame as Panel,
   DocsPageHeader as PageHeader,

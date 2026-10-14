@@ -8,10 +8,7 @@ import {
   codeDefinition,
   createCodeEvaluator,
 } from "@/src/__tests__/server/stable-evaluation-public-api-test-utils";
-import {
-  Evaluator,
-  ListEvaluatorVersionsResponse,
-} from "@/src/features/public-api";
+import { Evaluator, ListEvaluatorVersionsResponse } from "@/src/public-api";
 
 describe("stable evaluator history public API", () => {
   it("lists evaluator version history", async () => {

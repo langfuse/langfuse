@@ -1,0 +1,134 @@
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@/src/app/design-system/legacy-primitives/button";
+import { usePlaygroundContext } from "../context";
+import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
+import { BracesIcon, Check, Copy, Plus } from "lucide-react";
+import { ToolCallCard } from "@/src/app/components/ChatMessages/ToolCallCard";
+import { copyTextToClipboard } from "@/src/app/utils/clipboard";
+import { ThinkingBlock } from "@/src/tracing/traces";
+
+export const GenerationOutput = () => {
+  const [isCopied, setIsCopied] = useState(false);
+  const [isAdded, setIsAdded] = useState(false);
+  const [isJson, setIsJson] = useState(false);
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+  const {
+    output,
+    outputReasoning,
+    outputJson,
+    addMessage,
+    outputToolCalls,
+    scrollToMessage,
+  } = usePlaygroundContext();
+
+  const handleCopy = () => {
+    setIsCopied(true);
+    const textToCopy = isJson ? outputJson : output;
+    copyTextToClipboard(textToCopy);
+    setTimeout(() => setIsCopied(false), 1000);
+  };
+
+  const handleAddAssistantMessage = () => {
+    setIsAdded(true);
+    const newMessage =
+      outputToolCalls.length > 0
+        ? addMessage({
+            type: ChatMessageType.AssistantToolCall,
+            role: ChatMessageRole.Assistant,
+            content: output,
+            toolCalls: outputToolCalls,
+          })
+        : addMessage({
+            type: ChatMessageType.AssistantText,
+            role: ChatMessageRole.Assistant,
+            content: output,
+          });
+    // Scroll the appended row into view without stealing focus: this is a
+    // programmatic add from the Output panel, so unlike the Add-message button
+    // path (focus=true) we shouldn't yank the caret into the new editor. For a
+    // tool-call add, addMessage returns the last appended row (the final
+    // ToolResult placeholder), so we reveal the newest content (LFE-6864).
+    scrollToMessage(newMessage.id, false);
+    setTimeout(() => setIsAdded(false), 1000);
+  };
+
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      const scrollElement = scrollAreaRef.current;
+      scrollElement.scrollTop = scrollElement.scrollHeight;
+    }
+  }, [output]);
+
+  const checkIcon = <Check className="icon-sm" />;
+  const copyIcon = <Copy className="icon-sm" />;
+  const plusIcon = <Plus className="icon-sm" />;
+
+  const copyButton =
+    output || outputToolCalls.length ? (
+      <div className="absolute top-2 right-3 flex space-x-1 opacity-50">
+        <Button
+          size="icon"
+          variant={isJson ? "default" : "secondary"}
+          onClick={() => {
+            setIsJson((prev) => !prev);
+          }}
+          title="Toggle Input/Output JSON"
+        >
+          <BracesIcon className="icon-base" />
+        </Button>
+
+        <Button
+          size="icon"
+          variant="secondary"
+          onClick={!isCopied ? handleCopy : undefined}
+          title="Copy output"
+        >
+          {isCopied ? checkIcon : copyIcon}
+        </Button>
+
+        <Button
+          className="flex items-center gap-1 p-0 px-1 whitespace-nowrap"
+          variant="secondary"
+          onClick={!isAdded ? handleAddAssistantMessage : undefined}
+          title="Add as assistant message"
+          disabled={isAdded}
+        >
+          {isAdded ? checkIcon : plusIcon}
+          <span className="text-xs">Add to messages</span>
+        </Button>
+      </div>
+    ) : null;
+
+  return (
+    <div className="relative h-full">
+      <div
+        className="bg-muted h-full overflow-auto rounded-lg"
+        ref={scrollAreaRef}
+      >
+        <div className="bg-muted sticky top-0 z-10 p-3">
+          <div className="flex w-full items-center">
+            <p className="flex-1 text-xs font-bold">Output</p>
+            {copyButton}
+          </div>
+        </div>
+        <div className="px-4">
+          {outputReasoning && !isJson && (
+            <div className="-ml-1">
+              <ThinkingBlock content={outputReasoning} />
+            </div>
+          )}
+          <pre className="ph-no-capture text-xs wrap-break-word whitespace-break-spaces">
+            {isJson ? outputJson : output}
+          </pre>
+          {outputToolCalls.length > 0
+            ? outputToolCalls.map((toolCall) => (
+                <div className="mt-4" key={toolCall.id}>
+                  <ToolCallCard toolCall={toolCall} />
+                </div>
+              ))
+            : null}
+        </div>
+      </div>
+    </div>
+  );
+};

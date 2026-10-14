@@ -7,7 +7,7 @@ import {
 import {
   PostDatasetsV2Response,
   PostDatasetItemsV1Response,
-} from "@/src/features/public-api/types/datasets";
+} from "@/src/public-api/types/datasets";
 import {
   createOrgProjectAndApiKey,
   isValidJSONSchema,

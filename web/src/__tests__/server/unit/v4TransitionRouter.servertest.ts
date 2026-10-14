@@ -2,7 +2,7 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
+import { v4TransitionRouter } from "@/src/migrations/v4/backend/server/v4TransitionRouter";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { queryClickhouse } from "@langfuse/shared/src/server";
 

@@ -6,7 +6,7 @@ import { createMocks } from "node-mocks-http";
 import { z } from "zod";
 
 import { env } from "@/src/env.mjs";
-import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { createAuthedProjectAPIRoute } from "@/src/public-api/server/createAuthedProjectAPIRoute";
 import {
   createInAppAgentToolPolicy,
   filterInAppAgentAvailableLangfuseMcpTools,
@@ -31,7 +31,7 @@ vi.mock("@/src/server/auth", () => ({
   getServerAuthSessionForRequest: authMocks.getServerAuthSessionForRequest,
 }));
 
-vi.mock("@/src/features/entitlements/server", async (importOriginal) => {
+vi.mock("@/src/entitlements/server", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
@@ -175,7 +175,7 @@ describe("in-app agent public API route auth", () => {
       conversationId: string;
     }) {
       const { default: watchHandler } =
-        await import("@/src/features/in-app-agent/server/watchHandler");
+        await import("@/src/ai/assistant/server/watchHandler");
 
       return watchHandler(
         new Request(

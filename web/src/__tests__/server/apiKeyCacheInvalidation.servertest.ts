@@ -30,10 +30,10 @@ vi.mock("@langfuse/shared/topics/server", () => ({
 
 // organizations.delete cancels Stripe before deleting; the test env has a cloud
 // region but no Stripe, so force the self-hosted path to reach the eviction.
-vi.mock("@/src/ee/features/billing/utils/isCloudBillingEnabled", () => ({
+vi.mock("@/src/ee/billing/utils/isCloudBillingEnabled", () => ({
   isCloudBillingEnabled: () => false,
 }));
-vi.mock("@/src/ee/features/billing/server", async (importOriginal) => {
+vi.mock("@/src/ee/billing/server", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
@@ -44,8 +44,8 @@ vi.mock("@/src/ee/features/billing/server", async (importOriginal) => {
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
-import { handleDeleteProject } from "@/src/ee/features/admin-api/server/projects/projectById";
-import { handleDeleteOrganization } from "@/src/ee/features/admin-api/server/organizations/organizationById";
+import { handleDeleteProject } from "@/src/ee/public-api/enterprise-admin/server/projects/projectById";
+import { handleDeleteOrganization } from "@/src/ee/public-api/enterprise-admin/server/organizations/organizationById";
 import {
   createRedisTestClient,
   ensureRedisReady,

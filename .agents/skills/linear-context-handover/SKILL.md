@@ -24,7 +24,7 @@ Two halves, and the second one is the one people skip:
 What an agent may write to Linear, which label stamps it, the propose-then-write
 gate, and what stays human-only are not in this file:
 [`linear-agent-writes`](../linear-agent-writes/SKILL.md) is the authority. Read
-it before your first write. This file is the *craft* — where post-context goes,
+it before your first write. This file is the _craft_ — where post-context goes,
 what earns a place in it, and the two mechanics that stop it being destroyed on
 the way in.
 
@@ -43,7 +43,7 @@ are about to change:
 
 ```bash
 S=.agents/skills/linear-context-handover/scripts/lf-context.sh
-bash $S web/src/features/experiments/.../ExperimentsTable.tsx
+bash $S web/src/experiments/.../ExperimentsTable.tsx
 bash $S 65bbc753c    # a sha · 16912 # a PR · LFE-15711 # a ticket
 bash $S --help       # options, and what is automatic
 ```
@@ -123,7 +123,7 @@ human-only list are all in
 [`linear-agent-writes`](../linear-agent-writes/SKILL.md). If this file disagrees
 with it, this file is the bug.
 
-One thing specific to *reading* history: **`AI edited` is the filter that
+One thing specific to _reading_ history: **`AI edited` is the filter that
 matters.** Post-context lives in descriptions, so that is the label that finds
 prior reasoning. `AI commented` only tells you an agent said something to a human
 on a particular day, usually stale by the time you read it.
@@ -132,6 +132,6 @@ on a particular day, usually stale by the time you read it.
 
 Say so, name the step you could not complete, and hand back the content ready to
 paste — the rule and the wording are in
-[`linear-agent-writes`](../linear-agent-writes/SKILL.md) → *When there is no
-Linear connection*. Never reconstruct a feature's history from the code alone and
+[`linear-agent-writes`](../linear-agent-writes/SKILL.md) → _When there is no
+Linear connection_. Never reconstruct a feature's history from the code alone and
 present it as recovered context.

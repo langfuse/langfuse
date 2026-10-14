@@ -11,7 +11,7 @@ import {
 import {
   GetObservationsV1Response,
   GetObservationV1Response,
-} from "@/src/features/public-api/types/observations";
+} from "@/src/public-api/types/observations";
 import {
   DATASET_RUN_ITEMS_DEPRECATION,
   DATASET_RUNS_DEPRECATION,
@@ -21,8 +21,8 @@ import {
   SESSIONS_DEPRECATION,
   TRACES_DEPRECATION,
   V3_SUNSET_DATE,
-} from "@/src/features/public-api/server/deprecations";
-import { OBSERVATIONS_API_V2_DOCS_URL } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+} from "@/src/public-api/server/deprecations";
+import { OBSERVATIONS_API_V2_DOCS_URL } from "@/src/public-api/server/rateLimitUpgradePaths";
 import { randomUUID } from "crypto";
 
 // Legacy (v3-data-model) endpoints attach a top-level `_deprecation`

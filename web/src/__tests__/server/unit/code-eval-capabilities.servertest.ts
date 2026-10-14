@@ -20,7 +20,7 @@ async function getCapabilitiesForEnv(
   }
 
   const { getCodeEvalCapabilities } =
-    await import("@/src/features/evals/server/isCodeEvalEnabled");
+    await import("@/src/evaluators/server/isCodeEvalEnabled");
 
   return getCodeEvalCapabilities();
 }

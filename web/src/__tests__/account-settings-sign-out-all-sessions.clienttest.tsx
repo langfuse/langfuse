@@ -35,19 +35,19 @@ vi.mock("next/router", () => ({
   }),
 }));
 
-vi.mock("@/src/features/auth/lib/signOut", () => ({
+vi.mock("@/src/identity/auth/lib/signOut", () => ({
   signOutCleanly: signOutCleanlyMock,
 }));
 
-vi.mock("@/src/features/notifications/showSuccessToast", () => ({
+vi.mock("@/src/app/shell/notifications/showSuccessToast", () => ({
   showSuccessToast: showSuccessToastMock,
 }));
 
-vi.mock("@/src/features/notifications/showErrorToast", () => ({
+vi.mock("@/src/app/shell/notifications/showErrorToast", () => ({
   showErrorToast: showErrorToastMock,
 }));
 
-vi.mock("@/src/utils/api", () => ({
+vi.mock("@/src/app/utils/api", () => ({
   api: {
     useUtils: () => ({ invalidate: vi.fn() }),
     userAccount: {
@@ -79,7 +79,7 @@ vi.mock("@/src/utils/api", () => ({
   reportNonTrpcError: reportNonTrpcErrorMock,
 }));
 
-import { useAccountSettingsPages } from "@/src/features/account";
+import { useAccountSettingsPages } from "@/src/identity/accounts";
 
 function AccountSettingsPage() {
   const [general] = useAccountSettingsPages();

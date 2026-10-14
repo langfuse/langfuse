@@ -96,7 +96,7 @@ Package handles its own compilation.
     ".": "./src/index.ts", // @repo/ui
     "./button": "./src/button.tsx", // @repo/ui/button
     "./card": "./src/card.tsx", // @repo/ui/card
-    "./hooks": "./src/hooks/index.ts" // @repo/ui/hooks
+    "./hooks": "./src/app/hooks/index.ts" // @repo/ui/hooks
   }
 }
 ```

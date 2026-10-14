@@ -8,7 +8,7 @@ import { env } from "@/src/env.mjs";
 import {
   getFeaturePreviewOptOutFlag,
   parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/server";
+} from "@/src/release-management/feature-flags/server";
 
 const mocks = vi.hoisted(() => ({
   getObservationsForTraceFromEventsTable: vi.fn(async () => ({

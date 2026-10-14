@@ -1,4 +1,4 @@
-import { signupSchema } from "@/src/features/auth/lib/signupSchema";
+import { signupSchema } from "@/src/identity/auth/lib/signupSchema";
 
 describe("signupSchema name validation", () => {
   const validBaseInput = {

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import SignInPage, { type PageProps } from "@/src/features/auth/SignInPage";
+import SignInPage, { type PageProps } from "@/src/identity/auth/SignInPage";
 
 const { captureExceptionMock, addBreadcrumbMock, signInMock, routerState } =
   vi.hoisted(() => ({
@@ -31,26 +31,26 @@ vi.mock("next/router", () => ({
 
 vi.mock("@/src/env.mjs", () => ({ env: {} }));
 
-vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+vi.mock("@/src/analytics/internal/posthog/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
-vi.mock("@/src/features/organizations/hooks", () => ({
+vi.mock("@/src/identity/organizations/hooks", () => ({
   useLangfuseCloudRegion: () => ({
     isLangfuseCloud: false,
     region: undefined,
   }),
 }));
 
-vi.mock("@/src/ee/features/multi-tenant-sso/utils", () => ({
+vi.mock("@/src/ee/identity/auth/sso-runtime/utils", () => ({
   isAnySsoConfigured: async () => false,
 }));
 
-vi.mock("@/src/features/auth/components/AuthCloudRegionSwitch", () => ({
+vi.mock("@/src/identity/auth/components/AuthCloudRegionSwitch", () => ({
   CloudRegionSwitch: () => null,
 }));
 
-vi.mock("@/src/features/auth/components/AuthCloudPrivacyNotice", () => ({
+vi.mock("@/src/identity/auth/components/AuthCloudPrivacyNotice", () => ({
   CloudPrivacyNotice: () => null,
 }));
 

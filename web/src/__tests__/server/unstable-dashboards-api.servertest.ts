@@ -8,7 +8,7 @@ import {
   GetUnstableDashboardWidgetsResponse,
   PatchUnstableDashboardWidgetResponse,
   PostUnstableDashboardWidgetResponse,
-} from "@/src/features/public-api/types/unstable-dashboard-widgets";
+} from "@/src/public-api/types/unstable-dashboard-widgets";
 import {
   DeleteDashboardPlacementResponse,
   DeleteUnstableDashboardResponse,
@@ -18,8 +18,8 @@ import {
   PatchUnstableDashboardResponse,
   PostDashboardPlacementResponse,
   PostUnstableDashboardResponse,
-} from "@/src/features/public-api/types/unstable-dashboards";
-import { StructuredPublicApiErrorResponse } from "@/src/features/public-api/types/structuredPublicApiErrorSchema";
+} from "@/src/public-api/types/unstable-dashboards";
+import { StructuredPublicApiErrorResponse } from "@/src/public-api/types/structuredPublicApiErrorSchema";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { nanoid } from "nanoid";

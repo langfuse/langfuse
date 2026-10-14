@@ -12,17 +12,25 @@
 - Update this file in the same PR when entry points, commands, or contracts
   change.
 
+## Source layout
+
+`docs/source-structure.md` is the placement guide. `source-structure.json` declares
+public capability roots and shared folders for tooling. Product domains sit
+directly under `src`, with smaller capabilities nested under their owner.
+Next.js route adapters live in `app/` and `pages/`; `src/app` holds application UI.
+Enterprise source remains under `src/ee` for license coverage.
+
 ## High-Signal Entry Points
 
-- App shell/providers: `src/pages/_app.tsx`
+- App shell/providers: `pages/_app.tsx`
 - tRPC context/procedures: `src/server/api/trpc.ts`
 - tRPC router registry: `src/server/api/root.ts`
-- tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
-- Public REST API routes: `src/pages/api/public/*`
-- Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
-- Feature modules: `src/features/*`
-- Topics PoC: `src/features/topics/TopicsPage.tsx` and
-  `src/features/topics/server/topicsRouter.ts`. Process traces from filters/IDs;
+- tRPC routers: `src/server/api/routers/*`, the owning domain's `server/*`
+- Public REST API routes: `pages/api/public/*`
+- Public eval APIs: `pages/api/public/v2/{evaluators,evaluation-rules}/*`
+- Product domains: directly under `src`; see `docs/source-structure.md`
+- Topics PoC: `src/ai/trace-analysis/TopicsPage.tsx` and
+  `src/ai/trace-analysis/server/topicsRouter.ts`. Process traces from filters/IDs;
   update maps from stored summaries. Current results stay visible while the
   history drawer shows execution status, errors and retry controls.
   `LANGFUSE_TOPICS_ENABLED` gates all routes and effective session flags.
@@ -37,7 +45,7 @@
   summary and embedding models into the frozen request.
   The source inspector returns `loadTopicTranscript`'s shared `Transcript | null`
   directly, using the same character cap as worker inference.
-- Reusable UI components: `src/components/*`
+- Reusable UI components: `src/app/components/*`
 - Tests:
   - Server integration tests: `src/__tests__/server/*.servertest.ts`
   - Server unit tests: `src/__tests__/server/unit/*.servertest.ts`
@@ -50,7 +58,7 @@
   schemas, domain contracts, table definitions, prompt/eval/model-pricing
   helpers, and other cross-runtime utilities.
 - Use `@langfuse/shared/src/server` only from server-only web code such as
-  `src/server/**`, `src/pages/api/**`, and server tests.
+  `src/server/**`, `pages/api/**`, and server tests.
 - Use `@langfuse/shared/src/db` only in backend or test code that needs direct
   Prisma access; never route it into client bundles.
 - Use narrower subpaths such as `@langfuse/shared/src/env` or
@@ -61,7 +69,7 @@
   lifecycle, policy, tool-result, compaction, and prompt subpaths. Web owns the
   UI, IDs, feedback/source/rate-limit schemas, conversation access, tRPC run
   adapters, snapshot construction, watch framing/service, and the authenticated
-  watch route in `src/app/api/in-app-agent/watch/`.
+  watch route in `app/api/in-app-agent/watch/`.
 - See `../packages/shared/AGENTS.md` for the full shared export map and what
   each entrypoint contains.
 - For the higher-level platform topology across web, worker, Postgres,
@@ -108,17 +116,17 @@ Sentry instrumentation skill first and decide whether it should capture at all
 ## Web Conventions
 
 - Before creating a new component or reusing one from elsewhere in
-  `src/components`, first check `src/components/design-system` for an existing
+  `src/app/components`, first check `src/app/design-system` for an existing
   component that satisfies the use case. Prefer the design-system component
   and extend it when appropriate; use another component only when the design
   system has no suitable option.
 - **Before adding or modifying a chart, dashboard, or chart formatter, read
-  `src/features/widgets/chart-library/ARCHITECTURE.md` first** — the charts
+  `src/analytics/visualization/chart-library/ARCHITECTURE.md` first** — the charts
   manifesto. It owns the data → preparer → visualiser contract: presentation
   decisions (formatting, colors, axis scale, overload) live in the preparer,
   not the chart components.
 - **When working on the search bar or any filtering UI/grammar, read
-  `src/features/search-bar/README.md` first.** It owns the grammar ↔
+  `src/app/search/README.md` first.** It owns the grammar ↔
   `FilterState` contract, the validate/lower parity invariants, and the
   cross-view extension playbook — the bar is intended to become the primary
   filter interface for every filterable view, so new filtering work extends it
@@ -126,25 +134,25 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - When fixing an isolated styling issue in an individual component, create or
   update a component story first, following
   `../.agents/skills/storybook/SKILL.md`.
-- Put net-new feature code under `src/features/<feature>/*`; put broadly reusable
-  components under `src/components/*`.
+- Put net-new feature code in its domain under `src` (see `docs/source-structure.md`); put broadly reusable
+  components under `src/app/components/*`.
 - We use tRPC for full-stack web features; register routers in
   `src/server/api/root.ts`.
-- RBAC lives in `src/features/rbac`: the role catalog (definitions, policies,
+- RBAC lives in `src/identity/access-control`: the role catalog (definitions, policies,
   tags, access-right tables, and helpers) lives in `@langfuse/shared/rbac`;
   assignment reads and writes live in `@langfuse/shared/rbac/server`;
   web owns policy resolution/evaluation (`getRolesForPrincipal`, `authorize`)
-  and the access checks in `src/features/rbac/utils/checkProjectAccess.ts` and
-  `src/features/rbac/utils/checkOrganizationAccess.ts`.
-- Entitlements guidance lives in `src/features/entitlements/README.md`.
-- Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
+  and the access checks in `src/identity/access-control/utils/checkProjectAccess.ts` and
+  `src/identity/access-control/utils/checkOrganizationAccess.ts`.
+- Entitlements guidance lives in `src/entitlements/README.md`.
+- Prefer Shadcn/ui primitives from `src/app/design-system/legacy-primitives`; if a missing component
   must be installed, ask the user before doing so.
 - When you surface a score in the UI, always show its level
   (trace/observation/session/experiment) with the `<ScoreTag>` component
-  (`src/components/score-tag.tsx`) and its global color coding (see the
+  (`src/app/components/score-tag.tsx`) and its global color coding (see the
   ScoreTag Storybook story).
 - Tailwind is the default styling layer; use the shared palette and globals in
-  `src/styles/globals.css`.
+  `src/app/styles/globals.css`.
 - Do not add `useEffect` by default. Use it only when a component must
   synchronize with a concrete system outside React, such as a subscription,
   browser event listener, observer, timer, or imperative third-party API.
@@ -163,7 +171,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - When changing shared UI/table patterns, update sibling variants consistently,
   including default-visible and hidden columns or states.
 - For component style variants, prefer `cva` with `VariantProps` and merge
-  caller classes through `cn`, following existing `src/components/ui/*`
+  caller classes through `cn`, following existing `src/app/design-system/legacy-primitives/*`
   components:
 
   ```tsx
@@ -194,7 +202,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   in `_document.tsx`, ordered by that array (later = on top), carrying NO z-index.
   `panel` is for docked side surfaces like Sheet, Drawer, and the table peek;
   `modal` is for true blocking Dialog and AlertDialog surfaces.
-  **THE RULE (see `src/context/LayerContext/LayerContext.tsx` JSDoc — source of truth): every
+  **THE RULE (see `src/app/context/LayerContext/LayerContext.tsx` JSDoc — source of truth): every
   overlay portals through a layer container; never let a Radix/Vaul `*.Portal`
   fall back to `<body>`.** Radix/Vaul primitives route via their `*.Portal`'s
   `container` (the `ui/*` wrappers do this with `useLayerContainer`); bespoke
@@ -205,17 +213,17 @@ Sentry instrumentation skill first and decide whether it should capture at all
   linger under it (a lifecycle bug, not z-order — don't fix it by re-ranking
   layers). Radix unmounts a Select/DropdownMenu's content on close, so render the
   Dialog as a SIBLING (trigger inside, dialog outside), as
-  `useAddLlmConnectionSelect` in `src/components/ModelParameters/index.tsx` does
+  `useAddLlmConnectionSelect` in `src/app/components/ModelParameters/index.tsx` does
   (LFE-10615).
 - Never import `prettier/plugins/typescript` in client code — it embeds the
   TypeScript compiler, which the SWC minifier miscompiles (dropped bindings →
   production-only `ReferenceError`; caught by the CI client-bundle scan,
   LFE-10645). Format TypeScript with `parser: "babel-ts"` +
   `prettier/plugins/babel` instead, as the eval-template editor does
-  (`src/features/evals/components/code-eval-template-form-body.tsx`).
+  (`src/evaluators/components/code-eval-template-form-body.tsx`).
 - Public API routes should use
-  `src/features/public-api/server/withMiddlewares.ts`, define strict request and
-  response types in `src/features/public-api/types/*`, add server tests, and
+  `src/public-api/server/withMiddlewares.ts`, define strict request and
+  response types in `src/public-api/types/*`, add server tests, and
   update Fern sources when the contract changes.
 - Public eval endpoints should keep the split between reusable `evaluators`
   and ingestion-scoped `evaluation-rules`; do not leak `EvalTemplate` or
@@ -286,8 +294,8 @@ Sentry instrumentation skill first and decide whether it should capture at all
 
 ### Add/Change public API endpoint
 
-1. Add route in `src/pages/api/public/*`.
-2. Define/update contract types in `src/features/public-api/types/*`.
+1. Add route in `pages/api/public/*`.
+2. Define/update contract types in `src/public-api/types/*`.
 3. Add/adjust server tests in `src/__tests__/server/*`.
 4. If API contract changed, update Fern source (`../fern/apis/**`) and regenerate
    outputs (do not hand-edit `../generated/**`).
@@ -300,7 +308,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 
 ### Toasts
 
-- Use the typed helpers exported by `src/features/notifications`; importing the
+- Use the typed helpers exported by `src/app/shell/notifications`; importing the
   Sonner `toast` API outside their implementation is lint-prohibited.
 - Every toast requires a static `operation` from `toastOperations.ts` or a typed
   tRPC procedure path. Register a new semantic intent when needed; never use
@@ -319,8 +327,8 @@ Sentry instrumentation skill first and decide whether it should capture at all
 
 ### Add frontend feature
 
-1. Prefer `src/features/<feature>/*` for feature-local code.
-2. Put broadly reusable components in `src/components/*`.
+1. Use the owning domain under `src` for feature-local code.
+2. Put broadly reusable components in `src/app/components/*`.
 3. Keep server logic near feature server folders when possible.
 4. For meaningful user actions (buttons, form submits, mode switches), decide
    explicitly whether to instrument them with PostHog. Use
@@ -348,8 +356,8 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - Confirm the target `*.clienttest.*` or `*.servertest.*` file exists before passing a pattern to `vitest run`; source files do not always have a matching colocated test file.
 - When passing a Vitest file or pattern through `pnpm --filter web ...`, make it
   relative to `web/` because the script runs with `web` as the working
-  directory. Example: use `src/features/widgets/chart-library/BigNumber.tsx`,
-  not `web/src/features/widgets/chart-library/BigNumber.tsx`.
+  directory. Example: use `src/analytics/visualization/chart-library/BigNumber.tsx`,
+  not `web/src/analytics/visualization/chart-library/BigNumber.tsx`.
 - Prefer separate test files for components, integration coverage, and broader
   behaviors; use Vitest in-source tests mainly for small-scoped utilities.
 - Run Vitest in-source utility coverage with `pnpm --filter web run test:in-source`;

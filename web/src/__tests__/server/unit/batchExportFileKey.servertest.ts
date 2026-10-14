@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { parseBatchExportFileKeyFromUrl } from "@/src/features/batch-exports/server/batchExportFileKey";
+import { parseBatchExportFileKeyFromUrl } from "@/src/data-export/on-demand/server/batchExportFileKey";
 
 describe("parseBatchExportFileKeyFromUrl", () => {
   const key = "exports/1753699200000-lf-traces-export-cmproj123.csv";

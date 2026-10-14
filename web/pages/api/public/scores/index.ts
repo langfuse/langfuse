@@ -1,0 +1,182 @@
+import { createAuthedProjectAPIRoute } from "@/src/public-api/server/createAuthedProjectAPIRoute";
+import { withMiddlewares } from "@/src/public-api/server/withMiddlewares";
+import {
+  GetScoresQueryV1,
+  GetScoresResponseV1,
+  filterAndValidateLegacyV1GetScoreList,
+  PostScoresBodyV1,
+  PostScoresResponseV1,
+  ForbiddenError,
+} from "@langfuse/shared";
+import {
+  createIngestionAttribution,
+  logger,
+} from "@langfuse/shared/src/server";
+import { ScoresApiService } from "@/src/public-api/server/scores-api-service";
+import { SCORES_DEPRECATION } from "@/src/public-api/server/deprecations";
+import { randomUUID } from "crypto";
+import { clampToDataAccessDays } from "@/src/entitlements/server";
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "4.5mb",
+    },
+  },
+};
+
+export default withMiddlewares({
+  POST: createAuthedProjectAPIRoute({
+    name: "Create Score",
+    action: "scores:save",
+    bodySchema: PostScoresBodyV1,
+    responseSchema: PostScoresResponseV1,
+    allowedAccessLevels: ["project", "scores"],
+    rateLimitResource: "ingestion",
+    fn: async ({ body, auth, req, res }) => {
+      if (auth.scope.isIngestionSuspended) {
+        throw new ForbiddenError(
+          "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
+        );
+      }
+
+      const scoresApiService = new ScoresApiService("v1");
+      const attribution = createIngestionAttribution({
+        headers: req.headers,
+        authCheck: auth,
+      });
+
+      if (Array.isArray(body)) {
+        const conformedBodies = body.map((score) => {
+          if (
+            typeof score !== "object" ||
+            score === null ||
+            Array.isArray(score)
+          ) {
+            // Leave malformed items for ingestion to reject.
+            return score;
+          }
+          // Generate IDs for scores with missing or empty IDs.
+          return { ...score, id: ("id" in score && score.id) || randomUUID() };
+        });
+        const { result } = await scoresApiService.createScores({
+          bodies: conformedBodies,
+          auth,
+          attribution,
+        });
+        if (result.errors.length > 0) {
+          res.status(207);
+          return {
+            accepted: result.successes.length,
+            rejected: result.errors.length,
+            errors: result.errors.map((error) => ({
+              message: error.error ?? error.message ?? "Failed to create score",
+            })),
+          };
+        }
+        res.status(202);
+        return { message: "Accepted" };
+      }
+
+      const conformedBody = {
+        ...body,
+        // We previously used `if(!body.id)` to decide if a new ID should be generated,
+        // this would accept falsy values such as empty string as valid IDs, and generate a new ID in that case.
+        // The `createScore` uses `??` instead, which would break this behavior, so we use `||` here to maintain the old behavior.
+        id: body.id || randomUUID(),
+      };
+
+      const { id, result } = await scoresApiService.createScore({
+        body: conformedBody,
+        auth,
+        attribution,
+      });
+      if (result.errors.length > 0) {
+        const error = result.errors[0];
+        res
+          .status(error.status)
+          .json({ message: error.error ?? error.message });
+        return { id: "" }; // dummy return
+      }
+      if (result.successes.length !== 1) {
+        logger.error("Failed to create score", { result });
+        throw new Error("Failed to create score");
+      }
+      return { id };
+    },
+  }),
+  GET: createAuthedProjectAPIRoute({
+    name: "/api/public/scores",
+    action: "scores:read",
+    querySchema: GetScoresQueryV1,
+    responseSchema: GetScoresResponseV1,
+    deprecation: SCORES_DEPRECATION,
+    rejectInEventsOnlyMode: true,
+    fn: async ({ query, auth }) => {
+      const scoresApiService = new ScoresApiService("v1");
+      const dataAccessWindow = clampToDataAccessDays({
+        plan: auth.scope.plan,
+        fromTimestamp: query.fromTimestamp ?? undefined,
+      });
+      const advancedFilters = dataAccessWindow.accessFloor
+        ? [
+            ...(query.filter ?? []),
+            {
+              column: "timestamp",
+              operator: ">=" as const,
+              value: dataAccessWindow.effectiveFromTimestamp!,
+              type: "datetime" as const,
+            },
+            ...(query.toTimestamp
+              ? [
+                  {
+                    column: "timestamp",
+                    operator: "<" as const,
+                    value: new Date(query.toTimestamp),
+                    type: "datetime" as const,
+                  },
+                ]
+              : []),
+          ]
+        : query.filter;
+
+      const scoreParams = {
+        projectId: auth.scope.projectId,
+        page: query.page ?? undefined,
+        limit: query.limit ?? undefined,
+        userId: query.userId ?? undefined,
+        name: query.name ?? undefined,
+        configId: query.configId ?? undefined,
+        queueId: query.queueId ?? undefined,
+        traceTags: query.traceTags ?? undefined,
+        dataType: query.dataType ?? undefined,
+        fromTimestamp: dataAccessWindow.effectiveFromTimestamp?.toISOString(),
+        toTimestamp: query.toTimestamp ?? undefined,
+        environment: query.environment ?? undefined,
+        source: query.source ?? undefined,
+        value: query.value ?? undefined,
+        operator: query.operator ?? undefined,
+        scoreIds: query.scoreIds ?? undefined,
+        advancedFilters,
+      };
+      const [items, count] = await Promise.all([
+        scoresApiService.generateScoresForPublicApi(scoreParams),
+        scoresApiService.getScoresCountForPublicApi(scoreParams),
+      ]);
+
+      const finalCount = count ? count : 0;
+
+      return {
+        // As these are traces scores, we expect all scores to have a traceId set
+        // For type consistency, we validate the scores against the v1 schema which requires a traceId
+        data: filterAndValidateLegacyV1GetScoreList(items),
+        meta: {
+          page: query.page,
+          limit: query.limit,
+          totalItems: finalCount,
+          totalPages: Math.ceil(finalCount / query.limit),
+        },
+      };
+    },
+  }),
+});

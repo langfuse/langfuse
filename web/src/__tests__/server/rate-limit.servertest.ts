@@ -2,7 +2,7 @@ import {
   createHttpHeaderFromRateLimit,
   RATE_LIMIT_REDIS_KEY_PREFIX,
   RateLimitService,
-} from "@/src/features/public-api/server/RateLimitService";
+} from "@/src/public-api/server/RateLimitService";
 import { randomUUID } from "crypto";
 import type { Redis } from "ioredis";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";

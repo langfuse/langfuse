@@ -22,7 +22,7 @@ import {
   projectCookieName,
   type ProjectCookie,
 } from "@/src/server/utils/cookies";
-import { getServerSideProps } from "@/src/pages/project/~/[[...path]]";
+import { getServerSideProps } from "@/pages/project/~/[[...path]]";
 import { type GetServerSidePropsContext } from "next";
 
 const makeCtx = (

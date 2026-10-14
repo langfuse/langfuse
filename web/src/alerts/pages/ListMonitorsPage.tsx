@@ -1,0 +1,132 @@
+/* eslint-disable no-nested-ternary */
+import { PlusIcon } from "lucide-react";
+
+import { ActionButton } from "@/src/app/components/ActionButton";
+import Page from "@/src/app/shell/layouts/page";
+import { DataTableControlsProvider } from "@/src/app/tables/common-components/data-table-controls";
+import { FilterToggleButton } from "@/src/app/tables/common-components/FilterToggleButton";
+import { AutomationButton } from "@/src/automation";
+import { useEntitlementLimit } from "@/src/entitlements";
+import { monitorFilterConfig } from "@/src/app/search/filters";
+import { MonitorPagePermissions } from "@/src/alerts/components/MonitorPagePermissions";
+import { MonitorsOnboarding } from "@/src/alerts/components/MonitorsOnboarding";
+import { MonitorsTable } from "@/src/alerts/components/MonitorsTable";
+import { useHasProjectAccess } from "@/src/identity/access-control";
+import useProjectIdFromURL from "@/src/app/hooks/useProjectIdFromURL";
+import { api } from "@/src/app/utils/api";
+
+/** headerProps are shared by all of the ListMonitorPage headers */
+const headerProps = {
+  title: "Alerts",
+  help: {
+    description:
+      "Alerts notify your team and automated workflows of sudden cost spikes, quality drops, latency changes, and other important changes on the system.",
+  },
+};
+
+/** ListMonitorsPage displays the list of monitors for a project, or an onboarding splash when the project has none. */
+export default function ListMonitorsPage() {
+  const projectId = useProjectIdFromURL();
+
+  const {
+    isLoading,
+    isSuccess,
+    data: hasMonitors,
+  } = api.monitors.hasAny.useQuery(
+    { projectId: projectId ?? "" },
+    { enabled: !!projectId },
+  );
+
+  return (
+    <MonitorPagePermissions scope="alerts:read">
+      {!projectId || isLoading ? (
+        <EmptyPage />
+      ) : isSuccess && hasMonitors ? (
+        <MainPage projectId={projectId} />
+      ) : (
+        <OnboardingPage projectId={projectId} />
+      )}
+    </MonitorPagePermissions>
+  );
+}
+
+/** EmptyPage is an empty monitor page */
+const EmptyPage = () => <Page headerProps={headerProps}>{null}</Page>;
+
+/** OnboardingPage shows the onboarding message */
+const OnboardingPage = ({ projectId }: { projectId: string }) => {
+  /** hasCUDAccess is true if the user has permission to create monitors */
+  const hasCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "alerts:CUD",
+  });
+
+  return (
+    <Page headerProps={headerProps}>
+      <MonitorsOnboarding projectId={projectId} hasCUDAccess={hasCUDAccess} />
+    </Page>
+  );
+};
+
+/** MainPage loads and displays the list of monitors  */
+const MainPage = ({ projectId }: { projectId: string }) => {
+  /** hasCUDAccess is true if the user has permission to create monitors */
+  const hasCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "alerts:CUD",
+  });
+
+  /** monitorEntitlementLimit is the limit of the number of monitors that can be created for this org  */
+  const monitorEntitlementLimit = useEntitlementLimit("monitor-count");
+
+  /** monitorCountQuery returns the total number of monitors created for this org */
+  const monitorCountQuery = api.monitors.count.useQuery(
+    { projectId: projectId },
+    { enabled: hasCUDAccess },
+  );
+
+  return (
+    <DataTableControlsProvider
+      tableName={monitorFilterConfig.tableName}
+      defaultSidebarCollapsed={monitorFilterConfig.defaultSidebarCollapsed}
+    >
+      <Page
+        headerProps={{
+          ...headerProps,
+          actionButtonsRight: (
+            <>
+              {/* Desktop uses the sidebar's own header toggle + collapsed
+                  rail; this toggle only remains for the mobile stacked
+                  layout. */}
+              <FilterToggleButton className="md:hidden" />
+              <AutomationButton projectId={projectId} />
+              <ActionButton
+                icon={
+                  <PlusIcon
+                    className="icon-base text-icon-foreground"
+                    aria-hidden="true"
+                  />
+                }
+                hasAccess={hasCUDAccess}
+                usageLimit={
+                  typeof monitorEntitlementLimit === "number"
+                    ? {
+                        current: monitorCountQuery.data?.count,
+                        max: monitorEntitlementLimit,
+                      }
+                    : undefined
+                }
+                href={`/project/${projectId}/alerts/new`}
+                variant="default"
+              >
+                New Alert
+              </ActionButton>
+            </>
+          ),
+        }}
+      >
+        <MonitorsTable />
+      </Page>
+    </DataTableControlsProvider>
+  );
+};

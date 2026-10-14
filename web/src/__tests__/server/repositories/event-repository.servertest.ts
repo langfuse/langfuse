@@ -30,7 +30,7 @@ import {
   getEventFilterNumericRange,
   getEventFilterOptions,
   getEventFilterValuePage,
-} from "@/src/features/events/server/eventsService";
+} from "@/src/tracing/observations/server/eventsService";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";

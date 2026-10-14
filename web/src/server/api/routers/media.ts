@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { env } from "@/src/env.mjs";
-import { getMediaStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";
+import { getMediaStorageServiceClient } from "@/src/tracing/media/server/getMediaStorageClient";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -10,10 +10,10 @@ import { TRPCError } from "@trpc/server";
 import {
   type MediaContentType,
   type MediaReturnType,
-} from "@/src/features/media/server";
-import { type MediaEnabledFields } from "@/src/features/media/validation";
-import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+} from "@/src/tracing/media/server";
+import { type MediaEnabledFields } from "@/src/tracing/media/validation";
+import { createExternalMediaStorageService } from "@/src/integrations/media-storage/server";
+import { throwIfNoProjectAccess } from "@/src/identity/access-control";
 import { InvalidRequestError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 

@@ -12,13 +12,13 @@ vi.mock("@/src/env.mjs", () => ({
   env: { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "US" },
 }));
 
-vi.mock("@/src/features/posthog-analytics/ServerPosthog", () => ({
+vi.mock("@/src/analytics/internal/posthog/ServerPosthog", () => ({
   ServerPosthog: class {
     capture() {}
   },
 }));
 
-import { createBackendActivityTracker } from "@/src/features/posthog-analytics/server/backendActivity";
+import { createBackendActivityTracker } from "@/src/analytics/internal/posthog/server/backendActivity";
 
 const createTracker = (
   options: {

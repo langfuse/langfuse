@@ -1,12 +1,12 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import type * as EventsServiceModule from "@/src/features/events/server/eventsService";
+import type * as EventsServiceModule from "@/src/tracing/observations/server/eventsService";
 
 const mocks = vi.hoisted(() => ({
   getEventList: vi.fn(async () => ({ observations: [], hasMore: false })),
 }));
 
 vi.mock(
-  "@/src/features/events/server/eventsService",
+  "@/src/tracing/observations/server/eventsService",
   async (importOriginal) => {
     const actual = await importOriginal<typeof EventsServiceModule>();
 
@@ -22,7 +22,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 
-import { eventsRouter } from "@/src/features/events/server/eventsRouter";
+import { eventsRouter } from "@/src/tracing/observations/server/eventsRouter";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";

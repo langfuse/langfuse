@@ -20,7 +20,7 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 
-import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
+import { getRolesForPrincipal } from "@/src/identity/access-control/getRolesForPrincipal";
 
 // Decision-equivalence: resolving policies from system-role assignments must
 // yield the catalog grants bound to the same tenant and resources the key

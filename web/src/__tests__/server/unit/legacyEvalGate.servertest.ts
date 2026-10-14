@@ -1,4 +1,4 @@
-import { isNewLegacyEvalAllowed } from "@/src/features/evals/utils/legacyEvalGate";
+import { isNewLegacyEvalAllowed } from "@/src/evaluators/utils/legacyEvalGate";
 
 describe("isNewLegacyEvalAllowed", () => {
   it("blocks new legacy evals in events_only mode", () => {

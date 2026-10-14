@@ -24,7 +24,7 @@ import {
   V3_DELAY_NOTICE,
   V3_SUNSET_DATE,
   V3_SUNSET_HUMAN,
-} from "@/src/features/public-api/server/deprecations";
+} from "@/src/public-api/server/deprecations";
 
 type OpenApiOperation = {
   deprecated?: boolean;

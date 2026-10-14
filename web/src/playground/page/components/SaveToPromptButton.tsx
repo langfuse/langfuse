@@ -1,0 +1,201 @@
+/* eslint-disable @repo/no-style-props */
+import { Check, Save } from "lucide-react";
+import { useRouter } from "next/router";
+import { useState } from "react";
+
+import { Button } from "@/src/app/design-system/legacy-primitives/button";
+import {
+  InputCommand,
+  InputCommandEmpty,
+  InputCommandGroup,
+  InputCommandInput,
+  InputCommandItem,
+  InputCommandList,
+} from "@/src/app/design-system/legacy-primitives/input-command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/app/design-system/legacy-primitives/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/app/design-system/legacy-primitives/tooltip";
+import { usePlaygroundContext } from "@/src/playground/page/context";
+import usePlaygroundCache from "@/src/playground/page/hooks/usePlaygroundCache";
+import { usePostHogClientCapture } from "@/src/analytics/internal/posthog";
+import useProjectIdFromURL from "@/src/app/hooks/useProjectIdFromURL";
+import { api } from "@/src/app/utils/api";
+import { cn } from "@/src/app/utils/tailwind";
+import DocPopup from "@/src/app/shell/layouts/doc-popup";
+import { PromptType } from "@langfuse/shared";
+
+interface SaveToPromptButtonProps {
+  className?: string;
+}
+
+export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
+  className,
+}) => {
+  const [selectedPromptId, setSelectedPromptId] = useState("");
+  const { modelParams, messages, output, promptVariables } =
+    usePlaygroundContext();
+  const capture = usePostHogClientCapture();
+  const router = useRouter();
+  const projectId = useProjectIdFromURL();
+  const { setPlaygroundCache } = usePlaygroundCache();
+
+  const allChatPromptNamesWithIds =
+    api.prompts.allNames
+      .useQuery(
+        {
+          projectId: projectId as string, // Typecast as query is enabled only when projectId is present
+          type: PromptType.Chat,
+        },
+        { enabled: Boolean(projectId) },
+      )
+      .data?.map((prompt) => ({
+        name: prompt.name,
+        id: prompt.id,
+      })) ?? [];
+
+  const handleNewPrompt = async () => {
+    capture("playground:save_to_new_prompt_button_click", { projectId });
+
+    setPlaygroundCache({
+      modelParams,
+      messages,
+      output,
+      promptVariables,
+    });
+
+    await router.push(
+      `/project/${projectId}/prompts/new?loadPlaygroundCache=true`,
+    );
+  };
+
+  const handleNewPromptVersion = async () => {
+    capture("playground:save_to_prompt_version_button_click", { projectId });
+
+    setPlaygroundCache({
+      modelParams,
+      messages,
+      output,
+      promptVariables,
+    });
+
+    await router.push(
+      `/project/${projectId}/prompts/new?promptId=${selectedPromptId}&loadPlaygroundCache=true`,
+    );
+  };
+
+  return (
+    <TooltipProvider delayDuration={300}>
+      <Popover>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "h-7 gap-1.5 px-2.5 text-xs @xl:hidden",
+                  className,
+                )}
+              >
+                <Save className="icon-base text-icon-foreground" />
+                <span className="sr-only">Save as prompt</span>
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent className="text-xs">Save as prompt</TooltipContent>
+        </Tooltip>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "hidden h-7 gap-1.5 px-2.5 text-xs @xl:flex",
+              className,
+            )}
+          >
+            <Save className="icon-base text-icon-foreground" />
+            <span>Save as prompt</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent>
+          <Button className="mt-2 w-full" onClick={handleNewPrompt}>
+            Save as new prompt
+          </Button>
+          <Divider />
+          <InputCommand className="min-h-32">
+            <InputCommandInput
+              placeholder="Search chat prompts..."
+              variant="bottom"
+            />
+            <InputCommandEmpty>
+              No chat prompt found
+              <DocPopup description="Prompts from the playground can only be saved to 'chat' prompts as they include multiple system/user messages." />
+            </InputCommandEmpty>
+            <InputCommandGroup className="mt-2">
+              <InputCommandList>
+                {allChatPromptNamesWithIds.map((chatPrompt) => (
+                  <InputCommandItem
+                    key={chatPrompt.id}
+                    title={chatPrompt.name}
+                    value={chatPrompt.name}
+                    onSelect={(currentValue) => {
+                      const promptId =
+                        allChatPromptNamesWithIds.find(
+                          (prompt) => prompt.name === currentValue,
+                        )?.id ?? "";
+
+                      setSelectedPromptId(
+                        promptId === selectedPromptId ? "" : promptId,
+                      );
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "icon-base mr-2",
+                        selectedPromptId === chatPrompt.id
+                          ? "opacity-100"
+                          : "opacity-0",
+                      )}
+                    />
+                    <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                      {chatPrompt.name}
+                    </span>
+                  </InputCommandItem>
+                ))}
+              </InputCommandList>
+            </InputCommandGroup>
+          </InputCommand>
+          <Button
+            className="mt-2 w-full"
+            disabled={!Boolean(selectedPromptId)}
+            onClick={handleNewPromptVersion}
+          >
+            Save as new prompt version
+          </Button>
+        </PopoverContent>
+      </Popover>
+    </TooltipProvider>
+  );
+};
+
+function Divider() {
+  return (
+    <div className="my-3 flex flex-row justify-center align-middle">
+      <div className="flex flex-1 flex-col">
+        <div className="flex-1 border-b-2 border-gray-200" />
+        <div className="flex-1" />
+      </div>
+      <p className="mx-2 text-sm text-gray-400">or</p>
+      <div className="flex flex-1 flex-col">
+        <div className="flex-1 border-b-2 border-gray-200" />
+        <div className="flex-1" />
+      </div>
+    </div>
+  );
+}

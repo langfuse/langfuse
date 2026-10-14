@@ -54,14 +54,14 @@ vi.mock(
     queryClickhouse: mocks.queryClickhouse,
   }),
 );
-vi.mock("@/src/features/audit-logs/auditLog", () => ({
+vi.mock("@/src/identity/audit-logs/auditLog", () => ({
   auditLog: mocks.auditLog,
 }));
-vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
+vi.mock("@/src/analytics/internal/posthog/server/backendActivity", () => ({
   recordBackendActivity: vi.fn(async () => undefined),
 }));
 
-import { topicsRouter } from "@/src/features/topics/server/topicsRouter";
+import { topicsRouter } from "@/src/ai/trace-analysis/server/topicsRouter";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 const projectId = "project-a";

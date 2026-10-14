@@ -6,13 +6,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import waitForExpect from "wait-for-expect";
 
 import { env } from "@/src/env.mjs";
-import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
+import { $root } from "@/pages/api/public/otel/otlp-proto/generated/root";
 import {
   type GatewayApiFormat,
   GatewayModelsResponseSchema,
   GatewayResolveResponseSchema,
-} from "@/src/features/ai-gateway/server/provider";
-import type { GatewayProviderName } from "@/src/features/ai-gateway/server/provider/registry";
+} from "@/src/ai/gateway/management-ui/server/provider";
+import type { GatewayProviderName } from "@/src/ai/gateway/management-ui/server/provider/registry";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { signHmacSha256 } from "@/src/server/utils/hmac";

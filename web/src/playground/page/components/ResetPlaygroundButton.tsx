@@ -1,0 +1,27 @@
+import { ListRestartIcon } from "lucide-react";
+import { useRouter } from "next/router";
+
+import { Button } from "@/src/app/design-system/legacy-primitives/button";
+import { usePersistedWindowIds } from "@/src/playground/page/hooks/usePersistedWindowIds";
+
+export const ResetPlaygroundButton: React.FC = () => {
+  const router = useRouter();
+  const { clearAllCache } = usePersistedWindowIds();
+
+  const handleClick = () => {
+    clearAllCache();
+    router.reload();
+  };
+
+  return (
+    <Button
+      variant="outline"
+      title="Reset playground state"
+      onClick={handleClick}
+      className="gap-1"
+    >
+      <ListRestartIcon className="icon-base text-icon-foreground" />
+      <span className="hidden lg:inline">Reset playground</span>
+    </Button>
+  );
+};

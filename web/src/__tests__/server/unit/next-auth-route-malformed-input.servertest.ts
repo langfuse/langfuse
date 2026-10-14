@@ -39,7 +39,7 @@ vi.mock("@/src/env.mjs", () => ({
   },
 }));
 
-import auth from "@/src/pages/api/auth/[...nextauth]";
+import auth from "@/pages/api/auth/[...nextauth]";
 
 const authOptions: NextAuthOptions = {
   secret: "test-secret",

@@ -2,7 +2,7 @@ const { auditLogMock } = vi.hoisted(() => ({
   auditLogMock: vi.fn(),
 }));
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/identity/audit-logs/server", () => ({
   auditLog: auditLogMock,
 }));
 
@@ -13,7 +13,7 @@ import {
   provisionStarterOrganizationForNewUser,
   resolveOnboardingRedirectTarget,
   type RealOrganizationMembership,
-} from "@/src/features/onboarding/server";
+} from "@/src/app/onboarding/server";
 
 type CompletionPrisma = Parameters<
   typeof completeCloudSignupOnboarding

@@ -170,12 +170,12 @@ jobs:
             ai_gateway:
               - 'packages/shared/prisma/migrations/**/*gateway*/**'
               - 'web/src/__e2e__/**/*.gatewaye2e.{ts,tsx}'
-              - 'web/src/features/ai-gateway/**'
-              - 'web/src/features/public-api/server/createAuthedProjectAPIRoute.ts'
-              - 'web/src/pages/api/internal/ai-gateway/**'
-              - 'web/src/pages/api/public/ingestion.ts'
-              - 'web/src/pages/api/public/media/**'
-              - 'web/src/pages/api/public/otel/v1/traces/**'
+              - 'web/src/ai/gateway/management-ui/**'
+              - 'web/src/public-api/server/createAuthedProjectAPIRoute.ts'
+              - 'web/pages/api/internal/ai-gateway/**'
+              - 'web/pages/api/public/ingestion.ts'
+              - 'web/pages/api/public/media/**'
+              - 'web/pages/api/public/otel/v1/traces/**'
               - 'web/src/server/utils/hmac.ts'
               - 'web/src/server/utils/jwt.ts'
 
@@ -268,6 +268,10 @@ jobs:
         run: node --test scripts/agents/sync-agent-shims.test.mjs
       - name: cursor PR label tests
         run: node --test scripts/github/label-cursor-prs.test.mjs
+      - name: web source layout and boundary-tooling tests
+        run: |
+          pnpm --filter web run structure:check
+          pnpm --filter web run structure:test
       - name: Load default env
         run: |
           cp .env.dev.example .env

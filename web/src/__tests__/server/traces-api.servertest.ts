@@ -21,7 +21,7 @@ import {
   DeleteTraceV1Response,
   GetTracesV1Response,
   GetTraceV1Response,
-} from "@/src/features/public-api/types/traces";
+} from "@/src/public-api/types/traces";
 import { randomUUID } from "crypto";
 import snakeCase from "lodash/snakeCase";
 import { env } from "@/src/env.mjs";

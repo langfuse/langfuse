@@ -24,13 +24,13 @@ the detail behind its rules.
   server-side observability/APM stack, not Sentry. Do not assume a backend error
   reaches Sentry; it does not. (Treat "Sentry = frontend-only" until a decision
   says otherwise.)
-- **Filter predicates** live in [`web/src/utils/sentryFilters.ts`](../../../../web/src/utils/sentryFilters.ts)
+- **Filter predicates** live in [`web/src/app/utils/sentryFilters.ts`](../../../../web/src/app/utils/sentryFilters.ts)
   with unit tests in `sentryFilters.clienttest.ts`; `beforeSend` only calls
   these named predicates and holds no inline checks (the former invalid-href
   and React-devtools inline checks were removed / migrated to
   `isReactDevtoolsInternalEvent` in #15276). Add new filters only as predicates
   here, never inline.
-- **The tRPC seam** is `handleTrpcError` in [`web/src/utils/api.ts`](../../../../web/src/utils/api.ts):
+- **The tRPC seam** is `handleTrpcError` in [`web/src/app/utils/api.ts`](../../../../web/src/app/utils/api.ts):
   every query/mutation error flows through it — the single place to classify.
   PR #15243 drops expected `data.code`s (`NOT_FOUND` / `FORBIDDEN` /
   `UNAUTHORIZED`) there with a breadcrumb and tags the rest
@@ -154,15 +154,15 @@ The recurring shapes and their correct disposition:
 Each row names the PR that established the pattern; verify a cited symbol/swap
 against the current tree before relying on it.
 
-| PR | Family | Lever |
-|---|---|---|
-| #15145 | 418 httpClient poll 5xx (~44k→8/24h) | `isNoisyHttpClientPollEvent` (mechanism + path) |
-| #15173 | parse-worker `[object ErrorEvent]` | `reportParserWorkerError` (real Error) |
-| #15174 | JSON-viewer meta-root offsets (456) | fingerprint/render fix |
-| #15175 | opaque non-Error captures (5EX) | `captureUnknownError` (real Error) |
+| PR     | Family                                     | Lever                                                                                      |
+| ------ | ------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| #15145 | 418 httpClient poll 5xx (~44k→8/24h)       | `isNoisyHttpClientPollEvent` (mechanism + path)                                            |
+| #15173 | parse-worker `[object ErrorEvent]`         | `reportParserWorkerError` (real Error)                                                     |
+| #15174 | JSON-viewer meta-root offsets (456)        | fingerprint/render fix                                                                     |
+| #15175 | opaque non-Error captures (5EX)            | `captureUnknownError` (real Error)                                                         |
 | #15238 | transport / next-auth / benign (~1.9k/24h) | `isDenylistedNoiseEvent` in `sentryFilters.ts` — reads all event fields, negative fixtures |
-| #15243 | expected tRPC codes (54F #2, ~30k) | `handleTrpcError` classify + breadcrumb + tags |
-| #15245 | `Invalid href` (5DZ/5EA/5ER, ~40k) | native `<a>` at the source |
+| #15243 | expected tRPC codes (54F #2, ~30k)         | `handleTrpcError` classify + breadcrumb + tags                                             |
+| #15245 | `Invalid href` (5DZ/5EA/5ER, ~40k)         | native `<a>` at the source                                                                 |
 
 Each is a worked example of one rule: prefer real Errors, prefer root-cause over
 filter, read the right field, keep a negative fixture, verify in the browser.

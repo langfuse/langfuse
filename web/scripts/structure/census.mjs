@@ -1,7 +1,7 @@
 // File census for the structure stats: walks web/src and exposes lazy,
 // memoized file contents and top-level export listings (TS compiler parse,
 // no type checking).
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -17,7 +17,7 @@ export function buildCensus(webRoot) {
   /** @type {string[]} */
   const dirs = [];
   /** @param {string} d */
-  (function walk(d) {
+  function walk(d) {
     for (const e of readdirSync(`${webRoot}/${d}`, { withFileTypes: true })) {
       const p = `${d}/${e.name}`;
       if (e.isDirectory()) {
@@ -25,7 +25,9 @@ export function buildCensus(webRoot) {
         walk(p);
       } else if (/\.[jt]sx?$/.test(e.name)) files.push(p);
     }
-  })("src");
+  }
+  for (const root of ["src", "app", "pages"])
+    if (existsSync(`${webRoot}/${root}`)) walk(root);
 
   /** @type {Map<string, string>} */
   const contents = new Map();

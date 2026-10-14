@@ -6,37 +6,37 @@ import rule from "./no-abstracted-overlay-trigger.js";
 const ruleOptions = {
   overlayFamilies: [
     {
-      module: "@/src/components/ui/dialog",
+      module: "@/src/app/design-system/legacy-primitives/dialog",
       root: "Dialog",
       trigger: "DialogTrigger",
       contents: ["DialogContent"],
     },
     {
-      module: "@/src/components/ui/alert-dialog",
+      module: "@/src/app/design-system/legacy-primitives/alert-dialog",
       root: "AlertDialog",
       trigger: "AlertDialogTrigger",
       contents: ["AlertDialogContent"],
     },
     {
-      module: "@/src/components/ui/dropdown-menu",
+      module: "@/src/app/design-system/legacy-primitives/dropdown-menu",
       root: "DropdownMenu",
       trigger: "DropdownMenuTrigger",
       contents: ["DropdownMenuContent", "DropdownMenuSubContent"],
     },
     {
-      module: "@/src/components/ui/drawer",
+      module: "@/src/app/design-system/legacy-primitives/drawer",
       root: "Drawer",
       trigger: "DrawerTrigger",
       contents: ["DrawerContent"],
     },
     {
-      module: "@/src/components/ui/popover",
+      module: "@/src/app/design-system/legacy-primitives/popover",
       root: "Popover",
       trigger: "PopoverTrigger",
       contents: ["PopoverContent"],
     },
     {
-      module: "@/src/components/ui/sheet",
+      module: "@/src/app/design-system/legacy-primitives/sheet",
       root: "Sheet",
       trigger: "SheetTrigger",
       contents: ["SheetContent"],
@@ -45,12 +45,11 @@ const ruleOptions = {
   overlayControllerFamilies: [
     {
       module:
-        "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController",
+        "@/src/app/design-system/ConfirmationDialogController/ConfirmationDialogController",
       root: "ConfirmationDialogController",
     },
     {
-      module:
-        "@/src/components/design-system/DialogController/DialogController",
+      module: "@/src/app/design-system/DialogController/DialogController",
       root: "DialogController",
     },
   ],
@@ -82,14 +81,14 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
     `export default function () { return <main />; }`,
     `export default class Component {}`,
     `
-      import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+      import { ConfirmationDialogController } from "@/src/app/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
       export function ControllerOnly() {
         return <ConfirmationDialogController />;
       }
     `,
     `
-      import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+      import { DialogController } from "@/src/app/design-system/DialogController/DialogController";
 
       export function NonInteractivePresentation({ visible }) {
         return (
@@ -106,7 +105,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
       }
     `,
     `
-      import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+      import { DialogController } from "@/src/app/design-system/DialogController/DialogController";
 
       export function ComplexPresentation({ visible }) {
         return (
@@ -125,14 +124,14 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
       }
     `,
     `
-      import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+      import { DialogController } from "@/src/app/design-system/DialogController/DialogController";
 
       export function ControllerOnly() {
         return <DialogController />;
       }
     `,
     `
-      import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+      import { DialogController } from "@/src/app/design-system/DialogController/DialogController";
 
       export function DelegatingController({ children }) {
         return (
@@ -143,7 +142,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
       }
     `,
     `
-      import { Dialog, DialogContent } from "@/src/components/ui/dialog";
+      import { Dialog, DialogContent } from "@/src/app/design-system/legacy-primitives/dialog";
 
       export function DialogController({ children }) {
         return (
@@ -155,7 +154,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
       }
     `,
     `
-      import { Dialog, DialogTrigger } from "@/src/components/ui/dialog";
+      import { Dialog, DialogTrigger } from "@/src/app/design-system/legacy-primitives/dialog";
 
       export function Parent() {
         return (
@@ -166,7 +165,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
       }
     `,
     `
-      import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+      import { ConfirmationDialogController } from "@/src/app/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
       export function IntegrationForm() {
         return (
@@ -188,7 +187,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
         Dialog,
         DialogContent,
         DialogTrigger,
-      } from "@/src/components/ui/dialog";
+      } from "@/src/app/design-system/legacy-primitives/dialog";
 
       export function SettingsPage() {
         return (
@@ -207,7 +206,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
         Dialog,
         DialogContent,
         DialogTrigger,
-      } from "@/src/components/ui/dialog";
+      } from "@/src/app/design-system/legacy-primitives/dialog";
 
       export function SettingsPage() {
         return (
@@ -242,7 +241,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
         Dialog,
         DialogContent,
         DialogTrigger,
-      } from "@/src/components/ui/dialog";
+      } from "@/src/app/design-system/legacy-primitives/dialog";
 
       export function Conditional({ embedded }) {
         if (embedded) {
@@ -261,8 +260,8 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
       }
     `,
     `
-      import Dialog, * as DialogComponents from "@/src/components/ui/dialog";
-      import { "Dialog" as Modal } from "@/src/components/ui/dialog";
+      import Dialog, * as DialogComponents from "@/src/app/design-system/legacy-primitives/dialog";
+      import { "Dialog" as Modal } from "@/src/app/design-system/legacy-primitives/dialog";
 
       export function MemberRoot() {
         return <DialogComponents.Dialog />;
@@ -273,7 +272,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
         Dialog,
         DialogContent,
         DialogTrigger,
-      } from "@/src/components/ui/dialog";
+      } from "@/src/app/design-system/legacy-primitives/dialog";
 
       export function TextWrapper() {
         return <div>Label<Dialog><DialogTrigger /><DialogContent /></Dialog></div>;
@@ -284,7 +283,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
         Dialog,
         DialogContent,
         DialogTrigger,
-      } from "@/src/components/ui/dialog";
+      } from "@/src/app/design-system/legacy-primitives/dialog";
 
       export function SpreadWrapper({ children }) {
         return <div>{...children}<Dialog><DialogTrigger /><DialogContent /></Dialog></div>;
@@ -295,7 +294,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
         Dialog,
         DialogContent,
         DialogTrigger,
-      } from "@/src/components/ui/dialog";
+      } from "@/src/app/design-system/legacy-primitives/dialog";
 
       export function Incomplete({ visible }) {
         return visible ? null : <Dialog><DialogTrigger /></Dialog>;
@@ -306,7 +305,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
         Dialog,
         DialogContent,
         DialogTrigger,
-      } from "@/src/components/ui/dialog";
+      } from "@/src/app/design-system/legacy-primitives/dialog";
 
       export function TryAndSwitch({ state }) {
         try {
@@ -329,7 +328,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
   invalid: [
     {
       code: `
-          import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+          import { DialogController } from "@/src/app/design-system/DialogController/DialogController";
 
         export function DeletePrompt() {
           return (
@@ -343,7 +342,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
     },
     {
       code: `
-        import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+        import { DialogController } from "@/src/app/design-system/DialogController/DialogController";
 
         export function LinkedPrompt() {
           return <DialogController>{() => <a href="#open">Open</a>}</DialogController>;
@@ -353,7 +352,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
     },
     {
       code: `
-        import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+        import { DialogController } from "@/src/app/design-system/DialogController/DialogController";
 
         export function ConditionalPrompt({ visible }) {
           return (
@@ -369,7 +368,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
     },
     {
       code: `
-        import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+        import { DialogController } from "@/src/app/design-system/DialogController/DialogController";
 
         export function InputPrompt() {
           return <DialogController>{() => <input type="button" />}</DialogController>;
@@ -379,7 +378,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
     },
     {
       code: `
-        import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+        import { DialogController } from "@/src/app/design-system/DialogController/DialogController";
 
         export function DeletePrompt() {
           return (
@@ -398,7 +397,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
     },
     {
       code: `
-        import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+        import { DialogController } from "@/src/app/design-system/DialogController/DialogController";
 
         export function DeletePrompt() {
           return (
@@ -419,7 +418,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
     },
     {
       code: `
-          import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+          import { DialogController } from "@/src/app/design-system/DialogController/DialogController";
 
           export function DeletePrompt() {
             return (
@@ -440,7 +439,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
     },
     {
       code: `
-          import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+          import { ConfirmationDialogController } from "@/src/app/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
         export function ArchiveButton({ children }) {
           return (
@@ -463,7 +462,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
           Drawer,
           DrawerContent,
           DrawerTrigger,
-        } from "@/src/components/ui/drawer";
+        } from "@/src/app/design-system/legacy-primitives/drawer";
 
         export function AnnotateDrawer() {
           return (
@@ -487,7 +486,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
               Dialog,
           DialogContent,
           DialogTrigger,
-        } from "@/src/components/ui/dialog";
+        } from "@/src/app/design-system/legacy-primitives/dialog";
 
         export function DeleteButton() {
           return (
@@ -511,7 +510,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
           Dialog,
           DialogContent,
           DialogTrigger,
-        } from "@/src/components/ui/dialog";
+        } from "@/src/app/design-system/legacy-primitives/dialog";
 
         export function DeleteButton() {
           return (
@@ -530,7 +529,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
           Dialog as Modal,
           DialogContent as ModalContent,
           DialogTrigger as ModalTrigger,
-        } from "@/src/components/ui/dialog";
+        } from "@/src/app/design-system/legacy-primitives/dialog";
 
         export const DeleteButton = () => (
           <Modal>
@@ -552,7 +551,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
           Dialog,
           DialogContent,
           DialogTrigger,
-        } from "@/src/components/ui/dialog";
+        } from "@/src/app/design-system/legacy-primitives/dialog";
 
         export function DeleteButton() {
           return (
@@ -573,7 +572,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
               Dialog,
               DialogContent,
               DialogTrigger,
-            } from "@/src/components/ui/dialog";
+            } from "@/src/app/design-system/legacy-primitives/dialog";
 
             export function DeleteButton({ visible }) {
               const overlay = (
@@ -594,7 +593,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
               Dialog,
           DialogContent,
           DialogTrigger,
-        } from "@/src/components/ui/dialog";
+        } from "@/src/app/design-system/legacy-primitives/dialog";
 
         export function DeleteButton() {
           return (
@@ -617,7 +616,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
           Dialog,
           DialogContent,
           DialogTrigger,
-        } from "@/src/components/ui/dialog";
+        } from "@/src/app/design-system/legacy-primitives/dialog";
 
         export function DeleteButton() {
           return (
@@ -638,7 +637,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
           DropdownMenu,
           DropdownMenuContent,
           DropdownMenuTrigger,
-        } from "@/src/components/ui/dropdown-menu";
+        } from "@/src/app/design-system/legacy-primitives/dropdown-menu";
 
         export const ActionsMenu = forwardRef(() => {
           return (
@@ -662,7 +661,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
           Sheet,
           SheetContent,
           SheetTrigger,
-        } from "@/src/components/ui/sheet";
+        } from "@/src/app/design-system/legacy-primitives/sheet";
 
         export function MobileFilters({ loading }) {
           return loading ? <Spinner /> : (
@@ -686,7 +685,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
           Dialog,
           DialogContent,
           DialogTrigger,
-        } from "@/src/components/ui/dialog";
+        } from "@/src/app/design-system/legacy-primitives/dialog";
 
         export default () => (
           <div>
@@ -706,7 +705,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
           Popover,
           PopoverContent,
           PopoverTrigger,
-        } from "@/src/components/ui/popover";
+        } from "@/src/app/design-system/legacy-primitives/popover";
 
         export function Picker({ ready }) {
           return ready && (
@@ -730,7 +729,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
           AlertDialog,
           AlertDialogContent,
           AlertDialogTrigger,
-        } from "@/src/components/ui/alert-dialog";
+        } from "@/src/app/design-system/legacy-primitives/alert-dialog";
 
         export function Confirm() {
           return (
@@ -754,7 +753,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
             Dialog,
             DialogContent,
             DialogTrigger,
-          } from "@/src/components/ui/dialog";
+          } from "@/src/app/design-system/legacy-primitives/dialog";
 
           export function DeleteButton() {
             return (
@@ -779,7 +778,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
             Dialog,
             DialogContent,
             DialogTrigger,
-          } from "@/src/components/ui/dialog";
+          } from "@/src/app/design-system/legacy-primitives/dialog";
 
           export function DeleteButton() {
             let mutableOverlay = null;
@@ -801,7 +800,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
             Dialog,
             DialogContent,
             DialogTrigger,
-          } from "@/src/components/ui/dialog";
+          } from "@/src/app/design-system/legacy-primitives/dialog";
 
           export default function DeleteButton() {
             return (

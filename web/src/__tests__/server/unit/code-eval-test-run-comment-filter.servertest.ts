@@ -17,7 +17,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EvalTargetObject } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import type * as SharedServerModule from "@langfuse/shared/src/server";
-import { runCodeEvalTestForJobConfig } from "@/src/features/evals/server/codeEvalTestRun";
+import { runCodeEvalTestForJobConfig } from "@/src/evaluators/server/codeEvalTestRun";
 
 const commentFilter = {
   type: "string" as const,

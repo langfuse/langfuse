@@ -18,7 +18,7 @@ vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: getServerAuthSessionMock,
 }));
 
-import handler from "@/src/pages/api/project/[projectId]/visit";
+import handler from "@/pages/api/project/[projectId]/visit";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 const makeSession = (projectIds: string[]) => ({

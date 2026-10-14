@@ -10,11 +10,11 @@ import {
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
 } from "@langfuse/shared/src/server";
-import { getObservationForEvalById } from "@/src/features/evals/server/getObservationForEvalById";
-import { testEvaluator } from "@/src/features/evals/v2/server/evaluators/testEvaluator";
+import { getObservationForEvalById } from "@/src/evaluators/server/getObservationForEvalById";
+import { testEvaluator } from "@/src/evaluators/v2/server/evaluators/testEvaluator";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/src/features/evals/server/getObservationForEvalById", () => ({
+vi.mock("@/src/evaluators/server/getObservationForEvalById", () => ({
   getObservationForEvalById: vi.fn(),
 }));
 

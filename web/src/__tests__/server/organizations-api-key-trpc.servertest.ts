@@ -17,7 +17,7 @@ import {
   SystemRoleId,
   UserId,
 } from "@langfuse/shared/rbac";
-import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
+import { getRolesForPrincipal } from "@/src/identity/access-control/getRolesForPrincipal";
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
 

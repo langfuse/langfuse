@@ -28,12 +28,12 @@ import {
   buildFieldCatalog,
   buildFilterSystemPrompt,
   nullableFieldIds,
-} from "@/src/features/search-bar/server/buildFilterPrompt";
-import { SEARCH_BAR_FILTER_PROMPT_NAME } from "@/src/features/search-bar/server/resolveFilterPrompt";
+} from "@/src/app/search/server/buildFilterPrompt";
+import { SEARCH_BAR_FILTER_PROMPT_NAME } from "@/src/app/search/server/resolveFilterPrompt";
 
 const SEED_PATH = join(
   process.cwd(),
-  "src/features/search-bar/server/prompts/search-bar-filter.prompt.json",
+  "src/app/search/server/prompts/search-bar-filter.prompt.json",
 );
 
 function loadSeed(): {

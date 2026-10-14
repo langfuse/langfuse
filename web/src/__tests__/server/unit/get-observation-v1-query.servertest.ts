@@ -1,4 +1,4 @@
-import { GetObservationV1Query } from "@/src/features/public-api/types/observations";
+import { GetObservationV1Query } from "@/src/public-api/types/observations";
 
 describe("GetObservationV1Query", () => {
   it("parses without startTime (backwards compatible)", () => {

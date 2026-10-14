@@ -3,7 +3,7 @@ import { v4 } from "uuid";
 import type Stripe from "stripe";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import { handleSubscriptionChanged } from "@/src/ee/features/billing/server/stripe/stripeWebhookHandler";
+import { handleSubscriptionChanged } from "@/src/ee/billing/server/stripe/stripeWebhookHandler";
 import { env } from "@/src/env.mjs";
 
 const mocks = vi.hoisted(() => ({
@@ -18,7 +18,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   traceException: mocks.traceException,
 }));
 
-vi.mock("@/src/ee/features/billing/utils/stripe", () => ({
+vi.mock("@/src/ee/billing/utils/stripe", () => ({
   stripeClient: {
     checkout: { sessions: { list: mocks.listCheckoutSessions } },
     subscriptions: { update: vi.fn(), retrieve: vi.fn() },

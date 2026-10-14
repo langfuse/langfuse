@@ -6,18 +6,18 @@ import {
 import { TRPCError } from "@trpc/server";
 import { ForbiddenError, StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma, type PrismaClient } from "@langfuse/shared/src/db";
-import { canToggleV4 } from "@/src/features/events/server";
-import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
+import { canToggleV4 } from "@/src/tracing/observations/server";
+import { V4_PREVIEW_LABEL } from "@/src/tracing/observations/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { getSfdcService } from "@/src/ee/salesforce/server";
 import {
   isAdminOnlyFeaturePreviewFlag,
   personalFeaturePreviewFlags,
   setUserFeaturePreview,
   hasInternalAccess,
   INTERNAL_FEATURE_FLAG,
-} from "@/src/features/feature-flags/server";
-import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
+} from "@/src/release-management/feature-flags/server";
+import { advanceSessionsExpiredAtForUser } from "@/src/identity/auth/lib/sessionExpiration";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(

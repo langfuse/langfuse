@@ -28,7 +28,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
-vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
+vi.mock("@/src/public-api/server/RateLimitService", () => ({
   RateLimitService: {
     getInstance: () => ({
       rateLimitRequest: mockRateLimitRequest,
@@ -39,10 +39,10 @@ vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
 import {
   isProductFeedbackAvailable,
   submitFeedback,
-} from "@/src/features/feedback/server";
-import { feedbackFeature } from "@/src/features/mcp/server/feedback";
-import { getMcpServerInstructions } from "@/src/features/mcp/server/mcpServer";
-import { PostFeedbackBody } from "@/src/features/public-api/types/feedback";
+} from "@/src/app/support/feedback/server";
+import { feedbackFeature } from "@/src/public-api/mcp/server/feedback";
+import { getMcpServerInstructions } from "@/src/public-api/mcp/server/mcpServer";
+import { PostFeedbackBody } from "@/src/public-api/types/feedback";
 
 const scope = {
   projectId: "project-1",

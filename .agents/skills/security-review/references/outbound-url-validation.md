@@ -70,18 +70,18 @@ Every outbound-URL surface MUST apply **all three** of:
 ## Known-Good Call Sites (Copy These)
 
 - LLM base URL save:
-  `web/src/features/llm-api-key/server/router.ts` (`update` mutation calls
+  `web/src/ai/provider-connections/server/router.ts` (`update` mutation calls
   `validateLlmConnectionBaseURL` before persisting).
 - LLM base URL through public API:
-  `web/src/pages/api/public/llm-connections/index.ts`.
+  `web/pages/api/public/llm-connections/index.ts`.
 - Webhook URL save + use:
   `packages/shared/src/server/webhooks/validation.ts` is wired into both the
   automation form and the worker-side webhook sender.
 - Blob storage endpoint:
-  `web/src/features/blobstorage-integration/blobstorage-integration-router.ts`
+  `web/src/data-export/object-storage/blobstorage-integration-router.ts`
   (`validate` mutation calls `validateBlobStorageEndpoint`); connection-time
   enforcement flows through `StorageServiceFactory.getInstance({
-  connectionValidation: blobStorageEndpointConnectionValidationOptions() })`.
+connectionValidation: blobStorageEndpointConnectionValidationOptions() })`.
 
 ## When Adding a New Outbound URL Surface
 

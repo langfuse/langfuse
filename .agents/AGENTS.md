@@ -18,7 +18,7 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
 - Before creating a new component or reusing one from elsewhere in
-  `web/src/components`, first check `web/src/components/design-system` for an
+  `web/src/app/components`, first check `web/src/app/design-system` for an
   existing component that satisfies the use case. Prefer the design-system
   component and extend it when appropriate; use another component only when
   the design system has no suitable option.
@@ -211,8 +211,8 @@ langfuse/
 - `packages/shared/prisma/**` or `packages/shared/clickhouse/**`:
   `pnpm run lint`, `pnpm run db:generate`, and targeted web/worker
   regressions.
-- Public API contracts in `web/src/pages/api/public/**`,
-  `web/src/features/public-api/types/**`, or `fern/apis/**`: `pnpm run lint`,
+- Public API contracts in `web/pages/api/public/**`,
+  `web/src/public-api/types/**`, or `fern/apis/**`: `pnpm run lint`,
   targeted server API tests, Fern update/regeneration, and
   `pnpm run openapi:check`.
 - Cross-package refactors: `pnpm run lint`, `pnpm run typecheck`, and targeted
@@ -237,7 +237,7 @@ A check that passed is not always a check that ran:
   `pnpm exec turbo run lint --force`; `--no-cache` does not do this, it only
   stops the write (`turbo run lint --help`).
 - Every package that lints — `web`, `worker`, `packages/shared`, `ee` — runs
-  eslint with `--max-warnings 0`, so one eslint *warning* fails the branch.
+  eslint with `--max-warnings 0`, so one eslint _warning_ fails the branch.
 - `@langfuse/shared` resolves to its built `dist`. Root `pnpm run typecheck`
   orders that build for you (`turbo.json`: `typecheck.dependsOn` includes
   `^build`), but a filtered `pnpm --filter=web run typecheck` does not — after

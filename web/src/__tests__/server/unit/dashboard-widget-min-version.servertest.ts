@@ -1,8 +1,8 @@
 import {
   normalizePublicDashboardWidgetInput,
   validatePublicDashboardWidgetInput,
-} from "@/src/features/widgets/server/public-dashboard-widget-service";
-import { StructuredPublicApiError } from "@/src/features/public-api";
+} from "@/src/analytics/visualization/server/public-dashboard-widget-service";
+import { StructuredPublicApiError } from "@/src/public-api";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 
 const baseInput = {

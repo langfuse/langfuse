@@ -10,7 +10,7 @@ import {
   enforceWebCalloutRateLimit,
   recordWebCalloutInvokeMetric,
   withWebCalloutInFlightLimit,
-} from "@/src/features/web-callouts/server/rateLimit";
+} from "@/src/integrations/web-callouts/server/rateLimit";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
   fetchWithSecureRedirects,
@@ -34,7 +34,7 @@ vi.mock("@langfuse/shared/encryption", async () => {
   };
 });
 
-vi.mock("@/src/features/web-callouts/server/rateLimit", () => ({
+vi.mock("@/src/integrations/web-callouts/server/rateLimit", () => ({
   enforceWebCalloutRateLimit: vi.fn(),
   recordWebCalloutInvokeMetric: vi.fn(),
   withWebCalloutInFlightLimit: vi.fn(

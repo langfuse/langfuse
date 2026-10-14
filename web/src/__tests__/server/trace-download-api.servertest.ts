@@ -3,8 +3,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { LangfuseNotFoundError, UnauthorizedError } from "@langfuse/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import handler from "../../pages/api/traces/[traceId]/download";
-import { TraceDownloadTooLargeError } from "../../features/traces/server/buildTraceExport";
+import handler from "../../../pages/api/traces/[traceId]/download";
+import { TraceDownloadTooLargeError } from "../../tracing/traces/server/buildTraceExport";
 
 const { mockGetServerAuthSession, mockBuildTraceExport } = vi.hoisted(() => ({
   mockGetServerAuthSession: vi.fn(),
@@ -16,8 +16,8 @@ vi.mock("../../server/auth", () => ({
     mockGetServerAuthSession(...args),
 }));
 
-vi.mock("../../features/traces/server/buildTraceExport", async () => ({
-  ...(await vi.importActual("../../features/traces/server/buildTraceExport")),
+vi.mock("../../tracing/traces/server/buildTraceExport", async () => ({
+  ...(await vi.importActual("../../tracing/traces/server/buildTraceExport")),
   buildTraceExport: (...args: unknown[]) => mockBuildTraceExport(...args),
 }));
 

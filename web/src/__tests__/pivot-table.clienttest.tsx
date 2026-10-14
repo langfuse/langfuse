@@ -19,8 +19,8 @@ import { render, screen } from "@testing-library/react";
 import {
   PivotTable,
   type PivotTableProps,
-} from "@/src/features/widgets/chart-library/PivotTable";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+} from "@/src/analytics/visualization/chart-library/PivotTable";
+import { type DataPoint } from "@/src/analytics/visualization/chart-library/chart-props";
 
 describe("PivotTable Component", () => {
   describe("Basic Rendering", () => {

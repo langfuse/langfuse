@@ -1,0 +1,1292 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-style-props */
+import { TextActionButton } from "@/src/app/components/TextActionButton/TextActionButton";
+import { Button } from "@/src/app/design-system/legacy-primitives/button";
+import { Input } from "@/src/app/design-system/legacy-primitives/input";
+import { Textarea } from "@/src/app/design-system/legacy-primitives/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/app/design-system/legacy-primitives/select";
+import { DatePicker } from "@/src/app/components/date-picker";
+import {
+  useState,
+  useEffect,
+  useRef,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import useProjectIdFromURL from "@/src/app/hooks/useProjectIdFromURL";
+import { api, reportNonTrpcError } from "@/src/app/utils/api";
+import {
+  Check,
+  ExternalLink,
+  FilterIcon,
+  Info,
+  Plus,
+  WandSparkles,
+  X,
+} from "lucide-react";
+import { DropdownIndicator } from "@/src/app/design-system/DropdownIndicator/DropdownIndicator";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/app/design-system/legacy-primitives/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/app/design-system/legacy-primitives/tooltip";
+import { MultiSelect } from "@/src/app/search/filters/components/multi-select";
+import { SingleSelect } from "@/src/app/search/filters/components/single-select";
+import { FilterToken } from "@/src/app/search/filters/components/FilterToken";
+import { getColumnOptionsForFilterRow } from "@/src/app/search/filters/lib/filter-transform";
+import {
+  type WipFilterState,
+  type WipFilterCondition,
+  type FilterState,
+  type FilterCondition,
+  type ColumnDefinition,
+  type SingleValueOption,
+  filterOperators,
+  singleFilter,
+  NonEmptyString,
+  formatSessionPositionInTraceFilterValue,
+  getSessionPositionInTraceFilterMode,
+} from "@langfuse/shared";
+import { cn } from "@/src/app/utils/tailwind";
+import { usePostHogClientCapture } from "@/src/analytics/internal/posthog";
+import {
+  InputCommand,
+  InputCommandEmpty,
+  InputCommandGroup,
+  InputCommandInput,
+  InputCommandItem,
+  InputCommandList,
+} from "@/src/app/design-system/legacy-primitives/input-command";
+import { useQueryProject } from "@/src/identity/projects";
+import {
+  useLangfuseCloudRegion,
+  openAIFeaturesSettings,
+} from "@/src/identity/organizations";
+
+/**
+ * Extended ColumnDefinition with optional alert for UI display.
+ * Alerts are added dynamically in the web layer based on feature availability.
+ */
+export type ColumnDefinitionWithAlert = ColumnDefinition & {
+  alert?: {
+    severity: "info" | "warning" | "error";
+    content: React.ReactNode;
+  };
+};
+
+type AiFilterConfig = {
+  organizationId: string | undefined;
+  aiFeaturesEnabled: boolean;
+  isPending: boolean;
+  generateFilters: (prompt: string) => Promise<WipFilterState | null>;
+};
+
+// Has WipFilterState, passes all valid filters to parent onChange
+export function PopoverFilterBuilder({
+  columns,
+  filterState,
+  onChange,
+  columnIdentifier = "name",
+  columnsWithCustomSelect = [],
+  filterWithAI = false,
+  buttonType = "default",
+  label = "Filters",
+  tableName = "unknown",
+  isV4 = false,
+}: {
+  /** Which column field to persist in filter.column: 'id' for stable refs, 'name' for legacy compatibility */
+  columns: ColumnDefinitionWithAlert[];
+  filterState: FilterState;
+  onChange:
+    | Dispatch<SetStateAction<FilterState>>
+    | ((newState: FilterState) => void);
+  columnIdentifier?: ColumnIdentifier;
+  columnsWithCustomSelect?: string[];
+  filterWithAI?: boolean;
+  buttonType?: "default" | "icon";
+  /** Trigger button label. Defaults to "Filters"; override to clarify scope. */
+  label?: string;
+  /** Table this builder filters — the `tableName` analytics dimension. */
+  tableName?: string;
+  /** Whether this builder sits on a v4 (fast-mode) surface — `isV4` dimension. */
+  isV4?: boolean;
+}) {
+  const capture = usePostHogClientCapture();
+  const projectId = useProjectIdFromURL();
+  const { organization } = useQueryProject();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const createFilterMutation =
+    api.naturalLanguageFilters.createCompletion.useMutation();
+  const [wipFilterState, _setWipFilterState] =
+    useState<WipFilterState>(filterState);
+  // Count of already-applied (valid) filters, so `setWipFilterState` can emit
+  // `filters:applied` only when a filter is newly completed — not on every
+  // keystroke of an in-progress edit. Seeded from the incoming applied state.
+  const prevValidCountRef = useRef(filterState.length);
+
+  // Sync wipFilterState when filterState prop changes externally
+  // (e.g., when a saved view preset is applied)
+  // We use a ref to track previous filterState to avoid re-running when wipFilterState changes
+  const prevFilterStateRef = useRef(filterState);
+  useEffect(() => {
+    // Only sync if filterState actually changed (reference comparison is fine here
+    // since filterState comes from URL parsing which creates new arrays)
+    if (prevFilterStateRef.current === filterState) return;
+    prevFilterStateRef.current = filterState;
+
+    _setWipFilterState((currentWip) => {
+      const hasWipFilters = currentWip.some(
+        (f) => !singleFilter.safeParse(f).success,
+      );
+      // Don't sync if user is actively editing (has invalid WIP filters)
+      if (hasWipFilters) return currentWip;
+      // Synced from external state (saved view applied, URL nav, clear-all): the
+      // commit bypasses the wrapped `setWipFilterState`, so re-baseline the
+      // applied-count ref here too. Otherwise a stale count makes the
+      // next wrapper edit — including popover close — mis-fire `filters:applied`.
+      // `filterState` is already-valid (typed FilterState), so its length is the
+      // valid count.
+      prevValidCountRef.current = filterState.length;
+      return filterState;
+    });
+  }, [filterState]);
+
+  const addNewFilter = () => {
+    setWipFilterState((prev) => [
+      ...prev,
+      {
+        column: undefined,
+        type: undefined,
+        operator: undefined,
+        value: undefined,
+        key: undefined,
+      },
+    ]);
+  };
+
+  const getValidFilters = (state: WipFilterState): FilterCondition[] => {
+    const valid = state.filter(
+      (f) => singleFilter.safeParse(f).success,
+    ) as FilterCondition[];
+    return valid;
+  };
+
+  const setWipFilterState = (
+    state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
+  ) => {
+    const newState = state instanceof Function ? state(wipFilterState) : state;
+    const validFilters = getValidFilters(newState);
+    _setWipFilterState(newState);
+    onChange(validFilters);
+    const prevCount = prevValidCountRef.current;
+    // A row was actually removed (clear-all X → []; or a single row X). This
+    // is the ONLY thing that counts as a clear: a valid count that drops
+    // because a row went transiently invalid mid-edit (changing a row's column
+    // sets value:undefined → fails safeParse) keeps the SAME row count and
+    // must NOT emit `filters:cleared` — the user is refining, not clearing.
+    const rowsRemoved = newState.length < wipFilterState.length;
+    // Analytics: METADATA ONLY — we report the changed filter's
+    // shape + counts, never a raw value. Count semantics match the sidebar:
+    // `conditionCount` = TOTAL applied conditions across ALL columns;
+    // `columnConditionCount` = rows for the changed column.
+    if (validFilters.length > prevCount) {
+      // A filter was newly completed (valid count grew) — an in-progress edit
+      // does not fire per keystroke.
+      const applied = validFilters[validFilters.length - 1];
+      if (applied) {
+        capture("filters:applied", {
+          surface: "filter_builder",
+          tableName,
+          column: applied.column,
+          filterType: applied.type,
+          operator: applied.operator,
+          ...("key" in applied && applied.key ? { key: applied.key } : {}),
+          valueCount: Array.isArray(applied.value) ? applied.value.length : 1,
+          conditionCount: validFilters.length,
+          columnConditionCount: validFilters.filter(
+            (f) => f.column === applied.column,
+          ).length,
+          isV4,
+        });
+      }
+    } else if (validFilters.length < prevCount && rowsRemoved) {
+      // A real clear — the clear-all X buttons (setWipFilterState([])) or
+      // removing a row. NOT a transient mid-column-change invalid shrink.
+      capture("filters:cleared", {
+        surface: "filter_builder",
+        tableName,
+        clearedCount: prevCount - validFilters.length,
+        isV4,
+      });
+    }
+    prevValidCountRef.current = validFilters.length;
+  };
+  const aiFilter =
+    filterWithAI && isLangfuseCloud
+      ? {
+          organizationId: organization?.id,
+          aiFeaturesEnabled: organization?.aiFeaturesEnabled === true,
+          isPending: createFilterMutation.isPending,
+          generateFilters: async (prompt: string) => {
+            if (!projectId) return null;
+            const result = await createFilterMutation.mutateAsync({
+              projectId,
+              prompt,
+            });
+            return result && Array.isArray(result.filters)
+              ? (result.filters as WipFilterState)
+              : null;
+          },
+        }
+      : undefined;
+
+  return (
+    <div className="flex items-center">
+      <Popover
+        onOpenChange={(open) => {
+          if (open) {
+            capture("table:filter_builder_open");
+          }
+          // Create empty filter when opening popover
+          if (open && filterState.length === 0) addNewFilter();
+          // Discard all wip filters when closing popover
+          if (!open) {
+            // Send only the applied-filter count; raw filter values can contain
+            // user IDs, metadata content, or other personal data.
+            capture("table:filter_builder_close", {
+              filterCount: filterState.length,
+            });
+            setWipFilterState(filterState);
+          }
+        }}
+      >
+        <PopoverTrigger asChild>
+          {buttonType === "default" ? (
+            <Button variant="outline" type="button">
+              <span>{label}</span>
+              {filterState.length > 0 && filterState.length < 3 ? (
+                <InlineFilterState
+                  filterState={filterState}
+                  className="hidden @6xl:block"
+                />
+              ) : null}
+              {filterState.length > 0 ? (
+                <span
+                  className={cn(
+                    "bg-input ml-1.5 rounded-sm px-1 text-xs shadow-xs @6xl:hidden",
+                    filterState.length > 2 && "@6xl:inline",
+                  )}
+                >
+                  {filterState.length}
+                </span>
+              ) : (
+                <span className="ml-1 flex">
+                  <DropdownIndicator nudge />
+                </span>
+              )}
+            </Button>
+          ) : (
+            <Button
+              size="icon"
+              type="button"
+              variant="ghost"
+              className="relative"
+            >
+              <FilterIcon className="icon-base text-icon-foreground" />
+              {filterState.length > 0 && (
+                <span className="bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs">
+                  {filterState.length}
+                </span>
+              )}
+            </Button>
+          )}
+        </PopoverTrigger>
+        <PopoverContent
+          className="ph-no-capture w-fit max-w-[90vw] overflow-x-auto"
+          align="start"
+        >
+          <FilterBuilderForm
+            columnIdentifier={columnIdentifier}
+            columns={columns}
+            filterState={wipFilterState}
+            onChange={setWipFilterState}
+            columnsWithCustomSelect={columnsWithCustomSelect}
+            aiFilter={aiFilter}
+          />
+        </PopoverContent>
+      </Popover>
+      {filterState.length > 0 ? (
+        buttonType === "default" ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => setWipFilterState([])}
+                variant="ghost"
+                type="button"
+                size="icon"
+                className="ml-0.5"
+              >
+                <X className="icon-base text-icon-foreground" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Clear all filters</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => setWipFilterState([])}
+                variant="ghost"
+                type="button"
+                size="icon-xs"
+                className="hover:bg-background ml-0.5"
+              >
+                <X className="icon-sm text-icon-foreground" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Clear all filters</TooltipContent>
+          </Tooltip>
+        )
+      ) : null}
+    </div>
+  );
+}
+
+export function InlineFilterState({
+  filterState,
+  className,
+}: {
+  filterState: FilterState;
+  className?: string;
+}) {
+  return filterState.map((filter, i) => {
+    const column = (() => {
+      if (
+        filter.type === "stringObject" ||
+        filter.type === "numberObject" ||
+        filter.type === "booleanObject"
+      ) {
+        return `${filter.column}.${filter.key}`;
+      }
+
+      return filter.column;
+    })();
+
+    const value = (() => {
+      if (filter.type === "positionInTrace") {
+        return formatSessionPositionInTraceFilterValue(filter);
+      }
+      if (filter.type === "datetime") {
+        return new Date(filter.value).toLocaleString();
+      }
+      if (filter.type === "stringOptions" || filter.type === "arrayOptions") {
+        if (filter.value.length > 2) {
+          return `${filter.value.length} selected`;
+        }
+
+        return filter.value.join(", ");
+      }
+      if (filter.type === "number" || filter.type === "numberObject") {
+        return filter.value;
+      }
+      if (filter.type === "boolean" || filter.type === "booleanObject") {
+        return `${filter.value}`;
+      }
+      if (filter.type === "null") {
+        return "";
+      }
+
+      return `"${filter.value}"`;
+    })();
+
+    const numericValue =
+      value !== "" && /^-?\d+(\.\d+)?$/.test(String(value).trim());
+
+    return (
+      <span
+        key={i}
+        className={cn("ml-2 inline-block text-xs whitespace-nowrap", className)}
+      >
+        <FilterToken deactivated={false} title={undefined}>
+          <span className="text-qlang-field">{column}</span>{" "}
+          <span className="text-muted-foreground">{filter.operator}</span>
+          {value !== "" ? (
+            <>
+              {" "}
+              <span
+                className={
+                  numericValue ? "text-qlang-number" : "text-qlang-value"
+                }
+              >
+                {value}
+              </span>
+            </>
+          ) : null}
+        </FilterToken>
+      </span>
+    );
+  });
+}
+
+type ColumnIdentifier = "id" | "name";
+
+export function InlineFilterBuilder({
+  columns,
+  filterState,
+  onChange,
+  columnIdentifier = "name",
+  disabled,
+  columnsWithCustomSelect,
+  onOptionsOpen,
+  loadingOptionColumns = [],
+  columnsHiddenUnlessSelected,
+  stringObjectValueOptions,
+  onStringObjectKeyChange,
+  compact = false,
+  subtleAddButton = false,
+}: {
+  columns: ColumnDefinitionWithAlert[];
+  filterState: FilterState;
+  onChange:
+    | Dispatch<SetStateAction<FilterState>>
+    | ((newState: FilterState) => void);
+  /** Which column field to persist in filter.column: 'id' for stable refs, 'name' for legacy compatibility */
+  columnIdentifier?: ColumnIdentifier;
+  disabled?: boolean;
+  columnsWithCustomSelect?: string[];
+  onOptionsOpen?: (columnId: string) => void;
+  loadingOptionColumns?: string[];
+  /**
+   * Column ids/names that stay in the picker only for rows that already use
+   * them. Used to grandfather retired columns without offering them on new rows.
+   */
+  columnsHiddenUnlessSelected?: readonly string[];
+  /** Per-key value suggestions for opt-in stringObject columns (metadata). */
+  stringObjectValueOptions?: Record<string, SingleValueOption[]>;
+  /** Fires when a suggestion-enabled stringObject key changes, so the parent can load its values. */
+  onStringObjectKeyChange?: (key: string) => void;
+  /** compact renders the width-constrained two-line layout instead of the legacy single-row table. */
+  compact?: boolean;
+  /** Renders the add action like the subtle prompt-editor "Add message" action. */
+  subtleAddButton?: boolean;
+}) {
+  const [wipFilterState, _setWipFilterState] =
+    useState<WipFilterState>(filterState);
+
+  // Sync wipFilterState when filterState prop changes externally
+  // (e.g., when a view changes resets filters or default filters are excluded)
+  // We use a ref to track previous filterState to avoid re-running when wipFilterState changes
+  const prevFilterStateRef = useRef(filterState);
+  useEffect(() => {
+    // Only sync if filterState actually changed (reference comparison is fine here
+    // since filterState comes from parent state which creates new arrays on change)
+    if (prevFilterStateRef.current === filterState) return;
+    prevFilterStateRef.current = filterState;
+
+    _setWipFilterState((currentWip) => {
+      const hasWipFilters = currentWip.some(
+        (f) => !singleFilter.safeParse(f).success,
+      );
+      // Don't sync if user is actively editing (has invalid WIP filters)
+      return hasWipFilters ? currentWip : filterState;
+    });
+  }, [filterState]);
+
+  const setWipFilterState = (
+    state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
+  ) => {
+    const newState = state instanceof Function ? state(wipFilterState) : state;
+    const validFilters = newState.filter(
+      (f) => singleFilter.safeParse(f).success,
+    ) as FilterState;
+    _setWipFilterState(newState);
+    onChange(validFilters);
+  };
+
+  return (
+    <div className="flex flex-col">
+      <FilterBuilderForm
+        columnIdentifier={columnIdentifier}
+        columns={columns}
+        filterState={wipFilterState}
+        onChange={setWipFilterState}
+        disabled={disabled}
+        columnsWithCustomSelect={columnsWithCustomSelect}
+        onOptionsOpen={onOptionsOpen}
+        loadingOptionColumns={loadingOptionColumns}
+        columnsHiddenUnlessSelected={columnsHiddenUnlessSelected}
+        stringObjectValueOptions={stringObjectValueOptions}
+        onStringObjectKeyChange={onStringObjectKeyChange}
+        compact={compact}
+        subtleAddButton={subtleAddButton}
+      />
+    </div>
+  );
+}
+
+const getOperator = (
+  type: NonNullable<WipFilterCondition["type"]>,
+): WipFilterCondition["operator"] => {
+  return filterOperators[type]?.length > 0
+    ? filterOperators[type][0]
+    : undefined;
+};
+
+/**
+ * Returns severity-based styling classes for alert icons and tooltips
+ */
+const getAlertStyles = (severity: "info" | "warning" | "error") => {
+  const styles = {
+    error: {
+      iconColor: "text-red-600",
+      tooltipBg: "bg-red-50 dark:bg-red-950",
+    },
+    info: {
+      iconColor: "text-blue-600",
+      tooltipBg: "bg-blue-50 dark:bg-blue-950",
+    },
+    warning: {
+      iconColor: "text-amber-600",
+      tooltipBg: "bg-amber-50 dark:bg-amber-950",
+    },
+  };
+
+  return styles[severity];
+};
+
+function FilterBuilderForm({
+  columnIdentifier,
+  columns,
+  filterState,
+  onChange,
+  disabled,
+  columnsWithCustomSelect = [],
+  onOptionsOpen,
+  loadingOptionColumns = [],
+  columnsHiddenUnlessSelected = [],
+  stringObjectValueOptions = {},
+  onStringObjectKeyChange,
+  compact = false,
+  subtleAddButton = false,
+  aiFilter,
+}: {
+  columnIdentifier: ColumnIdentifier;
+  columns: ColumnDefinitionWithAlert[];
+  filterState: WipFilterState;
+  onChange: Dispatch<SetStateAction<WipFilterState>>;
+  disabled?: boolean;
+  columnsWithCustomSelect?: string[];
+  onOptionsOpen?: (columnId: string) => void;
+  loadingOptionColumns?: string[];
+  /**
+   * Column ids/names that stay in the picker only for rows that already use
+   * them. Used to grandfather retired columns without offering them on new rows.
+   */
+  columnsHiddenUnlessSelected?: readonly string[];
+  /** Per-key value suggestions for opt-in stringObject columns (metadata). */
+  stringObjectValueOptions?: Record<string, SingleValueOption[]>;
+  /** Fires when a suggestion-enabled stringObject key changes, so the parent can load its values. */
+  onStringObjectKeyChange?: (key: string) => void;
+  /** compact renders each condition as a wrapping block for width-constrained inline builders instead of the wide table. */
+  compact?: boolean;
+  subtleAddButton?: boolean;
+  aiFilter?: AiFilterConfig;
+}) {
+  const [showAiFilter, setShowAiFilter] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [openColumnRow, setOpenColumnRow] = useState<number | null>(null);
+  const handleFilterChange = (filter: WipFilterCondition, i: number) => {
+    onChange((prev) => {
+      const newState = [...prev];
+      newState[i] = filter;
+      return newState;
+    });
+  };
+
+  const addNewFilter = () => {
+    onChange((prev) => [
+      ...prev,
+      {
+        column: undefined,
+        operator: undefined,
+        value: undefined,
+        type: undefined,
+        key: undefined,
+      },
+    ]);
+  };
+
+  const removeFilter = (i: number) => {
+    onChange((prev) => {
+      const newState = [...prev];
+      newState.splice(i, 1);
+      return newState;
+    });
+  };
+
+  const handleAiFilterSubmit = async () => {
+    if (aiPrompt.trim() && aiFilter && !aiFilter.isPending) {
+      setAiError(null);
+      try {
+        const filters = await aiFilter.generateFilters(aiPrompt.trim());
+
+        if (filters) {
+          if (filters.length === 0) {
+            setAiError("Failed to generate filters, try again");
+            return;
+          }
+
+          // Set the filters from the API response
+          onChange(filters);
+          setAiPrompt("");
+          setShowAiFilter(false);
+        } else {
+          console.error("filterBuilder.aiGenerate: invalid response format");
+          setAiError("Invalid response format from API");
+        }
+      } catch (error) {
+        reportNonTrpcError(error, "ai-filters");
+        setAiError(
+          error instanceof Error ? error.message : "Failed to generate filters",
+        );
+      }
+    }
+  };
+
+  const conditionRows = filterState.map((filter, i) => {
+    const column = columns.find(
+      (c) =>
+        c.id === filter.column ||
+        c.name === filter.column ||
+        (filter.column !== undefined && c.aliases?.includes(filter.column)),
+    );
+    const keyOptions =
+      column?.type === "numberObject" ||
+      column?.type === "stringObject" ||
+      column?.type === "booleanObject"
+        ? column.keyOptions?.filter((o) => NonEmptyString.safeParse(o).success)
+        : undefined;
+    // Opt-in metadata suggestions: a stringObject column listed in
+    // columnsWithCustomSelect renders searchable key/value combos.
+    const stringObjectSuggest =
+      column?.type === "stringObject" &&
+      columnsWithCustomSelect.includes(column.id);
+    const stringSuggest =
+      column?.type === "string" &&
+      columnsWithCustomSelect.includes(column.id) &&
+      column.options !== undefined;
+    const columnLabel = column ? column.name : "Column";
+    const columnsForPicker = getColumnOptionsForFilterRow(
+      columns,
+      filter.column,
+      columnsHiddenUnlessSelected,
+    );
+
+    const columnCombobox = (
+      <Popover
+        open={openColumnRow === i}
+        onOpenChange={(open) => setOpenColumnRow(open ? i : null)}
+      >
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            type="button"
+            disabled={disabled}
+            className={cn(
+              "flex items-center justify-between gap-2",
+              compact ? "w-full min-w-0" : "w-full min-w-32",
+            )}
+          >
+            <span className="min-w-0 truncate" title={columnLabel}>
+              {columnLabel}
+            </span>
+            <DropdownIndicator />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="ph-no-capture max-w-fit p-0">
+          <InputCommand>
+            <InputCommandInput
+              placeholder="Search for column"
+              variant="bottom"
+            />
+            <InputCommandList>
+              <InputCommandEmpty>No options found.</InputCommandEmpty>
+              <InputCommandGroup>
+                {columnsForPicker.map((option) => {
+                  const hasAlert = !!option.alert;
+                  const severity = option.alert?.severity ?? "warning";
+                  const alertStyles = getAlertStyles(severity);
+
+                  return (
+                    <InputCommandItem
+                      key={option.id}
+                      value={option.id}
+                      onSelect={(value) => {
+                        const col = columns.find((c) => c.id === value);
+                        const defaultOperator = col?.type
+                          ? getOperator(col.type)
+                          : undefined;
+
+                        handleFilterChange(
+                          {
+                            column: col?.[columnIdentifier],
+                            type: col?.type,
+                            operator: defaultOperator,
+                            value:
+                              col?.type === "null"
+                                ? ""
+                                : col?.type === "boolean" ||
+                                    col?.type === "booleanObject"
+                                  ? true
+                                  : undefined,
+                            key:
+                              col?.type === "positionInTrace"
+                                ? "last"
+                                : undefined,
+                          } as WipFilterCondition,
+                          i,
+                        );
+                        setOpenColumnRow(null);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "icon-base mr-2",
+                          option.id === column?.id ? "visible" : "invisible",
+                        )}
+                      />
+                      <span className="flex-1">{option.name}</span>
+                      {hasAlert && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info
+                              className={cn(
+                                "icon-base ml-2",
+                                alertStyles.iconColor,
+                              )}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent
+                            className={cn("max-w-xs", alertStyles.tooltipBg)}
+                          >
+                            {option.alert?.content}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </InputCommandItem>
+                  );
+                })}
+              </InputCommandGroup>
+            </InputCommandList>
+          </InputCommand>
+        </PopoverContent>
+      </Popover>
+    );
+
+    const keyControl =
+      filter.type &&
+      (filter.type === "numberObject" ||
+        filter.type === "stringObject" ||
+        filter.type === "booleanObject") &&
+      (column?.type === "numberObject" ||
+        column?.type === "stringObject" ||
+        column?.type === "booleanObject") ? (
+        stringObjectSuggest ? (
+          // Case 0: opt-in stringObject - single key select with free text
+          <SingleSelect
+            title="Key"
+            className="min-w-[100px]"
+            options={
+              column?.type === "stringObject" && column.keyOptions
+                ? column.keyOptions.map((value) => ({ value }))
+                : []
+            }
+            value={filter.key ?? undefined}
+            onValueChange={(nextKey) => {
+              handleFilterChange({ ...filter, key: nextKey }, i);
+              onStringObjectKeyChange?.(nextKey);
+            }}
+            disabled={disabled}
+            isCustomSelectEnabled
+          />
+        ) : keyOptions?.length ? (
+          // Case 1: object with keyOptions - selector of the key of the object
+          <Select
+            disabled={!filter.column}
+            onValueChange={(value) => {
+              handleFilterChange({ ...filter, key: value }, i);
+            }}
+            value={filter.key ?? ""}
+          >
+            <SelectTrigger className="min-w-[60px]">
+              <SelectValue placeholder="" />
+            </SelectTrigger>
+            <SelectContent className="ph-no-capture">
+              {keyOptions.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          // Case 2: object without keyOptions - text input
+          <Input
+            value={filter.key ?? ""}
+            placeholder="key"
+            disabled={disabled}
+            onChange={(e) =>
+              handleFilterChange({ ...filter, key: e.target.value }, i)
+            }
+          />
+        )
+      ) : filter.type === "categoryOptions" &&
+        column?.type === "categoryOptions" ? (
+        // Case 3: categoryOptions
+        <Select
+          onValueChange={(value) => {
+            handleFilterChange({ ...filter, key: value }, i);
+          }}
+          value={filter.key ?? ""}
+        >
+          <SelectTrigger className="min-w-[60px]">
+            <SelectValue placeholder="" />
+          </SelectTrigger>
+          <SelectContent className="ph-no-capture">
+            {column?.options.map((option) => (
+              <SelectItem key={option.label} value={option.label}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : filter.type === "positionInTrace" ? (
+        <Select
+          onValueChange={(value) => {
+            const needsValue =
+              value === "nthFromEnd" || value === "nthFromStart";
+            handleFilterChange(
+              {
+                ...filter,
+                key: value,
+                value: needsValue
+                  ? typeof filter.value === "number" && filter.value >= 1
+                    ? filter.value
+                    : 1
+                  : undefined,
+              } as WipFilterCondition,
+              i,
+            );
+          }}
+          value={getSessionPositionInTraceFilterMode(filter)}
+        >
+          <SelectTrigger className="min-w-[140px]">
+            <SelectValue placeholder="" />
+          </SelectTrigger>
+          <SelectContent className="ph-no-capture">
+            <SelectItem value="first">1st</SelectItem>
+            <SelectItem value="last">last</SelectItem>
+            <SelectItem value="nthFromStart">nth from start</SelectItem>
+            <SelectItem value="nthFromEnd">nth from end</SelectItem>
+          </SelectContent>
+        </Select>
+      ) : null;
+
+    // Object/category columns need a key before the operator/value mean anything;
+    // in compact rows keep those controls inert until the key is chosen.
+    const keyPending =
+      compact && keyControl !== null && !("key" in filter && filter.key);
+
+    const operatorSelect = (
+      <Select
+        disabled={!filter.column || disabled || keyPending}
+        onValueChange={(value) => {
+          // protect against invalid empty operator values
+          if (value === "") return;
+          handleFilterChange(
+            {
+              ...filter,
+              operator: value as any,
+              // Value-less operators keep an empty string for schema compatibility.
+              value:
+                filter.type === "null" ||
+                value === "is not empty" ||
+                value === "is set" ||
+                value === "is not set"
+                  ? ""
+                  : (filter.value as any),
+            },
+            i,
+          );
+        }}
+        value={keyPending ? "" : (filter.operator ?? "")}
+      >
+        <SelectTrigger className={cn("min-w-[60px]", compact && "w-auto")}>
+          <SelectValue placeholder="" />
+        </SelectTrigger>
+        <SelectContent className="ph-no-capture">
+          {filter.type !== undefined
+            ? filterOperators[filter.type].map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))
+            : null}
+        </SelectContent>
+      </Select>
+    );
+
+    const valueControl = keyPending ? (
+      <Input disabled value="" />
+    ) : filter.type === "string" &&
+      filter.operator === "is not empty" ? null : filter.type ===
+        "stringObject" &&
+      (filter.operator === "is set" ||
+        filter.operator === "is not set") ? null : stringObjectSuggest &&
+      filter.type === "stringObject" ? (
+      <SingleSelect
+        title="Value"
+        className="min-w-[100px]"
+        options={(filter.key ? stringObjectValueOptions[filter.key] : []) ?? []}
+        value={filter.value ?? undefined}
+        onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
+        disabled={disabled}
+        isCustomSelectEnabled
+      />
+    ) : stringSuggest && filter.type === "string" ? (
+      <SingleSelect
+        title="Value"
+        className="min-w-[100px]"
+        options={column?.type === "string" ? (column.options ?? []) : []}
+        value={filter.value ?? undefined}
+        onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
+        disabled={disabled}
+        isCustomSelectEnabled
+        showOptionValue={column?.id === "evaluatorId"}
+      />
+    ) : filter.type === "string" || filter.type === "stringObject" ? (
+      <Input
+        disabled={disabled}
+        value={filter.value ?? ""}
+        placeholder="string"
+        onChange={(e) =>
+          handleFilterChange({ ...filter, value: e.target.value }, i)
+        }
+      />
+    ) : filter.type === "number" || filter.type === "numberObject" ? (
+      <Input
+        value={filter.value ?? ""}
+        disabled={disabled}
+        type="number"
+        step={(column?.type === "number" && column.step) || 0.01}
+        min={column?.type === "number" ? column.min : undefined}
+        placeholder="number"
+        lang="en-US"
+        onChange={(e) =>
+          handleFilterChange(
+            {
+              ...filter,
+              value: isNaN(Number(e.target.value))
+                ? e.target.value
+                : Number(e.target.value),
+            },
+            i,
+          )
+        }
+      />
+    ) : filter.type === "datetime" ? (
+      <DatePicker
+        className="w-full"
+        disabled={disabled}
+        date={filter.value ? new Date(filter.value) : undefined}
+        onChange={(date) => {
+          handleFilterChange(
+            {
+              ...filter,
+              value: date,
+            },
+            i,
+          );
+        }}
+        includeTimePicker
+      />
+    ) : filter.type === "stringOptions" || filter.type === "arrayOptions" ? (
+      <MultiSelect
+        title="Value"
+        chipsOnly={compact}
+        className="min-w-[100px]"
+        options={column?.type === filter.type ? column.options : []}
+        isLoading={!!column && loadingOptionColumns.includes(column.id)}
+        onOpenChange={(open) => {
+          if (open && column) onOptionsOpen?.(column.id);
+        }}
+        onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
+        values={Array.isArray(filter.value) ? filter.value : []}
+        disabled={disabled}
+        isCustomSelectEnabled={
+          column?.type === filter.type &&
+          columnsWithCustomSelect.includes(column.id)
+        }
+      />
+    ) : filter.type === "categoryOptions" &&
+      column?.type === "categoryOptions" ? (
+      <MultiSelect
+        title="Value"
+        chipsOnly={compact}
+        className="min-w-[100px]"
+        options={
+          column?.options
+            .find((o) => o.label === filter.key)
+            ?.values?.map((v) => ({ value: v })) ?? []
+        }
+        onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
+        values={Array.isArray(filter.value) ? filter.value : []}
+        disabled={disabled}
+        isCustomSelectEnabled={
+          column?.type === filter.type &&
+          columnsWithCustomSelect.includes(column.id)
+        }
+      />
+    ) : filter.type === "boolean" || filter.type === "booleanObject" ? (
+      <Select
+        disabled={disabled}
+        onValueChange={(value) => {
+          handleFilterChange(
+            {
+              ...filter,
+              value: value !== "" ? value === "true" : undefined,
+            },
+            i,
+          );
+        }}
+        value={filter.value?.toString() ?? ""}
+      >
+        <SelectTrigger className="min-w-[60px]">
+          <SelectValue placeholder="" />
+        </SelectTrigger>
+        <SelectContent className="ph-no-capture">
+          {["true", "false"].map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    ) : filter.type === "positionInTrace" ? (
+      filter.key === "nthFromStart" || filter.key === "nthFromEnd" ? (
+        <Input
+          value={filter.value ?? ""}
+          disabled={disabled}
+          type="number"
+          min={1}
+          step={1}
+          onChange={(e) =>
+            handleFilterChange(
+              {
+                ...filter,
+                value: isNaN(Number(e.target.value))
+                  ? undefined
+                  : Math.max(1, Number(e.target.value)),
+              } as WipFilterCondition,
+              i,
+            )
+          }
+        />
+      ) : (
+        <Input disabled value="" placeholder="-" />
+      )
+    ) : filter.type === "null" ? null : (
+      <Input disabled value="" />
+    );
+
+    const removeButton = (
+      <Button
+        onClick={() => removeFilter(i)}
+        variant="ghost"
+        type="button"
+        disabled={disabled}
+        size="xs"
+      >
+        <X className="icon-sm text-icon-foreground" />
+      </Button>
+    );
+
+    const connector = i === 0 ? "Where" : "And";
+
+    return compact ? (
+      <div key={i} className="-mr-2 flex flex-col">
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground w-11 shrink-0 text-sm">
+            {connector}
+          </span>
+          <div className={cn("min-w-0", keyControl ? "w-28" : "flex-1")}>
+            {columnCombobox}
+          </div>
+          {keyControl ? (
+            <div className="min-w-0 flex-1">{keyControl}</div>
+          ) : null}
+          <div className="flex w-5 shrink-0 justify-end">{removeButton}</div>
+        </div>
+        <div className="flex items-start">
+          <span className="w-16 shrink-0" aria-hidden="true" />
+          <div className="border-input h-6 w-3 shrink-0 rounded-bl-md border-b-2 border-l-2" />
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 pt-2">
+            <div className="shrink-0">{operatorSelect}</div>
+            {valueControl ? (
+              <div className="min-w-0 flex-1">{valueControl}</div>
+            ) : null}
+            <span className="w-5 shrink-0" aria-hidden="true" />
+          </div>
+        </div>
+      </div>
+    ) : (
+      <tr key={i}>
+        <td className="p-1 text-sm">{connector}</td>
+        <td className="p-1">
+          <div className="flex gap-2">
+            {/* selector of the column to be filtered */}
+            {columnCombobox}
+            {keyControl}
+          </div>
+        </td>
+        <td className="p-1">{operatorSelect}</td>
+        <td className="p-1">{valueControl}</td>
+        <td>{removeButton}</td>
+      </tr>
+    );
+  });
+
+  return (
+    <>
+      {/* AI Filter Section at the top */}
+      {!disabled && aiFilter && (
+        <div className="flex flex-col gap-2">
+          <Button
+            onClick={() => {
+              if (!aiFilter.aiFeaturesEnabled && aiFilter.organizationId) {
+                openAIFeaturesSettings(aiFilter.organizationId);
+              } else {
+                setShowAiFilter(!showAiFilter);
+              }
+            }}
+            type="button"
+            variant="outline"
+            size="default"
+            title={
+              !aiFilter.aiFeaturesEnabled
+                ? "AI features are disabled for your organization. Click to enable them in organization settings."
+                : undefined
+            }
+            className="text-muted-foreground w-full justify-start"
+          >
+            <WandSparkles className="icon-base text-icon-foreground mr-2" />
+            {!aiFilter.aiFeaturesEnabled ? (
+              <>
+                AI Filters: Enable in Organization Settings (Admin Only)
+                <ExternalLink className="icon-base text-icon-foreground ml-2" />
+              </>
+            ) : showAiFilter ? (
+              "Cancel"
+            ) : (
+              "Create Filter with AI"
+            )}
+          </Button>
+          {showAiFilter && (
+            <div className="flex flex-col gap-3">
+              <Textarea
+                value={aiPrompt}
+                onChange={(e) => {
+                  setAiPrompt(e.target.value);
+                  if (aiError) setAiError(null); // Clear error when user starts typing
+                }}
+                placeholder="Describe the filters you want to apply..."
+                className="min-h-[80px] min-w-112 resize-none"
+                disabled={aiFilter.isPending}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && e.ctrlKey && !aiFilter.isPending) {
+                    handleAiFilterSubmit();
+                  }
+                }}
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleAiFilterSubmit}
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  disabled={aiFilter.isPending || !aiPrompt.trim()}
+                >
+                  {aiFilter.isPending ? "Loading..." : "Generate filters"}
+                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="text-muted-foreground icon-base" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">
+                      We convert natural language into deterministic filters
+                      which you can adjust afterwards
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              {aiError && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                  {aiError}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Hide filter builder UI while AI filter is open */}
+      {!showAiFilter && (
+        <>
+          {compact ? (
+            <div className="flex flex-col gap-4">{conditionRows}</div>
+          ) : (
+            <table className="table-auto">
+              <tbody>{conditionRows}</tbody>
+            </table>
+          )}
+          {!disabled ? (
+            subtleAddButton ? (
+              <div className="mt-2">
+                <TextActionButton
+                  text="Add filter"
+                  width="fill"
+                  onClick={() => addNewFilter()}
+                />
+              </div>
+            ) : (
+              <Button
+                onClick={() => addNewFilter()}
+                type="button" // required as it will otherwise submit forms where this component is used
+                className={cn("mt-2", compact && "mt-4 self-start")}
+                variant="outline"
+                size="sm"
+              >
+                <Plus className="icon-base text-icon-foreground mr-2 shrink-0" />
+                Add filter
+              </Button>
+            )
+          ) : null}
+        </>
+      )}
+    </>
+  );
+}

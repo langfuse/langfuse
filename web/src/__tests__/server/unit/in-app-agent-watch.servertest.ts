@@ -6,8 +6,8 @@ import {
   IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE,
   InAppAgentRunStatus,
 } from "@langfuse/shared/in-app-agent";
-import type { InAppAgentWatchFrame } from "@/src/features/in-app-agent/watchFrames";
-import { watchConversationFrames } from "@/src/features/in-app-agent/server/watch";
+import type { InAppAgentWatchFrame } from "@/src/ai/assistant/watchFrames";
+import { watchConversationFrames } from "@/src/ai/assistant/server/watch";
 
 /**
  * The framing rules are what these tests protect, so the data source is a

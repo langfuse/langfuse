@@ -11,7 +11,7 @@ deployment must not start recording merely because telemetry credentials exist.
 
 ## Canonical Langfuse controls
 
-- `web/src/pages/_app.tsx` owns PostHog initialization, deployment gating,
+- `web/pages/_app.tsx` owns PostHog initialization, deployment gating,
   native/custom input masking, the `ph-no-capture` block class, and network
   body redaction.
 - Shared renderers should own `ph-no-capture` whenever they display a value

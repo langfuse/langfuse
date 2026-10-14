@@ -12,7 +12,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { Prisma, type PrismaClient, prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/public-api/server/apiAuth";
 import { v4 } from "uuid";
 import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {

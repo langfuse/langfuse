@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { InternalServerError } from "@langfuse/shared";
 
-import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
-import { type Principal } from "@/src/features/auth/policy/types";
+import { toApiAccessScope } from "@/src/public-api/server/toApiAccessScope";
+import { type Principal } from "@/src/identity/auth/policy/types";
 
 const scopeOrg = {
   orgId: "org_1",

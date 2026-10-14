@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { containsAnyMarkdown } from "@/src/components/schemas/MarkdownSchema";
+import { containsAnyMarkdown } from "@/src/app/components/schemas/MarkdownSchema";
 
 describe("containsAnyMarkdown Function", () => {
   it("Detects simple bold using asterisks", () => {

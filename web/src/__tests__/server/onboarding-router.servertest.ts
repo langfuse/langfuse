@@ -4,9 +4,9 @@ import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/server";
-import { createProjectRoute } from "@/src/features/setup";
+import { createProjectMembershipsOnSignup } from "@/src/identity/auth/lib/createProjectMembershipsOnSignup";
+import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/tracing/observations/server";
+import { createProjectRoute } from "@/src/app/onboarding/setup";
 import { prisma, Role } from "@langfuse/shared/src/db";
 
 const makeSession = ({

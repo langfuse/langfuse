@@ -90,7 +90,7 @@
             "type": "application/typescript"
           },
           {
-            "file": "./web/src/constants/VERSION.ts",
+            "file": "./web/src/app/constants/VERSION.ts",
             "type": "application/typescript"
           },
           {

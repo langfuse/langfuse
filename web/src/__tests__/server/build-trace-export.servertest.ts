@@ -5,7 +5,7 @@ import {
   buildTraceExport,
   TraceDownloadTooLargeError,
   type TraceExportSession,
-} from "@/src/features/traces/server/buildTraceExport";
+} from "@/src/tracing/traces/server/buildTraceExport";
 
 const {
   mockGetTraceByIdFromEventsTable,

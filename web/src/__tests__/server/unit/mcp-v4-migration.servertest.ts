@@ -4,7 +4,7 @@ const { getProjectV4MigrationData } = vi.hoisted(() => ({
   getProjectV4MigrationData: vi.fn(),
 }));
 
-vi.mock("@/src/features/v4/server", () => ({
+vi.mock("@/src/migrations/v4/backend/server", () => ({
   getProjectV4MigrationData,
 }));
 
@@ -15,7 +15,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
 import {
   getV4MigrationDataTool,
   handleGetV4MigrationData,
-} from "@/src/features/mcp/server/v4Migration/tools/getV4MigrationData";
+} from "@/src/public-api/mcp/server/v4Migration/tools/getV4MigrationData";
 import { mockServerContext } from "@/src/__tests__/server/mcp-helpers";
 
 describe("getV4MigrationData MCP tool", () => {

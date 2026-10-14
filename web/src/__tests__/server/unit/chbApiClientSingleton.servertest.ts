@@ -23,7 +23,7 @@ import {
   ChbApiClient,
   getChbApiClient,
   resetChbApiClientForTests,
-} from "@/src/ee/features/billing/server/chb/chbApiClient";
+} from "@/src/ee/billing/server/chb/chbApiClient";
 
 const CH_ORG_ID = "6dd6ab1d-9e8d-4c1a-8b4f-9a3d1e2c4b5a";
 const AUTH0_DOMAIN = "chb-tenant.eu.auth0.com";

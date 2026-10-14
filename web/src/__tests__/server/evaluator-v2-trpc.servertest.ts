@@ -16,22 +16,18 @@ const mocks = vi.hoisted(() => ({
   getActivationCostEstimates: vi.fn(async () => []),
 }));
 
-vi.mock(
-  "@/src/features/evals/v2/server/evaluators/evaluatorValidation",
-  () => ({ assertEvaluatorConfigurationValid: vi.fn() }),
-);
+vi.mock("@/src/evaluators/v2/server/evaluators/evaluatorValidation", () => ({
+  assertEvaluatorConfigurationValid: vi.fn(),
+}));
 
-vi.mock("@/src/features/evals/server/evaluator-preflight", () => ({
+vi.mock("@/src/evaluators/server/evaluator-preflight", () => ({
   getEvaluatorDefinitionPreflightError:
     mocks.getEvaluatorDefinitionPreflightError,
 }));
 
-vi.mock(
-  "@/src/features/evals/v2/server/evaluators/activationCostService",
-  () => ({
-    getActivationCostEstimates: mocks.getActivationCostEstimates,
-  }),
-);
+vi.mock("@/src/evaluators/v2/server/evaluators/activationCostService", () => ({
+  getActivationCostEstimates: mocks.getActivationCostEstimates,
+}));
 
 const orgIds: string[] = [];
 let projectId = "";

@@ -4,7 +4,7 @@ import { z } from "zod";
 import {
   McpEvaluatorInput,
   McpEvaluatorInputBase,
-} from "@/src/features/mcp/server/evals/tools/evaluatorInput";
+} from "@/src/public-api/mcp/server/evals/tools/evaluatorInput";
 
 const llmEvaluatorInput = {
   name: "Answer quality",

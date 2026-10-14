@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseGeneratedFilters } from "@/src/features/search-bar/server/parseFilterCompletion";
+import { parseGeneratedFilters } from "@/src/app/search/server/parseFilterCompletion";
 
 describe("parseGeneratedFilters", () => {
   it("parses a plain JSON array of v4 filters and derives query text", () => {

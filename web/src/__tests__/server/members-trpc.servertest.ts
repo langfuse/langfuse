@@ -4,7 +4,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { Role, type Plan } from "@langfuse/shared";
-import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
+import { entitlementAccess } from "@/src/entitlements/constants/entitlements";
 import type { Session } from "next-auth";
 
 // Session fixture sub-object types; casts keep the runtime fixtures unchanged

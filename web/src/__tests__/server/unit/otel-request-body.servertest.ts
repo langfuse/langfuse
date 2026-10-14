@@ -15,10 +15,10 @@ const routeEnv = vi.hoisted(() => ({
 vi.mock("@/src/env.mjs", () => ({
   env: routeEnv,
 }));
-vi.mock("@/src/features/public-api/server/withMiddlewares", () => ({
+vi.mock("@/src/public-api/server/withMiddlewares", () => ({
   withMiddlewares: (handlers: unknown) => handlers,
 }));
-vi.mock("@/src/features/public-api/server/createAuthedProjectAPIRoute", () => ({
+vi.mock("@/src/public-api/server/createAuthedProjectAPIRoute", () => ({
   createAuthedProjectAPIRoute: ({ fn }: { fn: unknown }) => fn,
 }));
 vi.mock("@langfuse/shared", () => ({
@@ -45,7 +45,7 @@ import {
   OtelRequestBodyTooLargeError,
   readOtelRequestBody,
 } from "@/src/server/otel/otelRequestBody";
-import otelRoute from "@/src/pages/api/public/otel/v1/traces";
+import otelRoute from "@/pages/api/public/otel/v1/traces";
 
 function request(headers: Record<string, string> = {}) {
   const stream = new PassThrough() as PassThrough &

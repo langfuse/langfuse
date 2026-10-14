@@ -118,7 +118,7 @@ Avoid:
 - Replacing a giant component with a giant global store.
 - Moving all state at once without measured acceptance criteria.
 - Treating memoization as the architecture.
-- Putting provider-coupled store hooks into shared `src/components/*` exports.
+- Putting provider-coupled store hooks into shared `src/app/components/*` exports.
 - Leaving a workflow inline in the page because the page had every dependency in
   scope.
 - Using the README as a victory statement while hiding remaining controller

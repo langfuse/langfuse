@@ -20,7 +20,7 @@ Pushing updates it; closing the PR tears it down.
 
 ## Access model (two independent gates)
 
-- **Build — any write-access member.** Every *same-repo* PR is auto-labeled
+- **Build — any write-access member.** Every _same-repo_ PR is auto-labeled
   `preview` on open and builds a web + worker image. The gate is **write (push)
   access** — opening a same-repo PR requires it. **Fork PRs never build or
   deploy** (a public-repo PR can't mint the cloud credential).
@@ -68,7 +68,7 @@ Pushing updates it; closing the PR tears it down.
 ## Good to know
 
 - **Off-hours sleep.** Previews run **Mon–Fri 08:00–24:00 Europe/Berlin**; nights
-  and weekends they scale to zero and *stay there* (schedule-driven — a request
+  and weekends they scale to zero and _stay there_ (schedule-driven — a request
   does **not** wake them). To use one off-hours, wake it (needs cluster access):
   `kubectl annotate ns langfuse-pr-<N> downscaler/force-uptime=true --overwrite`
   — replicas return in ~60s, ready in ~3–5 min; undo later with the trailing-`-`
@@ -78,8 +78,8 @@ Pushing updates it; closing the PR tears it down.
 - **Disposable data.** Closing a PR destroys its database; reopening gives a
   **fresh** environment, not the old one.
 - **Forks can't preview.** External / fork PRs never build or deploy.
-- **AI gateway.** Changes under `web/src/features/ai-gateway/`,
-  `web/src/pages/api/internal/ai-gateway/`, or `ai-gateway/` auto-apply
+- **AI gateway.** Changes under `web/src/ai/gateway/management-ui/`,
+  `web/pages/api/internal/ai-gateway/`, or `ai-gateway/` auto-apply
   `ai-gateway-preview`. That label is what deploys the gateway into the preview.
 
 ## Add or improve data in a preview
@@ -142,21 +142,26 @@ NS=langfuse-pr-<N>              # e.g. langfuse-pr-42
 ```
 
 **What's running / healthy?**
+
 ```bash
 kubectl -n $NS get pods                       # web, worker, postgresql, clickhouse, redis, minio
 kubectl -n $NS get pods,svc,ingress,pvc       # fuller picture
 ```
+
 Nothing listed? It's probably asleep off-hours — wake it (below).
 
 **App logs — usually the first stop:**
+
 ```bash
 kubectl -n $NS logs deploy/$NS-web    --tail=200 -f    # web: UI / API server
 kubectl -n $NS logs deploy/$NS-worker --tail=200 -f    # worker: ingestion + async jobs
 ```
+
 Drop `-f` for a one-shot dump; `--since=15m` bounds by time; `-p` / `--previous`
 shows a **crashed** container's logs after a restart (use for `CrashLoopBackOff`).
 
 **Datastore logs** (single-node; get exact pod names from `get pods`):
+
 ```bash
 kubectl -n $NS logs sts/$NS-postgresql --tail=100
 CH=$(kubectl -n $NS get pods -o name | grep clickhouse | head -1)
@@ -164,12 +169,14 @@ kubectl -n $NS logs "$CH" --tail=100          # single-node ClickHouse — watch
 ```
 
 **A pod won't start (Pending / CrashLoopBackOff / ImagePullBackOff):**
+
 ```bash
 kubectl -n $NS describe pod <pod>             # the Events list at the bottom is the reason
 kubectl -n $NS get events --sort-by=.lastTimestamp | tail -30
 ```
 
 **Shell in / restart / reach it without the ALB:**
+
 ```bash
 kubectl -n $NS exec -it deploy/$NS-web -- sh          # inspect env, curl internal services
 kubectl -n $NS rollout restart deploy/$NS-web         # re-roll after a fix
@@ -177,20 +184,22 @@ kubectl -n $NS port-forward deploy/$NS-web 3000:3000  # hit localhost:3000, bypa
 ```
 
 **Wake a sleeping preview** (off-hours):
+
 ```bash
 kubectl annotate ns $NS downscaler/force-uptime=true --overwrite   # replicas back in ~60s, ready ~3–5 min
 kubectl annotate ns $NS downscaler/force-uptime-                   # undo later so it sleeps on schedule
 ```
 
 ### Symptom → fix
-| Symptom | Likely cause / fix |
-|---|---|
-| My preview environment is not available | Check for the `preview` label and inspect the **AWS preview build** workflow. If the PR opened with merge conflicts, resolve them; the next update adds the label. Other CI checks do not gate the preview build. |
-| 🟢 build comment posted, but the URL 404s | PR author not on the **deploy allowlist** — the image built, nothing deployed. Add yourself (see Getting access). |
-| URL not ready right after building | Build still finishing (~5 min) or a transient `ImagePullBackOff` — it self-heals. |
-| Unresponsive at night / on a weekend | Asleep off-hours — wake it (above). |
-| Pods `Pending`, never schedule | Cluster at its preview capacity cap — close an old preview. |
-| ClickHouse pod restarting / OOM | Single-node ClickHouse is the fragile piece — check its logs first. |
+
+| Symptom                                   | Likely cause / fix                                                                                                                                                                                                |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| My preview environment is not available   | Check for the `preview` label and inspect the **AWS preview build** workflow. If the PR opened with merge conflicts, resolve them; the next update adds the label. Other CI checks do not gate the preview build. |
+| 🟢 build comment posted, but the URL 404s | PR author not on the **deploy allowlist** — the image built, nothing deployed. Add yourself (see Getting access).                                                                                                 |
+| URL not ready right after building        | Build still finishing (~5 min) or a transient `ImagePullBackOff` — it self-heals.                                                                                                                                 |
+| Unresponsive at night / on a weekend      | Asleep off-hours — wake it (above).                                                                                                                                                                               |
+| Pods `Pending`, never schedule            | Cluster at its preview capacity cap — close an old preview.                                                                                                                                                       |
+| ClickHouse pod restarting / OOM           | Single-node ClickHouse is the fragile piece — check its logs first.                                                                                                                                               |
 
 ## Getting access
 
@@ -199,9 +208,9 @@ kubectl annotate ns $NS downscaler/force-uptime-                   # undo later 
   `langfuse/infrastructure`), open a PR, and merge to `main`. Argo re-syncs and
   your labeled PRs deploy — no admin needed.
 - **Cluster access — available to all Langfuse engineers** (only needed to
-  debug with `kubectl`, not to *use* a preview). Set up local access using the
+  debug with `kubectl`, not to _use_ a preview). Set up local access using the
   `~/.aws/config` profile block from the internal Langfuse tracker document
-  *"Connect to AWS instances (Aurora, Redis) from local machine"*.
+  _"Connect to AWS instances (Aurora, Redis) from local machine"_.
   1. Open `~/.aws/config` and add the `[sso-session langfuse]` + `[profile preview]`
      blocks from that doc (keep any `[sso-session langfuse]` you already have).
   2. `aws sso login --profile preview`
@@ -212,4 +221,4 @@ kubectl annotate ns $NS downscaler/force-uptime-                   # undo later 
 
 Preview internals — the EKS cluster, Argo CD ApplicationSet, Helm chart, and the
 admin onboarding runbook — live in the private `langfuse/infrastructure` repo
-(`k8s/preview/`). Change the preview *system* there, not here.
+(`k8s/preview/`). Change the preview _system_ there, not here.

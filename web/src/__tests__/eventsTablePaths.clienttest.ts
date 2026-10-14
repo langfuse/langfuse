@@ -3,7 +3,7 @@
 import {
   buildEventsTablePathForObservationType,
   buildEventsTablePathForSpanName,
-} from "@/src/features/events";
+} from "@/src/tracing/observations";
 describe("buildEventsTablePathForSpanName", () => {
   it("opens the observations table with a name filter", () => {
     const result = buildEventsTablePathForSpanName({

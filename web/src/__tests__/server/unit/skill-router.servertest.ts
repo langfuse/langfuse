@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
-import { skillRouter } from "@/src/features/skills/server/skill-router";
+import { skillRouter } from "@/src/ai/skills/server/skill-router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 const mocks = vi.hoisted(() => ({
@@ -19,10 +19,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/src/server/auth", () => ({ getServerAuthSession: vi.fn() }));
-vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
+vi.mock("@/src/analytics/internal/posthog/server/backendActivity", () => ({
   recordBackendActivity: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock("@/src/features/skills/server/index", () => ({
+vi.mock("@/src/ai/skills/server/index", () => ({
   SkillService: class {
     get = mocks.get;
     getFileContents = mocks.getFileContents;

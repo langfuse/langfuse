@@ -14,7 +14,7 @@ import {
 import {
   GetObservationV1Response,
   GetObservationsV1Response,
-} from "@/src/features/public-api/types/observations";
+} from "@/src/public-api/types/observations";
 import { v4 as uuidv4 } from "uuid";
 import snakeCase from "lodash/snakeCase";
 import { env } from "@/src/env.mjs";

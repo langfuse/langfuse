@@ -10,7 +10,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import * as auditLogs from "@/src/features/audit-logs/server";
+import * as auditLogs from "@/src/identity/audit-logs/server";
 import type { Session } from "next-auth";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
@@ -23,8 +23,8 @@ import {
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
-import { AuthMethod } from "@/src/features/llm-api-key/types";
-import { LlmConnectionService } from "@/src/features/llm-api-key/server/llmConnectionService";
+import { AuthMethod } from "@/src/ai/provider-connections/types";
+import { LlmConnectionService } from "@/src/ai/provider-connections/server/llmConnectionService";
 import {
   createOrgProjectAndApiKey,
   DefaultEvalModelService,

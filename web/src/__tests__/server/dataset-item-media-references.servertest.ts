@@ -6,13 +6,13 @@ import {
   getDatasetByNameForApi,
   getDatasetItemForApi,
   listDatasetItemsForApi,
-} from "@/src/features/datasets/server/publicDatasetService";
-import { getItemMediaUploadHeaders } from "@/src/features/datasets/server/dataset-router";
+} from "@/src/datasets/server/publicDatasetService";
+import { getItemMediaUploadHeaders } from "@/src/datasets/server/dataset-router";
 import {
   GetDatasetV1Response,
   GetDatasetItemsV1Response,
   GetDatasetItemV1Response,
-} from "@/src/features/public-api/types/datasets";
+} from "@/src/public-api/types/datasets";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
@@ -22,7 +22,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { env } from "@/src/env.mjs";
-import { MediaContentType } from "@/src/features/media/server";
+import { MediaContentType } from "@/src/tracing/media/server";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 const session: Session = {

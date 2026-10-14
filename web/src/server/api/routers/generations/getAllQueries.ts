@@ -11,7 +11,7 @@ import {
   getObservationsTableCount,
   applyCommentFilters,
 } from "@langfuse/shared/src/server";
-import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server";
+import { sanitizeLegacyTracingSearch } from "@/src/tracing/traces/server";
 
 const GetAllGenerationsInput = GenerationTableOptions.safeExtend({
   ...paginationZod,

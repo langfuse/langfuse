@@ -151,7 +151,7 @@
 
 - If a queue is sharded, also update shard-aware resolution in
   `src/queues/workerManager.ts`,
-  `../web/src/pages/api/admin/bullmq/index.ts`, and
+  `../web/pages/api/admin/bullmq/index.ts`, and
   `../web/src/__tests__/test-utils.ts`.
 
 ## Processor Conventions

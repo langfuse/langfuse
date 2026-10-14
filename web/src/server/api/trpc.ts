@@ -94,7 +94,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 import superjson from "superjson";
 import { ZodError } from "zod";
-import { setUpSuperjson } from "@/src/utils/superjson";
+import { setUpSuperjson } from "@/src/app/utils/superjson";
 import {
   getTraceById,
   getTraceByIdFromEventsTable,
@@ -106,10 +106,10 @@ import {
   isStorableTraceSessionId,
 } from "@langfuse/shared/src/server";
 
-import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
+import { AdminApiAuthService } from "@/src/ee/public-api/enterprise-admin/server";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
-import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";
+import { recordBackendActivity } from "@/src/analytics/internal/posthog/server/backendActivity";
 
 setUpSuperjson();
 

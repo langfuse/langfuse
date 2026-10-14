@@ -1,4 +1,4 @@
-import handler from "@/src/pages/api/docs";
+import handler from "@/pages/api/docs";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

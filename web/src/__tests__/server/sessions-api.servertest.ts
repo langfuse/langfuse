@@ -9,7 +9,7 @@ import {
 import {
   GetSessionsV1Response,
   GetSessionV1Response,
-} from "@/src/features/public-api/types/sessions";
+} from "@/src/public-api/types/sessions";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 

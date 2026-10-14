@@ -8,7 +8,7 @@ import {
   makeAPICall,
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
-import { GetObservationsV2Response } from "@/src/features/public-api/types/observations";
+import { GetObservationsV2Response } from "@/src/public-api/types/observations";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";

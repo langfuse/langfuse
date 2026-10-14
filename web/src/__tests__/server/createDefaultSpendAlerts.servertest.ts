@@ -3,8 +3,8 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   createDefaultSpendAlerts,
   createDefaultSpendAlertsForStripeProduct,
-} from "@/src/ee/features/billing/server/defaultSpendAlerts";
-import { stripeProducts } from "@/src/ee/features/billing/utils/stripeCatalogue";
+} from "@/src/ee/billing/server/defaultSpendAlerts";
+import { stripeProducts } from "@/src/ee/billing/utils/stripeCatalogue";
 import { chbPlanCodeToPlan } from "@langfuse/shared";
 
 describe("createDefaultSpendAlerts", () => {

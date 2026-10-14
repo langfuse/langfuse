@@ -1,5 +1,5 @@
 /**
- * Build-time parser for `src/styles/globals.css`, consumed by the Design
+ * Build-time parser for `src/app/styles/globals.css`, consumed by the Design
  * reference pages (Color, Typography, Layout, Charts). The pages import the
  * stylesheet as raw text (`?raw`) and derive every token from it, so they can
  * never drift from the file — there is no hand-maintained token list.

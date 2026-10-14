@@ -1,0 +1,147 @@
+import { api } from "@/src/app/utils/api";
+import { isSessionScore, isTraceScore } from "@/src/scores/lib/helpers";
+import { useScoreCache } from "@/src/scores/contexts/ScoreCacheContext";
+import { showErrorToast } from "@/src/app/shell/notifications";
+import { classifyTrpcToastError } from "@/src/app/utils/trpcErrorClassification";
+
+export function useScoreMutations() {
+  const {
+    set: cacheSet,
+    get: cacheGet,
+    delete: cacheDelete,
+    rollbackSet: cacheRollbackSet,
+    rollbackDelete: cacheRollbackDelete,
+    setColumn: cacheSetColumn,
+  } = useScoreCache();
+
+  // Create mutations with cache writes
+  const createMutation = api.scores.createAnnotationScore.useMutation({
+    onMutate: (variables) => {
+      if (!variables.id) return;
+      const scoreTarget = variables.scoreTarget;
+
+      // Write to columns cache
+      cacheSetColumn({
+        name: variables.name,
+        dataType: variables.dataType,
+        source: "ANNOTATION",
+      });
+
+      // Write to cache for optimistic update
+      cacheSet(variables.id, {
+        id: variables.id,
+        projectId: variables.projectId,
+        environment: variables.environment ?? "default",
+        traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : null,
+        observationId: isTraceScore(scoreTarget)
+          ? (scoreTarget.observationId ?? null)
+          : null,
+        sessionId: isSessionScore(scoreTarget) ? scoreTarget.sessionId : null,
+        configId: variables.configId,
+        name: variables.name,
+        dataType: variables.dataType,
+        source: "ANNOTATION",
+        value: variables.value ?? null,
+        stringValue: variables.stringValue ?? null,
+        comment: variables.comment ?? null,
+        timestamp: (variables.timestamp as Date | undefined) ?? new Date(),
+      });
+
+      return { scoreId: variables.id! };
+    },
+    onError: (err, variables) => {
+      if (!variables.id) return;
+      // Rollback failed create from cache
+      cacheRollbackSet(variables.id);
+      showErrorToast(
+        "Failed to create score",
+        err.message,
+        classifyTrpcToastError(err, "score.create"),
+        "WARNING",
+      );
+    },
+  });
+
+  const updateMutation = api.scores.updateAnnotationScore.useMutation({
+    onMutate: (variables) => {
+      const scoreTarget = variables.scoreTarget;
+      const previousCacheValue = cacheGet(variables.id);
+
+      if (!previousCacheValue) {
+        // Write to cache for optimistic update
+        cacheSet(variables.id, {
+          id: variables.id,
+          projectId: variables.projectId,
+          environment: variables.environment ?? "default",
+          traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : null,
+          observationId: isTraceScore(scoreTarget)
+            ? (scoreTarget.observationId ?? null)
+            : null,
+          sessionId: isSessionScore(scoreTarget) ? scoreTarget.sessionId : null,
+          configId: variables.configId,
+          name: variables.name,
+          dataType: variables.dataType,
+          source: "ANNOTATION",
+          value: variables.value ?? null,
+          stringValue: variables.stringValue ?? null,
+          comment: variables.comment ?? null,
+          timestamp: (variables.timestamp as Date | undefined) ?? new Date(),
+        });
+      } else {
+        // Merge update into existing cache entry
+        cacheSet(variables.id, {
+          ...previousCacheValue,
+          value: variables.value ?? previousCacheValue.value,
+          stringValue: variables.stringValue ?? previousCacheValue.stringValue,
+          comment: variables.comment ?? null,
+        });
+      }
+
+      return { previousCacheValue };
+    },
+    onError: (err, variables, context) => {
+      // Rollback cache
+      if (context?.previousCacheValue) {
+        // Had cache entry → restore previous value
+        cacheSet(variables.id, context.previousCacheValue);
+      } else {
+        // No cache entry → was DB-persisted → rollback optimistic update
+        cacheRollbackSet(variables.id);
+      }
+      showErrorToast(
+        "Failed to update score",
+        err.message,
+        classifyTrpcToastError(err, "score.update"),
+        "WARNING",
+      );
+    },
+  });
+
+  const deleteMutation = api.scores.deleteAnnotationScore.useMutation({
+    onMutate: (variables) => {
+      // Snapshot score before delete (may be undefined)
+      const previousCacheValue = cacheGet(variables.id);
+
+      // Mark score as deleted
+      cacheDelete(variables.id);
+
+      return { previousCacheValue };
+    },
+    onError: (err, variables, context) => {
+      // Rollback
+      cacheRollbackDelete(variables.id, context?.previousCacheValue);
+      showErrorToast(
+        "Failed to delete score",
+        err.message,
+        classifyTrpcToastError(err, "score.delete"),
+        "WARNING",
+      );
+    },
+  });
+
+  return {
+    createMutation,
+    updateMutation,
+    deleteMutation,
+  };
+}

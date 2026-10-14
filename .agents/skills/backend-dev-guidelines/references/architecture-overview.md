@@ -369,7 +369,7 @@ import { encrypt, decrypt } from "@langfuse/shared/encryption";
 For most features, organize by domain within `features/`:
 
 ```
-src/features/datasets/
+src/datasets/
 ├── server/                 # Backend code
 │   ├── datasetRouter.ts   # tRPC procedures
 │   └── service.ts         # Business logic
@@ -487,7 +487,7 @@ src/server/api/routers/
 **tRPC Procedure (Entry Point):**
 
 ```typescript
-// web/src/features/datasets/server/datasetRouter.ts
+// web/src/datasets/server/datasetRouter.ts
 import { z } from "zod/v4";
 import {
   createTRPCRouter,
@@ -525,7 +525,7 @@ export const datasetRouter = createTRPCRouter({
 **Service (Business Logic):**
 
 ```typescript
-// web/src/features/datasets/server/service.ts
+// web/src/datasets/server/service.ts
 import { prisma } from "@langfuse/shared/src/db";
 import { instrumentAsync, traceException } from "@langfuse/shared/src/server";
 
@@ -571,10 +571,10 @@ export async function createDataset(data: {
 **Public API (Alternative Entry Point):**
 
 ```typescript
-// web/src/pages/api/public/datasets/index.ts
-import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { createDataset } from "@/src/features/datasets/server/service";
+// web/pages/api/public/datasets/index.ts
+import { withMiddlewares } from "@/src/public-api/server/withMiddlewares";
+import { createAuthedProjectAPIRoute } from "@/src/public-api/server/createAuthedProjectAPIRoute";
+import { createDataset } from "@/src/datasets/server/service";
 import { z } from "zod/v4";
 
 const createDatasetSchema = z.object({

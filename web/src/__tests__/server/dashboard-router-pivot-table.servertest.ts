@@ -28,7 +28,7 @@ import { type QueryType } from "@langfuse/shared/query";
 import {
   transformToPivotTable,
   type DatabaseRow,
-} from "@/src/features/widgets/utils/pivot-table-utils";
+} from "@/src/analytics/visualization/utils/pivot-table-utils";
 describe("Dashboard Router - Pivot Table Integration", () => {
   // Single project ID for all tests
   const projectId = randomUUID();

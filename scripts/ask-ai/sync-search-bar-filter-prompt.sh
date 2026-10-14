@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Pushes the repo-versioned v4 search-bar Ask AI filter prompt
-# (web/src/features/search-bar/server/prompts/search-bar-filter.prompt.json)
+# (web/src/app/search/server/prompts/search-bar-filter.prompt.json)
 # as a new version of the MANAGED chat prompt "search-bar-filter" in the
 # AI-features Langfuse project, per region. Mirrors
 # scripts/in-app-agent/sync-prompt.sh (a text prompt); this one is a chat
@@ -15,7 +15,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-PROMPT_FILE="${REPO_ROOT}/web/src/features/search-bar/server/prompts/search-bar-filter.prompt.json"
+PROMPT_FILE="${REPO_ROOT}/web/src/app/search/server/prompts/search-bar-filter.prompt.json"
 REGIONS=(STAGING EU US JP HIPAA)
 BASE_URLS=(
   "https://staging.langfuse.com"

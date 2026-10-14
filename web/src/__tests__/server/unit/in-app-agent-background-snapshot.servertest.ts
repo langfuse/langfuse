@@ -17,8 +17,8 @@ vi.mock("@langfuse/shared/src/server", () => ({
   redis: null,
 }));
 
-import { getBackgroundConversationSnapshot } from "@/src/features/in-app-agent/server/backgroundRunService";
-import { getConversationSnapshotFromEvents } from "@/src/features/in-app-agent/server/conversationSnapshot";
+import { getBackgroundConversationSnapshot } from "@/src/ai/assistant/server/backgroundRunService";
+import { getConversationSnapshotFromEvents } from "@/src/ai/assistant/server/conversationSnapshot";
 
 describe("getBackgroundConversationSnapshot", () => {
   it("redacts silent MCP output from hydrated messages", () => {

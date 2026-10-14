@@ -1,0 +1,91 @@
+/* eslint-disable @repo/no-style-props */
+import { Button } from "@/src/app/design-system/legacy-primitives/button";
+import { useHasProjectAccess } from "@/src/identity/access-control";
+import { api } from "@/src/app/utils/api";
+import { cn } from "@/src/app/utils/tailwind";
+import { Check, Pencil, TriangleAlert } from "lucide-react";
+import Link from "next/link";
+
+export function ManageDefaultEvalModel({
+  projectId,
+  setUpMessage,
+  variant = "default",
+  showEditButton = true,
+  className,
+}: {
+  projectId: string;
+  setUpMessage?: React.ReactNode;
+  variant?: "default" | "color-coded";
+  showEditButton?: boolean;
+  className?: string;
+}) {
+  const hasDefaultModelReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalDefaultModel:read",
+  });
+  const hasDefaultModelWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalDefaultModel:CUD",
+  });
+
+  const { data: defaultModel } = api.defaultLlmModel.fetchDefaultModel.useQuery(
+    { projectId },
+    { enabled: hasDefaultModelReadAccess },
+  );
+
+  return (
+    <div className="flex items-center">
+      {!showEditButton &&
+        (defaultModel ? (
+          <Check className="text-dark-green icon-base mr-2" />
+        ) : (
+          <TriangleAlert className="text-dark-yellow icon-base mr-2" />
+        ))}
+      {defaultModel ? (
+        <span
+          className={cn(
+            "text-sm font-bold text-nowrap",
+            variant === "color-coded" && "text-dark-green",
+            className,
+          )}
+        >
+          {"Default model: "}
+          {defaultModel.provider} / {defaultModel.model}
+        </span>
+      ) : (
+        <span
+          className={cn(
+            "text-sm font-bold",
+            variant === "color-coded" && "text-dark-yellow",
+            className,
+          )}
+        >
+          {setUpMessage ?? "No default model set"}
+        </span>
+      )}
+      {showEditButton && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          type="button"
+          asChild
+          disabled={!hasDefaultModelWriteAccess}
+        >
+          <Link
+            href={`/project/${projectId}/evals/default-model`}
+            target="_blank"
+          >
+            <Pencil
+              className={cn(
+                "icon-base",
+                variant === "color-coded" &&
+                  !defaultModel &&
+                  "text-dark-yellow",
+              )}
+            />
+          </Link>
+        </Button>
+      )}
+    </div>
+  );
+}

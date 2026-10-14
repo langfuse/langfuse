@@ -7,9 +7,9 @@ import {
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import * as ruleRepository from "@/src/features/evals/v2/server/rules/ruleRepository";
-import { filtersMatch } from "@/src/features/evals/v2/server/rules/ruleFilterMatching";
-import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
+import * as ruleRepository from "@/src/evaluators/v2/server/rules/ruleRepository";
+import { filtersMatch } from "@/src/evaluators/v2/server/rules/ruleFilterMatching";
+import { RuleService } from "@/src/evaluators/v2/server/rules/ruleService";
 
 const orgIds: string[] = [];
 let projectId = "";

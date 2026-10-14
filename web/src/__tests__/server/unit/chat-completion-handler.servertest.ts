@@ -16,7 +16,7 @@ vi.mock("@/src/env.mjs", () => ({
   env: { LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: new Map() },
 }));
 
-vi.mock("@/src/features/playground/server/authorizeRequest", () => ({
+vi.mock("@/src/playground/server/authorizeRequest", () => ({
   authorizeRequestOrThrow: mocks.authorize,
 }));
 
@@ -44,7 +44,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-import chatCompletionHandler from "@/src/features/playground/server/chatCompletionHandler";
+import chatCompletionHandler from "@/src/playground/server/chatCompletionHandler";
 import { LLMValidationError } from "@langfuse/shared/src/server";
 
 const AISDK_ERROR_MARKER = Symbol.for("vercel.ai.error");

@@ -211,7 +211,7 @@ export const scoresRouter = createTRPCRouter({
 import { createTRPCRouter } from "@/src/server/api/trpc";
 import { scoresRouter } from "./routers/scores";
 import { tracesRouter } from "./routers/traces";
-import { dashboardRouter } from "@/src/features/dashboard/server/dashboard-router";
+import { dashboardRouter } from "@/src/analytics/dashboards/server/dashboard-router";
 
 export const appRouter = createTRPCRouter({
   scores: scoresRouter,
@@ -240,7 +240,7 @@ const { data, isLoading } = api.scores.all.useQuery({
 
 ## Public REST API Routes
 
-**Location:** `web/src/pages/api/public/`
+**Location:** `web/pages/api/public/`
 
 Public API routes use **Next.js file-based routing** and provide REST endpoints for SDKs and external integrations.
 
@@ -249,7 +249,7 @@ Public API routes use **Next.js file-based routing** and provide REST endpoints 
 Next.js uses file system for routing:
 
 ```
-web/src/pages/api/public/
+web/pages/api/public/
 ├── scores/
 │   ├── index.ts          → GET/POST /api/public/scores
 │   └── [scoreId].ts      → GET/PATCH/DELETE /api/public/scores/:scoreId
@@ -270,12 +270,12 @@ web/src/pages/api/public/
 
 ### REST API Pattern
 
-**File:** `web/src/pages/api/public/scores/index.ts`
+**File:** `web/pages/api/public/scores/index.ts`
 
 ```typescript
 import { v4 } from "uuid";
-import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import { createAuthedProjectAPIRoute } from "@/src/public-api/server/createAuthedProjectAPIRoute";
+import { withMiddlewares } from "@/src/public-api/server/withMiddlewares";
 import {
   GetScoresQueryV1,
   GetScoresResponseV1,
@@ -283,7 +283,7 @@ import {
   PostScoresResponseV1,
 } from "@langfuse/shared";
 import { eventTypes, processEventBatch } from "@langfuse/shared/src/server";
-import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { ScoresApiService } from "@/src/public-api/server/scores-api-service";
 
 export default withMiddlewares({
   // POST /api/public/scores
@@ -371,7 +371,7 @@ the canonical example — the `GetScoresQueryV1` / `GetScoresResponseV1` symbols
 imported from `@langfuse/shared` originate there.
 
 Do not create a flat file (e.g. `<domain>-api-v2.ts`) and do not place
-versioned types in `web/src/features/public-api/types/`.
+versioned types in `web/src/public-api/types/`.
 
 ```
 packages/shared/src/features/<domain>/interfaces/api/
@@ -387,7 +387,7 @@ packages/shared/src/features/<domain>/interfaces/api/
 
 ### Fern API Definitions
 
-When modifying public API types in `web/src/features/public-api/types/` or under
+When modifying public API types in `web/src/public-api/types/` or under
 `packages/shared/src/features/<domain>/interfaces/api/`, update the matching
 Fern API definitions in `fern/apis/server/definition/`. After editing Fern
 sources, run `pnpm run openapi:export` and commit `web/public/generated/**`.
@@ -396,18 +396,18 @@ PRs that touch `fern/**` fail CI when those served specs drift
 
 **Zod to Fern Type Mapping:**
 
-| Zod Type       | Fern Type               | Example                                                   |
-| -------------- | ----------------------- | --------------------------------------------------------- |
-| `.nullish()`   | `optional<nullable<T>>` | `z.string().nullish()` -> `optional<nullable<string>>`    |
-| `.nullable()`  | `nullable<T>`           | `z.string().nullable()` -> `nullable<string>`             |
-| `.optional()`  | `optional<T>`           | `z.string().optional()` -> `optional<string>`             |
-| Always present | `T`                     | `z.string()` -> `string`                                  |
+| Zod Type       | Fern Type               | Example                                                |
+| -------------- | ----------------------- | ------------------------------------------------------ |
+| `.nullish()`   | `optional<nullable<T>>` | `z.string().nullish()` -> `optional<nullable<string>>` |
+| `.nullable()`  | `nullable<T>`           | `z.string().nullable()` -> `nullable<string>`          |
+| `.optional()`  | `optional<T>`           | `z.string().optional()` -> `optional<string>`          |
+| Always present | `T`                     | `z.string()` -> `string`                               |
 
 Add a source comment at the top of each Fern type that references the
 TypeScript source:
 
 ```yaml
-# Source: web/src/features/public-api/types/traces.ts - APITrace
+# Source: web/src/public-api/types/traces.ts - APITrace
 Trace:
   properties:
     id: string
@@ -420,8 +420,8 @@ Trace:
 For routes that don't need authentication:
 
 ```typescript
-// web/src/pages/api/public/health.ts
-import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+// web/pages/api/public/health.ts
+import { withMiddlewares } from "@/src/public-api/server/withMiddlewares";
 
 export default withMiddlewares({
   GET: async (req, res) => {
@@ -440,14 +440,14 @@ Services contain business logic and orchestrate operations. They're called by tR
 
 ### Service Pattern
 
-**File:** `web/src/features/public-api/server/scores-api-service.ts`
+**File:** `web/src/public-api/server/scores-api-service.ts`
 
 ```typescript
 import {
   _handleGenerateScoresForPublicApi,
   _handleGetScoresCountForPublicApi,
   type ScoreQueryType,
-} from "@/src/features/public-api/server/scores";
+} from "@/src/public-api/server/scores";
 import { _handleGetScoreById } from "@langfuse/shared/src/server";
 
 export class ScoresApiService {
@@ -664,7 +664,7 @@ export const scoresRouter = createTRPCRouter({
 **Service (Business Logic):**
 
 ```typescript
-// web/src/features/scores/server/score-service.ts
+// web/src/scores/server/score-service.ts
 export async function createScoreWithValidation({
   scoreData,
   userId,

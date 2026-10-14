@@ -6,7 +6,7 @@ const { recordBackendActivityMock } = vi.hoisted(() => ({
   recordBackendActivityMock: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
+vi.mock("@/src/analytics/internal/posthog/server/backendActivity", () => ({
   recordBackendActivity: recordBackendActivityMock,
 }));
 

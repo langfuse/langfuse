@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
-import { type AuthorizationContext } from "@/src/features/auth/policy/types";
-import { SkillService } from "@/src/features/skills/server/skill-service";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { type AuthorizationContext } from "@/src/identity/auth/policy/types";
+import { SkillService } from "@/src/ai/skills/server/skill-service";
+import { auditLog } from "@/src/identity/audit-logs/server";
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/identity/audit-logs/server", () => ({
   auditLog: vi.fn(),
 }));
 

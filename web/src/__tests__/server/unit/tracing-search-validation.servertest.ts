@@ -4,7 +4,7 @@ import {
   BatchTableNames,
 } from "@langfuse/shared";
 import { GenerationTableOptions } from "@/src/server/api/routers/generations/utils/GenerationTableOptions";
-import { EventsTableOptions } from "@/src/features/events/server/types";
+import { EventsTableOptions } from "@/src/tracing/observations/server/types";
 
 describe("tracing search validation", () => {
   const invalidSearch = {

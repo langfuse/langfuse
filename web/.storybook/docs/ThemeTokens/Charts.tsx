@@ -4,7 +4,7 @@
  * per-score base colors), a numbered palette strip per system, and a small
  * real chart sample painting from the tokens.
  *
- * Every value is parsed at build time from `src/styles/globals.css` (see
+ * Every value is parsed at build time from `src/app/styles/globals.css` (see
  * parseThemeTokens.ts), so the page cannot drift from the stylesheet.
  * Samples repaint under the active Storybook theme (toolbar switcher).
  */
@@ -141,7 +141,7 @@ export function Charts() {
             <>
               Two palettes: categorical series colors, and per-score base
               colors. Parsed at build time from{" "}
-              <code className="font-mono">src/styles/globals.css</code>.
+              <code className="font-mono">src/app/styles/globals.css</code>.
             </>
           }
           meta={

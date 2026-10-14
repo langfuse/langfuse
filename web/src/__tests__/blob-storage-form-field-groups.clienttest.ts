@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type BlobStorageIntegrationFormSchema,
   blobStorageIntegrationFormSchema,
-} from "@/src/features/blobstorage-integration/types";
+} from "@/src/data-export/object-storage/types";
 import {
   AnalyticsIntegrationExportSource,
   OBSERVATION_FIELD_GROUPS_FULL,

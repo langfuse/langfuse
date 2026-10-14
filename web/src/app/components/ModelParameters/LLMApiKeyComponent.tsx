@@ -1,0 +1,57 @@
+import Link from "next/link";
+
+import { Label } from "@/src/app/design-system/legacy-primitives/label";
+import { api } from "@/src/app/utils/api";
+import { type UIModelParams } from "@langfuse/shared";
+import { useHasProjectAccess } from "@/src/identity/access-control";
+export const LLMApiKeyComponent = (p: {
+  projectId: string;
+  modelParams: UIModelParams;
+}) => {
+  const hasAccess = useHasProjectAccess({
+    projectId: p.projectId,
+    scope: "llmApiKeys:read",
+  });
+
+  if (!hasAccess) {
+    return (
+      <div>
+        <Label className="text-xs font-bold">API key</Label>
+        <p className="text-muted-foreground text-sm">
+          LLM API Key only visible to Owner and Admin roles.
+        </p>
+      </div>
+    );
+  }
+
+  const apiKeys = api.llmApiKey.effective.useQuery({
+    projectId: p.projectId,
+  });
+
+  if (apiKeys.isPending) {
+    return (
+      <div>
+        <Label className="text-xs font-bold">API key</Label>
+        <p className="text-muted-foreground text-sm">Loading...</p>
+      </div>
+    );
+  }
+
+  const modelProvider = p.modelParams.provider.value;
+  const apiKey = apiKeys.data?.data.find((k) => k.provider === modelProvider);
+
+  return (
+    <div className="space-y-2 text-xs">
+      <Label className="text-xs font-bold">API key</Label>
+      <div>
+        {apiKey ? (
+          <Link href={`/project/${p.projectId}/settings/llm-connections`}>
+            <span className="bg-input mr-2 rounded-sm p-1 text-xs">
+              {apiKey.displaySecretKey}
+            </span>
+          </Link>
+        ) : undefined}
+      </div>
+    </div>
+  );
+};

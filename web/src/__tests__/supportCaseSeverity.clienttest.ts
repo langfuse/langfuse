@@ -9,13 +9,13 @@ vi.mock("@langfuse/shared/src/server", () => ({
 import {
   mapToPylonCaseSeverity,
   mapCaseSeverityToPylonPriority,
-} from "@/src/features/support-chat/pylon/pylonClient";
+} from "@/src/app/support/pylon/pylonClient";
 import {
   SEVERITY_1,
   SEVERITY_2,
   SEVERITY_3,
   isSeverityAllowedForPlan,
-} from "@/src/features/support-chat/formConstants";
+} from "@/src/app/support/formConstants";
 
 const ENTERPRISE = "cloud:enterprise"; // may raise Sev-1, Sev-2, Sev-3
 const SELF_HOSTED_ENTERPRISE = "self-hosted:enterprise"; // same as ENTERPRISE

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import { getAdClickIdsFromRequest } from "@/src/identity/auth/lib/signupAttribution";
 
 // Click ids are read from first-party cookies on .langfuse.com so that
 // cloud_signup_complete events can be attributed to ad clicks that landed on

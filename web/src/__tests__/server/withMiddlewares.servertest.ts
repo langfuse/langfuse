@@ -2,11 +2,11 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import {
   LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
   withMiddlewares,
-} from "@/src/features/public-api/server/withMiddlewares";
+} from "@/src/public-api/server/withMiddlewares";
 import {
   clickHouseRouteForRequest,
   DYNAMIC_API_ROUTE_TEMPLATES,
-} from "@/src/features/public-api/server/clickHouseRequestTags";
+} from "@/src/public-api/server/clickHouseRequestTags";
 import { readdirSync, readFileSync } from "fs";
 import {
   BaseError,

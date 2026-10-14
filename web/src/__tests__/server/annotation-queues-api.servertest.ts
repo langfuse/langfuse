@@ -12,7 +12,7 @@ import {
   UpdateAnnotationQueueItemResponse,
   DeleteAnnotationQueueItemResponse,
   CreateAnnotationQueueResponse,
-} from "@/src/features/public-api/types/annotation-queues";
+} from "@/src/public-api/types/annotation-queues";
 import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,

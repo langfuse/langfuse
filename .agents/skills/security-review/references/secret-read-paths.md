@@ -44,7 +44,7 @@ it hides the omission from the compiler.
 ## Required Defenses
 
 1. **Sanitize in the shared repository or domain converter, not in the route.**
-   One converter must serve every read route *and* the create/update responses.
+   One converter must serve every read route _and_ the create/update responses.
    A router-level sanitizer only covers the surfaces its author remembered.
 2. **Dispatch exhaustively over the type union.** Use a `switch` whose `default`
    assigns to `never`:
@@ -58,6 +58,7 @@ it hides the omission from the compiler.
 
    A new union member is then a compile error until it has a sanitizer. Never
    write a fallback that returns the stored value for "other or future types".
+
 3. **Build the safe object by allowlist, not by deleting known secrets.** A
    deny-list is only as current as the last person who added a field.
 4. **Fail closed on values that do not parse.** Project the stored object onto
@@ -77,7 +78,7 @@ it hides the omission from the compiler.
   — exhaustive switch, per-type allowlist sanitizer, allowlist projection as
   the parse-failure fallback; the single converter behind the automations read
   routes and the create/update responses in
-  [`router.ts`](../../../../web/src/features/automations/server/router.ts).
+  [`router.ts`](../../../../web/src/automation/server/router.ts).
 - `describe("automations read path secret redaction")` in
   [`automations-trpc.servertest.ts`](../../../../web/src/__tests__/server/automations-trpc.servertest.ts)
   — VIEWER-role read-path negative tests, including a config that fails to
@@ -86,7 +87,7 @@ it hides the omission from the compiler.
 ## Anti-Patterns to Flag in Review
 
 - **A type assertion standing in for sanitization**: `config: row.config as
-  SafeActionConfig`. The name claims the invariant while the cast suppresses
+SafeActionConfig`. The name claims the invariant while the cast suppresses
   the only check that would enforce it. Flag every `as Safe*`, `as Public*`,
   `as Redacted*`. If the type carries a security invariant, consider branding
   it so that only the converter can produce a value of that type and a bare

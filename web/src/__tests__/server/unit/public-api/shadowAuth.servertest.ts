@@ -32,31 +32,28 @@ const {
 
 vi.mock("@/src/env.mjs", () => ({ env }));
 
-vi.mock("@/src/features/public-api/server/apiAuth", () => ({
+vi.mock("@/src/public-api/server/apiAuth", () => ({
   ApiAuthService: class {
     verifyAuthHeaderAndReturnScope = mockVerifyScope;
   },
 }));
 
-vi.mock("@/src/features/public-api/server/verifyProjectApiKeyAuth", () => ({
+vi.mock("@/src/public-api/server/verifyProjectApiKeyAuth", () => ({
   verifyAuth: mockLegacyProjectAuth,
 }));
 
-vi.mock("@/src/features/public-api/server/enforceAuth", () => ({
+vi.mock("@/src/public-api/server/enforceAuth", () => ({
   __dangerouslySkipAuthz: "__dangerouslySkipAuthz",
   enforceAuth: mockEnforceAuth,
 }));
 
-vi.mock(
-  "@/src/features/public-api/server/shadowAuthDiff",
-  async (importOriginal) => ({
-    ...(await importOriginal<object>()),
-    shadowAuthDiff: mockShadowAuthDiff,
-  }),
-);
+vi.mock("@/src/public-api/server/shadowAuthDiff", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  shadowAuthDiff: mockShadowAuthDiff,
+}));
 
-import { shadowAuth, shadowAuthorize } from "@/src/features/public-api/server";
-import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { shadowAuth, shadowAuthorize } from "@/src/public-api/server";
+import { type AuthorizationContext } from "@/src/identity/auth/policy/types";
 
 const mappedFields = {
   orgId: "org_1",
