@@ -1,10 +1,7 @@
-import { type ComponentProps, type ReactNode, useState } from "react";
+import { type ReactNode } from "react";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { RegenerateTopicsDialog } from "./RegenerateTopicsDialog";
-import {
-  type RegenerateRequest,
-  type RegenerateTopics,
-} from "./useRegenerateTopics";
+import { type RegenerateTopics } from "./useRegenerateTopics";
 
 /**
  * Owns the Regenerate topics dialog. Wrap the shared parent and pass
@@ -25,14 +22,20 @@ export function RegenerateTopicsDialogController({
     <DialogController
       renderDialog={({ closeDialog }) =>
         timeRange && (
-          <RegenerateTopicsDialogContent
+          <RegenerateTopicsDialog
             facets={regenerate.facets}
             timeRange={timeRange}
             lastRun={regenerate.lastRun}
             disabledReason={regenerate.disabledReason}
             isSubmitting={regenerate.isSubmitting}
-            submit={regenerate.submit}
-            onDone={(executionId) => {
+            error={regenerate.error}
+            onSubmit={async (values) => {
+              const executionId = await regenerate.submit(values);
+              if (executionId === null) return;
+              closeDialog();
+              onTriggered(executionId);
+            }}
+            onOpenRun={(executionId) => {
               closeDialog();
               onTriggered(executionId);
             }}
@@ -40,40 +43,14 @@ export function RegenerateTopicsDialogController({
         )
       }
     >
-      {({ openDialog }) => children({ openDialog })}
+      {({ openDialog }) =>
+        children({
+          openDialog: () => {
+            regenerate.clearError();
+            openDialog();
+          },
+        })
+      }
     </DialogController>
-  );
-}
-
-function RegenerateTopicsDialogContent({
-  submit,
-  onDone,
-  ...props
-}: Omit<
-  ComponentProps<typeof RegenerateTopicsDialog>,
-  "error" | "onSubmit" | "onOpenRun"
-> & {
-  submit: (request: RegenerateRequest) => Promise<string>;
-  onDone: (executionId: string) => void;
-}) {
-  const [error, setError] = useState<string | null>(null);
-  return (
-    <RegenerateTopicsDialog
-      {...props}
-      error={error}
-      onSubmit={async (values) => {
-        setError(null);
-        try {
-          onDone(await submit(values));
-        } catch (cause) {
-          setError(
-            cause instanceof Error
-              ? cause.message
-              : "Could not regenerate topics.",
-          );
-        }
-      }}
-      onOpenRun={onDone}
-    />
   );
 }

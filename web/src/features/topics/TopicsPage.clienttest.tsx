@@ -535,3 +535,36 @@ it("regenerates the rule's facets that have summaries, at their latest version, 
     requestId: expect.any(String),
   });
 });
+
+it("shows a regenerate failure that settles after the dialog was closed and reopened, and retries with the same requestId", async () => {
+  withSummaries();
+  let fail: (error: Error) => void = () => {};
+  state.trigger.mockImplementationOnce(
+    () => new Promise((_, reject) => (fail = reject)),
+  );
+  render(<TopicsPage />);
+  const open = () => {
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate topics" }));
+    return screen.getByRole("dialog", { name: "Regenerate topics" });
+  };
+
+  fireEvent.click(
+    within(open()).getByRole("button", { name: "Regenerate topics" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  const reopened = open();
+  fail(new Error("Clustering connection failed."));
+
+  expect(
+    await within(reopened).findByText("Clustering connection failed."),
+  ).toBeInTheDocument();
+  fireEvent.click(
+    within(reopened).getByRole("button", { name: "Regenerate topics" }),
+  );
+  await waitFor(() => expect(state.trigger).toHaveBeenCalledTimes(2));
+  const [first, second] = state.trigger.mock.calls.map(
+    ([input]) => (input as { requestId: string }).requestId,
+  );
+  expect(second).toBe(first);
+});
