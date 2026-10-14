@@ -55,8 +55,7 @@ const FIXED_TRACE_ID = "golden-trace";
 const FIXED_OBSERVATION_ID = "golden-span";
 const FIXED_START_TIME = new Date("2026-01-01T00:00:00.000Z");
 const FIXED_FROM_TIMESTAMP = new Date("2025-12-01T00:00:00.000Z");
-const FIXED_CH_MIN = "2026-01-01 00:00:00.000";
-const FIXED_CH_MAX = "2026-01-01 01:00:00.000";
+const FIXED_AGENT_GRAPH_MAX = new Date("2026-01-01T01:00:00.000Z");
 const FIXED_TO_TIMESTAMP = new Date("2026-01-02T00:00:00.000Z");
 const FIXED_PROMPT_NAMES = ["golden-prompt", "golden-prompt-b"];
 const FIXED_PROMPT_IDS = ["golden-prompt-id", "golden-prompt-id-b"];
@@ -132,8 +131,8 @@ describeWithClickhouse("golden: events point-reads & existence family", () => {
     await getAgentGraphDataFromEventsTable({
       projectId: FIXED_PROJECT_ID,
       traceId: FIXED_TRACE_ID,
-      chMinStartTime: FIXED_CH_MIN,
-      chMaxStartTime: FIXED_CH_MAX,
+      minStartTime: FIXED_START_TIME,
+      maxStartTime: FIXED_AGENT_GRAPH_MAX,
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });

@@ -7,6 +7,7 @@ import {
   getObservationsCountFromEventsTable,
   getObservationsCountsFromEventsTable,
   getObservationByIdFromEventsTable,
+  getAgentGraphDataFromEventsTable,
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
   updateEvents,
@@ -1174,6 +1175,43 @@ describe("Clickhouse Events Repository Test", () => {
           startTimeLowerBound: new Date(observationStart + 3 * DAY_MS),
         }),
       ).rejects.toThrow();
+    });
+  });
+
+  maybe("getAgentGraphDataFromEventsTable", () => {
+    it("bounds start_time by Date binds at millisecond precision", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const start = new Date(
+        Math.floor(Date.now() / 1000) * 1000 - 60_000 + 123,
+      );
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "AGENT",
+          start_time: start.getTime(),
+        }),
+      ]);
+
+      const atStart = await getAgentGraphDataFromEventsTable({
+        projectId,
+        traceId,
+        minStartTime: start,
+        maxStartTime: start,
+      });
+      expect(atStart).toEqual([expect.objectContaining({ id: observationId })]);
+
+      const afterStart = await getAgentGraphDataFromEventsTable({
+        projectId,
+        traceId,
+        minStartTime: new Date(start.getTime() + 1),
+        maxStartTime: new Date(start.getTime() + 60_000),
+      });
+      expect(afterStart).toEqual([]);
     });
   });
 

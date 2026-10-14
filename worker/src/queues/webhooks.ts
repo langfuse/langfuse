@@ -17,6 +17,7 @@ import {
   validateWebhookURL,
   whitelistFromEnv,
   fetchWithSecureRedirects,
+  urlForLog,
   WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
   buildWebhookRequestHeaders,
 } from "@langfuse/shared/src/server";
@@ -42,6 +43,9 @@ import { Processor, Job } from "bullmq";
 import { backOff } from "exponential-backoff";
 import { env } from "../env";
 import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
+
+/** WEBHOOK_ADDRESS_ATTEMPT_TIMEOUT_MS lets a retransmitted SYN finish before Node closes the socket. */
+const WEBHOOK_ADDRESS_ATTEMPT_TIMEOUT_MS = 2_000;
 
 // GitHub repository_dispatch client_payload: max 10 top-level properties and <64KB.
 // https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event
@@ -208,6 +212,7 @@ async function executeHttpAction({
   actionConfig,
   additionalSensitiveHeaders,
   payloadType,
+  addressAttemptTimeoutMs,
 }: {
   url: string;
   payload: string;
@@ -220,6 +225,7 @@ async function executeHttpAction({
   actionConfig: ActionDomainWithSecrets;
   additionalSensitiveHeaders?: string[];
   payloadType: WebhookInput["payload"]["type"];
+  addressAttemptTimeoutMs?: number;
 }): Promise<{ httpStatus: number; responseBody: string }> {
   // monitor-alert does not write AutomationExecution rows; auto-disable rides a Redis counter instead.
   const isMonitorAlert = payloadType === "monitor-alert";
@@ -231,7 +237,7 @@ async function executeHttpAction({
     await backOff(
       async () => {
         logger.info(
-          `Sending HTTP request to ${url} for action ${automation.action.id}`,
+          `Sending HTTP request to ${urlForLog(url)} for action ${automation.action.id}`,
         );
 
         // Create AbortController for timeout
@@ -260,6 +266,7 @@ async function executeHttpAction({
                   validateUrl: validateWebhookURL,
                   whitelist,
                   logContext: WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
+                  addressAttemptTimeoutMs,
                 },
                 additionalSensitiveHeaders,
               };
@@ -281,10 +288,10 @@ async function executeHttpAction({
           if (redirectResult.redirectChain.length > 0) {
             logger.info("Webhook followed redirects", {
               actionId: automation.action.id,
-              initialUrl: url,
-              finalUrl: redirectResult.finalUrl,
+              initialUrl: urlForLog(url),
+              finalUrl: urlForLog(redirectResult.finalUrl),
               redirectCount: redirectResult.redirectChain.length,
-              redirectChain: redirectResult.redirectChain,
+              redirectChain: redirectResult.redirectChain.map(urlForLog),
             });
           }
 
@@ -293,19 +300,19 @@ async function executeHttpAction({
 
           if (!res.ok) {
             logger.warn(
-              `Webhook does not return 2xx status: failed with status ${res.status} for url ${url} and project ${projectId}. Body: ${responseBody}`,
+              `Webhook does not return 2xx status: failed with status ${res.status} for url ${urlForLog(url)} and project ${projectId}. Body: ${responseBody}`,
             );
             throw new Error(
-              `Webhook does not return 2xx status: failed with status ${res.status} for url ${url} and project ${projectId}`,
+              `Webhook does not return 2xx status: failed with status ${res.status} for url ${urlForLog(url)} and project ${projectId}`,
             );
           }
         } catch (error) {
           if (error instanceof Error && error.name === "AbortError") {
             logger.warn(
-              `Webhook timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${url} and project ${projectId}`,
+              `Webhook timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${urlForLog(url)} and project ${projectId}`,
             );
             throw new Error(
-              `Webhook timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${url} and project ${projectId}`,
+              `Webhook timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${urlForLog(url)} and project ${projectId}`,
             );
           }
           throw error;
@@ -560,6 +567,7 @@ async function executeWebhookAction({
     actionConfig,
     additionalSensitiveHeaders,
     payloadType: input.payload.type,
+    addressAttemptTimeoutMs: WEBHOOK_ADDRESS_ATTEMPT_TIMEOUT_MS,
   });
 }
 
