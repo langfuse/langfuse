@@ -152,12 +152,13 @@ export class GatewayResolveCache {
       }
 
       if (params.mutationGeneration === null) return;
-      const organizationGeneration = await this.readGeneration(
-        organizationGenerationKey(params.context.organizationId),
-      );
-      const currentMutationGeneration = await this.readGeneration(
-        mutationGenerationKey,
-      );
+      const [organizationGeneration, currentMutationGeneration] =
+        await Promise.all([
+          this.readGeneration(
+            organizationGenerationKey(params.context.organizationId),
+          ),
+          this.readGeneration(mutationGenerationKey),
+        ]);
       if (
         params.mutationGeneration === undefined ||
         params.mutationGeneration !== currentMutationGeneration
@@ -232,11 +233,12 @@ export class GatewayResolveCache {
     if (!this.enabled) return;
 
     try {
-      await Promise.all([
-        ...gatewayApiFormats.map((apiFormat) =>
+      await this.redis!.incr(mutationGenerationKey);
+      await Promise.all(
+        gatewayApiFormats.map((apiFormat) =>
           this.redis!.del(contextCacheKey(fastHashedSecretKey, apiFormat)),
         ),
-      ]);
+      );
     } catch (error) {
       logger.error("Error invalidating gateway resolve cache", error);
     }

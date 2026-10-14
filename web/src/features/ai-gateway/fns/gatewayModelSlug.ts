@@ -28,12 +28,7 @@ export function resolveGatewayModelRoute<
 
   if (model.startsWith("ft:")) {
     return {
-      connection:
-        connections.find(
-          (connection) =>
-            connection.provider === "OPENAI" &&
-            isGatewayModelAllowed(connection.allowedModels, model),
-        ) ?? null,
+      connection: findImplicitConnection(model, connections, "OPENAI"),
       providerModel: model,
     };
   }
@@ -53,14 +48,25 @@ export function resolveGatewayModelRoute<
   if (!provider) return null;
 
   return {
-    connection:
-      connections.find(
-        (connection) =>
-          connection.provider === provider &&
-          isGatewayModelAllowed(connection.allowedModels, model),
-      ) ?? null,
+    connection: findImplicitConnection(model, connections, provider),
     providerModel: model,
   };
+}
+
+function findImplicitConnection<Connection extends GatewayRouteConnection>(
+  model: string,
+  connections: readonly Connection[],
+  provider: "OPENAI" | "ANTHROPIC",
+) {
+  let firstProviderConnection: Connection | null = null;
+  for (const connection of connections) {
+    if (connection.provider !== provider) continue;
+    firstProviderConnection ??= connection;
+    if (isGatewayModelAllowed(connection.allowedModels, model)) {
+      return connection;
+    }
+  }
+  return firstProviderConnection;
 }
 
 function parseGatewayModelSlug(model: string) {

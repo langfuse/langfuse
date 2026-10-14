@@ -132,16 +132,24 @@ export class GatewayProviderRepository {
     organizationId: string;
     id: string;
     allowedModels: string[] | null;
+    expectedUpdatedAt: Date;
   }) {
-    const connection = await this.prisma.gatewayAiConnection.update({
-      where: { id: params.id, organizationId: params.organizationId },
+    const result = await this.prisma.gatewayAiConnection.updateMany({
+      where: {
+        id: params.id,
+        organizationId: params.organizationId,
+        updatedAt: params.expectedUpdatedAt,
+      },
       data: {
         allowedModels:
           params.allowedModels === null ? Prisma.DbNull : params.allowedModels,
       },
-      select: safeConnectionSelect,
     });
-    return toSafeConnection(connection);
+    if (result.count === 0) return null;
+    return this.getSafeConnection({
+      organizationId: params.organizationId,
+      id: params.id,
+    });
   }
 
   /**

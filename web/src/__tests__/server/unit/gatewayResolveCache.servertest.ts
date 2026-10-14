@@ -134,6 +134,26 @@ describe("GatewayResolveCache", () => {
     ).resolves.toBeNull();
   });
 
+  it("does not repopulate stale context after API key invalidation", async () => {
+    const cache = new GatewayResolveCache(createStatefulRedis());
+    const mutationGeneration = await cache.getMutationGeneration();
+
+    await cache.invalidateApiKey("hashed-key");
+    await cache.set({
+      fastHashedSecretKey: "hashed-key",
+      apiFormat: "openai.responses",
+      context,
+      mutationGeneration,
+    });
+
+    await expect(
+      cache.get({
+        fastHashedSecretKey: "hashed-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toBeNull();
+  });
+
   it("fences invalidation that starts while a stale context is being cached", async () => {
     let cache: GatewayResolveCache;
     let invalidated = false;

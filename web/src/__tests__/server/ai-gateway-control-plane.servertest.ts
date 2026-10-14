@@ -716,6 +716,7 @@ describe("AI gateway control plane", () => {
       orgId: org.id,
       id: connection.id,
       allowedModels: ["gpt-4o-mini"],
+      expectedUpdatedAt: connection.updatedAt,
     });
 
     await expect(
@@ -723,6 +724,16 @@ describe("AI gateway control plane", () => {
         fastHashedSecretKey,
         apiFormat: "openai.responses",
         model: "OpenAI:gpt-4o",
+      }),
+    ).rejects.toMatchObject({
+      status: 403,
+      code: "model_not_allowed",
+    });
+    await expect(
+      authenticateRequest({
+        fastHashedSecretKey,
+        apiFormat: "openai.responses",
+        model: "gpt-4o",
       }),
     ).rejects.toMatchObject({
       status: 403,
@@ -767,12 +778,47 @@ describe("AI gateway control plane", () => {
       orgId: org.id,
       id: connection.id,
       allowedModels: null,
+      expectedUpdatedAt: listed.data[0]!.updatedAt,
     });
     const allowAll = await caller.aiGateway.getConnection({
       orgId: org.id,
       id: connection.id,
     });
     expect(allowAll.allowedModels).toBeNull();
+  });
+
+  it("rejects stale concurrent model allowlist updates", async () => {
+    const { caller, org } = await prepare();
+    const connection = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test-openai",
+    });
+
+    await caller.aiGateway.updateConnectionModels({
+      orgId: org.id,
+      id: connection.id,
+      allowedModels: ["gpt-4o"],
+      expectedUpdatedAt: connection.updatedAt,
+    });
+    await expect(
+      caller.aiGateway.updateConnectionModels({
+        orgId: org.id,
+        id: connection.id,
+        allowedModels: ["gpt-4o-mini"],
+        expectedUpdatedAt: connection.updatedAt,
+      }),
+    ).rejects.toThrow(
+      "Model access changed while this page was open. Reload and try again.",
+    );
+
+    await expect(
+      caller.aiGateway.getConnection({
+        orgId: org.id,
+        id: connection.id,
+      }),
+    ).resolves.toMatchObject({ allowedModels: ["gpt-4o"] });
   });
 
   it("requires connection names to be unique within an organization", async () => {
@@ -911,6 +957,39 @@ describe("AI gateway control plane", () => {
         where: { orgId: org.id, action: "retry" },
       }),
     ).toBe(1);
+  });
+
+  it("keeps disabled connections disabled after model discovery auth failures", async () => {
+    const { caller, org } = await prepare();
+    const connection = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "Anthropic",
+      provider: "ANTHROPIC",
+      credential: "sk-ant-test",
+    });
+    await caller.aiGateway.updateConnection({
+      orgId: org.id,
+      id: connection.id,
+      status: "DISABLED",
+    });
+    const unauthorizedFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 401 }));
+
+    await new GatewayModelCatalogService(
+      prisma,
+      unauthorizedFetch,
+    ).refreshModels({
+      organizationId: org.id,
+      connectionId: connection.id,
+    });
+
+    await expect(
+      prisma.gatewayAiConnection.findUnique({
+        where: { id: connection.id },
+        select: { status: true },
+      }),
+    ).resolves.toEqual({ status: "DISABLED" });
   });
 
   it("keeps routing priorities contiguous through reorders and deletes", async () => {

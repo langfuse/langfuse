@@ -202,7 +202,7 @@ export class GatewayModelCatalogService {
       fetcher: this.fetcher,
     });
     if (!models.success) {
-      if (models.error === "unauthorized") {
+      if (models.error === "unauthorized" && connection.status === "ENABLED") {
         await this.repository.updateConnectionStatus({
           organizationId: params.organizationId,
           id: connection.id,

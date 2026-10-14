@@ -147,4 +147,29 @@ describe("resolveGatewayModelRoute", () => {
       providerModel: "gpt-6-sol",
     });
   });
+
+  it.each(["gpt-6-sol", "ft:gpt-4o-mini-2024-07-18:acme::abc123"])(
+    "returns the first matching provider for denied implicit model %s",
+    (model) => {
+      const restrictedConnections = [
+        {
+          id: "openai-primary",
+          name: "OpenAI primary",
+          provider: "OPENAI",
+          allowedModels: ["gpt-4o"],
+        },
+        {
+          id: "openai-secondary",
+          name: "OpenAI secondary",
+          provider: "OPENAI",
+          allowedModels: [],
+        },
+      ] as const;
+
+      expect(resolveGatewayModelRoute(model, restrictedConnections)).toEqual({
+        connection: restrictedConnections[0],
+        providerModel: model,
+      });
+    },
+  );
 });

@@ -19,6 +19,9 @@ export function useGatewayConnectionModels({
         utils.aiGateway.refreshModels.invalidate({ orgId: organizationId }),
       ]);
     },
+    onError: async () => {
+      await connectionQuery.refetch();
+    },
   });
   const retryModels = api.aiGateway.retryConnection.useMutation({
     onSuccess: async () => {
@@ -37,7 +40,17 @@ export function useGatewayConnectionModels({
   const saveAllowedModels = (
     allowedModels: string[] | null,
     onSuccess?: () => void,
-  ) => updateModels.mutate({ ...input, allowedModels }, { onSuccess });
+  ) => {
+    if (!connectionQuery.data) return;
+    updateModels.mutate(
+      {
+        ...input,
+        allowedModels,
+        expectedUpdatedAt: connectionQuery.data.updatedAt,
+      },
+      { onSuccess },
+    );
+  };
 
   return {
     connectionQuery,
