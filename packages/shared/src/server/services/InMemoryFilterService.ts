@@ -8,11 +8,44 @@ export type InMemoryFilterOptions = {
 
 // Strings that ClickHouse toFloat64OrNull parses as finite numbers, so
 // in-memory metadata comparisons match the same values as ClickHouse queries.
-const DECIMAL_NUMBER_PATTERN = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
+// Scanned linearly (no regex) so metadata values cannot trigger backtracking.
+const isDecimalNumberString = (value: string): boolean => {
+  const length = value.length;
+  if (length === 0) return false;
+
+  let i = 0;
+  if (value[i] === "+" || value[i] === "-") i += 1;
+
+  let sawDigit = false;
+  while (i < length && value[i] >= "0" && value[i] <= "9") {
+    sawDigit = true;
+    i += 1;
+  }
+
+  if (i < length && value[i] === ".") {
+    i += 1;
+    while (i < length && value[i] >= "0" && value[i] <= "9") {
+      sawDigit = true;
+      i += 1;
+    }
+  }
+
+  if (!sawDigit) return false;
+
+  if (i < length && (value[i] === "e" || value[i] === "E")) {
+    i += 1;
+    if (i < length && (value[i] === "+" || value[i] === "-")) i += 1;
+    const exponentStart = i;
+    while (i < length && value[i] >= "0" && value[i] <= "9") i += 1;
+    if (i === exponentStart) return false;
+  }
+
+  return i === length;
+};
 
 const toComparableNumber = (value: unknown): number => {
   if (typeof value === "number") return value;
-  if (typeof value === "string" && DECIMAL_NUMBER_PATTERN.test(value)) {
+  if (typeof value === "string" && isDecimalNumberString(value)) {
     return Number(value);
   }
   return NaN;
