@@ -243,7 +243,7 @@ function BreakdownRow({
           aria-hidden="true"
         >
           <span
-            className="bg-foreground-tertiary absolute left-0 h-full rounded-sm"
+            className="bg-muted-foreground absolute left-0 h-full rounded-sm"
             style={{ width: `${share ?? 0}%` }}
           />
         </span>
