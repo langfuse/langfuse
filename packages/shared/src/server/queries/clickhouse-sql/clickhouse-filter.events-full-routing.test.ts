@@ -12,6 +12,8 @@ import {
 } from "./clickhouse-filter";
 import { createFilterFromFilterState } from "./factory";
 import { experimentItemsTableNativeUiColumnDefinitions } from "../../tableMappings/mapExperimentItemsTable";
+import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
+import { eventsTableCols } from "../../../eventsTable";
 
 // events_core_mv truncates metadata values to leftUTF8(v, 200), so the safety
 // boundary is 200 Unicode code points.
@@ -332,5 +334,42 @@ describe("filtersRequireEventsFull input/output routing", () => {
         ]),
       ),
     ).toBe(true);
+  });
+});
+
+// A "(empty)" trace-name selection sends the value "" (an unnamed trace, whose
+// computed name is NULL). The traceName column sets emptyEqualsNull, so the
+// filter must also match NULL rather than emitting the never-true `NULL IN ('')`
+// (issue #1198). Guards the mapEventsTable wiring end-to-end through the factory.
+describe("trace name (empty) filter matches unnamed traces", () => {
+  const traceNameFilterSql = (values: string[]): string =>
+    new FilterList(
+      createFilterFromFilterState(
+        [
+          {
+            type: "stringOptions",
+            column: "traceName",
+            operator: "any of",
+            value: values,
+          },
+        ],
+        eventsTableUiColumnDefinitions,
+        eventsTableCols,
+      ),
+    ).apply().query;
+
+  it("adds an IS NULL branch when '' is selected", () => {
+    const sql = traceNameFilterSql([""]);
+    expect(sql).toContain("IS NULL");
+  });
+
+  it("still matches empty alongside a real name", () => {
+    const sql = traceNameFilterSql(["checkout", ""]);
+    expect(sql).toContain("IS NULL");
+  });
+
+  it("does not add the IS NULL branch for a normal name selection", () => {
+    const sql = traceNameFilterSql(["checkout"]);
+    expect(sql).not.toContain("IS NULL");
   });
 });

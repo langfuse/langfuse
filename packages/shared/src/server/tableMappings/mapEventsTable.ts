@@ -279,6 +279,11 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "traceName",
     clickhouseTableName: "events_proto",
     clickhouseSelect: eventsTableTraceNameSql,
+    // A "(empty)" selection (value "") means "unnamed trace", whose computed
+    // name is NULL. emptyEqualsNull makes the filter match those rows via
+    // `(... IN ('') OR ... IS NULL)` instead of the never-true `NULL IN ('')`
+    // (issue #1198).
+    emptyEqualsNull: true,
   },
   {
     uiTableName: "User ID",

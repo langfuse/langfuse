@@ -55,14 +55,20 @@ type EventFilterOptionDefinition =
   | {
       kind: "scalar";
       expression: string;
-      includeWhen: string;
+      // SQL predicate deciding which rows feed this facet. Omit to offer every
+      // value the column can take, including the empty string (a facet value is
+      // toString(ifNull(expression, '')), so a NULL/empty column surfaces as the
+      // "(empty)" option). Most columns set it to hide empty values as noise;
+      // trace name omits it because an unnamed trace is a real, filterable value
+      // (issue #1198).
+      includeWhen?: string;
       sort: EventFilterOptionSort;
     }
   | {
       kind: "labeledScalar";
       expression: string;
       labelExpression: string;
-      includeWhen: string;
+      includeWhen?: string;
       sort: EventFilterOptionSort;
     }
   | {
@@ -100,7 +106,9 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
   traceName: {
     kind: "scalar",
     expression: eventsTableTraceNameSql,
-    includeWhen: `${eventsTableTraceNameSql} IS NOT NULL`,
+    // No includeWhen: an unnamed trace (computed name NULL -> "") is a real,
+    // filterable value, so it must be offered as "(empty)" (issue #1198). The
+    // "" bucket only appears when such rows exist.
     sort: "countDesc",
   },
   type: {
@@ -324,10 +332,13 @@ const optionValuesArrayExpression = (
   `arrayMap(value -> toString(value), ${optionValuesFilteredExpression(definition)})`;
 
 const optionPresenceCondition = (column: EventFilterOptionColumn): string => {
-  const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
+  const definition: EventFilterOptionDefinition =
+    EVENTS_FILTER_OPTION_DEFINITIONS[column];
 
   if (definition.kind === "scalar" || definition.kind === "labeledScalar") {
-    return definition.includeWhen;
+    // No includeWhen -> no presence restriction (count every row, empty
+    // included). "1" matches the boolean branch's always-true convention.
+    return definition.includeWhen ?? "1";
   }
 
   if (definition.kind === "boolean") {
@@ -338,7 +349,8 @@ const optionPresenceCondition = (column: EventFilterOptionColumn): string => {
 };
 
 const singleColumnOrderBy = (column: EventFilterOptionColumn): string => {
-  const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
+  const definition: EventFilterOptionDefinition =
+    EVENTS_FILTER_OPTION_DEFINITIONS[column];
 
   if (definition.sort === "countDesc") {
     return "ORDER BY count() DESC, value ASC";
@@ -351,14 +363,23 @@ const optionTopAlias = (column: EventFilterOptionColumn) =>
   `${column}TopOptions`;
 
 const optionTopKSelectExpression = (column: EventFilterOptionColumn) => {
-  const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
+  const definition: EventFilterOptionDefinition =
+    EVENTS_FILTER_OPTION_DEFINITIONS[column];
 
   if (definition.kind === "scalar") {
-    return `approx_top_kIf({optionLimit: UInt64})(${stringValueExpression(definition.expression)}, ${definition.includeWhen}) AS ${optionTopAlias(column)}`;
+    const value = stringValueExpression(definition.expression);
+    // No includeWhen -> count every row (approx_top_k), so empty values are
+    // offered too. With one -> approx_top_kIf filters rows to that predicate.
+    return definition.includeWhen
+      ? `approx_top_kIf({optionLimit: UInt64})(${value}, ${definition.includeWhen}) AS ${optionTopAlias(column)}`
+      : `approx_top_k({optionLimit: UInt64})(${value}) AS ${optionTopAlias(column)}`;
   }
 
   if (definition.kind === "labeledScalar") {
-    return `approx_top_kIf({optionLimit: UInt64})(tuple(${stringValueExpression(definition.expression)}, ${stringValueExpression(definition.labelExpression)}), ${definition.includeWhen}) AS ${optionTopAlias(column)}`;
+    const value = `tuple(${stringValueExpression(definition.expression)}, ${stringValueExpression(definition.labelExpression)})`;
+    return definition.includeWhen
+      ? `approx_top_kIf({optionLimit: UInt64})(${value}, ${definition.includeWhen}) AS ${optionTopAlias(column)}`
+      : `approx_top_k({optionLimit: UInt64})(${value}) AS ${optionTopAlias(column)}`;
   }
 
   if (definition.kind === "boolean") {
@@ -369,7 +390,8 @@ const optionTopKSelectExpression = (column: EventFilterOptionColumn) => {
 };
 
 const optionRowsArrayExpression = (column: EventFilterOptionColumn) => {
-  const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
+  const definition: EventFilterOptionDefinition =
+    EVENTS_FILTER_OPTION_DEFINITIONS[column];
   const topAlias = optionTopAlias(column);
   // Alpha facets use a constant sort key; the final ORDER BY value tie-breaker
   // below provides alphabetical ordering within the top-k candidate set.
@@ -444,7 +466,8 @@ export const buildEventsFilterOptionColumnQuery = (params: {
   const sampleRows = params.sampleRows ?? 0;
 
   const column = normalizeEventFilterOptionColumn(params.column);
-  const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
+  const definition: EventFilterOptionDefinition =
+    EVENTS_FILTER_OPTION_DEFINITIONS[column];
   const eventsFilter = new FilterList(
     createFilterFromFilterState(
       params.filter,
@@ -589,7 +612,8 @@ ORDER BY column ASC, option.sortKey ASC, option.value ASC
 const exactOptionAggSelectExpressions = (
   column: EventFilterOptionColumn,
 ): string[] => {
-  const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
+  const definition: EventFilterOptionDefinition =
+    EVENTS_FILTER_OPTION_DEFINITIONS[column];
   const topAlias = optionTopAlias(column);
 
   if (definition.kind === "boolean") {
@@ -604,11 +628,27 @@ const exactOptionAggSelectExpressions = (
   // The array values expression stays inlined here: it is a per-row (non-
   // aggregate) array, so it cannot be projected as its own CTE column without a
   // GROUP BY. `<column>_hist` is aggregate state and is projectable.
+  // No includeWhen -> sumMap over every row (empty values counted); with one
+  // -> sumMapIf restricts to that predicate.
+  const scalarHistogram = (
+    keyExpression: string,
+    includeWhen: string | undefined,
+  ): string =>
+    includeWhen
+      ? `sumMapIf([${keyExpression}], [toUInt64(1)], ${includeWhen})`
+      : `sumMap([${keyExpression}], [toUInt64(1)])`;
+
   const histogram =
     definition.kind === "scalar"
-      ? `sumMapIf([${stringValueExpression(definition.expression)}], [toUInt64(1)], ${definition.includeWhen})`
+      ? scalarHistogram(
+          stringValueExpression(definition.expression),
+          definition.includeWhen,
+        )
       : definition.kind === "labeledScalar"
-        ? `sumMapIf([tuple(${stringValueExpression(definition.expression)}, ${stringValueExpression(definition.labelExpression)})], [toUInt64(1)], ${definition.includeWhen})`
+        ? scalarHistogram(
+            `tuple(${stringValueExpression(definition.expression)}, ${stringValueExpression(definition.labelExpression)})`,
+            definition.includeWhen,
+          )
         : (() => {
             const filtered = optionValuesFilteredExpression(definition);
             const keys = `arrayMap(value -> toString(value), ${filtered})`;
@@ -632,7 +672,8 @@ const exactOptionAggSelectExpressions = (
 const exactOptionRowsArrayExpression = (
   column: EventFilterOptionColumn,
 ): string => {
-  const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
+  const definition: EventFilterOptionDefinition =
+    EVENTS_FILTER_OPTION_DEFINITIONS[column];
   const alias = optionTopAlias(column);
   const isLabeled = definition.kind === "labeledScalar";
 
