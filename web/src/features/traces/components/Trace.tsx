@@ -92,6 +92,7 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
       ? "peek-observation-focused"
       : traceContext;
   const desktopLayout = DESKTOP_LAYOUTS[desktopLayoutKey];
+  const isMobile = useIsMobile();
   const defaultObservationId = useMemo(() => {
     // Only v4 (events-based) traces carry rootObservationType. Their trace
     // summary is already shown in the header, so default to observation details.
@@ -112,7 +113,11 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
 
   return (
     <ViewPreferencesProvider traceContext={traceContext}>
-      <SelectionProvider defaultObservationId={defaultObservationId}>
+      <SelectionProvider
+        defaultObservationId={defaultObservationId}
+        isMobile={isMobile}
+        expandDetailOnMount={desktopLayout.expandDetailOnMount}
+      >
         {props.isLoading === true ? (
           <TraceLoading desktopLayout={desktopLayout} />
         ) : (
