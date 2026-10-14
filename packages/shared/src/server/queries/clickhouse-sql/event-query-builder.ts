@@ -7,8 +7,31 @@ import {
   eventsTableTraceNameAggregationSql,
   eventsTableTraceNameSelectSql,
 } from "../../../eventsTable";
+import { expressionBuilder } from "kysely";
+
+import { renderClickhouseExpression } from "../../query-ast/compile";
+import { metadataMap, traceSessionId } from "../../query-ast/extensions";
+import type { ClickHouseDatabase } from "../../query-ast/schema";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
-import { FilterList, StringFilter } from "./clickhouse-filter";
+import {
+  FilterList,
+  StringFilter,
+  type ClickhouseFilter,
+} from "./clickhouse-filter";
+
+const eventsRef = expressionBuilder<
+  { e: ClickHouseDatabase["events_core"] },
+  "e"
+>();
+
+export const EVENTS_METADATA_MAP_SQL = renderClickhouseExpression(
+  metadataMap(
+    eventsRef.ref("e.metadata_names"),
+    eventsRef.ref("e.metadata_values"),
+  ),
+);
+
+const TRACE_SESSION_ID_SQL = renderClickhouseExpression(traceSessionId());
 
 /**
  * Extract the output column alias from a field expression (unquoted).
@@ -173,8 +196,7 @@ const EVENTS_FIELDS = {
   // I/O & metadata fields
   input: "e.input",
   output: "e.output",
-  metadata:
-    "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata",
+  metadata: `${EVENTS_METADATA_MAP_SQL} as metadata`,
   // Trace-level denormalized fields
   tags: "e.tags as tags",
   release: "e.release as release",
@@ -563,14 +585,13 @@ export const EVENTS_AGGREGATION_FIELDS = {
   environment:
     "argMaxIf(environment, event_ts, environment <> '') AS environment",
   version: "argMaxIf(version, event_ts, version <> '') AS version",
-  session_id: "argMaxIf(session_id, event_ts, session_id <> '') AS session_id",
+  session_id: `${TRACE_SESSION_ID_SQL} AS session_id`,
   user_id: "argMaxIf(user_id, event_ts, user_id <> '') AS user_id",
   input: "argMaxIf(input, event_ts, parent_span_id = '') AS input",
   output: "argMaxIf(output, event_ts, parent_span_id = '') AS output",
   // Note: events_core/events_full tables don't have input_truncated/output_truncated columns.
   // Truncation is handled by the materialized view for events_core, or by leftUTF8() at query time.
-  metadata:
-    "argMaxIf(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)), event_ts, parent_span_id = '') AS metadata",
+  metadata: `argMaxIf(${EVENTS_METADATA_MAP_SQL}, event_ts, parent_span_id = '') AS metadata`,
   created_at: "min(created_at) AS created_at",
   updated_at: "max(updated_at) AS updated_at",
   total_cost: "sum(total_cost) AS total_cost",
@@ -1263,9 +1284,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     ) {
       // For events_core/events_full, just use mapFromArrays with metadata_values directly
       // The caller should use events_full table if full metadata is needed
-      fieldExpressions.push(
-        `mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata`,
-      );
+      fieldExpressions.push(`${EVENTS_METADATA_MAP_SQL} as metadata`);
     }
 
     // Add raw SELECT expressions (e.g., from CTE joins)
@@ -1489,6 +1508,35 @@ export type SessionEventsMetricsRow = {
   session_total_usage: string;
 };
 
+export type SessionEventsField = keyof SessionEventsMetricsRow;
+
+/**
+ * ClickHouse returns the UInt64 counts as strings.
+ */
+export const normalizeSessionCounts = <T extends object>(row: T): T => {
+  const counts = row as Partial<
+    Pick<SessionEventsMetricsRow, "trace_count" | "total_observations">
+  >;
+  return {
+    ...row,
+    ...(counts.trace_count !== undefined && {
+      trace_count: Number(counts.trace_count),
+    }),
+    ...(counts.total_observations !== undefined && {
+      total_observations: Number(counts.total_observations),
+    }),
+  };
+};
+
+/**
+ * Callers list the session fields they read, so no aggregate is computed and
+ * shipped only to be dropped.
+ */
+export type SessionEventsFields<F extends SessionEventsField> = readonly [
+  F,
+  ...F[],
+];
+
 /**
  * Aggregation fields for session-level queries.
  * These fields use ClickHouse aggregation functions and require GROUP BY session_id.
@@ -1548,6 +1596,13 @@ export const SESSION_AGGREGATION_FIELD_SETS = {
 } as const;
 
 /**
+ * Every session field. Only for a CTE whose outer SELECT picks the columns;
+ * ClickHouse drops the aggregates the outer query does not read.
+ */
+export const ALL_SESSION_EVENTS_FIELDS =
+  SESSION_AGGREGATION_FIELD_SETS.base as unknown as SessionEventsFields<SessionEventsField>;
+
+/**
  * EventsSessionAggregationQueryBuilder - A fluent query builder for session-level
  * aggregated events table queries.
  *
@@ -1565,8 +1620,23 @@ export const SESSION_AGGREGATION_FIELD_SETS = {
 export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_SESSION_AGGREGATION_FIELDS
 > {
+  private fullTable = false;
+
   constructor(options: { projectId: string }) {
     super(EVENTS_SESSION_AGGREGATION_FIELDS, options);
+  }
+
+  /**
+   * Read events_full instead of events_core, e.g. when an outer filter is
+   * sensitive to events_core's truncated metadata values.
+   */
+  withFullTable(fullTable: boolean): this {
+    this.fullTable = fullTable;
+    return this;
+  }
+
+  protected override getTableName(): string {
+    return this.fullTable ? "events_full" : "events_core";
   }
 
   /**
@@ -1578,6 +1648,11 @@ export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder
     setNames
       .flatMap((s) => SESSION_AGGREGATION_FIELD_SETS[s])
       .forEach((field) => this.selectFields.add(field));
+    return this;
+  }
+
+  selectSessionFields(fields: readonly SessionEventsField[]): this {
+    fields.forEach((field) => this.selectFields.add(field));
     return this;
   }
 
@@ -1598,6 +1673,33 @@ export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder
       b.whereRaw(
         `start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
         { startTimeFrom },
+      ),
+    );
+  }
+
+  /**
+   * Restricts the aggregation to sessions with at least one event matching a
+   * row-level metadata condition over alias `m`. Sound for any condition the
+   * caller re-applies to the aggregated metadata: that metadata comes from one
+   * of the session's events in the same range, so a passing session always has
+   * a matching event. Lets the metadata skip indices prune the subquery and the
+   * session_id bloom filter prune the aggregation scan.
+   */
+  withMetadataSessionPrefilter(
+    condition: ClickhouseFilter | null,
+    startTimeFrom?: string | null,
+  ): this {
+    return this.when(Boolean(condition?.query.trim()), (b) =>
+      b.whereRaw(
+        `session_id IN (
+          SELECT m.session_id
+          FROM ${this.getTableName()} m
+          WHERE m.project_id = {projectId: String}
+            ${startTimeFrom ? `AND m.start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+            AND m.session_id != ''
+            AND (${condition!.query})
+        )`,
+        { ...condition!.params, ...(startTimeFrom ? { startTimeFrom } : {}) },
       ),
     );
   }
@@ -2166,9 +2268,7 @@ export function buildEventsFullTableSplitQuery(opts: {
     ioSelectParts.push("e.input", "e.output");
   }
   if (opts.includeMetadata) {
-    ioSelectParts.push(
-      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata",
-    );
+    ioSelectParts.push(`${EVENTS_METADATA_MAP_SQL} as metadata`);
   }
   // The tuple semi-join alone cannot prune events_full's primary key (raw
   // start_time/trace_id vs the toStartOfMinute/xxHash32 key expressions), so

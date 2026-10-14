@@ -55,8 +55,8 @@ const JOIN_MEMORY_DDL = `
     project_id String,
     start_time DateTime64(3),
     trace_id String,
-    cost_details Map(String, Float64),
-    usage_details Map(String, Float64)
+    cost_details Map(String, Decimal(18, 12)),
+    usage_details Map(String, UInt64)
   ) ENGINE = Memory;
   CREATE TABLE traces (
     environment String,
@@ -105,12 +105,12 @@ const CATALOG_MEMORY_DDL = `
   CREATE TABLE events_core (
     environment String,
     project_id String,
-    start_time DateTime64(3),
+    start_time DateTime64(6),
     span_id String,
     trace_id String,
-    event_ts DateTime64(3),
+    event_ts DateTime64(6),
     type String,
-    total_cost Float64,
+    total_cost Decimal(18, 12),
     metadata_names Array(String),
     metadata_values Array(String)
   ) ENGINE = Memory;
@@ -119,8 +119,8 @@ const CATALOG_MEMORY_DDL = `
     project_id String,
     start_time DateTime64(3),
     trace_id String,
-    cost_details Map(String, Float64),
-    usage_details Map(String, Float64)
+    cost_details Map(String, Decimal(18, 12)),
+    usage_details Map(String, UInt64)
   ) ENGINE = Memory;
   CREATE TABLE traces (
     environment String,

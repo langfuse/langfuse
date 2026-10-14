@@ -39,7 +39,9 @@ describe("table registry derivation", () => {
   });
 
   it("derives ClickHouse bind types from the same column declarations", () => {
-    expect(COLUMN_BIND_TYPES.total_cost).toBe("Float64");
+    expect(COLUMN_BIND_TYPES.total_cost).toBe("Decimal(18, 12)");
+    expect(COLUMN_BIND_TYPES.value).toBe("Float64");
+    expect(TABLE_BIND_TYPES.scores.trace_id).toBe("String");
     expect(TABLE_BIND_TYPES.events_core.start_time).toBe("DateTime64(6)");
     expect(TABLE_BIND_TYPES.observations.start_time).toBe("DateTime64(3)");
     expect(COLUMN_BIND_TYPES.start_time).toBeUndefined();
@@ -47,6 +49,7 @@ describe("table registry derivation", () => {
     expect(COLUMN_BIND_TYPES.metadata_names).toBe("Array(String)");
     expect(COLUMN_BIND_TYPES.is_deleted).toBe("UInt8");
     expect(COLUMN_BIND_TYPES.metadata).toBe("Map(String, String)");
+    expect(COLUMN_BIND_TYPES.cost_details).toBe("Map(String, Decimal(18, 12))");
   });
 
   // The assertions themselves are compile-time (`tsc` is the test); this only

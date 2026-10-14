@@ -42,7 +42,7 @@ import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { env } from "@/src/env.mjs";
 import {
@@ -580,14 +580,13 @@ export function MarkdownView({
   );
 
   const collapseToggle = shouldBeCollapsible ? (
-    <Button
-      variant="ghost"
-      size="xs"
-      onClick={() => toggleCollapsed("inline")}
-      className="w-fit text-xs underline"
-    >
-      {isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
-    </Button>
+    <div className="flex">
+      <Button
+        variant="text"
+        onClick={() => toggleCollapsed("inline")}
+        text={isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
+      />
+    </div>
   ) : null;
 
   return (

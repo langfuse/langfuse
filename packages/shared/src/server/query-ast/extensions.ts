@@ -16,6 +16,7 @@
  *     nodes — never raw SQL strings — so they escape and compose like any other
  *     expression.
  */
+import type { TupleParam } from "@clickhouse/client";
 import {
   AggregateFunctionNode,
   AliasNode,
@@ -37,6 +38,7 @@ import {
   type PluginTransformResultArgs,
   type RootOperationNode,
   type SelectQueryBuilder,
+  type SqlBool,
 } from "kysely";
 
 import {
@@ -224,14 +226,14 @@ export function dateDiff(
   );
 }
 
-/** `map[key]` subscript with a bound key. */
+/** `map[key]` subscript with a bound key, on a map column or expression. */
 export function mapValue<V = number>(
-  column: string,
+  map: string | Expression<Record<string, V>>,
   key: string,
-): Expression<V> {
+): ChExpression<V> {
   return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
     ArrayIndexNode.create(
-      columnRef(column),
+      typeof map === "string" ? columnRef(map) : map.toOperationNode(),
       ValueNode.create(key),
     ) as unknown as OperationNode,
   );
@@ -269,6 +271,182 @@ export function sumMapValuesWhereKeyContains(
         FunctionNode.create("mapFilter", [lambda, columnRef(column)]),
       ]),
     ]) as unknown as OperationNode,
+  );
+}
+
+type ChExpression<T> = ExpressionWrapper<
+  ClickHouseDatabase,
+  keyof ClickHouseDatabase,
+  T
+>;
+
+function functionCall<T>(
+  fn: string,
+  args: ReadonlyArray<OperationNodeSource>,
+): ChExpression<T> {
+  return new ExpressionWrapper(
+    FunctionNode.create(fn, args.map(toNode)) as unknown as OperationNode,
+  );
+}
+
+/**
+ * ClickHouse `leftUTF8(expression, length)`. The length is inlined as an
+ * integer literal; it must be a positive integer.
+ */
+export function leftUTF8(
+  expression: Expression<string>,
+  length: number,
+): ChExpression<string> {
+  if (!Number.isInteger(length) || length < 1) {
+    throw new QueryCompileError(
+      `leftUTF8 length must be a positive integer, got ${length}.`,
+    );
+  }
+  return functionCall("leftUTF8", [
+    expression,
+    ValueNode.createImmediate(length),
+  ]);
+}
+
+/** ClickHouse `length(expression)`: byte length of a String. */
+export function byteLength(
+  expression: Expression<string>,
+): ChExpression<number> {
+  return functionCall("length", [expression]);
+}
+
+/** ClickHouse `xxHash32(expression)`. */
+export function xxHash32(expression: Expression<string>): ChExpression<number> {
+  return functionCall("xxHash32", [expression]);
+}
+
+/** ClickHouse `toJSONString(expression)`. */
+export function toJSONString(
+  expression: Expression<unknown>,
+): ChExpression<string> {
+  return functionCall("toJSONString", [expression]);
+}
+
+/** ClickHouse `arrayReverse(array)`. */
+function arrayReverse<T>(array: Expression<T[]>): ChExpression<T[]> {
+  return functionCall("arrayReverse", [array]);
+}
+
+/** ClickHouse `mapFromArrays(keys, values)`. */
+function mapFromArrays<V>(
+  keys: Expression<string[]>,
+  values: Expression<V[]>,
+): ChExpression<Record<string, V>> {
+  return functionCall("mapFromArrays", [keys, values]);
+}
+
+/**
+ * Events metadata as a map: `mapFromArrays(arrayReverse(names),
+ * arrayReverse(values))`. Both arrays are reversed so that, for a key stored
+ * twice, the last entry wins.
+ */
+export function metadataMap(
+  names: Expression<string[]>,
+  values: Expression<string[]>,
+): ChExpression<Record<string, string>> {
+  return mapFromArrays(arrayReverse(names), arrayReverse(values));
+}
+
+// Nesting depth of `arrayMap` bodies under construction. Each nesting level
+// names its lambda parameter differently, so an inner lambda never shadows
+// an outer one. Zero outside any `arrayMap` call.
+// Module state is safe here: `body` runs synchronously inside `arrayMap`, and
+// JavaScript never interleaves another synchronous call with it, so concurrent
+// requests cannot observe each other's depth.
+let arrayMapDepth = 0;
+
+/**
+ * ClickHouse `arrayMap(v -> body, array)`. `body` receives the lambda
+ * parameter: `v` at the top level, `v1`, `v2`, … inside nested calls. The
+ * lambda is built as a `->` binary operation; Kysely has no lambda node.
+ */
+export function arrayMap<T, U>(
+  body: (element: Expression<T>) => Expression<U>,
+  array: Expression<T[]>,
+): ChExpression<U[]> {
+  const param = ColumnNode.create(
+    arrayMapDepth === 0 ? "v" : `v${arrayMapDepth}`,
+  );
+  arrayMapDepth++;
+  let bodyNode: OperationNode;
+  try {
+    bodyNode = body(
+      new ExpressionWrapper(param as unknown as OperationNode),
+    ).toOperationNode();
+  } finally {
+    arrayMapDepth--;
+  }
+  const lambda = BinaryOperationNode.create(
+    param,
+    OperatorNode.create("->"),
+    bodyNode,
+  );
+  return functionCall("arrayMap", [lambda, array]);
+}
+
+/**
+ * `(a, b, …) IN {p:Array(Tuple(…))}`: a column tuple against a list of
+ * `TupleParam`s, bound as a single array parameter.
+ */
+export function tupleIn(
+  columns: Expression<unknown>,
+  tuples: ReadonlyArray<TupleParam>,
+): ChExpression<SqlBool> {
+  return new ExpressionWrapper(
+    BinaryOperationNode.create(
+      columns.toOperationNode(),
+      OperatorNode.create("in"),
+      ValueNode.create(tuples),
+    ) as unknown as OperationNode,
+  );
+}
+
+/** `expression != ''`, with the empty string inlined rather than bound. */
+function nonEmpty(expression: Expression<string>): ChExpression<SqlBool> {
+  return new ExpressionWrapper(
+    BinaryOperationNode.create(
+      expression.toOperationNode(),
+      OperatorNode.create("!="),
+      ValueNode.createImmediate(""),
+    ) as unknown as OperationNode,
+  );
+}
+
+/** ClickHouse `argMaxIf(value, by, condition)`. */
+function argMaxIf<T>(
+  value: Expression<T>,
+  by: Expression<unknown>,
+  condition: Expression<SqlBool>,
+): ChExpression<T> {
+  return new ExpressionWrapper(
+    AggregateFunctionNode.create("argMaxIf", [
+      value.toOperationNode(),
+      by.toOperationNode(),
+      condition.toOperationNode(),
+    ]) as unknown as OperationNode,
+  );
+}
+
+/**
+ * A trace's session id from its events: the latest non-empty `session_id`,
+ * `argMaxIf(session_id, event_ts, session_id != '')`. Reads unqualified
+ * columns, for a trace-level aggregate over one events table.
+ */
+export function traceSessionId(): ChExpression<string> {
+  const sessionId = new ExpressionWrapper<
+    ClickHouseDatabase,
+    keyof ClickHouseDatabase,
+    string
+  >(columnRef("session_id"));
+  return argMaxIf(
+    sessionId,
+    new ExpressionWrapper(columnRef("event_ts")),
+    nonEmpty(sessionId),
   );
 }
 

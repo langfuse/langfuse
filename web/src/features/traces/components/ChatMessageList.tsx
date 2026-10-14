@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
   filterAlreadyRenderedMedia,
@@ -140,16 +140,17 @@ export function ChatMessageList({
                 {/* Show collapse/expand button after first message */}
                 {isCollapsed !== null &&
                   originalIndex === messagesToRender[0]?.originalIndex && (
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => setCollapsed((v) => !v)}
-                      className="text-muted-foreground hover:text-foreground mt-1 mb-2 w-fit px-0 underline hover:bg-transparent"
-                    >
-                      {isCollapsed
-                        ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more`
-                        : "Hide history"}
-                    </Button>
+                    <div className="mt-1 mb-2 flex">
+                      <Button
+                        variant="text"
+                        onClick={() => setCollapsed((v) => !v)}
+                        text={
+                          isCollapsed
+                            ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more`
+                            : "Hide history"
+                        }
+                      />
+                    </div>
                   )}
               </div>
             );
