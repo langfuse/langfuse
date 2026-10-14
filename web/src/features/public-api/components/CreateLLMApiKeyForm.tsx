@@ -39,7 +39,11 @@ import {
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TypeSafeUpstreamCards } from "@/src/features/llm-api-key/components/TypeSafeUpstreamCards/TypeSafeUpstreamCards";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
+import {
+  api,
+  reportTrpcErrorWithoutToast,
+  type RouterOutputs,
+} from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type useUiCustomization } from "@/src/ee/features/ui-customization";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
@@ -284,6 +288,10 @@ export type LlmConnectionFormOwner =
   | { scope: "project"; projectId: string }
   | { scope: "organization"; organizationId: string };
 
+// Save failures render beside the submit button; a local handler replaces the
+// React Query default that would show the same error in a toast.
+const suppressSaveErrorToast = () => undefined;
+
 interface CreateLLMApiKeyFormProps {
   owner: LlmConnectionFormOwner;
   onSuccess: () => void;
@@ -329,10 +337,12 @@ export function CreateLLMApiKeyForm({
 
   const mutCreateLlmApiKey = api.llmApiKey.create.useMutation({
     onSuccess: () => utils.llmApiKey.invalidate(),
+    onError: suppressSaveErrorToast,
   });
 
   const mutUpdateLlmApiKey = api.llmApiKey.update.useMutation({
     onSuccess: () => utils.llmApiKey.invalidate(),
+    onError: suppressSaveErrorToast,
   });
 
   const mutTestLLMApiKey = api.llmApiKey.test.useMutation();
@@ -345,6 +355,7 @@ export function CreateLLMApiKeyForm({
           utils.llmApiKey.invalidate(),
         ]);
       },
+      onError: suppressSaveErrorToast,
     });
   const mutUpdateOrganizationLlmApiKey =
     api.organizationLlmApiKey.update.useMutation({
@@ -354,6 +365,7 @@ export function CreateLLMApiKeyForm({
           utils.llmApiKey.invalidate(),
         ]);
       },
+      onError: suppressSaveErrorToast,
     });
   const mutTestOrganizationLlmApiKey =
     api.organizationLlmApiKey.test.useMutation();
@@ -773,7 +785,16 @@ export function CreateLLMApiKeyForm({
         form.reset();
         onSuccess();
       })
-      .catch((error) => reportNonTrpcError(error, "llm-api-keys"));
+      .catch((error) => {
+        reportTrpcErrorWithoutToast(error, "llm-api-keys");
+        form.setError("root", {
+          type: "manual",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Could not save the connection.",
+        });
+      });
   }
 
   return (
