@@ -18,14 +18,14 @@ const buttonVariants = cva(
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         /** Inline text action: muted, underlined, no box. */
-        link: "text-muted-foreground hover:text-foreground underline",
+        text: "text-muted-foreground hover:text-foreground underline",
       },
       size: {
         default: "h-8 px-3 py-1 text-sm",
         sm: "h-7 px-2 text-xs",
       },
     },
-    compoundVariants: [{ variant: "link", class: "h-auto px-0 py-0" }],
+    compoundVariants: [{ variant: "text", class: "h-auto px-0 py-0" }],
     defaultVariants: {
       variant: "primary",
       size: "default",
@@ -40,7 +40,7 @@ const buttonIconVariants = cva("icon-base shrink-0", {
       secondary: "",
       destructive: "",
       ghost: "text-icon-foreground",
-      link: "",
+      text: "",
     },
   },
   defaultVariants: {
@@ -50,7 +50,7 @@ const buttonIconVariants = cva("icon-base shrink-0", {
 
 type ButtonProps = {
   text: string;
-  variant?: "primary" | "secondary" | "destructive" | "ghost" | "link";
+  variant?: "primary" | "secondary" | "destructive" | "ghost" | "text";
   size?: "default" | "sm";
 } & (
   | {
@@ -76,7 +76,7 @@ type ButtonProps = {
 );
 
 export function Button(props: ButtonProps) {
-  // twMerge so the link variant's px-0/h-auto win over the size defaults.
+  // twMerge so the text variant's px-0/h-auto win over the size defaults.
   const className = cn(
     buttonVariants({
       variant: props.variant,

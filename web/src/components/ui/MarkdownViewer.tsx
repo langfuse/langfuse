@@ -582,7 +582,7 @@ export function MarkdownView({
   const collapseToggle = shouldBeCollapsible ? (
     <div className="flex">
       <Button
-        variant="link"
+        variant="text"
         onClick={() => toggleCollapsed("inline")}
         text={isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
       />

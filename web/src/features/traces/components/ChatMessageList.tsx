@@ -134,7 +134,7 @@ export function ChatMessageList({
                 originalIndex === messagesToRender[0]?.originalIndex && (
                   <div className="mt-1 mb-2 flex">
                     <Button
-                      variant="link"
+                      variant="text"
                       onClick={() => setCollapsed((v) => !v)}
                       text={
                         isCollapsed
