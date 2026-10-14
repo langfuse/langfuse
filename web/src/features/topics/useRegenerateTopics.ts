@@ -11,15 +11,11 @@ import {
 } from "@langfuse/shared/topics";
 
 type TopicExecutionList = RouterOutputs["topics"]["executions"];
-export type RegenerateFacet = {
+type RegenerateFacet = {
   facet: TopicFacet;
   version: TopicFacetVersion;
   summaries: number;
 };
-export type RegenerateLastRun = Pick<
-  TopicExecutionList[number],
-  "id" | "status" | "createdAt"
->;
 export type RegenerateRequest = {
   facets: TopicFacetRef[];
   exploratory: boolean;
@@ -125,9 +121,6 @@ export function useRegenerateTopics({
         ),
       },
     });
-  const lastRun =
-    executions?.find((execution) => execution.input.operation === "update") ??
-    null;
   // Survives reopening the dialog so a retried identical request reuses its
   // requestId and cannot start a second run.
   const request = useRef<{ key: string; id: string } | null>(null);
@@ -166,7 +159,6 @@ export function useRegenerateTopics({
   return {
     timeRange,
     facets: regenerateFacets,
-    lastRun,
     disabledReason,
     prerequisiteReason,
     isSubmitting: trigger.isPending,
