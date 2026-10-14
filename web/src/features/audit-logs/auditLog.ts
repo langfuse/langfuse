@@ -11,6 +11,7 @@ import {
   logger,
   recordIncrement,
   stageAuditLogEvents,
+  type StageAuditLogEventInput,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { isAuditLogEnabled } from "@/src/features/audit-logs/isAuditLogEnabled";
@@ -105,72 +106,13 @@ type AuditLog = {
 // sentinel actor ids. The Postgres row keeps them, because its actor type
 // cannot be SYSTEM. The staged event records a SYSTEM actor instead.
 const SYSTEM_ACTOR_USER_IDS = new Set(["stripe-webhook", "clickhouse-webhook"]);
-const ADMIN_API_KEY_ID = "ADMIN_KEY";
+const ADMIN_API_KEY_IDS = new Set(["ADMIN_KEY", "ADMIN_API_KEY"]);
 const ADMIN_API_ACTOR: AuditLogActor = { type: "SYSTEM", name: "admin-api" };
 
 const STAGED_RECORD_SELECT = {
   id: true,
   createdAt: true,
 } satisfies Prisma.AuditLogSelect;
-
-const toUserActor = (
-  user: { id: string; name?: string | null; email?: string | null },
-  roles: { orgRole?: Role; projectRole?: Role },
-): AuditLogActor =>
-  SYSTEM_ACTOR_USER_IDS.has(user.id)
-    ? { type: "SYSTEM", name: user.id }
-    : {
-        type: "USER",
-        userId: user.id,
-        name: user.name ?? undefined,
-        email: user.email ?? undefined,
-        orgRole: roles.orgRole,
-        projectRole: roles.projectRole,
-      };
-
-/**
- * Stages the change event of a Postgres `audit_logs` row for the ClickHouse
- * `audit_logs` table, under the id `deriveAuditLogEventId` gives that row.
- * The Postgres row stays the source of truth, so a failure here is logged and
- * counted and never fails the caller. The insert runs outside the caller's
- * transaction, because a failed insert inside it would abort the audited
- * mutation. The event of a mutation that rolls back afterwards stays staged.
- */
-async function stageChangeEvent(
-  log: AuditLog,
-  record: { id: string; createdAt: Date },
-  scope: { orgId: string; projectId?: string },
-  actor: AuditLogActor,
-) {
-  try {
-    await stageAuditLogEvents([
-      {
-        id: deriveAuditLogEventId(record.id, record.createdAt),
-        timestamp: record.createdAt,
-        kind: "change",
-        orgId: scope.orgId,
-        projectId: scope.projectId,
-        actor,
-        resourceType: log.resourceType,
-        resourceId: log.resourceId,
-        action: log.action,
-        // Staging serializes these itself. Falsy values are dropped, as in
-        // the Postgres row.
-        before: log.before || undefined,
-        after: log.after || undefined,
-      },
-    ]);
-  } catch (error) {
-    recordIncrement("langfuse.audit_log.staging_write_failed");
-    logger.error("Failed to stage audit log event", {
-      error,
-      resourceType: log.resourceType,
-      resourceId: log.resourceId,
-      action: log.action,
-      orgId: scope.orgId,
-    });
-  }
-}
 
 // Mirrors each audit log record into the application logs so that actors can be
 // correlated with web/worker log lines (e.g. trace deletions) without querying
@@ -285,20 +227,16 @@ export async function auditLog(
     });
 
     if (stageRecord) {
-      const creator = userId ? apiKey?.createdByUser : undefined;
       await stageChangeEvent(
         log,
         record,
         { orgId: log.orgId, projectId: log.projectId },
-        log.apiKeyId === ADMIN_API_KEY_ID
-          ? ADMIN_API_ACTOR
-          : {
-              type: "API_KEY",
-              apiKeyId: log.apiKeyId,
-              userId,
-              name: creator?.name ?? undefined,
-              email: creator?.email ?? undefined,
-            },
+        toApiKeyActor(
+          log.apiKeyId,
+          userId,
+          userId ? apiKey?.createdByUser : undefined,
+        ),
+        db,
       );
     }
 
@@ -335,6 +273,7 @@ export async function auditLog(
         record,
         { orgId: log.session.orgId, projectId: log.session.projectId },
         toUserActor(log.session.user, log.session),
+        db,
       );
     }
 
@@ -371,9 +310,112 @@ export async function auditLog(
         record,
         { orgId: log.orgId, projectId: log.projectId },
         toUserActor({ id: log.userId }, log),
+        db,
       );
     }
 
     return;
   }
+}
+
+function toUserActor(
+  user: { id: string; name?: string | null; email?: string | null },
+  roles: { orgRole?: Role; projectRole?: Role },
+): AuditLogActor {
+  if (SYSTEM_ACTOR_USER_IDS.has(user.id)) {
+    return { type: "SYSTEM", name: user.id };
+  }
+  return {
+    type: "USER",
+    userId: user.id,
+    name: user.name ?? undefined,
+    email: user.email ?? undefined,
+    orgRole: roles.orgRole,
+    projectRole: roles.projectRole,
+  };
+}
+
+/** `creator` is the user an in-app agent key acts for. */
+function toApiKeyActor(
+  apiKeyId: string,
+  userId: string | undefined,
+  creator: { name?: string | null; email?: string | null } | null | undefined,
+): AuditLogActor {
+  if (ADMIN_API_KEY_IDS.has(apiKeyId)) return ADMIN_API_ACTOR;
+  return {
+    type: "API_KEY",
+    apiKeyId,
+    userId,
+    name: creator?.name ?? undefined,
+    email: creator?.email ?? undefined,
+  };
+}
+
+/**
+ * Stages the change event of a Postgres `audit_logs` row for the ClickHouse
+ * `audit_logs` table, under the id `deriveAuditLogEventId` gives that row.
+ * The Postgres row stays the source of truth, so a failure here is logged and
+ * counted and never fails the caller. Given a transaction client, it stages
+ * on that transaction.
+ */
+async function stageChangeEvent(
+  log: AuditLog,
+  record: { id: string; createdAt: Date },
+  scope: { orgId: string; projectId?: string },
+  actor: AuditLogActor,
+  db: typeof _prisma | Prisma.TransactionClient,
+) {
+  try {
+    const event: StageAuditLogEventInput = {
+      id: deriveAuditLogEventId(record.id, record.createdAt),
+      timestamp: record.createdAt,
+      kind: "change",
+      orgId: scope.orgId,
+      projectId: scope.projectId,
+      actor,
+      resourceType: log.resourceType,
+      resourceId: log.resourceId,
+      action: log.action,
+      // Staging serializes these itself. Falsy values are dropped, as in the
+      // Postgres row.
+      before: log.before || undefined,
+      after: log.after || undefined,
+    };
+    // Only the base client has $transaction.
+    if ("$transaction" in db) {
+      await stageAuditLogEvents([event], db);
+    } else {
+      await stageInSavepoint(event, db);
+    }
+  } catch (error) {
+    recordIncrement("langfuse.audit_log.staging_write_failed");
+    logger.error("Failed to stage audit log event", {
+      error,
+      resourceType: log.resourceType,
+      resourceId: log.resourceId,
+      action: log.action,
+      orgId: scope.orgId,
+    });
+  }
+}
+
+/**
+ * Stages the event on the caller's transaction, so it commits or rolls back
+ * with the audited mutation and holds no second connection. A failed insert
+ * aborts a Postgres transaction, so the insert runs behind a savepoint that a
+ * failure rolls back to, which leaves the caller's transaction usable. Calls
+ * on one transaction must not overlap, because they share the savepoint name.
+ */
+async function stageInSavepoint(
+  event: StageAuditLogEventInput,
+  tx: Prisma.TransactionClient,
+) {
+  await tx.$executeRaw`SAVEPOINT audit_log_staging`;
+  try {
+    await stageAuditLogEvents([event], tx);
+  } catch (error) {
+    await tx.$executeRaw`ROLLBACK TO SAVEPOINT audit_log_staging`;
+    throw error;
+  }
+  await tx.$executeRaw`RELEASE SAVEPOINT audit_log_staging`;
 }

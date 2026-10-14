@@ -378,6 +378,11 @@ describe("audit log staging", () => {
           staged: { type: "SYSTEM", name: "admin-api" },
         },
         {
+          actor: { apiKeyId: "ADMIN_API_KEY", orgId },
+          record: { userId: null, apiKeyId: "ADMIN_API_KEY" },
+          staged: { type: "SYSTEM", name: "admin-api" },
+        },
+        {
           actor: { apiKeyId: projectApiKeyId, orgId },
           record: { userId: null, apiKeyId: projectApiKeyId },
           staged: { type: "API_KEY", apiKeyId: projectApiKeyId },
@@ -412,16 +417,41 @@ describe("audit log staging", () => {
       }
     });
 
-    it("never fails the caller's transaction when staging fails", async () => {
+    it("logs a failed staging insert without failing the caller", async () => {
       const { orgId } = await createOrgProjectAndApiKey();
       const resourceId = randomUUID();
-      const stagingInsert = vi
-        .spyOn(prisma.auditLogStaging, "createMany")
-        .mockRejectedValueOnce(new Error("staging unavailable"));
+      vi.spyOn(prisma.auditLogStaging, "createMany").mockRejectedValueOnce(
+        new Error("staging unavailable"),
+      );
       const error = vi.spyOn(logger, "error");
 
-      await prisma.$transaction((tx) =>
-        auditLog(
+      await auditLog({
+        session: { user: { id: "user-1" }, orgId },
+        resourceType: "prompt",
+        resourceId,
+        action: "delete",
+      });
+
+      expect(error).toHaveBeenCalledWith(
+        "Failed to stage audit log event",
+        expect.objectContaining({ resourceId }),
+      );
+      expect(await prisma.auditLog.count({ where: { resourceId } })).toBe(1);
+    });
+
+    it("keeps the caller's transaction usable when the staging insert fails in it", async () => {
+      const { orgId } = await createOrgProjectAndApiKey();
+      const resourceId = randomUUID();
+      const error = vi.spyOn(logger, "error");
+
+      await prisma.$transaction(async (tx) => {
+        // Fails the way a rejected insert does: Postgres aborts the
+        // transaction.
+        const stagingInsert = vi
+          .spyOn(tx.auditLogStaging, "createMany")
+          .mockImplementationOnce(() => tx.$queryRaw`SELECT 1 / 0`);
+
+        await auditLog(
           {
             session: { user: { id: "user-1" }, orgId },
             resourceType: "prompt",
@@ -429,17 +459,43 @@ describe("audit log staging", () => {
             action: "delete",
           },
           tx,
-        ),
-      );
+        );
 
-      // Staging bypasses the transaction client, so a failed insert cannot
-      // abort the audited mutation.
-      expect(stagingInsert).toHaveBeenCalledOnce();
+        expect(stagingInsert).toHaveBeenCalledOnce();
+        expect(await tx.auditLog.count({ where: { resourceId } })).toBe(1);
+      });
+
       expect(error).toHaveBeenCalledWith(
         "Failed to stage audit log event",
         expect.objectContaining({ resourceId }),
       );
       expect(await prisma.auditLog.count({ where: { resourceId } })).toBe(1);
+    });
+
+    it("stages nothing when the caller's transaction rolls back", async () => {
+      const { orgId } = await createOrgProjectAndApiKey();
+      const resourceId = randomUUID();
+
+      await expect(
+        prisma.$transaction(async (tx) => {
+          await auditLog(
+            {
+              session: { user: { id: "user-1" }, orgId },
+              resourceType: "prompt",
+              resourceId,
+              action: "delete",
+            },
+            tx,
+          );
+          throw new Error("audited mutation failed");
+        }),
+      ).rejects.toThrow("audited mutation failed");
+
+      expect(
+        await prisma.auditLogStaging.count({
+          where: { payload: { path: ["resourceId"], equals: resourceId } },
+        }),
+      ).toBe(0);
     });
   });
 });
