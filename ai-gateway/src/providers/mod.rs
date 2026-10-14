@@ -296,6 +296,10 @@ impl ProviderTransport {
     }
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "ownership releases the caller body when rewriting returns, before the upstream wait"
+)]
 fn rewrite_model(
     body: Bytes,
     model_range: Range<usize>,
@@ -310,7 +314,6 @@ fn rewrite_model(
     rewritten.extend_from_slice(&body[..model_range.start]);
     rewritten.extend_from_slice(&model);
     rewritten.extend_from_slice(&body[model_range.end..]);
-    drop(body);
     Ok(Bytes::from(rewritten))
 }
 
