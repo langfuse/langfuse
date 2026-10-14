@@ -28,6 +28,8 @@ import {
   IdentifierNode,
   JoinNode,
   OperatorNode,
+  OrNode,
+  ParensNode,
   ReferenceNode,
   TableNode,
   ValueNode,
@@ -330,23 +332,66 @@ export function toJSONString(
   return functionCall("toJSONString", [expression]);
 }
 
+const FIELD_ALIAS = /^(.+) (?:as|AS) ("?)(\w+)\2$/s;
+
 /**
- * Column name a field-map entry produces:
- * `'e.trace_id as "trace_id"'` → `"trace_id"`.
+ * Split a builder field-map entry at its trailing alias:
+ * `'e.trace_id as "trace_id"'` → `{ expression: "e.trace_id", alias: "trace_id" }`.
+ * The alias follows a single-spaced ` as ` or ` AS ` and is a word, optionally
+ * double-quoted. An entry without one returns no alias.
  */
-type FieldMapAlias<S extends string> =
+export function splitFieldAlias(entry: string): {
+  expression: string;
+  alias?: string;
+} {
+  const match = FIELD_ALIAS.exec(entry);
+  return match
+    ? { expression: match[1], alias: match[3] }
+    : { expression: entry };
+}
+
+type NonWordChar =
+  | " "
+  | "("
+  | ")"
+  | ","
+  | "."
+  | "'"
+  | '"'
+  | "-"
+  | "*"
+  | "\t"
+  | "\n";
+
+type IsWord<S extends string> = S extends ""
+  ? false
+  : S extends `${string}${NonWordChar}${string}`
+    ? false
+    : true;
+
+/** Text after the last ` as ` / ` AS `; `never` when there is none. */
+type AfterLastAs<S extends string> =
   S extends `${string} ${"as" | "AS"} ${infer Rest}`
-    ? FieldMapAlias<Rest>
-    : S extends `"${infer Name}"`
-      ? Name
-      : S;
+    ? [AfterLastAs<Rest>] extends [never]
+      ? Rest
+      : AfterLastAs<Rest>
+    : never;
 
-type FieldMapSelection<S extends string> =
-  S extends `${string} ${"as" | "AS"} ${string}`
-    ? AliasedRawBuilder<unknown, FieldMapAlias<S>>
-    : S;
+type Unquote<S extends string> = S extends `"${infer Word}"` ? Word : S;
 
-const FIELD_MAP_ALIAS = /^(.*)\s+as\s+"?(\w+)"?\s*$/is;
+/** Not selectable, so an entry {@link splitFieldAlias} rejects fails to compile. */
+type InvalidFieldMapEntry<S extends string> = { invalidFieldMapEntry: S };
+
+/** The type-level mirror of {@link splitFieldAlias} + {@link fieldMapSelect}. */
+type FieldMapSelection<S extends string> = S extends string
+  ? [AfterLastAs<S>] extends [never]
+    ? S
+    : IsWord<Unquote<AfterLastAs<S>>> extends true
+      ? AliasedRawBuilder<unknown, Unquote<AfterLastAs<S>>>
+      : InvalidFieldMapEntry<S>
+  : never;
+
+const COLUMN_REFERENCE = /^(\w+\.)?\w+$/;
 
 /**
  * A legacy builder field-map entry (`EVENTS_AGGREGATION_FIELDS`,
@@ -354,7 +399,7 @@ const FIELD_MAP_ALIAS = /^(.*)\s+as\s+"?(\w+)"?\s*$/is;
  * column it produces, so AST queries and the builders read one SQL source.
  * `"sum(x) AS total"` becomes `sum(x)` aliased `total`; an entry without an
  * alias (`"project_id"`, `"e.event_ts"`) stays a column reference and is
- * checked against the registry.
+ * checked against the registry. Any other entry throws.
  */
 export function fieldMapSelect<S extends string>(
   entry: S,
@@ -362,8 +407,14 @@ export function fieldMapSelect<S extends string>(
 export function fieldMapSelect(
   entry: string,
 ): string | AliasedRawBuilder<unknown, string> {
-  const match = FIELD_MAP_ALIAS.exec(entry);
-  return match ? sql.raw(match[1]).as(match[2]) : entry;
+  const { expression, alias } = splitFieldAlias(entry);
+  if (alias) return sql.raw(expression).as(alias);
+  if (!COLUMN_REFERENCE.test(entry)) {
+    throw new QueryCompileError(
+      `Field-map entry is neither aliased nor a column reference: ${entry}`,
+    );
+  }
+  return entry;
 }
 
 function dateArg(value: Expression<Date> | Date): OperationNodeSource {
@@ -503,6 +554,41 @@ export function traceSessionId(): ChExpression<string> {
     new ExpressionWrapper(columnRef("event_ts")),
     nonEmpty(sessionId),
   );
+}
+
+/**
+ * An event's trace name: the stored `trace_name`, else the name of a root
+ * observation, else NULL:
+ * `COALESCE(nullIf(e.trace_name, ''), if((e.parent_span_id = '' OR e.is_app_root = true), nullIf(e.name, ''), NULL))`.
+ */
+export function eventsTraceName(
+  tableAlias: string,
+): ChExpression<string | null> {
+  const column = (name: string) => qualifiedColumn(tableAlias, name);
+  const nullIfEmpty = (name: string) =>
+    functionCall("nullIf", [column(name), ValueNode.createImmediate("")]);
+  const isRootObservation = ParensNode.create(
+    OrNode.create(
+      BinaryOperationNode.create(
+        column("parent_span_id"),
+        OperatorNode.create("="),
+        ValueNode.createImmediate(""),
+      ),
+      BinaryOperationNode.create(
+        column("is_app_root"),
+        OperatorNode.create("="),
+        ValueNode.createImmediate(true),
+      ),
+    ),
+  );
+  return functionCall("COALESCE", [
+    nullIfEmpty("trace_name"),
+    functionCall("if", [
+      isRootObservation,
+      nullIfEmpty("name"),
+      ValueNode.createImmediate(null),
+    ]),
+  ]);
 }
 
 /**

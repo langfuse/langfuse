@@ -262,4 +262,13 @@ describe("fieldMapSelect", () => {
       "select CAST(e.total_cost AS String) as cost, e.trace_id as trace_id, e.event_ts from",
     );
   });
+
+  it.each([
+    "e.trace_id as trace_id ",
+    "CAST(e.total_cost AS String)",
+    'e.trace_id as "trace-id"',
+    "e.trace_id As trace_id",
+  ])("rejects %j", (entry) => {
+    expect(() => fieldMapSelect(entry)).toThrow(QueryCompileError);
+  });
 });

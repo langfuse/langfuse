@@ -1,7 +1,14 @@
 import { type InferResult } from "kysely";
 
 import { getClickhouseKysely } from "./dialect";
-import { arrayJoin, limitBy, mapKeys, mapValues, useFinal } from "./extensions";
+import {
+  arrayJoin,
+  fieldMapSelect,
+  limitBy,
+  mapKeys,
+  mapValues,
+  useFinal,
+} from "./extensions";
 import { defineView, fromView } from "./views";
 
 /**
@@ -95,4 +102,31 @@ export function extensionTypeAssertions(): void {
   type _Id = FinalRow["id"];
   // @ts-expect-error useFinal adds no columns
   type _NoFinalExtra = FinalRow["cost_key"];
+
+  // fieldMapSelect types each entry the way splitFieldAlias parses it:
+  // accepted entries select under their alias, and rejected ones (which throw
+  // at runtime) do not compile.
+  const _fieldMap = db
+    .selectFrom("events_core as e")
+    .select([
+      fieldMapSelect("CAST(e.total_cost AS String) AS cost"),
+      fieldMapSelect('e.trace_id as "trace_id"'),
+      fieldMapSelect("e.event_ts"),
+    ]);
+  type FieldMapRow = InferResult<typeof _fieldMap>[number];
+  type _FieldMapCost = FieldMapRow["cost"];
+  type _FieldMapTraceId = FieldMapRow["trace_id"];
+  type _FieldMapEventTs = FieldMapRow["event_ts"];
+  db.selectFrom("events_core as e")
+    // @ts-expect-error alias followed by trailing whitespace
+    .select(fieldMapSelect("e.trace_id as trace_id "));
+  db.selectFrom("events_core as e")
+    // @ts-expect-error inner AS with no trailing alias
+    .select(fieldMapSelect("CAST(e.total_cost AS String)"));
+  db.selectFrom("events_core as e")
+    // @ts-expect-error quoted alias that is not a word
+    .select(fieldMapSelect('e.trace_id as "trace-id"'));
+  db.selectFrom("events_core as e")
+    // @ts-expect-error mixed-case keyword is not an alias
+    .select(fieldMapSelect("e.trace_id As trace_id"));
 }

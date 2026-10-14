@@ -40,6 +40,7 @@ import {
   byteLength,
   count,
   dateDiff,
+  eventsTraceName,
   fieldMapSelect,
   leftUTF8,
   limitBy,
@@ -166,7 +167,6 @@ import {
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import {
   eventsTableCols,
-  eventsTableTraceNameSql,
   normalizeEventsTraceName,
   type NumericEventsTableColumnId,
 } from "../../eventsTable";
@@ -3609,11 +3609,11 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
     .selectFrom("events_core as e")
     .select([
       "e.trace_id as id",
-      sql.raw(eventsTableTraceNameSql).as("name"),
+      eventsTraceName("e").as("name"),
       "e.user_id as user_id",
       "e.tags as tags",
     ])
-    .where(sql<SqlBool>`${sql.raw(eventsTableTraceNameSql)} IS NOT NULL`)
+    .where(eventsTraceName("e"), "is not", null)
     .where("e.is_deleted", "=", 0)
     .where("e.trace_id", "in", props.traceIds)
     .$call(limitBy({ count: 1, columns: ["e.trace_id"] }));
@@ -3874,7 +3874,7 @@ export const getSessionMetricsFromEvents = async <
   const builder = getClickhouseKysely()
     .selectFrom("events_core as e")
     .select(
-      fields.map((field) =>
+      fields.map((field: SessionEventsField) =>
         fieldMapSelect(EVENTS_SESSION_AGGREGATION_FIELDS[field]),
       ),
     )

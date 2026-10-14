@@ -10,7 +10,11 @@ import {
 import { expressionBuilder, sql, type SelectExpression } from "kysely";
 
 import { renderClickhouseExpression } from "../../query-ast/compile";
-import { metadataMap, traceSessionId } from "../../query-ast/extensions";
+import {
+  metadataMap,
+  splitFieldAlias,
+  traceSessionId,
+} from "../../query-ast/extensions";
 import type { ClickHouseDatabase } from "../../query-ast/schema";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 import {
@@ -39,8 +43,8 @@ const TRACE_SESSION_ID_SQL = renderClickhouseExpression(traceSessionId());
  * E.g. "e.span_id as id" → "id", 'e.trace_id as "trace_id"' → "trace_id"
  */
 function extractAlias(expr: string): string {
-  const asMatch = expr.match(/\bas\s+"?([\w]+)"?\s*$/i);
-  if (asMatch) return asMatch[1];
+  const { alias } = splitFieldAlias(expr);
+  if (alias) return alias;
   // No alias: use the expression after the last dot (e.g. "e.input" → "input")
   const dotIdx = expr.lastIndexOf(".");
   return dotIdx >= 0 ? expr.slice(dotIdx + 1) : expr;
