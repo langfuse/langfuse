@@ -16,7 +16,7 @@ export function EvaluatorTemplateRow({
     <button
       type="button"
       onClick={() => onSelect(template)}
-      className="hover:bg-muted/60 @container -mx-2 block cursor-pointer rounded-md px-2 py-1.5 text-left transition-colors"
+      className="hover:bg-muted-gray/60 @container -mx-2 block cursor-pointer rounded-md px-2 py-1.5 text-left transition-colors"
     >
       <span className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @3xl:grid-cols-[minmax(10rem,18rem)_minmax(0,1fr)_12rem_9rem]">
         <span
