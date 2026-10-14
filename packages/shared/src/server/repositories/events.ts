@@ -723,10 +723,10 @@ export const getObservationsWithPromptNameFromEvents = async (
     .where("prompt_name", "!=", "")
     .where("is_deleted", "=", 0)
     .$if(fromTimestamp != null, (qb) =>
-      qb.where("start_time", ">=", chDateTime(fromTimestamp!)),
+      qb.where("start_time", ">=", fromTimestamp!),
     )
     .$if(toTimestamp != null, (qb) =>
-      qb.where("start_time", "<=", chDateTime(toTimestamp!)),
+      qb.where("start_time", "<=", toTimestamp!),
     )
     .groupBy("prompt_name");
   const { sql: query, params } = compileClickhouseQuery(builder, { projectId });
@@ -1055,16 +1055,6 @@ export const getObservationByIdFromEventsTable = async ({
   return mapped.shift();
 };
 
-/** ClickHouse DateTime binds stay strings; the column type is Date. */
-function dateTimeParam(value: string): Date {
-  return value as unknown as Date;
-}
-
-/** `date` as a ClickHouse DateTime string bind. */
-function chDateTime(date: Date): Date {
-  return dateTimeParam(convertDateToClickhouseDateTime(date));
-}
-
 async function getObservationByIdFromEventsTableInternal({
   id,
   projectId,
@@ -1111,9 +1101,7 @@ async function getObservationByIdFromEventsTableInternal({
         eb(
           eb.fn("toStartOfMinute", ["start_time"]),
           "=",
-          eb.fn("toStartOfMinute", [
-            eb.val(convertDateToClickhouseDateTime(startTime!)),
-          ]),
+          eb.fn("toStartOfMinute", [eb.val(startTime!)]),
         ),
       ),
     )
@@ -1254,9 +1242,7 @@ export const getTraceByIdFromEventsTable = async ({
         eb(
           eb.fn("toDate", [eb.ref("t.timestamp")]),
           "=",
-          eb.fn("toDate", [
-            eb.val(convertDateToClickhouseDateTime(timestamp!)),
-          ]),
+          eb.fn("toDate", [eb.val(timestamp!)]),
         ),
       ),
     )
@@ -2641,10 +2627,10 @@ export const deleteEventsByProjectId = async (
 export async function getAgentGraphDataFromEventsTable(params: {
   projectId: string;
   traceId: string;
-  chMinStartTime: string;
-  chMaxStartTime: string;
+  minStartTime: Date;
+  maxStartTime: Date;
 }) {
-  const { projectId, traceId, chMinStartTime, chMaxStartTime } = params;
+  const { projectId, traceId, minStartTime, maxStartTime } = params;
 
   const db = getClickhouseKysely();
 
@@ -2667,8 +2653,8 @@ export async function getAgentGraphDataFromEventsTable(params: {
       ];
     })
     .where("e.trace_id", "=", traceId)
-    .where("e.start_time", ">=", dateTimeParam(chMinStartTime))
-    .where("e.start_time", "<=", dateTimeParam(chMaxStartTime));
+    .where("e.start_time", ">=", minStartTime)
+    .where("e.start_time", "<=", maxStartTime);
 
   const { sql: query, params: queryParams } = compileClickhouseQuery(builder, {
     projectId,
@@ -2861,8 +2847,8 @@ export const getObservationsBatchIOFromEventsTable = async <
           .having(traceSessionId(), "=", opts.sessionId!),
       ),
     )
-    .where("e.start_time", ">=", chDateTime(minTimestamp))
-    .where("e.start_time", "<=", chDateTime(maxTimestamp));
+    .where("e.start_time", ">=", minTimestamp)
+    .where("e.start_time", "<=", maxTimestamp);
   const { sql: query, params } = compileClickhouseQuery(builder, {
     projectId: opts.projectId,
   });
@@ -2968,16 +2954,8 @@ function compileObservationIOFieldRead<A extends string>(
     )
     .where("e.trace_id", "=", opts.traceId)
     .where("e.span_id", "=", opts.observationId)
-    .where(
-      "e.start_time",
-      ">=",
-      chDateTime(new Date(opts.startTime.getTime() - 1000)),
-    )
-    .where(
-      "e.start_time",
-      "<=",
-      chDateTime(new Date(opts.startTime.getTime() + 1000)),
-    )
+    .where("e.start_time", ">=", new Date(opts.startTime.getTime() - 1000))
+    .where("e.start_time", "<=", new Date(opts.startTime.getTime() + 1000))
     .orderBy("e.event_ts", "desc")
     .limit(1);
 
@@ -3095,8 +3073,8 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
     )
     .where("e.trace_id", "=", opts.traceId)
     .where("e.span_id", "=", opts.observationId)
-    .where("e.start_time", ">=", chDateTime(minTimestamp))
-    .where("e.start_time", "<=", chDateTime(maxTimestamp))
+    .where("e.start_time", ">=", minTimestamp)
+    .where("e.start_time", "<=", maxTimestamp)
     .orderBy("e.event_ts", "desc")
     .limit(1);
   const { sql: query, params } = compileClickhouseQuery(builder, ctx);
@@ -3912,7 +3890,7 @@ export const getSessionMetricsFromEvents = async <
       qb.where(
         "start_time",
         ">=",
-        chDateTime(observationsToTraceLowerBound(queryFromTimestamp!)),
+        observationsToTraceLowerBound(queryFromTimestamp!),
       ),
     )
     .where("session_id", "!=", "")
@@ -3960,7 +3938,6 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
   const { projectId } = params;
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const since = chDateTime(sevenDaysAgo);
   const builder = getClickhouseKysely()
     .selectFrom("events_core as e")
     .select((eb) => [
@@ -3971,12 +3948,12 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
       eb.fn.max("e.start_time").as("last_seen"),
       count().as("event_count"),
     ])
-    .where("e.start_time", ">=", since)
+    .where("e.start_time", ">=", sevenDaysAgo)
     .where((eb) =>
       eb(
         eb.fn("toDate", ["e.start_time"]),
         ">=",
-        eb.fn("toDate", [eb.val(since)]),
+        eb.fn("toDate", [eb.val(sevenDaysAgo)]),
       ),
     )
     .where((eb) => eb.fn<SqlBool>("startsWith", ["e.source", eb.val("otel")]))
