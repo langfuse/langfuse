@@ -14,6 +14,8 @@ const buttonVariants = cva(
         subtle: "hover:bg-border aria-expanded:bg-border",
         toolbar:
           "text-muted-foreground hover:bg-accent hover:text-foreground aria-pressed:text-primary rounded-sm",
+        destructive:
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
       },
       size: {
         xs: "size-4 rounded-sm",
@@ -51,7 +53,7 @@ type IconButtonProps = NativeButtonProps & {
   label: string;
   ref?: Ref<HTMLButtonElement>;
   size?: "xs" | "sm" | "md";
-  variant?: "ghost" | "outline" | "subtle" | "toolbar";
+  variant?: "ghost" | "outline" | "subtle" | "toolbar" | "destructive";
 };
 
 export function IconButton({
@@ -75,6 +77,7 @@ export function IconButton({
         className={cn(
           iconVariants({ size }),
           variant === "toolbar" && "icon-sm text-current",
+          variant === "destructive" && "text-current",
         )}
         aria-hidden
       />

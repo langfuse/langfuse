@@ -1,7 +1,9 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { ConnectionModelsLoadError } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsLoadError";
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton";
@@ -10,15 +12,20 @@ import { useGatewayConnectionModels } from "@/src/features/ai-gateway/components
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { updateGatewayAllowedModels } from "@/src/features/ai-gateway/fns/updateGatewayAllowedModels";
+import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 export type GatewayConnectionModelsPageProps = {
   organizationId: string;
   connectionId: string;
+  isDeleting: boolean;
+  onDelete: (connection: GatewayConnection) => Promise<void>;
 };
 
 export function GatewayConnectionModelsPage({
   organizationId,
   connectionId,
+  isDeleting,
+  onDelete,
 }: GatewayConnectionModelsPageProps) {
   const {
     connectionQuery,
@@ -70,17 +77,40 @@ export function GatewayConnectionModelsPage({
   };
   const enableAll = () => saveAllowedModels(null);
   const disableAll = () => saveAllowedModels([]);
+  const deleteConnection = () => onDelete(connection);
 
   return (
     <div className="flex flex-col gap-4">
-      <TextLink
-        path={`/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway-providers`}
-        value="Provider credentials"
-        icon={ArrowLeft}
-      />
+      <ConfirmationDialogController
+        title="Delete provider credential"
+        text={`Delete “${connection.name}”? Requests will immediately stop using it.`}
+        confirmLabel="Delete credential"
+        variant="destructive"
+        loading={isDeleting}
+        onConfirm={deleteConnection}
+      >
+        {({ openDialog }) => (
+          <>
+            <TextLink
+              path={`/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway-providers`}
+              value="Provider credentials"
+              icon={ArrowLeft}
+            />
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-lg font-bold">{connection.name}</h2>
+              <IconButton
+                icon={Trash2}
+                label="Delete provider credential"
+                variant="destructive"
+                disabled={isDeleting}
+                onClick={openDialog}
+              />
+            </div>
+          </>
+        )}
+      </ConfirmationDialogController>
       <div>
-        <h2 className="text-lg font-bold">{connection.name}</h2>
-        <p className="text-muted-foreground mt-2 text-sm">
+        <p className="text-muted-foreground text-sm">
           Only enabled models can be requested through this credential.{" "}
           {enabledCount} of {models.length} enabled.
         </p>

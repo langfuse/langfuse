@@ -71,6 +71,11 @@ export function GatewayProvidersPage({
       await utils.aiGateway.listConnections.invalidate({
         orgId: organizationId,
       });
+      if (connection.id === connectionId) {
+        await router.push(
+          `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway-providers`,
+        );
+      }
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-providers");
       throw error;
@@ -85,6 +90,8 @@ export function GatewayProvidersPage({
       <GatewayConnectionModelsPage
         organizationId={organizationId}
         connectionId={connectionId}
+        isDeleting={remove.isPending}
+        onDelete={deleteConnection}
       />
     );
   }
