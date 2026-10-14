@@ -208,7 +208,9 @@ is where tenancy is enforced:
    their ClickHouse type from the compared column's registry entry when one is
    in scope (`scores.value > 1` → `{p:Float64}`).
 5. Raw-SQL table sources (``selectFrom(sql`...`)``) and raw fragments embedding
-   a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`.
+   a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`, as
+   does any FROM/JOIN source that is neither a table reference nor a subquery
+   (table functions such as `remote()`, `clusterAllReplicas()`, `merge()`).
    Kysely's own keyword fragments (`asc`/`desc`) are not relations.
 
 So query bodies here never filter `project_id` by hand — it is redundant, and

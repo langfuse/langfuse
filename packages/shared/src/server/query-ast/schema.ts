@@ -356,7 +356,7 @@ export const TABLE_BIND_TYPES: Record<
 
 /**
  * Bind type by bare column name, for operands whose relation is opaque to the
- * compiler (e.g. a table-function source). Only names with the same bind type in
+ * compiler (e.g. a qualifier no relation in scope declares). Only names with the same bind type in
  * every table are kept, since `start_time` is `DateTime64(6)` on events but
  * `DateTime64(3)` on observations.
  */
