@@ -322,12 +322,14 @@ export const EmptySearch = meta.story({
     await expect(
       canvas.getByText("No templates match your search."),
     ).toBeInTheDocument();
-    await expect(canvas.getByText("Browse")).toBeInTheDocument();
+    await expect(
+      canvas.getAllByRole("navigation", { name: "Browse categories" })[0],
+    ).toBeInTheDocument();
     await expect(
       canvas.getByRole("button", { name: "Quality 0" }),
     ).toBeInTheDocument();
     await expect(
-      canvas.getByRole("button", { name: "New LLM-as-a-judge" }),
+      canvas.getByRole("button", { name: /^LLM-as-a-judge/ }),
     ).toBeInTheDocument();
   },
 });

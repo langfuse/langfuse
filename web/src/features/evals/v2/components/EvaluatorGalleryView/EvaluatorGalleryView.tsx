@@ -138,8 +138,8 @@ export function EvaluatorGalleryView({
             ref={scrollContainerRef}
             className="min-h-0 flex-1 overflow-y-auto"
           >
-            <div className="flex flex-col gap-10 px-4 py-4">
-              {!isSingleSection && !search.trim() ? (
+            <div className="flex flex-col gap-12 px-4 py-4">
+              {!isSingleSection && (!search.trim() || !hasTemplates) ? (
                 <EvaluatorGalleryStartRow
                   onCreateFromScratch={onCreateFromScratch}
                 />

@@ -75,17 +75,18 @@ export function prepareEvaluatorGallery({
     }),
   );
   const navigationItems: GalleryNavigationItem[] = [
-    {
-      key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
-      label: "Your templates",
-      count: customTemplateCount,
-    },
     ...managedCatalog.categories.map((category) => ({
       key: category.key,
       label: category.label,
       count: managedByCategory.get(category.key)?.length ?? 0,
     })),
+    {
+      key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
+      label: "Your templates",
+      count: customTemplateCount,
+    },
   ];
+
   // Own templates last: catalog sections lead the browse view.
   const sections: GallerySection[] = [
     ...managedCatalog.categories.flatMap((category) => {
