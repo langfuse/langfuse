@@ -1264,6 +1264,17 @@ export class IngestionService {
     skills_resource_loaded: SkillsResourceLoaded;
   }> {
     // Bound internal callers too, before building the lookup or its cache key.
+    if (
+      available.length > MAX_SKILLS_PER_OBSERVATION ||
+      loaded.length > MAX_SKILLS_PER_OBSERVATION
+    ) {
+      logger.warn("Skill references truncated: item limit exceeded", {
+        projectId,
+        availableCount: available.length,
+        loadedCount: loaded.length,
+        limit: MAX_SKILLS_PER_OBSERVATION,
+      });
+    }
     available = available.slice(0, MAX_SKILLS_PER_OBSERVATION);
     loaded = loaded.slice(0, MAX_SKILLS_PER_OBSERVATION);
     const versions = available.flatMap(({ skillName, skillVersion }) =>

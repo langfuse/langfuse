@@ -925,6 +925,7 @@ export async function getEventMetadataValues(
 interface GetEventBatchIOParams<
   TIncludeExperiment extends boolean = false,
   TIncludeToolCalls extends boolean = false,
+  TIncludeSkills extends boolean = false,
 > {
   projectId: string;
   observations: Array<{
@@ -939,6 +940,7 @@ interface GetEventBatchIOParams<
   includeExperimentFields?: TIncludeExperiment;
   /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
   includeToolCallFields?: TIncludeToolCalls;
+  includeSkillFields?: TIncludeSkills;
 }
 
 /**
@@ -947,9 +949,18 @@ interface GetEventBatchIOParams<
 export async function getEventBatchIO<
   TIncludeExperiment extends boolean = false,
   TIncludeToolCalls extends boolean = false,
+  TIncludeSkills extends boolean = false,
 >(
-  params: GetEventBatchIOParams<TIncludeExperiment, TIncludeToolCalls>,
-): Promise<Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>> {
+  params: GetEventBatchIOParams<
+    TIncludeExperiment,
+    TIncludeToolCalls,
+    TIncludeSkills
+  >,
+): Promise<
+  Array<
+    EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls, TIncludeSkills>
+  >
+> {
   return getObservationsBatchIOFromEventsTable({
     projectId: params.projectId,
     observations: params.observations,
@@ -960,5 +971,6 @@ export async function getEventBatchIO<
     sessionId: params.sessionId,
     includeExperimentFields: params.includeExperimentFields,
     includeToolCallFields: params.includeToolCallFields,
+    includeSkillFields: params.includeSkillFields,
   });
 }

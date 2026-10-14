@@ -3963,18 +3963,27 @@ export class OtelIngestionProcessor {
       return {};
     }
 
-    const parsedManifest =
-      Array.isArray(manifest) && manifest.length > MAX_SKILLS_PER_OBSERVATION
-        ? undefined
-        : this.parseJsonPayloadWithMaxSize(
-            manifest,
-            MAX_SKILL_CATALOG_JSON_BYTES,
-          );
-    const available =
+    let parsedManifest = Array.isArray(manifest)
+      ? manifest
+      : this.parseJsonPayloadWithMaxSize(
+          manifest,
+          MAX_SKILL_CATALOG_JSON_BYTES,
+          "skillsAvailable",
+        );
+    if (
       Array.isArray(parsedManifest) &&
-      parsedManifest.length <= MAX_SKILLS_PER_OBSERVATION
-        ? SkillsAvailableSchema.safeParse(parsedManifest)
-        : undefined;
+      parsedManifest.length > MAX_SKILLS_PER_OBSERVATION
+    ) {
+      logger.warn("OTEL skill catalog dropped: item limit exceeded", {
+        projectId: this.projectId,
+        count: parsedManifest.length,
+        limit: MAX_SKILLS_PER_OBSERVATION,
+      });
+      parsedManifest = undefined;
+    }
+    const available = Array.isArray(parsedManifest)
+      ? SkillsAvailableSchema.safeParse(parsedManifest)
+      : undefined;
     if (observationType === ObservationType.GENERATION) {
       if (available?.success) return { skillsAvailable: available.data };
       return {};
@@ -3986,11 +3995,20 @@ export class OtelIngestionProcessor {
       output,
       available?.success ? available.data : [],
     );
+    if (!candidate) return {};
     if (
-      !candidate ||
-      (typeof candidate.filePath === "string" &&
-        candidate.filePath.length > MAX_SKILL_PATH_LENGTH)
+      typeof candidate.filePath === "string" &&
+      candidate.filePath.length > MAX_SKILL_PATH_LENGTH
     ) {
+      logger.warn(
+        "OTEL skill resource load dropped: path length limit exceeded",
+        {
+          projectId: this.projectId,
+          toolName,
+          length: candidate.filePath.length,
+          limit: MAX_SKILL_PATH_LENGTH,
+        },
+      );
       return {};
     }
     const loaded = SkillsResourceLoadedSchema.element.safeParse(candidate);
@@ -4013,15 +4031,24 @@ export class OtelIngestionProcessor {
     const args = this.parseJsonPayloadWithMaxSize(
       input,
       MAX_SKILL_TOOL_ARGS_JSON_BYTES,
+      "toolInput",
     );
     if (!OtelIngestionProcessor.isPlainObject(args)) return;
-    if (
-      [args.path, args.file_path].some(
-        (path) =>
-          typeof path === "string" &&
-          path.length > MAX_SKILL_TOOL_ARGS_JSON_BYTES,
-      )
-    ) {
+    const oversizedPath = [args.path, args.file_path].find(
+      (path) =>
+        typeof path === "string" &&
+        path.length > MAX_SKILL_TOOL_ARGS_JSON_BYTES,
+    );
+    if (typeof oversizedPath === "string") {
+      logger.warn(
+        "OTEL skill resource load dropped: input path length limit exceeded",
+        {
+          projectId: this.projectId,
+          toolName,
+          length: oversizedPath.length,
+          limit: MAX_SKILL_TOOL_ARGS_JSON_BYTES,
+        },
+      );
       return;
     }
 
@@ -4071,6 +4098,7 @@ export class OtelIngestionProcessor {
     const result = this.parseJsonPayloadWithMaxSize(
       output,
       MAX_SKILL_ERROR_JSON_BYTES,
+      "toolOutput",
     );
     const text = typeof result === "string" ? result : output;
     return (
@@ -4086,12 +4114,19 @@ export class OtelIngestionProcessor {
   private parseJsonPayloadWithMaxSize(
     payload: unknown,
     maxBytes: number,
+    field: "skillsAvailable" | "toolInput" | "toolOutput",
   ): unknown {
     if (
       typeof payload === "string" &&
       (payload.length > maxBytes ||
         Buffer.byteLength(payload, "utf8") > maxBytes)
     ) {
+      logger.warn("OTEL skill payload parsing skipped: byte limit exceeded", {
+        projectId: this.projectId,
+        field,
+        limitBytes: maxBytes,
+        stringLength: payload.length,
+      });
       return undefined;
     }
     return this.parseJsonPayload(payload);

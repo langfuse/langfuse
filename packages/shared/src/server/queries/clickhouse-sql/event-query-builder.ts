@@ -286,8 +286,6 @@ const FIELD_SETS = {
     "toolDefinitions",
     "toolCalls",
     "toolCallNames",
-    "skillsAvailable",
-    "skillsResourceLoaded",
   ],
   baseWithoutTools: [
     "id",
@@ -327,8 +325,6 @@ const FIELD_SETS = {
     "tags",
     // Keep lightweight tool names available even when heavy tool payloads are omitted.
     "toolCallNames",
-    "skillsAvailable",
-    "skillsResourceLoaded",
   ],
   calculated: ["latency", "timeToFirstToken"],
   io: ["input", "output"],
