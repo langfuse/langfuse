@@ -1124,6 +1124,76 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops injected window.getObs/timeline .sort TypeError", () => {
+    // Real shape (LANGFUSE-63V): Chrome 155 on /traces. Injected
+    // page-world JS assigns `window.getObs` / `window.timeline` and
+    // calls `.sort()` on undefined after a missing observation. Stack
+    // is only `<anonymous>` frames — no /_next/ chunk — so denyUrls
+    // cannot match. Langfuse never assigns those Window properties.
+    const injectedWindowGetObsSortEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onunhandledrejection",
+      frames?: { filename: string; function?: string }[],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              stacktrace: {
+                frames: (
+                  frames ?? [
+                    { filename: "<anonymous>", function: "?" },
+                    {
+                      filename: "<anonymous>",
+                      function: "async window.timeline",
+                    },
+                    { filename: "<anonymous>", function: "window.getObs" },
+                  ]
+                ).map((stackFrame) => ({
+                  filename: stackFrame.filename,
+                  function: stackFrame.function ?? "?",
+                })),
+              },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the observed anonymous window.getObs .sort TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedWindowGetObsSortEvent(
+            "Cannot read properties of undefined (reading 'sort')",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedWindowGetObsSortEvent(
+            "Cannot read properties of undefined (reading 'sort').",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording via a global onerror handler", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedWindowGetObsSortEvent(
+            "Cannot read properties of undefined (reading 'sort')",
+            "auto.browser.global_handlers.onerror",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1786,6 +1856,174 @@ describe("isDenylistedNoiseEvent", () => {
         },
       } as ErrorEvent;
       expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes reading 'sort'", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Table render failed: Cannot read properties of undefined (reading 'sort')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  { filename: "<anonymous>", function: "?" },
+                  { filename: "<anonymous>", function: "window.getObs" },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a Chromium null .sort TypeError (different wording)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of null (reading 'sort')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  { filename: "<anonymous>", function: "window.getObs" },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a different undefined-property TypeError on the same injected stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'map')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  { filename: "<anonymous>", function: "window.getObs" },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the .sort TypeError without window.getObs/timeline frames", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'sort')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [{ filename: "<anonymous>", function: "sortRows" }],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the .sort TypeError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'sort')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/traces-abc.js",
+                    function: "window.getObs",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the .sort TypeError without a stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'sort')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured .sort TypeError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Cannot read properties of undefined (reading 'sort')",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'sort')",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+              stacktrace: {
+                frames: [
+                  { filename: "<anonymous>", function: "window.getObs" },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
     });
 
     it("keeps an event with no exception values", () => {

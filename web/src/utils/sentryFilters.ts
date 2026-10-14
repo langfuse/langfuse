@@ -405,6 +405,67 @@ function isSafariAddMoreClickMessage(value: string): boolean {
 }
 
 /**
+ * Chromium wording when injected page-world JS does `.sort()` on undefined.
+ * Observed: LANGFUSE-63V — unhandled rejection on `/traces`. Stack is only
+ * `<anonymous>` frames named `window.getObs` / `async window.timeline`.
+ * Langfuse never assigns those Window properties. `denyUrls` cannot match
+ * anonymous frames.
+ *
+ * Do not run this through {@link coreMessage}: that helper strips a trailing
+ * `(…)` parenthetical, and `(reading 'sort')` *is* the signature.
+ */
+const CHROMIUM_UNDEFINED_SORT_MESSAGE =
+  "Cannot read properties of undefined (reading 'sort')";
+
+function isChromiumUndefinedSortMessage(value: string): boolean {
+  return (
+    value.trim().replace(/\.$/, "").trim() === CHROMIUM_UNDEFINED_SORT_MESSAGE
+  );
+}
+
+/**
+ * Chrome reports `window.<name>` (and `async window.<name>`) for functions
+ * assigned onto Window. These two names are the LANGFUSE-63V userscript,
+ * not Langfuse app code.
+ */
+function isInjectedWindowGetObsTimelineFunction(
+  name: string | undefined,
+): boolean {
+  if (typeof name !== "string") return false;
+  const trimmed = name.trim();
+  const withoutAsync = trimmed.startsWith("async ")
+    ? trimmed.slice("async ".length)
+    : trimmed;
+  return withoutAsync === "window.getObs" || withoutAsync === "window.timeline";
+}
+
+/**
+ * True when every stack frame is unattributed (`<anonymous>` or missing
+ * filename). A first-party throw that lost its chunk URL is still KEPT —
+ * that event has no frames, or a named file.
+ */
+function hasOnlyAnonymousFrames(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+  return frames.every((frame) => {
+    const filename = frame?.filename;
+    return (
+      typeof filename !== "string" ||
+      filename.length === 0 ||
+      filename === "<anonymous>"
+    );
+  });
+}
+
+function hasInjectedWindowGetObsTimelineFrame(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+  return frames.some((frame) =>
+    isInjectedWindowGetObsTimelineFunction(frame?.function),
+  );
+}
+
+/**
  * True when any stack frame is a first-party Next.js chunk. Used as a
  * negative guard so a future first-party throw that happens to share
  * WebKit's wording still reaches Sentry.
@@ -676,7 +737,11 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // Injected `window.getObs` / `window.timeline` `.sort` (LANGFUSE-63V)
+    // is the same class: Chromium's exact TypeError, anonymous-only stack,
+    // and Window function names Langfuse never assigns.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -695,6 +760,15 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       if (
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
+        !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "TypeError" &&
+        isChromiumUndefinedSortMessage(exceptionValue) &&
+        hasOnlyAnonymousFrames(event) &&
+        hasInjectedWindowGetObsTimelineFrame(event) &&
         !hasFirstPartyChunkFrame(event)
       ) {
         return true;
