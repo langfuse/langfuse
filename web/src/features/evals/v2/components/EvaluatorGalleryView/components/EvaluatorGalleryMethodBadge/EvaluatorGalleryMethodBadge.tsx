@@ -29,6 +29,11 @@ const METHOD_BADGES = {
   { Icon: unknown; label: string; tileClassName: string }
 >;
 
+/** The icon that marks an evaluator type everywhere in the evals UI. */
+export function getEvaluatorMethodIcon(type: EvalTemplateType) {
+  return METHOD_BADGES[type].Icon;
+}
+
 /** The type icon on its pastel tile. */
 export function EvaluatorMethodTile({
   type,
