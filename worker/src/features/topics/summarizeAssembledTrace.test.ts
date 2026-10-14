@@ -4,13 +4,12 @@ import {
   recordIncrement,
   type Transcript,
 } from "@langfuse/shared/src/server";
-import type { TopicFacet } from "@langfuse/shared/topics";
+import type { TopicFacet, TopicSummary } from "@langfuse/shared/topics";
 import type { TopicsModels } from "@langfuse/shared/topics/server";
 
 const state = vi.hoisted(() => ({
   facets: vi.fn(),
   stored: vi.fn(),
-  write: vi.fn(),
   summarize: vi.fn(),
   embed: vi.fn(),
   setAttribute: vi.fn(),
@@ -18,7 +17,6 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@langfuse/shared/topics/server", () => ({
   listTopicSummaries: (...args: unknown[]) => state.stored(...args),
-  writeTopicSummaries: (...args: unknown[]) => state.write(...args),
   TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v3",
 }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
@@ -108,18 +106,28 @@ const usage = {
   },
 };
 
+let summaries: TopicSummary[] = [];
+// Keeps the returned rows for assertions and rethrows a partial failure, as the batch job reports it.
+const summarize = async (
+  input: Parameters<typeof summarizeAssembledTrace>[0],
+) => {
+  const result = await summarizeAssembledTrace(input);
+  summaries = result.rows;
+  if (result.failure !== undefined) throw result.failure;
+  return result.outcome;
+};
+
 beforeEach(() => {
   vi.mocked(recordDistribution).mockClear();
   vi.mocked(recordIncrement).mockClear();
   state.facets.mockReset();
   state.stored.mockReset();
-  state.write.mockReset();
+  summaries = [];
   state.summarize.mockReset();
   state.embed.mockReset();
   state.setAttribute.mockClear();
   state.facets.mockReturnValue([facet]);
   state.stored.mockResolvedValue([]);
-  state.write.mockResolvedValue(undefined);
   state.summarize.mockResolvedValue({
     output: {
       intent_1: { summary: "Export monthly sales.", status: "applicable" },
@@ -137,7 +145,7 @@ beforeEach(() => {
 
 describe("summarizeAssembledTrace", () => {
   it("skips internal traces before reading summaries, calling models or writing", async () => {
-    const result = await summarizeAssembledTrace({
+    const result = await summarize({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -152,11 +160,11 @@ describe("summarizeAssembledTrace", () => {
     expect(state.stored).not.toHaveBeenCalled();
     expect(state.summarize).not.toHaveBeenCalled();
     expect(state.embed).not.toHaveBeenCalled();
-    expect(state.write).not.toHaveBeenCalled();
+    expect(summaries).toEqual([]);
   });
 
   it("skips a finished job retry but summarizes a later redispatch", async () => {
-    await summarizeAssembledTrace({
+    await summarize({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -179,7 +187,7 @@ describe("summarizeAssembledTrace", () => {
       source_trace_id: "trace-1",
       source_environment: "default",
     });
-    const written = state.write.mock.calls[0][0][0];
+    const written = summaries[0];
     expect(written).toMatchObject({
       projectId: "project-a",
       traceId: "trace-1",
@@ -214,8 +222,8 @@ describe("summarizeAssembledTrace", () => {
       { ...written, processedAt: "2026-09-22T12:02:00.000Z" },
     ]);
     state.summarize.mockClear();
-    state.write.mockClear();
-    await summarizeAssembledTrace({
+    summaries = [];
+    await summarize({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -227,8 +235,8 @@ describe("summarizeAssembledTrace", () => {
       facets: state.facets(),
     });
     expect(state.summarize).not.toHaveBeenCalled();
-    expect(state.write).not.toHaveBeenCalled();
-    await summarizeAssembledTrace({
+    expect(summaries).toEqual([]);
+    await summarize({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -240,10 +248,8 @@ describe("summarizeAssembledTrace", () => {
       facets: state.facets(),
     });
     expect(state.summarize).toHaveBeenCalledOnce();
-    expect(state.write).toHaveBeenCalledOnce();
-    expect(state.write.mock.calls[0][0][0].unitStartTime).toBe(
-      written.unitStartTime,
-    );
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0].unitStartTime).toBe(written.unitStartTime);
     expect(state.stored).toHaveBeenCalledTimes(3);
   });
 
@@ -269,7 +275,7 @@ describe("summarizeAssembledTrace", () => {
       },
       ...usage,
     });
-    await summarizeAssembledTrace({
+    await summarize({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -281,7 +287,7 @@ describe("summarizeAssembledTrace", () => {
       facets: state.facets(),
     });
     expect(state.summarize).toHaveBeenCalledOnce();
-    const [intent, issue] = state.write.mock.calls[0][0];
+    const [intent, issue] = summaries;
     expect(intent).toMatchObject({ facetId: "facet-1", state: "complete" });
     expect(intent.usageDetails.summary_input).toBe(20);
     expect(issue).toMatchObject({
@@ -298,7 +304,7 @@ describe("summarizeAssembledTrace", () => {
       },
       ...usage,
     });
-    await summarizeAssembledTrace({
+    await summarize({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -309,7 +315,7 @@ describe("summarizeAssembledTrace", () => {
       models,
       facets: state.facets(),
     });
-    const [written] = state.write.mock.calls[0][0];
+    const [written] = summaries;
     expect(written).toMatchObject({ state: "not_applicable" });
     expect(written.summary ?? "").toBe("");
     expect(state.embed).not.toHaveBeenCalled();
@@ -331,7 +337,7 @@ describe("summarizeAssembledTrace", () => {
       ...usage,
     });
     await expect(
-      summarizeAssembledTrace({
+      summarize({
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -345,7 +351,7 @@ describe("summarizeAssembledTrace", () => {
     ).rejects.toThrow(
       "Applicable facet summary must contain a concise summary.",
     );
-    const written = state.write.mock.calls[0][0];
+    const written = summaries;
     expect(written).toHaveLength(1);
     expect(written[0]).toMatchObject({ facetId: "facet-2", state: "complete" });
     // The shared call's usage moves to the first row that is written.
@@ -389,7 +395,7 @@ describe("summarizeAssembledTrace", () => {
       },
       ...usage,
     });
-    await summarizeAssembledTrace({
+    await summarize({
       projectId: "project-a",
       traceId: "trace-1",
       traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -426,7 +432,7 @@ describe("summarizeAssembledTrace", () => {
     const error = new Error("embedding provider unavailable");
     state.embed.mockRejectedValueOnce(error);
     await expect(
-      summarizeAssembledTrace({
+      summarize({
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -439,8 +445,7 @@ describe("summarizeAssembledTrace", () => {
       }),
     ).rejects.toBe(error);
     expect(state.summarize).toHaveBeenCalledOnce();
-    expect(state.write).toHaveBeenCalledOnce();
-    expect(state.write.mock.calls[0][0]).toEqual([
+    expect(summaries).toEqual([
       expect.objectContaining({
         facetId: "facet-2",
         state: "not_applicable",
@@ -469,7 +474,7 @@ describe("summarizeAssembledTrace", () => {
     const error = new Error("provider unavailable");
     state.summarize.mockRejectedValue(error);
     await expect(
-      summarizeAssembledTrace({
+      summarize({
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -485,7 +490,7 @@ describe("summarizeAssembledTrace", () => {
       "langfuse.topics.trace_outcome",
       "failed",
     );
-    expect(state.write).not.toHaveBeenCalled();
+    expect(summaries).toEqual([]);
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.topics.stage_duration_ms",
       expect.any(Number),
@@ -507,7 +512,7 @@ describe("summarizeAssembledTrace", () => {
       ...usage,
     });
     await expect(
-      summarizeAssembledTrace({
+      summarize({
         projectId: "project-a",
         traceId: "trace-1",
         traceTimestamp: "2026-09-22T12:00:00.000Z",
@@ -520,7 +525,7 @@ describe("summarizeAssembledTrace", () => {
       }),
     ).rejects.toMatchObject({ reason: "invalid_output" });
     expect(state.embed).not.toHaveBeenCalled();
-    expect(state.write).not.toHaveBeenCalled();
+    expect(summaries).toEqual([]);
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.topics.stage_duration_ms",
       expect.any(Number),

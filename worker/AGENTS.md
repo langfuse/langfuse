@@ -73,8 +73,10 @@
   still pools 1,000 candidates. Drain the old layout before upgrade
   or shard-count/retention changes. The trace-batch consumer checks existing
   summaries against the job enqueue time so retries skip completed facets while
-  later redispatches append updated summaries. Map gauges include shard and
-  total series; never sum duplicate reporters or add totals to shard series.
+  later redispatches append updated summaries. Map and dispatcher gauges are
+  summed across shards before emission; do not add per-shard series, which
+  multiply custom metrics on every reporting worker. Never sum duplicate
+  reporters.
   `src/features/traceBatching/traceBatchTranscript.ts` measures per-trace assembly
   phases, thread count, current-turn/history token estimates and their sum. Each
   admitted trace records full assembled-transcript JSON lengths, renders the

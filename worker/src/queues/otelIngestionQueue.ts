@@ -515,11 +515,13 @@ export const otelIngestionQueueProcessorBuilder = (
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       );
       let parsedSpans: ResourceSpan[];
+      let inputByteLength: number;
       if (earlyMediaEnabled) {
         const bytes = await eventStorage.downloadBytes(fileKey);
+        inputByteLength = bytes.byteLength;
         recordHistogram(
           "langfuse.ingestion.s3_file_size_bytes",
-          bytes.byteLength,
+          inputByteLength,
           { skippedS3List: "true", otel: "true" },
         );
         const prepared = await prepareOtelBatch({
@@ -546,10 +548,11 @@ export const otelIngestionQueueProcessorBuilder = (
       } else {
         // Download file from blob storage
         const resourceSpans = await eventStorage.download(fileKey);
+        inputByteLength = Buffer.byteLength(resourceSpans, "utf8");
 
         recordHistogram(
           "langfuse.ingestion.s3_file_size_bytes",
-          resourceSpans.length, // At this point it's still a string.
+          inputByteLength,
           {
             skippedS3List: "true",
             otel: "true",
@@ -791,6 +794,7 @@ export const otelIngestionQueueProcessorBuilder = (
             writePath: "legacy",
             earlyBatch,
             mediaPath,
+            inputByteLength,
             projectId,
             fileKey,
             mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
@@ -842,6 +846,7 @@ export const otelIngestionQueueProcessorBuilder = (
         shouldWriteToEventsTable,
         earlyBatch,
         mediaPath,
+        inputByteLength,
       });
     } catch (e) {
       const fileKey = job.data.payload.data.fileKey;

@@ -99,16 +99,30 @@ const ChbBillSchema = z.object({
   // Exclusive, like the attached plan's period end.
   endDate: z.string().nullish(),
   // Accrued metered usage of the open bill: CHB counts only its USAGE line
-  // items, so the plan's fixed fee (STANDING_CHARGE) and prorated upgrade
-  // deltas (DEBIT_MEMO) are not in it. `amount` is a **major-unit** USD figure
-  // (1250.68 means $1,250.68) -- unlike `ChbInvoice.amount`, which is minor
-  // units. Read it through `chbBillUsageAmountUSD`, which is the one place
-  // that encodes this. `asOf` is when CHB last exported the bill.
+  // items, so the plan's fixed fee (STANDING_CHARGE, reported as `plan`) and
+  // prorated upgrade deltas (DEBIT_MEMO, invoiced on their own) are not in it.
+  // `amount` is a **major-unit** USD figure (1250.68 means $1,250.68) --
+  // unlike `ChbInvoice.amount`, which is minor units. Read it through
+  // `chbBillUsageAmountUSD`, which is the one place that encodes this. `asOf`
+  // is when CHB last exported the bill.
   usage: z
     .object({
       amount: z.number().nullish(),
       currency: z.string().nullish(),
       asOf: z.string().nullish(),
+    })
+    .nullish(),
+  // The plan's fixed fee on the open bill: the total of its STANDING_CHARGE
+  // line items, in the same major-unit USD as `usage`. The fee is billed in
+  // advance, so `startDate`/`endDate` are the period it covers, which can be
+  // the one after the bill's own. Absent when the bill has no standing charge.
+  // Read it through `chbBillPlanAmountUSD`.
+  plan: z
+    .object({
+      amount: z.number().nullish(),
+      currency: z.string().nullish(),
+      startDate: z.string().nullish(),
+      endDate: z.string().nullish(),
     })
     .nullish(),
 });
@@ -401,12 +415,12 @@ export class ChbApiClient {
   }
 
   /**
-   * The open bill of each organization, with its accrued usage. CHB serves this
-   * from its billing warehouse rather than from m3ter, so it can be polled
-   * without spending m3ter's rate limit, at the cost of lagging by up to one
-   * warehouse export (`usage.asOf`). Not scoped by header: the organizations
-   * are the request body, 1 to 100 of them. An organization without an open
-   * bill is absent from the result rather than an error.
+   * The open bill of each organization, with its accrued usage and plan fee.
+   * CHB serves this from its billing warehouse rather than from m3ter, so it
+   * can be polled without spending m3ter's rate limit, at the cost of lagging
+   * by up to one warehouse export (`usage.asOf`). Not scoped by header: the
+   * organizations are the request body, 1 to 100 of them. An organization
+   * without an open bill is absent from the result rather than an error.
    */
   async queryBills(params: {
     chOrganizationIds: string[];
@@ -417,7 +431,7 @@ export class ChbApiClient {
       method: "POST",
       path: "bills/query",
       body: { organizationIds: params.chOrganizationIds },
-      searchParams: { fields: "usage" },
+      searchParams: { fields: "usage,plan" },
     });
     return ChbBillListSchema.parse(body);
   }
@@ -454,30 +468,48 @@ export class ChbApiClient {
   }
 }
 
-/** The currency CHB reports accrued usage in; it rejects every other one. */
+/** The currency CHB reports bill amounts in; it rejects every other one. */
 export const CHB_USAGE_CURRENCY = "USD";
+
+/**
+ * A bill amount in USD, or null when it is not a usable figure. A currency
+ * other than USD is treated as no reading: CHB asserts USD when it computes
+ * the amount, so anything else means the contract moved and the number can no
+ * longer be compared against a USD threshold.
+ */
+const chbAmountUSD = (
+  money:
+    | { amount?: number | null; currency?: string | null }
+    | null
+    | undefined,
+): number | null => {
+  if (money?.amount == null || !Number.isFinite(money.amount)) return null;
+  if (
+    money.currency != null &&
+    money.currency.toUpperCase() !== CHB_USAGE_CURRENCY
+  ) {
+    return null;
+  }
+  return money.amount;
+};
 
 /**
  * The open bill's accrued usage in USD, or null when CHB did not report a
  * usable figure. Returning null rather than 0 keeps "no reading" distinct from
  * "nothing spent yet" -- a caller comparing against a spend threshold must skip
  * the former and evaluate the latter.
- *
- * A currency other than USD is treated as no reading: CHB asserts USD when it
- * computes the amount, so anything else means the contract moved and the number
- * can no longer be compared against a USD threshold.
  */
-export const chbBillUsageAmountUSD = (bill: ChbBill): number | null => {
-  const usage = bill.usage;
-  if (usage?.amount == null || !Number.isFinite(usage.amount)) return null;
-  if (
-    usage.currency != null &&
-    usage.currency.toUpperCase() !== CHB_USAGE_CURRENCY
-  ) {
-    return null;
-  }
-  return usage.amount;
-};
+export const chbBillUsageAmountUSD = (bill: ChbBill): number | null =>
+  chbAmountUSD(bill.usage);
+
+/**
+ * The open bill's plan fee in USD: 0 when the bill has no standing charge
+ * (CHB then leaves `plan` out), null when CHB reported one without a usable
+ * figure. Like `chbBillUsageAmountUSD`, null is "no reading", which a caller
+ * must not fold into the total as 0.
+ */
+export const chbBillPlanAmountUSD = (bill: ChbBill): number | null =>
+  bill.plan == null ? 0 : chbAmountUSD(bill.plan);
 
 /**
  * The CHB REST configuration an app reads from its own environment. Optional

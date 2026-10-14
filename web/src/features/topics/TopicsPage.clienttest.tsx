@@ -99,7 +99,6 @@ vi.mock("@/src/utils/api", () => ({
     topics: {
       facets: { useQuery: () => ({ data: [], isLoading: false }) },
       executions: { useQuery: () => ({ data: [] }) },
-      initialize: { useMutation: () => ({}) },
       execution: {
         useQuery: () => ({
           data: {
