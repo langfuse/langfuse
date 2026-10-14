@@ -370,3 +370,29 @@ function rejectUnscopedRawSql(node: unknown): void {
     rejectUnscopedRawSql(value);
   }
 }
+
+/**
+ * Rejects a standalone expression that reads a relation: a subquery, or a raw
+ * fragment that introduces one. Outside a query there is no tenancy scope to
+ * inject into it.
+ */
+export function assertRelationFree(node: OperationNode): void {
+  rejectUnscopedRawSql(node);
+  rejectSubqueries(node);
+}
+
+function rejectSubqueries(node: unknown): void {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const item of node) rejectSubqueries(item);
+    return;
+  }
+  if ("kind" in node && node.kind === "SelectQueryNode") {
+    throw new UnscopedRelationError(
+      "A standalone expression cannot contain a subquery: it has no tenancy scope. Compile the query through compileClickhouseQuery() instead.",
+    );
+  }
+  for (const value of Object.values(node)) {
+    rejectSubqueries(value);
+  }
+}

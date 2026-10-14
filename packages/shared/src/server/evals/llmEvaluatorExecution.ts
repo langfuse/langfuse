@@ -14,7 +14,20 @@ import {
   ChatMessageRole,
   ChatMessageType,
   type ChatMessage,
+  type ModelParams,
+  type TraceSinkParams,
 } from "../llm/types";
+import {
+  createLLMOutput,
+  generateLLMText,
+  mapLegacyLLMCompletionParams,
+  type LLMConnection,
+} from "../llm/llmText";
+import { compileLangfuseMediaMessages } from "../llm/mediaMessages";
+import { z } from "zod";
+
+const MODEL_FACING_OUTPUT_SCHEMA_DESCRIPTION =
+  'Return only top-level "score" and "scoreExplanation". Put other requested fields inside "scoreExplanation".';
 
 const CHAT_MESSAGE_BUILDERS = {
   system: (content: string) => ({
@@ -53,6 +66,60 @@ function buildEvalMessages(params: {
   return {
     messages,
     interpolatedPrompt: messages.map(({ content }) => content).join("\n\n"),
+  };
+}
+
+/**
+ * The single model call behind live and test LLM-as-a-judge runs, so a test
+ * run sends the provider exactly what a live run sends.
+ *
+ * The model sees `scoreExplanation` instead of `reasoning`: thinking-capable
+ * models treat a `reasoning` field as their scratchpad and drop the score.
+ * The output is mapped back to the `{ score, reasoning }` evaluator contract.
+ */
+export async function generateLlmEvaluatorOutput(params: {
+  projectId: string;
+  connection: LLMConnection;
+  modelParams: ModelParams;
+  messages: ChatMessage[];
+  outputResultSchema: z.ZodObject<{ reasoning: z.ZodString; score: z.ZodType }>;
+  trace: TraceSinkParams;
+}) {
+  const llmParams = mapLegacyLLMCompletionParams({
+    connection: params.connection,
+    messages: params.messages,
+    modelParams: params.modelParams,
+  });
+  const { providerMessages, traceMessages } =
+    await compileLangfuseMediaMessages({
+      projectId: params.projectId,
+      messages: params.messages,
+      adapter: params.modelParams.adapter,
+    });
+  const modelFacingOutputSchema = z
+    .object({
+      scoreExplanation: params.outputResultSchema.shape.reasoning,
+      score: params.outputResultSchema.shape.score,
+    })
+    .describe(MODEL_FACING_OUTPUT_SCHEMA_DESCRIPTION);
+
+  const result = await generateLLMText({
+    ...llmParams,
+    messages: providerMessages,
+    traceInput: traceMessages,
+    output: createLLMOutput(modelFacingOutputSchema),
+    maxRetries: 1,
+    trace: params.trace,
+  });
+
+  return {
+    output: {
+      score: result.output.score,
+      reasoning: result.output.scoreExplanation,
+    },
+    usage: result.usage,
+    providerMessages,
+    modelFacingOutputSchema,
   };
 }
 

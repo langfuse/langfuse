@@ -4,6 +4,7 @@ import {
   readTopicExecutionSummary,
   writeTopicExecution,
   getTopicFacetVersion,
+  listTopicFacets,
   listTopicSummaries,
   writeTopicAssignments,
   readTopicAssignments,
@@ -81,7 +82,7 @@ const isExecutionFailure = (error: unknown) =>
 
 function invalidOutput(
   metrics: TopicMetrics,
-  stage: "summary" | "naming",
+  stage: "summary",
   message: string,
 ) {
   const error = new Error(message);
@@ -438,6 +439,7 @@ async function clusterFacet(
   models: TopicsModels,
   execution: UpdateExecution,
   facet: TopicFacetVersion,
+  facetName: string | undefined,
   progress: TopicFacetProgress,
   summaries: TopicSummary[],
   attempt: TopicRun | null,
@@ -644,12 +646,16 @@ async function clusterFacet(
     );
     await saveProgress(metrics, execution, "naming");
     const topics: TopicDefinition[] = [];
-    const names = new Set(
-      evidence.flatMap((group) => {
-        const retained = reused.get(group.id);
-        return retained ? [retained.name.trim().toLowerCase()] : [];
-      }),
-    );
+    const named: NamedTopics = new Map();
+    for (const group of evidence) {
+      const retained = reused.get(group.id);
+      if (retained)
+        named.set(retained.name.toLowerCase(), {
+          name: retained.name,
+          description: retained.description,
+          summaries: group.members.slice(0, 3).map((member) => member.summary),
+        });
+    }
     for (const group of evidence) {
       const retained = reused.get(group.id);
       if (retained) {
@@ -660,8 +666,10 @@ async function clusterFacet(
         const members = new Map(
           group.members.map((summary, index) => [`m${index + 1}`, summary]),
         );
-        const { output: label } = await nameTopicGroup(
+        const label = await nameGroupAvoidingConflicts(
+          metrics,
           models,
+          named,
           {
             members: Array.from(members, ([id, { summary }]) => ({
               id,
@@ -674,22 +682,13 @@ async function clusterFacet(
           },
           {
             facet_id: facet.facetId,
+            facet_name: facetName,
             facet_version: facet.version,
             execution_id: execution.id,
             run_id: run.id,
             group_id: group.id,
           },
         );
-        if (
-          !label.name.trim() ||
-          !label.description.trim() ||
-          names.has(label.name.trim().toLowerCase())
-        )
-          throw invalidOutput(
-            metrics,
-            "naming",
-            "Topic names must be concise, non-empty, and distinct.",
-          );
         return {
           ...label,
           representativeSummaries: label.evidenceSummaryIds.map((id) => {
@@ -704,7 +703,6 @@ async function clusterFacet(
           }),
         };
       });
-      names.add(label.name.trim().toLowerCase());
       const candidate = candidates.find(
         (topic) => topic.topicVersionId === group.id,
       )!;
@@ -714,8 +712,8 @@ async function clusterFacet(
         createdByRunId: run.id,
         createdAt: run.createdAt,
         tags: [],
-        name: label.name.trim(),
-        description: label.description.trim(),
+        name: label.name,
+        description: label.description,
         representativeSummaries: label.representativeSummaries,
         metadata: {
           ...candidate.metadata,
@@ -751,6 +749,45 @@ async function clusterFacet(
     });
     throw error;
   }
+}
+
+type NamedTopics = Map<
+  string,
+  { name: string; description: string; summaries: string[] }
+>;
+
+/** Groups are named independently, so a name taken in the run gets one conflict-aware retry. */
+async function nameGroupAvoidingConflicts(
+  metrics: TopicMetrics,
+  models: TopicsModels,
+  named: NamedTopics,
+  group: Parameters<typeof nameTopicGroup>[1],
+  metadata: Record<string, unknown>,
+) {
+  let { output: label } = await nameTopicGroup(models, group, metadata);
+  const conflict = named.get(label.name.toLowerCase());
+  if (conflict) {
+    metrics.result("naming", "name_conflict");
+    // The first name is valid, so a failed rename keeps it.
+    label = await nameTopicGroup(models, group, metadata, conflict).then(
+      ({ output }) => output,
+      (error: unknown) => {
+        metrics.error("naming", error);
+        return label;
+      },
+    );
+  }
+  if (named.has(label.name.toLowerCase()))
+    metrics.result("naming", "duplicate_name");
+  else
+    named.set(label.name.toLowerCase(), {
+      name: label.name,
+      description: label.description,
+      summaries: label.evidenceSummaryIds.map(
+        (id) => group.members.find((member) => member.id === id)!.summary,
+      ),
+    });
+  return label;
 }
 
 function compatibleMap(
@@ -1046,6 +1083,12 @@ async function updateTopics(
   models: TopicsModels,
   execution: UpdateExecution,
 ) {
+  const facetNames = new Map(
+    (await listTopicFacets(execution.projectId)).map((facet) => [
+      facet.id,
+      facet.name,
+    ]),
+  );
   for (const { facet, progress } of await pendingFacets(execution)) {
     try {
       const accepted = progress.runId
@@ -1101,6 +1144,7 @@ async function updateTopics(
         models,
         execution,
         facet,
+        facetNames.get(facet.facetId),
         progress,
         summaries,
         accepted,

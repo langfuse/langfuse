@@ -8440,6 +8440,82 @@
     ]
   },
   {
+    "id": "f076cdab-4e50-4edb-9135-b5065c3cd0d6",
+    "modelName": "gemini-4-argon",
+    "matchPattern": "(?i)^(google(ai)?\/)?(gemini-4-argon)$",
+    "createdAt": "2026-10-14T00:00:00.000Z",
+    "updatedAt": "2026-10-14T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "f076cdab-4e50-4edb-9135-b5065c3cd0d6_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2e-6,
+          "input_text": 2e-6,
+          "input_modality_1": 2e-6,
+          "prompt_token_count": 2e-6,
+          "promptTokenCount": 2e-6,
+          "input_cached_tokens": 0.1e-6,
+          "input_cache_read": 0.1e-6,
+          "cached_content_token_count": 0.1e-6,
+          "output": 10e-6,
+          "output_text": 10e-6,
+          "output_modality_1": 10e-6,
+          "candidates_token_count": 10e-6,
+          "candidatesTokenCount": 10e-6,
+          "thoughtsTokenCount": 10e-6,
+          "thoughts_token_count": 10e-6,
+          "output_reasoning_tokens": 10e-6,
+          "output_reasoning": 10e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
+        }
+      },
+      {
+        "id": "62843157-f0a0-4e10-ad86-5dd985033bd6",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 3.6e-6,
+          "input_text": 3.6e-6,
+          "input_modality_1": 3.6e-6,
+          "prompt_token_count": 3.6e-6,
+          "promptTokenCount": 3.6e-6,
+          "input_cached_tokens": 0.18e-6,
+          "input_cache_read": 0.18e-6,
+          "cached_content_token_count": 0.18e-6,
+          "output": 18e-6,
+          "output_text": 18e-6,
+          "output_modality_1": 18e-6,
+          "candidates_token_count": 18e-6,
+          "candidatesTokenCount": 18e-6,
+          "thoughtsTokenCount": 18e-6,
+          "thoughts_token_count": 18e-6,
+          "output_reasoning_tokens": 18e-6,
+          "output_reasoning": 18e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
+        }
+      }
+    ]
+  },
+  {
     "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
     "modelName": "gemini-3.5-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.5-flash-lite)$",

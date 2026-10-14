@@ -22,7 +22,6 @@ vi.mock(
 
 import {
   listTopicRules,
-  pauseTopicsModelsUsingConnection,
   saveTopicsSetup,
   setTopicsAutomaticProcessing,
 } from "@langfuse/shared/topics/server";
@@ -275,22 +274,5 @@ describe("setTopicsAutomaticProcessing", () => {
     await expect(
       setTopicsAutomaticProcessing(projectId, { enabled: true }),
     ).rejects.toThrow("Save the Topics setup");
-  });
-});
-
-describe("pauseTopicsModelsUsingConnection", () => {
-  it("does not mark a switched-off config paused", async () => {
-    const { projectId, connection } = await topicsProject();
-
-    await pauseTopicsModelsUsingConnection({
-      projectId,
-      llmApiKeyId: connection.id,
-      provider: "openai",
-    });
-
-    expect(await storedConfig(projectId)).toMatchObject({
-      enabled: false,
-      ...clearedBlock,
-    });
   });
 });

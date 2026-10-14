@@ -103,9 +103,11 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
             </Link>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {props.actionButtons ?? null}
-        </div>
+        {props.actionButtons ? (
+          <div className="flex flex-wrap items-center gap-3">
+            {props.actionButtons}
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -6,12 +6,12 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=events_only 
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": 2026-01-01T00:00:00.000Z,
+      "param2": "2026-01-01 00:00:00.000",
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM events_core
-WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(3)})",
+WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(6)})",
   },
   {
     "fn": "queryClickhouse",
@@ -23,7 +23,7 @@ WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(3)})"
         "CATEGORICAL",
         "TEXT",
       ],
-      "param3": 2026-01-01T00:00:00.000Z,
+      "param3": "2026-01-01 00:00:00.000",
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
@@ -70,7 +70,7 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=legacy fromT
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": 2026-01-01T00:00:00.000Z,
+      "param2": "2026-01-01 00:00:00.000",
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
@@ -91,7 +91,7 @@ WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(3)})"
         "CATEGORICAL",
         "TEXT",
       ],
-      "param3": 2026-01-01T00:00:00.000Z,
+      "param3": "2026-01-01 00:00:00.000",
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment

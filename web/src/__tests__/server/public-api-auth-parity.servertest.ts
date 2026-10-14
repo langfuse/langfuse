@@ -138,6 +138,14 @@ const projectRoutes: Route[] = [
 const orgRoutes: Route[] = [
   { route: "organizations/apiKeys/index", methods: ["GET"] },
   {
+    route: "organizations/llm-connections/index",
+    methods: ["GET", "PUT"],
+  },
+  {
+    route: "organizations/llm-connections/[id]",
+    methods: ["DELETE"],
+  },
+  {
     route: "organizations/memberships/index",
     methods: ["GET", "PUT", "DELETE"],
   },

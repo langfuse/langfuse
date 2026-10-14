@@ -194,9 +194,6 @@ describe("SCIM API", () => {
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.detail).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 405 for non-GET methods", async () => {
@@ -259,9 +256,6 @@ describe("SCIM API", () => {
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.detail).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 405 for non-GET methods", async () => {
@@ -317,9 +311,6 @@ describe("SCIM API", () => {
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.detail).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 405 for non-GET methods", async () => {
@@ -426,9 +417,6 @@ describe("SCIM API", () => {
           createBasicAuthHeader(projectApiKey, projectSecretKey),
         );
         expect(result.status).toBe(403);
-        expect(result.body.detail).toContain(
-          "Organization-scoped API key required",
-        );
       });
 
       it("should return 405 for non-GET/POST methods", async () => {

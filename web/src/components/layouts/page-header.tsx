@@ -52,7 +52,8 @@ export type PageHeaderProps = {
   tabsProps?: PageTabsProps;
   className?: string;
   /** Bottom border and bottom padding; pages whose own strip follows the
-   * header directly turn both off so title and strip read as one block. */
+   * header directly turn both off so title and strip read as one block.
+   * Page tabs draw their own divider, so the border is skipped when they render. */
   divider?: boolean;
   showSidebarTrigger?: boolean;
   leadingControl?: ReactNode;
@@ -90,7 +91,7 @@ const PageHeader = ({
     <div
       className={cn([
         "top-banner-offset bg-background sticky z-30 w-full",
-        divider && "border-b",
+        divider && !tabsProps && "border-b",
         className,
       ])}
       id="page-header"
