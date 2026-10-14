@@ -1,5 +1,4 @@
-import { useRef, useState } from "react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { type ComponentProps, type ReactNode, useRef, useState } from "react";
 import { skipToken } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
 import { Shapes } from "lucide-react";
@@ -9,6 +8,7 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { Input as NumericInput } from "@/src/components/ui/input";
@@ -53,27 +53,67 @@ const runStatus: Record<
 const isBusy = (status: TopicExecutionStatus) =>
   status === "queued" || status === "running";
 
-/**
- * Header entry point and dialog for rebuilding topics from stored summaries
- * (`topics.trigger` with `operation: "update"`). Facets follow the Topics rule
- * at their latest version, the one automatic processing summarizes with.
- */
-export function useRegenerateTopics({
-  projectId,
-  facets,
-  canWrite,
-  timeRange,
-  executions,
-  onTriggered,
-}: {
+type RegenerateTopicsInput = {
   projectId: string;
   facets: TopicFacet[];
   canWrite: boolean;
   timeRange: TopicTimeRange | null;
   executions: TopicExecutionList | undefined;
+};
+
+/**
+ * Owns the Regenerate topics dialog, which rebuilds topics from stored
+ * summaries (`topics.trigger` with `operation: "update"`). Facets follow the
+ * Topics rule at their latest version, the one automatic processing
+ * summarizes with. Render it around every opener; the mobile menu row
+ * unmounts with its menu, so the controller must not live inside it.
+ */
+export function RegenerateTopicsDialogController({
+  onTriggered,
+  children,
+  ...input
+}: RegenerateTopicsInput & {
   onTriggered: (executionId: string) => void;
+  children: (control: {
+    openDialog: () => void;
+    disabledReason: string | null;
+  }) => ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const regenerate = useRegenerateTopics(input);
+  const { timeRange } = input;
+  return (
+    <DialogController
+      renderDialog={({ closeDialog }) =>
+        timeRange && (
+          <RegenerateTopicsDialogContent
+            facets={regenerate.facets}
+            timeRange={timeRange}
+            lastRun={regenerate.lastRun}
+            disabledReason={regenerate.disabledReason}
+            isSubmitting={regenerate.isSubmitting}
+            submit={regenerate.submit}
+            onDone={(executionId) => {
+              closeDialog();
+              onTriggered(executionId);
+            }}
+          />
+        )
+      }
+    >
+      {({ openDialog }) =>
+        children({ openDialog, disabledReason: regenerate.disabledReason })
+      }
+    </DialogController>
+  );
+}
+
+function useRegenerateTopics({
+  projectId,
+  facets,
+  canWrite,
+  timeRange,
+  executions,
+}: RegenerateTopicsInput) {
   const settings = api.topics.modelSettings.useQuery({ projectId });
   const rules = api.topics.rules.useQuery({ projectId });
   const configured = Boolean(
@@ -128,16 +168,12 @@ export function useRegenerateTopics({
   const lastRun =
     executions?.find((execution) => execution.input.operation === "update") ??
     null;
-  const [error, setError] = useState<string | null>(null);
+  // Survives reopening the dialog so a retried identical request reuses its
+  // requestId and cannot start a second run.
   const request = useRef<{ key: string; id: string } | null>(null);
   const trigger = api.topics.trigger.useMutation();
-  const openDialog = () => {
-    setError(null);
-    setOpen(true);
-  };
   async function submit(values: RegenerateRequest) {
-    if (!timeRange) return;
-    setError(null);
+    if (!timeRange) throw new Error("Select a time range of at most 90 days.");
     const input = {
       projectId,
       operation: "update" as const,
@@ -147,59 +183,53 @@ export function useRegenerateTopics({
     const key = JSON.stringify(input);
     if (request.current?.key !== key)
       request.current = { key, id: crypto.randomUUID() };
-    try {
-      const result = await trigger.mutateAsync({
-        ...input,
-        requestId: request.current.id,
-      });
-      request.current = null;
-      setOpen(false);
-      onTriggered(result.id);
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Could not regenerate topics.",
-      );
-    }
+    const result = await trigger.mutateAsync({
+      ...input,
+      requestId: request.current.id,
+    });
+    request.current = null;
+    return result.id;
   }
+  return {
+    facets: regenerateFacets,
+    lastRun,
+    disabledReason,
+    isSubmitting: trigger.isPending,
+    submit,
+  };
+}
 
-  const action = (
-    <RegenerateTopicsButton
-      disabledReason={disabledReason}
-      onClick={openDialog}
-    />
-  );
-  const menuRow = (closeMenu: () => void) => (
-    <HeaderActionMenuRow
-      label={label}
-      icon={<Shapes className="icon-base text-icon-foreground" />}
-      disabled={disabledReason !== null}
-      disabledReason={disabledReason ?? undefined}
-      onClick={() => {
-        closeMenu();
-        openDialog();
+function RegenerateTopicsDialogContent({
+  submit,
+  onDone,
+  ...props
+}: Omit<
+  ComponentProps<typeof RegenerateTopicsDialog>,
+  "error" | "onSubmit" | "onOpenRun"
+> & {
+  submit: (request: RegenerateRequest) => Promise<string>;
+  onDone: (executionId: string) => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <RegenerateTopicsDialog
+      {...props}
+      error={error}
+      onSubmit={async (values) => {
+        setError(null);
+        try {
+          onDone(await submit(values));
+        } catch (cause) {
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Could not regenerate topics.",
+          );
+        }
       }}
+      onOpenRun={onDone}
     />
   );
-  const dialog = (
-    <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
-      {open && timeRange && (
-        <RegenerateTopicsDialog
-          facets={regenerateFacets}
-          timeRange={timeRange}
-          lastRun={lastRun}
-          disabledReason={disabledReason}
-          isSubmitting={trigger.isPending}
-          error={error}
-          onSubmit={submit}
-          onOpenRun={(executionId) => {
-            setOpen(false);
-            onTriggered(executionId);
-          }}
-        />
-      )}
-    </DialogPrimitive.Root>
-  );
-  return { action, menuRow, dialog };
 }
 
 function ruleFacets(facets: TopicFacet[], rule: TopicRule | null) {
@@ -272,6 +302,24 @@ export function RegenerateTopicsButton({
         </span>
       )}
     </Tooltip>
+  );
+}
+
+export function RegenerateTopicsMenuRow({
+  disabledReason,
+  onClick,
+}: {
+  disabledReason: string | null;
+  onClick: () => void;
+}) {
+  return (
+    <HeaderActionMenuRow
+      label={label}
+      icon={<Shapes className="icon-base text-icon-foreground" />}
+      disabled={disabledReason !== null}
+      disabledReason={disabledReason ?? undefined}
+      onClick={onClick}
+    />
   );
 }
 
