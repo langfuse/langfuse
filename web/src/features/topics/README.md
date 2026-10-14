@@ -45,9 +45,12 @@ project permissions. Processing additionally requires the project allowlist.
   Saving it stores the models, creates the four built-in facets as evaluators
   with a first version, and saves one rule for the filter, idle time, and
   sampling rate. A project can have only one Topics rule.
-  Its last step, Backfill, schedules past traces with the saved setup and does
-  not save the form. It is disabled until automatic processing is on with
-  saved models; the result is shown inline.
+  Run backfill in the page header (and the responsive header menu) opens one
+  dialog owned by `BackfillDialogController`, which passes `openDialog` to each
+  opener. It schedules past traces with the saved models, facets, and rule
+  filter, whether automatic processing is on or off, and ignores the rule's
+  sampling rate. It is disabled until models and the rule are saved, and while
+  Topics is paused or unavailable.
   Process traces or Update topics opens its own run dialog. Overlay owners stay
   outside the responsive header menu. Facet versions contain only prompts;
   processing settings and embedding dimensions are frozen on executions.

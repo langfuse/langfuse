@@ -186,11 +186,16 @@ Stable job IDs limit duplicates.
 
 Topics backfills bypass the readiness map. Web enqueues one
 `trace-batch-backfill` job on the same queue with up to 500 selected traces and
-their whole-trace start bounds. The consumer packs that cohort with
-`selectCohortTraceBatches`, which applies the configured strategy, trace cap,
-weight budgets and locality coalescing the way the dispatcher's final flush
-does, then enqueues ordinary `trace-batch` jobs with stable IDs. Backfilled
-traces carry no size estimates, so weight budgets do not split them.
+their whole-trace start bounds and size estimates (event count and bytes from
+`events_core`). The consumer packs that cohort with `selectCohortTraceBatches`,
+which excludes traces over `LANGFUSE_TRACE_BATCH_MAX_TRACE_*` (recorded as
+`langfuse.trace_batch.excluded_traces`), orders traces by their latest start,
+and applies the configured strategy, trace cap, weight budgets and locality
+coalescing the way the dispatcher's final flush does; in project mode it also
+splits a batch whose read window would exceed the allowed envelope. It then
+enqueues `trace-batch` jobs with `origin: "backfill"` and stable IDs. When trace
+batching is unavailable (not cloud, or reads disabled) the backfill job is
+discarded with a metric and a warning.
 
 Acknowledgement removes due/state only. Late arrivals within first-seen
 retention reopen readiness with the merged historical and incoming minimum and

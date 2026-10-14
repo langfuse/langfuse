@@ -200,16 +200,21 @@ incompatible one, blocks discovery; replace it with **Update topics**. Summaries
 stored while the first map is being fitted stay unassigned until the next
 **Update topics**.
 
-**Backfill** in Configure Topics schedules up to 500 past traces from the last
-seven days through the same jobs (`scheduleTopicBackfill` in
-`@langfuse/shared/topics/server`). It needs automatic processing on with saved
-models; the consumer applies the saved facets and sampling rate. **Latest ready
-traces** takes the newest traces whose last admitted write (`updated_at`) plus
-the project's idle time is in the past and that lack a summary for at least one
-current facet version. **Random traces** samples traces whose root started in
-the window, without readiness or summary checks, so it can summarize a trace
-again. Both read the minimum and maximum start of every observation in the
-trace, so late children stay inside the read window. The `backfill-topic-traces` CLI
+**Run backfill** in the Topics header schedules up to 500 past traces from the
+last seven days through the same jobs (`scheduleTopicBackfill` in
+`@langfuse/shared/topics/server`). It needs saved models and a rule, and is
+refused while Topics is paused; automatic processing may be off. Its trace-batch
+jobs carry `origin: "backfill"`, so the consumer loads models without the
+enabled filter (`getBackfillTopicsModels`) and summarizes every selected trace
+regardless of the rule's sampling rate. **Latest ready traces** takes the newest
+traces whose last admitted write (`updated_at`) plus the project's idle time is
+in the past and that lack a summary for at least one current facet version;
+summarized traces are removed before the candidate cut, so an older backlog is
+still found. **Random traces** samples traces whose root started in the window,
+without readiness or summary checks, so it can summarize a trace again. Both
+read the minimum and maximum start, event count, and event bytes of every
+observation in the trace with no time cutoff, so late children stay inside the
+read window. The `backfill-topic-traces` CLI
 remains a separate per-trace path.
 
 Required for a local run, in addition to Postgres, ClickHouse, and Redis:

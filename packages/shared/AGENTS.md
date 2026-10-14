@@ -95,7 +95,7 @@
     Trace inputs and paid outputs belong outside the execution store.
   - `trace-selection.ts`: shared bounded observation selection for web previews,
     ID-only processing requests and worker backfills; retain identical sampling.
-  - `backfill.ts`: Configure Topics backfill selection. Bounds span every
+  - `backfill.ts`: Run backfill selection. Bounds span every
     observation of a trace, not only roots. It hands traces to the worker as
     one `trace-batch-backfill` job, which the worker packs into trace-batch
     jobs; keep batching worker-owned.
