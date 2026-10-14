@@ -25,9 +25,7 @@ export type RequestInitWithDispatcher = RequestInit & { dispatcher?: unknown };
 export interface OutboundUrlConnectionValidationOptions {
   whitelist?: OutboundUrlValidationWhitelist;
   logContext?: string;
-  // How long one address family may take to connect before the next is
-  // tried. Omitted callers keep Node's default. Undici fixes this when the
-  // Agent is created, so it is part of the pool key below.
+  /** addressAttemptTimeoutMs bounds each connect attempt; omitted callers keep Node's default. */
   addressAttemptTimeoutMs?: number;
 }
 
@@ -181,8 +179,7 @@ function getSecureOutboundDispatcher(
           // This lookup runs at socket connection time, so DNS rebinding between
           // the earlier URL validation and the actual HTTP connection is blocked.
           lookup: createSecureOutboundLookup(validationOptions),
-          // The attempt timeout is only used while autoSelectFamily is on.
-          // Callers that omit it keep Node's 250ms default.
+          /** autoSelectFamilyAttemptTimeout applies only while autoSelectFamily is on. */
           ...(addressAttemptTimeoutMs != null
             ? {
                 autoSelectFamily: true,

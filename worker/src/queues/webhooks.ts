@@ -44,10 +44,8 @@ import { backOff } from "exponential-backoff";
 import { env } from "../env";
 import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
 
-// One second covers a SYN that has to be retransmitted. Node's 250ms default
-// aborts that handshake. Only webhook deliveries opt in; other outbound
-// calls keep Node's default.
-const WEBHOOK_ADDRESS_ATTEMPT_TIMEOUT_MS = 1_000;
+/** WEBHOOK_ADDRESS_ATTEMPT_TIMEOUT_MS lets a retransmitted SYN finish before Node closes the socket. */
+const WEBHOOK_ADDRESS_ATTEMPT_TIMEOUT_MS = 2_000;
 
 // GitHub repository_dispatch client_payload: max 10 top-level properties and <64KB.
 // https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event
