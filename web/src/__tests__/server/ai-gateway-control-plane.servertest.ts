@@ -181,6 +181,46 @@ async function prepare(role: Role = Role.OWNER) {
   };
 }
 
+async function createCallerForOrganizationRole(
+  setup: Awaited<ReturnType<typeof prepare>>,
+  role: Role,
+) {
+  const suffix = randomUUID();
+  const user = await prisma.user.create({
+    data: {
+      email: `gateway-role-${suffix}@example.test`,
+      name: `Gateway ${role.toLowerCase()}`,
+    },
+  });
+  await prisma.organizationMembership.create({
+    data: { orgId: setup.org.id, userId: user.id, role },
+  });
+  cleanupUsers.push(user.id);
+
+  const session: Session = {
+    ...setup.session,
+    user: {
+      ...setup.session.user,
+      id: user.id,
+      name: user.name,
+      organizations: setup.session.user.organizations.map((organization) =>
+        organization.id === setup.org.id
+          ? {
+              ...organization,
+              role,
+              projects: organization.projects.map((project) => ({
+                ...project,
+                role,
+              })),
+            }
+          : organization,
+      ),
+    },
+  };
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+  return appRouter.createCaller({ ...ctx, prisma });
+}
+
 describe("AI gateway control plane", () => {
   it.each([
     {
@@ -263,6 +303,140 @@ describe("AI gateway control plane", () => {
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
     },
   );
+
+  it.each([
+    { adminRole: Role.OWNER, readRole: Role.MEMBER },
+    { adminRole: Role.ADMIN, readRole: Role.VIEWER },
+  ])(
+    "returns the full model catalog to $adminRole and filters disabled models for $readRole",
+    async ({ adminRole, readRole }) => {
+      const setup = await prepare(adminRole);
+      const connection = await setup.caller.aiGateway.createConnection({
+        orgId: setup.org.id,
+        name: "OpenAI",
+        provider: "OPENAI",
+        credential: "sk-test-openai",
+      });
+      await setup.caller.aiGateway.updateConnectionModels({
+        orgId: setup.org.id,
+        id: connection.id,
+        allowedModels: ["enabled-model"],
+        expectedUpdatedAt: connection.updatedAt,
+      });
+      const readCaller = await createCallerForOrganizationRole(setup, readRole);
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        Response.json({
+          data: [
+            { id: "disabled-model", created: 10 },
+            { id: "enabled-model", created: 20 },
+          ],
+        }),
+      );
+
+      try {
+        await expect(
+          setup.caller.aiGateway.refreshModels({ orgId: setup.org.id }),
+        ).resolves.toEqual([
+          {
+            connectionId: connection.id,
+            success: true,
+            models: ["disabled-model", "enabled-model"],
+          },
+        ]);
+        await expect(
+          readCaller.aiGateway.refreshModels({ orgId: setup.org.id }),
+        ).resolves.toEqual([
+          {
+            connectionId: connection.id,
+            success: true,
+            models: ["enabled-model"],
+          },
+        ]);
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    },
+  );
+
+  it("blocks an auto-granted demo organization VIEWER from gateway catalog metadata", async () => {
+    const setup = await prepare();
+    const connection = await setup.caller.aiGateway.createConnection({
+      orgId: setup.org.id,
+      name: "Demo OpenAI",
+      provider: "OPENAI",
+      credential: "sk-demo-openai",
+    });
+    await setup.caller.aiGateway.updateConnectionModels({
+      orgId: setup.org.id,
+      id: connection.id,
+      allowedModels: ["enabled-model"],
+      expectedUpdatedAt: connection.updatedAt,
+    });
+    const viewerCaller = await createCallerForOrganizationRole(
+      setup,
+      Role.VIEWER,
+    );
+    const originalDemoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID;
+    (env as { NEXT_PUBLIC_DEMO_ORG_ID?: string }).NEXT_PUBLIC_DEMO_ORG_ID =
+      setup.org.id;
+
+    try {
+      await expect(
+        viewerCaller.aiGateway.listModelConnections({ orgId: setup.org.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    } finally {
+      (env as { NEXT_PUBLIC_DEMO_ORG_ID?: string }).NEXT_PUBLIC_DEMO_ORG_ID =
+        originalDemoOrgId;
+    }
+  });
+
+  it("blocks an auto-granted demo organization VIEWER from model refresh side effects", async () => {
+    const setup = await prepare();
+    const connection = await setup.caller.aiGateway.createConnection({
+      orgId: setup.org.id,
+      name: "Demo OpenAI",
+      provider: "OPENAI",
+      credential: "sk-demo-openai",
+    });
+    const viewerCaller = await createCallerForOrganizationRole(
+      setup,
+      Role.VIEWER,
+    );
+    const originalDemoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID;
+    (env as { NEXT_PUBLIC_DEMO_ORG_ID?: string }).NEXT_PUBLIC_DEMO_ORG_ID =
+      setup.org.id;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 401 }));
+
+    try {
+      const refreshOutcome = await viewerCaller.aiGateway
+        .refreshModels({ orgId: setup.org.id })
+        .then(
+          () => "fulfilled" as const,
+          () => "rejected" as const,
+        );
+      const storedConnection =
+        await prisma.gatewayAiConnection.findUniqueOrThrow({
+          where: { id: connection.id },
+          select: { status: true },
+        });
+
+      expect({
+        refreshOutcome,
+        providerCalls: fetchSpy.mock.calls.length,
+        connectionStatus: storedConnection.status,
+      }).toEqual({
+        refreshOutcome: "rejected",
+        providerCalls: 0,
+        connectionStatus: "ENABLED",
+      });
+    } finally {
+      fetchSpy.mockRestore();
+      (env as { NEXT_PUBLIC_DEMO_ORG_ID?: string }).NEXT_PUBLIC_DEMO_ORG_ID =
+        originalDemoOrgId;
+    }
+  });
 
   it("stores provider credentials encrypted and never returns them", async () => {
     const { caller, org } = await prepare();
