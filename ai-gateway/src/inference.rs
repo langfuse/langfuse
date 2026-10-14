@@ -100,24 +100,6 @@ impl InferenceService {
         crate::providers::model_list::provider_response(&body, api_format)
     }
 
-    pub(crate) async fn authenticate(
-        &self,
-        gateway_key: &str,
-        api_format: ApiFormat,
-        correlation: &RequestCorrelation,
-    ) -> Result<(), ResolutionError> {
-        let span = tracing::info_span!("authentication", otel.kind = "internal");
-        async {
-            let _permit = self.try_reserve_resolution()?;
-            let _active = crate::observability::Active::new("resolution");
-            self.control_plane
-                .authenticate(gateway_key, api_format, correlation.id())
-                .await
-        }
-        .instrument(span)
-        .await
-    }
-
     /// Authenticate, then reserve execution capacity. The API format comes from the public route,
     /// so Web selects a compatible connection. A successful resolution is recorded even if
     /// execution admission then fails.

@@ -78,8 +78,8 @@ do not load dotenv files:
 | `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
 | `LANGFUSE_LOG_LEVEL`                           | `info`         | `debug`, `info`, `warn`, `error`, `fatal` |
 | `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300                              |
-| `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` | `128` | Positive integer up to Tokio's semaphore capacity; authenticated requests per instance |
-| `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` | `128` | Positive integer up to Tokio's semaphore capacity; separate request-body, model-catalog, and Web-resolution budgets per instance |
+| `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` | `128` | Positive integer up to Tokio's semaphore capacity; buffered and active requests per instance |
+| `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` | `128` | Positive integer up to Tokio's semaphore capacity; separate model-catalog and Web-resolution budgets per instance |
 | `LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES` | `67108864` (64 MiB) | Integer from 4194304 (4 MiB) to 4294967296 (4 GiB); span and credential bytes an instance holds for upload before dropping new records |
 
 The gateway shares `LANGFUSE_LOG_LEVEL` with Web and worker. Values are lowercase;
@@ -200,7 +200,6 @@ has no unattributed wall time:
 
 | Span | Covers |
 | --- | --- |
-| `authentication` | The credential-only `resolver` Web call made before reading the request body |
 | `resolution` | Resolution admission, the `resolver` Web call, and execution admission; `gateway.outcome` is `admitted`, `resolution_failed`, or `busy` |
 | `request.body` | Buffering the caller's request body, mostly upload time; `http.request.body.size` |
 | `request.capture` | Parsing the request for inference telemetry; CPU-bound and proportional to `http.request.body.size` |
@@ -372,11 +371,11 @@ error type follows the status (`authentication_error`, `permission_error`,
 `not_found_error`, `request_too_large`, `invalid_request_error`, `overloaded_error`,
 `api_error`).
 
-After validating the credential header, the gateway authenticates it through Web
-before reading the body. It then buffers and validates the request under a
-request-body admission budget, resolves the model-aware route through Web under a
-separate budget, and holds the body slot through the provider request. Model catalogs
-use another budget so slow catalog discovery cannot block inference resolution.
+After validating the credential header, the gateway buffers and validates the request
+under the active-request admission budget, then resolves the credential and
+model-aware route through Web under a separate budget. It holds the body slot through
+the provider request. Model catalogs use another budget so slow catalog discovery
+cannot block inference resolution.
 Execution capacity remains reserved through response completion. An exhausted budget
 returns 503 immediately without a waiting queue. Request-body and execution budgets
 use the active-request limit; model-catalog and Web-call budgets use the resolution
@@ -823,7 +822,6 @@ async fn example(web_base_url: &str, service_key: &str, gateway_key: &str)
 {
     let control_plane = ControlPlaneClient::new(ControlPlaneConfig::new(web_base_url, service_key)?)?;
     let request_id = "018f47a2-4d6e-7a61-b495-5e5f665c1e12";
-    control_plane.authenticate(gateway_key, ApiFormat::OpenAiResponses, request_id).await?;
     let context = control_plane
         .resolve(gateway_key, ApiFormat::OpenAiResponses, "gpt-4.1", request_id)
         .await?;
@@ -832,9 +830,7 @@ async fn example(web_base_url: &str, service_key: &str, gateway_key: &str)
 }
 ```
 
-Before body processing, inference sends
-`GET <base path>/api/internal/ai-gateway/v1/authenticate?api_format=<format>`.
-After extracting the model it sends
+After extracting the model, inference sends
 `POST <base path>/api/internal/ai-gateway/v1/resolve` with
 `Authorization: Bearer <gateway key>`, the Web v1 HMAC header, and exactly
 `{"apiFormat":"<format>","model":"<model>"}`, where the format is the one the public route serves

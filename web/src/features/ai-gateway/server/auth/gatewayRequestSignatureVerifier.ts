@@ -51,8 +51,6 @@ type GatewayModelsHandler = (
   },
 ) => Promise<unknown>;
 
-type GatewayAuthenticateHandler = GatewayModelsHandler;
-
 function verifyGatewayRequestSignatureAndHashApiKey(input: {
   virtualSecretKey: string;
   gatewayAuthorization: string | undefined;
@@ -123,16 +121,6 @@ export function withGatewayResolveSignatureVerification(
 export function withGatewayModelsSignatureVerification(
   handler: GatewayModelsHandler,
 ) {
-  return withGatewayQuerySignatureVerification(handler);
-}
-
-export function withGatewayAuthenticateSignatureVerification(
-  handler: GatewayAuthenticateHandler,
-) {
-  return withGatewayQuerySignatureVerification(handler);
-}
-
-function withGatewayQuerySignatureVerification(handler: GatewayModelsHandler) {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     setNoStoreHeaders(res);
 

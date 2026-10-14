@@ -219,41 +219,6 @@ async fn fetches_models_from_the_control_plane() {
 }
 
 #[tokio::test]
-async fn authenticates_before_request_body_processing() {
-    let web = FakeWeb::start(|request| async move {
-        assert_eq!(request.method(), "GET");
-        assert_eq!(
-            request.uri(),
-            "/api/internal/ai-gateway/v1/authenticate?api_format=openai.responses"
-        );
-        assert_eq!(
-            request.headers()[header::AUTHORIZATION],
-            "Bearer gw_test_alice"
-        );
-        assert!(
-            request
-                .headers()
-                .contains_key("langfuse-gateway-authorization")
-        );
-        assert_eq!(request.headers()["langfuse-gateway-request-id"], REQUEST_ID);
-        assert!(
-            to_bytes(request.into_body(), 1024)
-                .await
-                .unwrap()
-                .is_empty()
-        );
-        response(json!({}))
-    })
-    .await;
-
-    web.control_plane()
-        .authenticate(GATEWAY_KEY, ApiFormat::OpenAiResponses, REQUEST_ID)
-        .await
-        .unwrap();
-    assert_eq!(web.calls(), 1);
-}
-
-#[tokio::test]
 async fn model_catalogs_have_a_larger_response_limit_than_resolution() {
     let body = "x".repeat(300 * 1024);
     let web = FakeWeb::start(move |_| {

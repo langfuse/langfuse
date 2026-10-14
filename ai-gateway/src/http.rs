@@ -185,10 +185,6 @@ async fn relay(
     if !crate::transport::identity_encoding(request.headers()) {
         return Err(InferenceHttpError::UnsupportedEncoding);
     }
-    inference
-        .authenticate(gateway_key, route.api_format(), correlation)
-        .await
-        .map_err(InferenceHttpError::Resolution)?;
     let _body_permit = inference
         .try_reserve_request_body()
         .map_err(InferenceHttpError::from)?;

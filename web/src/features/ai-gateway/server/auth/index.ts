@@ -1,5 +1,4 @@
 export {
-  withGatewayAuthenticateSignatureVerification,
   withGatewayModelsSignatureVerification,
   withGatewayResolveSignatureVerification,
 } from "./gatewayRequestSignatureVerifier";

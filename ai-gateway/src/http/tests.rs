@@ -13,11 +13,6 @@ use std::{
 use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
 use tower::ServiceExt;
 
-fn authentication_response(request: &Request<Body>) -> Option<Response<Body>> {
-    (request.uri().path() == "/api/internal/ai-gateway/v1/authenticate")
-        .then(|| Response::new(Body::from("{}")))
-}
-
 #[tokio::test]
 async fn control_plane_rejections_do_not_consume_provider_capacity() {
     let web = FakeServer::start(|_| async {
@@ -60,42 +55,6 @@ async fn control_plane_rejections_do_not_consume_provider_capacity() {
         drop(occupied);
     }
     assert_eq!(web.calls(), 2);
-    assert_eq!(provider.calls(), 0);
-}
-
-#[tokio::test]
-async fn invalid_credentials_are_rejected_before_reading_the_request_body() {
-    let web = FakeServer::start(|_| async {
-        Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .body(Body::empty())
-            .unwrap()
-    })
-    .await;
-    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
-    let body_polled = Arc::new(AtomicBool::new(false));
-    let observed = body_polled.clone();
-    let body = Body::from_stream(stream::once(async move {
-        observed.store(true, Ordering::SeqCst);
-        Ok::<_, Infallible>(Bytes::from_static(br#"{"model":"Production key:test"}"#))
-    }));
-
-    let response = gateway
-        .app
-        .clone()
-        .oneshot(
-            Request::post("/openai/v1/responses")
-                .header(header::AUTHORIZATION, "Bearer invalid-key")
-                .body(body)
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    assert!(!body_polled.load(Ordering::SeqCst));
-    assert_eq!(web.calls(), 1);
     assert_eq!(provider.calls(), 0);
 }
 
@@ -186,7 +145,7 @@ async fn resolution_capacity_is_bounded_and_released_on_cancellation_and_failure
         .unwrap();
         assert_eq!(response.status(), status);
     }
-    assert_eq!(web.calls(), 4);
+    assert_eq!(web.calls(), 3);
     assert_eq!(provider.calls(), 1);
 }
 
@@ -261,7 +220,7 @@ async fn slow_body_reads_do_not_consume_resolution_capacity() {
         .await
         .unwrap();
     assert_eq!(models.status(), StatusCode::OK);
-    assert_eq!(web.calls(), 3);
+    assert_eq!(web.calls(), 1);
     assert_eq!(provider.calls(), 0);
     drop(held);
     let response = gateway
@@ -276,7 +235,7 @@ async fn slow_body_reads_do_not_consume_resolution_capacity() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(web.calls(), 5);
+    assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 1);
 }
 
@@ -343,7 +302,7 @@ async fn slow_model_catalogs_do_not_consume_resolution_capacity() {
         .await
         .unwrap();
     assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE);
-    assert_eq!(web.calls(), 3);
+    assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 1);
     drop(held);
 }
@@ -450,9 +409,6 @@ fn assert_pre_upstream_headers(headers: &reqwest::header::HeaderMap, resolved: b
 )]
 async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() {
     let web = FakeServer::start(|request| async move {
-        if let Some(response) = authentication_response(&request) {
-            return response;
-        }
         if request.headers().get(header::AUTHORIZATION)
             == Some(&header::HeaderValue::from_static("Bearer valid"))
         {
@@ -565,9 +521,6 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
 #[tokio::test]
 async fn resolved_requests_name_their_tenant_and_the_provider_connection_sent_to() {
     let web = FakeServer::start(|request| async move {
-        if let Some(response) = authentication_response(&request) {
-            return response;
-        }
         let body = to_bytes(request.into_body(), 1024).await.unwrap();
         let api_format =
             serde_json::from_slice::<serde_json::Value>(&body).unwrap()["apiFormat"].clone();
@@ -643,9 +596,6 @@ fn inference(web: &FakeServer, provider: &FakeServer) -> InferenceService {
 #[tokio::test]
 async fn native_json_and_sse_traverse_resolution_and_relay() {
     let web = FakeServer::start(|request| async move {
-        if let Some(response) = authentication_response(&request) {
-            return response;
-        }
         assert_eq!(request.uri(), "/api/internal/ai-gateway/v1/resolve");
         assert!(
             request
@@ -724,7 +674,7 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
         sse.text().await.unwrap(),
         "event: arbitrary\ndata: hello\n\n"
     );
-    assert_eq!(web.calls(), 4);
+    assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 2);
 }
 
@@ -791,7 +741,7 @@ async fn compact_rewrites_model_and_models_come_from_the_control_plane() {
         models.text().await.unwrap(),
         r#"{"object":"list","data":[{"id":"Production key:gpt-4.1","object":"model","created":10,"owned_by":"openai"}]}"#
     );
-    assert_eq!(web.calls(), 3);
+    assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 1);
 }
 
@@ -905,7 +855,7 @@ async fn malformed_credentials_skip_resolution_and_oversized_body_releases_capac
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
-    assert_eq!(web.calls(), 1);
+    assert_eq!(web.calls(), 0);
     assert_eq!(provider.calls(), 0);
     let next = gateway
         .post()
@@ -915,7 +865,7 @@ async fn malformed_credentials_skip_resolution_and_oversized_body_releases_capac
         .await
         .unwrap();
     assert_eq!(next.status(), StatusCode::OK);
-    assert_eq!(web.calls(), 3);
+    assert_eq!(web.calls(), 1);
     assert_eq!(provider.calls(), 1);
 }
 
@@ -971,7 +921,7 @@ async fn requests_without_a_model_are_rejected_before_resolution() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body: serde_json::Value = serde_json::from_slice(&response.bytes().await.unwrap()).unwrap();
     assert_eq!(body["error"]["code"], "invalid_body");
-    assert_eq!(web.calls(), 1);
+    assert_eq!(web.calls(), 0);
     assert_eq!(provider.calls(), 0);
 }
 
@@ -1256,9 +1206,6 @@ async fn chat_completion_resolution_server(
     FakeServer::start(move |request| {
         let resolved = resolved.clone();
         async move {
-            if let Some(response) = authentication_response(&request) {
-                return response;
-            }
             let id = request.headers()["langfuse-gateway-request-id"]
                 .to_str()
                 .unwrap()
@@ -1355,7 +1302,7 @@ async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
             .status(),
         StatusCode::SERVICE_UNAVAILABLE
     );
-    assert_eq!(web.calls(), 4);
+    assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 1);
     gateway.shutdown.take().unwrap().send(()).unwrap();
     assert!(!gateway.task.is_finished());
@@ -1435,9 +1382,6 @@ fn anthropic_gateway_key(request: &Request<Body>) -> Option<String> {
 #[tokio::test]
 async fn anthropic_messages_accept_either_credential_header_and_relay_native_sse() {
     let web = FakeServer::start(|request| async move {
-        if let Some(response) = authentication_response(&request) {
-            return response;
-        }
         let key = anthropic_gateway_key(&request).unwrap();
         assert_eq!(
             to_bytes(request.into_body(), 1024).await.unwrap(),
@@ -1500,7 +1444,7 @@ async fn anthropic_messages_accept_either_credential_header_and_relay_native_sse
         assert!(body.starts_with("event: message_start\n"));
         assert!(body.ends_with("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"));
     }
-    assert_eq!(web.calls(), 6);
+    assert_eq!(web.calls(), 3);
     assert_eq!(provider.calls(), 3);
 }
 
@@ -1652,9 +1596,6 @@ async fn openai_routes_ignore_x_api_key_and_keep_their_envelope() {
 #[tokio::test]
 async fn chat_completions_resolve_their_own_format_and_relay_native_json_and_errors() {
     let web = FakeServer::start(|request| async move {
-        if let Some(response) = authentication_response(&request) {
-            return response;
-        }
         let request: serde_json::Value =
             serde_json::from_slice(&to_bytes(request.into_body(), 1024).await.unwrap()).unwrap();
         assert_eq!(request["apiFormat"], "openai.chat-completions");
@@ -1725,7 +1666,7 @@ async fn chat_completions_resolve_their_own_format_and_relay_native_json_and_err
     assert_eq!(missing.status(), StatusCode::UNAUTHORIZED);
     let body: serde_json::Value = serde_json::from_str(&missing.text().await.unwrap()).unwrap();
     assert_eq!(body["error"]["type"], "authentication_error");
-    assert_eq!(web.calls(), 4);
+    assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 2);
 }
 
