@@ -10,6 +10,10 @@ import {
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
+import {
+  applyIngestionMasking,
+  isIngestionMaskingEnabled,
+} from "@langfuse/shared/src/server/ee/ingestionMasking";
 import { env } from "../../env";
 import * as otelPreparation from "../../features/otel-ingestion/prepareOtelBatch";
 import * as mediaRestoration from "../../features/otel-media/resolveExtractedMedia";
@@ -35,6 +39,20 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   getS3EventStorageClient: vi.fn(),
   markProjectIngestFailure: vi.fn(),
 }));
+vi.mock(
+  "@langfuse/shared/src/server/ee/ingestionMasking",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("@langfuse/shared/src/server/ee/ingestionMasking")
+      >();
+    return {
+      ...actual,
+      isIngestionMaskingEnabled: vi.fn(actual.isIngestionMaskingEnabled),
+      applyIngestionMasking: vi.fn(actual.applyIngestionMasking),
+    };
+  },
+);
 vi.mock(
   "../../features/evaluation/observationEval",
   async (importOriginal) => ({
@@ -410,6 +428,42 @@ describe("stored OTLP export bodies", () => {
       }
     },
   );
+
+  it("keeps ids readable when a plain Uint8Array download goes through masking", async () => {
+    vi.mocked(getS3EventStorageClient).mockReturnValue({
+      downloadBytes: vi.fn().mockResolvedValue(new Uint8Array(storedBody)),
+    } as unknown as ReturnType<typeof getS3EventStorageClient>);
+    vi.mocked(isIngestionMaskingEnabled).mockReturnValue(true);
+    // A callback that returns its input unchanged, after the JSON round trip.
+    vi.mocked(applyIngestionMasking).mockImplementation(async ({ data }) => ({
+      success: true,
+      data: JSON.parse(JSON.stringify(data)),
+    }));
+    const stop = new Error("stop after masking");
+    const processToIngestionEvents = vi
+      .spyOn(OtelIngestionProcessor.prototype, "processToIngestionEvents")
+      .mockRejectedValue(stop);
+
+    try {
+      await expect(
+        otelIngestionQueueProcessorBuilder(false)(job, undefined),
+      ).rejects.toBe(stop);
+
+      const [resourceSpans] = processToIngestionEvents.mock.calls[0]!;
+      const span: any = resourceSpans[0]!.scopeSpans[0]!.spans[0]!;
+      // OtelIngestionProcessor.parseId reads ids this way.
+      const traceId = span.traceId?.data ?? span.traceId;
+      const spanId = span.spanId?.data ?? span.spanId;
+      expect(Buffer.from(traceId).toString("hex")).toBe("01".repeat(16));
+      expect(Buffer.from(spanId).toString("hex")).toBe("02".repeat(8));
+    } finally {
+      vi.restoreAllMocks();
+      vi.mocked(isIngestionMaskingEnabled).mockReset();
+      vi.mocked(applyIngestionMasking).mockReset();
+      vi.mocked(getS3EventStorageClient).mockReset();
+      vi.mocked(markProjectIngestFailure).mockClear();
+    }
+  });
 });
 
 describe("isOrgPastOtelDirectWriteCutoff", () => {
