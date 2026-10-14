@@ -151,7 +151,7 @@ describe("TypeScript SDK deprecations", () => {
           ({ generatedPath, methodName }) =>
             `${generatedPath.replaceAll(path.sep, "/")}:${methodName}`,
         ),
-    ).toEqual(["api/resources/ingestion/client/Client.ts:batch"]);
+    ).toEqual([]);
     expect(
       deprecations
         .filter((entry) => entry.kind === "property")

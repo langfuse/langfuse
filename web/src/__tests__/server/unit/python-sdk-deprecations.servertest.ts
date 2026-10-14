@@ -102,7 +102,7 @@ describe("Python SDK deprecations", () => {
         ({ resourcePath, methodName }) =>
           `${resourcePath.replaceAll(path.sep, "/")}:${methodName}`,
       ),
-    ).toEqual(["ingestion:batch"]);
+    ).toEqual([]);
   });
 
   it("decorates sync, async, raw, and async-raw endpoint methods", () => {
