@@ -111,13 +111,38 @@ export function rewriteReferences(file, text, moves, options, host = ts.sys) {
   };
   /** @type {{start: number, end: number, text: string}[]} */
   const edits = [];
+  /** Resolve extensionless imports when a plan moves an individual source file. */
+  /** @param {string} value @param {string} target */
+  const relocateReference = (value, target) => {
+    const direct = relocatePath(target, moves);
+    if (direct !== target) return direct;
+    const resolved = ts.resolveModuleName(
+      value,
+      resolve(webRoot, file),
+      options,
+      host,
+    ).resolvedModule;
+    if (!resolved) return target;
+    const resolvedPath = posix(relative(webRoot, resolved.resolvedFileName));
+    let moved = relocatePath(resolvedPath, moves);
+    if (moved === resolvedPath) return target;
+    // Keep the caller's extension and directory-index import convention.
+    const extension = /(?:\.d)?\.[cm]?[jt]sx?$/.exec(resolvedPath)?.[0];
+    if (extension && !value.endsWith(extension)) {
+      const importExtension = /\.[cm]?[jt]sx?$/.exec(value)?.[0] ?? "";
+      moved = moved.slice(0, -extension.length) + importExtension;
+      if (resolvedPath === `${target}/index${extension}`)
+        moved = moved.replace(/\/index$/, "");
+    }
+    return moved;
+  };
   /** @param {import('@typescript/typescript6').Node} node */
   const visit = (node) => {
     if (ts.isStringLiteralLike(node)) {
       const value = node.text;
       let rewritten = value;
       if (value.startsWith("@/")) {
-        rewritten = "@/" + relocatePath(value.slice(2), moves);
+        rewritten = "@/" + relocateReference(value, value.slice(2));
       } else if (value.startsWith("src/")) {
         rewritten = relocatePath(value, moves);
       } else if (value.startsWith("/src/")) {
@@ -136,7 +161,7 @@ export function rewriteReferences(file, text, moves, options, host = ts.sys) {
           host,
         ).resolvedModule;
         // Globs and CSS/assets can have no TypeScript module resolution.
-        const movedTarget = relocatePath(target, moves);
+        const movedTarget = relocateReference(value, target);
         if (
           resolved ||
           host.fileExists(resolve(webRoot, target)) ||

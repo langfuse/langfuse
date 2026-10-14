@@ -230,7 +230,7 @@ export function rule20(modules) {
   const entry = (p) =>
     /^(?:src\/pages|src\/app\/api|app|pages)\//.test(p) || // Next.js routing entries
     /^(?:src\/)?(middleware|instrumentation|env)/.test(p) ||
-    /^src\/workers\//.test(p) || // loaded via `new Worker(url)` — invisible to the graph
+    /^src\/(?:app\/)?workers\//.test(p) || // loaded via `new Worker(url)` — invisible to the graph
     /(^|\/)scripts\//.test(p) || // package.json script entrypoints
     /\.d\.ts$/.test(p);
   return modules
@@ -605,8 +605,9 @@ export function rule13(files) {
   return files
     .filter(
       (f) =>
-        /^(?:src\/components|src\/app\/components)\/ui\//.test(f) &&
-        !isTestish(f),
+        /^(?:(?:src\/components|src\/app\/components)\/ui|src\/app\/design-system\/legacy-primitives)\//.test(
+          f,
+        ) && !isTestish(f),
     )
     .map((f) => v(f, f));
 }

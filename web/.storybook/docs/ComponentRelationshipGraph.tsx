@@ -9,7 +9,11 @@ import { Button } from "@/src/app/design-system/Button/Button";
 import { buildComponentRelationshipGraph } from "./componentRelationshipData";
 
 const sourceModules = import.meta.glob(
-  "../../src/app/design-system/**/*.{ts,tsx}",
+  [
+    "../../src/app/design-system/**/*.{ts,tsx}",
+    "!../../src/app/design-system/legacy-primitives/**/*.{ts,tsx}",
+    "!../../src/app/design-system/animation-primitives/**/*.{ts,tsx}",
+  ],
   {
     query: "?raw",
     import: "default",

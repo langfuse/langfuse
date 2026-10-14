@@ -8,6 +8,7 @@ import {
   rule9,
   rule10,
   rule12,
+  rule13,
   rule19,
   rule20,
   pageOwnedFeatureSlug,
@@ -186,6 +187,31 @@ test("root Next route handlers are server contexts and app shell modules are not
       graphModule("src/app/search/orphan.ts"),
     ]).length,
     1,
+  );
+});
+
+test("frozen legacy primitives retain their findings after relocation", () => {
+  const primitive = "src/app/design-system/legacy-primitives/button.tsx";
+  assert.deepEqual(
+    rule13([
+      primitive,
+      "src/app/design-system/legacy-primitives/button.clienttest.tsx",
+      "src/app/design-system/Button/Button.tsx",
+      "src/app/design-system/animation-primitives/rainbow-button.tsx",
+    ]).map(({ key }) => key),
+    [primitive],
+  );
+});
+
+test("relocated worker entrypoints do not hide unrelated orphan modules", () => {
+  const orphan = "src/app/search/orphan.ts";
+  assert.deepEqual(
+    rule20([
+      graphModule("src/app/workers/json-parser.worker.ts"),
+      graphModule("src/workers/legacy.worker.ts"),
+      graphModule(orphan),
+    ]).map(({ key }) => key),
+    [orphan],
   );
 });
 

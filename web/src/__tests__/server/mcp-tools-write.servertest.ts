@@ -41,6 +41,7 @@ vi.mock(
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import {
   createInAppAgentMcpContext,
   createMcpTestSetup,
@@ -2112,7 +2113,9 @@ describe("MCP Write Tools", () => {
       if (testCase.expectForbidden) {
         await expect(update).rejects.toMatchObject({
           name: "McpError",
-          message: expect.stringContaining("Access forbidden"),
+          code: ErrorCode.InvalidRequest,
+          message:
+            "MCP error -32600: You don't have permission to add a protected label to a prompt. Please contact your project admin for assistance.\n\n Protected labels are: production",
         });
 
         const prompt = await prisma.prompt.findFirst({
@@ -2161,7 +2164,8 @@ describe("MCP Write Tools", () => {
         ),
       ).rejects.toMatchObject({
         name: "McpError",
-        message: expect.stringContaining("Access forbidden"),
+        code: ErrorCode.InvalidRequest,
+        message: `MCP error -32600: You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabel}`,
       });
 
       await expect(
@@ -2202,7 +2206,9 @@ describe("MCP Write Tools", () => {
         ),
       ).rejects.toMatchObject({
         name: "McpError",
-        message: expect.stringContaining("Access forbidden"),
+        code: ErrorCode.InvalidRequest,
+        message:
+          "MCP error -32600: You don't have permission to add a protected label to a prompt. Please contact your project admin for assistance.\n\n Protected labels are: production",
       });
     });
   });

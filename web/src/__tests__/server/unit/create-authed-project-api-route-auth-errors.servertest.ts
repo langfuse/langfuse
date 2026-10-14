@@ -2,8 +2,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { z } from "zod";
 import type * as PrismaClientModule from "@prisma/client";
+import type * as StructuredPublicApiErrorContract from "@/src/public-api/server/structuredPublicApiErrorContract";
 
 const {
+  mockAuthenticate,
   mockVerifyAuthHeaderAndReturnScope,
   mockIsPrismaException,
   mockRateLimitRequest,
@@ -17,6 +19,7 @@ const {
   mockSendStructuredPublicApiErrorResponse,
   mockEnv,
 } = vi.hoisted(() => ({
+  mockAuthenticate: vi.fn(),
   mockVerifyAuthHeaderAndReturnScope: vi.fn(),
   mockIsPrismaException: vi.fn(),
   mockRateLimitRequest: vi.fn(),
@@ -40,10 +43,15 @@ const {
   mockSendStructuredPublicApiErrorResponse: vi.fn(),
   mockEnv: {
     NODE_ENV: "test",
+    API_AUTH_MIGRATION: "legacy" as "legacy" | "enforce",
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined as string | undefined,
     LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED: "false" as "true" | "false",
     LANGFUSE_API_ORGANIZATION_CUTOFF_DATE: "2026-09-16T00:00:00.000Z",
   },
+}));
+
+vi.mock("@/src/public-api/project-api-keys/server", () => ({
+  authenticator: { authenticate: mockAuthenticate },
 }));
 
 vi.mock("@/src/public-api/server/apiAuth", () => ({
@@ -146,6 +154,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEnv.API_AUTH_MIGRATION = "legacy";
     mockIsPrismaException.mockReturnValue(false);
     mockRateLimitRequest.mockResolvedValue({
       isRateLimited: () => false,
@@ -342,6 +351,64 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(res.statusCode).toBe(200);
     expect(mockFindOrganization).not.toHaveBeenCalled();
   });
+
+  it.each([false, true])(
+    "preserves the required permission in enforce-mode 403 responses with structured=%s",
+    async (useStructuredErrorContract) => {
+      mockEnv.API_AUTH_MIGRATION = "enforce";
+      mockAuthenticate.mockResolvedValueOnce({
+        success: true,
+        context: {
+          principal: {
+            kind: "apiKey",
+            apiKeyId: "api-key-1",
+            publicKey: "pk-test",
+            userId: null,
+            isInAppAgentKey: false,
+            scope: "PROJECT",
+            presentation: "privateKey",
+            boundResource: { orgId: "org-1", projectId: "project-1" },
+            organizations: [
+              {
+                orgId: "org-1",
+                projectIds: ["project-1"],
+                organizationCreatedAt: "2026-09-16T00:00:00.000Z",
+                plan: "cloud:hobby",
+                rateLimitOverrides: [],
+                isIngestionSuspended: false,
+              },
+            ],
+          },
+          policies: [],
+        },
+      });
+      if (useStructuredErrorContract) {
+        const contract = await vi.importActual<
+          typeof StructuredPublicApiErrorContract
+        >("@/src/public-api/server/structuredPublicApiErrorContract");
+        mockCreateStructuredPublicApiAuthError.mockImplementationOnce(
+          contract.createStructuredPublicApiAuthError,
+        );
+        mockSendStructuredPublicApiErrorResponse.mockImplementationOnce(
+          contract.sendStructuredPublicApiErrorResponse,
+        );
+      }
+
+      const res = await callRoute({ useStructuredErrorContract });
+
+      expect(res.statusCode).toBe(403);
+      expect(res._getJSONData()).toEqual({
+        message:
+          'Access denied. The "project:read" permission is required to access this resource.',
+        ...(useStructuredErrorContract
+          ? { code: "access_denied" }
+          : { error: "ForbiddenError" }),
+      });
+      expect(mockAuthenticate).toHaveBeenCalledOnce();
+      expect(mockVerifyAuthHeaderAndReturnScope).not.toHaveBeenCalled();
+      expect(mockRateLimitRequest).not.toHaveBeenCalled();
+    },
+  );
 
   it("returns 401 for invalid credentials", async () => {
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({

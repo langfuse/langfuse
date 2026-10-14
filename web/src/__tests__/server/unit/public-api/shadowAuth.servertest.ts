@@ -53,6 +53,7 @@ vi.mock("@/src/public-api/server/shadowAuthDiff", async (importOriginal) => ({
 }));
 
 import { shadowAuth, shadowAuthorize } from "@/src/public-api/server";
+import { authorizeBlobStorageRequest } from "@/src/data-export/object-storage/authorizeBlobStorageRequest";
 import { type AuthorizationContext } from "@/src/identity/auth/policy/types";
 
 const mappedFields = {
@@ -117,8 +118,7 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
     it("403s a non-org key, leaving the body to the route", async () => {
       legacyProjectKey();
       expect(await call()).toMatchObject({
-        success: false,
-        error: { httpCode: 403, message: "Forbidden" },
+        error: { httpCode: 403 },
       });
     });
   });
@@ -212,6 +212,37 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
         expect(result.error).toBeInstanceOf(ErrorClass);
         expect(error.message).toBe(diagnostic);
         expect(JSON.stringify(log.mock.calls)).toContain(diagnostic);
+      },
+    );
+
+    it("preserves the required permission through blob-storage authorization", async () => {
+      const error = new ForbiddenError(
+        'Access denied. The "projects:read" permission is required to access this resource.',
+      );
+      mockEnforceAuth.mockResolvedValue({ success: false, error });
+
+      await expect(authorizeBlobStorageRequest(req)).rejects.toBe(error);
+    });
+
+    it.each([
+      { name: "500", ErrorClass: InternalServerError },
+      { name: "503", ErrorClass: ServiceUnavailableError },
+    ])(
+      "preserves sanitized $name errors through blob-storage authorization",
+      async ({ ErrorClass }) => {
+        vi.spyOn(logger, "error").mockImplementation(() => logger);
+        mockEnforceAuth.mockResolvedValue({
+          success: false,
+          error: new ErrorClass(
+            "database host private-db:5432 rejected lookup",
+          ),
+        });
+
+        await expect(authorizeBlobStorageRequest(req)).rejects.toMatchObject({
+          name: new ErrorClass().name,
+          httpCode: new ErrorClass().httpCode,
+          message: new ErrorClass().message,
+        });
       },
     );
 
@@ -701,7 +732,7 @@ describe("the migration-mode gate reads a declared env var", () => {
     );
 
   it("reads only env keys env.mjs declares", () => {
-    const seam = source("features/public-api/server/shadowAuth.ts");
+    const seam = source("public-api/server/shadowAuth.ts");
     const schema = source("env.mjs");
     const keys = [...seam.matchAll(/\benv\.([A-Z][A-Z0-9_]*)/g)].map(
       (match) => match[1],

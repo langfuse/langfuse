@@ -216,14 +216,21 @@ describe("MCP Error Formatting", () => {
         expect(mcpError.message).toContain("Invalid credentials");
       });
 
-      it("should format ForbiddenError with permission message", () => {
-        const error = new ForbiddenError("Access denied");
-        const mcpError = formatErrorForUser(error);
+      it.each([
+        ["Access denied", "MCP error -32600: Access denied"],
+        [
+          undefined,
+          "MCP error -32600: Access denied. You do not have permission to access this resource.",
+        ],
+      ])(
+        "preserves the ForbiddenError message: %s",
+        (description, expectedMessage) => {
+          const mcpError = formatErrorForUser(new ForbiddenError(description));
 
-        expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
-        expect(mcpError.message).toContain("forbidden");
-        expect(mcpError.message).toContain("permission");
-      });
+          expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
+          expect(mcpError.message).toBe(expectedMessage);
+        },
+      );
 
       it("should format LangfuseNotFoundError with original message", () => {
         const error = new LangfuseNotFoundError("Prompt not found: chatbot");

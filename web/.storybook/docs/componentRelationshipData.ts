@@ -13,6 +13,7 @@ const DESIGN_SYSTEM_ALIAS = "@/src/app/design-system/";
 const SOURCE_FILE_PATTERN = /\.(?:ts|tsx)$/;
 const NON_COMPONENT_FILE_PATTERN =
   /\.(?:stories|clienttest|servertest|test|spec)\.(?:ts|tsx)$/;
+const PRIMITIVE_PATH_PATTERN = /^(?:legacy-primitives|animation-primitives)\//;
 const STATIC_IMPORT_PATTERN =
   /(?:import|export)\s+(?:type\s+)?(?:[^;"']*?\s+from\s+)?["']([^"']+)["']/g;
 
@@ -86,6 +87,7 @@ export function buildComponentRelationshipGraph(
     const relativePath = relativeDesignSystemPath(path);
     if (
       relativePath === null ||
+      PRIMITIVE_PATH_PATTERN.test(relativePath) ||
       !SOURCE_FILE_PATTERN.test(relativePath) ||
       NON_COMPONENT_FILE_PATTERN.test(relativePath)
     ) {

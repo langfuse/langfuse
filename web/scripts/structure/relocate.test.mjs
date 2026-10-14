@@ -94,3 +94,36 @@ test("CSS references and Tailwind scan roots follow stylesheet moves", () => {
     '@import "tailwindcss" source("../..");\n@source "../../../node_modules/example";',
   );
 });
+
+test("individual file moves preserve extensionless relative and alias targets", () => {
+  const fileMoves = [
+    { from: "src/helpers/format.ts", to: "src/formatting/format.ts" },
+    { from: "src/helpers/index.ts", to: "src/formatting/index.ts" },
+  ];
+  const host = {
+    /** @param {string} path */
+    fileExists: (path) =>
+      path.endsWith("/src/helpers/format.ts") ||
+      path.endsWith("/src/helpers/index.ts"),
+    readFile: () => "export {}",
+    directoryExists: () => true,
+  };
+  const webRoot = new URL("../../", import.meta.url).pathname;
+  const options = { baseUrl: webRoot, paths: { "@/*": ["./*"] } };
+  const source =
+    'import { f } from "./helpers/format";\nexport { f } from "@/src/helpers/format";\nvi.mock("@/src/helpers");\nconst data = "./helpers/format";';
+  assert.equal(
+    rewriteReferences("src/consumer.ts", source, fileMoves, options, host),
+    'import { f } from "./formatting/format";\nexport { f } from "@/src/formatting/format";\nvi.mock("@/src/formatting");\nconst data = "./helpers/format";',
+  );
+  assert.equal(
+    rewriteReferences(
+      "src/consumer.ts",
+      'import { f } from "./helpers/format.js";',
+      fileMoves,
+      options,
+      host,
+    ),
+    'import { f } from "./formatting/format.js";',
+  );
+});

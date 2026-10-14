@@ -76,6 +76,19 @@ describe("buildComponentRelationshipGraph", () => {
     expect(graph.edges).toEqual([]);
   });
 
+  it("excludes relocated legacy and animation primitives from nodes and edges", () => {
+    const graph = buildComponentRelationshipGraph({
+      "../../src/app/design-system/Button/Button.tsx":
+        'import { Button } from "../legacy-primitives/button";',
+      "../../src/app/design-system/legacy-primitives/button.tsx": "export {};",
+      "../../src/app/design-system/animation-primitives/rainbow-button.tsx":
+        'import { Button } from "../Button/Button";',
+    });
+
+    expect(graph.nodes.map(({ id }) => id)).toEqual(["Button"]);
+    expect(graph.edges).toEqual([]);
+  });
+
   it("groups new lowercase top-level directories automatically", () => {
     const graph = buildComponentRelationshipGraph({
       "../../src/app/design-system/utilities/formatLabel.ts": "export {};",

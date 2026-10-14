@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — DO NOT EDIT.
  *
- * Bundled from src/workers/json-parser.worker.ts by scripts/build-json-parser-worker.mjs.
+ * Bundled from src/app/workers/json-parser.worker.ts by scripts/build-json-parser-worker.mjs.
  * Regenerate with: pnpm --filter web run build:json-parser-worker
  */
 

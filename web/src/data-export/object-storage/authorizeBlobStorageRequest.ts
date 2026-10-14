@@ -1,10 +1,10 @@
 import { type NextApiRequest } from "next";
 
-import { ForbiddenError, UnauthorizedError } from "@langfuse/shared";
+import { ForbiddenError } from "@langfuse/shared";
 import { type ApiAccessScope } from "@langfuse/shared/src/server";
 
 import { hasEntitlementBasedOnPlan } from "@/src/entitlements/server";
-import { shadowAuth, ErrorOrgApiKeyRequired } from "@/src/public-api/server";
+import { shadowAuth } from "@/src/public-api/server";
 
 /** authorizeBlobStorageRequest gates a blob-storage request on an organization key and the blob-export entitlement, returning the verified scope. */
 export async function authorizeBlobStorageRequest(
@@ -16,10 +16,7 @@ export async function authorizeBlobStorageRequest(
     allowedAccessLevels: ["organization"],
   });
   if (!authCheck.success) {
-    if (authCheck.error.httpCode === 401) {
-      throw new UnauthorizedError(authCheck.error.message);
-    }
-    throw new ForbiddenError(ErrorOrgApiKeyRequired);
+    throw authCheck.error;
   }
   if (
     !hasEntitlementBasedOnPlan({

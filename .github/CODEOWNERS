@@ -3,6 +3,8 @@
 
 # Design system
 /web/src/app/design-system/ @bezbac
+/web/src/app/design-system/legacy-primitives/
+/web/src/app/design-system/animation-primitives/
 /web/.storybook/ @bezbac
 
 # ESLint

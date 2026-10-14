@@ -93,6 +93,10 @@ jobs:
                 path.startsWith("web/.storybook/") ||
                 path.startsWith("web/src/app/components/") ||
                 path.startsWith("web/src/app/design-system/") ||
+                path.startsWith("web/src/app/tables/common-components/") ||
+                path.startsWith("web/src/app/shell/navigation/shared-components/") ||
+                path.startsWith("web/src/app/shell/layouts/") ||
+                path.startsWith("web/src/app/onboarding/shared-components/") ||
                 (path.startsWith("web/src/") &&
                   path.includes("/components/")) ||
                 path === "web/src/app/styles/globals.css" ||

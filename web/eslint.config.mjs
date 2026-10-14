@@ -114,7 +114,7 @@ export default [
   },
   {
     name: "langfuse/web/no-abstracted-overlay-trigger",
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["{src,pages,app}/**/*.{ts,tsx}"],
     ignores: [
       "src/**/*.clienttest.{ts,tsx}",
       "src/**/*.servertest.{ts,tsx}",
@@ -241,7 +241,7 @@ export default [
 
   {
     name: "langfuse/web/no-unnecessary-cn",
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["{src,pages,app}/**/*.{ts,tsx}"],
     rules: {
       "@repo/no-unnecessary-cn": [
         "warn",
@@ -252,7 +252,7 @@ export default [
 
   {
     name: "langfuse/web/require-title-with-truncate",
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["{src,pages,app}/**/*.{ts,tsx}"],
     ignores: ["src/**/*.stories.{ts,tsx}"],
     rules: {
       "@repo/require-title-with-truncate": [
@@ -270,7 +270,7 @@ export default [
   // file-level eslint-disable; do not add new ones.
   {
     name: "langfuse/web/no-null-render",
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["{src,pages,app}/**/*.{ts,tsx}"],
     ignores: [
       "src/__tests__/**",
       "src/__e2e__/**",
@@ -301,7 +301,7 @@ export default [
   // styling themselves.
   {
     name: "langfuse/web/no-style-props",
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["{src,pages,app}/**/*.{ts,tsx}"],
     ignores: [
       "src/__tests__/**",
       "src/__e2e__/**",
@@ -472,7 +472,7 @@ export default [
   // theming.
   {
     name: "langfuse/web/design-tokens",
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["{src,pages,app}/**/*.{ts,tsx}"],
     rules: {
       "@repo/no-raw-font-weight": "error",
       // Raw sizes of 40px and above are illustrations; the rule allows them by size.
@@ -499,7 +499,7 @@ export default [
   // final word on the nine `ui/*` primitive files (flat-config last-match wins).
   {
     name: "langfuse/web/overlay-content-no-zindex-escape",
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["{src,pages,app}/**/*.{ts,tsx}"],
     rules: {
       "@repo/no-overlay-zindex": ["error", { mode: "overlay-content" }],
     },
@@ -648,7 +648,7 @@ export default [
   },
   {
     name: "langfuse/web/no-dynamic-toast-bypass",
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["{src,pages,app}/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-syntax": [
         "error",

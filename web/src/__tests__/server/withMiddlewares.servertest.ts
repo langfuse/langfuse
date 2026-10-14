@@ -82,7 +82,7 @@ describe("clickHouseRouteForRequest", () => {
   });
 
   it("lists every dynamic API route that tags its ClickHouse queries", () => {
-    const apiDir = `${__dirname}/../../pages/api`;
+    const apiDir = `${__dirname}/../../../pages/api`;
     const tagsQueries = (file: string) =>
       file.startsWith("public/") ||
       /\b(withMiddlewares|createAuthedProjectAPIRoute|clickHouseRouteForRequest)\(/.test(
