@@ -4,6 +4,7 @@ import {
   readTopicExecutionSummary,
   writeTopicExecution,
   getTopicFacetVersion,
+  listTopicFacets,
   listTopicSummaries,
   writeTopicAssignments,
   readTopicAssignments,
@@ -438,6 +439,7 @@ async function clusterFacet(
   models: TopicsModels,
   execution: UpdateExecution,
   facet: TopicFacetVersion,
+  facetName: string | undefined,
   progress: TopicFacetProgress,
   summaries: TopicSummary[],
   attempt: TopicRun | null,
@@ -644,12 +646,6 @@ async function clusterFacet(
     );
     await saveProgress(metrics, execution, "naming");
     const topics: TopicDefinition[] = [];
-    const names = new Set(
-      evidence.flatMap((group) => {
-        const retained = reused.get(group.id);
-        return retained ? [retained.name.trim().toLowerCase()] : [];
-      }),
-    );
     for (const group of evidence) {
       const retained = reused.get(group.id);
       if (retained) {
@@ -674,21 +670,18 @@ async function clusterFacet(
           },
           {
             facet_id: facet.facetId,
+            facet_name: facetName,
             facet_version: facet.version,
             execution_id: execution.id,
             run_id: run.id,
             group_id: group.id,
           },
         );
-        if (
-          !label.name.trim() ||
-          !label.description.trim() ||
-          names.has(label.name.trim().toLowerCase())
-        )
+        if (!label.name.trim() || !label.description.trim())
           throw invalidOutput(
             metrics,
             "naming",
-            "Topic names must be concise, non-empty, and distinct.",
+            "Topic names and descriptions must be non-empty.",
           );
         return {
           ...label,
@@ -704,7 +697,6 @@ async function clusterFacet(
           }),
         };
       });
-      names.add(label.name.trim().toLowerCase());
       const candidate = candidates.find(
         (topic) => topic.topicVersionId === group.id,
       )!;
@@ -1046,6 +1038,12 @@ async function updateTopics(
   models: TopicsModels,
   execution: UpdateExecution,
 ) {
+  const facetNames = new Map(
+    (await listTopicFacets(execution.projectId)).map((facet) => [
+      facet.id,
+      facet.name,
+    ]),
+  );
   for (const { facet, progress } of await pendingFacets(execution)) {
     try {
       const accepted = progress.runId
@@ -1101,6 +1099,7 @@ async function updateTopics(
         models,
         execution,
         facet,
+        facetNames.get(facet.facetId),
         progress,
         summaries,
         accepted,

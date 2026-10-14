@@ -181,6 +181,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
       facetId: string,
       version: number,
     ) => state.facets.get(`${facetId}/${version}`) ?? null,
+    listTopicFacets: async () => [],
     listTopicSummaries: async (
       projectId: string,
       filter: {
@@ -1335,7 +1336,7 @@ describe("Topics execution", () => {
     },
   );
 
-  it("reserves reused names before naming changed definitions", async () => {
+  it("publishes a changed definition whose name repeats a reused topic", async () => {
     await processSelection("source", 100);
     await updateSelection("first");
     const first = [...state.runs.values()].at(-1)!;
@@ -1351,10 +1352,11 @@ describe("Topics execution", () => {
       },
     });
     await updateSelection("second");
-    expect([...state.runs.values()].at(-1)).toMatchObject({
-      status: "failed",
-      error: "Topic names must be concise, non-empty, and distinct.",
-    });
+    const second = [...state.runs.values()].at(-1)!;
+    expect(second.status).toBe("completed");
+    expect(
+      second.topics.filter((topic) => topic.name === unchanged.name),
+    ).toHaveLength(2);
   });
 
   it("defers publication when assignments are not visible", async () => {
