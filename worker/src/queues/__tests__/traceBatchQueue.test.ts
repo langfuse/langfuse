@@ -923,6 +923,69 @@ describe("trace batch queue", () => {
     }));
   });
 
+  it("keeps the batch successful when Topics assignment cannot be queued", async () => {
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      yield {
+        project_id: "a",
+        trace_id: "trace",
+        environment: "default",
+        span_id: "span",
+        parent_span_id: null,
+        start_time: "2026-09-11 00:00:00.000000",
+        event_ts: "2026-09-11 00:00:00.000000",
+        type: "GENERATION",
+        name: "generation",
+        input: JSON.stringify([{ role: "user", content: "question" }]),
+        output: JSON.stringify({ role: "assistant", content: "answer" }),
+        metadata: {},
+        level: "DEFAULT",
+        status_message: null,
+        tool_definitions: {},
+        tool_calls: [],
+        tool_call_names: [],
+      };
+    });
+    vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
+      outcome: "summarized",
+      rows: [{ projectId: "a", state: "complete" } as TopicSummary],
+    }));
+    vi.mocked(enqueueAutomaticTopicAssignments).mockRejectedValueOnce(
+      new Error("Redis unavailable"),
+    );
+    const job = {
+      data: {
+        id: "enqueue-failure",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: [
+            {
+              projectId: "a",
+              traceId: "trace",
+              minStart: 0,
+              maxStart: 1,
+              revision: "r",
+            },
+          ],
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual(
+      expect.objectContaining({ traceCount: 1 }),
+    );
+    expect(writeTopicSummaries).toHaveBeenCalledOnce();
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcomes",
+      1,
+      { outcome: "summarized" },
+    );
+    vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
+      outcome: "unchanged",
+      rows: [],
+    }));
+  });
+
   it("summarizes only the saved rule's facets and skips traces outside its sampling", async () => {
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
       for (const projectId of ["picked", "sampled-out"])
