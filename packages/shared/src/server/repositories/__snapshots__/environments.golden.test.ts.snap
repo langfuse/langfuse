@@ -11,7 +11,7 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=events_only 
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM events_core
-WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(3)})",
+WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(6)})",
   },
   {
     "fn": "queryClickhouse",
