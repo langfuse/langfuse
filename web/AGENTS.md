@@ -265,7 +265,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - In-source tests: `pnpm --filter web run test:in-source <args>`
 - Client tests: `pnpm --filter web run test-client <args>`
 - E2E tests: `pnpm --filter web run test:e2e`
-- AI Gateway E2E tests against the local configured stack (also run in CI for AI Gateway changes): `pnpm --filter web run test:e2e:ai-gateway`. The gateway-process cases start the built `ai-gateway` binary (`pnpm --filter ai-gateway build`, or `LANGFUSE_AI_GATEWAY_BIN`).
+- AI Gateway E2E tests against the local configured stack (also run in CI for AI Gateway changes): `pnpm --filter web run test:e2e:ai-gateway`. Vitest starts the built `ai-gateway` binary (`pnpm --filter ai-gateway build`, or `LANGFUSE_AI_GATEWAY_BIN`) and sends the client traffic through it.
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
 - Structure-RFC violation counts: `pnpm --filter web run structure:stats`

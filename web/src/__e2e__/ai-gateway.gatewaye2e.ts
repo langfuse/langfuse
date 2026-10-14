@@ -45,7 +45,6 @@ const ORGANIZATION_ID =
   process.env.LANGFUSE_AI_GATEWAY_E2E_ORGANIZATION_ID ?? "seed-org-id";
 const PROJECT_ID_OVERRIDE = process.env.LANGFUSE_AI_GATEWAY_E2E_PROJECT_ID;
 const DEFAULT_PROJECT_ID = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
-const MODELS_PATH = "/api/internal/ai-gateway/v1/models";
 const RESOLVE_PATH = "/api/internal/ai-gateway/v1/resolve";
 const TEST_TIMEOUT_MS = 120_000;
 const PROVIDER_CREDENTIALS: Partial<Record<GatewayProviderName, string>> = {
@@ -54,31 +53,103 @@ const PROVIDER_CREDENTIALS: Partial<Record<GatewayProviderName, string>> = {
 };
 const ENABLED_PROVIDERS = Object.values(GatewayProvider);
 
-const PROVIDER_FORMATS = [
+// Public catalog routes. Chat completions has no separate models route; the
+// OpenAI route lists the responses catalog.
+const GATEWAY_MODEL_ROUTES = [
   {
     provider: GatewayProvider.OPENAI,
     apiFormat: "openai.responses",
-    baseUrl: "https://api.openai.com/v1",
-    authType: "Bearer",
-  },
-  {
-    provider: GatewayProvider.OPENAI,
-    apiFormat: "openai.chat-completions",
-    baseUrl: "https://api.openai.com/v1",
-    authType: "Bearer",
+    path: "/openai/v1/models",
   },
   {
     provider: GatewayProvider.ANTHROPIC,
     apiFormat: "anthropic.messages",
-    baseUrl: "https://api.anthropic.com/v1",
-    authType: "x-api-key",
+    path: "/anthropic/v1/models",
   },
 ] as const satisfies ReadonlyArray<{
   provider: GatewayProviderName;
   apiFormat: GatewayApiFormat;
-  baseUrl: string;
-  authType: "Bearer" | "x-api-key";
+  path: string;
 }>;
+
+const UNAUTHENTICATED_REQUESTS = [
+  {
+    path: "/openai/v1/responses",
+    body: { model: "gpt-6-sol", input: "hello" },
+    error: {
+      error: {
+        message: "Invalid gateway credential",
+        type: "authentication_error",
+        param: null,
+        code: "invalid_api_key",
+      },
+    },
+  },
+  {
+    path: "/anthropic/v1/messages",
+    body: {
+      model: "claude-opus-5-5",
+      max_tokens: 8,
+      messages: [{ role: "user", content: "hello" }],
+    },
+    error: {
+      type: "error",
+      error: {
+        type: "authentication_error",
+        message: "Invalid gateway credential",
+      },
+    },
+  },
+] as const;
+
+const UNKNOWN_MODEL_REQUESTS = [
+  {
+    provider: GatewayProvider.OPENAI,
+    apiFormat: "openai.responses",
+    path: "/openai/v1/responses",
+    body: { model: "not-a-gateway-model", input: "hello" },
+    error: {
+      error: {
+        message: "Invalid gateway model",
+        type: "invalid_request_error",
+        param: null,
+        code: "invalid_model",
+      },
+    },
+  },
+  {
+    provider: GatewayProvider.ANTHROPIC,
+    apiFormat: "anthropic.messages",
+    path: "/anthropic/v1/messages",
+    body: {
+      model: "not-a-gateway-model",
+      max_tokens: 8,
+      messages: [{ role: "user", content: "hello" }],
+    },
+    error: {
+      type: "error",
+      error: {
+        type: "invalid_request_error",
+        message: "Invalid gateway model",
+      },
+    },
+  },
+] as const satisfies ReadonlyArray<{
+  provider: GatewayProviderName;
+  apiFormat: GatewayApiFormat;
+  path: string;
+  body: Record<string, unknown>;
+  error: object;
+}>;
+
+// The gateway never accepts a client span, so project spoofing stays a direct
+// resolve plus OTLP upload. One format is enough: ingestion ignores the span
+// project the same way for every provider.
+const SPOOFED_INGEST = {
+  provider: GatewayProvider.OPENAI,
+  apiFormat: "openai.responses",
+  baseUrl: "https://api.openai.com/v1",
+} as const;
 
 // Unprefixed provider model ids. A connection slug looks like "OpenAI:gpt-6-sol".
 const SLUGLESS_COMPLETIONS = [
@@ -145,6 +216,8 @@ type Admin = Awaited<ReturnType<typeof createGatewayAdmin>>;
 
 let admin: Admin;
 let defaultProjectId: string;
+let gatewayBaseUrl = "";
+let stopGateway = async () => {};
 let gatewayConfigSnapshot: GatewayConfigSnapshot | null = null;
 let gatewayConfigPrepared = false;
 let connectionSnapshots: ConnectionSnapshot[] = [];
@@ -296,55 +369,52 @@ describe("AI gateway live end-to-end", () => {
       env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.push(ORGANIZATION_ID);
     }
     admin = await createGatewayAdmin();
-  }, 30_000);
+    const gateway = await startGatewayProcess();
+    gatewayBaseUrl = gateway.url;
+    stopGateway = gateway.stop;
+  }, 60_000);
 
   afterAll(async () => {
     try {
-      await cleanUpTestArtifacts();
+      await stopGateway();
     } finally {
       try {
-        await restoreProviderConnections();
+        await cleanUpTestArtifacts();
       } finally {
         try {
-          await restoreGatewayConfig();
+          await restoreProviderConnections();
         } finally {
-          env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.splice(
-            0,
-            env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.length,
-            ...originalAllowlist,
-          );
+          try {
+            await restoreGatewayConfig();
+          } finally {
+            env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.splice(
+              0,
+              env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.length,
+              ...originalAllowlist,
+            );
+          }
         }
       }
     }
-  }, 30_000);
+  }, 50_000);
 
-  describe("model discovery", () => {
-    it.each(PROVIDER_FORMATS)(
-      "$provider / $apiFormat returns canonical models",
-      async ({ provider, apiFormat }) => {
+  describe("model catalog", () => {
+    it.each(GATEWAY_MODEL_ROUTES)(
+      "GET $path lists $provider models",
+      async ({ provider, apiFormat, path: requestPath }) => {
         await withGatewayApiKey(
           { provider, apiFormat },
           async ({ secretKey }) => {
-            const modelsBody = await gatewayControlPlaneRequest({
-              path: MODELS_PATH,
-              apiFormat,
-              virtualSecretKey: secretKey,
+            const response = await fetch(`${gatewayBaseUrl}${requestPath}`, {
+              headers: { Authorization: `Bearer ${secretKey}` },
             });
-            const models = GatewayModelsResponseSchema.parse(modelsBody);
-            expect(models.data.length).toBeGreaterThan(0);
-            expect(models.data).toEqual(
-              expect.arrayContaining([
-                expect.objectContaining({
-                  id: expect.stringMatching(/\S/),
-                  provider,
-                  canonicalSlug: expect.stringMatching(/\S/),
-                  displayName: expect.stringMatching(/\S/),
-                  createdAt: expect.stringMatching(
-                    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
-                  ),
-                }),
-              ]),
+            const models = GatewayModelsResponseSchema.parse(
+              await readJsonResponse(response, 200, requestPath),
             );
+            expect(models.data.length).toBeGreaterThan(0);
+            expect(
+              models.data.every((model) => model.provider === provider),
+            ).toBe(true);
           },
         );
       },
@@ -352,65 +422,34 @@ describe("AI gateway live end-to-end", () => {
     );
   });
 
-  describe("gateway roundtrip", () => {
-    it.each(PROVIDER_FORMATS)(
-      "$provider / $apiFormat resolves credentials and ingests telemetry",
-      async ({ provider, apiFormat, baseUrl, authType }) => {
+  describe("client errors", () => {
+    it.each(UNAUTHENTICATED_REQUESTS)(
+      "POST $path without a credential is rejected",
+      async ({ path: requestPath, body, error }) => {
+        const response = await fetch(`${gatewayBaseUrl}${requestPath}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        await expectGatewayError(response, 401, error);
+      },
+    );
+
+    it.each(UNKNOWN_MODEL_REQUESTS)(
+      "POST $path rejects an unknown model",
+      async ({ provider, apiFormat, path: requestPath, body, error }) => {
         await withGatewayApiKey(
           { provider, apiFormat },
-          async ({
-            secretKey,
-            id: keyId,
-            providerConnectionId,
-            providerConnectionName,
-          }) => {
-            const resolveBody = await gatewayControlPlaneRequest({
-              path: RESOLVE_PATH,
-              apiFormat,
-              virtualSecretKey: secretKey,
-              model: `${providerConnectionName}:ai-gateway-e2e`,
-            });
-            const resolved = GatewayResolveResponseSchema.parse(resolveBody);
-
-            expect(resolved.connection.api_format).toBe(apiFormat);
-            expect(resolved.connection.base_url).toBe(baseUrl);
-            if (authType === "x-api-key") {
-              expect(resolved.connection.auth).toMatchObject({
-                type: "x-api-key",
-                header: "x-api-key",
-                value: expect.stringMatching(/\S/),
-              });
-            } else {
-              expect(resolved.connection.auth).toMatchObject({
-                type: "Bearer",
-                token: expect.stringMatching(/\S/),
-              });
-            }
-            expect(resolved.attribution).toEqual({
-              organization_id: ORGANIZATION_ID,
-              project_id: expect.stringMatching(/\S/),
-              key_id: keyId,
-              key_metadata: {
-                test: true,
-                provider,
-                apiFormat,
+          async ({ secretKey }) => {
+            const response = await fetch(`${gatewayBaseUrl}${requestPath}`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${secretKey}`,
+                "Content-Type": "application/json",
               },
-              provider_connection_id: providerConnectionId,
+              body: JSON.stringify(body),
             });
-            expect(resolved.ingestion).toMatchObject({
-              access_token: expect.stringMatching(/\S/),
-              token_type: "Bearer",
-              expires_at: expect.any(Number),
-            });
-
-            const ingestionToken = resolved.ingestion?.access_token;
-            if (!ingestionToken)
-              throw new Error("Resolve did not return an ingestion token");
-
-            await ingestTrace(ingestionToken, {
-              provider,
-              apiFormat,
-            });
+            await expectGatewayError(response, 400, error);
           },
         );
       },
@@ -418,20 +457,7 @@ describe("AI gateway live end-to-end", () => {
     );
   });
 
-  describe("gateway process", () => {
-    let gatewayBaseUrl = "";
-    let stopGateway = async () => {};
-
-    beforeAll(async () => {
-      const gateway = await startGatewayProcess();
-      gatewayBaseUrl = gateway.url;
-      stopGateway = gateway.stop;
-    }, 30_000);
-
-    afterAll(async () => {
-      await stopGateway();
-    }, 20_000);
-
+  describe("slugless completions", () => {
     it.each(SLUGLESS_COMPLETIONS)(
       "$provider / $apiFormat completes slugless $model",
       async ({
@@ -499,6 +525,10 @@ describe("AI gateway live end-to-end", () => {
                   expect(observation.providedUsageDetails).toEqual(
                     expectedUsage,
                   );
+                  await expectStoredInOneProject({
+                    observationId: observationId!,
+                    traceId: traceId!,
+                  });
                 },
                 90_000,
                 1_000,
@@ -508,6 +538,59 @@ describe("AI gateway live end-to-end", () => {
         );
       },
       180_000,
+    );
+  });
+
+  describe("ingestion project binding", () => {
+    it(
+      "ignores a spoofed project id on a resolved span",
+      async () => {
+        const { provider, apiFormat, baseUrl } = SPOOFED_INGEST;
+        await withGatewayApiKey(
+          { provider, apiFormat },
+          async ({
+            secretKey,
+            id: keyId,
+            providerConnectionId,
+            providerConnectionName,
+          }) => {
+            const resolved = GatewayResolveResponseSchema.parse(
+              await gatewayControlPlaneRequest({
+                apiFormat,
+                virtualSecretKey: secretKey,
+                model: `${providerConnectionName}:ai-gateway-e2e`,
+              }),
+            );
+
+            expect(resolved.connection.api_format).toBe(apiFormat);
+            expect(resolved.connection.base_url).toBe(baseUrl);
+            expect(resolved.connection.auth).toMatchObject({
+              type: "Bearer",
+              token: expect.stringMatching(/\S/),
+            });
+            expect(resolved.attribution).toEqual({
+              organization_id: ORGANIZATION_ID,
+              project_id: expect.stringMatching(/\S/),
+              key_id: keyId,
+              key_metadata: {
+                test: true,
+                provider,
+                apiFormat,
+              },
+              provider_connection_id: providerConnectionId,
+            });
+            expect(resolved.ingestion).toMatchObject({
+              access_token: expect.stringMatching(/\S/),
+              token_type: "Bearer",
+              expires_at: expect.any(Number),
+            });
+
+            const ingestionToken = resolved.ingestion.access_token;
+            await ingestTrace(ingestionToken, { provider, apiFormat });
+          },
+        );
+      },
+      TEST_TIMEOUT_MS,
     );
   });
 });
@@ -694,10 +777,9 @@ async function clearModelCaches(connectionIds: string[]) {
 }
 
 async function gatewayControlPlaneRequest(input: {
-  path: string;
   apiFormat: GatewayApiFormat;
   virtualSecretKey: string;
-  model?: string;
+  model: string;
 }): Promise<unknown> {
   const timestamp = Math.floor(Date.now() / 1000);
   const canonicalMessage = [
@@ -709,22 +791,44 @@ async function gatewayControlPlaneRequest(input: {
     canonicalMessage,
     env.LANGFUSE_AI_GATEWAY_SERVICE_KEY!,
   )}`;
-  const isModelsRequest = input.path === MODELS_PATH;
-  const url = new URL(`${BASE_URL}${input.path}`);
-  if (isModelsRequest) url.searchParams.set("api_format", input.apiFormat);
 
-  const response = await fetch(url, {
-    method: isModelsRequest ? "GET" : "POST",
+  const response = await fetch(`${BASE_URL}${RESOLVE_PATH}`, {
+    method: "POST",
     headers: {
       Authorization: `Bearer ${input.virtualSecretKey}`,
-      ...(!isModelsRequest ? { "Content-Type": "application/json" } : {}),
+      "Content-Type": "application/json",
       "Langfuse-Gateway-Authorization": gatewayAuthorization,
     },
-    body: isModelsRequest
-      ? undefined
-      : JSON.stringify({ apiFormat: input.apiFormat, model: input.model }),
+    body: JSON.stringify({ apiFormat: input.apiFormat, model: input.model }),
   });
-  return readJsonResponse(response, 200, input.path);
+  return readJsonResponse(response, 200, RESOLVE_PATH);
+}
+
+async function expectGatewayError(
+  response: Response,
+  expectedStatus: number,
+  error: object,
+) {
+  const text = await response.text();
+  expect(response.status, text).toBe(expectedStatus);
+  expect(JSON.parse(text)).toMatchObject({
+    ...error,
+    request_id: expect.stringMatching(/\S/),
+  });
+}
+
+async function expectStoredInOneProject(input: {
+  observationId: string;
+  traceId: string;
+}) {
+  const projects = await queryClickhouse<{ project_id: string }>({
+    query: `SELECT DISTINCT project_id FROM events_core
+      WHERE span_id = {observationId: String} AND trace_id = {traceId: String}`,
+    params: input,
+  });
+  expect(projects.map(({ project_id }) => project_id)).toEqual([
+    defaultProjectId,
+  ]);
 }
 
 async function ingestTrace(
@@ -818,14 +922,7 @@ async function ingestTrace(
       ]);
       expect(trace?.id).toBe(traceId);
       expect(observation?.id).toBe(observationId);
-      const projects = await queryClickhouse<{ project_id: string }>({
-        query: `SELECT DISTINCT project_id FROM events_core
-          WHERE span_id = {observationId: String} AND trace_id = {traceId: String}`,
-        params: { observationId, traceId },
-      });
-      expect(projects.map(({ project_id }) => project_id)).toEqual([
-        defaultProjectId,
-      ]);
+      await expectStoredInOneProject({ observationId, traceId });
     },
     40_000,
     1_000,
