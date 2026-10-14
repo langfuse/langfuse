@@ -1417,12 +1417,14 @@ describe("AI gateway control plane", () => {
     });
     const fetcher = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response(null, { status: 500 }))
-      .mockResolvedValue(
-        Response.json({
-          data: [{ id: "available-model", created: 10 }],
-        }),
-      );
+      .mockImplementation(async (_, init) => {
+        const authorization = new Headers(init?.headers).get("authorization");
+        return authorization === "Bearer sk-openai"
+          ? new Response(null, { status: 500 })
+          : Response.json({
+              data: [{ id: "available-model", created: 10 }],
+            });
+      });
 
     const context = await new GatewayApiKeyAuthenticator(
       prisma,
