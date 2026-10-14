@@ -1124,12 +1124,14 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
-  describe("L. drops injected window.getObs/timeline .sort TypeError", () => {
-    // Real shape (LANGFUSE-63V): Chrome 155 on /traces. Injected
-    // page-world JS assigns `window.getObs` / `window.timeline` and
-    // calls `.sort()` on undefined after a missing observation. Stack
-    // is only `<anonymous>` frames — no /_next/ chunk — so denyUrls
-    // cannot match. Langfuse never assigns those Window properties.
+  describe("L. drops injected window.getObs/listObs/timeline TypeError", () => {
+    // Real shapes on /traces. Injected page-world JS assigns
+    // `window.getObs` / `window.listObs` / `window.timeline` and reads
+    // a property on undefined. Stack is only `<anonymous>` frames — no
+    // /_next/ chunk — so denyUrls cannot match. Langfuse never assigns
+    // those Window properties.
+    // LANGFUSE-63V: Chrome 155, `.sort` from getObs / timeline.
+    // LANGFUSE-63W: Chrome 152, `.data` from listObs.
     const injectedWindowGetObsSortEvent = (
       value: string,
       mechanismType = "auto.browser.global_handlers.onunhandledrejection",
@@ -1188,6 +1190,33 @@ describe("isDenylistedNoiseEvent", () => {
           injectedWindowGetObsSortEvent(
             "Cannot read properties of undefined (reading 'sort')",
             "auto.browser.global_handlers.onerror",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the observed anonymous window.listObs .data TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedWindowGetObsSortEvent(
+            "Cannot read properties of undefined (reading 'data')",
+            "auto.browser.global_handlers.onunhandledrejection",
+            [
+              { filename: "<anonymous>", function: "?" },
+              { filename: "<anonymous>", function: "window.listObs" },
+            ],
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the listObs .data wording with a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedWindowGetObsSortEvent(
+            "Cannot read properties of undefined (reading 'data').",
+            "auto.browser.global_handlers.onunhandledrejection",
+            [{ filename: "<anonymous>", function: "window.listObs" }],
           ),
         ),
       ).toBe(true);
@@ -1927,6 +1956,109 @@ describe("isDenylistedNoiseEvent", () => {
         },
       } as ErrorEvent;
       expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes reading 'data'", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Query failed: Cannot read properties of undefined (reading 'data')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  { filename: "<anonymous>", function: "window.listObs" },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the .data TypeError without window.listObs/getObs/timeline frames", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'data')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [{ filename: "<anonymous>", function: "readQuery" }],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the .data TypeError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'data')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/traces-abc.js",
+                    function: "window.listObs",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured .data TypeError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Cannot read properties of undefined (reading 'data')",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'data')",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+              stacktrace: {
+                frames: [
+                  { filename: "<anonymous>", function: "window.listObs" },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
     });
 
     it("keeps the .sort TypeError without window.getObs/timeline frames", () => {

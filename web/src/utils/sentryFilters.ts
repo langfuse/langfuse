@@ -405,38 +405,46 @@ function isSafariAddMoreClickMessage(value: string): boolean {
 }
 
 /**
- * Chromium wording when injected page-world JS does `.sort()` on undefined.
- * Observed: LANGFUSE-63V — unhandled rejection on `/traces`. Stack is only
- * `<anonymous>` frames named `window.getObs` / `async window.timeline`.
+ * Chromium wording when injected page-world JS reads a property on
+ * undefined. Observed on `/traces` as unhandled rejections:
+ *  - LANGFUSE-63V — `.sort` from `window.getObs` / `window.timeline`
+ *  - LANGFUSE-63W — `.data` from `window.listObs`
  * Langfuse never assigns those Window properties. `denyUrls` cannot match
  * anonymous frames.
  *
  * Do not run this through {@link coreMessage}: that helper strips a trailing
- * `(…)` parenthetical, and `(reading 'sort')` *is* the signature.
+ * `(…)` parenthetical, and `(reading 'sort')` / `(reading 'data')` *is*
+ * the signature. Other properties (`map`, `length`) stay KEPT.
  */
-const CHROMIUM_UNDEFINED_SORT_MESSAGE =
-  "Cannot read properties of undefined (reading 'sort')";
+const CHROMIUM_INJECTED_UNDEFINED_PROPERTY_MESSAGES: readonly string[] = [
+  "Cannot read properties of undefined (reading 'sort')",
+  "Cannot read properties of undefined (reading 'data')",
+];
 
-function isChromiumUndefinedSortMessage(value: string): boolean {
-  return (
-    value.trim().replace(/\.$/, "").trim() === CHROMIUM_UNDEFINED_SORT_MESSAGE
+function isChromiumInjectedUndefinedPropertyMessage(value: string): boolean {
+  return CHROMIUM_INJECTED_UNDEFINED_PROPERTY_MESSAGES.includes(
+    value.trim().replace(/\.$/, "").trim(),
   );
 }
 
 /**
  * Chrome reports `window.<name>` (and `async window.<name>`) for functions
- * assigned onto Window. These two names are the LANGFUSE-63V userscript,
- * not Langfuse app code.
+ * assigned onto Window. These names are the traces-page userscript, not
+ * Langfuse app code.
  */
-function isInjectedWindowGetObsTimelineFunction(
-  name: string | undefined,
-): boolean {
+const INJECTED_WINDOW_OBS_FUNCTIONS = new Set([
+  "window.getObs",
+  "window.listObs",
+  "window.timeline",
+]);
+
+function isInjectedWindowObsFunction(name: string | undefined): boolean {
   if (typeof name !== "string") return false;
   const trimmed = name.trim();
   const withoutAsync = trimmed.startsWith("async ")
     ? trimmed.slice("async ".length)
     : trimmed;
-  return withoutAsync === "window.getObs" || withoutAsync === "window.timeline";
+  return INJECTED_WINDOW_OBS_FUNCTIONS.has(withoutAsync);
 }
 
 /**
@@ -457,12 +465,10 @@ function hasOnlyAnonymousFrames(event: ErrorEvent): boolean {
   });
 }
 
-function hasInjectedWindowGetObsTimelineFrame(event: ErrorEvent): boolean {
+function hasInjectedWindowObsFrame(event: ErrorEvent): boolean {
   const frames = event.exception?.values?.[0]?.stacktrace?.frames;
   if (!frames || frames.length === 0) return false;
-  return frames.some((frame) =>
-    isInjectedWindowGetObsTimelineFunction(frame?.function),
-  );
+  return frames.some((frame) => isInjectedWindowObsFunction(frame?.function));
 }
 
 /**
@@ -737,9 +743,10 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // Injected `window.getObs` / `window.timeline` `.sort` (LANGFUSE-63V)
-    // is the same class: Chromium's exact TypeError, anonymous-only stack,
-    // and Window function names Langfuse never assigns.
+    // Injected `window.getObs` / `window.listObs` / `window.timeline`
+    // (LANGFUSE-63V / LANGFUSE-63W) is the same class: Chromium's exact
+    // TypeError, anonymous-only stack, and Window function names Langfuse
+    // never assigns.
     //
     // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
@@ -766,9 +773,9 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       }
       if (
         exceptionType === "TypeError" &&
-        isChromiumUndefinedSortMessage(exceptionValue) &&
+        isChromiumInjectedUndefinedPropertyMessage(exceptionValue) &&
         hasOnlyAnonymousFrames(event) &&
-        hasInjectedWindowGetObsTimelineFrame(event) &&
+        hasInjectedWindowObsFrame(event) &&
         !hasFirstPartyChunkFrame(event)
       ) {
         return true;
