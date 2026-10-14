@@ -983,12 +983,12 @@
   background:
     radial-gradient(
       70% 120% at 25% 10%,
-      color-mix(in srgb, var(--preview-mesh-a, transparent) 8%, transparent),
+      color-mix(in srgb, var(--preview-mesh-a, transparent) 14%, transparent),
       transparent 70%
     ),
     radial-gradient(
       60% 100% at 80% 90%,
-      color-mix(in srgb, var(--preview-mesh-b, transparent) 5%, transparent),
+      color-mix(in srgb, var(--preview-mesh-b, transparent) 9%, transparent),
       transparent 70%
     ),
     hsl(var(--muted-gray));
@@ -998,7 +998,7 @@
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    opacity: 0.14;
+    opacity: 0.2;
     mix-blend-mode: multiply;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
   }
