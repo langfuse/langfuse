@@ -126,7 +126,6 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isSubmitting: false,
   pendingToolApprovals: [],
   isSelectedConversationHydrating: false,
-  isSelectedConversationPersisted: false,
   execution: { run: null, isCancelling: false, cancel: () => undefined },
   error: null,
   messages: [],
@@ -185,8 +184,6 @@ type InAppAiAgentContextType = {
   isSubmitting: boolean;
   pendingToolApprovals: InAppAgentPendingToolApproval[];
   isSelectedConversationHydrating: boolean;
-  /** False until the server acknowledges the selected conversation's first run. */
-  isSelectedConversationPersisted: boolean;
   execution: InAppAiAgentExecution;
   error: InAppAgentError | null;
   messages: InAppAiAgentMessage[];
@@ -1471,9 +1468,6 @@ function InAppAiAgentProviderInner({
         ? []
         : effectivePendingToolApprovals,
       isSelectedConversationHydrating,
-      isSelectedConversationPersisted:
-        Boolean(selectedConversationId) &&
-        !unpersistedConversationIds.has(selectedConversationId ?? ""),
       execution,
       error: effectiveError,
       messages: messagesWithUiState,
@@ -1525,7 +1519,6 @@ function InAppAiAgentProviderInner({
       selectedConversationId,
       submit,
       submitFeedback,
-      unpersistedConversationIds,
     ],
   );
 
