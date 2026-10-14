@@ -762,6 +762,13 @@ types:
       - CORRECTION
       - TEXT
 
+  OpenAIUsage:
+    docs: Usage interface of OpenAI for improved compatibility.
+    properties:
+      promptTokens: optional<integer>
+      completionTokens: optional<integer>
+      totalTokens: optional<integer>
+
 errors:
   Error:
     status-code: 400
