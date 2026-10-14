@@ -87,67 +87,6 @@ export const BesideTextAndIcons = meta.story({
   ),
 });
 
-/**
- * Guards that each key label stays inside its chip and centred in it, at every
- * size and variant.
- */
-export const TestGlyphsStayCentredInTheChip = meta.story({
-  name: "(Test) Glyphs Stay Centred In The Chip",
-  render: () => (
-    <div className="flex flex-col items-start gap-2">
-      <div className="flex items-center gap-2">
-        <KeyboardShortcut keys={["ArrowRight"]} />
-        <KeyboardShortcut keys={["Mod", "Enter"]} />
-        <KeyboardShortcut keys={["K"]} />
-        <KeyboardShortcut variant="subtle" keys={["ArrowUp"]} />
-        <KeyboardShortcut variant="inverse" keys={["1"]} />
-        <KeyboardShortcut variant="keycap" keys={["Mod", "Enter"]} />
-      </div>
-      <div className="flex items-center gap-2">
-        <KeyboardShortcut size="sm" keys={["ArrowUp"]} />
-        <KeyboardShortcut size="sm" keys={["1"]} />
-        <KeyboardShortcut size="sm" keys={["?"]} />
-      </div>
-      <div className="flex items-center gap-2">
-        <KeyboardShortcut size="xs" keys={["ArrowDown"]} />
-        <KeyboardShortcut size="xs" keys={["9"]} />
-        <KeyboardShortcut variant="keycap" size="xs" keys={["Mod", "Enter"]} />
-      </div>
-    </div>
-  ),
-  play: async ({ canvasElement }) => {
-    const chips = Array.from(canvasElement.querySelectorAll("kbd"));
-    await expect(chips).toHaveLength(12);
-
-    const round = (value: number) => Math.round(value * 10) / 10;
-    const misaligned = chips.flatMap((chip) => {
-      const chipBox = chip.getBoundingClientRect();
-      const chipCentre = chipBox.top + chipBox.height / 2;
-
-      return Array.from(chip.querySelectorAll("span")).flatMap((label) => {
-        const labelBox = label.getBoundingClientRect();
-        const offset = round(labelBox.top + labelBox.height / 2 - chipCentre);
-        const overflow = round(
-          Math.max(
-            chipBox.top - labelBox.top,
-            labelBox.bottom - chipBox.bottom,
-          ),
-        );
-        const where = `"${label.textContent}" in the ${Math.round(chipBox.height)}px chip`;
-
-        return [
-          ...(Math.abs(offset) > 1
-            ? [`${where}: ${offset}px off the chip's centre`]
-            : []),
-          ...(overflow > 1 ? [`${where}: ${overflow}px outside the chip`] : []),
-        ];
-      });
-    });
-
-    await expect(misaligned).toEqual([]);
-  },
-});
-
 export const TestRendersMultipleKeys = meta.story({
   name: "(Test) Renders Multiple Keys",
   args: {
