@@ -1,12 +1,13 @@
 /* eslint-disable no-nested-ternary */
 import type { ObservationType } from "@langfuse/shared";
-import type {
-  FilePart,
-  NormalizedIO,
-  NormalizedMessage,
-  NormalizedMessagePart,
-  ToolResultPart,
-  ToolDefinition as NormalizedToolDefinition,
+import {
+  isMessageLike,
+  type FilePart,
+  type NormalizedIO,
+  type NormalizedMessage,
+  type NormalizedMessagePart,
+  type ToolResultPart,
+  type ToolDefinition as NormalizedToolDefinition,
 } from "@langfuse/shared/src/utils/normalized-io";
 import {
   computeToolCallBookkeeping,
@@ -329,13 +330,13 @@ export function toIOPreview(
 }
 
 /**
- * True when the I/O declares chat messages: a role on the raw value, a role
- * the normaliser recognised, or a tool call or tool result.
+ * True when the I/O declares chat messages: a message on the raw value, a
+ * role the normaliser recognised, or a tool call or tool result.
  */
 function hasChatMessages(io: NormalizedIO): boolean {
   return (
-    declaresRole(io.span.input) ||
-    declaresRole(io.span.output) ||
+    declaresMessage(io.span.input) ||
+    declaresMessage(io.span.output) ||
     io.messages.some(
       (message) =>
         message.role !== FALLBACK_ROLE_BY_SOURCE[message.source] ||
@@ -346,9 +347,14 @@ function hasChatMessages(io: NormalizedIO): boolean {
   );
 }
 
-/** True for a message with a `role`, or a list or `messages` list of them. */
-function declaresRole(value: unknown): boolean {
-  if (Array.isArray(value)) return value.some(declaresRole);
+/**
+ * True for a message, a list or `messages` list holding one, or a LangChain
+ * constructor envelope whose `kwargs` is a message.
+ */
+function declaresMessage(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(declaresMessage);
   if (!isRecord(value)) return false;
-  return typeof value.role === "string" || declaresRole(value.messages);
+  if (isMessageLike(value)) return true;
+  if (declaresMessage(value.messages)) return true;
+  return value.type === "constructor" && declaresMessage(value.kwargs);
 }
