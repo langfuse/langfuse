@@ -91,58 +91,12 @@ describe("createManualToolApprovalRunInput", () => {
   });
 
   it("hands questionnaire answers to the tool and returns them to the model", async () => {
-    const tool = createQuestionnaireTool();
-    const questionnaireRequest = {
-      type: "tool_approval_request" as const,
-      toolCallId: "tool-call-2",
-      toolName: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
-      args: {
-        questions: [
-          {
-            question: "Which evaluator type?",
-            options: [
-              { label: "LLM-as-a-judge", description: null, recommended: true },
-              { label: "Code", description: null, recommended: false },
-            ],
-            allowMultiple: false,
-            allowOther: false,
-          },
-          {
-            question: "Anything else?",
-            options: [],
-            allowMultiple: false,
-            allowOther: false,
-          },
-        ],
-      },
-      runId: "interrupted-run-1",
-    };
-
-    const { input } = await createManualToolApprovalRunInput({
-      input: resumeInput({
-        approved: true,
-        approvalRequest: questionnaireRequest,
-        answers: [
-          { selectedOptionIndexes: [1], otherText: null },
-          { selectedOptionIndexes: [], otherText: null },
-        ],
-      }),
-      executeToolCall: async (request, resumeData) => {
-        const result = await tool.execute?.(request.args as never, {
-          agent: {
-            agentId: "test",
-            toolCallId: request.toolCallId,
-            messages: [],
-            suspend: async () => undefined,
-            resumeData,
-          },
-        });
-        return { result, modelResult: result };
-      },
+    const toolMessage = await approveQuestionnaire({
+      answers: [
+        { selectedOptionIndexes: [1], otherText: null },
+        { selectedOptionIndexes: [], otherText: null },
+      ],
     });
-    const toolMessage = input.messages.find(
-      (message) => message.role === "tool",
-    );
 
     expect(toolMessage).not.toHaveProperty("error");
     expect(JSON.parse(String(toolMessage?.content))).toEqual({
@@ -153,4 +107,67 @@ describe("createManualToolApprovalRunInput", () => {
       ],
     });
   });
+
+  it("returns every question as skipped when an approval carries no answers", async () => {
+    const toolMessage = await approveQuestionnaire({});
+
+    expect(JSON.parse(String(toolMessage?.content))).toEqual({
+      type: "questionnaireAnswers",
+      answers: [
+        { question: "Which evaluator type?", answer: [], skipped: true },
+        { question: "Anything else?", answer: [], skipped: true },
+      ],
+    });
+  });
 });
+
+const questionnaireRequest = {
+  type: "tool_approval_request" as const,
+  toolCallId: "tool-call-2",
+  toolName: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+  args: {
+    questions: [
+      {
+        question: "Which evaluator type?",
+        options: [
+          { label: "LLM-as-a-judge", description: null, recommended: true },
+          { label: "Code", description: null, recommended: false },
+        ],
+        allowMultiple: false,
+        allowOther: false,
+      },
+      {
+        question: "Anything else?",
+        options: [],
+        allowMultiple: false,
+        allowOther: false,
+      },
+    ],
+  },
+  runId: "interrupted-run-1",
+};
+
+async function approveQuestionnaire(resume: Record<string, unknown>) {
+  const tool = createQuestionnaireTool();
+  const { input } = await createManualToolApprovalRunInput({
+    input: resumeInput({
+      approved: true,
+      approvalRequest: questionnaireRequest,
+      ...resume,
+    }),
+    executeToolCall: async (request, resumeData) => {
+      const result = await tool.execute?.(request.args as never, {
+        agent: {
+          agentId: "test",
+          toolCallId: request.toolCallId,
+          messages: [],
+          suspend: async () => undefined,
+          resumeData,
+        },
+      });
+      return { result, modelResult: result };
+    },
+  });
+
+  return input.messages.find((message) => message.role === "tool");
+}

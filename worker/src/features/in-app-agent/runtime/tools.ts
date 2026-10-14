@@ -483,9 +483,18 @@ export function createQuestionnaireTool() {
     ].join(" "),
     inputSchema: InAppAgentQuestionnaireArgsSchema,
     execute: async (input, context) => {
+      // An approval without answers (e.g. from a client that predates the
+      // questionnaire card) counts as skipping every question, so the model
+      // moves on instead of retrying the tool.
+      const answers =
+        getQuestionnaireResumeAnswers(context?.agent?.resumeData) ??
+        input.questions.map(() => ({
+          selectedOptionIndexes: [],
+          otherText: null,
+        }));
       const resolved = resolveInAppAgentQuestionnaireAnswers({
         args: input,
-        answers: getQuestionnaireResumeAnswers(context?.agent?.resumeData),
+        answers,
       });
 
       if (!resolved.success) {
