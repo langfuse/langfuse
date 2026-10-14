@@ -945,6 +945,29 @@ export const metadataFilterIsEventsCoreSafe = (
   return true;
 };
 
+/**
+ * Whether a metadata string filter on events_full emits a conjunct that an
+ * events_full skip index can prune on: the ngram conjunct for substring
+ * operators, or the text-index token conjunct for `=` / `matches`. Negations
+ * and token-less values cannot skip granules.
+ */
+export const metadataFilterCanPruneEventsFull = (
+  operator: string,
+  value: string,
+): boolean => {
+  if (
+    NGRAM_ACCELERATED_METADATA_OPERATORS.has(
+      operator as (typeof filterOperators)["stringObject"][number],
+    )
+  ) {
+    return value.length > 0;
+  }
+  if (operator === "=" || operator === FTS_MATCH_OPERATOR) {
+    return hasFtsSearchToken(value);
+  }
+  return false;
+};
+
 // events_core stores input/output/metadata_values truncated to 200 chars
 // (events_core_mv). A filter must read events_full when truncation could change
 // its result: input/output always (truncated, and events_core lacks the I/O FTS

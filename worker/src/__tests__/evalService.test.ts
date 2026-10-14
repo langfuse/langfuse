@@ -33,19 +33,21 @@ import {
 } from "../features/evaluation/evalService";
 import { requiresDatabaseLookup } from "../features/evaluation/traceFilterUtils";
 
-// Mock the shared LLM runtime with default passthrough behavior.
+// Mock the shared evaluator model call with default passthrough behavior.
 vi.mock("@langfuse/shared/src/server", async () => {
-  const actual = await vi.importActual("@langfuse/shared/src/server");
+  const actual = await vi.importActual<
+    typeof import("@langfuse/shared/src/server")
+  >("@langfuse/shared/src/server");
   return {
     ...actual,
-    generateLLMText: vi.fn().mockImplementation(actual.generateLLMText as any),
+    generateLlmEvaluatorOutput: vi.fn(actual.generateLlmEvaluatorOutput),
   };
 });
 
 // Import the mocked function
 import {
   EvalExecutionQueue,
-  generateLLMText,
+  generateLlmEvaluatorOutput,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../errors/UnrecoverableError";
 
@@ -2539,8 +2541,10 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
     test("handles LLM timeout gracefully", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       // Set up the mock to simulate timeout for this test only
-      const mockGenerateLLMText = vi.mocked(generateLLMText);
-      mockGenerateLLMText.mockRejectedValueOnce(
+      const mockGenerateLlmEvaluatorOutput = vi.mocked(
+        generateLlmEvaluatorOutput,
+      );
+      mockGenerateLlmEvaluatorOutput.mockRejectedValueOnce(
         new ApiError("Request timeout after 120000ms", 500),
       );
 
@@ -2644,7 +2648,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs[0].status.toString()).toBe("PENDING");
 
       // Clean up the mock after this test
-      mockGenerateLLMText.mockReset();
+      mockGenerateLlmEvaluatorOutput.mockReset();
     }, 15_000);
   });
 
@@ -3446,12 +3450,15 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       // Mock the LLM runtime to capture the trace parameters.
       let capturedTraceSinkParams: any = null;
 
-      vi.mocked(generateLLMText).mockImplementationOnce((async (
+      vi.mocked(generateLlmEvaluatorOutput).mockImplementationOnce((async (
         params: any,
       ) => {
         capturedTraceSinkParams = params.trace;
         return {
-          output: { score: 0.8, scoreExplanation: "Good response" },
+          output: { score: 0.8, reasoning: "Good response" },
+          usage: {},
+          providerMessages: [],
+          modelFacingOutputSchema: params.outputResultSchema,
         };
       }) as any);
 
@@ -3487,11 +3494,14 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       const jobExecutionId = randomUUID();
       const templateId = randomUUID();
 
-      vi.mocked(generateLLMText).mockResolvedValueOnce({
+      vi.mocked(generateLlmEvaluatorOutput).mockResolvedValueOnce({
         output: {
           score: 0,
-          scoreExplanation: "The response is safe and not toxic.",
+          reasoning: "The response is safe and not toxic.",
         },
+        usage: {},
+        providerMessages: [],
+        modelFacingOutputSchema: {},
       } as any);
 
       await upsertTrace({

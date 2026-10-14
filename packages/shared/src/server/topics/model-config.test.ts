@@ -3,14 +3,19 @@ import { LLMAdapter } from "../llm/types";
 import {
   getEnabledTopicsModels,
   prepareTopicsModelSettings,
+  reconcileTopicsConnectionsForProject,
   writeTopicsModelSettings,
 } from "./model-config";
 
 const mocks = vi.hoisted(() => ({
   keys: vi.fn(),
+  projects: vi.fn(),
   configs: vi.fn(),
   current: vi.fn(),
+  update: vi.fn(),
   upsert: vi.fn(),
+  transaction: vi.fn(),
+  invalidate: vi.fn(),
   hasEmbeddings: vi.fn(),
   testCall: vi.fn(),
   embed: vi.fn(),
@@ -18,16 +23,30 @@ const mocks = vi.hoisted(() => ({
 vi.mock("./clickhouse", () => ({ hasTopicEmbeddings: mocks.hasEmbeddings }));
 vi.mock("../llm/testModelCall", () => ({ testModelCall: mocks.testCall }));
 vi.mock("./embeddings", () => ({ generateTopicEmbeddings: mocks.embed }));
-vi.mock("../../db", () => ({
-  prisma: {
+vi.mock("./processing-gate", () => ({
+  invalidateTopicsProcessingActive: mocks.invalidate,
+}));
+vi.mock("../../db", () => {
+  const tx = {
     llmApiKeys: { findMany: mocks.keys },
+    project: { findMany: mocks.projects },
     topicConfig: {
       findMany: mocks.configs,
       findUnique: mocks.current,
+      update: mocks.update,
       upsert: mocks.upsert,
     },
-  },
-}));
+  };
+  return {
+    prisma: {
+      ...tx,
+      $transaction: (callback: (client: typeof tx) => unknown) => {
+        mocks.transaction();
+        return callback(tx);
+      },
+    },
+  };
+});
 
 const connection = (id: string, adapter: LLMAdapter) => ({
   id,
@@ -62,6 +81,7 @@ beforeEach(() => {
     connection("anthropic", LLMAdapter.Anthropic),
   ]);
   mocks.current.mockResolvedValue(null);
+  mocks.projects.mockResolvedValue([{ id: "project", orgId: "target-org" }]);
   mocks.hasEmbeddings.mockResolvedValue(false);
   mocks.testCall.mockResolvedValue(undefined);
   mocks.embed.mockImplementation(async ({ summaries, dimensions }) => ({
@@ -70,6 +90,35 @@ beforeEach(() => {
 });
 
 describe("prepareTopicsModelSettings", () => {
+  it("accepts an organization connection inherited by the project", async () => {
+    mocks.keys.mockResolvedValue([
+      {
+        ...connection("openai", LLMAdapter.OpenAI),
+        projectId: null,
+        organizationId: "organization",
+      },
+    ]);
+
+    await saveTopicsModelSettings("project", settings);
+
+    expect(mocks.keys).toHaveBeenCalledWith({
+      where: {
+        id: { in: ["openai", "openai", "openai"] },
+        OR: [
+          { projectId: "project" },
+          {
+            organization: {
+              projects: {
+                some: { id: "project", deletedAt: null },
+              },
+            },
+          },
+        ],
+      },
+    });
+    expect(mocks.upsert).toHaveBeenCalledOnce();
+  });
+
   it("saves an Anthropic connection when its test call succeeds", async () => {
     await saveTopicsModelSettings("project", {
       ...settings,
@@ -162,6 +211,80 @@ describe("prepareTopicsModelSettings", () => {
   );
 });
 
+describe("reconcileTopicsConnectionsForProject", () => {
+  it("rebinds inherited connections after a project transfer", async () => {
+    const sourceConnection = {
+      ...connection("source", LLMAdapter.OpenAI),
+      projectId: null,
+      organizationId: "source-org",
+    };
+    const targetConnection = {
+      ...connection("target", LLMAdapter.OpenAI),
+      projectId: null,
+      organizationId: "target-org",
+    };
+    mocks.current.mockResolvedValue({
+      id: "config",
+      projectId: "project",
+      project: { orgId: "target-org" },
+      summaryLlmApiKey: sourceConnection,
+      embeddingLlmApiKey: sourceConnection,
+      clusteringLlmApiKey: sourceConnection,
+    });
+    mocks.keys.mockResolvedValue([targetConnection]);
+
+    await reconcileTopicsConnectionsForProject("project");
+
+    expect(mocks.update).toHaveBeenCalledWith({
+      where: { id: "config" },
+      data: {
+        summaryLlmApiKeyId: "target",
+        embeddingLlmApiKeyId: "target",
+        clusteringLlmApiKeyId: "target",
+      },
+    });
+    expect(mocks.invalidate).toHaveBeenCalledWith("project");
+  });
+
+  it("pauses Topics rather than rebinding to an incompatible adapter", async () => {
+    const sourceConnection = {
+      ...connection("source", LLMAdapter.OpenAI),
+      provider: "shared-provider",
+      projectId: null,
+      organizationId: "source-org",
+    };
+    const targetConnection = {
+      ...connection("target", LLMAdapter.Anthropic),
+      provider: "shared-provider",
+      projectId: null,
+      organizationId: "target-org",
+    };
+    mocks.current.mockResolvedValue({
+      id: "config",
+      projectId: "project",
+      project: { orgId: "target-org" },
+      summaryLlmApiKey: sourceConnection,
+      embeddingLlmApiKey: sourceConnection,
+      clusteringLlmApiKey: sourceConnection,
+    });
+    mocks.keys.mockImplementation(async ({ where }) =>
+      where.adapter === targetConnection.adapter ? [targetConnection] : [],
+    );
+
+    await reconcileTopicsConnectionsForProject("project");
+
+    expect(mocks.update).toHaveBeenCalledWith({
+      where: { id: "config" },
+      data: expect.objectContaining({
+        summaryLlmApiKeyId: null,
+        embeddingLlmApiKeyId: null,
+        clusteringLlmApiKeyId: null,
+        enabled: false,
+      }),
+    });
+  });
+});
+
 describe("getEnabledTopicsModels", () => {
   it("returns only enabled projects whose three connections are usable", async () => {
     const openai = {
@@ -170,6 +293,7 @@ describe("getEnabledTopicsModels", () => {
     };
     const row = {
       projectId: "complete",
+      project: { orgId: "organization" },
       enabled: true,
       summaryLlmApiKey: openai,
       summaryModel: "gpt-6-luna",

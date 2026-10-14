@@ -531,12 +531,23 @@ export function isClaudeManagedAgentSessionCreation(
   scopeName: unknown,
   spanName?: string,
 ): boolean {
-  const sessionId = attributes["anthropic.session.id"];
   return (
     spanName === "anthropic.sessions.create" &&
-    (scopeName === "com.anthropic.claude-platform" ||
-      scopeName === "com.anthropic.sdk.typescript") &&
     !hasMeaningfulValue(attributes["gen_ai.operation.name"]) &&
+    isClaudeManagedAgentSpan(attributes, scopeName)
+  );
+}
+
+/** Anthropic scopes also emit regular API spans; a session ID identifies Claude Managed Agents. */
+export function isClaudeManagedAgentSpan(
+  attributes: Record<string, unknown>,
+  scopeName: unknown,
+): boolean {
+  const sessionId = attributes["anthropic.session.id"];
+  return (
+    typeof scopeName === "string" &&
+    (scopeName === "com.anthropic.claude-platform" ||
+      scopeName.startsWith("com.anthropic.sdk.")) &&
     typeof sessionId === "string" &&
     sessionId.trim().length > 0
   );

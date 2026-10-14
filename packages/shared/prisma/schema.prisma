@@ -136,6 +136,7 @@ model Organization {
   verifiedDomains                  VerifiedDomain[]
   gatewayConfig                    GatewayConfig?
   gatewayAiConnections             GatewayAiConnection[]
+  organizationLlmApiKeys           LlmApiKeys[]             @relation("OrganizationLlmApiKeys")
   roleAssignments                  RoleAssignment[]         @relation("RoleAssignmentTenant")
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentOrganization") @ignore
@@ -506,14 +507,18 @@ model LlmApiKeys {
   extraHeaderKeys   String[] @default([]) @map("extra_header_keys")
   config            Json?
 
-  projectId       String            @map("project_id")
-  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId      String?       @map("project_id")
+  project        Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  organizationId String?       @map("organization_id")
+  organization   Organization? @relation("OrganizationLlmApiKeys", fields: [organizationId], references: [id], onDelete: Cascade)
+
   DefaultLlmModel DefaultLlmModel[] @relation("LlmApiKeyId")
   topicSummaryConfigs    TopicConfig[] @relation("TopicConfigSummaryLlmApiKey")
   topicEmbeddingConfigs  TopicConfig[] @relation("TopicConfigEmbeddingLlmApiKey")
   topicClusteringConfigs TopicConfig[] @relation("TopicConfigClusteringLlmApiKey")
 
   @@unique([projectId, provider])
+  @@unique([organizationId, provider])
   @@map("llm_api_keys")
 }
 
