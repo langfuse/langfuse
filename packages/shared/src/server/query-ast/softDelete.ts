@@ -3,8 +3,9 @@
  *
  * Every FROM/JOIN relation whose table declares `softDelete` in the registry
  * ({@link SOFT_DELETE_COLUMNS}) gets `<flag> = 0`: AND-ed into the ON clause
- * for a JOIN with one, prepended to the WHERE otherwise. A select that opts out
- * with `$call(includeDeleted())` is left unchanged; nested selects decide for
+ * for a JOIN with one, prepended to the WHERE otherwise. A RIGHT or FULL JOIN
+ * in such a select fails to compile. A select that opts out with
+ * `$call(includeDeleted())` is left unchanged; nested selects decide for
  * themselves.
  *
  * Runs before tenancy, so the tenancy pass prepends `project_id` ahead of the
@@ -23,6 +24,7 @@ import {
   ValueNode,
   WhereNode,
   type CommonTableExpressionNode,
+  type JoinType,
   type KyselyPlugin,
   type OperationNode,
   type PluginTransformQueryArgs,
@@ -42,11 +44,7 @@ import {
 import { SOFT_DELETE_COLUMNS } from "./schema";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
 
-type SoftDeleteRelation = {
-  tableName: string;
-  alias?: string;
-  flag: string;
-};
+const OUTER_PRESERVING_JOINS = new Set<JoinType>(["RightJoin", "FullJoin"]);
 
 export class SoftDeleteFilterPlugin implements KyselyPlugin {
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
@@ -79,7 +77,7 @@ class SoftDeleteFilterTransformer extends ClickHouseOperationNodeTransformer {
     queryId?: QueryId,
   ): SelectQueryNode {
     const ctes = cteNames(node.with);
-    if (ctes.size) this.cteScopes.push(ctes);
+    if (ctes.size > 0) this.cteScopes.push(ctes);
     try {
       const withChildren = super.transformSelectQuery(
         node,
@@ -89,7 +87,7 @@ class SoftDeleteFilterTransformer extends ClickHouseOperationNodeTransformer {
         this.cteScopes.some((scope) => scope.has(name)),
       );
     } finally {
-      if (ctes.size) this.cteScopes.pop();
+      if (ctes.size > 0) this.cteScopes.pop();
     }
   }
 
@@ -111,7 +109,7 @@ class SoftDeleteFilterTransformer extends ClickHouseOperationNodeTransformer {
       });
       return { ...node, expressions };
     } finally {
-      if (full.size) this.cteScopes.push(full);
+      if (full.size > 0) this.cteScopes.push(full);
     }
   }
 }
@@ -138,13 +136,26 @@ function filterSelect(
     relation: describe(join.table),
   }));
 
+  const readsSoftDelete =
+    froms.some(Boolean) || joins.some(({ relation }) => relation);
   if (node.includeDeleted) {
-    if (!froms.some(Boolean) && !joins.some(({ relation }) => relation)) {
+    if (!readsSoftDelete) {
       throw new QueryCompileError(
         "includeDeleted() was applied to a select that reads no soft-delete table.",
       );
     }
     return node;
+  }
+
+  // An ON filter cannot drop a RIGHT/FULL JOIN's preserved rows, and a WHERE
+  // filter on the other side would turn the join into an inner one.
+  const outerJoin = joins.find(({ join }) =>
+    OUTER_PRESERVING_JOINS.has(join.joinType),
+  );
+  if (readsSoftDelete && outerJoin) {
+    throw new QueryCompileError(
+      `${outerJoin.join.joinType} is not supported on a select that reads a soft-delete table. Filter the table in a subquery, or opt out with includeDeleted().`,
+    );
   }
 
   // A join without ON (CROSS JOIN) cannot take a condition; filter it in WHERE.
@@ -170,7 +181,7 @@ function filterSelect(
   return {
     ...node,
     ...(where ? { where } : {}),
-    ...(filteredJoins.length ? { joins: filteredJoins } : {}),
+    ...(filteredJoins.length > 0 ? { joins: filteredJoins } : {}),
   };
 }
 
@@ -205,3 +216,9 @@ function notDeleted(relation: SoftDeleteRelation): OperationNode {
     ValueNode.create(0),
   );
 }
+
+type SoftDeleteRelation = {
+  tableName: string;
+  alias?: string;
+  flag: string;
+};

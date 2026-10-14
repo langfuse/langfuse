@@ -203,6 +203,40 @@ describe("soft-delete filtering", () => {
     );
   });
 
+  it("rejects RIGHT and FULL joins on a select that reads a soft-delete table", () => {
+    expect(() =>
+      compile(
+        getClickhouseKysely()
+          .selectFrom("scores as s")
+          .rightJoin("events_core as e", (join) =>
+            join.onRef("e.trace_id", "=", "s.trace_id"),
+          )
+          .select("e.span_id"),
+      ),
+    ).toThrow(QueryCompileError);
+    expect(() =>
+      compile(
+        getClickhouseKysely()
+          .selectFrom("events_core as e")
+          .fullJoin("scores as s", (join) =>
+            join.onRef("s.trace_id", "=", "e.trace_id"),
+          )
+          .select("e.span_id"),
+      ),
+    ).toThrow(QueryCompileError);
+    expect(
+      compile(
+        getClickhouseKysely()
+          .selectFrom("scores as s")
+          .rightJoin("events_core as e", (join) =>
+            join.onRef("e.trace_id", "=", "s.trace_id"),
+          )
+          .$call(includeDeleted())
+          .select("e.span_id"),
+      ),
+    ).not.toContain("is_deleted");
+  });
+
   it("includeDeleted() accepts a soft-delete table that is only joined", () => {
     expect(
       compile(
