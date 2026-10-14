@@ -68,7 +68,7 @@ function StartOptionCard({
       onClick={handleCreate}
       className={cn(
         styles.card,
-        "bg-background flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-left",
+        "bg-popover flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-left",
       )}
     >
       <EvaluatorMethodTile type={option.type} />

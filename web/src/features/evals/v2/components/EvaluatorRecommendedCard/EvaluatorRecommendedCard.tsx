@@ -27,7 +27,7 @@ export function EvaluatorRecommendedCard({
       <div
         className={cn(
           styles.card,
-          "group/card bg-background relative flex h-full flex-col overflow-hidden rounded-lg border text-left",
+          "group/card bg-popover relative flex h-full flex-col overflow-hidden rounded-lg border text-left",
         )}
       >
         <div className="px-3 pt-3">
