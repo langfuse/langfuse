@@ -26,7 +26,9 @@
  */
 export type ChColumnType =
   | "String"
+  | "Nullable(String)"
   | "Float"
+  | "Decimal(18,12)"
   | "DateTime"
   | "DateTime64(6)"
   | "UInt8"
@@ -41,33 +43,37 @@ export type ChColumnType =
 
 type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
   ? string
-  : T extends "Float"
-    ? number
-    : T extends "UInt8" | "UInt16"
+  : T extends "Nullable(String)"
+    ? string | null
+    : T extends "Float" | "Decimal(18,12)"
       ? number
-      : T extends "Nullable(UInt16)"
-        ? number | null
-        : T extends "DateTime" | "DateTime64(6)"
-          ? Date
-          : T extends "Nullable(DateTime64(6))"
-            ? Date | null
-            : T extends "Array(String)"
-              ? string[]
-              : T extends
-                    | "Map(String, Float)"
-                    | "Map(String, UInt64)"
-                    | "Map(String, Decimal(18,12))"
-                ? Record<string, number>
-                : T extends "Map(String, String)"
-                  ? Record<string, string>
-                  : never;
+      : T extends "UInt8" | "UInt16"
+        ? number
+        : T extends "Nullable(UInt16)"
+          ? number | null
+          : T extends "DateTime" | "DateTime64(6)"
+            ? Date
+            : T extends "Nullable(DateTime64(6))"
+              ? Date | null
+              : T extends "Array(String)"
+                ? string[]
+                : T extends
+                      | "Map(String, Float)"
+                      | "Map(String, UInt64)"
+                      | "Map(String, Decimal(18,12))"
+                  ? Record<string, number>
+                  : T extends "Map(String, String)"
+                    ? Record<string, string>
+                    : never;
 
 /** Coarse runtime category the aggregate type-check pass reasons about. */
 export type ColumnDataType = "string" | "number" | "date" | "array" | "map";
 
 const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
   String: "string",
+  "Nullable(String)": "string",
   Float: "number",
+  "Decimal(18,12)": "number",
   UInt8: "number",
   UInt16: "number",
   "Nullable(UInt16)": "number",
@@ -129,7 +135,7 @@ const EVENTS_COLUMNS = {
   trace_id: "String",
   event_ts: "DateTime64(6)",
   type: "String",
-  total_cost: "Float",
+  total_cost: "Decimal(18,12)",
   experiment_id: "String",
   prompt_id: "String",
   prompt_name: "String",
@@ -174,7 +180,7 @@ const TABLE_REGISTRY = {
       start_time: "DateTime",
       trace_id: "String",
       cost_details: "Map(String, Float)",
-      usage_details: "Map(String, Float)",
+      usage_details: "Map(String, UInt64)",
     },
   }),
   events_core: defineTable({
@@ -199,19 +205,19 @@ const TABLE_REGISTRY = {
       created_at: "DateTime",
       updated_at: "DateTime",
       data_type: "String",
-      trace_id: "String",
-      session_id: "String",
-      observation_id: "String",
-      dataset_run_id: "String",
+      trace_id: "Nullable(String)",
+      session_id: "Nullable(String)",
+      observation_id: "Nullable(String)",
+      dataset_run_id: "Nullable(String)",
       name: "String",
       value: "Float",
       source: "String",
-      comment: "String",
-      author_user_id: "String",
-      config_id: "String",
-      string_value: "String",
-      queue_id: "String",
-      execution_trace_id: "String",
+      comment: "Nullable(String)",
+      author_user_id: "Nullable(String)",
+      config_id: "Nullable(String)",
+      string_value: "Nullable(String)",
+      queue_id: "Nullable(String)",
+      execution_trace_id: "Nullable(String)",
       is_deleted: "UInt8",
       metadata: "Map(String, String)",
     },
@@ -262,14 +268,16 @@ export const DEDUP_SPECS: Record<string, DedupSpec> = Object.fromEntries(
  * ClickHouse bind type for a JS value compared against this column. Wider than
  * the coarse {@link COLUMN_DATA_TYPES} category: `DateTime` columns bind as
  * `DateTime64(3)`, `Float` as `Float64`, so an integer literal compared to
- * `total_cost` still becomes `{p:Float64}`.
+ * `value` still becomes `{p:Float64}`.
  */
 const BIND_TYPE: Record<ChColumnType, string> = {
   String: "String",
   Float: "Float64",
+  "Decimal(18,12)": "Decimal(18, 12)",
   UInt8: "UInt8",
   UInt16: "UInt16",
   // A bound value is never NULL; NULL checks compile to `IS NULL`.
+  "Nullable(String)": "String",
   "Nullable(UInt16)": "UInt16",
   DateTime: "DateTime64(3)",
   "DateTime64(6)": "DateTime64(6)",
