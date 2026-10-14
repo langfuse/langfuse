@@ -646,6 +646,19 @@ async function clusterFacet(
     );
     await saveProgress(metrics, execution, "naming");
     const topics: TopicDefinition[] = [];
+    const named = new Map<
+      string,
+      { name: string; description: string; summaries: string[] }
+    >();
+    for (const group of evidence) {
+      const retained = reused.get(group.id);
+      if (retained)
+        named.set(retained.name.toLowerCase(), {
+          name: retained.name,
+          description: retained.description,
+          summaries: group.members.slice(0, 3).map((member) => member.summary),
+        });
+    }
     for (const group of evidence) {
       const retained = reused.get(group.id);
       if (retained) {
@@ -656,27 +669,46 @@ async function clusterFacet(
         const members = new Map(
           group.members.map((summary, index) => [`m${index + 1}`, summary]),
         );
-        const { output: label } = await nameTopicGroup(
-          models,
-          {
-            members: Array.from(members, ([id, { summary }]) => ({
-              id,
-              summary,
-            })),
-            contrasts: group.contrasts.map((member, index) => ({
-              id: `c${index + 1}`,
-              summary: member.summary,
-            })),
-          },
-          {
-            facet_id: facet.facetId,
-            facet_name: facetName,
-            facet_version: facet.version,
-            execution_id: execution.id,
-            run_id: run.id,
-            group_id: group.id,
-          },
-        );
+        const name = (conflict?: Parameters<typeof nameTopicGroup>[3]) =>
+          nameTopicGroup(
+            models,
+            {
+              members: Array.from(members, ([id, { summary }]) => ({
+                id,
+                summary,
+              })),
+              contrasts: group.contrasts.map((member, index) => ({
+                id: `c${index + 1}`,
+                summary: member.summary,
+              })),
+            },
+            {
+              facet_id: facet.facetId,
+              facet_name: facetName,
+              facet_version: facet.version,
+              execution_id: execution.id,
+              run_id: run.id,
+              group_id: group.id,
+            },
+            conflict,
+          );
+        let { output: label } = await name();
+        // Groups are named independently, so distinct clusters can get one name.
+        const conflict = named.get(label.name.toLowerCase());
+        if (conflict) {
+          metrics.result("naming", "name_conflict");
+          ({ output: label } = await name(conflict));
+        }
+        if (named.has(label.name.toLowerCase()))
+          metrics.result("naming", "duplicate_name");
+        else
+          named.set(label.name.toLowerCase(), {
+            name: label.name,
+            description: label.description,
+            summaries: label.evidenceSummaryIds.map(
+              (id) => members.get(id)!.summary,
+            ),
+          });
         return {
           ...label,
           representativeSummaries: label.evidenceSummaryIds.map((id) => {

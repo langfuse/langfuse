@@ -372,8 +372,10 @@ before expanding deployment.
 
 The same classifier determines initial and later memberships. Naming sees its
 effective populations: every member's full facet summary, plus three nearby
-contrasts. Each group gets one naming call with no tool loop. Topics are keyed
-by ID, so names may repeat. Member evidence references are validated before
+contrasts. Each group gets one naming call with no tool loop. If the name is
+already taken in the run, one `topics-naming-conflict` call sees the conflicting
+topic and is asked for a distinguishing name; a name that still repeats is kept,
+since topics are keyed by ID. Member evidence references are validated before
 accepting output.
 The provider schema keeps evidence IDs as strings, avoiding the API's enum-size
 limit for large clusters; local validation still requires genuine member IDs. This checks structural grounding, not factual

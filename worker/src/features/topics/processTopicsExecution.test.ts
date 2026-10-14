@@ -1336,28 +1336,39 @@ describe("Topics execution", () => {
     },
   );
 
-  it("publishes a changed definition whose name repeats a reused topic", async () => {
-    await processSelection("source", 100);
-    await updateSelection("first");
-    const first = [...state.runs.values()].at(-1)!;
-    const unchanged = first.topics.find((topic) => topic.centroid[1] > 0.5)!;
-    for (const summary of state.summaries.values()) {
-      if (summary.embedding[0] > 0.5) summary.embedding[3] += 0.001;
-    }
-    state.name.mockResolvedValueOnce({
-      output: {
+  it.each([false, true])(
+    "renames a changed definition whose name repeats a reused topic (conflict persists: %s)",
+    async (persists) => {
+      await processSelection("source", 100);
+      await updateSelection("first");
+      const first = [...state.runs.values()].at(-1)!;
+      const unchanged = first.topics.find((topic) => topic.centroid[1] > 0.5)!;
+      for (const summary of state.summaries.values()) {
+        if (summary.embedding[0] > 0.5) summary.embedding[3] += 0.001;
+      }
+      const colliding = {
+        output: {
+          name: unchanged.name,
+          description: "A colliding name.",
+          evidenceSummaryIds: ["m1"],
+        },
+      };
+      state.name.mockResolvedValueOnce(colliding);
+      if (persists) state.name.mockResolvedValueOnce(colliding);
+      const calls = state.name.mock.calls.length;
+      await updateSelection("second");
+      const [, retry] = state.name.mock.calls.slice(calls);
+      expect(retry[2]).toMatchObject({
         name: unchanged.name,
-        description: "A colliding name.",
-        evidenceSummaryIds: ["m1"],
-      },
-    });
-    await updateSelection("second");
-    const second = [...state.runs.values()].at(-1)!;
-    expect(second.status).toBe("completed");
-    expect(
-      second.topics.filter((topic) => topic.name === unchanged.name),
-    ).toHaveLength(2);
-  });
+        description: unchanged.description,
+      });
+      const second = [...state.runs.values()].at(-1)!;
+      expect(second.status).toBe("completed");
+      expect(
+        second.topics.filter((topic) => topic.name === unchanged.name),
+      ).toHaveLength(persists ? 2 : 1);
+    },
+  );
 
   it("defers publication when assignments are not visible", async () => {
     await processSelection("source", 100);

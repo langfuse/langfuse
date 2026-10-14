@@ -425,6 +425,29 @@ describe("Topics naming boundary", () => {
     expect(submitted.members).toEqual(members);
   });
 
+  it("traces conflict renames separately and passes the conflicting topic", async () => {
+    state.call.mockResolvedValue({
+      output: {
+        name: "Invoice corrections",
+        description: "Requests to correct invoices.",
+        evidenceSummaryIds: ["member-b"],
+      },
+      usage: {},
+    });
+    const conflict = {
+      name: "Invoice assistance",
+      description: "Requests involving invoices.",
+      summaries: ["The user requests an invoice."],
+    };
+    await nameTopicGroup(topicsModels(), evidence);
+    await nameTopicGroup(topicsModels(), evidence, undefined, conflict);
+    const [first, second] = state.call.mock.calls.map(([params]) => params);
+    expect(first.trace.traceName).toBe("topics-naming");
+    expect(second.trace.traceName).toBe("topics-naming-conflict");
+    expect(second.system[0].text).toContain(first.system[0].text);
+    expect(JSON.parse(second.input).conflictingTopic).toEqual(conflict);
+  });
+
   it("trims names and rejects whitespace-only descriptions", async () => {
     state.call.mockResolvedValueOnce({
       output: {
