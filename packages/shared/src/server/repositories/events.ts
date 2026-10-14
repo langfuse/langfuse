@@ -141,9 +141,11 @@ import {
   buildEventsFullTableSplitQuery,
   EVENTS_AGGREGATION_FIELDS,
   EVENTS_SESSION_AGGREGATION_FIELDS,
-  SESSION_AGGREGATION_FIELD_SETS,
   eventsFieldSetSelectExpressions,
   type QueryWithParams,
+  normalizeSessionCounts,
+  type SessionEventsField,
+  type SessionEventsFields,
   type SessionEventsMetricsRow,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
@@ -3893,18 +3895,21 @@ export const getEvaluatorExecutionSummaries = async (
   }));
 };
 
-export const getSessionMetricsFromEvents = async (props: {
+export const getSessionMetricsFromEvents = async <
+  F extends SessionEventsField,
+>(props: {
   projectId: string;
   sessionIds: string[];
+  fields: SessionEventsFields<F>;
   queryFromTimestamp?: Date;
 }) => {
   if (props.sessionIds.length === 0) return [];
 
-  const { projectId, sessionIds, queryFromTimestamp } = props;
+  const { projectId, sessionIds, fields, queryFromTimestamp } = props;
   const builder = getClickhouseKysely()
     .selectFrom("events_core as e")
     .select(
-      SESSION_AGGREGATION_FIELD_SETS.base.map((field) =>
+      fields.map((field) =>
         sql.raw(EVENTS_SESSION_AGGREGATION_FIELDS[field]),
       ) as never,
     )
@@ -3921,18 +3926,14 @@ export const getSessionMetricsFromEvents = async (props: {
     .limit(sessionIds.length);
   const { sql: query, params } = compileClickhouseQuery(builder, { projectId });
 
-  const rows = await queryClickhouse<SessionEventsMetricsRow>({
+  const rows = await queryClickhouse<Pick<SessionEventsMetricsRow, F>>({
     query,
     params,
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
-  return rows.map((row) => ({
-    ...row,
-    trace_count: Number(row.trace_count),
-    total_observations: Number(row.total_observations),
-  }));
+  return rows.map(normalizeSessionCounts);
 };
 
 /**

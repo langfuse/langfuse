@@ -7,6 +7,8 @@ import {
   EventsAggQueryBuilder,
   EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
+  type SessionEventsField,
+  type SessionEventsFields,
   ExperimentsAggregationFieldSetName,
   ExperimentsAggregationQueryBuilder,
   type CTEWithSchema,
@@ -307,6 +309,7 @@ export const eventsTracesScoresAggregationFromObservationStart = (
  */
 export const eventsSessionsAggregation = (params: {
   projectId: string;
+  fields: SessionEventsFields<SessionEventsField>;
   sessionIds?: string[];
   startTimeFrom?: string | null;
   includeMetadata?: boolean;
@@ -315,7 +318,7 @@ export const eventsSessionsAggregation = (params: {
   return new EventsSessionAggregationQueryBuilder({
     projectId: params.projectId,
   })
-    .selectFieldSet("base")
+    .selectSessionFields(params.fields)
     .when(Boolean(params.includeMetadata), (builder) =>
       builder.selectFieldSet("metadata"),
     )
