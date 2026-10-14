@@ -58,7 +58,7 @@ export function AnnotationQueueScoreConfigEditor({
         <div className="min-w-48 flex-1">
           <select
             aria-label="Add existing score config"
-            className="border-input bg-background focus-visible:ring-ring h-8 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-hidden disabled:opacity-50"
+            className="border-input bg-background focus-visible:ring-ring h-8 w-full rounded-md border px-3 py-1 text-sm focus-visible:ring-2 focus-visible:outline-hidden disabled:opacity-50"
             value=""
             disabled={disabled}
             onChange={(event) => onChange([...value, event.target.value])}
