@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { cn } from "@/src/utils/tailwind";
 
 export type IOSectionProps = {
   title: React.ReactNode;
@@ -16,6 +17,9 @@ export type IOSectionProps = {
   /** Controlled state; the caret calls `onCollapsedChange`. */
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
+  /** Paint the body box. Off for bodies that carry their own tiles (media),
+      which keep the box inset so they line up with boxed sections. */
+  boxed?: boolean;
   children: React.ReactNode;
 };
 
@@ -33,6 +37,7 @@ export function IOSection({
   defaultCollapsed = false,
   collapsed,
   onCollapsedChange,
+  boxed = true,
   children,
 }: IOSectionProps) {
   const [internalCollapsed, setInternalCollapsed] = useState(defaultCollapsed);
@@ -73,7 +78,12 @@ export function IOSection({
       />
       {!isCollapsed && (
         <div className="io-message-content ph-no-capture px-1 pt-1 pb-2">
-          <div className="bg-surface-output overflow-hidden rounded-md px-3 py-2">
+          <div
+            className={cn(
+              "px-3 py-2",
+              boxed && "bg-surface-output overflow-hidden rounded-md",
+            )}
+          >
             {children}
           </div>
         </div>

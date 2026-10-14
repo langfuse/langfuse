@@ -12,7 +12,7 @@ export interface SectionMediaProps {
  */
 export function SectionMedia({ media }: SectionMediaProps) {
   return (
-    <IOSection title="Media">
+    <IOSection title="Media" boxed={false}>
       <div className="flex flex-wrap gap-2">
         {media.map((m) => (
           <LangfuseMediaView
