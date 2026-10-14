@@ -21,7 +21,7 @@ export function EvaluatorRecommendedCardSurface({
   );
 }
 
-export function EvaluatorRecommendedCardContent({
+function EvaluatorRecommendedCardContent({
   preview,
   footer,
   title,

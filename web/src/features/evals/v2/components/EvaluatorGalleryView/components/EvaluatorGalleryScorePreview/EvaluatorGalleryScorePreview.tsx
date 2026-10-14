@@ -5,7 +5,7 @@ import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import type { ManagedTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import { cn } from "@/src/utils/tailwind";
 
-const MAX_VISIBLE_SCORES = 2;
+const MAX_VISIBLE_SCORES = 1;
 
 const MESH_TINT: Partial<Record<EvalTemplateType, string>> = {
   [EvalTemplateTypeEnum.LLM_AS_JUDGE]: "preview-mesh-judge",
@@ -14,13 +14,15 @@ const MESH_TINT: Partial<Record<EvalTemplateType, string>> = {
 };
 
 /** Sample `name: value` chips on a type-tinted mesh, styled like trace score badges. */
+type EvaluatorGalleryScorePreviewProps = {
+  scores: ManagedTemplate["previewScores"];
+  type: EvalTemplateType;
+};
+
 export function EvaluatorGalleryScorePreview({
   scores,
   type,
-}: {
-  scores: ManagedTemplate["previewScores"];
-  type: EvalTemplateType;
-}) {
+}: EvaluatorGalleryScorePreviewProps) {
   const visibleScores = scores.slice(0, MAX_VISIBLE_SCORES);
   const hiddenCount = scores.length - visibleScores.length;
 

@@ -36,7 +36,6 @@ function GallerySkeleton() {
 export function EvaluatorGalleryView({
   search,
   onSearchChange,
-  searchInputRef,
   navigationItems,
   activeSection,
   onSelectSection,
@@ -54,7 +53,6 @@ export function EvaluatorGalleryView({
 }: {
   search: string;
   onSearchChange: (search: string) => void;
-  searchInputRef?: RefObject<HTMLInputElement | null>;
   navigationItems: GalleryNavigationItem[];
   activeSection: string | null;
   onSelectSection: (key: string) => void;
@@ -127,7 +125,6 @@ export function EvaluatorGalleryView({
             onSelectSection={selectSection}
             search={search}
             onSearchChange={onSearchChange}
-            searchInputRef={searchInputRef}
           />
         ) : (
           <div aria-hidden="true" className="w-56 shrink-0 border-r" />

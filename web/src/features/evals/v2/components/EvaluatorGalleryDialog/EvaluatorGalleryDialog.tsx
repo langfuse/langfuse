@@ -44,7 +44,6 @@ export function EvaluatorGalleryDialog({
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(),
   );
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const pendingSearchCapture = useRef<{
     timeout: ReturnType<typeof setTimeout>;
     queryLength: number;
@@ -200,7 +199,6 @@ export function EvaluatorGalleryDialog({
         <EvaluatorGalleryView
           search={search}
           onSearchChange={handleSearchChange}
-          searchInputRef={searchInputRef}
           navigationItems={navigationItems}
           activeSection={activeSection}
           onSelectSection={selectSection}

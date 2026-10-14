@@ -21,7 +21,6 @@ export type EvaluatorEmptyStateStartingPoint =
 
 export type EvaluatorEmptyStateModel = {
   startingPoints: EvaluatorEmptyStateStartingPoint[];
-  templateCount: number;
   docsHref: string;
 };
 
@@ -31,7 +30,6 @@ export function prepareEvaluatorEmptyState(): EvaluatorEmptyStateModel {
       const template = managedEvaluatorTemplateService.get(point.templateKey);
       return template ? [toStartingPoint(point, template)] : [];
     }),
-    templateCount: managedEvaluatorTemplateService.list().templates.length,
     docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
   };
 }

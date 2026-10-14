@@ -74,30 +74,9 @@ const meta = preview.meta({ component: EvaluatorsEmptyStateView });
 export const Default = meta.story({
   args: {
     startingPoints,
-    templateCount: 21,
     docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
     onSelectTemplate: fn(),
-    onDetectTopics: fn(),
     onBrowseLibrary: fn(),
-  },
-});
-
-export const OpensDetectTopics = meta.story({
-  name: "(Test) Opens Detect Topics via the assistant action",
-  args: {
-    startingPoints,
-    templateCount: 21,
-    docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
-    onSelectTemplate: fn(),
-    onDetectTopics: fn(),
-    onBrowseLibrary: fn(),
-  },
-  play: async ({ canvas, args }) => {
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Set up with AI" }),
-    );
-    await expect(args.onDetectTopics).toHaveBeenCalledOnce();
-    await expect(args.onSelectTemplate).not.toHaveBeenCalled();
   },
 });
 
@@ -105,10 +84,8 @@ export const SetsUpDetectTopicsFromTheTemplate = meta.story({
   name: "(Test) Sets up Detect Topics from the managed template",
   args: {
     startingPoints,
-    templateCount: 21,
     docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
     onSelectTemplate: fn(),
-    onDetectTopics: fn(),
     onBrowseLibrary: fn(),
   },
   play: async ({ canvas, args }) => {
@@ -118,7 +95,6 @@ export const SetsUpDetectTopicsFromTheTemplate = meta.story({
     await expect(args.onSelectTemplate).toHaveBeenCalledWith(
       startingPoints[0]?.template,
     );
-    await expect(args.onDetectTopics).not.toHaveBeenCalled();
   },
 });
 
@@ -126,10 +102,8 @@ export const SelectsAStartingPoint = meta.story({
   name: "(Test) Selects a starting-point template",
   args: {
     startingPoints,
-    templateCount: 21,
     docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
     onSelectTemplate: fn(),
-    onDetectTopics: fn(),
     onBrowseLibrary: fn(),
   },
   play: async ({ canvas, args }) => {
@@ -139,7 +113,6 @@ export const SelectsAStartingPoint = meta.story({
     await expect(args.onSelectTemplate).toHaveBeenCalledWith(
       startingPoints[1]?.template,
     );
-    await expect(args.onDetectTopics).not.toHaveBeenCalled();
   },
 });
 
@@ -147,15 +120,15 @@ export const OpensTheLibrary = meta.story({
   name: "(Test) Opens the template library",
   args: {
     startingPoints,
-    templateCount: 21,
     docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
     onSelectTemplate: fn(),
-    onDetectTopics: fn(),
     onBrowseLibrary: fn(),
   },
   play: async ({ canvas, args }) => {
     await userEvent.click(
-      canvas.getByRole("button", { name: /Browse all templates/ }),
+      canvas.getByRole("button", {
+        name: "Browse all templates or start from scratch",
+      }),
     );
     await expect(args.onBrowseLibrary).toHaveBeenCalledOnce();
   },
@@ -165,10 +138,8 @@ export const LinksToDocs = meta.story({
   name: "(Test) Links to the evaluators overview docs",
   args: {
     startingPoints,
-    templateCount: 21,
     docsHref: EVALUATOR_EMPTY_STATE_DOCS_HREF,
     onSelectTemplate: fn(),
-    onDetectTopics: fn(),
     onBrowseLibrary: fn(),
   },
   play: async ({ canvas }) => {

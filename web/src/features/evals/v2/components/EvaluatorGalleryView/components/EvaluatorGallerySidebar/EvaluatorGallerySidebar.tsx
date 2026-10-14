@@ -1,5 +1,3 @@
-import type { RefObject } from "react";
-
 import { Button } from "@/src/components/ui/button";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import {
@@ -12,25 +10,13 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import type { GalleryNavigationItem } from "@/src/features/evals/v2/types/templateGallery";
 
-function GallerySearch({
-  search,
-  onSearchChange,
-  searchInputRef,
-}: {
+type EvaluatorGallerySidebarProps = {
+  items: GalleryNavigationItem[];
+  activeSection: string | null;
+  onSelectSection: (key: string) => void;
   search: string;
   onSearchChange: (search: string) => void;
-  searchInputRef?: RefObject<HTMLInputElement | null>;
-}) {
-  return (
-    <SearchInput
-      ref={searchInputRef}
-      value={search}
-      onChange={onSearchChange}
-      onSubmit={onSearchChange}
-      placeholder="Search templates"
-    />
-  );
-}
+};
 
 export function EvaluatorGallerySidebar({
   items,
@@ -38,23 +24,7 @@ export function EvaluatorGallerySidebar({
   onSelectSection,
   search,
   onSearchChange,
-  searchInputRef,
-}: {
-  items: GalleryNavigationItem[];
-  activeSection: string | null;
-  onSelectSection: (key: string) => void;
-  search: string;
-  onSearchChange: (search: string) => void;
-  searchInputRef?: RefObject<HTMLInputElement | null>;
-}) {
-  // Both layouts stay mounted; only the wide one takes the focus ref.
-  const searchField = (ref?: RefObject<HTMLInputElement | null>) => (
-    <GallerySearch
-      search={search}
-      onSearchChange={onSearchChange}
-      searchInputRef={ref}
-    />
-  );
+}: EvaluatorGallerySidebarProps) {
   const selectedSection = activeSection ?? items[0]?.key;
   const selectedItem = items.find((item) => item.key === selectedSection);
 
@@ -64,7 +34,9 @@ export function EvaluatorGallerySidebar({
         aria-label="Browse categories"
         className="hidden w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r p-4 @2xl:flex"
       >
-        <div className="pb-2">{searchField(searchInputRef)}</div>
+        <div className="pb-2">
+          <GallerySearch search={search} onSearchChange={onSearchChange} />
+        </div>
         {items.map((item) => {
           const isActive = selectedSection === item.key;
 
@@ -101,7 +73,7 @@ export function EvaluatorGallerySidebar({
         aria-label="Browse categories"
         className="flex flex-col gap-2 border-b p-3 @2xl:hidden"
       >
-        {searchField()}
+        <GallerySearch search={search} onSearchChange={onSearchChange} />
         <Select value={selectedSection} onValueChange={onSelectSection}>
           <SelectTrigger aria-label="Browse categories" className="w-full">
             <SelectValue placeholder="Browse categories">
@@ -131,5 +103,21 @@ export function EvaluatorGallerySidebar({
         </Select>
       </nav>
     </>
+  );
+}
+
+type GallerySearchProps = {
+  search: string;
+  onSearchChange: (search: string) => void;
+};
+
+function GallerySearch({ search, onSearchChange }: GallerySearchProps) {
+  return (
+    <SearchInput
+      value={search}
+      onChange={onSearchChange}
+      onSubmit={onSearchChange}
+      placeholder="Search templates"
+    />
   );
 }
