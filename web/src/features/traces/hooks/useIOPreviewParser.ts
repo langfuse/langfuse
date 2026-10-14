@@ -1,5 +1,9 @@
 import { useMemo } from "react";
-import { type Prisma, deepParseJson } from "@langfuse/shared";
+import {
+  type ObservationType,
+  type Prisma,
+  deepParseJson,
+} from "@langfuse/shared";
 import { normalizeSpanIO } from "@langfuse/shared/src/utils/normalized-io";
 import { reportError } from "@/src/utils/reportError";
 import { toIOPreview } from "../parsers/toIOPreview";
@@ -30,6 +34,7 @@ export function useIOPreviewParser(
   preParsedOutput?: unknown,
   preParsedMetadata?: unknown,
   preParsedResult?: ChatMLParserResult,
+  observationType?: ObservationType,
 ): ChatMLParserResult {
   const parsedInput = (() => {
     if (preParsedResult) {
@@ -68,10 +73,16 @@ export function useIOPreviewParser(
       metadata: parsedMetadata,
     };
     try {
-      return toIOPreview(normalizeSpanIO(span));
+      return toIOPreview(normalizeSpanIO(span), observationType);
     } catch (error) {
       reportError(error, { area: "io-preview-parser" });
       return toIOPreview({ messages: [], toolDefinitions: [], span });
     }
-  }, [preParsedResult, parsedInput, parsedOutput, parsedMetadata]);
+  }, [
+    preParsedResult,
+    parsedInput,
+    parsedOutput,
+    parsedMetadata,
+    observationType,
+  ]);
 }
