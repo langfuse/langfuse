@@ -31,6 +31,7 @@ export type ChColumnType =
   | "Decimal(18,12)"
   | "DateTime"
   | "DateTime64(6)"
+  | "Bool"
   | "UInt8"
   | "UInt16"
   | "Nullable(UInt16)"
@@ -46,32 +47,41 @@ type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
     ? string | null
     : T extends "Float" | "Decimal(18,12)"
       ? number
-      : T extends "UInt8" | "UInt16"
-        ? number
-        : T extends "Nullable(UInt16)"
-          ? number | null
-          : T extends "DateTime" | "DateTime64(6)"
-            ? Date
-            : T extends "Nullable(DateTime64(6))"
-              ? Date | null
-              : T extends "Array(String)"
-                ? string[]
-                : T extends
-                      | "Map(String, UInt64)"
-                      | "Map(String, Decimal(18,12))"
-                  ? Record<string, number>
-                  : T extends "Map(String, String)"
-                    ? Record<string, string>
-                    : never;
+      : T extends "Bool"
+        ? boolean
+        : T extends "UInt8" | "UInt16"
+          ? number
+          : T extends "Nullable(UInt16)"
+            ? number | null
+            : T extends "DateTime" | "DateTime64(6)"
+              ? Date
+              : T extends "Nullable(DateTime64(6))"
+                ? Date | null
+                : T extends "Array(String)"
+                  ? string[]
+                  : T extends
+                        | "Map(String, UInt64)"
+                        | "Map(String, Decimal(18,12))"
+                    ? Record<string, number>
+                    : T extends "Map(String, String)"
+                      ? Record<string, string>
+                      : never;
 
 /** Coarse runtime category the aggregate type-check pass reasons about. */
-export type ColumnDataType = "string" | "number" | "date" | "array" | "map";
+export type ColumnDataType =
+  | "string"
+  | "number"
+  | "boolean"
+  | "date"
+  | "array"
+  | "map";
 
 const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
   String: "string",
   "Nullable(String)": "string",
   Float: "number",
   "Decimal(18,12)": "number",
+  Bool: "boolean",
   UInt8: "number",
   UInt16: "number",
   "Nullable(UInt16)": "number",
@@ -102,8 +112,18 @@ export type DedupSpec =
   | { strategy: "limitBy"; key: readonly string[]; version: string }
   | { strategy: "final" };
 
-function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
+function defineTable<
+  const Cols extends Record<string, ChColumnType>,
+  const Derived extends Record<string, ChColumnType> = Record<never, never>,
+>(spec: {
   columns: Cols;
+  /**
+   * Columns computed from the physical ones, by name and result type. Queries
+   * read them like columns (`.select("e.metadata")`); the derived-column pass
+   * (`derived.ts`, which holds each expression) expands them before tenancy.
+   * Names must not collide with a physical column.
+   */
+  derived?: Derived;
   /**
    * Whether the tenancy pass must inject a `project_id` scope. Defaults to
    * `true`: every relation modeled here is project-gated, and defaulting on is
@@ -119,6 +139,7 @@ function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
 }) {
   return {
     columns: spec.columns,
+    derived: spec.derived,
     tenant: spec.tenant ?? true,
     dedup: spec.dedup,
   };
@@ -149,7 +170,9 @@ const EVENTS_COLUMNS = {
   user_id: "String",
   session_id: "String",
   name: "String",
+  trace_name: "String",
   parent_span_id: "String",
+  is_app_root: "Bool",
   end_time: "Nullable(DateTime64(6))",
   tags: "Array(String)",
   input: "String",
@@ -159,6 +182,11 @@ const EVENTS_COLUMNS = {
   experiment_item_expected_output: "String",
   experiment_item_metadata_names: "Array(String)",
   experiment_item_metadata_values: "Array(String)",
+} as const satisfies Record<string, ChColumnType>;
+
+const EVENTS_DERIVED_COLUMNS = {
+  metadata: "Map(String, String)",
+  resolved_trace_name: "Nullable(String)",
 } as const satisfies Record<string, ChColumnType>;
 
 const TABLE_REGISTRY = {
@@ -182,6 +210,7 @@ const TABLE_REGISTRY = {
   }),
   events_core: defineTable({
     columns: EVENTS_COLUMNS,
+    derived: EVENTS_DERIVED_COLUMNS,
     // Immutable at read time. Do not inject LIMIT BY or FINAL.
     dedup: { strategy: "none" },
   }),
@@ -190,6 +219,7 @@ const TABLE_REGISTRY = {
   // input/output or metadata.
   events_full: defineTable({
     columns: EVENTS_COLUMNS,
+    derived: EVENTS_DERIVED_COLUMNS,
     dedup: { strategy: "none" },
   }),
   scores: defineTable({
@@ -221,16 +251,29 @@ const TABLE_REGISTRY = {
   }),
 } as const;
 
-type RowOf<Cols extends Record<string, ChColumnType>> = {
-  [C in keyof Cols]: TsTypeOfColumn<Cols[C]>;
+type RowOf<Cols> = {
+  [C in keyof Cols]: Cols[C] extends ChColumnType
+    ? TsTypeOfColumn<Cols[C]>
+    : never;
 };
 
-/** Derived Kysely row types. */
+/** Derived Kysely row types: physical and derived columns. */
 export type ClickHouseDatabase = {
   [T in keyof typeof TABLE_REGISTRY]: RowOf<
-    (typeof TABLE_REGISTRY)[T]["columns"]
+    (typeof TABLE_REGISTRY)[T]["columns"] &
+      NonNullable<(typeof TABLE_REGISTRY)[T]["derived"]>
   >;
 };
+
+/** Derived column names per table; `never` for a table without any. */
+export type DerivedColumnsOf = {
+  [T in keyof typeof TABLE_REGISTRY]: keyof NonNullable<
+    (typeof TABLE_REGISTRY)[T]["derived"]
+  >;
+};
+
+/** Physical column names of the events tables. */
+export type EventsColumn = keyof typeof EVENTS_COLUMNS;
 
 /**
  * Derived coarse runtime column-type map (column name -> category), consumed by
@@ -271,6 +314,7 @@ const BIND_TYPE: Record<ChColumnType, string> = {
   String: "String",
   Float: "Float64",
   "Decimal(18,12)": "Decimal(18, 12)",
+  Bool: "Bool",
   UInt8: "UInt8",
   UInt16: "UInt16",
   // A bound value is never NULL; NULL checks compile to `IS NULL`.

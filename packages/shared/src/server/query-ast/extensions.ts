@@ -309,6 +309,34 @@ export function leftUTF8(
   ]);
 }
 
+/** ClickHouse `COALESCE(a, b, …)`. */
+export function coalesce<T>(
+  ...args: ReadonlyArray<Expression<T | null>>
+): ChExpression<T | null> {
+  return functionCall("COALESCE", args);
+}
+
+/** ClickHouse `nullIf(expression, '')`, with the empty string inlined. */
+export function nullIfEmpty(
+  expression: Expression<string>,
+): ChExpression<string | null> {
+  return functionCall("nullIf", [expression, ValueNode.createImmediate("")]);
+}
+
+/** ClickHouse `if(condition, then, otherwise)`. */
+export function ifElse<T>(
+  condition: Expression<SqlBool>,
+  then: Expression<T>,
+  otherwise: Expression<T>,
+): ChExpression<T> {
+  return functionCall("if", [condition, then, otherwise]);
+}
+
+/** `expression = ''`, with the empty string inlined. */
+export function isEmpty(expression: Expression<string>): ChExpression<SqlBool> {
+  return emptyComparison(expression, "=");
+}
+
 /** ClickHouse `length(expression)`: byte length of a String. */
 export function byteLength(
   expression: Expression<string>,
@@ -425,10 +453,17 @@ export function tupleIn(
 
 /** `expression != ''`, with the empty string inlined rather than bound. */
 function nonEmpty(expression: Expression<string>): ChExpression<SqlBool> {
+  return emptyComparison(expression, "!=");
+}
+
+function emptyComparison(
+  expression: Expression<string>,
+  operator: "=" | "!=",
+): ChExpression<SqlBool> {
   return new ExpressionWrapper(
     BinaryOperationNode.create(
       expression.toOperationNode(),
-      OperatorNode.create("!="),
+      OperatorNode.create(operator),
       ValueNode.createImmediate(""),
     ) as unknown as OperationNode,
   );

@@ -7,11 +7,10 @@ import {
   eventsTableTraceNameAggregationSql,
   eventsTableTraceNameSelectSql,
 } from "../../../eventsTable";
-import { expressionBuilder } from "kysely";
 
 import { renderClickhouseExpression } from "../../query-ast/compile";
-import { metadataMap, traceSessionId } from "../../query-ast/extensions";
-import type { ClickHouseDatabase } from "../../query-ast/schema";
+import { derivedColumnExpression } from "../../query-ast/derived";
+import { traceSessionId } from "../../query-ast/extensions";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 import {
   FilterList,
@@ -19,16 +18,8 @@ import {
   type ClickhouseFilter,
 } from "./clickhouse-filter";
 
-const eventsRef = expressionBuilder<
-  { e: ClickHouseDatabase["events_core"] },
-  "e"
->();
-
 export const EVENTS_METADATA_MAP_SQL = renderClickhouseExpression(
-  metadataMap(
-    eventsRef.ref("e.metadata_names"),
-    eventsRef.ref("e.metadata_values"),
-  ),
+  derivedColumnExpression("events_core", "metadata", "e"),
 );
 
 const TRACE_SESSION_ID_SQL = renderClickhouseExpression(traceSessionId());

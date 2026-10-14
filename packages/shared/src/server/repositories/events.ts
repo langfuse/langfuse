@@ -165,7 +165,6 @@ import {
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import {
   eventsTableCols,
-  eventsTableTraceNameSql,
   normalizeEventsTraceName,
   type NumericEventsTableColumnId,
 } from "../../eventsTable";
@@ -2632,22 +2631,16 @@ export async function getAgentGraphDataFromEventsTable(params: {
 
   const builder = db
     .selectFrom("events_core as e")
-    .select((eb) => {
-      const metadata = metadataMap(
-        eb.ref("e.metadata_names"),
-        eb.ref("e.metadata_values"),
-      );
-      return [
-        "e.span_id as id",
-        "e.parent_span_id as parent_observation_id",
-        "e.type as type",
-        "e.name as name",
-        "e.start_time as start_time",
-        "e.end_time as end_time",
-        mapValue<string>(metadata, "langgraph_node").as("node"),
-        mapValue<string>(metadata, "langgraph_step").as("step"),
-      ];
-    })
+    .select((eb) => [
+      "e.span_id as id",
+      "e.parent_span_id as parent_observation_id",
+      "e.type as type",
+      "e.name as name",
+      "e.start_time as start_time",
+      "e.end_time as end_time",
+      mapValue<string>(eb.ref("e.metadata"), "langgraph_node").as("node"),
+      mapValue<string>(eb.ref("e.metadata"), "langgraph_step").as("step"),
+    ])
     .where("e.trace_id", "=", traceId)
     .where("e.start_time", ">=", minStartTime)
     .where("e.start_time", "<=", maxStartTime);
@@ -2939,12 +2932,7 @@ function compileObservationIOFieldRead<A extends string>(
     .select((eb) =>
       select(
         opts.field === "metadata"
-          ? toJSONString(
-              metadataMap(
-                eb.ref("e.metadata_names"),
-                eb.ref("e.metadata_values"),
-              ),
-            )
+          ? toJSONString(eb.ref("e.metadata"))
           : eb.ref(`e.${opts.field}`),
       ),
     )
@@ -3055,13 +3043,11 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
   const ctx: ExecutionContext = { projectId: opts.projectId };
   const builder = db
     .selectFrom("events_full as e")
-    .select((eb) => [
+    .select([
       "e.span_id as id",
       "e.input as input",
       "e.output as output",
-      metadataMap(eb.ref("e.metadata_names"), eb.ref("e.metadata_values")).as(
-        "metadata",
-      ),
+      "e.metadata as metadata",
     ])
     .where("e.session_id", "=", opts.sessionId)
     .where((eb) =>
@@ -3612,11 +3598,11 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
     .selectFrom("events_core as e")
     .select([
       "e.trace_id as id",
-      sql.raw(eventsTableTraceNameSql).as("name"),
+      "e.resolved_trace_name as name",
       "e.user_id as user_id",
       "e.tags as tags",
     ])
-    .where(sql<SqlBool>`${sql.raw(eventsTableTraceNameSql)} IS NOT NULL`)
+    .where("e.resolved_trace_name", "is not", null)
     .where("e.is_deleted", "=", 0)
     .where("e.trace_id", "in", props.traceIds)
     .$call(limitBy({ count: 1, columns: ["e.trace_id"] }));

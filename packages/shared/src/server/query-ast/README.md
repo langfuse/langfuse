@@ -26,7 +26,10 @@ changing how it emits SQL.
   relation drives the Kysely row types (`ClickHouseDatabase`), the runtime
   column-type map (`COLUMN_DATA_TYPES`), the tenanted-table set
   (`TENANTED_TABLES`), and the per-table dedup specs (`DEDUP_SPECS`) — instead
-  of hand-maintained tables that drift.
+  of hand-maintained tables that drift. A table may also declare derived
+  columns (name and type).
+- `derived.ts` — the derived-column expressions and the pass that expands them
+  (`events_*.metadata`, `events_*.resolved_trace_name`).
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
 - `extensions.ts` — the `$call` helpers: `arrayJoin`, `mapKeys`, `mapValues`,
   `limitBy`, `useFinal`, `metadataValue`.
@@ -89,6 +92,10 @@ suffix to run there. Promote it to a required check once it has proven stable.
   used on traces / observations / scores. `$call(limitBy(...))` remains for
   explicit non-version LIMIT BY. Auto-lowering does not declare scores as
   `{ strategy: "final" }`; callers opt in with `$call(useFinal(["scores"]))`.
+- **Read derived columns by name.** `.select("e.metadata")` or
+  `.where("e.resolved_trace_name", "is not", null)` expand to the registry's
+  expression, so call sites never paste it in. Qualify them when more than one
+  relation is in scope; an unqualified one is a compile error there.
 - **Value binds take their ClickHouse type from the compared column** in the
   table registry (`scores.value > 1` emits `{p:Float64}`, not inferred
   `{p:Int64}`). Same-value binds still intern to one placeholder.
