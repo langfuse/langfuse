@@ -88,7 +88,7 @@ describe("organization LLM connections", () => {
     expect(result.data[0]).not.toHaveProperty("extraHeaders");
   });
 
-  it("rejects creating or updating an organization connection with an incompatible project adapter", async () => {
+  it("rejects an incompatible organization connection without blocking edits to an existing mismatch", async () => {
     const setup = await createOrgProjectAndApiKey();
     const caller = createCaller(
       createSession({
@@ -137,9 +137,10 @@ describe("organization LLM connections", () => {
         adapter: LLMAdapter.OpenAI,
         customModels: ["gpt-5"],
       }),
-    ).rejects.toThrow(
-      "Project and organization connections with the same provider name must use the same adapter.",
-    );
+    ).resolves.toMatchObject({
+      id: incompatibleOrganizationConnection.id,
+      customModels: ["gpt-5"],
+    });
   });
 
   it("lets a project viewer read inherited metadata but not organization settings", async () => {

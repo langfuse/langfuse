@@ -588,16 +588,18 @@ export class LlmConnectionService {
       : undefined;
     const { connection, existing } = await this.db.$transaction(async (tx) => {
       const repository = this.repository.withDb(tx);
-      await this.validateHierarchyAdapter({
-        repository,
-        owner: params.owner,
-        provider: params.input.provider,
-        adapter: params.input.adapter,
-      });
       const existing = await repository.findByProvider({
         owner: params.owner,
         provider: params.input.provider,
       });
+      if (!existing || existing.adapter !== params.input.adapter) {
+        await this.validateHierarchyAdapter({
+          repository,
+          owner: params.owner,
+          provider: params.input.provider,
+          adapter: params.input.adapter,
+        });
+      }
       const connection = await repository.upsert({
         owner: params.owner,
         provider: params.input.provider,
@@ -667,12 +669,6 @@ export class LlmConnectionService {
     ) {
       throw new InvalidRequestError("Provider and adapter cannot be changed");
     }
-    await this.validateHierarchyAdapter({
-      repository: this.repository,
-      owner: params.owner,
-      provider: params.input.provider,
-      adapter: params.input.adapter,
-    });
 
     const isBaseURLChanged =
       params.input.baseURL !== undefined &&

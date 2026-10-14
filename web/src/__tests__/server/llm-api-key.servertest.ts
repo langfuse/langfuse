@@ -214,7 +214,7 @@ describe("llmApiKey.all RPC", () => {
     ).resolves.toBe(1);
   });
 
-  it("rejects creating or updating a project connection with an incompatible organization adapter", async () => {
+  it("rejects an incompatible project override without blocking edits to an existing mismatch", async () => {
     const provider = `incompatible-project-override-${randomUUID()}`;
     await prisma.llmApiKeys.create({
       data: {
