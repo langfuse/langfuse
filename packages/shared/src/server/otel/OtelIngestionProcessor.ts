@@ -672,6 +672,7 @@ export class OtelIngestionProcessor {
                   sessionId: this.extractSessionId(
                     spanAttributes,
                     decodeMetadataValues,
+                    scopeSpan.scope?.name,
                   ),
                   release:
                     (spanAttributes?.[
@@ -1155,7 +1156,11 @@ export class OtelIngestionProcessor {
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
         userId: this.extractUserId(attributes, decodeMetadataValues),
-        sessionId: this.extractSessionId(attributes, decodeMetadataValues),
+        sessionId: this.extractSessionId(
+          attributes,
+          decodeMetadataValues,
+          instrumentationScopeName,
+        ),
         public: this.extractPublic(attributes),
         tags: this.extractTags(attributes, decodeMetadataValues),
         environment: this.extractEnvironment(attributes, resourceAttributes),
@@ -1195,7 +1200,11 @@ export class OtelIngestionProcessor {
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
         userId: this.extractUserId(attributes, decodeMetadataValues),
-        sessionId: this.extractSessionId(attributes, decodeMetadataValues),
+        sessionId: this.extractSessionId(
+          attributes,
+          decodeMetadataValues,
+          instrumentationScopeName,
+        ),
         public: this.extractPublic(attributes),
         tags: this.extractTags(attributes, decodeMetadataValues),
         environment: this.extractEnvironment(attributes, resourceAttributes),
@@ -2736,12 +2745,25 @@ export class OtelIngestionProcessor {
   private extractSessionId(
     attributes: Record<string, unknown>,
     decodeMetadataValues: boolean,
+    instrumentationScopeName: string | undefined,
   ): string | undefined {
+    const sessionIdKeys = ["langfuse.session.id", "session.id"];
+    const managedSessionId = attributes["anthropic.session.id"];
+
+    /** Claude Managed Agents sessions span multiple threads; conversation IDs identify individual threads. */
+    if (
+      (instrumentationScopeName === "com.anthropic.claude-platform" ||
+        instrumentationScopeName?.startsWith("com.anthropic.sdk.")) &&
+      typeof managedSessionId === "string" &&
+      managedSessionId.trim().length > 0
+    ) {
+      sessionIdKeys.push("anthropic.session.id");
+    }
+
     return this.extractStringAttribute(
       attributes,
       [
-        "langfuse.session.id",
-        "session.id",
+        ...sessionIdKeys,
         "gen_ai.conversation.id",
         `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_session_id`,
         `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_session_id`,

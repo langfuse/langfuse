@@ -5781,6 +5781,115 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it.each([
+      { scenario: "platform spans", expectedSessionId: "sesn_example" },
+      {
+        scenario: "SDK spans",
+        scopeName: "com.anthropic.sdk.typescript",
+        expectedSessionId: "sesn_example",
+      },
+      {
+        scenario: "other instrumentation keeps its conversation IDs",
+        scopeName: "other-sdk",
+        expectedSessionId: undefined,
+      },
+      {
+        scenario: "blank managed session IDs are ignored",
+        managedSessionId: "   ",
+        expectedSessionId: undefined,
+      },
+      {
+        scenario: "Langfuse session override wins",
+        extraAttributes: {
+          "langfuse.session.id": "custom-session",
+          "session.id": "other-session",
+        },
+        expectedSessionId: "custom-session",
+      },
+      {
+        scenario: "generic session override wins",
+        extraAttributes: { "session.id": "custom-session" },
+        expectedSessionId: "custom-session",
+      },
+    ])(
+      "groups Claude Managed Agents traces by session: $scenario",
+      async ({
+        scopeName = "com.anthropic.claude-platform",
+        managedSessionId = "sesn_example",
+        extraAttributes = {},
+        expectedSessionId,
+      }) => {
+        const rootId = Buffer.alloc(8, 1);
+        const agentId = Buffer.alloc(8, 2);
+        const resourceSpan: ResourceSpan = {
+          scopeSpans: [
+            {
+              scope: { name: scopeName },
+              spans: (
+                [
+                  ["anthropic.sessions.events.send", undefined, undefined],
+                  ["anthropic.session.turn", "invoke_agent", rootId],
+                  ["anthropic.model_request", "chat", agentId],
+                  ["anthropic.tool_use bash", "execute_tool", agentId],
+                  ["anthropic.model_request", "chat", agentId],
+                ] as const
+              ).map(([name, operation, parentSpanId], index) => ({
+                ...defaultSpanProps,
+                traceId: Buffer.from(defaultSpanProps.traceId.data),
+                spanId: Buffer.alloc(8, index + 1),
+                parentSpanId,
+                name,
+                attributes: [
+                  {
+                    key: "anthropic.session.id",
+                    value: { stringValue: managedSessionId },
+                  },
+                  ...Object.entries(extraAttributes).map(([key, value]) => ({
+                    key,
+                    value: { stringValue: value },
+                  })),
+                  ...(operation
+                    ? [
+                        {
+                          key: "gen_ai.operation.name",
+                          value: { stringValue: operation },
+                        },
+                        {
+                          key: "gen_ai.conversation.id",
+                          value: { stringValue: "sthr_example" },
+                        },
+                      ]
+                    : []),
+                ],
+              })),
+            },
+          ],
+        };
+
+        const eventInputs = createTestOtelProcessor().processToEvent([
+          resourceSpan,
+        ]);
+        expect(eventInputs.map((event) => event.sessionId)).toEqual([
+          expectedSessionId,
+          expectedSessionId ?? "sthr_example",
+          expectedSessionId ?? "sthr_example",
+          expectedSessionId ?? "sthr_example",
+          expectedSessionId ?? "sthr_example",
+        ]);
+        expect(
+          eventInputs[1].metadata.attributes["gen_ai.conversation.id"],
+        ).toBe("sthr_example");
+
+        const events = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const trace = events.find((event) => event.type === "trace-create");
+        expect(trace).toBeDefined();
+        expect(trace?.body.sessionId).toBe(expectedSessionId);
+      },
+    );
+
+    it.each([
       {
         scenario: "maps platform session creation to a span",
         expectedType: "SPAN",
