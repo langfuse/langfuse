@@ -35,8 +35,10 @@ vi.mock("@/src/components/ui/LangfuseMediaView", () => ({
 }));
 
 import { ChatMlArraySchema } from "@langfuse/shared";
+import { normalizeSpanIO } from "@langfuse/shared/src/utils/normalized-io";
 
 import { ChatMessage } from "./ChatMessage";
+import { toIOPreview } from "../../../parsers/toIOPreview";
 import { type ChatMlMessage } from "../../../fns/chatMessageUtils";
 import { type IOPreviewContentMode } from "../IOPreview";
 
@@ -444,5 +446,54 @@ describe("ChatMessage media content parts", () => {
       "data-media-ref",
       referenceString,
     );
+  });
+});
+
+// Non-chat I/O (tool arguments, span records, bare strings) must not read as
+// a conversation: the Formatted view labels it by side, chat keeps its roles.
+describe("ChatMessage titles for non-chat input and output", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", createMemoryStorage());
+    vi.stubGlobal("sessionStorage", createMemoryStorage());
+  });
+
+  const renderPreview = (input: unknown, output: unknown) => {
+    const { allMessages, inputMessageCount } = toIOPreview(
+      normalizeSpanIO({ input, output, metadata: undefined }),
+    );
+    return render(
+      <>
+        {allMessages.map((message, index) => (
+          <ChatMessage
+            key={index}
+            message={message}
+            shouldRenderMarkdown
+            currentView="pretty"
+            isOutputMessage={index >= inputMessageCount}
+          />
+        ))}
+      </>,
+    );
+  };
+
+  it("labels a tool span's JSON input and string output as Input / Output", () => {
+    renderPreview({ command: "python3 -c 'print(1)'" }, "2026-10-05");
+
+    expect(screen.getAllByText("Input").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Output").length).toBeGreaterThan(0);
+    expect(screen.queryByText("user")).not.toBeInTheDocument();
+    expect(screen.queryByText("assistant")).not.toBeInTheDocument();
+  });
+
+  it("keeps role labels for real chat messages", () => {
+    renderPreview([{ role: "user", content: "What day is it?" }], {
+      role: "assistant",
+      content: "2026-10-05",
+    });
+
+    expect(screen.getAllByText("user").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("assistant").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Input")).not.toBeInTheDocument();
+    expect(screen.queryByText("Output")).not.toBeInTheDocument();
   });
 });

@@ -11,7 +11,10 @@ import {
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 
 // ChatML message type from schema
-export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
+export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema> & {
+  /** Role is the observation-side default, not declared: title by side. */
+  roleInferred?: true;
+};
 
 // Tool definition extracted from messages
 interface ToolDefinition {

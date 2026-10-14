@@ -1,14 +1,18 @@
-import type { z } from "zod";
-import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import type { combineInputOutputMessages } from "@/src/utils/chatml";
 import type { IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
+import type { ChatMlMessage } from "@/src/features/traces/hooks/useChatMLParser";
 
-export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
+export type { ChatMlMessage };
 
 /**
- * Get display title for a message based on name or role.
+ * Get display title for a message based on name or role. A message whose
+ * role is only the side default is not a chat turn: title it by side.
  */
-export function getMessageTitle(message: ChatMlMessage): string {
+export function getMessageTitle(
+  message: ChatMlMessage,
+  isOutputMessage = false,
+): string {
+  if (message.roleInferred) return isOutputMessage ? "Output" : "Input";
   return message.name ?? message.role ?? "";
 }
 

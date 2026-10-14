@@ -172,7 +172,9 @@ export function normalizeMessage(
       }
     }
     const parts = normalizeMediaPartsFromString(value);
-    return parts.length > 0 ? { role: fallbackRole, parts, source } : null;
+    return parts.length > 0
+      ? { role: fallbackRole, roleInferred: true, parts, source }
+      : null;
   }
   if (!isRecord(value) || isToolDefinitionMessage(value)) return null;
 
@@ -214,10 +216,10 @@ export function normalizeMessage(
 
   const nestedContent = asRecord(value.content);
   const recognizedRole = normalizeRole(value);
-  let role =
+  const payloadRole =
     recognizedRole ??
-    (nestedContent ? normalizeRole(nestedContent) : undefined) ??
-    fallbackRole;
+    (nestedContent ? normalizeRole(nestedContent) : undefined);
+  let role = payloadRole ?? fallbackRole;
 
   const parts = normalizeMessageContent(value, nestedContent, parserContext);
   applySiblingFields(value, parts, parserContext);
@@ -243,12 +245,21 @@ export function normalizeMessage(
   const senderName =
     optionalString(value.name) ??
     (recognizedRole === undefined ? declaredRole : undefined);
+  // An unrecognized declared role (agent name) is still a chat turn, and a
+  // bare tool-call batch is an assistant turn by shape; only a payload with
+  // no role at all, still on the side default, is non-chat.
+  const roleInferred =
+    payloadRole === undefined &&
+    declaredRole === undefined &&
+    role === fallbackRole &&
+    !parts.every((part) => part.type === "tool-call");
 
   return parts.length > 0
     ? {
         ...(optionalString(value.id) ? { id: String(value.id) } : {}),
         ...(senderName ? { senderName } : {}),
         role,
+        ...(roleInferred ? { roleInferred: true } : {}),
         parts,
         ...(finishReason ? { finishReason } : {}),
         source,

@@ -27,6 +27,8 @@ export const documentedResponsesFixtures: NormalizedIOFixture[] = [
             {
               source: "input",
               role: "user",
+              // A bare string input declares no role.
+              ...(typeof input === "string" ? { roleInferred: true } : {}),
               parts: [{ type: "text", text: "Explain retries." }],
             },
           ],
@@ -47,6 +49,7 @@ export const documentedResponsesFixtures: NormalizedIOFixture[] = [
         {
           source: "input",
           role: "user",
+          roleInferred: true,
           parts: [{ type: "data", value: { input: "invoice", total: 42 } }],
         },
       ],
