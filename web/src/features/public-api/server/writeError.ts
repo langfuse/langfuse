@@ -10,7 +10,7 @@ export const ErrorOrgApiKeyRequired =
 export function writeScimError(res: NextApiResponse, error: BaseError): void {
   return res.status(error.httpCode).json({
     schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-    detail: error.httpCode === 403 ? ErrorOrgApiKeyRequired : error.message,
+    detail: error.message,
     status: error.httpCode,
   });
 }
@@ -18,7 +18,7 @@ export function writeScimError(res: NextApiResponse, error: BaseError): void {
 /** writeOrgError renders an auth-deny error in the organization error envelope. */
 export function writeOrgError(res: NextApiResponse, error: BaseError): void {
   return res.status(error.httpCode).json({
-    error: error.httpCode === 403 ? ErrorOrgApiKeyRequired : error.message,
+    error: error.message,
   });
 }
 
@@ -28,7 +28,7 @@ export function writeProjectError(
   error: BaseError,
 ): void {
   return res.status(error.httpCode).json({
-    message: error.httpCode === 403 ? ErrorOrgApiKeyRequired : error.message,
+    message: error.message,
   });
 }
 

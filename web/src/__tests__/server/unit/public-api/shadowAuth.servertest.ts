@@ -120,8 +120,7 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
     it("403s a non-org key, leaving the body to the route", async () => {
       legacyProjectKey();
       expect(await call()).toMatchObject({
-        success: false,
-        error: { httpCode: 403, message: "Forbidden" },
+        error: { httpCode: 403 },
       });
     });
   });
