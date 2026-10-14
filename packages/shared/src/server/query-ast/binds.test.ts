@@ -93,18 +93,23 @@ describe("typed params from the column registry", () => {
     );
   });
 
-  // @clickhouse/client sends a Date param as a unix timestamp, which the server
-  // reads independently of its timezone; a string bind is parsed in the
-  // server's timezone.
-  it("passes a Date bind through to the client unchanged", () => {
+  // Rows are written as UTC wall-clock strings that ClickHouse parses in the
+  // server timezone; Date binds must take the same form to match them.
+  it("binds a Date as the UTC wall-clock string ingestion writes", () => {
     const { sql, params } = compile(
       getClickhouseKysely()
         .selectFrom("events_core")
         .select("span_id")
-        .where("start_time", ">=", START),
+        .where("start_time", ">=", new Date(-1000))
+        .where("start_time", "<=", START),
     );
     expect(sql).toMatch(/start_time >= \{p\d+:DateTime64\(6\)\}/);
-    expect(Object.values(params)).toContain(START);
+    expect(Object.values(params)).toEqual(
+      expect.arrayContaining([
+        "1969-12-31 23:59:59.000",
+        "2026-01-01 00:00:00.000",
+      ]),
+    );
   });
 
   it("binds a shared column name with the type of the table it is read from", () => {
