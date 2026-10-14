@@ -1493,7 +1493,7 @@ export type SessionEventsMetricsRow = {
  * Aggregation fields for session-level queries.
  * These fields use ClickHouse aggregation functions and require GROUP BY session_id.
  */
-const EVENTS_SESSION_AGGREGATION_FIELDS = {
+export const EVENTS_SESSION_AGGREGATION_FIELDS = {
   session_id: "session_id",
   max_timestamp: "max(start_time) AS max_timestamp",
   min_timestamp: "min(start_time) AS min_timestamp",
@@ -1533,7 +1533,7 @@ const EVENTS_SESSION_AGGREGATION_FIELDS = {
 /**
  * Field sets for session aggregation queries
  */
-const SESSION_AGGREGATION_FIELD_SETS = {
+export const SESSION_AGGREGATION_FIELD_SETS = {
   all: Object.keys(EVENTS_SESSION_AGGREGATION_FIELDS) as Array<
     keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS
   >,
@@ -1980,7 +1980,7 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
  * Aggregation fields for experiment-level queries.
  * These fields use ClickHouse aggregation functions and require GROUP BY experiment_id, project_id.
  */
-const EXPERIMENTS_AGGREGATION_FIELDS = {
+export const EXPERIMENTS_AGGREGATION_FIELDS = {
   // Base aggregated fields
   experimentId: "e.experiment_id AS experiment_id",
   experimentName: "any(e.experiment_name) AS experiment_name",
@@ -2007,7 +2007,7 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
 /**
  * Field sets for experiment aggregation queries.
  */
-const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
+export const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
   count: ["experimentId"] as const,
   base: [
     "experimentId",

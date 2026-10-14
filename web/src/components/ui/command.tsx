@@ -78,8 +78,10 @@ const CommandInput = React.forwardRef<
   React.ComponentRef<typeof CommandPrimitive.Input>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input> & {
     showBorder?: boolean;
+    /** Compact panel-toolbar search: 28px, xs text, mono placeholder. */
+    variant?: "default" | "toolbar";
   }
->(({ className, showBorder = true, ...props }, ref) => (
+>(({ className, showBorder = true, variant = "default", ...props }, ref) => (
   <div
     className={cn(
       "relative flex items-center p-1",
@@ -92,6 +94,7 @@ const CommandInput = React.forwardRef<
       ref={ref}
       className={cn(
         "placeholder:text-muted-foreground flex h-8 w-full rounded-md bg-transparent py-3 pr-6 pl-6 text-sm outline-hidden focus:ring-0 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+        variant === "toolbar" && "h-7 text-xs placeholder:font-mono",
         className,
       )}
       {...props}

@@ -14,7 +14,7 @@ const connection = vi.hoisted(() => ({
 vi.mock("@/src/utils/api", () => ({
   api: {
     llmApiKey: {
-      all: {
+      effective: {
         useQuery: () => ({ isSuccess: true, data: { data: [connection] } }),
       },
     },

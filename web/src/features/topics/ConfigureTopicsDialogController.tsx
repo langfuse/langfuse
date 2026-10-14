@@ -23,7 +23,7 @@ import {
 import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
 import { topicsSetupPayload } from "./topics-setup";
 
-type Connection = RouterOutputs["llmApiKey"]["all"]["data"][number];
+type Connection = RouterOutputs["llmApiKey"]["effective"]["data"][number];
 type SlotValue = { llmApiKeyId: string; model: string } | null;
 
 type ConfigureTopicsDialogControllerProps = {

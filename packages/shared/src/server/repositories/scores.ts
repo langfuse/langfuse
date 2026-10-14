@@ -77,6 +77,7 @@ import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
 import { limitBy, mapKeys, useFinal } from "../query-ast/extensions";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
+import { promptGenerationEvents } from "./prompt-events";
 import {
   findUiColumnMapping,
   matchesUiColumnMapping,
@@ -2233,30 +2234,6 @@ export const getAggregatedScoresForPrompts = async (
   }));
 };
 
-const promptEventsForScoresQuery = (
-  promptIds: string[],
-  timeWindow: { fromTimestamp?: Date; toTimestamp?: Date } = {},
-) =>
-  getClickhouseKysely()
-    .selectFrom("events_core as e")
-    .select([
-      "e.project_id as project_id",
-      "e.prompt_id as prompt_id",
-      "e.trace_id as trace_id",
-      "e.span_id as span_id",
-      "e.is_deleted as is_deleted",
-    ])
-    .where("e.type", "=", "GENERATION")
-    .where("e.prompt_id", "in", promptIds)
-    .$if(timeWindow.fromTimestamp !== undefined, (qb) =>
-      qb.where("e.start_time", ">=", timeWindow.fromTimestamp!),
-    )
-    .$if(timeWindow.toTimestamp !== undefined, (qb) =>
-      qb.where("e.start_time", "<=", timeWindow.toTimestamp!),
-    )
-    .orderBy("e.event_ts", "desc")
-    .$call(limitBy({ count: 1, columns: ["e.span_id", "e.project_id"] }));
-
 const aggregatedScoresForPromptsFromEventsQuery = (
   promptIds: string[],
   fetchScoreRelation: "observation" | "trace",
@@ -2264,7 +2241,17 @@ const aggregatedScoresForPromptsFromEventsQuery = (
 ) =>
   getClickhouseKysely()
     .with("prompt_events", () =>
-      promptEventsForScoresQuery(promptIds, timeWindow),
+      promptGenerationEvents(
+        promptIds,
+        [
+          "e.project_id as project_id",
+          "e.prompt_id as prompt_id",
+          "e.trace_id as trace_id",
+          "e.span_id as span_id",
+          "e.is_deleted as is_deleted",
+        ],
+        timeWindow,
+      ),
     )
     .selectFrom("scores as s")
     .$call(useFinal(["scores"]))

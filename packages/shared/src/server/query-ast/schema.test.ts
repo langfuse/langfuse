@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   COLUMN_BIND_TYPES,
   COLUMN_DATA_TYPES,
+  TABLE_BIND_TYPES,
   DEDUP_SPECS,
   TENANTED_TABLES,
 } from "./schema";
@@ -39,7 +40,9 @@ describe("table registry derivation", () => {
 
   it("derives ClickHouse bind types from the same column declarations", () => {
     expect(COLUMN_BIND_TYPES.total_cost).toBe("Float64");
-    expect(COLUMN_BIND_TYPES.start_time).toBe("DateTime64(3)");
+    expect(TABLE_BIND_TYPES.events_core.start_time).toBe("DateTime64(6)");
+    expect(TABLE_BIND_TYPES.observations.start_time).toBe("DateTime64(3)");
+    expect(COLUMN_BIND_TYPES.start_time).toBeUndefined();
     expect(COLUMN_BIND_TYPES.project_id).toBe("String");
     expect(COLUMN_BIND_TYPES.metadata_names).toBe("Array(String)");
     expect(COLUMN_BIND_TYPES.is_deleted).toBe("UInt8");

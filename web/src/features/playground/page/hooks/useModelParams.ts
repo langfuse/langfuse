@@ -47,7 +47,7 @@ export const useModelParams = (
 
   // Set initial model params
   const projectId = useProjectIdFromURL();
-  const availableLLMApiKeys = api.llmApiKey.all.useQuery(
+  const availableLLMApiKeys = api.llmApiKey.effective.useQuery(
     {
       projectId: projectId as string,
     },

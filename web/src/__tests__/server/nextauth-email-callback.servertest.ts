@@ -127,6 +127,45 @@ describe("NextAuth signIn callback for the email provider", () => {
     expect(verifyTurnstileToken).not.toHaveBeenCalled();
   });
 
+  it("clears the account's earlier codes and all expired codes before a new code is sent", async () => {
+    const { email } = await createUser({ password: OLD_PASSWORD });
+    const earlierToken = uniqueOtp();
+    await insertOtp({ email, token: earlierToken });
+    const expiredEmail = `expired-${randomUUID()}@example.com`;
+    const expiredToken = uniqueOtp();
+    await insertOtp({
+      email: expiredEmail,
+      token: expiredToken,
+      expires: new Date(Date.now() - 1000),
+    });
+    const otherEmail = `other-${randomUUID()}@example.com`;
+    const otherToken = uniqueOtp();
+    await insertOtp({ email: otherEmail, token: otherToken });
+
+    const authOptions = await getAuthOptions(undefined, {
+      turnstileToken: "reset-token",
+    });
+    await expect(
+      authOptions.callbacks!.signIn!({
+        user: { id: email, email },
+        account: {
+          provider: "email",
+          type: "email",
+          providerAccountId: email,
+        },
+        email: { verificationRequest: true },
+      }),
+    ).resolves.toBe(true);
+
+    await expect(findOtp({ email, token: earlierToken })).resolves.toBeNull();
+    await expect(
+      findOtp({ email: expiredEmail, token: expiredToken }),
+    ).resolves.toBeNull();
+    await expect(
+      findOtp({ email: otherEmail, token: otherToken }),
+    ).resolves.not.toBeNull();
+  });
+
   it("rejects the reset-email request when captcha verification fails", async () => {
     vi.mocked(verifyTurnstileToken).mockResolvedValueOnce(false);
     const authOptions = await getAuthOptions(undefined, {
@@ -233,12 +272,20 @@ function getHeaderText(res: NextApiResponse, name: string) {
   return Array.isArray(value) ? value.join("\n") : String(value ?? "");
 }
 
-async function insertOtp({ email, token }: { email: string; token: string }) {
+async function insertOtp({
+  email,
+  token,
+  expires = new Date(Date.now() + 3 * 60 * 1000),
+}: {
+  email: string;
+  token: string;
+  expires?: Date;
+}) {
   await prisma.verificationToken.create({
     data: {
       identifier: email,
       token: hashEmailOtpToken(token),
-      expires: new Date(Date.now() + 3 * 60 * 1000),
+      expires,
     },
   });
 }
