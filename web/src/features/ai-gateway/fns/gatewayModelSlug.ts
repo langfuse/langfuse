@@ -61,7 +61,7 @@ function findImplicitConnection<Connection extends GatewayRouteConnection>(
   let firstProviderConnection: Connection | null = null;
   for (const connection of connections) {
     if (connection.provider !== provider) continue;
-    firstProviderConnection ??= connection;
+    if (!firstProviderConnection) firstProviderConnection = connection;
     if (isGatewayModelAllowed(connection.allowedModels, model)) {
       return connection;
     }
