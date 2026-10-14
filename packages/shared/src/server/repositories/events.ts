@@ -142,7 +142,7 @@ import {
   buildEventsFullTableSplitQuery,
   EVENTS_AGGREGATION_FIELDS,
   EVENTS_SESSION_AGGREGATION_FIELDS,
-  eventsFieldSetSelectExpressions,
+  eventsFieldSetSelections,
   type QueryWithParams,
   normalizeSessionCounts,
   type SessionEventsField,
@@ -1092,7 +1092,15 @@ async function getObservationByIdFromEventsTableInternal({
       ? db.selectFrom("events_full as e")
       : db.selectFrom("events_core as e")
   )
-    .select(observationByIdSelects() as never)
+    // Built per call: events.ts and the builder module import each other.
+    .select(
+      eventsFieldSetSelections(
+        "byIdBase",
+        "byIdModel",
+        "byIdPrompt",
+        "byIdTimestamps",
+      ),
+    )
     .$if(fetchWithInputOutput, (qb) =>
       qb.select(observationIoSelects(renderingProps.truncated)),
     )
@@ -1143,21 +1151,6 @@ function observationIoSelects(
     leftUTF8("input", charLimit).as("input"),
     leftUTF8("output", charLimit).as("output"),
   ];
-}
-
-/**
- * Raw select expressions (`expr as alias`) taken from the legacy builder field
- * maps, so the AST and the builders still serving other call sites cannot drift.
- * Lazy: events.ts sits in an import cycle with the builder module, so the maps
- * can still be undefined while this module initializes.
- */
-function observationByIdSelects() {
-  return eventsFieldSetSelectExpressions(
-    "byIdBase",
-    "byIdModel",
-    "byIdPrompt",
-    "byIdTimestamps",
-  ).map((field) => sql.raw(field));
 }
 
 /**

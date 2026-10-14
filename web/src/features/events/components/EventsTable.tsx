@@ -56,20 +56,20 @@ import {
 } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
+import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 import { cn } from "@/src/utils/tailwind";
-import { getObservationLevelStatus } from "@/src/components/level-colors";
+import { ObservationLevelTag } from "@/src/components/level-colors";
 import {
   compactNumberFormatter,
   numberFormatter,
@@ -1301,7 +1301,7 @@ export default function ObservationsEventsTable({
       singleLine: compactRows,
       enableHiding: true,
     }),
-    createStatusTableColumn<EventsTableRow, ObservationLevelType>({
+    createTableColumn<EventsTableRow, ObservationLevelType>({
       accessorKey: "level",
       header: getEventsColumnName("level"),
       size: 100,
@@ -1312,9 +1312,9 @@ export default function ObservationsEventsTable({
       },
       enableHiding: true,
       enableSorting,
-      isLive: false,
-      getStatus: (level) =>
-        level ? getObservationLevelStatus(level) : undefined,
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
+      renderCell: (level) =>
+        level ? <ObservationLevelTag level={level} /> : <EmptyValue />,
     }),
     createIOTableColumn<EventsTableRow>({
       accessorKey: "statusMessage",
@@ -1564,7 +1564,7 @@ export default function ObservationsEventsTable({
           : undefined;
       },
     }),
-    createBadgeTableColumn<EventsTableRow>({
+    createTagTableColumn<EventsTableRow>({
       accessorKey: "environment",
       header: getEventsColumnName("environment"),
       size: 150,

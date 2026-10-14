@@ -7,7 +7,7 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -906,7 +906,7 @@ function TracesTableInternal({
       enableHiding: true,
       enableSorting,
     },
-    createBadgeTableColumn<TracesTableRow>({
+    createTagTableColumn<TracesTableRow>({
       accessorKey: "environment",
       header: "Environment",
       size: 150,
