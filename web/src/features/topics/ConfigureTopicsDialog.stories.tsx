@@ -1,6 +1,7 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import {
   ConfigureTopicsDialog,
   type ConfigureTopicsDraft,
@@ -39,9 +40,9 @@ const emptyDraft = {
   clustering: null,
   facets: builtInFacets,
   filters: [],
-  sampling: 1,
   idleSeconds: "600",
   embeddingLocked: false,
+  automaticProcessing: false,
 } satisfies ConfigureTopicsDraft;
 
 const filledDraft = {
@@ -63,15 +64,26 @@ const filledDraft = {
   filters: [
     { column: "name", type: "string", operator: "=", value: "billing" },
   ],
-  sampling: 0.4,
   embeddingLocked: true,
+  automaticProcessing: true,
 } satisfies ConfigureTopicsDraft;
 
 const meta = preview.meta({
   component: ConfigureTopicsDialog,
   parameters: { layout: "fullscreen" },
+  decorators: [
+    (Story) => (
+      <DialogController<null>
+        initialState={() => null}
+        renderDialog={() => <Story />}
+      >
+        {() => null}
+      </DialogController>
+    ),
+  ],
   args: {
     providerGroups,
+    closeDialog: fn(),
     onConfigureProviders: fn(),
     onSave: fn(),
   },
@@ -80,28 +92,22 @@ const meta = preview.meta({
 export const NeedsSetup = meta.story({
   args: {
     draft: emptyDraft,
-    defaultOpen: true,
     notice: "none",
-    triggerVariant: "primary",
   },
 });
 
 export const Configured = meta.story({
   args: {
     draft: filledDraft,
-    defaultOpen: true,
     notice: "none",
-    triggerVariant: "secondary",
   },
 });
 
 export const SavesTheSheet = meta.story({
-  name: "(Test) Save sends facets, filter, idle time, and sampling",
+  name: "(Test) Save sends facets, filter, and idle time",
   args: {
     draft: filledDraft,
-    defaultOpen: true,
     notice: "none",
-    triggerVariant: "secondary",
   },
   play: async ({ args }) => {
     const body = within(document.body);
@@ -116,7 +122,6 @@ export const SavesTheSheet = meta.story({
     await expect(args.onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         idleSeconds: "90",
-        sampling: 0.4,
         filters: filledDraft.filters,
         facets: expect.arrayContaining([
           expect.objectContaining({ name: "Intent", enabled: true }),
@@ -129,13 +134,48 @@ export const SavesTheSheet = meta.story({
 
 export const Paused = meta.story({
   args: {
-    draft: filledDraft,
-    defaultOpen: true,
+    draft: { ...filledDraft, automaticProcessing: false },
     notice: "paused",
     shortLabel: "LLM connection missing",
     pausedAgo: "3 days ago",
     message:
-      "No LLM connection found for the provider used by facet summaries. Add or restore the LLM connection, then reactivate Topics.",
-    triggerVariant: "primary",
+      'The LLM connection "Amazon Bedrock" was deleted. Choose another connection in Configure Topics, then turn automatic processing back on.',
+  },
+});
+
+export const SavesTurnedOffWithoutModelTests = meta.story({
+  name: "(Test) Save with automatic processing off ignores failing unchanged models",
+  args: {
+    draft: { ...filledDraft, automaticProcessing: false },
+    notice: "none",
+    slotChecks: {
+      summary: { status: "ok" },
+      embedding: { status: "ok" },
+      clustering: { status: "error", message: "Invalid API key." },
+    },
+  },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    const save = body.getByRole("button", { name: "Save" });
+    await expect(save).toBeEnabled();
+    await userEvent.click(save);
+    await expect(args.onSave).toHaveBeenCalledOnce();
+  },
+});
+
+export const BlocksSaveWhileRunningWithFailingModel = meta.story({
+  name: "(Test) Save with automatic processing on needs every model to pass",
+  args: {
+    draft: filledDraft,
+    notice: "none",
+    slotChecks: {
+      summary: { status: "ok" },
+      embedding: { status: "ok" },
+      clustering: { status: "error", message: "Invalid API key." },
+    },
+  },
+  play: async () => {
+    const body = within(document.body);
+    await expect(body.getByRole("button", { name: "Save" })).toBeDisabled();
   },
 });

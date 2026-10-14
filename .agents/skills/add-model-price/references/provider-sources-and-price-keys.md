@@ -1223,6 +1223,71 @@ json_literal    = "<price_per_mtok>e-6"
   were left unchanged this run, carried forward from their last confirmed values
   ($1.50/$9.00/$0.15 and $0.75/$3.75/$0.075 respectively).
 
+- **Gemini 4 Argon (added October 14 2026)** — `gemini-4-argon` is Google's new
+  flagship reasoning model, confirmed "New Stable" via
+  `https://ai.google.dev/gemini-api/docs/models`, its dedicated page
+  `https://ai.google.dev/gemini-api/docs/models/gemini-4-argon`, and
+  `https://ai.google.dev/gemini-api/docs/pricing`. Unified 1,048,576-token
+  input/output context window; max output 65,536 tokens by default, up to
+  1,048,576 with long decode. Input: text, image, video, audio, PDF. Output:
+  text only. Supports thinking (low/medium/high, billed at the output rate —
+  no separate reasoning price), function calling, Search grounding, grounding
+  with Google Maps, and implicit-only prompt caching (explicit caching is
+  **not** supported — do not add a cache-write key family). Standard pricing
+  is introductory through November 30, 2026: $2.00/MTok input, $10.00/MTok
+  output (including thinking tokens), $0.10/MTok cache read (the universal
+  10% Gemini cache-read ratio) — stepping up to $4.00/$20.00/$0.20 on
+  **December 1, 2026**. This is a different step-up date from the
+  3.6/3.7/3.8-flash family's January 1, 2027 date; do not conflate the two
+  when revisiting either family after their respective dates. No
+  context-length pricing threshold — flat pricing across the full window,
+  unlike `gemini-3.1-pro-preview`/`gemini-2.5-pro`'s <=200K/>200K split.
+  Grounding is $14 per 1,000 requests (5,000 free/month, shared across
+  Gemini-3-and-newer models), the same rate as the rest of the Gemini 3.x
+  family. A Priority tier (`service_tier: "priority"`) is separately
+  verbatim-quoted on the pricing page at exactly 1.8x the Standard rate at
+  every pricing point ($3.60/$18.00/$0.18 through Nov 30, 2026, doubling in
+  lockstep with Standard on Dec 1, 2026) — the same multiplier documented for
+  every other Gemini model with a Priority tier (see the September 14 2026
+  Priority finding above). Not available on the Free tier. Added to the
+  pricing file mirroring the `gemini-3.8-flash`/`gemini-3.6-flash` Standard +
+  Priority key set exactly, and to `googleAIStudioModels` only (not the first
+  entry). **Not added to `vertexAIModels`**: the Vertex AI lifecycle page
+  (`cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions`)
+  301-redirects to `docs.cloud.google.com`, outside the allowed WebFetch
+  domain list (the same standing quirk documented in "Official Model
+  Lifecycle Sources" above) — re-check Vertex availability once that domain
+  is reachable or independently confirmed. matchPattern:
+  `(?i)^(google(ai)?\/)?(gemini-4-argon)$`, verified via the bundled
+  match-pattern tester against `gemini-4-argon`, `googleai/gemini-4-argon`,
+  `google/gemini-4-argon` (accept) and `gemini-4-argon-preview`,
+  `gemini-3.8-flash`, a guessed dated snapshot (reject). No dated snapshot
+  was found at launch.
+- **New OpenAI "GPT-4 series" deprecation batch announced October 14 2026,
+  shutdown January 14, 2027 (not yet actionable)** — Two independent
+  verbatim-quote fetches of `https://developers.openai.com/api/docs/deprecations`
+  confirm this exact table:
+
+  | Shutdown date    | Model / system                                     | Recommended replacement |
+  | ---------------- | --------------------------------------------------- | ------------------------ |
+  | January 14, 2027 | GPT-4o (`gpt-4o-2024-08-06`, `gpt-4o-2024-11-20`)   | `gpt-6-luna`             |
+  | January 14, 2027 | GPT-4o mini (`gpt-4o-mini-2024-07-18`)              | `gpt-6-luna`             |
+  | January 14, 2027 | GPT-4.1 (`gpt-4.1-2025-04-14`)                      | `gpt-6-luna`             |
+  | January 14, 2027 | GPT-4.1 mini (`gpt-4.1-mini-2025-04-14`)            | `gpt-6-luna`             |
+
+  `gpt-4o-2024-11-20` is a dated snapshot not currently present in
+  `openAIModels` (only `gpt-4o`, `gpt-4o-2024-08-06`, and `gpt-4o-2024-05-13`
+  are), so it has no selectable-array action regardless of date. January 14,
+  2027 is three months after this finding's date — not yet actionable under
+  the removal criteria in `automated-audit.md`. Re-check this page on or
+  after that date and remove `gpt-4o`, `gpt-4o-2024-08-06`, `gpt-4.1`,
+  `gpt-4.1-2025-04-14`, `gpt-4.1-mini`, and `gpt-4.1-mini-2025-04-14` from
+  `openAIModels` once the page confirms the shutdown has passed (keep their
+  pricing entries). This is a **separate, later batch** from the
+  already-tracked October 23, 2026 "Legacy GPT model snapshots" batch (see
+  the October 9 2026 entry above) — do not conflate the two shutdown dates or
+  model lists when a future audit processes either one.
+
 ## Provider Usage Keys
 
 Use [provider-usage-key-matrix.md](provider-usage-key-matrix.md) as the single

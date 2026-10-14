@@ -1,46 +1,20 @@
-import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { type RouterOutputs } from "@/src/utils/api";
 import { EmbeddingMapView } from "./EmbeddingMapView";
 import { TopicMapLoading } from "./TopicMapLoading";
 
-type Topic = Pick<
-  RouterOutputs["topics"]["currentResults"][number]["topics"][number],
-  "id" | "name"
-> & { description?: string };
-
 export function TopicEmbeddingMap({
   projectId,
-  runId,
-  timeRange,
+  query,
+  onOpenTrace,
   topics,
   selectedTopic,
   onSelectTopic,
   onSelectTrace,
   selectedTraceId,
+  matchingTraceIds,
   fillContainer = false,
-}: {
-  projectId: string;
-  runId: string;
-  timeRange: TopicTimeRange;
-  topics: Topic[];
-  selectedTopic: string | null;
-  onSelectTopic: (id: string | null) => void;
-  onSelectTrace: (traceId: string | null) => void;
-  selectedTraceId: string | null;
-  fillContainer?: boolean;
-}) {
-  const { openPeek } = usePeekNavigation({
-    tableName: "topics-traces",
-    isV4: false,
-    queryParams: ["observation", "display", "timestamp", "traceId"],
-  });
-  const query = api.topics.map.useQuery({
-    projectId,
-    runId,
-    timeRange,
-  });
+}: TopicEmbeddingMapProps) {
   if (query.error)
     return (
       <Alert variant="destructive" size="sm">
@@ -60,16 +34,37 @@ export function TopicEmbeddingMap({
     );
   return (
     <EmbeddingMapView
-      key={runId}
       projectId={projectId}
-      onOpenTrace={openPeek}
+      onOpenTrace={onOpenTrace}
       data={query.data}
       topics={topics}
       selectedTopic={selectedTopic}
       onSelectTopic={onSelectTopic}
       onSelectTrace={onSelectTrace}
       selectedTraceId={selectedTraceId}
+      matchingTraceIds={matchingTraceIds}
       fillContainer={fillContainer}
     />
   );
 }
+
+type TopicEmbeddingMapProps = {
+  projectId: string;
+  query: {
+    data?: RouterOutputs["topics"]["map"];
+    error: { message: string } | null;
+  };
+  onOpenTrace: (traceId: string) => void;
+  topics: Topic[];
+  selectedTopic: string | null;
+  onSelectTopic: (id: string | null) => void;
+  onSelectTrace: (traceId: string | null) => void;
+  selectedTraceId: string | null;
+  matchingTraceIds?: ReadonlySet<string>;
+  fillContainer?: boolean;
+};
+
+type Topic = Pick<
+  RouterOutputs["topics"]["currentResults"][number]["topics"][number],
+  "id" | "name"
+> & { description?: string };

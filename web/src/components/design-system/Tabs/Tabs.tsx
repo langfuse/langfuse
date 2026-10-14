@@ -16,8 +16,6 @@ import { cn } from "@/src/utils/tailwind";
 
 type TabsVariant = "inset" | "underline";
 type TabsInsetSize = "sm" | "md";
-/** `navigation` is the underline look for link tabs: the page header owns the divider. */
-type TabsLook = TabsVariant | "navigation";
 
 const rootFillClassName =
   "flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden";
@@ -34,7 +32,6 @@ const tabsListVariants = cva(
         inset:
           "bg-control-track/60 dark:bg-muted text-foreground-tertiary relative isolate justify-center rounded-md p-0.5",
         underline: "h-9 shrink-0 justify-start border-b",
-        navigation: "h-9 shrink-0 justify-start",
       },
       size: {
         sm: "",
@@ -56,7 +53,7 @@ const tabsListVariants = cva(
       { look: "inset", size: "md", class: "h-7" },
       { look: "inset", layout: ["default", "packed"], class: "inline-flex" },
       {
-        look: ["underline", "navigation"],
+        look: "underline",
         layout: ["default", "packed"],
         class: "flex w-full",
       },
@@ -77,8 +74,6 @@ const tabsTriggerVariants = cva(
           "relative z-1 min-w-0 rounded-sm dark:data-[state=active]:text-primary",
         underline:
           "text-muted-foreground data-[state=active]:border-foreground-secondary rounded-none border-b-2 border-transparent bg-transparent px-4 text-sm",
-        navigation:
-          "text-muted-foreground data-[state=active]:border-foreground-secondary rounded-none border-b-2 border-transparent bg-transparent px-3 text-sm",
       },
       size: {
         sm: "px-2 text-xs",
@@ -152,7 +147,7 @@ type TabsListProps = {
 );
 
 const TabsListContext = React.createContext<{
-  look: TabsLook;
+  look: TabsVariant;
   size?: TabsInsetSize;
 } | null>(null);
 
@@ -167,8 +162,7 @@ function TabsList({
   variant,
 }: TabsListProps) {
   const inRoot = React.use(TabsRootContext) !== null;
-  const look: TabsLook =
-    variant === "underline" && !inRoot ? "navigation" : variant;
+  const look = variant;
   const listRef = React.useRef<HTMLDivElement>(null);
   const indicatorRef = React.useRef<HTMLSpanElement>(null);
   const hasSlidingIndicator = look === "inset";
@@ -266,10 +260,13 @@ function TabsList({
 
   const className = tabsListVariants({ gap, layout, look, size });
 
-  if (look === "navigation") {
+  if (!inRoot) {
     return (
       <TabsListContext value={{ look }}>
-        <nav aria-label={ariaLabel} className={className}>
+        <nav
+          aria-label={ariaLabel}
+          className={cn(className, "w-max min-w-full")}
+        >
           {children}
         </nav>
       </TabsListContext>

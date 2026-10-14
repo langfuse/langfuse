@@ -96,8 +96,11 @@ export function isOpenAICompatibleEndpoint(
       return false;
     }
 
-    const hostname = url.hostname;
-    return hostname !== "api.openai.com";
+    const hostname = url.hostname.replace(/\.$/, "");
+    // Regional OpenAI API hosts use the same native request contract.
+    return (
+      hostname !== "api.openai.com" && !hostname.endsWith(".api.openai.com")
+    );
   } catch {
     return false;
   }

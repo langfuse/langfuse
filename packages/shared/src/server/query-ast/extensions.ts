@@ -10,19 +10,24 @@
  *     that apply those plugins while extending the builder's output row type,
  *     so produced aliases are type-checked and misspelled references are
  *     compile errors.
- *   - Typed expression helpers ({@link mapKeys}, {@link mapValues},
- *     {@link metadataValue}) that build ClickHouse map/array function calls and
- *     `metadata[key]` subscripts as real, parameter-bound nodes — never raw SQL
- *     strings — so they escape and compose like any other expression.
+ *   - Typed expression helpers ({@link mapKeys}, {@link metadataValue},
+ *     {@link medianExact}, …) that build ClickHouse aggregates, map/array
+ *     function calls and `metadata[key]` subscripts as real, parameter-bound
+ *     nodes — never raw SQL strings — so they escape and compose like any other
+ *     expression.
  */
+import type { TupleParam } from "@clickhouse/client";
 import {
+  AggregateFunctionNode,
   AliasNode,
+  BinaryOperationNode,
   ColumnNode,
   ExpressionWrapper,
   FromNode,
   FunctionNode,
   IdentifierNode,
   JoinNode,
+  OperatorNode,
   ReferenceNode,
   TableNode,
   ValueNode,
@@ -33,6 +38,7 @@ import {
   type PluginTransformResultArgs,
   type RootOperationNode,
   type SelectQueryBuilder,
+  type SqlBool,
 } from "kysely";
 
 import {
@@ -162,6 +168,270 @@ export function mapKeys<K = string>(column: string): Expression<K[]> {
 /** `mapValues(map)` as a typed array expression (element type defaults to string). */
 export function mapValues<V = string>(column: string): Expression<V[]> {
   return arrayFunction<V>("mapValues", column);
+}
+
+/** ClickHouse `uniq(column)`, an approximate distinct count. */
+export function uniq(
+  column: string,
+): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, string> {
+  return new ExpressionWrapper(
+    AggregateFunctionNode.create("uniq", [
+      columnRef(column),
+    ]) as unknown as OperationNode,
+  );
+}
+
+/** ClickHouse `count()`. Kysely's `eb.fn.countAll()` renders `count(*)`. */
+export function count(): ExpressionWrapper<
+  ClickHouseDatabase,
+  keyof ClickHouseDatabase,
+  string
+> {
+  return new ExpressionWrapper(
+    AggregateFunctionNode.create("count", []) as unknown as OperationNode,
+  );
+}
+
+/** ClickHouse `medianExact(expression)`. */
+export function medianExact(
+  expression: Expression<unknown>,
+): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, string> {
+  return new ExpressionWrapper(
+    AggregateFunctionNode.create("medianExact", [
+      expression.toOperationNode(),
+    ]) as unknown as OperationNode,
+  );
+}
+
+type DateDiffUnit = "millisecond" | "second" | "minute" | "hour" | "day";
+
+/** ClickHouse `dateDiff(unit, start, end)` between two columns. */
+export function dateDiff(
+  unit: DateDiffUnit,
+  start: string,
+  end: string,
+): Expression<number> {
+  return new ExpressionWrapper<
+    ClickHouseDatabase,
+    keyof ClickHouseDatabase,
+    number
+  >(
+    // ClickHouse requires the unit to be a constant, so it is inlined rather
+    // than bound. `DateDiffUnit` keeps it to known keywords.
+    FunctionNode.create("dateDiff", [
+      ValueNode.createImmediate(unit),
+      columnRef(start),
+      columnRef(end),
+    ]) as unknown as OperationNode,
+  );
+}
+
+/** `map[key]` subscript with a bound key. */
+export function mapValue<V = number>(
+  column: string,
+  key: string,
+): Expression<V> {
+  return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
+    ArrayIndexNode.create(
+      columnRef(column),
+      ValueNode.create(key),
+    ) as unknown as OperationNode,
+  );
+}
+
+/**
+ * Sum of the map values whose key contains `needle`, case-insensitively:
+ * `arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, needle) > 0, map)))`.
+ * The lambda is built as a `->` binary operation; Kysely has no lambda node.
+ */
+export function sumMapValuesWhereKeyContains(
+  column: string,
+  needle: string,
+): Expression<number> {
+  const keyMatches = BinaryOperationNode.create(
+    FunctionNode.create("positionCaseInsensitive", [
+      qualifiedColumn("x", "1"),
+      ValueNode.create(needle),
+    ]),
+    OperatorNode.create(">"),
+    ValueNode.createImmediate(0),
+  );
+  const lambda = BinaryOperationNode.create(
+    ColumnNode.create("x"),
+    OperatorNode.create("->"),
+    keyMatches,
+  );
+  return new ExpressionWrapper<
+    ClickHouseDatabase,
+    keyof ClickHouseDatabase,
+    number
+  >(
+    FunctionNode.create("arraySum", [
+      FunctionNode.create("mapValues", [
+        FunctionNode.create("mapFilter", [lambda, columnRef(column)]),
+      ]),
+    ]) as unknown as OperationNode,
+  );
+}
+
+type ChExpression<T> = ExpressionWrapper<
+  ClickHouseDatabase,
+  keyof ClickHouseDatabase,
+  T
+>;
+
+function functionCall<T>(
+  fn: string,
+  args: ReadonlyArray<OperationNodeSource>,
+): ChExpression<T> {
+  return new ExpressionWrapper(
+    FunctionNode.create(fn, args.map(toNode)) as unknown as OperationNode,
+  );
+}
+
+/**
+ * ClickHouse `leftUTF8(expression, length)`. The length is inlined as an
+ * integer literal; it must be a positive integer.
+ */
+export function leftUTF8(
+  expression: Expression<string>,
+  length: number,
+): ChExpression<string> {
+  if (!Number.isInteger(length) || length < 1) {
+    throw new QueryCompileError(
+      `leftUTF8 length must be a positive integer, got ${length}.`,
+    );
+  }
+  return functionCall("leftUTF8", [
+    expression,
+    ValueNode.createImmediate(length),
+  ]);
+}
+
+/** ClickHouse `length(expression)`: byte length of a String. */
+export function byteLength(
+  expression: Expression<string>,
+): ChExpression<number> {
+  return functionCall("length", [expression]);
+}
+
+/** ClickHouse `xxHash32(expression)`. */
+export function xxHash32(expression: Expression<string>): ChExpression<number> {
+  return functionCall("xxHash32", [expression]);
+}
+
+/** ClickHouse `toJSONString(expression)`. */
+export function toJSONString(
+  expression: Expression<unknown>,
+): ChExpression<string> {
+  return functionCall("toJSONString", [expression]);
+}
+
+/** ClickHouse `arrayReverse(array)`. */
+function arrayReverse<T>(array: Expression<T[]>): ChExpression<T[]> {
+  return functionCall("arrayReverse", [array]);
+}
+
+/** ClickHouse `mapFromArrays(keys, values)`. */
+function mapFromArrays<V>(
+  keys: Expression<string[]>,
+  values: Expression<V[]>,
+): ChExpression<Record<string, V>> {
+  return functionCall("mapFromArrays", [keys, values]);
+}
+
+/**
+ * Events metadata as a map: `mapFromArrays(arrayReverse(names),
+ * arrayReverse(values))`. Both arrays are reversed so that, for a key stored
+ * twice, the last entry wins.
+ */
+export function metadataMap(
+  names: Expression<string[]>,
+  values: Expression<string[]>,
+): ChExpression<Record<string, string>> {
+  return mapFromArrays(arrayReverse(names), arrayReverse(values));
+}
+
+// Nesting depth of `arrayMap` bodies under construction. Each nesting level
+// names its lambda parameter differently, so an inner lambda never shadows
+// an outer one. Zero outside any `arrayMap` call.
+// Module state is safe here: `body` runs synchronously inside `arrayMap`, and
+// JavaScript never interleaves another synchronous call with it, so concurrent
+// requests cannot observe each other's depth.
+let arrayMapDepth = 0;
+
+/**
+ * ClickHouse `arrayMap(v -> body, array)`. `body` receives the lambda
+ * parameter: `v` at the top level, `v1`, `v2`, … inside nested calls. The
+ * lambda is built as a `->` binary operation; Kysely has no lambda node.
+ */
+export function arrayMap<T, U>(
+  body: (element: Expression<T>) => Expression<U>,
+  array: Expression<T[]>,
+): ChExpression<U[]> {
+  const param = ColumnNode.create(
+    arrayMapDepth === 0 ? "v" : `v${arrayMapDepth}`,
+  );
+  arrayMapDepth++;
+  let bodyNode: OperationNode;
+  try {
+    bodyNode = body(
+      new ExpressionWrapper(param as unknown as OperationNode),
+    ).toOperationNode();
+  } finally {
+    arrayMapDepth--;
+  }
+  const lambda = BinaryOperationNode.create(
+    param,
+    OperatorNode.create("->"),
+    bodyNode,
+  );
+  return functionCall("arrayMap", [lambda, array]);
+}
+
+/**
+ * `(a, b, …) IN {p:Array(Tuple(…))}`: a column tuple against a list of
+ * `TupleParam`s, bound as a single array parameter.
+ */
+export function tupleIn(
+  columns: Expression<unknown>,
+  tuples: ReadonlyArray<TupleParam>,
+): ChExpression<SqlBool> {
+  return new ExpressionWrapper(
+    BinaryOperationNode.create(
+      columns.toOperationNode(),
+      OperatorNode.create("in"),
+      ValueNode.create(tuples),
+    ) as unknown as OperationNode,
+  );
+}
+
+/** `expression != ''`, with the empty string inlined rather than bound. */
+export function nonEmpty(
+  expression: Expression<string>,
+): ChExpression<SqlBool> {
+  return new ExpressionWrapper(
+    BinaryOperationNode.create(
+      expression.toOperationNode(),
+      OperatorNode.create("!="),
+      ValueNode.createImmediate(""),
+    ) as unknown as OperationNode,
+  );
+}
+
+/** ClickHouse `argMaxIf(value, by, condition)`. */
+export function argMaxIf<T>(
+  value: Expression<T>,
+  by: Expression<unknown>,
+  condition: Expression<SqlBool>,
+): ChExpression<T> {
+  return new ExpressionWrapper(
+    AggregateFunctionNode.create("argMaxIf", [
+      value.toOperationNode(),
+      by.toOperationNode(),
+      condition.toOperationNode(),
+    ]) as unknown as OperationNode,
+  );
 }
 
 /**

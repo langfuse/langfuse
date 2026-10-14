@@ -40,12 +40,16 @@ import {
 } from "@langfuse/shared/topics";
 import { useTopicPipelineForm } from "./TopicPipelineForm";
 import { useTopicModelSettings } from "./TopicModelSettings";
+import { AutomaticProcessingControl } from "./AutomaticProcessingControl";
+import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
+import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
+import { TopicSetupNotice } from "./TopicSetupNotice";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsFilters } from "./TopicsFilters";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
-import { resolveTopicFacetId } from "./topic-facet-selection";
 import { isValidTopicTimeRange } from "./time-range";
+import { useTopicTraceFilters } from "./useTopicTraceFilters";
 
 const maxTimeRangeMs = TIME_RANGES.last90Days.minutes * 60_000;
 const sharedTimeRangePresets = [
@@ -121,20 +125,69 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
   );
 }
 
-function TopicsWorkspaceView({
-  projectId,
-  facets,
-}: {
+type TopicsWorkspaceViewProps = {
   projectId: string;
   facets: UseQueryResult<TopicFacet[], { message: string }>;
-}) {
+};
+
+/**
+ * Wraps the workspace in the dialog controllers whose dialogs open from more
+ * than one place, and hands their `openDialog` to the content.
+ */
+function TopicsWorkspaceView({ projectId, facets }: TopicsWorkspaceViewProps) {
+  const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
+  const modelSettings = useTopicModelSettings({
+    projectId,
+    canWrite,
+    facets: facets.data ?? [],
+    facetsReady: facets.isSuccess,
+  });
+  return (
+    <ConfigureTopicsDialogController
+      projectId={projectId}
+      settings={modelSettings.configure.settings}
+    >
+      {({ openDialog: openConfigure }) => (
+        <AutomaticProcessingDialogController
+          {...modelSettings.automaticProcessing.dialog}
+        >
+          {({ openDialog: openAutomaticProcessing }) => (
+            <TopicsWorkspaceContent
+              projectId={projectId}
+              facets={facets}
+              canWrite={canWrite}
+              modelSettings={modelSettings}
+              openConfigure={openConfigure}
+              openAutomaticProcessing={openAutomaticProcessing}
+            />
+          )}
+        </AutomaticProcessingDialogController>
+      )}
+    </ConfigureTopicsDialogController>
+  );
+}
+
+type TopicsWorkspaceContentProps = TopicsWorkspaceViewProps & {
+  canWrite: boolean;
+  modelSettings: ReturnType<typeof useTopicModelSettings>;
+  openConfigure: () => void;
+  openAutomaticProcessing: (initialEnabled: boolean) => void;
+};
+
+function TopicsWorkspaceContent({
+  projectId,
+  facets,
+  canWrite,
+  modelSettings,
+  openConfigure,
+  openAutomaticProcessing,
+}: TopicsWorkspaceContentProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const { timeRange, setTimeRange } = useGlobalDateRange({
     allowedRanges: sharedTimeRangePresets,
     fallback: "last7Days",
   });
   const [refreshedAt, setRefreshedAt] = useState(Date.now);
-  const [selectedFacetId, setSelectedFacetId] = useState<string>();
   const [tracePanel, setTracePanel] = useState<HTMLElement | null>(null);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
@@ -144,7 +197,6 @@ function TopicsWorkspaceView({
   });
   const router = useRouter();
   const utils = api.useUtils();
-  const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
   const executions = api.topics.executions.useQuery(
     { projectId },
     {
@@ -154,9 +206,6 @@ function TopicsWorkspaceView({
           : false,
     },
   );
-  const initialize = api.topics.initialize.useMutation({
-    onSuccess: () => utils.topics.facets.invalidate({ projectId }),
-  });
   const executionId =
     typeof router.query.executionId === "string"
       ? router.query.executionId
@@ -221,10 +270,8 @@ function TopicsWorkspaceView({
     refreshAfter: completedAt,
     timeRange: currentTimeRange,
   });
-  const selectedFacet = resolveTopicFacetId(
-    results.data ?? [],
-    selectedFacetId,
-  );
+  const traceFilters = useTopicTraceFilters(projectId, results.data ?? []);
+  const { selectedFacetId } = traceFilters;
   const refreshResults = () => {
     setRefreshedAt(Date.now());
     utils.topics.currentResults.invalidate({ projectId });
@@ -259,15 +306,27 @@ function TopicsWorkspaceView({
     onTriggered: openExecution,
     timeRange: validTimeRange ? currentTimeRange : null,
   });
-  const modelSettings = useTopicModelSettings({
-    projectId,
-    canWrite,
-    facets: facets.data ?? [],
-    facetsReady: facets.isSuccess,
-  });
+  const automaticProcessing = modelSettings.automaticProcessing;
+  function openAutomaticProcessingFromHeader() {
+    openAutomaticProcessing(automaticProcessing.state.status === "on");
+  }
+  function turnAutomaticProcessingBackOn() {
+    openAutomaticProcessing(true);
+  }
   const actions = (
     <div className="ph-no-capture flex items-center justify-end gap-1">
-      {modelSettings.action}
+      <AutomaticProcessingControl
+        state={automaticProcessing.state}
+        canWrite={canWrite && !automaticProcessing.saving}
+        onOpen={openAutomaticProcessingFromHeader}
+      />
+      <Button
+        text="Configure Topics"
+        variant={modelSettings.configure.triggerVariant}
+        size="sm"
+        disabled={!modelSettings.configure.settings}
+        onClick={openConfigure}
+      />
       {primaryAction}
       <DropdownMenu
         ariaLabel="Topics actions"
@@ -339,7 +398,14 @@ function TopicsWorkspaceView({
         {!validTimeRange && (
           <ErrorMessage message="Select a time range of at most 90 days." />
         )}
-        {modelSettings.notice}
+        <TopicSetupNotice
+          notice={modelSettings.notice}
+          canWrite={canWrite}
+          canConfigure={modelSettings.configure.settings !== null}
+          onConfigure={openConfigure}
+          onKeepOff={automaticProcessing.clearPause}
+          onTurnBackOn={turnAutomaticProcessingBackOn}
+        />
         {configuration}
         <Sheet
           open={historyOpen || executionId !== null}
@@ -423,36 +489,20 @@ function TopicsWorkspaceView({
             <TopicsFilters
               facets={results.data ?? []}
               selectedFacetId={selectedFacetId}
-              onSelectFacet={setSelectedFacetId}
+              onSelectFacet={traceFilters.selectFacet}
             >
               <CurrentTopics
                 projectId={projectId}
                 timeRange={currentTimeRange}
                 result={results}
-                selectedFacetId={selectedFacet}
+                selectedFacetId={selectedFacetId}
+                traceFilters={traceFilters}
                 tracePanelRef={setTracePanel}
               />
             </TopicsFilters>
           )}
           {facets.isLoading && <p>Loading facets…</p>}
           {facets.error && <ErrorMessage message={facets.error.message} />}
-          {facets.data?.length === 0 && (
-            <section className="flex flex-col items-start gap-3">
-              <h2 className="font-bold">Start with a question</h2>
-              <p className="text-muted-foreground text-sm">
-                Create built-in facets for intent, outcome, and issues, then add
-                custom facets for your own questions.
-              </p>
-              <Button
-                text="Create starter facets"
-                disabled={!canWrite || initialize.isPending}
-                onClick={() => initialize.mutate({ projectId })}
-              />
-              {initialize.error && (
-                <ErrorMessage message={initialize.error.message} />
-              )}
-            </section>
-          )}
         </div>
       </div>
     </Page>

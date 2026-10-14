@@ -12,6 +12,7 @@ import {
 } from "../llm/llmText";
 import { testModelCall } from "../llm/testModelCall";
 import { LLMAdapter, type LLMApiKeySchema } from "../llm/types";
+import { findCompatibleLlmApiKeysForProjects } from "../services/LLMApiKeys";
 import {
   TOPICS_MODEL_SLOT_DETAILS,
   TOPICS_MODEL_SLOTS,
@@ -19,7 +20,8 @@ import {
   type TopicsModelSlotName,
 } from "../../topics";
 import { hasTopicEmbeddings } from "./clickhouse";
-import { generateTopicEmbedding } from "./embeddings";
+import { generateTopicEmbeddings } from "./embeddings";
+import { invalidateTopicsProcessingActive } from "./processing-gate";
 import { z } from "zod";
 
 export type TopicsModel = {
@@ -40,12 +42,14 @@ export type TopicsModels = {
 };
 
 const withConnections = {
+  project: { select: { orgId: true } },
   summaryLlmApiKey: true,
   embeddingLlmApiKey: true,
   clusteringLlmApiKey: true,
 } as const;
 
 type ConfigWithConnections = TopicConfig & {
+  project: { orgId: string };
   summaryLlmApiKey: LlmApiKeys | null;
   embeddingLlmApiKey: LlmApiKeys | null;
   clusteringLlmApiKey: LlmApiKeys | null;
@@ -55,15 +59,23 @@ function resolveSlot(
   slot: TopicsModelSlotName,
   key: LlmApiKeys | null,
   model: string | null,
+  projectId?: string,
+  organizationId?: string,
 ): TopicsModel | null {
   if (!key || !model) return null;
+  if (
+    projectId &&
+    key.projectId !== projectId &&
+    key.organizationId !== organizationId
+  )
+    return null;
   return {
     slot,
     provider: key.provider,
     adapter: key.adapter as LLMAdapter,
     model,
     connection: {
-      projectId: key.projectId,
+      projectId: projectId ?? key.projectId ?? undefined,
       secretKey: key.secretKey,
       extraHeaders: key.extraHeaders,
       baseURL: key.baseURL,
@@ -77,16 +89,22 @@ function resolveModels(row: ConfigWithConnections): TopicsModels | null {
     "summary",
     row.summaryLlmApiKey,
     row.summaryModel,
+    row.projectId,
+    row.project.orgId,
   );
   const embedding = resolveSlot(
     "embedding",
     row.embeddingLlmApiKey,
     row.embeddingModel,
+    row.projectId,
+    row.project.orgId,
   );
   const clustering = resolveSlot(
     "clustering",
     row.clusteringLlmApiKey,
     row.clusteringModel,
+    row.projectId,
+    row.project.orgId,
   );
   if (!summary || !embedding || !clustering) return null;
   return {
@@ -140,33 +158,181 @@ export async function pauseTopicsModels(
       blockMessage: block.blockMessage,
     },
   });
+  await invalidateTopicsProcessingActive(projectId);
 }
 
-/** Pauses Topics in every config that uses a connection about to be deleted. */
-export async function pauseTopicsModelsUsingConnection(
-  params: { projectId: string; llmApiKeyId: string; provider: string },
-  tx: Prisma.TransactionClient = prisma,
-): Promise<void> {
-  const { projectId, llmApiKeyId, provider } = params;
-  await tx.topicConfig.updateMany({
+/** Keeps Topics connection references valid before an LLM connection is deleted. */
+export async function handleTopicsLlmApiKeyDeletion(params: {
+  tx: Prisma.TransactionClient;
+  llmApiKeyId: string;
+  llmApiKeyOwner: {
+    projectId: string | null;
+    organizationId: string | null;
+  };
+  provider: string;
+  adapter: string;
+}): Promise<string[]> {
+  const { tx, llmApiKeyId, llmApiKeyOwner, provider, adapter } = params;
+  const configs = await tx.topicConfig.findMany({
     where: {
-      projectId,
       OR: [
-        { summaryLlmApiKeyId: llmApiKeyId },
-        { embeddingLlmApiKeyId: llmApiKeyId },
-        { clusteringLlmApiKeyId: llmApiKeyId },
+        {
+          summaryLlmApiKeyId: llmApiKeyId,
+          summaryLlmApiKey: llmApiKeyOwner,
+        },
+        {
+          embeddingLlmApiKeyId: llmApiKeyId,
+          embeddingLlmApiKey: llmApiKeyOwner,
+        },
+        {
+          clusteringLlmApiKeyId: llmApiKeyId,
+          clusteringLlmApiKey: llmApiKeyOwner,
+        },
       ],
     },
-    data: {
-      enabled: false,
-      blockedAt: new Date(),
-      blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-      blockMessage: `The LLM connection "${provider}" was deleted. Choose another connection and turn Topics on again.`,
+    select: {
+      id: true,
+      projectId: true,
+      enabled: true,
+      summaryLlmApiKeyId: true,
+      embeddingLlmApiKeyId: true,
+      clusteringLlmApiKeyId: true,
     },
   });
+
+  const replacements = await findCompatibleLlmApiKeysForProjects({
+    tx,
+    projectIds: configs.map(({ projectId }) => projectId),
+    provider,
+    adapter,
+    excludedLlmApiKeyId: llmApiKeyId,
+  });
+
+  for (const config of configs) {
+    const replacement = replacements.get(config.projectId)?.id;
+    const slotUpdates = {
+      ...(config.summaryLlmApiKeyId === llmApiKeyId
+        ? { summaryLlmApiKeyId: replacement ?? null }
+        : {}),
+      ...(config.embeddingLlmApiKeyId === llmApiKeyId
+        ? { embeddingLlmApiKeyId: replacement ?? null }
+        : {}),
+      ...(config.clusteringLlmApiKeyId === llmApiKeyId
+        ? { clusteringLlmApiKeyId: replacement ?? null }
+        : {}),
+    };
+    await tx.topicConfig.update({
+      where: { id: config.id },
+      data: replacement
+        ? slotUpdates
+        : {
+            ...slotUpdates,
+            ...(config.enabled
+              ? {
+                  enabled: false,
+                  blockedAt: new Date(),
+                  blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+                  blockMessage: `The LLM connection "${provider}" was deleted. Choose another connection and turn Topics on again.`,
+                }
+              : {}),
+          },
+    });
+  }
+
+  return configs.map(({ projectId }) => projectId);
 }
 
-/** Settings shown in the Topics page; never includes secrets. */
+/** Rebinds inherited Topics connections after a project changes organization. */
+export async function reconcileTopicsConnectionsForProject(
+  projectId: string,
+): Promise<void> {
+  const changed = await prisma.$transaction(async (tx) => {
+    const config = await tx.topicConfig.findUnique({
+      where: { projectId },
+      include: {
+        project: { select: { orgId: true } },
+        summaryLlmApiKey: true,
+        embeddingLlmApiKey: true,
+        clusteringLlmApiKey: true,
+      },
+    });
+    if (!config) return false;
+
+    const keys = [
+      config.summaryLlmApiKey,
+      config.embeddingLlmApiKey,
+      config.clusteringLlmApiKey,
+    ];
+    const inaccessibleKeys = keys.filter(
+      (key) =>
+        key &&
+        key.projectId !== projectId &&
+        key.organizationId !== config.project.orgId,
+    );
+    if (inaccessibleKeys.length === 0) return false;
+
+    const uniqueInaccessibleKeys = [
+      ...new Map(
+        inaccessibleKeys.flatMap((key) => (key ? [[key.id, key]] : [])),
+      ).values(),
+    ];
+    const replacementByLlmApiKeyId = new Map(
+      await Promise.all(
+        uniqueInaccessibleKeys.map(async (key) => {
+          const replacements = await findCompatibleLlmApiKeysForProjects({
+            tx,
+            projectIds: [projectId],
+            provider: key.provider,
+            adapter: key.adapter,
+            excludedLlmApiKeyId: key.id,
+          });
+          return [key.id, replacements.get(projectId)?.id] as const;
+        }),
+      ),
+    );
+
+    const resolveKeyId = (key: LlmApiKeys | null) => {
+      if (!key) return null;
+      if (
+        key.projectId === projectId ||
+        key.organizationId === config.project.orgId
+      )
+        return key.id;
+      return replacementByLlmApiKeyId.get(key.id) ?? null;
+    };
+    const summaryLlmApiKeyId = resolveKeyId(config.summaryLlmApiKey);
+    const embeddingLlmApiKeyId = resolveKeyId(config.embeddingLlmApiKey);
+    const clusteringLlmApiKeyId = resolveKeyId(config.clusteringLlmApiKey);
+    const hasMissingConnection =
+      !summaryLlmApiKeyId || !embeddingLlmApiKeyId || !clusteringLlmApiKeyId;
+
+    await tx.topicConfig.update({
+      where: { id: config.id },
+      data: {
+        summaryLlmApiKeyId,
+        embeddingLlmApiKeyId,
+        clusteringLlmApiKeyId,
+        ...(hasMissingConnection
+          ? {
+              enabled: false,
+              blockedAt: new Date(),
+              blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+              blockMessage:
+                "A configured LLM connection is not available in this organization. Choose another connection and turn Topics on again.",
+            }
+          : {}),
+      },
+    });
+    return true;
+  });
+
+  if (changed) await invalidateTopicsProcessingActive(projectId);
+}
+
+/**
+ * Settings shown in the Topics page; never includes secrets. `enabled` is null
+ * until the project saves Topics for the first time.
+ */
 export async function readTopicsModelSettings(projectId: string) {
   const row = await prisma.topicConfig.findUnique({
     where: { projectId },
@@ -184,7 +350,7 @@ export async function readTopicsModelSettings(projectId: string) {
       row?.clusteringLlmApiKeyId ?? null,
       row?.clusteringModel ?? null,
     ),
-    enabled: row?.enabled ?? false,
+    enabled: row ? row.enabled : null,
     blockedAt: row?.blockedAt ?? null,
     blockReason: row?.blockReason ?? null,
     blockMessage: row?.blockMessage ?? null,
@@ -201,7 +367,17 @@ async function loadTopicsModelKeys(
     settings.clustering,
   ].flatMap((slot) => (slot ? [slot.llmApiKeyId] : []));
   const keys = await prisma.llmApiKeys.findMany({
-    where: { projectId, id: { in: ids } },
+    where: {
+      id: { in: ids },
+      OR: [
+        { projectId },
+        {
+          organization: {
+            projects: { some: { id: projectId, deletedAt: null } },
+          },
+        },
+      ],
+    },
   });
   for (const id of ids) {
     if (!keys.some((key) => key.id === id))
@@ -225,50 +401,154 @@ export async function checkTopicsModelSettings(
 
 /**
  * Validates and tests the settings without writing them, so callers can save
- * related configuration first and commit the models last.
+ * related configuration first and commit the models last. Saving keeps the
+ * stored automatic-processing state and pause; a first save starts off.
  */
 export async function prepareTopicsModelSettings(
   projectId: string,
   settings: TopicsModelSettings,
 ) {
   const keys = await loadTopicsModelKeys(projectId, settings);
-  if (
-    settings.enabled &&
-    (!settings.summary || !settings.embedding || !settings.clustering)
-  )
-    throw new InvalidRequestError(
-      "Choose a summary, embedding, and clustering model before turning Topics on.",
-    );
-
   const current = await prisma.topicConfig.findUnique({
     where: { projectId },
   });
+  const running = current?.enabled ?? false;
+  if (
+    running &&
+    (!settings.summary || !settings.embedding || !settings.clustering)
+  )
+    throw new InvalidRequestError(
+      "Choose a summary, embedding, and clustering model while automatic processing is on, or turn it off first.",
+    );
+
+  const slots = resolveSavedSlots(settings, current);
   const embeddingChanged =
     current?.embeddingModel &&
-    (settings.embedding?.model !== current.embeddingModel ||
-      settings.embeddingDimensions !== current.embeddingDimensions);
+    (slots.embedding.model !== current.embeddingModel ||
+      slots.embeddingDimensions !== current.embeddingDimensions);
   if (embeddingChanged && (await hasTopicEmbeddings(projectId)))
     throw new InvalidRequestError(
       "The embedding model and dimensions cannot change after summaries were embedded; existing vectors could no longer be clustered together.",
     );
 
-  await testTopicsModels(settings, keys);
+  // Only changed models are tested: the dialog tests each pick, turning
+  // processing on tests all three, and a broken stored connection pauses Topics.
+  await testTopicsModels(changedSlots(settings, current), keys);
 
   const data = {
-    enabled: settings.enabled,
-    // Saving the settings acknowledges the last pause.
-    blockedAt: null,
-    blockReason: null,
-    blockMessage: null,
-    summaryLlmApiKeyId: settings.summary?.llmApiKeyId ?? null,
-    summaryModel: settings.summary?.model ?? null,
-    embeddingLlmApiKeyId: settings.embedding?.llmApiKeyId ?? null,
-    embeddingModel: settings.embedding?.model ?? null,
-    embeddingDimensions: settings.embeddingDimensions,
-    clusteringLlmApiKeyId: settings.clustering?.llmApiKeyId ?? null,
-    clusteringModel: settings.clustering?.model ?? null,
+    summaryLlmApiKeyId: slots.summary.llmApiKeyId,
+    summaryModel: slots.summary.model,
+    embeddingLlmApiKeyId: slots.embedding.llmApiKeyId,
+    embeddingModel: slots.embedding.model,
+    embeddingDimensions: slots.embeddingDimensions,
+    clusteringLlmApiKeyId: slots.clustering.llmApiKeyId,
+    clusteringModel: slots.clustering.model,
   };
   return data;
+}
+
+type StoredTopicConfig = Awaited<
+  ReturnType<typeof prisma.topicConfig.findUnique>
+>;
+
+/**
+ * The slots to store. Saving with automatic processing off keeps the stored
+ * model of every slot that arrives empty, for example after its connection was
+ * deleted, so saving never discards a model.
+ */
+function resolveSavedSlots(
+  settings: TopicsModelSettings,
+  current: StoredTopicConfig,
+) {
+  const keep = current && !current.enabled ? current : null;
+  const slot = (
+    name: TopicsModelSlotName,
+    stored: { llmApiKeyId: string | null; model: string | null },
+  ) => {
+    const requested = settings[name];
+    if (requested) return requested;
+    return keep ? stored : { llmApiKeyId: null, model: null };
+  };
+  return {
+    summary: slot("summary", {
+      llmApiKeyId: current?.summaryLlmApiKeyId ?? null,
+      model: current?.summaryModel ?? null,
+    }),
+    embedding: slot("embedding", {
+      llmApiKeyId: current?.embeddingLlmApiKeyId ?? null,
+      model: current?.embeddingModel ?? null,
+    }),
+    embeddingDimensions:
+      keep && !settings.embedding
+        ? keep.embeddingDimensions
+        : settings.embeddingDimensions,
+    clustering: slot("clustering", {
+      llmApiKeyId: current?.clusteringLlmApiKeyId ?? null,
+      model: current?.clusteringModel ?? null,
+    }),
+  };
+}
+
+function changedSlots(
+  settings: TopicsModelSettings,
+  current: StoredTopicConfig,
+): TopicsModelSettings {
+  const changed = (
+    slot: TopicsModelSettings[TopicsModelSlotName],
+    llmApiKeyId: string | null | undefined,
+    model: string | null | undefined,
+    extraChange = false,
+  ) =>
+    slot &&
+    (extraChange || slot.llmApiKeyId !== llmApiKeyId || slot.model !== model)
+      ? slot
+      : null;
+  return {
+    ...settings,
+    summary: changed(
+      settings.summary,
+      current?.summaryLlmApiKeyId,
+      current?.summaryModel,
+    ),
+    embedding: changed(
+      settings.embedding,
+      current?.embeddingLlmApiKeyId,
+      current?.embeddingModel,
+      settings.embeddingDimensions !== current?.embeddingDimensions,
+    ),
+    clustering: changed(
+      settings.clustering,
+      current?.clusteringLlmApiKeyId,
+      current?.clusteringModel,
+    ),
+  };
+}
+
+/**
+ * Requires all three stored models before automatic processing is turned on,
+ * and tests them with real calls after a pause.
+ */
+export async function checkStoredTopicsModels(
+  config: NonNullable<StoredTopicConfig>,
+): Promise<void> {
+  const slot = (llmApiKeyId: string | null, model: string | null) =>
+    llmApiKeyId && model ? { llmApiKeyId, model } : null;
+  const settings = {
+    summary: slot(config.summaryLlmApiKeyId, config.summaryModel),
+    embedding: slot(config.embeddingLlmApiKeyId, config.embeddingModel),
+    embeddingDimensions: config.embeddingDimensions,
+    clustering: slot(config.clusteringLlmApiKeyId, config.clusteringModel),
+  };
+  if (!settings.summary || !settings.embedding || !settings.clustering)
+    throw new InvalidRequestError(
+      "Choose a summary, embedding, and clustering model in Configure Topics before turning on automatic processing.",
+    );
+  // Saved models were tested on save; a pause means a connection failed since.
+  if (!config.blockedAt) return;
+  await testTopicsModels(
+    settings,
+    await loadTopicsModelKeys(config.projectId, settings),
+  );
 }
 
 export async function writeTopicsModelSettings(
@@ -331,14 +611,22 @@ async function testTopicsModelSlots(
           errors[name] = "LLM connection not found in this project.";
           return;
         }
-        const { embedding } = await generateTopicEmbedding({
+        // Two texts, because processing embeds a trace's facets in one call.
+        const { embeddings } = await generateTopicEmbeddings({
           model: resolved,
-          summary: "Topics model check",
+          summaries: ["Topics model check", "Topics batch check"],
           dimensions: settings.embeddingDimensions,
         });
-        if (embedding.length !== settings.embeddingDimensions)
+        if (embeddings.length !== 2)
           throw new Error(
-            `The model returned ${embedding.length} dimensions instead of ${settings.embeddingDimensions}. Choose a size this model supports.`,
+            "The model must embed several texts in one request. Choose an embedding model or endpoint that supports batched input.",
+          );
+        const wrong = embeddings.find(
+          (vector) => vector.length !== settings.embeddingDimensions,
+        );
+        if (wrong)
+          throw new Error(
+            `The model returned ${wrong.length} dimensions instead of ${settings.embeddingDimensions}. Choose a size this model supports.`,
           );
       } catch (error) {
         errors[name] =

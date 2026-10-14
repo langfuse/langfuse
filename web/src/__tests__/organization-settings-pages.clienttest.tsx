@@ -64,7 +64,8 @@ vi.mock("@/src/ee/features/sso-settings", () => ({
   SSOSettings: () => null,
 }));
 
-vi.mock("@langfuse/shared", () => ({
+vi.mock("@langfuse/shared", async () => ({
+  ...(await vi.importActual("@langfuse/shared")),
   isCloudPlan: vi.fn(() => false),
 }));
 

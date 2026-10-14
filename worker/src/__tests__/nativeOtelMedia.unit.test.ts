@@ -123,7 +123,15 @@ async function expectMediaParity(json: string): Promise<void> {
         );
         actualBodies.push({ contentType: entry.contentType, bytes });
       }
-      expect(sortedBodies(actualBodies)).toEqual(sortedBodies(expectedBodies));
+      const sortedActual = sortedBodies(actualBodies);
+      const sortedExpected = sortedBodies(expectedBodies);
+      expect(sortedActual).toHaveLength(sortedExpected.length);
+      for (const [index, expected] of sortedExpected.entries()) {
+        const actual = sortedActual[index]!;
+        expect(actual.contentType).toBe(expected.contentType);
+        // Compare binary payloads directly without deep equality walking every byte.
+        expect(actual.bytes.equals(expected.bytes)).toBe(true);
+      }
     }
   } finally {
     await Promise.all([

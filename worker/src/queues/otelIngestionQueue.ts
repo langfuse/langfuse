@@ -44,6 +44,7 @@ import { ForbiddenError } from "@langfuse/shared";
 import {
   createLegacyOtelMediaTargets,
   processOtelEventMedia,
+  type OtelMediaPresence,
 } from "../features/otel-media/processOtelMedia";
 import { restoreInlineMedia } from "../features/otel-media/resolveExtractedMedia";
 import { processOtelEvents } from "../features/otel-ingestion/processOtelEvents";
@@ -443,6 +444,11 @@ export const otelIngestionQueueProcessorBuilder = (
     job: Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>,
   ): Promise<void> => {
     let earlyBatch: EarlyOtelBatch | undefined;
+    let mediaPath: "early" | "reference" | undefined;
+    let mediaPresence: OtelMediaPresence | undefined;
+    let inputByteLength: number | undefined;
+    let inputPreparationDurationMs: number | undefined;
+    const span = getCurrentSpan();
     try {
       const projectId = job.data.payload.authCheck.scope.projectId;
       const publicKey = job.data.payload.data.publicKey ?? "";
@@ -457,7 +463,6 @@ export const otelIngestionQueueProcessorBuilder = (
           job.data.payload.sdkVersion || UNKNOWN_INGESTION_SDK_VALUE,
       };
 
-      const span = getCurrentSpan();
       if (span) {
         span.setAttribute("messaging.bullmq.job.input.id", job.data.id);
         span.setAttribute(
@@ -504,7 +509,7 @@ export const otelIngestionQueueProcessorBuilder = (
           env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS.includes(
             projectId,
           ));
-      const mediaPath = earlyMediaEnabled ? "early" : "reference";
+      mediaPath = earlyMediaEnabled ? "early" : "reference";
       span?.setAttribute("langfuse.ingestion.otel.media_path", mediaPath);
       // Count selection once per queue attempt, including jobs that later fail.
       recordIncrement("langfuse.ingestion.otel.media_path", 1, {
@@ -517,9 +522,11 @@ export const otelIngestionQueueProcessorBuilder = (
       let parsedSpans: ResourceSpan[];
       if (earlyMediaEnabled) {
         const bytes = await eventStorage.downloadBytes(fileKey);
+        const preparationStartedAt = performance.now();
+        inputByteLength = bytes.byteLength;
         recordHistogram(
           "langfuse.ingestion.s3_file_size_bytes",
-          bytes.byteLength,
+          inputByteLength,
           { skippedS3List: "true", otel: "true" },
         );
         const prepared = await prepareOtelBatch({
@@ -543,13 +550,16 @@ export const otelIngestionQueueProcessorBuilder = (
         }
         ({ batch: earlyBatch, resourceSpans: parsedSpans } =
           await parsePreparedOtelBatch(prepared, bytes));
+        inputPreparationDurationMs = performance.now() - preparationStartedAt;
       } else {
         // Download file from blob storage
         const resourceSpans = await eventStorage.download(fileKey);
+        const preparationStartedAt = performance.now();
+        inputByteLength = Buffer.byteLength(resourceSpans, "utf8");
 
         recordHistogram(
           "langfuse.ingestion.s3_file_size_bytes",
-          resourceSpans.length, // At this point it's still a string.
+          inputByteLength,
           {
             skippedS3List: "true",
             otel: "true",
@@ -584,6 +594,7 @@ export const otelIngestionQueueProcessorBuilder = (
           }
           parsedSpans = maskingResult.data;
         }
+        inputPreparationDurationMs = performance.now() - preparationStartedAt;
       }
 
       // Generate events via OtelIngestionProcessor
@@ -786,16 +797,23 @@ export const otelIngestionQueueProcessorBuilder = (
           // Process the exact normalized representation written by the legacy
           // path. Targets retain body references, so replacements also reach
           // events-table forwarding when that destination is enabled.
-          await processOtelEventMedia({
+          const legacyMediaPresence = await processOtelEventMedia({
             targets: createLegacyOtelMediaTargets(traces.concat(observations)),
             writePath: "legacy",
             earlyBatch,
             mediaPath,
+            inputByteLength,
             projectId,
             fileKey,
             mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
             mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
           });
+          if (legacyMediaPresence) {
+            mediaPresence = combineOtelMediaPresence(
+              mediaPresence,
+              legacyMediaPresence,
+            );
+          }
         }
 
         // Running everything concurrently might be detrimental to the event loop, but has probably
@@ -833,7 +851,7 @@ export const otelIngestionQueueProcessorBuilder = (
       // Determine what processing is needed
       const shouldWriteToEventsTable =
         v4WritesToEventsTable(env) && useDirectEventWrite;
-      await processOtelEvents({
+      const directMediaPresence = await processOtelEvents({
         processor,
         resourceSpans: parsedSpans,
         ingestionService,
@@ -842,7 +860,14 @@ export const otelIngestionQueueProcessorBuilder = (
         shouldWriteToEventsTable,
         earlyBatch,
         mediaPath,
+        inputByteLength,
       });
+      if (directMediaPresence) {
+        mediaPresence = combineOtelMediaPresence(
+          mediaPresence,
+          directMediaPresence,
+        );
+      }
     } catch (e) {
       const fileKey = job.data.payload.data.fileKey;
       if (e instanceof ForbiddenError) {
@@ -868,6 +893,88 @@ export const otelIngestionQueueProcessorBuilder = (
       throw e;
     } finally {
       await earlyBatch?.dispose();
+      setOtelInputPreparationSpanAttributes(span, {
+        durationMs: inputPreparationDurationMs,
+        mediaPath,
+        mediaPresence,
+      });
+      recordOtelInputPreparationMetrics({
+        durationMs: inputPreparationDurationMs,
+        mediaPath,
+        mediaPresence,
+        inputByteLength,
+      });
     }
   };
 };
+
+function combineOtelMediaPresence(
+  current: OtelMediaPresence | undefined,
+  next: OtelMediaPresence,
+): OtelMediaPresence {
+  if (current === "present" || next === "present") return "present";
+  if (current === "unknown" || next === "unknown") return "unknown";
+  return "absent";
+}
+
+function setOtelInputPreparationSpanAttributes(
+  span: ReturnType<typeof getCurrentSpan>,
+  params: {
+    durationMs?: number;
+    mediaPath?: "early" | "reference";
+    mediaPresence?: OtelMediaPresence;
+  },
+): void {
+  if (params.mediaPath) {
+    span?.setAttribute(
+      "langfuse.ingestion.otel.media_presence",
+      params.mediaPresence ?? "unknown",
+    );
+    if (params.mediaPresence && params.mediaPresence !== "unknown") {
+      span?.setAttribute(
+        "langfuse.ingestion.otel.media_detected",
+        params.mediaPresence === "present",
+      );
+    }
+  }
+  if (params.durationMs !== undefined) {
+    span?.setAttribute(
+      "langfuse.ingestion.otel.input_preparation_duration_ms",
+      params.durationMs,
+    );
+  }
+}
+
+function recordOtelInputPreparationMetrics(params: {
+  durationMs?: number;
+  mediaPath?: "early" | "reference";
+  mediaPresence?: OtelMediaPresence;
+  inputByteLength?: number;
+}): void {
+  if (params.durationMs === undefined || !params.mediaPath) return;
+
+  // The duration is captured after download and before event conversion.
+  // Media classification comes from the existing downstream detector.
+  const tags = {
+    media_path: params.mediaPath,
+    media_presence: params.mediaPresence ?? "unknown",
+  };
+  recordDistribution(
+    "langfuse.ingestion.otel.input_preparation_duration_ms",
+    params.durationMs,
+    tags,
+  );
+  recordIncrement("langfuse.ingestion.otel.input_preparation_sample", 1, tags);
+  recordIncrement(
+    "langfuse.ingestion.otel.input_preparation_duration_total_ms",
+    params.durationMs,
+    tags,
+  );
+  if (params.inputByteLength && params.inputByteLength > 0) {
+    recordIncrement(
+      "langfuse.ingestion.otel.input_preparation_bytes_total",
+      params.inputByteLength,
+      tags,
+    );
+  }
+}
