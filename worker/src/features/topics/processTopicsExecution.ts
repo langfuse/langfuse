@@ -82,7 +82,7 @@ const isExecutionFailure = (error: unknown) =>
 
 function invalidOutput(
   metrics: TopicMetrics,
-  stage: "summary" | "naming",
+  stage: "summary",
   message: string,
 ) {
   const error = new Error(message);
@@ -677,12 +677,6 @@ async function clusterFacet(
             group_id: group.id,
           },
         );
-        if (!label.name.trim() || !label.description.trim())
-          throw invalidOutput(
-            metrics,
-            "naming",
-            "Topic names and descriptions must be non-empty.",
-          );
         return {
           ...label,
           representativeSummaries: label.evidenceSummaryIds.map((id) => {
@@ -706,8 +700,8 @@ async function clusterFacet(
         createdByRunId: run.id,
         createdAt: run.createdAt,
         tags: [],
-        name: label.name.trim(),
-        description: label.description.trim(),
+        name: label.name,
+        description: label.description,
         representativeSummaries: label.representativeSummaries,
         metadata: {
           ...candidate.metadata,

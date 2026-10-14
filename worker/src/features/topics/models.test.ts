@@ -425,6 +425,29 @@ describe("Topics naming boundary", () => {
     expect(submitted.members).toEqual(members);
   });
 
+  it("trims names and rejects whitespace-only descriptions", async () => {
+    state.call.mockResolvedValueOnce({
+      output: {
+        name: " Invoice assistance ",
+        description: "Invoice requests.",
+        evidenceSummaryIds: ["member-a"],
+      },
+      usage: {},
+    });
+    expect((await nameTopicGroup(topicsModels(), evidence)).output.name).toBe(
+      "Invoice assistance",
+    );
+    state.call.mockResolvedValueOnce({
+      output: {
+        name: "Invoice assistance",
+        description: "   ",
+        evidenceSummaryIds: ["member-a"],
+      },
+      usage: {},
+    });
+    await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
+  });
+
   it.each([["contrast"], ["member-a", "member-b", "member-a", "member-b"]])(
     "rejects contrast or excess evidence: %j",
     async (...evidenceSummaryIds) => {

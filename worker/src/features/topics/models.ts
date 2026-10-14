@@ -370,8 +370,8 @@ export async function nameTopicGroup(
     throw new Error("Naming requires one non-empty effective group.");
   const memberIds = new Set(group.members.map((member) => member.id));
   const schema = z.object({
-    name: z.string().min(1).max(100),
-    description: z.string().min(1).max(600),
+    name: z.string().trim().min(1).max(100),
+    description: z.string().trim().min(1).max(600),
     // Keep the provider schema bounded; validate citations locally before accepting output.
     evidenceSummaryIds: z
       .array(
