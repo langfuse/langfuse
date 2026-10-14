@@ -254,7 +254,7 @@ export interface ResourceSpan {
 
 const observationTypeMapper = new ObservationTypeMapperRegistry();
 
-/** GenAI semconv per-modality token counts, each a subset of its input, cache-read or output aggregate */
+/** GenAI semconv per-modality token counts, each a subset of its input, cache-read or output aggregate; a modality's cache-read count is also a subset of that modality's input count */
 const GEN_AI_INPUT_MODALITY_USAGE_KEYS = new Set(
   ["text", "image", "audio"].map((modality) => `${modality}.input_tokens`),
 );
@@ -3253,12 +3253,15 @@ export class OtelIngestionProcessor {
           return acc;
         }
 
-        /** Per-modality counts stay as buckets only when their aggregate is absent */
+        /** Per-modality counts stay as buckets only when their input, cache-read or output aggregate, or for a cache read the same modality's input count, is absent */
         if (
           (GEN_AI_INPUT_MODALITY_USAGE_KEYS.has(key) &&
             inputTokens !== undefined) ||
           (GEN_AI_CACHE_READ_MODALITY_USAGE_KEYS.has(key) &&
-            (inputTokens !== undefined || cacheReadTokens !== undefined)) ||
+            (inputTokens !== undefined ||
+              cacheReadTokens !== undefined ||
+              rawUsageDetails[key.replace(".cache_read.", ".")] !==
+                undefined)) ||
           (GEN_AI_OUTPUT_MODALITY_USAGE_KEYS.has(key) &&
             outputTokens !== undefined)
         ) {

@@ -8413,12 +8413,24 @@ describe("OTel Resource Span Mapping", () => {
         {
           "gen_ai.usage.text.input_tokens": 800,
           "gen_ai.usage.text.cache_read.input_tokens": 400,
+          "gen_ai.usage.image.input_tokens": 200,
           "gen_ai.usage.text.output_tokens": 300,
         },
         {
           "text.input_tokens": 800,
-          "text.cache_read.input_tokens": 400,
+          "image.input_tokens": 200,
           "text.output_tokens": 300,
+        },
+      ],
+      [
+        "a modality cache read without that modality's input",
+        {
+          "gen_ai.usage.image.cache_read.input_tokens": 100,
+          "gen_ai.usage.text.input_tokens": 800,
+        },
+        {
+          "image.cache_read.input_tokens": 100,
+          "text.input_tokens": 800,
         },
       ],
     ])(
