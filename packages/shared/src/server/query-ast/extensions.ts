@@ -153,6 +153,12 @@ function columnRef(name: string): OperationNode {
     : ColumnNode.create(name);
 }
 
+function columnOrExpression(
+  value: string | OperationNodeSource,
+): OperationNode {
+  return typeof value === "string" ? columnRef(value) : toNode(value);
+}
+
 function arrayFunction<T>(fn: string, column: string): Expression<T[]> {
   return new ExpressionWrapper<
     ClickHouseDatabase,
@@ -171,15 +177,11 @@ export function mapValues<V = string>(column: string): Expression<V[]> {
   return arrayFunction<V>("mapValues", column);
 }
 
-/** ClickHouse `uniq(column)`, an approximate distinct count. */
+/** ClickHouse `uniq(value)`, an approximate distinct count. */
 export function uniq(
-  column: string,
-): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, string> {
-  return new ExpressionWrapper(
-    AggregateFunctionNode.create("uniq", [
-      columnRef(column),
-    ]) as unknown as OperationNode,
-  );
+  value: string | Expression<unknown>,
+): ChExpression<string> {
+  return aggregate("uniq", [columnOrExpression(value)]);
 }
 
 /** ClickHouse `count()`. Kysely's `eb.fn.countAll()` renders `count(*)`. */
@@ -206,12 +208,12 @@ export function medianExact(
 
 type DateDiffUnit = "millisecond" | "second" | "minute" | "hour" | "day";
 
-/** ClickHouse `dateDiff(unit, start, end)` between two columns. */
+/** ClickHouse `dateDiff(unit, start, end)`; `start`/`end` are columns or expressions. */
 export function dateDiff(
   unit: DateDiffUnit,
-  start: string,
-  end: string,
-): Expression<number> {
+  start: string | Expression<unknown>,
+  end: string | Expression<unknown>,
+): ChExpression<number> {
   return new ExpressionWrapper<
     ClickHouseDatabase,
     keyof ClickHouseDatabase,
@@ -221,8 +223,8 @@ export function dateDiff(
     // than bound. `DateDiffUnit` keeps it to known keywords.
     FunctionNode.create("dateDiff", [
       ValueNode.createImmediate(unit),
-      columnRef(start),
-      columnRef(end),
+      columnOrExpression(start),
+      columnOrExpression(end),
     ]) as unknown as OperationNode,
   );
 }
@@ -246,9 +248,9 @@ export function mapValue<V = number>(
  * The lambda is built as a `->` binary operation; Kysely has no lambda node.
  */
 export function sumMapValuesWhereKeyContains(
-  column: string,
+  map: string | Expression<Record<string, unknown>>,
   needle: string,
-): Expression<number> {
+): ChExpression<number> {
   const keyMatches = BinaryOperationNode.create(
     FunctionNode.create("positionCaseInsensitive", [
       qualifiedColumn("x", "1"),
@@ -269,7 +271,7 @@ export function sumMapValuesWhereKeyContains(
   >(
     FunctionNode.create("arraySum", [
       FunctionNode.create("mapValues", [
-        FunctionNode.create("mapFilter", [lambda, columnRef(column)]),
+        FunctionNode.create("mapFilter", [lambda, columnOrExpression(map)]),
       ]),
     ]) as unknown as OperationNode,
   );
@@ -288,6 +290,176 @@ function functionCall<T>(
   return new ExpressionWrapper(
     FunctionNode.create(fn, args.map(toNode)) as unknown as OperationNode,
   );
+}
+
+function aggregate<T>(
+  fn: string,
+  args: ReadonlyArray<OperationNodeSource>,
+): ChExpression<T> {
+  return new ExpressionWrapper(
+    AggregateFunctionNode.create(
+      fn,
+      args.map(toNode),
+    ) as unknown as OperationNode,
+  );
+}
+
+/**
+ * A constant inlined into the SQL text rather than bound, so code-defined
+ * constants (`level = 'ERROR'`, `span_id != ''`) render as literals. Never
+ * pass user input; bind it instead.
+ */
+export function literal<T extends string | number | boolean | null>(
+  value: T,
+): ChExpression<T> {
+  // Kysely doubles single quotes but leaves backslashes, which ClickHouse
+  // reads as escapes.
+  if (typeof value === "string" && value.includes("\\")) {
+    throw new QueryCompileError(
+      `literal does not accept backslashes, got ${value}.`,
+    );
+  }
+  return new ExpressionWrapper(
+    ValueNode.createImmediate(value) as unknown as OperationNode,
+  );
+}
+
+/** ClickHouse `if(condition, then, otherwise)`. */
+export function ifElse<A, B>(
+  condition: Expression<SqlBool>,
+  then: Expression<A>,
+  otherwise: Expression<B>,
+): ChExpression<A | B> {
+  return functionCall("if", [condition, then, otherwise]);
+}
+
+/** ClickHouse `multiIf(c1, v1, c2, v2, …, otherwise)`. */
+export function multiIf<T>(
+  branches: ReadonlyArray<readonly [Expression<SqlBool>, Expression<T>]>,
+  otherwise: Expression<T>,
+): ChExpression<T> {
+  return functionCall("multiIf", [...branches.flat(), otherwise]);
+}
+
+/** ClickHouse `nullIf(value, other)`. */
+export function nullIf<T>(
+  value: Expression<T>,
+  other: Expression<T>,
+): ChExpression<T | null> {
+  return functionCall("nullIf", [value, other]);
+}
+
+/** ClickHouse `ifNull(value, fallback)`. */
+export function ifNull<T>(
+  value: Expression<T | null>,
+  fallback: Expression<T>,
+): ChExpression<T> {
+  return functionCall("ifNull", [value, fallback]);
+}
+
+/** ClickHouse `isNull(value)`. */
+export function isNull(value: Expression<unknown>): ChExpression<SqlBool> {
+  return functionCall("isNull", [value]);
+}
+
+/** ClickHouse `greatest(a, b, …)`. */
+export function greatest<T>(...values: Expression<T>[]): ChExpression<T> {
+  return functionCall("greatest", values);
+}
+
+/** ClickHouse `concat(a, b, …)`. */
+export function concat(...values: Expression<string>[]): ChExpression<string> {
+  return functionCall("concat", values);
+}
+
+/** ClickHouse `length(array)`. */
+export function arrayLength(
+  array: Expression<unknown[]>,
+): ChExpression<number> {
+  return functionCall("length", [array]);
+}
+
+/** ClickHouse `notEmpty(array)`. */
+export function notEmpty(array: Expression<unknown[]>): ChExpression<SqlBool> {
+  return functionCall("notEmpty", [array]);
+}
+
+/**
+ * ClickHouse `arrayExists(x -> predicate, array)`. The lambda parameter is
+ * always `x`, so a nested `arrayExists` would shadow it.
+ */
+export function arrayExists<T>(
+  predicate: (element: Expression<T>) => Expression<SqlBool>,
+  array: Expression<T[]>,
+): ChExpression<SqlBool> {
+  const param = ColumnNode.create("x");
+  const lambda = BinaryOperationNode.create(
+    param,
+    OperatorNode.create("->"),
+    predicate(
+      new ExpressionWrapper(param as unknown as OperationNode),
+    ).toOperationNode(),
+  );
+  return functionCall("arrayExists", [lambda, array]);
+}
+
+/** ClickHouse `any(value)`: some value of the group. */
+export function anyValue<T>(value: Expression<T>): ChExpression<T> {
+  return aggregate("any", [value]);
+}
+
+/** ClickHouse `countIf(condition)`. */
+export function countIf(condition: Expression<SqlBool>): ChExpression<string> {
+  return aggregate("countIf", [condition]);
+}
+
+/** ClickHouse `uniqIf(value, condition)`, an approximate distinct count. */
+export function uniqIf(
+  value: Expression<unknown>,
+  condition: Expression<SqlBool>,
+): ChExpression<string> {
+  return aggregate("uniqIf", [value, condition]);
+}
+
+/** ClickHouse `avgIf(value, condition)`. */
+export function avgIf(
+  value: Expression<number>,
+  condition: Expression<SqlBool>,
+): ChExpression<number> {
+  return aggregate("avgIf", [value, condition]);
+}
+
+/** ClickHouse `groupArray(value)`. */
+export function groupArray<T>(value: Expression<T>): ChExpression<T[]> {
+  return aggregate("groupArray", [value]);
+}
+
+/** ClickHouse `groupUniqArray(value)`. */
+export function groupUniqArray<T>(value: Expression<T>): ChExpression<T[]> {
+  return aggregate("groupUniqArray", [value]);
+}
+
+/** ClickHouse `groupUniqArrayIf(value, condition)`. */
+export function groupUniqArrayIf<T>(
+  value: Expression<T>,
+  condition: Expression<SqlBool>,
+): ChExpression<T[]> {
+  return aggregate("groupUniqArrayIf", [value, condition]);
+}
+
+/** ClickHouse `groupUniqArrayArrayIf(array, condition)`. */
+export function groupUniqArrayArrayIf<T>(
+  array: Expression<T[]>,
+  condition: Expression<SqlBool>,
+): ChExpression<T[]> {
+  return aggregate("groupUniqArrayArrayIf", [array, condition]);
+}
+
+/** ClickHouse `sumMap(map)`: per-key sums over the group. */
+export function sumMap<V>(
+  map: Expression<Record<string, V>>,
+): ChExpression<Record<string, V>> {
+  return aggregate("sumMap", [map]);
 }
 
 /**
@@ -436,7 +608,7 @@ function nonEmpty(expression: Expression<string>): ChExpression<SqlBool> {
 }
 
 /** ClickHouse `argMaxIf(value, by, condition)`. */
-function argMaxIf<T>(
+export function argMaxIf<T>(
   value: Expression<T>,
   by: Expression<unknown>,
   condition: Expression<SqlBool>,

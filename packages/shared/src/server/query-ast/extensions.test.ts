@@ -11,6 +11,7 @@ import {
 import {
   arrayMap,
   leftUTF8,
+  literal,
   mapValue,
   metadataMap,
   metadataValue,
@@ -243,5 +244,15 @@ describe("renderClickhouseExpression", () => {
     expect(() => renderClickhouseExpression(mapValue(metadata, "key"))).toThrow(
       /cannot bind parameters/,
     );
+  });
+});
+
+describe("literal", () => {
+  it("inlines a string with its quotes doubled", () => {
+    expect(renderClickhouseExpression(literal("it's"))).toBe("'it''s'");
+  });
+
+  it("rejects a backslash, which ClickHouse reads as an escape", () => {
+    expect(() => literal("a\\")).toThrow(QueryCompileError);
   });
 });
