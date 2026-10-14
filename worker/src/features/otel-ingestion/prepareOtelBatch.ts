@@ -16,7 +16,7 @@ import {
 } from "@langfuse/shared/src/server/ee/ingestionMasking";
 
 /** Limits synchronous marker scanning so small marker-free inputs avoid a native task and copy. */
-const MAX_SYNC_MEDIA_CHECK_BYTES = 64 * 1024;
+const MAX_SYNC_MEDIA_CHECK_BYTES = 128 * 1024;
 
 type PreparedInput =
   | {
