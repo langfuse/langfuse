@@ -1,7 +1,9 @@
 import { EventType } from "@ag-ui/core";
 import { describe, expect, it } from "vitest";
 
+import { IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 import { createManualToolApprovalRunInput } from "./human-in-the-loop";
+import { createQuestionnaireTool } from "./tools";
 import type { AgUiRunAgentInput } from "./types";
 
 const approvalRequest = {
@@ -12,7 +14,9 @@ const approvalRequest = {
   runId: "interrupted-run-1",
 };
 
-function resumeInput(): AgUiRunAgentInput {
+function resumeInput(
+  resume: Record<string, unknown> = { approved: true, approvalRequest },
+): AgUiRunAgentInput {
   return {
     threadId: "conversation-1",
     runId: "run-2",
@@ -26,12 +30,7 @@ function resumeInput(): AgUiRunAgentInput {
     tools: [],
     context: [],
     forwardedProps: {
-      command: {
-        resume: {
-          approved: true,
-          approvalRequest,
-        },
-      },
+      command: { resume },
     },
   };
 }
@@ -89,5 +88,69 @@ describe("createManualToolApprovalRunInput", () => {
     expect(toolResultContent(syntheticEvents)).toEqual(
       JSON.stringify(envelope),
     );
+  });
+
+  it("hands questionnaire answers to the tool and returns them to the model", async () => {
+    const tool = createQuestionnaireTool();
+    const questionnaireRequest = {
+      type: "tool_approval_request" as const,
+      toolCallId: "tool-call-2",
+      toolName: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+      args: {
+        questions: [
+          {
+            question: "Which evaluator type?",
+            options: [
+              { label: "LLM-as-a-judge", description: null, recommended: true },
+              { label: "Code", description: null, recommended: false },
+            ],
+            allowMultiple: false,
+            allowOther: false,
+          },
+          {
+            question: "Anything else?",
+            options: [],
+            allowMultiple: false,
+            allowOther: false,
+          },
+        ],
+      },
+      runId: "interrupted-run-1",
+    };
+
+    const { input } = await createManualToolApprovalRunInput({
+      input: resumeInput({
+        approved: true,
+        approvalRequest: questionnaireRequest,
+        answers: [
+          { selectedOptionIndexes: [1], otherText: null },
+          { selectedOptionIndexes: [], otherText: null },
+        ],
+      }),
+      executeToolCall: async (request, resumeData) => {
+        const result = await tool.execute?.(request.args as never, {
+          agent: {
+            agentId: "test",
+            toolCallId: request.toolCallId,
+            messages: [],
+            suspend: async () => undefined,
+            resumeData,
+          },
+        });
+        return { result, modelResult: result };
+      },
+    });
+    const toolMessage = input.messages.find(
+      (message) => message.role === "tool",
+    );
+
+    expect(toolMessage).not.toHaveProperty("error");
+    expect(JSON.parse(String(toolMessage?.content))).toEqual({
+      type: "questionnaireAnswers",
+      answers: [
+        { question: "Which evaluator type?", answer: ["Code"], skipped: false },
+        { question: "Anything else?", answer: [], skipped: true },
+      ],
+    });
   });
 });

@@ -324,6 +324,7 @@ export async function executeInAppAgentRun(params: {
                     : {}),
                   approvalDecidedAt: run.createdAt.toISOString(),
                   approvalRequest,
+                  ...(request.answers ? { answers: request.answers } : {}),
                 },
               },
             }

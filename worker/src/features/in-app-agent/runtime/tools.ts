@@ -37,6 +37,10 @@ import {
   InAppAgentSandboxWriteArgsSchema,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
+  IN_APP_AGENT_QUESTIONNAIRE_MAX_QUESTIONS,
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+  InAppAgentQuestionnaireArgsSchema,
+  resolveInAppAgentQuestionnaireAnswers,
 } from "@langfuse/shared/in-app-agent";
 import {
   isSilentInAppAgentMcpToolOutput,
@@ -464,6 +468,45 @@ export function createRedirectActionTool({
       });
     },
   });
+}
+
+// Always gated behind a human decision: the answers arrive as the approval's
+// resume data, so the tool only turns them into a model-facing result.
+export function createQuestionnaireTool() {
+  return createTool({
+    id: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+    description: [
+      `Ask the user up to ${IN_APP_AGENT_QUESTIONNAIRE_MAX_QUESTIONS} short questions in one form when you need decisions you cannot infer from context.`,
+      "Prefer a few concrete options per question and mark the best default as recommended; use options: [] for free text.",
+      "Batch related questions into a single call instead of asking one at a time.",
+      "The user may skip individual questions (skipped: true) or dismiss the form; respect that and do not ask the same questions again.",
+    ].join(" "),
+    inputSchema: InAppAgentQuestionnaireArgsSchema,
+    execute: async (input, context) => {
+      const resolved = resolveInAppAgentQuestionnaireAnswers({
+        args: input,
+        answers: getQuestionnaireResumeAnswers(context?.agent?.resumeData),
+      });
+
+      if (!resolved.success) {
+        throw new Error(resolved.error);
+      }
+
+      return resolved.result;
+    },
+  });
+}
+
+function getQuestionnaireResumeAnswers(resumeData: unknown) {
+  if (
+    typeof resumeData !== "object" ||
+    resumeData === null ||
+    !("answers" in resumeData)
+  ) {
+    return undefined;
+  }
+
+  return resumeData.answers;
 }
 
 function getRedirectActionToolResult({
