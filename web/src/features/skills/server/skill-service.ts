@@ -250,9 +250,26 @@ export class SkillService {
     projectId: string;
     name: string;
     selector: SkillSelector;
+    includeContent?: boolean;
   }) {
     const skill = await this.findSkillVersion(params);
-    return serializeVersion(skill);
+    const version = serializeVersion(skill);
+    if (!params.includeContent) return version;
+
+    const { data } = await this.getFileContents({
+      projectId: params.projectId,
+      sha256Hashes: version.files.map((file) => file.sha256Hash),
+    });
+    const contentByHash = new Map(
+      data.map(({ sha256Hash, content }) => [sha256Hash, content]),
+    );
+    return {
+      ...version,
+      files: version.files.map((file) => ({
+        ...file,
+        content: contentByHash.get(file.sha256Hash),
+      })),
+    };
   }
 
   async loadResource(params: {
