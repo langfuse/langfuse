@@ -538,15 +538,12 @@ export class OtelIngestionProcessor {
                     scopeSpan?.scope,
                     span.name,
                   );
-                // Agent usage duplicates child calls; CMA session creation only configures a model.
-                const skipModelUsageAndCost =
-                  this.isAiSdkAgentOperation(spanAttributes) ||
-                  (observationType === ObservationType.SPAN &&
-                    isClaudeManagedAgentSessionCreation(
-                      spanAttributes,
-                      scopeName,
-                      span.name,
-                    ));
+                const skipModelUsageAndCost = this.shouldSkipModelUsageAndCost(
+                  spanAttributes,
+                  observationType,
+                  scopeName,
+                  span.name,
+                );
 
                 const usageDetails = UsageDetails.safeParse(
                   skipModelUsageAndCost
@@ -1281,15 +1278,12 @@ export class OtelIngestionProcessor {
       scopeSpan?.scope,
       span.name,
     );
-    // Agent usage duplicates child calls; CMA session creation only configures a model.
-    const skipModelUsageAndCost =
-      this.isAiSdkAgentOperation(attributes) ||
-      (mappedObservationType === ObservationType.SPAN &&
-        isClaudeManagedAgentSessionCreation(
-          attributes,
-          instrumentationScopeName,
-          span.name,
-        ));
+    const skipModelUsageAndCost = this.shouldSkipModelUsageAndCost(
+      attributes,
+      mappedObservationType,
+      instrumentationScopeName,
+      span.name,
+    );
     // Prompts can only be linked to GENERATION observations
     const canLinkPrompt = mappedObservationType === ObservationType.GENERATION;
 
@@ -2899,23 +2893,27 @@ export class OtelIngestionProcessor {
   }
 
   /**
-   * The Vercel AI SDK OTel integration (@ai-sdk/otel) emits an
-   * `invoke_agent` span (and `agent_step` child spans) that carry aggregate
-   * `gen_ai.usage.*` token counts duplicating the per-call usage on the
-   * grandchild model-call span (`gen_ai.operation.name: "chat"`). Populating
-   * model/usage/cost on the agent spans as well as the model-call span would
-   * classify both as generations and double every trace's cost, so model,
-   * usage, and cost extraction is skipped for these spans. Agent-type spans
-   * from other instrumentations (e.g. OpenInference `AGENT` spans) are not
-   * affected because the gate is on the operation name, not the observation
-   * type.
+   * The Vercel AI SDK OTel integration (@ai-sdk/otel) emits `invoke_agent`
+   * and `agent_step` spans carrying aggregate usage from child model calls.
+   * Skip their model/usage/cost to avoid double counting. Other AGENT spans
+   * are unaffected unless they have one of these operation names.
+   *
+   * CMA session creation only configures a model and must not trigger enrichment.
    */
-  private isAiSdkAgentOperation(attributes: Record<string, unknown>): boolean {
+  private shouldSkipModelUsageAndCost(
+    attributes: Record<string, unknown>,
+    observationType: ObservationType,
+    scopeName: string | undefined,
+    spanName: string,
+  ): boolean {
     const operationName = attributes["gen_ai.operation.name"];
+    if (operationName === "invoke_agent" || operationName === "agent_step") {
+      return true;
+    }
 
     return (
-      typeof operationName === "string" &&
-      ["invoke_agent", "agent_step"].includes(operationName)
+      observationType === ObservationType.SPAN &&
+      isClaudeManagedAgentSessionCreation(attributes, scopeName, spanName)
     );
   }
 
