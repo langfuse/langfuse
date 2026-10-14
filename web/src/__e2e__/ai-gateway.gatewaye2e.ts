@@ -9,12 +9,12 @@ import { fileURLToPath } from "node:url";
 import type { Session } from "next-auth";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import waitForExpect from "wait-for-expect";
+import { z } from "zod/v4";
 
 import { env } from "@/src/env.mjs";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import {
   type GatewayApiFormat,
-  GatewayModelsResponseSchema,
   GatewayResolveResponseSchema,
 } from "@/src/features/ai-gateway/server/provider";
 import type { GatewayProviderName } from "@/src/features/ai-gateway/server/provider/registry";
@@ -71,6 +71,44 @@ const GATEWAY_MODEL_ROUTES = [
   apiFormat: GatewayApiFormat;
   path: string;
 }>;
+
+const openAiModelListSchema = z
+  .object({
+    object: z.literal("list"),
+    data: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1),
+            object: z.literal("model"),
+            created: z.number().int().nonnegative(),
+            owned_by: z.literal("openai"),
+          })
+          .strict(),
+      )
+      .min(1),
+  })
+  .strict();
+
+const anthropicModelListSchema = z
+  .object({
+    data: z
+      .array(
+        z
+          .object({
+            type: z.literal("model"),
+            id: z.string().min(1),
+            display_name: z.string().min(1),
+            created_at: z.iso.datetime(),
+          })
+          .strict(),
+      )
+      .min(1),
+    has_more: z.literal(false),
+    first_id: z.string().min(1),
+    last_id: z.string().min(1),
+  })
+  .strict();
 
 const UNAUTHENTICATED_REQUESTS = [
   {
@@ -408,13 +446,14 @@ describe("AI gateway live end-to-end", () => {
             const response = await fetch(`${gatewayBaseUrl}${requestPath}`, {
               headers: { Authorization: `Bearer ${secretKey}` },
             });
-            const models = GatewayModelsResponseSchema.parse(
-              await readJsonResponse(response, 200, requestPath),
-            );
-            expect(models.data.length).toBeGreaterThan(0);
-            expect(
-              models.data.every((model) => model.provider === provider),
-            ).toBe(true);
+            const body = await readJsonResponse(response, 200, requestPath);
+            if (provider === GatewayProvider.OPENAI) {
+              openAiModelListSchema.parse(body);
+              return;
+            }
+            const models = anthropicModelListSchema.parse(body);
+            expect(models.first_id).toBe(models.data[0]?.id);
+            expect(models.last_id).toBe(models.data.at(-1)?.id);
           },
         );
       },
@@ -1059,17 +1098,18 @@ async function withAllModelsAllowed(
 ) {
   const existing = await prisma.gatewayAiConnection.findUniqueOrThrow({
     where: { id: connectionId },
-    select: { allowedModels: true },
+    select: { allowedModels: true, updatedAt: true },
   });
   const previous = Array.isArray(existing.allowedModels)
     ? existing.allowedModels.filter(
         (model): model is string => typeof model === "string",
       )
     : null;
-  await admin.caller.aiGateway.updateConnectionModels({
+  const opened = await admin.caller.aiGateway.updateConnectionModels({
     orgId: ORGANIZATION_ID,
     id: connectionId,
     allowedModels: null,
+    expectedUpdatedAt: existing.updatedAt,
   });
   try {
     await run();
@@ -1078,6 +1118,7 @@ async function withAllModelsAllowed(
       orgId: ORGANIZATION_ID,
       id: connectionId,
       allowedModels: previous,
+      expectedUpdatedAt: opened.updatedAt,
     });
   }
 }
