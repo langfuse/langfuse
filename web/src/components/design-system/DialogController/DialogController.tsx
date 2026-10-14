@@ -13,6 +13,7 @@ type DialogControllerProps<State = void> = {
   onDismiss?: () => void;
   renderDialog: (control: {
     state: State;
+    /** Visibility is separate from the payload retained during closing. */
     isOpen: boolean;
     closeDialog: () => void;
   }) => React.ReactNode;

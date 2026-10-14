@@ -170,33 +170,33 @@ export const DestructiveOnlyAutofocus = meta.story({
 export const SelectOptionsInModal = meta.story({
   name: "(Test) Select options in modal",
   render: () => {
-    const [config, setConfig] = React.useState("");
-    const [dataType, setDataType] = React.useState("");
+    const [choice, setChoice] = React.useState("");
+    const [size, setSize] = React.useState("");
 
     return (
       <DialogController
         renderDialog={() => (
-          <Dialog title="Choose score config">
+          <Dialog title="Choose options">
             <Dialog.Body>
               <SelectInput
-                aria-label="Score config"
-                value={config}
-                onValueChange={setConfig}
-                placeholder="Choose score config"
-                search={{ placeholder: "Search score configs..." }}
+                aria-label="Choice"
+                value={choice}
+                onValueChange={setChoice}
+                placeholder="Choose options"
+                search={{ placeholder: "Search choices..." }}
                 options={[
-                  { value: "quality", label: "Quality" },
-                  { value: "helpfulness", label: "Helpfulness" },
+                  { value: "first", label: "First option" },
+                  { value: "second", label: "Second option" },
                 ]}
               />
               <SelectInput
-                aria-label="Data type"
-                value={dataType}
-                onValueChange={setDataType}
-                placeholder="Choose type"
+                aria-label="Size"
+                value={size}
+                onValueChange={setSize}
+                placeholder="Choose size"
                 options={[
-                  { value: "numeric", label: "Numeric" },
-                  { value: "boolean", label: "Boolean" },
+                  { value: "small", label: "Small" },
+                  { value: "large", label: "Large" },
                 ]}
               />
             </Dialog.Body>
@@ -212,21 +212,23 @@ export const SelectOptionsInModal = meta.story({
     const body = within(canvasElement.ownerDocument.body);
 
     await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
-    await userEvent.click(body.getByRole("combobox", { name: "Score config" }));
+    await userEvent.click(body.getByRole("combobox", { name: "Choice" }));
     await userEvent.type(
-      body.getByPlaceholderText("Search score configs..."),
-      "Quality",
+      body.getByPlaceholderText("Search choices..."),
+      "First option",
     );
-    await userEvent.click(await body.findByRole("option", { name: "Quality" }));
+    await userEvent.click(
+      await body.findByRole("option", { name: "First option" }),
+    );
     await expect(
-      body.getByRole("combobox", { name: "Score config" }),
-    ).toHaveTextContent("Quality");
+      body.getByRole("combobox", { name: "Choice" }),
+    ).toHaveTextContent("First option");
 
-    await userEvent.click(body.getByRole("combobox", { name: "Data type" }));
-    await userEvent.click(await body.findByRole("option", { name: "Boolean" }));
+    await userEvent.click(body.getByRole("combobox", { name: "Size" }));
+    await userEvent.click(await body.findByRole("option", { name: "Large" }));
     await expect(
-      body.getByRole("combobox", { name: "Data type" }),
-    ).toHaveTextContent("Boolean");
+      body.getByRole("combobox", { name: "Size" }),
+    ).toHaveTextContent("Large");
   },
 });
 
@@ -243,7 +245,7 @@ export const ScrollableBodyKeepsControlsAboveFooter = meta.story({
             {Array.from({ length: 20 }, (_, index) => (
               <p key={index}>Review instruction {index + 1}.</p>
             ))}
-            <Button text="Create score config" onClick={fn()} />
+            <Button text="Additional action" onClick={fn()} />
           </Dialog.Body>
         </Dialog>
       )}
@@ -258,7 +260,7 @@ export const ScrollableBodyKeepsControlsAboveFooter = meta.story({
 
     await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
     const lowerControl = body.getByRole("button", {
-      name: "Create score config",
+      name: "Additional action",
     });
     const scrollBody = lowerControl.parentElement!;
     const footer = body.getByRole("button", { name: "Save" }).parentElement!;
