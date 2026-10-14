@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveInAppAgentQuestionnaireAnswers } from "./questionnaire";
+import {
+  InAppAgentQuestionnaireArgsSchema,
+  resolveInAppAgentQuestionnaireAnswers,
+} from "./questionnaire";
 
 const args = {
   questions: [
@@ -104,5 +107,27 @@ describe("resolveInAppAgentQuestionnaireAnswers", () => {
     expect(
       resolveInAppAgentQuestionnaireAnswers({ args, answers }).success,
     ).toBe(false);
+  });
+});
+
+describe("InAppAgentQuestionnaireArgsSchema", () => {
+  it("rejects more than one recommended option per question", () => {
+    const [firstQuestion] = args.questions;
+    const result = InAppAgentQuestionnaireArgsSchema.safeParse({
+      questions: [
+        {
+          ...firstQuestion,
+          options: firstQuestion.options.map((option) => ({
+            ...option,
+            recommended: true,
+          })),
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    expect(InAppAgentQuestionnaireArgsSchema.safeParse(args).success).toBe(
+      true,
+    );
   });
 });
