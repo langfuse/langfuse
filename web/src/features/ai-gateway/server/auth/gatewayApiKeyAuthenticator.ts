@@ -15,7 +15,7 @@ import {
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { resolveGatewayModelRoute } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
-import { normalizeGatewayAllowedModels } from "@/src/features/ai-gateway/fns/normalizeGatewayAllowedModels";
+import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import {
   type CachedResolveContext,
   GATEWAY_RESOLVE_KEY_NON_EXISTENT,
@@ -160,7 +160,7 @@ export class GatewayApiKeyAuthenticator {
       ingestionMode: gatewayConfig?.ingestionMode ?? null,
       connections: organization.gatewayAiConnections.map((connection) => ({
         ...connection,
-        allowedModels: normalizeGatewayAllowedModels(connection.allowedModels),
+        allowedModels: parseGatewayAllowedModels(connection.allowedModels),
       })),
     };
 

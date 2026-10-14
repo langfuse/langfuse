@@ -5,7 +5,7 @@ import {
   type PrismaClient,
 } from "@langfuse/shared/src/db";
 
-import { normalizeGatewayAllowedModels } from "@/src/features/ai-gateway/fns/normalizeGatewayAllowedModels";
+import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -30,7 +30,7 @@ type SafeConnectionRow = Prisma.GatewayAiConnectionGetPayload<{
 function toSafeConnection<T extends SafeConnectionRow>(connection: T) {
   return {
     ...connection,
-    allowedModels: normalizeGatewayAllowedModels(connection.allowedModels),
+    allowedModels: parseGatewayAllowedModels(connection.allowedModels),
   };
 }
 

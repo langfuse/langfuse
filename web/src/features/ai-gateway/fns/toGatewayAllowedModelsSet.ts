@@ -1,6 +1,6 @@
-import { normalizeGatewayAllowedModels } from "@/src/features/ai-gateway/fns/normalizeGatewayAllowedModels";
+import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 
 export function toGatewayAllowedModelsSet(value: unknown) {
-  const normalized = normalizeGatewayAllowedModels(value);
-  return normalized === null ? null : new Set(normalized);
+  const allowedModels = parseGatewayAllowedModels(value);
+  return allowedModels === null ? null : new Set(allowedModels);
 }
