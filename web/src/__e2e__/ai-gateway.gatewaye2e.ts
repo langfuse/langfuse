@@ -526,9 +526,7 @@ describe("AI gateway live end-to-end", () => {
                 model?: string;
                 usage?: unknown;
               };
-              expect(payload.model).toEqual(
-                expect.stringMatching(providerModelPattern(model)),
-              );
+              expectRequestedProviderModel(payload.model, model);
               expect(payload.model).not.toContain(":");
               const expectedUsage = expectedProvidedUsage(
                 apiFormat,
@@ -557,9 +555,7 @@ describe("AI gateway live end-to-end", () => {
                   expect(observation.projectId).toBe(defaultProjectId);
                   expect(observation.traceId).toBe(traceId);
                   expect(observation.type).toBe("GENERATION");
-                  expect(observation.model).toEqual(
-                    expect.stringMatching(providerModelPattern(model)),
-                  );
+                  expectRequestedProviderModel(observation.model, model);
                   expect(observation.model).not.toContain(":");
                   expect(observation.providedUsageDetails).toEqual(
                     expectedUsage,
@@ -1016,10 +1012,16 @@ function sha256Hex(value: string) {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
-function providerModelPattern(model: string) {
-  return new RegExp(
-    `^${model.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:$|[-.])`,
-  );
+function expectRequestedProviderModel(actual: unknown, requested: string) {
+  const value = typeof actual === "string" ? actual : "";
+  const matches =
+    value === requested ||
+    value.startsWith(`${requested}-`) ||
+    value.startsWith(`${requested}.`);
+  expect(
+    matches,
+    `expected ${JSON.stringify(actual)} to equal ${requested} or a dated snapshot of it`,
+  ).toBe(true);
 }
 
 function expectedProvidedUsage(
