@@ -285,6 +285,15 @@ describe("processOtelEventMedia", () => {
       33,
       { write_path: "direct", media_path: "reference" },
     );
+    expect(mocks.recordDistribution).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media.processing_duration_ms",
+      expect.any(Number),
+      {
+        write_path: "direct",
+        media_path: "reference",
+        media_presence: "present",
+      },
+    );
   });
 
   it("does not create a processing span when there are no media fields", async () => {
@@ -324,6 +333,15 @@ describe("processOtelEventMedia", () => {
       }),
     ).resolves.toBe("unknown");
 
+    expect(mocks.recordDistribution).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media.processing_duration_ms",
+      expect.any(Number),
+      {
+        write_path: "direct",
+        media_path: "reference",
+        media_presence: "unknown",
+      },
+    );
     expect(mocks.recordDistribution).not.toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.batch_byte_length",
       expect.any(Number),

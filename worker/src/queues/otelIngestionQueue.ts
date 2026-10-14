@@ -801,6 +801,7 @@ export const otelIngestionQueueProcessorBuilder = (
             writePath: "legacy",
             earlyBatch,
             mediaPath,
+            inputByteLength,
             projectId,
             fileKey,
             mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
@@ -858,6 +859,7 @@ export const otelIngestionQueueProcessorBuilder = (
         shouldWriteToEventsTable,
         earlyBatch,
         mediaPath,
+        inputByteLength,
       });
       if (directMediaPresence) {
         mediaPresence = combineOtelMediaPresence(
@@ -891,7 +893,7 @@ export const otelIngestionQueueProcessorBuilder = (
       throw e;
     } finally {
       await earlyBatch?.dispose();
-      recordOtelMediaProcessingDuration({
+      recordOtelQueueProcessingMetrics({
         completed,
         processingStartedAt,
         mediaPath,
@@ -912,7 +914,7 @@ function combineOtelMediaPresence(
   return "absent";
 }
 
-function recordOtelMediaProcessingDuration(params: {
+function recordOtelQueueProcessingMetrics(params: {
   completed: boolean;
   processingStartedAt: number;
   mediaPath?: "early" | "reference";
@@ -939,19 +941,19 @@ function recordOtelMediaProcessingDuration(params: {
     write_path: params.writePath,
   };
   recordDistribution(
-    "langfuse.ingestion.otel.media.processing_duration_ms",
+    "langfuse.ingestion.otel.queue_processing_duration_ms",
     durationMs,
     tags,
   );
-  recordIncrement("langfuse.ingestion.otel.media.processing_sample", 1, tags);
+  recordIncrement("langfuse.ingestion.otel.queue_processing_sample", 1, tags);
   recordIncrement(
-    "langfuse.ingestion.otel.media.processing_duration_total_ms",
+    "langfuse.ingestion.otel.queue_processing_duration_total_ms",
     durationMs,
     tags,
   );
   if (params.inputByteLength && params.inputByteLength > 0) {
     recordIncrement(
-      "langfuse.ingestion.otel.media.input_bytes_total",
+      "langfuse.ingestion.otel.queue_input_bytes_total",
       params.inputByteLength,
       tags,
     );
