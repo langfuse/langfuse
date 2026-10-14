@@ -402,10 +402,11 @@ capped.
 
    | Job | Its test step(s) |
    | --- | --- |
-   | `tests-web (…)`, `e2e-server-tests` | `run tests` |
+   | `tests-web (…)` | `run tests` |
    | `tests-worker (…)` | `run tests` **and** `run native codec tests against ClickHouse` — two of them |
    | `tests-web-client` | `run test-client` |
    | `tests-storybook` | `run Storybook tests` |
+   | `e2e-server-tests` | `Run e2e tests` ⚠️ same step name as `e2e-tests` below; classify by **job name**, not step name |
    | `e2e-tests` | `Run e2e tests` |
    | `test-worker-llm-connections` | `run llm connection tests` |
    | `test-ai-gateway-e2e` | `Run AI Gateway end-to-end tests` |
@@ -441,8 +442,13 @@ capped.
    a confident wrong answer.
 4. For test failures, read the tail of the failing step and parse it
    ("Extracting bulk data without bloating your own context"):
-   - vitest-backed jobs — the blocks in "Vitest output analysis";
-     `Failed tests (N):` is the complete list.
+   - vitest-backed jobs (`tests-web`, `tests-worker`, `tests-web-client`,
+     `tests-storybook`, `e2e-server-tests`) — the blocks in
+     "Vitest output analysis". `Failed tests (N):` lists every non-passed
+     *test case*; suite-level failures (`beforeAll`/`afterAll` hooks or
+     unhandled errors) do not appear in it — read the tail before it for
+     those. When `e2e-server-tests` fails, use the job name — not the step
+     name — to pick this parser over the Playwright one below.
    - `e2e-tests` — Playwright run with `--reporter=line`, which prints none
      of those blocks. Its failures are the numbered
      `N) [project] › <file>:<line> › <test>` entries and the `N failed`
@@ -476,9 +482,14 @@ Aggregate across the week:
   timing medians.
 - **Failures by job**, most damaging first.
 - **A test-level ledger** — for each test, the number of merge-queue runs it
-  failed. Key it on **job + file + test**, not file + test: the reporter
-  prints vitest's module id *relative to the package it ran from*, so a web
-  test and a worker test both read as `src/…` and would silently merge.
+  failed. Key it on **base job name + file + test**, not file + test: the
+  reporter prints vitest's module id *relative to the package it ran from*,
+  so a web test and a worker test both read as `src/…` and would silently
+  merge. Base job name means the text before the first ` (` in a matrix leg
+  — `tests-worker`, not `tests-worker (node24, pg15, mode-redis-cluster)` —
+  so a test that ejects two PRs on different legs counts as two failures of
+  one test, not one failure each of two tests. Keep the legs seen as a
+  separate field for diagnostics.
   This is a *failure* ranking; which entries are flakes rather than
   regressions is a separate judgement, made on the evidence named under
   `Failed tests (N):` and not on the retry count.
