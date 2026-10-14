@@ -116,7 +116,7 @@ export const BreakdownTooltip = ({
               {isCost && resolvedCostSource === "calculated" && priceSource ? (
                 <Link
                   href={`/project/${encodeURIComponent(priceSource.projectId)}/settings/models/${encodeURIComponent(priceSource.modelId)}?pricingTier=${encodeURIComponent(priceSource.pricingTierId)}`}
-                  className="text-muted-foreground flex min-w-0 flex-row gap-1 text-xs underline-offset-4 hover:underline"
+                  className="text-muted-foreground inline-flex min-w-0 items-center gap-1 text-xs underline-offset-4 hover:underline"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
