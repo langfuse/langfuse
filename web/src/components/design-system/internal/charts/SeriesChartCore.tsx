@@ -5,7 +5,10 @@ import { scaleLinear, scalePoint, scaleUtc } from "d3-scale";
 import { area, line } from "d3-shape";
 
 import { ChartContainer } from "@/src/components/design-system/internal/charts/ChartContainer";
-import { CHART_TRANSITION_DURATION } from "@/src/components/design-system/charts/constants";
+import {
+  CHART_TRANSITION_DURATION,
+  toChartFill,
+} from "@/src/components/design-system/charts/constants";
 import { CartesianChart } from "@/src/components/design-system/internal/charts/CartesianChart";
 import { CartesianLayout } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import { ChartLegend } from "@/src/components/design-system/internal/charts/ChartLegend";
@@ -342,7 +345,7 @@ export function SeriesChartCore(
             return {
               id: item.id,
               label: item.label,
-              color: item.color,
+              color: props.areaVariant ? toChartFill(item.color) : item.color,
               value:
                 legend.summary === "sum" && summaries.get(item.id) !== null
                   ? {
@@ -847,11 +850,11 @@ function LineChartContent(
                       >
                         <stop
                           offset="0"
-                          stopColor={`color-mix(in srgb, ${item.color} ${dimmed ? 15 : 75}%, hsl(var(--background)))`}
+                          stopColor={`color-mix(in srgb, ${toChartFill(item.color)} ${dimmed ? 15 : 75}%, hsl(var(--background)))`}
                         />
                         <stop
                           offset="1"
-                          stopColor={`color-mix(in srgb, ${item.color} ${dimmed ? 5 : 25}%, hsl(var(--background)))`}
+                          stopColor={`color-mix(in srgb, ${toChartFill(item.color)} ${dimmed ? 5 : 25}%, hsl(var(--background)))`}
                         />
                       </linearGradient>
                     </defs>
@@ -922,11 +925,13 @@ function LineChartContent(
               .sort((left, right) => right.value - left.value);
             const first = values[0];
             const heading = formatXTooltip(datum);
+            const swatchColor = (color: string) =>
+              areaVariant ? toChartFill(color) : color;
             const tooltipItems = values.map(({ item, value }) => ({
               id: item.id,
               label: item.label,
               value: valueFormatter(value),
-              color: hasDistinctColors ? item.color : undefined,
+              color: hasDistinctColors ? swatchColor(item.color) : undefined,
             }));
             const referenceProps = getReferenceProps(
               first
