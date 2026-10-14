@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { NormalizedIO } from "@langfuse/shared/src/utils/normalized-io";
+import {
+  normalizeSpanIO,
+  type NormalizedIO,
+} from "@langfuse/shared/src/utils/normalized-io";
 import { toIOPreview } from "./toIOPreview";
 
 const emptySpan = { input: undefined, output: undefined, metadata: undefined };
@@ -164,5 +167,28 @@ describe("toIOPreview", () => {
         content: "orphaned",
       },
     ]);
+  });
+
+  it("shows TOOL observation I/O that is not chat messages as plain input and output", () => {
+    const io = normalizeSpanIO({
+      input: { command: "ls -R" },
+      output: ".:",
+      metadata: undefined,
+    });
+
+    const preview = toIOPreview(io, "TOOL");
+
+    expect(preview.canDisplayAsChat).toBe(false);
+    expect(preview.allMessages).toEqual([]);
+  });
+
+  it("keeps chat messages of a TOOL observation", () => {
+    const io = normalizeSpanIO({
+      input: { command: "ls -R" },
+      output: { role: "tool", tool_call_id: "call-1", content: ".:" },
+      metadata: undefined,
+    });
+
+    expect(toIOPreview(io, "TOOL")).toEqual(toIOPreview(io));
   });
 });

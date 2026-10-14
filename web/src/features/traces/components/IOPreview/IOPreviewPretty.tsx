@@ -1,7 +1,12 @@
 /* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
+import {
+  type ObservationType,
+  type Prisma,
+  type ScoreDomain,
+  deepParseJson,
+} from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { type MediaReturnType } from "@/src/features/media";
@@ -98,6 +103,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
   chatMLParserResult?: ChatMLParserResult;
+  observationType?: ObservationType;
   isLoading?: boolean;
   isParsing?: boolean;
   hideIfNull?: boolean;
@@ -135,6 +141,7 @@ export function IOPreviewPretty({
   parsedOutput: preParsedOutput,
   parsedMetadata: preParsedMetadata,
   chatMLParserResult,
+  observationType,
   isLoading = false,
   isParsing = false,
   hideIfNull = false,
@@ -178,6 +185,7 @@ export function IOPreviewPretty({
     parsedOutput,
     parsedMetadata,
     chatMLParserResult,
+    observationType,
   );
 
   const {

@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary */
+import type { ObservationType } from "@langfuse/shared";
 import type {
   FilePart,
   NormalizedIO,
@@ -14,6 +15,12 @@ import {
 } from "../hooks/useChatMLParser";
 
 const MEDIA_REFERENCE_PREFIX = "@@@langfuseMedia:";
+
+/** Role the normaliser assigns to a message that declares none. */
+const FALLBACK_ROLE_BY_SOURCE = {
+  input: "user",
+  output: "assistant",
+} as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object";
@@ -241,9 +248,18 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
  * Projects normalized I/O into the existing ChatML-shaped preview contract.
  * This is intentionally a web-only compatibility layer; the normalized parser
  * remains independent of React and the current rendering components.
+ *
+ * A TOOL observation whose I/O holds no chat messages projects to no
+ * messages, so the view shows its input and output as JSON instead of as
+ * user and assistant turns.
  */
-export function toIOPreview(io: NormalizedIO): ChatMLParserResult {
-  const projected = io.messages.map((message) => ({
+export function toIOPreview(
+  io: NormalizedIO,
+  observationType?: ObservationType,
+): ChatMLParserResult {
+  const messages =
+    observationType === "TOOL" && !hasChatMessages(io) ? [] : io.messages;
+  const projected = messages.map((message) => ({
     source: message.source,
     ...toChatMessages(message),
   }));
@@ -310,4 +326,29 @@ export function toIOPreview(io: NormalizedIO): ChatMLParserResult {
     inputMessageCount,
     ...bookkeeping,
   };
+}
+
+/**
+ * True when the I/O declares chat messages: a role on the raw value, a role
+ * the normaliser recognised, or a tool call or tool result.
+ */
+function hasChatMessages(io: NormalizedIO): boolean {
+  return (
+    declaresRole(io.span.input) ||
+    declaresRole(io.span.output) ||
+    io.messages.some(
+      (message) =>
+        message.role !== FALLBACK_ROLE_BY_SOURCE[message.source] ||
+        message.parts.some(
+          (part) => part.type === "tool-call" || part.type === "tool-result",
+        ),
+    )
+  );
+}
+
+/** True for a message with a `role`, or a list or `messages` list of them. */
+function declaresRole(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(declaresRole);
+  if (!isRecord(value)) return false;
+  return typeof value.role === "string" || declaresRole(value.messages);
 }
