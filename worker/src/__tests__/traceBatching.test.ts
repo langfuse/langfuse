@@ -884,59 +884,90 @@ describe("trace micro-batch scheduling with Redis", () => {
   );
 
   it.each(["project", "locality"] as const)(
-    "expands a backfill job into the batches the dispatcher sends with %s",
+    "expands a backfill job into narrow backfill batches with %s",
     async (strategy) => {
       env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
       env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 4;
-      const traces = Array.from({ length: 11 }, (_, index) => ({
-        projectId: index % 3 === 0 ? "project-b" : "project-a",
-        traceId: `backfill-${index}`,
-        start: 1_000_000 + (index % 4) * 3_600_000,
-      }));
-      for (const projectId of ["project-a", "project-b"])
-        await trackTraceBatchActivity(
-          projectId,
-          traces
-            .filter((trace) => trace.projectId === projectId)
-            .map((trace) => event(trace.traceId, trace.start)),
-        );
-      const due = Date.now() - 1_000;
-      await client().zadd(
-        dueKey,
-        ...traces.flatMap((trace) => [
-          due,
-          member(trace.projectId, trace.traceId),
-        ]),
-      );
+      env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES = 100;
+      const hour = 3_600_000;
+      // Two clusters three days apart, interleaved by trace ID.
+      const traces = Array.from({ length: 10 }, (_, index) => {
+        const start = (index % 2) * 72 * hour + index * 60_000;
+        return {
+          projectId: "project-a",
+          traceId: `backfill-${index}`,
+          minStart: start,
+          maxStart: start + 30_000,
+          revision: `r-${index}`,
+          estimates: { eventUpdateCount: 3, serializedEventBytes: 300 },
+        };
+      });
+      const oversized = {
+        ...traces[0],
+        traceId: "oversized",
+        estimates: { eventUpdateCount: 500, serializedEventBytes: 300 },
+      };
       const add = vi.spyOn(queue, "add");
-      await runner().processBatch();
-      const dispatched = add.mock.calls.map(([, job]) => job.payload.traces);
-      expect(dispatched.length).toBeGreaterThan(2);
-      add.mockClear();
 
       const result = await traceBatchQueueProcessor({
         name: QueueJobs.TraceBatchBackfill,
+        opts: {},
         data: {
           id: randomUUID(),
           timestamp: new Date(),
           name: QueueJobs.TraceBatchBackfill,
-          payload: { traces: dispatched.flat().toReversed() },
+          payload: { traces: [oversized, ...traces].toReversed() },
         },
       } as never);
 
-      expect(result).toEqual({ jobCount: dispatched.length });
-      expect(add.mock.calls.map(([name]) => name)).toEqual(
-        dispatched.map(() => QueueJobs.TraceBatch),
-      );
-      expect(add.mock.calls.map(([, job]) => job.payload.traces)).toEqual(
-        dispatched,
-      );
-      for (const [, job, options] of add.mock.calls)
+      const jobs = add.mock.calls.map(([name, job, options]) => ({
+        name,
+        job,
+        options,
+      }));
+      expect(result).toEqual({ jobCount: jobs.length });
+      expect(jobs.length).toBeGreaterThanOrEqual(4);
+      for (const { name, job, options } of jobs) {
+        expect(name).toBe(QueueJobs.TraceBatch);
+        expect(job.origin).toBe("backfill");
+        expect(job.payload.traces.length).toBeLessThanOrEqual(4);
+        const minStart = Math.min(
+          ...job.payload.traces.map(
+            (trace: { minStart: number }) => trace.minStart,
+          ),
+        );
+        const maxStart = Math.max(
+          ...job.payload.traces.map(
+            (trace: { maxStart: number }) => trace.maxStart,
+          ),
+        );
+        expect(maxStart - minStart).toBeLessThanOrEqual(hour);
         expect(options?.jobId).toBe(
           createHash("sha256")
-            .update(JSON.stringify(job.payload.traces))
+            .update(JSON.stringify(["backfill", job.payload.traces]))
             .digest("hex"),
         );
+      }
+      expect(
+        jobs
+          .flatMap(({ job }) =>
+            job.payload.traces.map(
+              ({ traceId }: { traceId: string }) => traceId,
+            ),
+          )
+          .toSorted(),
+      ).toEqual(traces.map(({ traceId }) => traceId).toSorted());
+      expect(
+        jobs
+          .flatMap(({ job }) => job.payload.traces)
+          .find(({ traceId }: { traceId: string }) => traceId === "backfill-0"),
+      ).toEqual({
+        projectId: "project-a",
+        traceId: "backfill-0",
+        minStart: 0,
+        maxStart: 30_000,
+        revision: "r-0",
+      });
     },
   );
 

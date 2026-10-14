@@ -528,6 +528,12 @@ export const TraceBatchEventSchema = z.object({
   timestamp: z.coerce.date(),
   id: z.string(),
   name: z.literal(QueueJobs.TraceBatch),
+  /**
+   * `backfill` jobs run whether or not automatic processing is on and skip its
+   * sampling. Kept outside the strict payload so a consumer that predates the
+   * field strips it and handles the job as automatic.
+   */
+  origin: z.enum(["automatic", "backfill"]).optional(),
   payload: z.union([
     z
       .object({
@@ -559,7 +565,20 @@ export const TraceBatchBackfillEventSchema = z.object({
   name: z.literal(QueueJobs.TraceBatchBackfill),
   payload: z
     .object({
-      traces: z.array(TraceBatchTraceSchema).min(1).max(10_000),
+      traces: z
+        .array(
+          TraceBatchTraceSchema.extend({
+            /** Stored totals, in the units of the dispatcher's weight limits. */
+            estimates: z
+              .object({
+                eventUpdateCount: z.number().int().nonnegative(),
+                serializedEventBytes: z.number().int().nonnegative(),
+              })
+              .optional(),
+          }),
+        )
+        .min(1)
+        .max(10_000),
     })
     .strict(),
 });

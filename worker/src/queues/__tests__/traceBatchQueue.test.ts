@@ -32,6 +32,7 @@ import { TopicsProviderUnavailable } from "../../features/topics/provider-error"
 import { summarizeAssembledTrace } from "../../features/topics/summarizeAssembledTrace";
 import { enqueueTopicsAutomation } from "../../features/topics/topicsAutomation";
 import {
+  getBackfillTopicsModels,
   getEnabledTopicsModels,
   listTopicFacets,
   listTopicRules,
@@ -75,6 +76,10 @@ vi.mock("../../features/topics/topicsAutomation", () => ({
 vi.mock("@langfuse/shared/topics/server", () => ({
   isTopicsProjectEnabled: vi.fn(() => true),
   getEnabledTopicsModels: vi.fn(
+    async (projectIds: string[]) =>
+      new Map(projectIds.map((projectId) => [projectId, { projectId }])),
+  ),
+  getBackfillTopicsModels: vi.fn(
     async (projectIds: string[]) =>
       new Map(projectIds.map((projectId) => [projectId, { projectId }])),
   ),
@@ -1046,6 +1051,91 @@ describe("trace batch queue", () => {
     ).toEqual([["picked", ["issues"]]]);
     vi.mocked(listTopicFacets).mockResolvedValue([]);
     vi.mocked(listTopicRules).mockResolvedValue([]);
+  });
+
+  it("summarizes every trace of a backfill job with unpaused models, outside the rule's sampling", async () => {
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      for (const traceId of ["trace-1", "trace-2"])
+        yield {
+          project_id: "off",
+          trace_id: traceId,
+          environment: "default",
+          span_id: traceId,
+          parent_span_id: null,
+          start_time: "2026-09-11 00:00:00.000000",
+          event_ts: "2026-09-11 00:00:00.000000",
+          type: "GENERATION",
+          name: "generation",
+          input: JSON.stringify([{ role: "user", content: traceId }]),
+          output: JSON.stringify({ role: "assistant", content: "answer" }),
+          metadata: {},
+          level: "DEFAULT",
+          status_message: null,
+          tool_definitions: {},
+          tool_calls: [],
+          tool_call_names: [],
+        };
+    });
+    vi.mocked(listTopicFacets).mockResolvedValue([
+      { id: "intent" } as TopicFacet,
+    ]);
+    vi.mocked(listTopicRules).mockResolvedValue([
+      { facetIds: ["intent"], sampling: 0 } as TopicRule,
+    ]);
+    const job = {
+      data: {
+        id: "backfill",
+        name: QueueJobs.TraceBatch,
+        origin: "backfill",
+        timestamp: new Date(),
+        payload: {
+          traces: ["trace-1", "trace-2"].map((traceId) => ({
+            projectId: "off",
+            traceId,
+            minStart: 0,
+            maxStart: 1,
+            revision: "r",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await traceBatchQueueProcessor(job, undefined);
+
+    expect(getBackfillTopicsModels).toHaveBeenCalledExactlyOnceWith(["off"]);
+    expect(getEnabledTopicsModels).not.toHaveBeenCalled();
+    expect(
+      vi
+        .mocked(summarizeAssembledTrace)
+        .mock.calls.map(([input]) => [
+          input.traceId,
+          input.facets.map(({ id }) => id),
+        ]),
+    ).toEqual([
+      ["trace-1", ["intent"]],
+      ["trace-2", ["intent"]],
+    ]);
+    vi.mocked(listTopicFacets).mockResolvedValue([]);
+    vi.mocked(listTopicRules).mockResolvedValue([]);
+  });
+
+  it("discards a backfill job before expanding it when trace-batch reads are off", async () => {
+    env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "false";
+    const job = {
+      opts: {},
+      data: {
+        id: "backfill",
+        name: QueueJobs.TraceBatchBackfill,
+        timestamp: new Date(),
+        payload: { traces: [] },
+      },
+      name: QueueJobs.TraceBatchBackfill,
+    } as unknown as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual({
+      discarded: "reads_disabled",
+    });
+    expect(job.opts.removeOnComplete).toBe(true);
   });
 
   it("skips projects without enabled Topics models and pauses a project whose connection is rejected", async () => {
