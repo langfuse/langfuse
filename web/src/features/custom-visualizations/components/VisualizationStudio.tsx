@@ -15,7 +15,6 @@ import {
   Sparkles,
   WandSparkles,
 } from "lucide-react";
-import { toast } from "sonner";
 import type { FilterState } from "@langfuse/shared";
 
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
@@ -46,6 +45,12 @@ import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview"
 import { EvaluatorSampleObservationSelector } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorSampleObservationSelector/EvaluatorSampleObservationSelector";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import { VisualizationRenderer } from "./VisualizationRenderer";
+import {
+  showErrorToast,
+  showSuccessToast,
+  showToast,
+} from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   compactContextPreview,
   selectDiverseObservations,
@@ -296,7 +301,6 @@ function TraceDataPreview({
         metadata={trace?.metadata as never}
         isLoading={loading}
         currentView="pretty"
-        showMetadata
         showCorrections={false}
       />
     </div>
@@ -839,9 +843,14 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
     if (source === definition.binding.source) return;
     if (source === "TRACE") {
       if (!canVisualizeTrace) {
-        toast.info(
-          "Filter examples to Root spans before designing a whole-trace view.",
-        );
+        showToast({
+          type: "INFO",
+          title:
+            "Filter examples to Root spans before designing a whole-trace view.",
+          analytics: {
+            operation: "custom_visualization.definition_apply",
+          },
+        });
         return;
       }
       updateDefinition(TRACE_STARTER);
@@ -924,10 +933,16 @@ root.append(ui.stack([
           `/project/${projectId}/visualizations/${result.visualizationId}`,
         );
       }
-      toast.success(`Saved immutable version ${result.version}`);
+      showSuccessToast({
+        operation: "customVisualizations.saveVersion",
+        title: "Visualization version saved",
+        description: `Saved immutable version ${result.version}.`,
+      });
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Could not save version",
+      showErrorToast(
+        "Could not save version",
+        error instanceof Error ? error.message : "Please try again.",
+        classifyTrpcToastError(error, "customVisualizations.saveVersion"),
       );
     }
   };
@@ -996,11 +1011,17 @@ root.append(ui.stack([
           `/project/${projectId}/visualizations/${result.visualizationId}`,
         );
       }
-      toast.success(`Generated version ${result.version}`);
+      showSuccessToast({
+        operation: "customVisualizations.generateVersion",
+        title: "Visualization generated",
+        description: `Generated version ${result.version}.`,
+      });
       return true;
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Could not generate version",
+      showErrorToast(
+        "Could not generate version",
+        error instanceof Error ? error.message : "Please try again.",
+        classifyTrpcToastError(error, "customVisualizations.generateVersion"),
       );
       return false;
     }
@@ -1035,10 +1056,16 @@ root.append(ui.stack([
         utils.customVisualizations.list.invalidate({ projectId }),
         utils.customVisualizations.active.invalidate({ projectId }),
       ]);
-      toast.success("Published. Existing viewers now use this exact version.");
+      showSuccessToast({
+        operation: "customVisualizations.publishVersion",
+        title: "Visualization published",
+        description: "Existing viewers now use this exact version.",
+      });
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Could not publish version",
+      showErrorToast(
+        "Could not publish version",
+        error instanceof Error ? error.message : "Please try again.",
+        classifyTrpcToastError(error, "customVisualizations.publishVersion"),
       );
     }
   };
@@ -1757,14 +1784,25 @@ root.append(ui.stack([
                                     setDefinition(parsed);
                                     setBrowseFilters(parsed.match.filters);
                                     setDraftReady(true);
-                                    toast.success(
-                                      "Definition applied to this draft",
-                                    );
+                                    showSuccessToast({
+                                      operation:
+                                        "custom_visualization.definition_apply",
+                                      title: "Definition applied",
+                                      description:
+                                        "The definition was applied to this draft.",
+                                    });
                                   } catch (error) {
-                                    toast.error(
+                                    showErrorToast(
+                                      "Invalid definition",
                                       error instanceof Error
                                         ? error.message
-                                        : "Invalid definition",
+                                        : "Check the JSON and try again.",
+                                      {
+                                        operation:
+                                          "custom_visualization.definition_apply",
+                                        errorOrigin: "frontend",
+                                        errorCategory: "user_input",
+                                      },
                                     );
                                   }
                                 }}

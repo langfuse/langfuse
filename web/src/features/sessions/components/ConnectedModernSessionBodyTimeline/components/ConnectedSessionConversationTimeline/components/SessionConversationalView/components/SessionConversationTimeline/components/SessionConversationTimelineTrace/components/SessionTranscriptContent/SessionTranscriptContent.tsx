@@ -49,7 +49,8 @@ export function SessionTranscriptContent({
   visualizations: SessionVisualization[];
   visualizationObservations: ObservationVisualizationTarget[];
 }) {
-  const rows = getSessionTranscriptRows(result.transcript).filter(
+  const allRows = getSessionTranscriptRows(result.transcript);
+  const rows = allRows.filter(
     ({ threadIndex }) =>
       selectedThreadIndex === undefined || threadIndex === selectedThreadIndex,
   );
@@ -59,11 +60,29 @@ export function SessionTranscriptContent({
       observation.id ? [[observation.id, observation] as const] : [],
     ),
   );
+  const anchoredObservationIds = new Set(
+    allRows.flatMap(({ row }) =>
+      row.message.observationId ? [row.message.observationId] : [],
+    ),
+  );
+  const unanchoredVisualizationObservations = visualizationObservations.filter(
+    (observation) =>
+      observation.id !== undefined &&
+      !anchoredObservationIds.has(observation.id) &&
+      visualizations.some(({ definition }) =>
+        matchesObservationVisualization(definition, observation),
+      ),
+  );
+  const rendersUnanchoredVisualizations =
+    selectedThreadIndex === undefined ||
+    selectedThreadIndex === visibleThreads[0]?.threadIndex;
   return (
     <div className="ph-no-capture space-y-4">
-      {rows.length === 0 && (
-        <p className="text-muted-foreground text-sm">No messages.</p>
-      )}
+      {rows.length === 0 &&
+        (!rendersUnanchoredVisualizations ||
+          unanchoredVisualizationObservations.length === 0) && (
+          <p className="text-muted-foreground text-sm">No messages.</p>
+        )}
       {visibleThreads
         .filter(
           ({ threadIndex }) =>
@@ -85,6 +104,15 @@ export function SessionTranscriptContent({
               visualizationObservationsById={visualizationObservationsById}
             />
           </div>
+        ))}
+      {rendersUnanchoredVisualizations &&
+        unanchoredVisualizationObservations.map((observation) => (
+          <Fragment key={observation.id}>
+            {renderSessionObservationVisualizations({
+              observation,
+              visualizations,
+            })}
+          </Fragment>
         ))}
     </div>
   );

@@ -65,7 +65,7 @@ export async function loadTraceTranscript(trace: {
 }> {
   // The structure of every observation orders the walk; only generations and
   // tools carry I/O, which is what the transcript reads.
-  const [structure, content] = await Promise.all([
+  const [structure, content, visualizationContent] = await Promise.all([
     getObservationsForTraceFromEventsTable(trace),
     getObservationsForTraceFromEventsTable({
       ...trace,
@@ -73,6 +73,13 @@ export async function loadTraceTranscript(trace: {
       types: ["GENERATION", "TOOL"],
       limit: MAX_TRANSCRIPT_OBSERVATIONS,
     }),
+    trace.includeVisualizationObservations
+      ? getObservationsForTraceFromEventsTable({
+          ...trace,
+          selectIOAndMetadata: true,
+          limit: MAX_TRANSCRIPT_OBSERVATIONS,
+        })
+      : Promise.resolve(null),
   ]);
   const contentById = new Map(content.observations.map((o) => [o.id, o]));
   // Generations and tools past the content cap have no I/O to show; leaving
@@ -164,9 +171,10 @@ export async function loadTraceTranscript(trace: {
     transcript: withToolObservationStatus(transcript, contentById),
     cutoff:
       structure.totalCount > MAX_OBSERVATIONS_PER_TRACE ||
-      content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS,
-    visualizationObservations: trace.includeVisualizationObservations
-      ? content.observations.map((observation) => ({
+      content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS ||
+      (visualizationContent?.totalCount ?? 0) > MAX_TRANSCRIPT_OBSERVATIONS,
+    visualizationObservations: visualizationContent
+      ? visualizationContent.observations.map((observation) => ({
           id: observation.id,
           traceId: observation.traceId,
           parentObservationId: observation.parentObservationId,

@@ -27,8 +27,8 @@ export function SessionConversationTimelineTrace({
   itemId,
   threadIndex,
   displayNumber,
-  visualizations,
-  visualizationObservations,
+  visualizations = [],
+  visualizationObservations = [],
 }: {
   itemId?: string;
   threadIndex?: number;
@@ -46,8 +46,8 @@ export function SessionConversationTimelineTrace({
     rowId?: string;
     requestId: number;
   } | null;
-  visualizations: RouterOutputs["customVisualizations"]["active"];
-  visualizationObservations: NonNullable<
+  visualizations?: RouterOutputs["customVisualizations"]["active"];
+  visualizationObservations?: NonNullable<
     Extract<
       SessionTraceTranscriptState,
       { state: "loaded" }

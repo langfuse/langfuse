@@ -553,71 +553,72 @@ export function ConnectedObservationDetailView({
                 </div>
               ) : (
                 <ObservationPreview
-                currentView={currentView}
-                previewKey={observation.id}
-                onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
-                previewProps={{
-                  observationName: observation.name ?? undefined,
-                  input: observationWithIOCompat.data?.input ?? undefined,
-                  output: observationWithIOCompat.data?.output ?? undefined,
-                  status: observation.statusMessage
-                    ? {
-                        level: observation.level,
-                        message: observation.statusMessage,
-                      }
-                    : undefined,
-                  outputCorrection,
-                  metadata: observationWithIOCompat.data?.metadata ?? undefined,
-                  parsedInput,
-                  parsedOutput,
-                  parsedMetadata,
-                  isLoading: observationWithIOCompat.isLoading,
-                  isParsing: isWaitingForParsing,
-                  media: observationMedia.data,
-                  inputExpansionState: formattedExpansion.input,
-                  outputExpansionState: formattedExpansion.output,
-                  metadataExpansionState: formattedExpansion.metadata,
-                  onInputExpansionChange: (exp) =>
-                    setFormattedFieldExpansion(
-                      "input",
-                      exp as Record<string, boolean>,
-                    ),
-                  onOutputExpansionChange: (exp) =>
-                    setFormattedFieldExpansion(
-                      "output",
-                      exp as Record<string, boolean>,
-                    ),
-                  onMetadataExpansionChange: (exp) =>
-                    setFormattedFieldExpansion(
-                      "metadata",
-                      exp as Record<string, boolean>,
-                    ),
-                  advancedJsonExpansionState: advancedJsonExpansion,
-                  onAdvancedJsonExpansionChange: setAdvancedJsonExpansion,
-                  jsonInputExpanded: jsonExpansion.input,
-                  jsonOutputExpanded: jsonExpansion.output,
-                  jsonMetadataExpanded: jsonExpansion.metadata,
-                  onJsonInputExpandedChange: (expanded) =>
-                    setJsonFieldExpansion("input", expanded),
-                  onJsonOutputExpandedChange: (expanded) =>
-                    setJsonFieldExpansion("output", expanded),
-                  onJsonMetadataExpandedChange: (expanded) =>
-                    setJsonFieldExpansion("metadata", expanded),
-                  enableInlineComments: true,
-                  onAddInlineComment: (selection) =>
-                    openDrawer({
-                      type: "inline-comment",
-                      selection,
-                      objectId: observation.id,
-                      objectType: "OBSERVATION",
-                      objectStartTime: observation.startTime,
-                    }),
-                  commentedPathsByField,
-                  observationId: observation.id,
-                  projectId,
-                  traceId,
-                  environment: observation.environment,
-                }}
+                  currentView={currentView}
+                  previewKey={observation.id}
+                  onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
+                  previewProps={{
+                    observationName: observation.name ?? undefined,
+                    input: observationWithIOCompat.data?.input ?? undefined,
+                    output: observationWithIOCompat.data?.output ?? undefined,
+                    status: observation.statusMessage
+                      ? {
+                          level: observation.level,
+                          message: observation.statusMessage,
+                        }
+                      : undefined,
+                    outputCorrection,
+                    metadata:
+                      observationWithIOCompat.data?.metadata ?? undefined,
+                    parsedInput,
+                    parsedOutput,
+                    parsedMetadata,
+                    isLoading: observationWithIOCompat.isLoading,
+                    isParsing: isWaitingForParsing,
+                    media: observationMedia.data,
+                    inputExpansionState: formattedExpansion.input,
+                    outputExpansionState: formattedExpansion.output,
+                    metadataExpansionState: formattedExpansion.metadata,
+                    onInputExpansionChange: (exp) =>
+                      setFormattedFieldExpansion(
+                        "input",
+                        exp as Record<string, boolean>,
+                      ),
+                    onOutputExpansionChange: (exp) =>
+                      setFormattedFieldExpansion(
+                        "output",
+                        exp as Record<string, boolean>,
+                      ),
+                    onMetadataExpansionChange: (exp) =>
+                      setFormattedFieldExpansion(
+                        "metadata",
+                        exp as Record<string, boolean>,
+                      ),
+                    advancedJsonExpansionState: advancedJsonExpansion,
+                    onAdvancedJsonExpansionChange: setAdvancedJsonExpansion,
+                    jsonInputExpanded: jsonExpansion.input,
+                    jsonOutputExpanded: jsonExpansion.output,
+                    jsonMetadataExpanded: jsonExpansion.metadata,
+                    onJsonInputExpandedChange: (expanded) =>
+                      setJsonFieldExpansion("input", expanded),
+                    onJsonOutputExpandedChange: (expanded) =>
+                      setJsonFieldExpansion("output", expanded),
+                    onJsonMetadataExpandedChange: (expanded) =>
+                      setJsonFieldExpansion("metadata", expanded),
+                    enableInlineComments: true,
+                    onAddInlineComment: (selection) =>
+                      openDrawer({
+                        type: "inline-comment",
+                        selection,
+                        objectId: observation.id,
+                        objectType: "OBSERVATION",
+                        objectStartTime: observation.startTime,
+                      }),
+                    commentedPathsByField,
+                    observationId: observation.id,
+                    projectId,
+                    traceId,
+                    environment: observation.environment,
+                  }}
                 />
               )}
             </Tabs.Content>

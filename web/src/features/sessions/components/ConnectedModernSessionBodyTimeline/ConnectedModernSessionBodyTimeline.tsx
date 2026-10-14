@@ -124,6 +124,7 @@ export function ConnectedModernSessionBodyTimeline({
           traceId: trace.id,
           timestamp: trace.timestamp,
           fallbackToRootIO: true,
+          includeVisualizationObservations: sessionVisualizations.length > 0,
         }) !== undefined,
     );
   const searchQuery = allTranscriptsLoaded
