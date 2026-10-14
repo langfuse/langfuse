@@ -161,8 +161,8 @@ export function AnnotationQueueFormDialogContent({
                     variant="secondary"
                     size="sm"
                     icon={Settings2}
-                    onClick={onManageScoreConfigsClick}
-                    onAuxClick={(event) => {
+                    __customOnClick={onManageScoreConfigsClick}
+                    __customOnAuxClick={(event) => {
                       if (event.button === 1) onManageScoreConfigsClick();
                     }}
                   />

@@ -66,8 +66,10 @@ type ButtonProps = {
       icon?: LucideIcon;
       form?: never;
       target?: HTMLAttributeAnchorTarget;
-      onClick?: MouseEventHandler<HTMLAnchorElement>;
-      onAuxClick?: MouseEventHandler<HTMLAnchorElement>;
+      onClick?: never;
+      onAuxClick?: never;
+      __customOnClick?: MouseEventHandler<HTMLAnchorElement>;
+      __customOnAuxClick?: MouseEventHandler<HTMLAnchorElement>;
       type?: never;
     }
   | {
@@ -109,8 +111,8 @@ export function Button(props: ButtonProps) {
           title={props.title}
           ref={props.ref}
           target={props.target ?? "_blank"}
-          onClick={props.onClick}
-          onAuxClick={props.onAuxClick}
+          onClick={props.__customOnClick}
+          onAuxClick={props.__customOnAuxClick}
           rel={isLangfuseDomain ? "noopener" : "noopener noreferrer"}
         >
           {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
@@ -134,8 +136,8 @@ export function Button(props: ButtonProps) {
         ref={props.ref}
         target={props.target}
         rel={props.target === "_blank" ? "noopener" : undefined}
-        onClick={props.onClick}
-        onAuxClick={props.onAuxClick}
+        onClick={props.__customOnClick}
+        onAuxClick={props.__customOnAuxClick}
       >
         {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
         {props.text}
