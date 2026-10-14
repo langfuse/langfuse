@@ -15,10 +15,10 @@ import { SOFT_DELETE_COLUMNS } from "./schema";
 import { SoftDeleteFilterPlugin } from "./softDelete";
 
 // Raw compiler output, so these run without a `clickhouse` binary.
-const ctx = { projectId: "p" };
+const projectId = "p";
 
 function compile(builder: Parameters<typeof compileClickhouseQuery>[0]) {
-  return compileClickhouseQuery(builder, ctx).sql;
+  return compileClickhouseQuery(builder, projectId).sql;
 }
 
 describe("soft-delete filtering", () => {
