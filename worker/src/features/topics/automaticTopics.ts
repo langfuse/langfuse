@@ -14,6 +14,7 @@ import {
   getTopicProcessingMapIds,
   getTopicRun,
   getTopicSummaryCounts,
+  getTopicsModels,
   listTopicSummaries,
   readTopicAssignments,
   readTopicExecutionForRequest,
@@ -200,6 +201,14 @@ async function startDiscovery(
       },
       select: { id: true },
     })
+  )
+    return;
+  // Summaries from before an embedding model change would fail the execution's model check.
+  const models = await getTopicsModels(projectId);
+  if (
+    !models ||
+    models.embedding.model !== embeddingConfig.embeddingModel ||
+    models.embedding.dimensions !== embeddingConfig.embeddingDimensions
   )
     return;
   const requestId = hash(["topics-discovery", facet, embeddingConfig]);

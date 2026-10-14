@@ -6,6 +6,7 @@ import {
   getTopicProcessingMapIds,
   getTopicRun,
   getTopicSummaryCounts,
+  getTopicsModels,
   listTopicSummaries,
   readTopicAssignments,
   readTopicExecutionForRequest,
@@ -36,6 +37,9 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   getTopicProcessingMapIds: vi.fn(),
   getTopicRun: vi.fn(),
   getTopicSummaryCounts: vi.fn(),
+  getTopicsModels: vi.fn(async () => ({
+    embedding: { model: "embed", dimensions: 2 },
+  })),
   listTopicSummaries: vi.fn(),
   readTopicAssignments: vi.fn(async () => []),
   readTopicExecutionForRequest: vi.fn(async () => null),
@@ -199,6 +203,23 @@ describe("automatic Topics assignment", () => {
       id: "incompatible",
     } as never);
     await processAutomaticTopicAssignments(batch);
+    expect(createTopicExecution).not.toHaveBeenCalled();
+  });
+
+  it("does not start discovery for summaries embedded before the project changed its embedding model", async () => {
+    vi.mocked(listTopicSummaries).mockResolvedValue([summary("near", [1, 0])]);
+    vi.mocked(getTopicProcessingMapIds).mockResolvedValue([
+      { facetId: "facet", facetVersion: 2, runId: null },
+    ]);
+    vi.mocked(getTopicSummaryCounts).mockResolvedValue([
+      { facetId: "facet", facetVersion: 2, count: 100 },
+    ]);
+    vi.mocked(getTopicsModels).mockResolvedValueOnce({
+      embedding: { model: "new-embed", dimensions: 2 },
+    } as Awaited<ReturnType<typeof getTopicsModels>>);
+
+    await processAutomaticTopicAssignments(batch);
+
     expect(createTopicExecution).not.toHaveBeenCalled();
   });
 });

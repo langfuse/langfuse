@@ -13,10 +13,13 @@ import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
 import { processAutomaticTopicAssignments } from "./automaticTopics";
 
-// Discovery's queue handoff is not under test; its execution row is.
+// Discovery's queue handoff and model settings are not under test; its execution row is.
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
   enqueueTopicExecution: vi.fn(),
+  getTopicsModels: vi.fn(async () => ({
+    embedding: { model: "embed", dimensions: 64 },
+  })),
 }));
 
 const DIMENSIONS = 64;
