@@ -34,7 +34,7 @@ export function EvaluatorGalleryScorePreview({
         MESH_TINT[type],
       )}
     >
-      <div className="flex min-w-0 items-center justify-center gap-1">
+      <div className="flex max-w-full min-w-0 items-center justify-center gap-1">
         {visibleScores.map((score) => (
           <span key={score.name} className="flex min-w-0">
             <BadgeShell color="filled" size="md">
@@ -51,9 +51,11 @@ export function EvaluatorGalleryScorePreview({
           </span>
         ))}
         {hiddenCount > 0 ? (
-          <span className="text-muted-foreground shrink-0 text-xs">
-            +{hiddenCount}
-          </span>
+          <BadgeShell color="filled" size="md">
+            <span className="text-muted-foreground py-0.5 font-mono">
+              +{hiddenCount}
+            </span>
+          </BadgeShell>
         ) : null}
       </div>
       <div className="bg-foreground/40 text-background absolute inset-0 hidden items-center justify-center backdrop-blur-xs group-hover/card:flex">
