@@ -83,7 +83,7 @@ For an additive field/filter:
 
 - Create the processor in `worker/src/queues/`.
 - Define queue types in `packages/shared/src/server/queues`.
-- Place business logic in `features/` or `worker/src/features/`.
+- Place web business logic in the owning domain under `web/src` (see `web/docs/source-structure.md`); worker business logic stays in `worker/src/features/`.
 - Distinguish failed jobs from jobs that should succeed with a recorded error.
 - Register the queue in `WorkerManager` in `app.ts`.
 - Add worker vitest coverage.

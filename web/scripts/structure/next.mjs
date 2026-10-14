@@ -32,7 +32,7 @@ export const RULE_LABELS = {
   9: "index.ts only at feature roots, named re-exports only",
   10: "client code does not import from server/ (types excepted)",
   11: "no runtime import cycles",
-  12: "a src/pages file just mounts a feature's Page component",
+  12: "a Pages Router adapter just mounts its capability's Page component",
   16: "ESLint ignores at file level only",
   18: "fn/hook tests sit flat next to their file",
   19: "only tests import from __tests__",
@@ -68,10 +68,8 @@ const NON_CANDIDATES = new Set([
 ]);
 
 /** @type {(p: string) => string | null} */
-const featureRoot = (p) => {
-  const m = p.match(/^src\/(?:ee\/)?features\/[^/]+/);
-  return m ? m[0] : null;
-};
+const featureRoot = (p) =>
+  domainIndex.featureRoot(p)?.replace(/\/$/, "") ?? null;
 
 // Where the fix for a violation lands.
 /** @type {(ruleId: number, viol: Violation) => string} */
@@ -113,7 +111,7 @@ function headlineFor(ruleId, items, path) {
     case 7:
       return `Stop reaching into ${name}'s internals — import its root, or promote the shared bits to siblings`;
     case 8:
-      return `Give ${name} a front door — create index.ts and route the deep imports through it`;
+      return `Review ${name}'s public entrypoints — split mixed surfaces and expose safe contracts`;
     case 9:
       return `Relocate ${path} — index.ts only lives at feature roots`;
     case 10:
@@ -121,7 +119,7 @@ function headlineFor(ruleId, items, path) {
     case 11:
       return `Break the runtime import cycle through ${name}`;
     case 12:
-      return `Put ${path.replace(/^src\/pages/, "")} on a diet — thin shim here, the body moves to its feature`;
+      return `Thin ${path.replace(/^(?:src\/)?pages/, "")} — keep the route adapter here and move its implementation to its capability`;
     case 16:
       return `Lift ${name}'s line-level eslint-disables to file level (or fix the code)`;
     case 18:

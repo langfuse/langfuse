@@ -93,7 +93,7 @@ hook is absent. Use behavior tests and the effect inventory instead.
 Search the full target module, including tests and stories:
 
 ```bash
-rg -n '\b(use(?:Layout)?Effect|React\.use(?:Layout)?Effect)\b' 'web/src/features/<feature>'
+rg -n '\b(use(?:Layout)?Effect|React\.use(?:Layout)?Effect)\b' 'web/src/<domain>/<capability>'
 ```
 
 Classify every result as:

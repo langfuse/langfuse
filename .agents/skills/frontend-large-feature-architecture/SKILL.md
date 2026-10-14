@@ -66,7 +66,7 @@ For the golden example and full reasoning, read
 - Rendered rows/cells/items should be view-only or narrow containers. Put
   effects, subscriptions, data loading, and workflows outside expensive views.
 - Shared `src/app/components/*` exports should stay context-free or receive
-  explicit props. Put view-scoped Zustand consumers in `src/features/*`.
+  explicit props. Put view-scoped Zustand consumers in the owning product domain under `web/src` (see `web/docs/source-structure.md`).
 - Large feature folders should have a concise `README.md` owner map.
 - Migrate real features toward this model whenever you touch them: improve
   state boundaries, action workflows, data-preparation seams, and render

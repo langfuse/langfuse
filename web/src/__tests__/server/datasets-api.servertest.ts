@@ -53,10 +53,9 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   let projectId: string;
 
   beforeEach(async () => {
-    const { auth: newAuth, projectId: newProjectId } =
-      await createOrgProjectAndApiKey();
+    projectId = v4();
+    const { auth: newAuth } = await createOrgProjectAndApiKey({ projectId });
     auth = newAuth;
-    projectId = newProjectId;
     const trace = createTrace({
       id: traceId,
       name: "trace-name",

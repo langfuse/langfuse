@@ -456,8 +456,8 @@ describe("sign-in page last used SSO email", () => {
 
     await waitFor(() => {
       expect(signInMock).toHaveBeenCalledWith("acme.com.okta", undefined);
+      expect(storedSsoEmail()).toBe("jane@acme.com");
     });
-    expect(storedSsoEmail()).toBe("jane@acme.com");
   });
 
   it("forgets a remembered address once an email falls back to a password", async () => {

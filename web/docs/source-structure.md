@@ -96,6 +96,12 @@ boundaries apply equally inside enterprise domains.
    production build and client-bundle scanning; verify affected browser flows.
 
 Structural tooling must recognize explicit domain and nested-capability roots.
+Every nested JavaScript or TypeScript implementation module must belong to a
+declared capability or shared root, including modules inside `src/app` and
+`src/ee`. The layout check permits only the explicit infrastructure roots
+`src/server`, `src/__tests__`, `src/__e2e__`, `src/app/workers`, and
+`src/app/polyfills` without a registry owner. Direct `src` bootstrap files,
+type declarations, and documentation do not require capability ownership.
 Readable rule names should explain the constraint in CLI and CI output, for
 example `rule-8-no-deep-feature-imports`. Use findings to identify ownership or
 runtime problems; improving a count alone does not establish a better boundary.

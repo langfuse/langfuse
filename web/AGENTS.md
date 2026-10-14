@@ -287,7 +287,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 ### Add/Change tRPC endpoint
 
 1. Implement router/procedure in `src/server/api/routers/*` or
-   `src/features/<feature>/server/*`.
+   the owning domain’s `server/*` (see `docs/source-structure.md`).
 2. Register in `src/server/api/root.ts`.
 3. Reuse auth/error patterns from `src/server/api/trpc.ts`.
 4. Add/adjust server tests under `src/__tests__/server/*`.

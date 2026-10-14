@@ -6,7 +6,7 @@ Snapshot source: `gh repo list langfuse --limit 1000 --json name,description,isP
 
 | Need                                                                                                    | Start Here                                                                                                | Then Check                                                                                                       |
 | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Product UI, API routes, tRPC, auth, billing, prompts, datasets, evals, traces, sessions, scores, models | `langfuse/langfuse`                                                                                       | `web/src/features/**`, `web/pages/**`, `web/src/app/**`, `packages/shared/src/**`                                |
+| Product UI, API routes, tRPC, auth, billing, prompts, datasets, evals, traces, sessions, scores, models | `langfuse/langfuse`                                                                                       | `web/src/<domain>/**`, `web/pages/**`, `web/src/app/**`, `packages/shared/src/**`                                |
 | Ingestion, queues, async jobs, exports, retention, evaluation runners, background workers               | `langfuse/langfuse`                                                                                       | `worker/src/**`, `packages/shared/src/server/**`                                                                 |
 | Shared domain types, repositories, services, Postgres/ClickHouse queries                                | `langfuse/langfuse`                                                                                       | `packages/shared/src/domain/**`, `packages/shared/src/server/**`, `packages/shared/src/server/queries/**`        |
 | Public API schema and generated server/client definitions                                               | `langfuse/langfuse`                                                                                       | `fern/apis/server/definition/**`, `fern/apis/client/definition/**`, generated clients                            |
@@ -69,10 +69,11 @@ Start at the sibling checkout `langfuse` in the same parent directory as the cur
 
 Important areas:
 
-- `web/src/features/**`: feature-oriented UI, hooks, server modules, pages, and components.
+- `web/src/<domain>/**`: product UI, hooks, server modules, page components, and capabilities; see `web/docs/source-structure.md`.
 - `web/pages/**`: Next.js pages and API routes.
-- `web/src/app/**`: App-router routes and app-level APIs.
-- `web/src/app/components/**`: shared UI, trace display, tables, layouts, design-system components.
+- `web/app/**`: Next.js App Router route adapters and app-level APIs.
+- `web/src/app/**`: shared application shell, UI infrastructure, search, tables, and browser utilities.
+- `web/src/app/components/**`: shared application components; the design system lives in `web/src/app/design-system/**`.
 - `packages/shared/src/domain/**`: shared domain interfaces and business types.
 - `packages/shared/src/server/**`: repositories, services, auth, cache, ClickHouse/Postgres queries, S3, Redis, pricing, LLM helpers.
 - `packages/shared/src/server/queries/**`: ClickHouse and Postgres SQL query builders.

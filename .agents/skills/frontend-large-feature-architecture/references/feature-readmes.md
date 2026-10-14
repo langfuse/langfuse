@@ -2,7 +2,7 @@
 
 Large frontend feature folders should have a short `README.md` that acts as an
 owner map for humans and agents. Prefer `README.md` over `FEATURE.md` to match
-the existing `web/src/features/*` convention. Use `FEATURE.md` only if a folder
+the owning capability under `web/src`, following `web/docs/source-structure.md`. Use `FEATURE.md` only if a folder
 already has a user-facing or generated README.
 
 The README is not a changelog. It should describe durable boundaries and point

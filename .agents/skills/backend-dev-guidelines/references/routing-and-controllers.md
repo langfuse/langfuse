@@ -31,7 +31,7 @@ Langfuse uses a **layered architecture** with clear separation of concerns:
 ┌─────────────────────────────────────────────────────────────┐
 │                       SERVICE LAYER                          │
 │         Business logic, orchestration, validation            │
-│   web/src/features/*/server/ or packages/shared/services/   │
+│   web/src/<domain>/server/ or packages/shared/services/   │
 └─────────────────────────────────────────────────────────────┘
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
@@ -434,7 +434,7 @@ export default withMiddlewares({
 
 ## Service Layer
 
-**Location:** `web/src/features/*/server/` or `packages/shared/src/server/services/`
+**Location:** `web/src/<domain>/server/` or `packages/shared/src/server/services/`
 
 Services contain business logic and orchestrate operations. They're called by tRPC procedures and API routes.
 
@@ -509,11 +509,11 @@ export class ScoresApiService {
 **Feature-specific services:**
 
 ```
-web/src/features/
+web/src/
 ├── datasets/
 │   └── server/
 │       └── dataset-service.ts
-├── evals/
+├── evaluators/
 │   └── server/
 │       └── eval-service.ts
 └── public-api/

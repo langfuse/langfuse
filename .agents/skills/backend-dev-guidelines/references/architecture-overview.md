@@ -392,7 +392,7 @@ src/datasets/
 For complex features with multiple subdomains:
 
 ```
-src/features/evaluations/
+src/evaluators/
 ├── server/
 │   ├── evalRouter.ts          # Main router
 │   ├── evalService.ts         # Core service

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import test from "node:test";
 import domainModule from "./domains.cjs";
 import {
@@ -157,6 +158,53 @@ test("shared ownership follows relocated shared roots and declared destinations"
   assert.equal(domains.destinationForRoute("traces"), "src/tracing/traces");
 });
 
+test("a nested shared root keeps its ownership without absorbing deeper capabilities", () => {
+  const nested = domainModule.createDomainIndex({
+    domains: [
+      { path: "src/app/tables" },
+      { path: "src/scores" },
+      { path: "src/app/tables/common-components/specialized" },
+    ],
+    sharedRoots: ["src/app/tables/common-components"],
+  });
+  const shared = "src/app/tables/common-components/Table.tsx";
+  const capability = "src/app/tables/common-components/specialized/private.ts";
+  assert.equal(nested.featureRoot(shared), null);
+  assert.equal(nested.isShared(shared), true);
+  assert.equal(
+    nested.featureRoot(capability),
+    "src/app/tables/common-components/specialized/",
+  );
+  assert.equal(nested.isShared(capability), false);
+  assert.equal(
+    new RegExp(nested.descendantPattern("src/app/tables")).test(shared),
+    false,
+  );
+  assert.equal(
+    new RegExp(
+      nested.descendantPattern("src/app/tables/common-components/specialized"),
+    ).test(capability),
+    true,
+  );
+  assert.deepEqual(
+    rule8(
+      [
+        graphModule("src/scores/ScoresPage.tsx", [shared, capability]),
+        graphModule(shared, ["src/scores/private.ts"]),
+      ],
+      nested,
+    ).map(({ paths }) => paths[1]),
+    [capability],
+  );
+  const sharedModule = graphModule(shared);
+  sharedModule.dependents = ["src/scores/ScoresPage.tsx"];
+  assert.equal(
+    rule6([sharedModule, graphModule(sharedModule.dependents[0])], nested)[0]
+      ?.paths[1],
+    "src/scores/",
+  );
+});
+
 test("test fixtures retain domain isolation while global fixtures remain shareable", () => {
   const graph = [
     graphModule("src/scores/example.clienttest.ts", [
@@ -236,6 +284,38 @@ test("cruiser ownership excludes child roots while retaining similar sibling nam
   assert.equal(own.test("src/scores/configs/private.ts"), false);
   assert.equal(own.test("src/scores/configs-more/private.ts"), true);
   assert.equal(own.test("src/scores/components/Score.tsx"), true);
+});
+
+test("cruiser rules preserve shared table imports and still reject private capability imports", () => {
+  const require = createRequire(import.meta.url);
+  const { forbidden } = require("../../.dependency-cruiser.js");
+  /** @param {string | string[] | undefined} patterns @param {string} path */
+  const matchesAny = (patterns, path) => {
+    const list = Array.isArray(patterns) ? patterns : [patterns];
+    return list.some((pattern) => pattern && new RegExp(pattern).test(path));
+  };
+  /** @param {{path?: string | string[], pathNot?: string | string[]}} selector @param {string} path */
+  const matches = (selector, path) =>
+    (!selector.path || matchesAny(selector.path, path)) &&
+    !matchesAny(selector.pathNot, path);
+  /** @param {string} source @param {string} target */
+  const violations = (source, target) =>
+    (forbidden ?? []).filter(
+      (rule) =>
+        rule.name?.startsWith(RULE_IDS[8]) &&
+        "from" in rule &&
+        "to" in rule &&
+        matches(rule.from, source) &&
+        matches(rule.to, target),
+    );
+  const shared = "src/app/tables/common-components/data-table.tsx";
+  assert.equal(violations("src/scores/Score.tsx", shared).length, 0);
+  assert.equal(violations(shared, "src/scores/private.ts").length, 0);
+  assert.equal(
+    violations("src/scores/Score.tsx", "src/app/tables/sorting/private.ts")
+      .length,
+    1,
+  );
 });
 
 test("root Pages routes retain page ownership, thin-route checks and server contexts", () => {

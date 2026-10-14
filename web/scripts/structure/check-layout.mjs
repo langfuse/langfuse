@@ -4,6 +4,14 @@ import { fileURLToPath } from "node:url";
 
 /** @typedef {{domains: {path: string}[], sharedRoots: string[]}} Registry */
 
+const INFRASTRUCTURE_ROOTS = [
+  "src/server",
+  "src/__tests__",
+  "src/__e2e__",
+  "src/app/workers",
+  "src/app/polyfills",
+];
+
 /** @param {string} webRoot @param {Registry} registry @returns {string[]} */
 export function checkLayout(webRoot, registry) {
   const roots = [
@@ -11,11 +19,8 @@ export function checkLayout(webRoot, registry) {
     ...registry.sharedRoots,
   ];
   const allowed = new Set([
-    "__tests__",
-    "__e2e__",
-    "server",
     "ee",
-    ...roots.map((path) => path.split("/")[1]),
+    ...[...roots, ...INFRASTRUCTURE_ROOTS].map((path) => path.split("/")[1]),
   ]);
   const errors = [];
   for (const entry of readdirSync(resolve(webRoot, "src"), {
@@ -27,6 +32,29 @@ export function checkLayout(webRoot, registry) {
       );
     }
   }
+  const ownedRoots = [...roots, ...INFRASTRUCTURE_ROOTS];
+  /** @param {string} directory */
+  const checkSourceOwners = (directory) => {
+    for (const entry of readdirSync(resolve(webRoot, directory), {
+      withFileTypes: true,
+    })) {
+      const path = `${directory}/${entry.name}`;
+      if (entry.isDirectory()) {
+        checkSourceOwners(path);
+      } else if (
+        entry.isFile() &&
+        directory !== "src" &&
+        /\.(?:[cm]?[jt]s|[jt]sx)$/.test(entry.name) &&
+        !/\.d\.[cm]?ts$/.test(entry.name) &&
+        !ownedRoots.some((root) => path.startsWith(`${root}/`))
+      ) {
+        errors.push(
+          `rule-declared-source-owners: ${path} needs an owning domain or shared-root entry in source-structure.json`,
+        );
+      }
+    }
+  };
+  checkSourceOwners("src");
   for (const root of registry.domains.map(({ path }) => path)) {
     if (!existsSync(resolve(webRoot, root)))
       errors.push(`rule-declared-capabilities-exist: missing ${root}`);

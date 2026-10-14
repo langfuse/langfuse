@@ -1,6 +1,5 @@
 /**
- * Import rules from the langfuse-web project-structure RFC
- * (Linear: "langfuse web project code structure RFC", meta LFE-14748).
+ * Import boundaries for declared web capabilities and shared source roots.
  *
  * All rules are warnings while the codebase migrates (RFC step 1: instrument
  * panel). The per-rule dashboard is `pnpm structure:stats`, which implements
@@ -18,12 +17,20 @@ const TEST_FILES =
 const domains = require("./scripts/structure/domains.cjs");
 const { RULE_IDS } = require("./scripts/structure/rules.mjs");
 const rootPattern = domains.roots.map(domains.escapeRegex).join("|");
+const capabilityPattern = domains.roots
+  .map(domains.descendantPattern)
+  .join("|");
+const capabilityTestsPattern = domains.roots
+  .map(
+    (root) => `${domains.descendantPattern(root)}(?:__tests__/|.*/__tests__/)`,
+  )
+  .join("|");
 const surfaces = rootPattern
   ? `^(?:${rootPattern})/(?:index|server/index)\\.tsx?$`
   : "(?!)";
+/** @type {import('dependency-cruiser').IForbiddenRuleType[]} */
 const domainRules = domains.roots.flatMap((root) => {
   const own = domains.descendantPattern(root);
-  const target = `^${domains.escapeRegex(root)}/`;
   const label = root.replace(/\//g, "-");
   return [
     {
@@ -33,8 +40,8 @@ const domainRules = domains.roots.flatMap((root) => {
         "Declared capabilities expose client and server entrypoints; nested capabilities have independent boundaries.",
       from: { path: own },
       to: {
-        path: rootPattern
-          ? `^(?:${rootPattern}|src/(?:ee/)?features/[^/]+)/`
+        path: capabilityPattern
+          ? `(?:${capabilityPattern}|^src/(?:ee/)?features/[^/]+/)`
           : "(?!)",
         pathNot: [
           own,
@@ -48,7 +55,7 @@ const domainRules = domains.roots.flatMap((root) => {
       severity: "warn",
       from: { path: own },
       to: {
-        path: `^(?:${rootPattern}|src/(?:ee/)?features/[^/]+)/(?:__tests__/|.*/__tests__/)`,
+        path: `(?:${capabilityTestsPattern}|^src/(?:ee/)?features/[^/]+/(?:__tests__/|.*/__tests__/))`,
         pathNot: [own],
       },
     },
@@ -56,7 +63,7 @@ const domainRules = domains.roots.flatMap((root) => {
       name: `${RULE_IDS[19]}-global-${label}`,
       severity: "warn",
       from: { path: "^src/__tests__/" },
-      to: { path: `${target}(?:__tests__/|.*/__tests__/)` },
+      to: { path: `${own}(?:__tests__/|.*/__tests__/)` },
     },
   ];
 });
@@ -84,8 +91,8 @@ module.exports = {
       severity: "warn",
       from: { path: "^(src/(?:ee/)?features/[^/]+)/" },
       to: {
-        path: rootPattern
-          ? `^(?:${rootPattern}|src/(?:ee/)?features/[^/]+)/`
+        path: capabilityPattern
+          ? `(?:${capabilityPattern}|^src/(?:ee/)?features/[^/]+/)`
           : "^src/(?:ee/)?features/[^/]+/",
         pathNot: [
           "^$1/",

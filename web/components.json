@@ -10,6 +10,7 @@
   },
   "aliases": {
     "components": "@/src/app/components",
+    "ui": "@/src/app/design-system/legacy-primitives",
     "utils": "@/src/app/utils/tailwind"
   }
 }

@@ -28,16 +28,21 @@ function createDomainIndex({
   const roots = domains
     .map(({ path }) => path.replace(/\/$/, ""))
     .sort((a, b) => b.length - a.length);
-  const shared = [...new Set([...LEGACY_SHARED_ROOTS, ...sharedRoots])];
+  const shared = [...new Set([...LEGACY_SHARED_ROOTS, ...sharedRoots])].sort(
+    (a, b) => b.length - a.length,
+  );
+  /** @param {string} path @param {string[]} candidates */
+  const matchingRoot = (path, candidates) =>
+    candidates.find((root) => path === root || path.startsWith(`${root}/`));
   /** @type {(path: string) => boolean} */
   const frameworkPath = (path) =>
     /^(?:(?:app|pages)\/|src\/(?:pages\/|app\/api\/))/.test(path);
   /** @type {(path: string) => string | null} */
   const featureRoot = (path) => {
     if (frameworkPath(path)) return null;
-    const root = roots.find(
-      (root) => path === root || path.startsWith(`${root}/`),
-    );
+    const root = matchingRoot(path, roots);
+    const sharedRoot = matchingRoot(path, shared);
+    if (sharedRoot && (!root || sharedRoot.length > root.length)) return null;
     if (root) return `${root}/`;
     return path.match(/^src\/(?:ee\/)?features\/[^/]+\//)?.[0] ?? null;
   };
@@ -76,10 +81,12 @@ function createDomainIndex({
     const move = moves.find(({ from }) => from === old);
     return move?.to ?? (roots.includes(`src/${slug}`) ? `src/${slug}` : old);
   };
-  // Cruiser uses per-root rules so a parent capability cannot absorb its declared children.
+  // Each capability excludes more-specific ownership, whether shared or another capability.
   /** @param {string} root */
   const descendantPattern = (root) => {
-    const children = roots.filter((child) => child.startsWith(`${root}/`));
+    const children = [...roots, ...shared].filter((child) =>
+      child.startsWith(`${root}/`),
+    );
     const exclusion = children.length
       ? `(?!(?:${children.map((child) => escapeRegex(child.slice(root.length + 1))).join("|")})(?:/|$))`
       : "";

@@ -61,7 +61,7 @@ explicitly chooses that. Langfuse must work under browser translation.
 - Expensive row content should be a memoized view component.
 - Narrow row containers may subscribe to local store slices and queries.
 - View components should receive stable props and perform no effects.
-- Feature-scoped row containers belong under `src/features/*`; shared
+- Feature-scoped row containers belong in the owning product domain under `web/src`; shared
   `src/app/components/*` row exports should be context-free.
 - Scrolling may rerender the virtualizer. It should not rerender unchanged
   expensive row content.
