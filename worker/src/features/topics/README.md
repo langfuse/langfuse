@@ -186,8 +186,9 @@ After the write, the batch queues its stored complete summaries on
 its job IDs. A failed enqueue is logged and does not fail the batch. The job
 rereads those summaries and assigns the ones not yet assigned to their facet's
 compatible serving map with origin `online`; BullMQ retries a failed job three
-times. Set `QUEUE_CONSUMER_TOPICS_AUTOMATIC_QUEUE_IS_ENABLED=false` on fleets that
-run trace batches but should not consume it.
+times. `QUEUE_CONSUMER_TOPICS_IS_ENABLED=false` stops a worker from consuming any
+Topics queue; set it on fleets that only run trace batches. New Topics queues
+register under the same switch.
 
 A facet version without any map starts one automatic **Update topics** execution
 once it has 100 compatible summaries from the last seven days. It appears in
