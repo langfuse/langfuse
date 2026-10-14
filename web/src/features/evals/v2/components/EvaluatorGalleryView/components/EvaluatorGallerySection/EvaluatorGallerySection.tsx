@@ -48,7 +48,7 @@ export function EvaluatorGallerySection({
   return (
     <section className="flex scroll-mt-1 flex-col gap-3">
       {isRecommended ? (
-        <EvaluatorRecommendedCards label={section.label} stickyHeader>
+        <EvaluatorRecommendedCards label={section.label}>
           {shownManagedTemplates.map((template) => (
             <EvaluatorRecommendedCard
               key={template.key}
@@ -59,7 +59,7 @@ export function EvaluatorGallerySection({
         </EvaluatorRecommendedCards>
       ) : (
         <>
-          <EvaluatorGallerySectionHeader label={section.label} sticky>
+          <EvaluatorGallerySectionHeader label={section.label}>
             {isSafety ? (
               <InfoTooltip label={`About ${section.label}`}>
                 {EVALUATOR_GALLERY_SAFETY_CALLOUT}

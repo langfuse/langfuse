@@ -15,7 +15,7 @@ export function EvaluatorRecommendedCardSurface({
   children: ReactNode;
 }) {
   return (
-    <div className="group/card bg-background hover:shadow-card-hover relative flex h-full flex-col overflow-hidden rounded-md border text-left">
+    <div className="group/card bg-background hover:shadow-card-hover relative flex h-full flex-col overflow-hidden rounded-2xl border text-left">
       {children}
     </div>
   );

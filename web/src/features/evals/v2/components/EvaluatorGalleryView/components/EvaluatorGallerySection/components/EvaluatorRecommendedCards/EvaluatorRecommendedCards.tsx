@@ -5,17 +5,15 @@ import { EvaluatorGallerySectionHeader } from "@/src/features/evals/v2/component
 export function EvaluatorRecommendedCards({
   label,
   count,
-  stickyHeader = false,
   children,
 }: {
   label: string;
   count?: number;
-  stickyHeader?: boolean;
   children: ReactNode;
 }) {
   return (
     <div className="@container flex flex-col gap-3">
-      <EvaluatorGallerySectionHeader label={label} sticky={stickyHeader}>
+      <EvaluatorGallerySectionHeader label={label}>
         {count != null ? (
           <span className="text-muted-foreground ml-auto font-mono text-xs tabular-nums">
             {count}

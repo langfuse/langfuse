@@ -9,7 +9,7 @@ const EVALUATOR_START_OPTIONS = [
   {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
     title: "LLM-as-a-judge",
-    description: "Explains each score. For nuanced inputs.",
+    description: "Explains each score, for nuanced inputs.",
   },
   {
     type: EvalTemplateTypeEnum.DECISION_MODEL,
@@ -36,14 +36,14 @@ export function EvaluatorGalleryStartRow({
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <EvaluatorGallerySectionHeader label="Start from scratch" sticky />
+      <EvaluatorGallerySectionHeader label="Start from scratch" />
       <div className="grid grid-cols-1 gap-3 @2xl:grid-cols-3">
         {EVALUATOR_START_OPTIONS.map((option) => (
           <button
             key={option.type}
             type="button"
             onClick={() => onCreateFromScratch(option.type)}
-            className="bg-background hover:shadow-card-hover flex cursor-pointer items-center gap-3 rounded-md border p-3 text-left"
+            className="bg-background hover:shadow-card-hover flex cursor-pointer items-center gap-3 rounded-2xl border p-3 text-left"
           >
             <EvaluatorMethodTile type={option.type} size="lg" />
             <span className="flex min-w-0 flex-col">
