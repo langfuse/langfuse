@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
@@ -30,7 +31,30 @@ type StoredSettings = RouterOutputs["topics"]["modelSettings"];
 type Connection = RouterOutputs["llmApiKey"]["all"]["data"][number];
 type SlotValue = { llmApiKeyId: string; model: string } | null;
 
-/** Topics setup: one dialog for models, facets, and which traces to include. */
+type ConfigureTopicsSettingsInput = {
+  projectId: string;
+  canWrite: boolean;
+  stored: StoredSettings;
+  traceIdleMs: number | null;
+  connections: Connection[];
+  facets: TopicFacet[];
+  rule: TopicRule | null;
+};
+
+type TopicSetupNoticeState = {
+  unavailable: boolean;
+  status:
+    | { kind: "paused"; message: string }
+    | { kind: "setup" }
+    | { kind: "models" }
+    | null;
+};
+
+/**
+ * Topics setup state. The page wraps itself in `ConfigureTopicsDialogController`
+ * and `AutomaticProcessingDialogController` and wires their `openDialog` into
+ * the header buttons and `TopicSetupNotice`.
+ */
 export function useTopicModelSettings({
   projectId,
   canWrite,
@@ -54,161 +78,190 @@ export function useTopicModelSettings({
     settings.data.clustering,
   );
   const rule = rules.data?.length === 1 ? rules.data[0] : null;
-  const dataKey = `${settings.dataUpdatedAt}-${rules.dataUpdatedAt}-${readinessSettings.dataUpdatedAt}`;
-  // Pins the key while Configure is open so a refetch cannot reset unsaved edits.
-  const [openKey, setOpenKey] = useState<string | null>(null);
-  const setConfigureOpen = (open: boolean) => setOpenKey(open ? dataKey : null);
   const automaticProcessing = useAutomaticProcessing({
-    canWrite,
     projectId,
     rule,
     stored: settings.data,
-    traceIdleMs: readinessSettings.data?.traceIdleMs ?? null,
   });
 
-  const unavailable = settings.data && !settings.data.processingAvailable && (
-    <Alert variant="info">
-      <Alert.Title>
-        Topics processing is not enabled for this project
-      </Alert.Title>
-      <Alert.Description>
-        <p>
-          You can configure Topics, but processing traces and automatic
-          processing stay unavailable until Topics is enabled for this project.
-        </p>
-      </Alert.Description>
-    </Alert>
-  );
-  let notice = null;
+  let status: TopicSetupNoticeState["status"] = null;
   if (settings.data?.blockMessage)
-    notice = (
-      <Alert variant="warning">
-        <Alert.Title>Automatic Topics processing is paused</Alert.Title>
-        <Alert.Description>
-          <p className="break-words">{settings.data.blockMessage}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Button
-              text="Turn back on"
-              variant="secondary"
-              size="sm"
-              disabled={!canWrite}
-              onClick={automaticProcessing.openEnable}
-            />
-            <Button
-              text="Keep off"
-              variant="secondary"
-              size="sm"
-              disabled={!canWrite}
-              onClick={automaticProcessing.clearPause}
-            />
-          </div>
-        </Alert.Description>
-      </Alert>
-    );
+    status = { kind: "paused", message: settings.data.blockMessage };
   else if (settings.data && !configured && facetsReady && !facets.length)
-    notice = (
-      <div className="mx-auto w-full max-w-xl pt-12">
-        <SplashScreen
-          title="Find patterns across your traces"
-          description="Topics analyzes each trace along the questions you choose, called facets, and clusters similar answers, so you can see what users ask for, how runs end, and which issues come up along the way."
-          steps={[
-            {
-              title: "Set up Topics",
-              description:
-                "Pick the models Topics runs on and the facets to analyze, such as intent, outcome, and issues.",
-            },
-            {
-              title: "Analyze traces",
-              description:
-                "Topics summarizes new traces automatically, and past traces whenever you process them.",
-            },
-            {
-              title: "Gather insights",
-              description:
-                "Similar summaries are clustered into topics, on demand or continuously, so patterns across your traces show up here.",
-            },
-          ]}
-          primaryAction={{
-            label: "Configure Topics",
-            component: (
-              <Button
-                text="Configure Topics"
-                disabled={!canWrite}
-                onClick={() => setConfigureOpen(true)}
-              />
-            ),
-          }}
-        />
-      </div>
-    );
-  else if (settings.data && !configured)
-    notice = (
-      <Alert variant="info">
-        <Alert.Title>Choose the models Topics runs on</Alert.Title>
-        <Alert.Description>
-          <p>
-            Topics uses your LLM connections for three jobs: facet summaries,
-            embeddings, and topic clustering. Open Configure Topics to set all
-            three.
-          </p>
-        </Alert.Description>
-      </Alert>
-    );
+    status = { kind: "setup" };
+  else if (settings.data && !configured) status = { kind: "models" };
 
-  const ready = Boolean(
+  const configureSettings: ConfigureTopicsSettingsInput | null =
     settings.data &&
     readinessSettings.data &&
     connections.data &&
     rules.isSuccess &&
-    facetsReady,
-  );
-  const action = ready ? (
-    <ConfigureTopicsSettings
-      key={openKey ?? dataKey}
-      projectId={projectId}
-      canWrite={canWrite}
-      stored={settings.data!}
-      traceIdleMs={readinessSettings.data!.traceIdleMs}
-      connections={connections.data!.data}
-      facets={facets}
-      rule={rule}
-      open={openKey !== null}
-      onOpenChange={setConfigureOpen}
-    />
-  ) : (
-    <ConfigureTopicsDialog
-      projectId={projectId}
-      providerGroups={[]}
-      draft={{
-        summary: null,
-        embedding: null,
-        embeddingDimensions: "1024",
-        clustering: null,
-        facets: [],
-        filters: [],
-        idleSeconds: "600",
-        embeddingLocked: false,
-        automaticProcessing: false,
-      }}
-      defaultOpen={false}
-      onConfigureProviders={() => undefined}
-      onSave={() => undefined}
-      canWrite={false}
-      triggerVariant="secondary"
-      notice="none"
-    />
-  );
+    facetsReady
+      ? {
+          projectId,
+          canWrite,
+          stored: settings.data,
+          traceIdleMs: readinessSettings.data.traceIdleMs,
+          connections: connections.data.data,
+          facets,
+          rule,
+        }
+      : null;
 
   return {
-    action,
-    notice: (
-      <>
-        {unavailable}
-        {notice}
-      </>
-    ),
-    automaticProcessing: automaticProcessing.control,
+    configure: {
+      settings: configureSettings,
+      triggerVariant:
+        configureSettings && !configured
+          ? ("primary" as const)
+          : ("secondary" as const),
+    },
+    automaticProcessing: {
+      ...automaticProcessing,
+      dialog: {
+        projectId,
+        rule,
+        stored: settings.data,
+        traceIdleMs: readinessSettings.data?.traceIdleMs ?? null,
+      },
+    },
+    notice: {
+      unavailable: Boolean(settings.data && !settings.data.processingAvailable),
+      status,
+    } satisfies TopicSetupNoticeState,
   };
+}
+
+/**
+ * Owns the Configure Topics dialog. Wrap the shared parent and pass
+ * `openDialog` to every opener, e.g. the header button and the setup screen.
+ * Openers stay disabled until `settings` has loaded.
+ */
+export function ConfigureTopicsDialogController({
+  settings,
+  children,
+}: {
+  settings: ConfigureTopicsSettingsInput | null;
+  children: (control: { openDialog: () => void }) => ReactNode;
+}) {
+  return (
+    <DialogController
+      renderDialog={({ closeDialog }) =>
+        settings ? (
+          <ConfigureTopicsSettings {...settings} closeDialog={closeDialog} />
+        ) : null
+      }
+    >
+      {({ openDialog }) => children({ openDialog: () => openDialog() })}
+    </DialogController>
+  );
+}
+
+export function TopicSetupNotice({
+  notice,
+  canWrite,
+  canConfigure,
+  onConfigure,
+  onKeepOff,
+  onTurnBackOn,
+}: {
+  notice: TopicSetupNoticeState;
+  canWrite: boolean;
+  canConfigure: boolean;
+  onConfigure: () => void;
+  onKeepOff: () => void;
+  onTurnBackOn: () => void;
+}) {
+  const { status } = notice;
+  return (
+    <>
+      {notice.unavailable ? (
+        <Alert variant="info">
+          <Alert.Title>
+            Topics processing is not enabled for this project
+          </Alert.Title>
+          <Alert.Description>
+            <p>
+              You can configure Topics, but processing traces and automatic
+              processing stay unavailable until Topics is enabled for this
+              project.
+            </p>
+          </Alert.Description>
+        </Alert>
+      ) : null}
+      {status?.kind === "paused" ? (
+        <Alert variant="warning">
+          <Alert.Title>Automatic Topics processing is paused</Alert.Title>
+          <Alert.Description>
+            <p className="break-words">{status.message}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button
+                text="Turn back on"
+                variant="secondary"
+                size="sm"
+                disabled={!canWrite}
+                onClick={onTurnBackOn}
+              />
+              <Button
+                text="Keep off"
+                variant="secondary"
+                size="sm"
+                disabled={!canWrite}
+                onClick={onKeepOff}
+              />
+            </div>
+          </Alert.Description>
+        </Alert>
+      ) : null}
+      {status?.kind === "setup" ? (
+        <div className="mx-auto w-full max-w-xl pt-12">
+          <SplashScreen
+            title="Find patterns across your traces"
+            description="Topics analyzes each trace along the questions you choose, called facets, and clusters similar answers, so you can see what users ask for, how runs end, and which issues come up along the way."
+            steps={[
+              {
+                title: "Set up Topics",
+                description:
+                  "Pick the models Topics runs on and the facets to analyze, such as intent, outcome, and issues.",
+              },
+              {
+                title: "Analyze traces",
+                description:
+                  "Topics summarizes new traces automatically, and past traces whenever you process them.",
+              },
+              {
+                title: "Gather insights",
+                description:
+                  "Similar summaries are clustered into topics, on demand or continuously, so patterns across your traces show up here.",
+              },
+            ]}
+            primaryAction={{
+              label: "Configure Topics",
+              component: (
+                <Button
+                  text="Configure Topics"
+                  disabled={!canWrite || !canConfigure}
+                  onClick={onConfigure}
+                />
+              ),
+            }}
+          />
+        </div>
+      ) : null}
+      {status?.kind === "models" ? (
+        <Alert variant="info">
+          <Alert.Title>Choose the models Topics runs on</Alert.Title>
+          <Alert.Description>
+            <p>
+              Topics uses your LLM connections for three jobs: facet summaries,
+              embeddings, and topic clustering. Open Configure Topics to set all
+              three.
+            </p>
+          </Alert.Description>
+        </Alert>
+      ) : null}
+    </>
+  );
 }
 
 function ConfigureTopicsSettings({
@@ -219,19 +272,8 @@ function ConfigureTopicsSettings({
   connections,
   facets,
   rule,
-  open,
-  onOpenChange,
-}: {
-  projectId: string;
-  canWrite: boolean;
-  stored: StoredSettings;
-  traceIdleMs: number | null;
-  connections: Connection[];
-  facets: TopicFacet[];
-  rule: TopicRule | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
+  closeDialog,
+}: ConfigureTopicsSettingsInput & { closeDialog: () => void }) {
   const utils = api.useUtils();
   const requests = useRef({ summary: 0, embedding: 0, clustering: 0 });
   const [checks, setChecks] = useState<
@@ -420,9 +462,7 @@ function ConfigureTopicsSettings({
       providerGroups={providerGroups}
       embeddingProviderGroups={embeddingGroups}
       draft={draft}
-      defaultOpen={false}
-      open={open}
-      onOpenChange={onOpenChange}
+      closeDialog={closeDialog}
       canWrite={canWrite}
       saving={save.isPending}
       saveError={saveError}
@@ -436,16 +476,11 @@ function ConfigureTopicsSettings({
         );
       }}
       onSave={onSave}
-      triggerVariant={configured(stored) ? "secondary" : "primary"}
       {...(paused
         ? { notice: "paused" as const, ...paused }
         : { notice: "none" as const })}
     />
   );
-}
-
-function configured(stored: StoredSettings) {
-  return Boolean(stored.summary && stored.embedding && stored.clustering);
 }
 
 const OPENAI_EMBEDDING_MODELS = [

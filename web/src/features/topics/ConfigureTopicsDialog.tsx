@@ -1,7 +1,5 @@
 import { useId, useMemo, useState } from "react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { AlertTriangle, ExternalLinkIcon } from "lucide-react";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -90,10 +88,7 @@ type ConfigureTopicsDialogProps = {
   providerGroups: Array<[string, string[]]>;
   embeddingProviderGroups?: Array<[string, string[]]>;
   draft: ConfigureTopicsDraft;
-  defaultOpen: boolean;
-  /** Controls the dialog from outside, e.g. an empty state that opens it. */
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  closeDialog: () => void;
   onConfigureProviders: () => void;
   onSave: (draft: ConfigureTopicsSaveDraft) => void | Promise<void>;
   onSlotCommit?: (
@@ -110,7 +105,6 @@ type ConfigureTopicsDialogProps = {
   projectId?: string;
   /** Storybook keeps the sample filter. The project page chooses traces when a run starts. */
   sampleScope?: boolean;
-  triggerVariant: "primary" | "secondary";
 } & (
   | { notice: "none" }
   | {
@@ -140,9 +134,10 @@ const SLOT_COPY = {
   },
 } as const;
 
+/** Dialog content; render it from a `DialogController`. */
 export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
   const {
-    defaultOpen,
+    closeDialog,
     draft,
     canWrite = true,
     onConfigureProviders,
@@ -155,7 +150,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
     saveError = null,
     saving = false,
     slotChecks,
-    triggerVariant,
   } = props;
   const paused =
     props.notice === "paused"
@@ -165,9 +159,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
           message: props.message,
         }
       : null;
-  const [localOpen, setLocalOpen] = useState(defaultOpen);
-  const open = props.open ?? localOpen;
-  const setOpen = props.onOpenChange ?? setLocalOpen;
   const formId = useId();
   const [summary, setSummary] = useState(draft.summary);
   const [embedding, setEmbedding] = useState(draft.embedding);
@@ -227,170 +218,160 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
   };
 
   return (
-    <div className="flex flex-col items-start gap-4">
-      <Button
-        text="Configure Topics"
-        variant={triggerVariant}
-        size="sm"
-        onClick={() => setOpen(true)}
-      />
-      <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
-        <Dialog
-          title="Configure Topics"
-          size="lg"
-          actions={[
-            {
-              label: "Save",
-              type: "submit",
-              form: formId,
-              loading: saving,
-              disabled: !canSave,
-            },
-          ]}
-        >
-          <form
-            id={formId}
-            className="flex min-h-0 flex-1 flex-col"
-            onSubmit={(event) => {
-              event.preventDefault();
-              Promise.resolve(
-                onSave({
-                  summary,
-                  embedding,
-                  embeddingDimensions: dimensions,
-                  clustering,
-                  facets,
-                  filters,
-                  idleSeconds,
-                }),
-              )
-                .then(() => setOpen(false))
-                .catch(() => undefined);
-            }}
+    <Dialog
+      title="Configure Topics"
+      size="lg"
+      actions={[
+        {
+          label: "Save",
+          type: "submit",
+          form: formId,
+          loading: saving,
+          disabled: !canSave,
+        },
+      ]}
+    >
+      <form
+        id={formId}
+        className="flex min-h-0 flex-1 flex-col"
+        onSubmit={(event) => {
+          event.preventDefault();
+          Promise.resolve(
+            onSave({
+              summary,
+              embedding,
+              embeddingDimensions: dimensions,
+              clustering,
+              facets,
+              filters,
+              idleSeconds,
+            }),
+          )
+            .then(closeDialog)
+            .catch(() => undefined);
+        }}
+      >
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
+          <p className="text-muted-foreground text-sm">
+            Models, what to look for, and which traces to run.
+          </p>
+          {paused ? (
+            <PausedNotice
+              shortLabel={paused.shortLabel}
+              pausedAgo={paused.pausedAgo}
+              message={paused.message}
+              onConfigureProviders={onConfigureProviders}
+            />
+          ) : null}
+          <Stepper
+            number={1}
+            title="Models"
+            description="The connections and models used for summaries, embeddings, and clustering."
+            compactBottomSpacing
           >
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
+            <ModelSlot
+              name="summary"
+              model={summary}
+              locked={false}
+              disabled={!canWrite}
+              check={slotChecks?.summary}
+              connectionMissing={paused !== null}
+              providerGroups={providerGroups}
+              onConfigureProviders={onConfigureProviders}
+              onSelect={(model) => {
+                setSummary(model);
+                commitSlot("summary", model);
+              }}
+            />
+            <ModelSlot
+              name="embedding"
+              model={embedding}
+              locked={draft.embeddingLocked}
+              disabled={!canWrite}
+              check={slotChecks?.embedding}
+              dimensions={dimensions}
+              onDimensionsChange={(value) => {
+                setDimensions(value);
+                if (embedding) commitSlot("embedding", embedding, value);
+              }}
+              providerGroups={embeddingProviderGroups}
+              onConfigureProviders={onConfigureProviders}
+              onSelect={(model) => {
+                setEmbedding(model);
+                commitSlot("embedding", model);
+              }}
+            />
+            <ModelSlot
+              name="clustering"
+              model={clustering}
+              locked={false}
+              disabled={!canWrite}
+              check={slotChecks?.clustering}
+              providerGroups={providerGroups}
+              onConfigureProviders={onConfigureProviders}
+              onSelect={(model) => {
+                setClustering(model);
+                commitSlot("clustering", model);
+              }}
+            />
+          </Stepper>
+          <Stepper
+            number={2}
+            title="Facets"
+            description={
+              <>
+                Choose which questions you want answered. Five can be on.
+                <DocPopup description="A facet is one question Topics answers for every trace, such as what the user asked for, how the run ended, or which issues came up. Answers to the same facet are clustered into topics." />
+              </>
+            }
+            compactBottomSpacing
+          >
+            <FacetPicker
+              facets={facets}
+              browsing={browsing}
+              browsed={browsed}
+              atCap={atFacetCap}
+              canWrite={canWrite}
+              onBrowse={setBrowsing}
+              onEnabledChange={setFacetEnabled}
+            />
+          </Stepper>
+          <Stepper
+            number={3}
+            title="Run settings"
+            description="Choose which traces to include and set the idle time."
+            compactBottomSpacing
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-24">
+                <Input
+                  aria-label="Seconds to wait after the last observation"
+                  type="number"
+                  inputMode="numeric"
+                  min={60}
+                  value={idleSeconds}
+                  onChange={(event) => setIdleSeconds(event.target.value)}
+                />
+              </div>
               <p className="text-muted-foreground text-sm">
-                Models, what to look for, and which traces to run.
+                seconds to wait after the last observation before considering
+                the trace done and summarizing it.
               </p>
-              {paused ? (
-                <PausedNotice
-                  shortLabel={paused.shortLabel}
-                  pausedAgo={paused.pausedAgo}
-                  message={paused.message}
-                  onConfigureProviders={onConfigureProviders}
-                />
-              ) : null}
-              <Stepper
-                number={1}
-                title="Models"
-                description="The connections and models used for summaries, embeddings, and clustering."
-                compactBottomSpacing
-              >
-                <ModelSlot
-                  name="summary"
-                  model={summary}
-                  locked={false}
-                  disabled={!canWrite}
-                  check={slotChecks?.summary}
-                  connectionMissing={paused !== null}
-                  providerGroups={providerGroups}
-                  onConfigureProviders={onConfigureProviders}
-                  onSelect={(model) => {
-                    setSummary(model);
-                    commitSlot("summary", model);
-                  }}
-                />
-                <ModelSlot
-                  name="embedding"
-                  model={embedding}
-                  locked={draft.embeddingLocked}
-                  disabled={!canWrite}
-                  check={slotChecks?.embedding}
-                  dimensions={dimensions}
-                  onDimensionsChange={(value) => {
-                    setDimensions(value);
-                    if (embedding) commitSlot("embedding", embedding, value);
-                  }}
-                  providerGroups={embeddingProviderGroups}
-                  onConfigureProviders={onConfigureProviders}
-                  onSelect={(model) => {
-                    setEmbedding(model);
-                    commitSlot("embedding", model);
-                  }}
-                />
-                <ModelSlot
-                  name="clustering"
-                  model={clustering}
-                  locked={false}
-                  disabled={!canWrite}
-                  check={slotChecks?.clustering}
-                  providerGroups={providerGroups}
-                  onConfigureProviders={onConfigureProviders}
-                  onSelect={(model) => {
-                    setClustering(model);
-                    commitSlot("clustering", model);
-                  }}
-                />
-              </Stepper>
-              <Stepper
-                number={2}
-                title="Facets"
-                description={
-                  <>
-                    Choose which questions you want answered. Five can be on.
-                    <DocPopup description="A facet is one question Topics answers for every trace, such as what the user asked for, how the run ended, or which issues came up. Answers to the same facet are clustered into topics." />
-                  </>
-                }
-                compactBottomSpacing
-              >
-                <FacetPicker
-                  facets={facets}
-                  browsing={browsing}
-                  browsed={browsed}
-                  atCap={atFacetCap}
-                  canWrite={canWrite}
-                  onBrowse={setBrowsing}
-                  onEnabledChange={setFacetEnabled}
-                />
-              </Stepper>
-              <Stepper
-                number={3}
-                title="Run settings"
-                description="Choose which traces to include and set the idle time."
-                compactBottomSpacing
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-24">
-                    <Input
-                      aria-label="Seconds to wait after the last observation"
-                      type="number"
-                      inputMode="numeric"
-                      min={60}
-                      value={idleSeconds}
-                      onChange={(event) => setIdleSeconds(event.target.value)}
-                    />
-                  </div>
-                  <p className="text-muted-foreground text-sm">
-                    seconds to wait after the last observation before
-                    considering the trace done and summarizing it.
-                  </p>
-                </div>
-                {sampleScope ? (
-                  <RuleScope
-                    projectId={projectId}
-                    filters={filters}
-                    onFiltersChange={setFilters}
-                  />
-                ) : null}
-              </Stepper>
             </div>
-            {saveError ? (
-              <p className="text-destructive px-4 pb-2 text-sm">{saveError}</p>
+            {sampleScope ? (
+              <RuleScope
+                projectId={projectId}
+                filters={filters}
+                onFiltersChange={setFilters}
+              />
             ) : null}
-          </form>
-        </Dialog>
-      </DialogPrimitive.Root>
-    </div>
+          </Stepper>
+        </div>
+        {saveError ? (
+          <p className="text-destructive px-4 pb-2 text-sm">{saveError}</p>
+        ) : null}
+      </form>
+    </Dialog>
   );
 }
 

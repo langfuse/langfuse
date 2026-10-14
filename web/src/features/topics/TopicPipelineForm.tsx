@@ -1,9 +1,9 @@
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { skipToken } from "@tanstack/react-query";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Input as NumericInput } from "@/src/components/ui/input";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -16,21 +16,79 @@ import {
 } from "@langfuse/shared/topics";
 import { useTopicTraceSelector } from "./TopicTraceSelector";
 
-export function useTopicPipelineForm({
-  projectId,
-  facets,
-  canWrite,
-  onTriggered,
-  timeRange,
-}: {
+type TopicPipelineSettings = {
   projectId: string;
   facets: TopicFacet[];
   canWrite: boolean;
   onTriggered: (id: string) => void;
   timeRange: TopicTimeRange | null;
+};
+
+type TopicPipelineTriggerAction = {
+  label: string;
+  disabled: boolean;
+  onSelect: () => void;
+};
+
+/**
+ * Owns the Process traces / Update topics dialog. Wrap the shared parent and
+ * pass `triggerAction` to every opener, e.g. the header button and the mobile
+ * actions menu. The chosen operation is remembered between opens so the
+ * openers' label matches it; the rest of the form starts fresh on each open.
+ */
+export function TopicPipelineDialogController({
+  children,
+  ...settings
+}: TopicPipelineSettings & {
+  children: (control: {
+    triggerAction: TopicPipelineTriggerAction | null;
+  }) => ReactNode;
 }) {
-  const [runOpen, setRunOpen] = useState(false);
   const [operation, setOperation] = useState<TopicOperation>("process");
+  return (
+    <DialogController
+      renderDialog={({ closeDialog }) => (
+        <TopicPipelineDialogContent
+          {...settings}
+          operation={operation}
+          onOperationChange={setOperation}
+          closeDialog={closeDialog}
+        />
+      )}
+    >
+      {({ openDialog }) =>
+        children({
+          triggerAction:
+            settings.facets.length > 0
+              ? {
+                  label:
+                    operation === "process"
+                      ? "Process traces"
+                      : "Update topics",
+                  disabled: !settings.canWrite,
+                  onSelect: () => openDialog(),
+                }
+              : null,
+        })
+      }
+    </DialogController>
+  );
+}
+
+function TopicPipelineDialogContent({
+  projectId,
+  facets,
+  canWrite,
+  onTriggered,
+  timeRange,
+  operation,
+  onOperationChange: setOperation,
+  closeDialog,
+}: TopicPipelineSettings & {
+  operation: TopicOperation;
+  onOperationChange: (operation: TopicOperation) => void;
+  closeDialog: () => void;
+}) {
   const [reuseExistingSummaries, setReuseExistingSummaries] = useState(false);
   const {
     selection,
@@ -39,8 +97,8 @@ export function useTopicPipelineForm({
   } = useTopicTraceSelector({
     projectId,
     enabled: facets.length > 0 && operation === "process",
-    filterOptionsEnabled: runOpen,
-    onOpenTrace: () => setRunOpen(false),
+    filterOptionsEnabled: true,
+    onOpenTrace: closeDialog,
   });
   const [selectedFacetIds, setSelectedFacetIds] = useState<string[]>(() =>
     facets
@@ -155,7 +213,7 @@ export function useTopicPipelineForm({
         requestId: request.current.id,
       });
       request.current = null;
-      setRunOpen(false);
+      closeDialog();
       onTriggered(result.id);
     } catch (cause) {
       setError(
@@ -189,11 +247,10 @@ export function useTopicPipelineForm({
       </div>
     </>
   );
-  let actionLabel = "Update topics";
-  if (operation === "process")
-    actionLabel = selection?.count
-      ? `Process ${selection.count.toLocaleString()} traces`
-      : "Process traces";
+  const processLabel = selection?.count
+    ? `Process ${selection.count.toLocaleString()} traces`
+    : "Process traces";
+  const actionLabel = operation === "process" ? processLabel : "Update topics";
   const canSubmit =
     canWrite &&
     !trigger.isPending &&
@@ -205,185 +262,159 @@ export function useTopicPipelineForm({
         !summaryCounts.error &&
         hasStoredSummaries
       : Boolean(selection?.count));
-  const triggerAction = {
-    label: operation === "process" ? "Process traces" : "Update topics",
-    disabled: !canWrite,
-    onSelect: () => setRunOpen(true),
-  };
-  const primaryAction = (
-    <Button
-      text={triggerAction.label}
-      size="sm"
-      disabled={triggerAction.disabled}
-      onClick={triggerAction.onSelect}
-    />
-  );
-  const configuration = (
-    <DialogPrimitive.Root open={runOpen} onOpenChange={setRunOpen}>
-      <Dialog
-        title={operation === "process" ? "Process traces" : "Update topics"}
-        size="xxl"
-        closeOnInteractionOutside
-      >
-        <Dialog.Body>
-          <div className="ph-no-capture flex flex-col gap-6">
-            <p className="text-muted-foreground">
-              {operation === "process"
-                ? "Summarize and embed selected traces, then assign them to current topics."
-                : "Rebuild topics from stored summaries and embeddings in the selected Topics time range."}
-            </p>
-            {operationControls}
-            {operation === "process" && traceControls}
-            <fieldset className="flex flex-col gap-3">
-              <legend className="mb-2 text-sm font-bold">Facets</legend>
-              {facetChoices.map(({ facet, version, selected }) => (
-                <div
-                  key={facet.id}
-                  className="bg-muted/30 flex flex-col gap-2 rounded-md p-3"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <label className="flex min-w-0 items-center gap-2 text-sm font-bold">
-                      <Checkbox
-                        checked={selected}
-                        onCheckedChange={(value) =>
-                          toggleFacet(facet.id, value === true)
-                        }
-                      />
-                      {facet.name}
-                    </label>
-                    <div className="w-24">
-                      <SelectInput
-                        aria-label={`Version for ${facet.name}`}
-                        placeholder="Version"
-                        value={String(version.version)}
-                        options={facet.versions.map((candidate) => ({
-                          value: String(candidate.version),
-                          label: `v${candidate.version}`,
-                        }))}
-                        onValueChange={(value) =>
-                          setFacetVersions((current) => ({
-                            ...current,
-                            [facet.id]: Number(value),
-                          }))
-                        }
-                      />
-                    </div>
+  return (
+    <Dialog
+      title={operation === "process" ? "Process traces" : "Update topics"}
+      size="xxl"
+      closeOnInteractionOutside
+    >
+      <Dialog.Body>
+        <div className="ph-no-capture flex flex-col gap-6">
+          <p className="text-muted-foreground">
+            {operation === "process"
+              ? "Summarize and embed selected traces, then assign them to current topics."
+              : "Rebuild topics from stored summaries and embeddings in the selected Topics time range."}
+          </p>
+          {operationControls}
+          {operation === "process" && traceControls}
+          <fieldset className="flex flex-col gap-3">
+            <legend className="mb-2 text-sm font-bold">Facets</legend>
+            {facetChoices.map(({ facet, version, selected }) => (
+              <div
+                key={facet.id}
+                className="bg-muted/30 flex flex-col gap-2 rounded-md p-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <label className="flex min-w-0 items-center gap-2 text-sm font-bold">
+                    <Checkbox
+                      checked={selected}
+                      onCheckedChange={(value) =>
+                        toggleFacet(facet.id, value === true)
+                      }
+                    />
+                    {facet.name}
+                  </label>
+                  <div className="w-24">
+                    <SelectInput
+                      aria-label={`Version for ${facet.name}`}
+                      placeholder="Version"
+                      value={String(version.version)}
+                      options={facet.versions.map((candidate) => ({
+                        value: String(candidate.version),
+                        label: `v${candidate.version}`,
+                      }))}
+                      onValueChange={(value) =>
+                        setFacetVersions((current) => ({
+                          ...current,
+                          [facet.id]: Number(value),
+                        }))
+                      }
+                    />
                   </div>
-                  <p className="text-muted-foreground text-sm">
-                    {version.prompt}
-                  </p>
-                  {operation === "update" && selected && (
-                    <p className="text-muted-foreground text-sm">
-                      {compatibleSummaryLabel(facet.id, version.version)}
-                    </p>
-                  )}
                 </div>
-              ))}
-            </fieldset>
-            <div className="flex flex-wrap items-end gap-5">
-              {operation === "update" && (
-                <label className="flex flex-col gap-1 text-sm">
-                  Minimum traces for clustering
-                  <NumericInput
-                    aria-label="Minimum traces for clustering"
-                    aria-invalid={!minimumTraceCountResult.success}
-                    className="w-28"
-                    type="number"
-                    min={3}
-                    step={1}
-                    value={minimumTraceCountValue}
-                    onChange={(event) =>
-                      setMinimumTraceCount(event.target.value)
-                    }
-                  />
-                </label>
-              )}
-              {operation === "update" && (
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={exploratory}
-                    onCheckedChange={(value) => setExploratory(value === true)}
-                  />
-                  Small sample mode (smaller, provisional topics)
-                </label>
-              )}
-            </div>
-            {operation === "process" && (
-              <div className="flex flex-col gap-1">
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={reuseExistingSummaries}
-                    onCheckedChange={(value) =>
-                      setReuseExistingSummaries(value === true)
-                    }
-                  />
-                  Reuse stored summaries
-                </label>
-                <p className="text-muted-foreground text-xs">
-                  Reuse saved summaries and embeddings for each trace and facet
-                  version. Source changes are not checked. Leave unchecked to
-                  generate fresh results.
+                <p className="text-muted-foreground text-sm">
+                  {version.prompt}
                 </p>
+                {operation === "update" && selected && (
+                  <p className="text-muted-foreground text-sm">
+                    {compatibleSummaryLabel(facet.id, version.version)}
+                  </p>
+                )}
               </div>
-            )}
-            {operation === "process" && selection?.count ? (
-              <p className="text-muted-foreground text-sm">
-                Process {selection.count.toLocaleString()} traces across{" "}
-                {selectedFacets.length} facets.{" "}
-                {reuseExistingSummaries
-                  ? "Matching stored summaries and embeddings are reused. Missing ones use the project's Topics models."
-                  : "Generate fresh summaries and embeddings with the project's Topics models."}
-              </p>
-            ) : null}
-            {operation === "process" && (
-              <p className="text-muted-foreground text-xs">
-                New summaries are assigned to the latest compatible topics. If
-                no topics exist yet, summaries wait until you run Update topics.
-              </p>
-            )}
-            {operation === "update" && summaryCounts.error && (
-              <Alert variant="destructive" size="sm">
-                <Alert.Description>
-                  <p className="break-words">{summaryCounts.error.message}</p>
-                </Alert.Description>
-              </Alert>
+            ))}
+          </fieldset>
+          <div className="flex flex-wrap items-end gap-5">
+            {operation === "update" && (
+              <label className="flex flex-col gap-1 text-sm">
+                Minimum traces for clustering
+                <NumericInput
+                  aria-label="Minimum traces for clustering"
+                  aria-invalid={!minimumTraceCountResult.success}
+                  className="w-28"
+                  type="number"
+                  min={3}
+                  step={1}
+                  value={minimumTraceCountValue}
+                  onChange={(event) => setMinimumTraceCount(event.target.value)}
+                />
+              </label>
             )}
             {operation === "update" && (
-              <p className="text-muted-foreground text-xs">
-                {minimumTraceCountResult.success
-                  ? `Clustering starts with at least ${minimumTraceCountResult.data.toLocaleString()} compatible stored summaries per facet. Below this minimum, process more traces first.`
-                  : "Enter a whole number of at least 3 traces."}{" "}
-                Small sample mode lowers the minimum topic size from 15 to 3
-                traces.
-              </p>
-            )}
-            {error && (
-              <Alert variant="destructive" size="sm">
-                <Alert.Description>
-                  <p className="break-words">{error}</p>
-                </Alert.Description>
-              </Alert>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={exploratory}
+                  onCheckedChange={(value) => setExploratory(value === true)}
+                />
+                Small sample mode (smaller, provisional topics)
+              </label>
             )}
           </div>
-        </Dialog.Body>
-        <div className="flex shrink-0 justify-end gap-2 p-4">
-          <Button
-            text="Cancel"
-            variant="secondary"
-            onClick={() => setRunOpen(false)}
-          />
-          <Button
-            text={trigger.isPending ? "Starting…" : actionLabel}
-            disabled={!canSubmit}
-            onClick={submit}
-          />
+          {operation === "process" && (
+            <div className="flex flex-col gap-1">
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={reuseExistingSummaries}
+                  onCheckedChange={(value) =>
+                    setReuseExistingSummaries(value === true)
+                  }
+                />
+                Reuse stored summaries
+              </label>
+              <p className="text-muted-foreground text-xs">
+                Reuse saved summaries and embeddings for each trace and facet
+                version. Source changes are not checked. Leave unchecked to
+                generate fresh results.
+              </p>
+            </div>
+          )}
+          {operation === "process" && selection?.count ? (
+            <p className="text-muted-foreground text-sm">
+              Process {selection.count.toLocaleString()} traces across{" "}
+              {selectedFacets.length} facets.{" "}
+              {reuseExistingSummaries
+                ? "Matching stored summaries and embeddings are reused. Missing ones use the project's Topics models."
+                : "Generate fresh summaries and embeddings with the project's Topics models."}
+            </p>
+          ) : null}
+          {operation === "process" && (
+            <p className="text-muted-foreground text-xs">
+              New summaries are assigned to the latest compatible topics. If no
+              topics exist yet, summaries wait until you run Update topics.
+            </p>
+          )}
+          {operation === "update" && summaryCounts.error && (
+            <Alert variant="destructive" size="sm">
+              <Alert.Description>
+                <p className="break-words">{summaryCounts.error.message}</p>
+              </Alert.Description>
+            </Alert>
+          )}
+          {operation === "update" && (
+            <p className="text-muted-foreground text-xs">
+              {minimumTraceCountResult.success
+                ? `Clustering starts with at least ${minimumTraceCountResult.data.toLocaleString()} compatible stored summaries per facet. Below this minimum, process more traces first.`
+                : "Enter a whole number of at least 3 traces."}{" "}
+              Small sample mode lowers the minimum topic size from 15 to 3
+              traces.
+            </p>
+          )}
+          {error && (
+            <Alert variant="destructive" size="sm">
+              <Alert.Description>
+                <p className="break-words">{error}</p>
+              </Alert.Description>
+            </Alert>
+          )}
         </div>
-      </Dialog>
-    </DialogPrimitive.Root>
+      </Dialog.Body>
+      <div className="flex shrink-0 justify-end gap-2 p-4">
+        <Button text="Cancel" variant="secondary" onClick={closeDialog} />
+        <Button
+          text={trigger.isPending ? "Starting…" : actionLabel}
+          disabled={!canSubmit}
+          onClick={submit}
+        />
+      </div>
+    </Dialog>
   );
-  return {
-    primaryAction: facets.length > 0 ? primaryAction : null,
-    triggerAction: facets.length > 0 ? triggerAction : null,
-    configuration: facets.length > 0 ? configuration : null,
-  };
 }
