@@ -92,6 +92,11 @@ suffix to run there. Promote it to a required check once it has proven stable.
 - **Value binds take their ClickHouse type from the compared column** in the
   table registry (`scores.value > 1` emits `{p:Float64}`, not inferred
   `{p:Int64}`). Same-value binds still intern to one placeholder.
+- **Bind dates as JS `Date`**, never as pre-formatted strings. The compiler
+  sends a `Date` as the UTC wall-clock string ingestion writes
+  (`toClickhouseDateTime`), so binds match stored rows whatever the server
+  timezone. Use `toDate` / `toStartOfMinute` from `extensions.ts` for
+  date-truncated comparisons.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
