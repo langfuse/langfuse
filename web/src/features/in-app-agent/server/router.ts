@@ -18,6 +18,7 @@ import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
   IN_APP_AGENT_PRODUCT_ENVIRONMENT,
+  InAppAgentQuestionnaireAnswersSchema,
 } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMessageFeedbackValueSchema } from "../schema";
 import {
@@ -85,10 +86,17 @@ const DecideToolApprovalInput = ConversationIdInput.extend({
   approved: z.boolean(),
   // "conversation" also approves this call; it never means approve-without-run.
   approvalScope: z.enum(["once", "conversation"]).default("once"),
-}).refine((input) => input.approved || input.approvalScope === "once", {
-  message: "A rejection cannot grant a tool",
-  path: ["approvalScope"],
-});
+  /** Validated against the persisted questions in the service. */
+  answers: InAppAgentQuestionnaireAnswersSchema.optional(),
+})
+  .refine((input) => input.approved || input.approvalScope === "once", {
+    message: "A rejection cannot grant a tool",
+    path: ["approvalScope"],
+  })
+  .refine((input) => input.approved || input.answers === undefined, {
+    message: "A rejection cannot carry answers",
+    path: ["answers"],
+  });
 
 const SubmitFeedbackInput = ConversationIdInput.extend({
   messageId: z.string(),
@@ -302,6 +310,7 @@ export const inAppAgentRouter = createTRPCRouter({
         toolCallId: input.toolCallId,
         approved: input.approved,
         approvalScope: input.approvalScope,
+        answers: input.answers,
         userId: ctx.session.user.id,
         model: modelConfig.modelId,
       });
