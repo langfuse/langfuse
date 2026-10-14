@@ -150,6 +150,10 @@ async fn rewrites_the_model_and_isolates_request_and_response_headers() {
         );
         assert_eq!(request.headers()[header::CONTENT_TYPE], "application/json");
         assert_eq!(request.headers()[header::ACCEPT_ENCODING], "identity");
+        assert_eq!(
+            request.headers()[header::CONTENT_LENGTH].to_str().unwrap(),
+            UPSTREAM_REQUEST.len().to_string()
+        );
         for name in [
             "cookie",
             "langfuse-gateway-authorization",

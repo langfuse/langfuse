@@ -250,7 +250,9 @@ impl ProviderTransport {
             .header(header::ACCEPT_ENCODING, "identity")
             .header(credential_name, credential);
         if route.requires_model_rewrite() {
-            upstream = upstream.body(body.into_reqwest());
+            upstream = upstream
+                .header(header::CONTENT_LENGTH, body.len())
+                .body(body.into_reqwest());
         }
         let response = tokio::time::timeout_at(
             permit
@@ -356,6 +358,13 @@ impl ProviderRequestBody {
             Self::Segmented(segments) => reqwest::Body::wrap_stream(stream::iter(
                 segments.into_iter().map(Ok::<_, Infallible>),
             )),
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::Contiguous(body) => body.len(),
+            Self::Segmented(segments) => segments.iter().map(Bytes::len).sum(),
         }
     }
 
