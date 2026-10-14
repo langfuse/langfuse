@@ -36,7 +36,10 @@ import {
   AI_FEATURE_OTEL_SDK_NAME,
   LangfuseOtelSpanAttributes,
 } from "./attributes";
-import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
+import {
+  isClaudeManagedAgentSessionCreation,
+  ObservationTypeMapperRegistry,
+} from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 import { isValidDateString, flattenJsonToPathArrays } from "./utils";
@@ -528,13 +531,26 @@ export class OtelIngestionProcessor {
                   source: "event" as const,
                 };
 
+                const observationType =
+                  observationTypeMapper.mapToObservationType(
+                    spanAttributes,
+                    resourceAttributes,
+                    scopeSpan?.scope,
+                    span.name,
+                  );
                 // AI SDK agent spans carry aggregate usage duplicating their
                 // child model-call spans — skip model/usage/cost for them.
-                const isAiSdkAgentSpan =
-                  this.isAiSdkAgentOperation(spanAttributes);
+                // Also Claude Managed Agent create_session spans have a model logged
+                // but no usage
+                const skipModelUsageAndCost = this.shouldSkipModelUsageAndCost(
+                  spanAttributes,
+                  observationType,
+                  scopeName,
+                  span.name,
+                );
 
                 const usageDetails = UsageDetails.safeParse(
-                  isAiSdkAgentSpan
+                  skipModelUsageAndCost
                     ? {}
                     : this.extractUsageDetails(
                         spanAttributes,
@@ -561,13 +577,6 @@ export class OtelIngestionProcessor {
                     ? normalizedTools.toolCallNames
                     : undefined;
 
-                const observationType =
-                  observationTypeMapper.mapToObservationType(
-                    spanAttributes,
-                    resourceAttributes,
-                    scopeSpan?.scope,
-                    span.name,
-                  );
                 // Prompts can only be linked to GENERATION observations
                 const canLinkPrompt =
                   observationType === ObservationType.GENERATION;
@@ -632,7 +641,7 @@ export class OtelIngestionProcessor {
                     spanAttributes,
                     scopeSpan?.scope?.name ?? "",
                   ),
-                  modelName: isAiSdkAgentSpan
+                  modelName: skipModelUsageAndCost
                     ? undefined
                     : this.extractModelName(spanAttributes),
                   completionStartTime: this.extractCompletionStartTime(
@@ -644,7 +653,7 @@ export class OtelIngestionProcessor {
                   providedUsageDetails: usageDetails.success
                     ? usageDetails.data
                     : undefined,
-                  providedCostDetails: isAiSdkAgentSpan
+                  providedCostDetails: skipModelUsageAndCost
                     ? {}
                     : this.extractCostDetails(spanAttributes, spanContext),
 
@@ -1267,14 +1276,16 @@ export class OtelIngestionProcessor {
       metadata,
     );
 
-    // AI SDK agent spans carry aggregate usage duplicating their child
-    // model-call spans — skip model/usage/cost for them.
-    const isAiSdkAgentSpan = this.isAiSdkAgentOperation(attributes);
-
     const mappedObservationType = observationTypeMapper.mapToObservationType(
       attributes,
       resourceAttributes,
       scopeSpan?.scope,
+      span.name,
+    );
+    const skipModelUsageAndCost = this.shouldSkipModelUsageAndCost(
+      attributes,
+      mappedObservationType,
+      instrumentationScopeName,
       span.name,
     );
     // Prompts can only be linked to GENERATION observations
@@ -1320,7 +1331,9 @@ export class OtelIngestionProcessor {
         attributes,
         instrumentationScopeName,
       ) as any,
-      model: isAiSdkAgentSpan ? undefined : this.extractModelName(attributes),
+      model: skipModelUsageAndCost
+        ? undefined
+        : this.extractModelName(attributes),
       promptName: canLinkPrompt
         ? (attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME] ??
           attributes["langfuse.prompt.name"] ??
@@ -1330,14 +1343,14 @@ export class OtelIngestionProcessor {
       promptVersion: canLinkPrompt
         ? this.extractPromptVersion(attributes)
         : null,
-      usageDetails: isAiSdkAgentSpan
+      usageDetails: skipModelUsageAndCost
         ? {}
         : this.extractUsageDetails(
             attributes,
             instrumentationScopeName,
             observationContext,
           ),
-      costDetails: isAiSdkAgentSpan
+      costDetails: skipModelUsageAndCost
         ? {}
         : this.extractCostDetails(attributes, observationContext),
       input: normalizedToolMetadata.input,
@@ -2884,23 +2897,27 @@ export class OtelIngestionProcessor {
   }
 
   /**
-   * The Vercel AI SDK OTel integration (@ai-sdk/otel) emits an
-   * `invoke_agent` span (and `agent_step` child spans) that carry aggregate
-   * `gen_ai.usage.*` token counts duplicating the per-call usage on the
-   * grandchild model-call span (`gen_ai.operation.name: "chat"`). Populating
-   * model/usage/cost on the agent spans as well as the model-call span would
-   * classify both as generations and double every trace's cost, so model,
-   * usage, and cost extraction is skipped for these spans. Agent-type spans
-   * from other instrumentations (e.g. OpenInference `AGENT` spans) are not
-   * affected because the gate is on the operation name, not the observation
-   * type.
+   * The Vercel AI SDK OTel integration (@ai-sdk/otel) emits `invoke_agent`
+   * and `agent_step` spans carrying aggregate usage from child model calls.
+   * Skip their model/usage/cost to avoid double counting. Other AGENT spans
+   * are unaffected unless they have one of these operation names.
+   *
+   * CMA session creation only configures a model and must not trigger enrichment.
    */
-  private isAiSdkAgentOperation(attributes: Record<string, unknown>): boolean {
+  private shouldSkipModelUsageAndCost(
+    attributes: Record<string, unknown>,
+    observationType: ObservationType,
+    scopeName: string | undefined,
+    spanName: string,
+  ): boolean {
     const operationName = attributes["gen_ai.operation.name"];
+    if (operationName === "invoke_agent" || operationName === "agent_step") {
+      return true;
+    }
 
     return (
-      typeof operationName === "string" &&
-      ["invoke_agent", "agent_step"].includes(operationName)
+      observationType === ObservationType.SPAN &&
+      isClaudeManagedAgentSessionCreation(attributes, scopeName, spanName)
     );
   }
 
