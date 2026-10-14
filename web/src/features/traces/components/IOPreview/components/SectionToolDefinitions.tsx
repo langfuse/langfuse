@@ -1,3 +1,4 @@
+import { IOSection } from "@/src/components/ui/IOSection";
 import {
   ToolCallDefinitionCard,
   type ToolDefinition,
@@ -24,10 +25,7 @@ export function SectionToolDefinitions({
   toolNameToDefinitionNumber,
 }: SectionToolDefinitionsProps) {
   return (
-    <div className="border-border mb-4 border-b pb-4">
-      <div className="io-message-header px-1 py-1 text-base font-bold capitalize">
-        Tools
-      </div>
+    <IOSection title="Tools">
       {tools.length > 0 && (
         <ToolCallDefinitionCard
           tools={tools}
@@ -36,6 +34,6 @@ export function SectionToolDefinitions({
           toolNameToDefinitionNumber={toolNameToDefinitionNumber}
         />
       )}
-    </div>
+    </IOSection>
   );
 }

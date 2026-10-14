@@ -18,7 +18,9 @@ import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 type MarkdownJsonViewHeaderProps = {
   title: string | React.ReactNode;
   titleIcon?: React.ReactNode;
-  handleOnCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
+  /** Rendered before the title, e.g. a section caret. */
+  leading?: React.ReactNode;
+  handleOnCopy?: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   controlButtons?: React.ReactNode;
   /** Hosts that render their own copy control (e.g. inside the content box)
       suppress the header's. */
@@ -31,6 +33,7 @@ type MarkdownJsonViewHeaderProps = {
 export function MarkdownJsonViewHeader({
   title,
   titleIcon,
+  leading,
   handleOnCopy,
   controlButtons,
   hideCopyButton = false,
@@ -40,6 +43,7 @@ export function MarkdownJsonViewHeader({
 
   const titleContent = (
     <>
+      {leading}
       {titleIcon}
       {title}
     </>
@@ -70,7 +74,7 @@ export function MarkdownJsonViewHeader({
             type="button"
             onClick={(event) => {
               setIsCopied(true);
-              handleOnCopy(event);
+              handleOnCopy?.(event);
               setTimeout(() => setIsCopied(false), 1000);
             }}
             className="text-muted-foreground hover:text-foreground hover:bg-transparent"
@@ -141,8 +145,10 @@ export function MarkdownJsonView({
   audio,
   media,
   controlButtons,
-  afterHeader,
+  beforeContent,
+  afterContent,
   isSystemPrompt,
+  defaultCollapsed,
 }: {
   content?: unknown;
   title?: string;
@@ -151,11 +157,15 @@ export function MarkdownJsonView({
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
   controlButtons?: React.ReactNode;
-  /** Content to render between header and main content (e.g., thinking blocks) */
-  afterHeader?: React.ReactNode;
-  /** Collapse long content to a preview (from raw `role === "system"`, since
+  /** Rendered inside the section box above the content (e.g. thinking blocks). */
+  beforeContent?: React.ReactNode;
+  /** Rendered inside the section box below the content (e.g. tool calls). */
+  afterContent?: React.ReactNode;
+  /** Long system prompts start collapsed (from raw `role === "system"`, since
       the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
+  /** Initial collapsed state of the section; system prompts use their own rule. */
+  defaultCollapsed?: boolean;
 }) {
   const characterLimit = useMarkdownRenderCharacterLimit();
   // Boxed so a renderable `null` content stays distinguishable from
@@ -178,8 +188,10 @@ export function MarkdownJsonView({
           audio={audio}
           media={media}
           controlButtons={controlButtons}
-          afterHeader={afterHeader}
+          beforeContent={beforeContent}
+          afterContent={afterContent}
           isSystemPrompt={isSystemPrompt}
+          defaultCollapsed={defaultCollapsed}
         />
       ) : (
         <PrettyJsonView
@@ -190,8 +202,10 @@ export function MarkdownJsonView({
           media={media}
           currentView="pretty"
           controlButtons={controlButtons}
-          afterHeader={afterHeader}
+          beforeContent={beforeContent}
+          afterContent={afterContent}
           isSystemPrompt={isSystemPrompt}
+          defaultCollapsed={defaultCollapsed}
         />
       )}
     </>

@@ -227,9 +227,7 @@ export const NotCalledListOpen = meta.story({
   args: ManyTools.input.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.hover(
-      canvas.getByRole("button", { name: /available tools were not called/i }),
-    );
+    await userEvent.hover(canvas.getByText(/available tools were not called/i));
     const body = within(canvasElement.ownerDocument.body);
     await waitFor(() => expect(body.getByText("Not called")).toBeVisible());
     await expect(body.queryByText("not called")).toBeNull();

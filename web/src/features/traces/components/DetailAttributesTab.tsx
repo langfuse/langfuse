@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { type MediaReturnType } from "@/src/features/media";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { IOSection } from "@/src/components/ui/IOSection";
 import { cn } from "@/src/utils/tailwind";
 import {
   IO_SECTIONS_FLUSH_CLASS,
@@ -95,13 +96,16 @@ export function DetailAttributesTab({
         {hasMetadata ? (
           <div>
             {metadataTooLarge ? (
-              <LargeJsonFieldFallback
-                title="Metadata"
-                serialized={metadataProbe.serialized}
-                isString={metadataProbe.isString}
-                charCount={metadataProbe.size}
-                downloadFileBase={`metadata-${objectId}`}
-              />
+              <IOSection title="Metadata">
+                <LargeJsonFieldFallback
+                  title="Metadata"
+                  hideTitle
+                  serialized={metadataProbe.serialized}
+                  isString={metadataProbe.isString}
+                  charCount={metadataProbe.size}
+                  downloadFileBase={`metadata-${objectId}`}
+                />
+              </IOSection>
             ) : (
               <PrettyJsonView
                 title="Metadata"

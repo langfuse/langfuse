@@ -67,7 +67,7 @@ interface ViewPreferencesContextValue {
   /** Whether JSON Beta (advanced viewer) is enabled */
   jsonBetaEnabled: boolean;
   setJsonBetaEnabled: (value: boolean) => void;
-  /** Whether long system prompts render collapsed to a first-lines preview */
+  /** Whether long system prompts render with their section collapsed */
   collapseSystemPrompt: boolean;
   setCollapseSystemPrompt: (value: boolean) => void;
 }
@@ -143,7 +143,7 @@ export function ViewPreferencesProvider({
     typeof window !== "undefined" &&
       localStorage.getItem(JSON_VIEW_PREFERENCE_STORAGE_KEY) === '"json-beta"',
   );
-  // Shared with the inline expand/collapse toggle on system prompt messages;
+  // Shared with the section caret on system prompt messages;
   // instances sync via useLocalStorage's localStorageChange events.
   const [collapseSystemPrompt, setCollapseSystemPrompt] =
     useCollapseSystemPromptPreference();

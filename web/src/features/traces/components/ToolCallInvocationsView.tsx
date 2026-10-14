@@ -78,11 +78,10 @@ export function ToolCallInvocationsView({
             key={`${toolCall.id}-${index}`}
             className={cn(
               "py-2",
-              message.role === "assistant" ||
-                message.name === "Output" ||
-                message.name === "Model"
-                ? "bg-surface-output rounded-md px-3"
-                : "w-full border-t",
+              message.role !== "assistant" &&
+                message.name !== "Output" &&
+                message.name !== "Model" &&
+                "w-full border-t",
             )}
           >
             {/* Card header */}

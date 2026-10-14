@@ -1,6 +1,7 @@
 /* eslint-disable @repo/no-style-props */
 import { Wrench } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
@@ -201,52 +202,24 @@ function ToolGroupSummary({
     ? `${tools.length} ${tools.length === 1 ? "tool was" : "tools were"} called`
     : `${tools.length} available ${tools.length === 1 ? "tool was" : "tools were"} not called`;
 
+  // Quiet reveal row at the bottom of the group, inside the section box.
   const summaryButton = (
-    <button
-      type="button"
-      className={cn(
-        "hover:bg-muted/20 flex w-full items-center justify-between gap-2 rounded-sm border px-3 py-2 text-left",
-        isCalledGroup &&
-          "border-dark-green/60 bg-accent-light-green hover:bg-accent-light-green/80",
-      )}
-      aria-expanded={expanded}
-      onClick={onToggle}
-    >
-      <div className="flex min-w-0 items-center gap-2">
-        <Wrench
-          className={cn(
-            "text-muted-foreground icon-base shrink-0",
-            isCalledGroup && "text-dark-green",
-          )}
-        />
-        <span
-          className={cn(
-            "truncate text-sm font-bold",
-            isCalledGroup ? "text-dark-green" : "text-foreground",
-          )}
-          title={summaryText}
-        >
-          {summaryText}
-        </span>
-      </div>
-      <div className="flex shrink-0 items-center gap-1.5">
-        <Badge
-          variant={isCalledGroup ? undefined : "secondary"}
-          className={cn(
-            "text-xs font-bold",
-            isCalledGroup &&
-              "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
-          )}
-        >
-          {expanded ? "hide" : "show"}
-        </Badge>
-        {expanded ? (
-          <DropdownIndicator />
-        ) : (
-          <DropdownIndicator direction="right" />
+    <div className="flex w-fit items-center gap-2 text-xs">
+      <Button
+        variant="text"
+        size="sm"
+        text={expanded ? "Show less" : "Show more"}
+        onClick={onToggle}
+      />
+      <span
+        className={cn(
+          "text-muted-foreground",
+          isCalledGroup && "text-dark-green",
         )}
-      </div>
-    </button>
+      >
+        {summaryText}
+      </span>
+    </div>
   );
 
   if (expanded) {
@@ -557,6 +530,7 @@ export function ToolCallDefinitionCard({
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
+      {showCalledTools && renderToolRows(calledTools, "called")}
       {calledToolsShouldCollapse && (
         <ToolGroupSummary
           kind="called"
@@ -572,8 +546,8 @@ export function ToolCallDefinitionCard({
           toolNameToDefinitionNumber={toolNameToDefinitionNumber}
         />
       )}
-      {showCalledTools && renderToolRows(calledTools, "called")}
 
+      {showAvailableTools && renderToolRows(availableTools, "available")}
       {availableToolsShouldCollapse && (
         <ToolGroupSummary
           kind="available"
@@ -589,7 +563,6 @@ export function ToolCallDefinitionCard({
           toolNameToDefinitionNumber={toolNameToDefinitionNumber}
         />
       )}
-      {showAvailableTools && renderToolRows(availableTools, "available")}
     </div>
   );
 }
