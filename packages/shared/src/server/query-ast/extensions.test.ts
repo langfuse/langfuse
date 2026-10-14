@@ -1,10 +1,23 @@
+import { expressionBuilder, sql } from "kysely";
 import { describe, expect, it } from "vitest";
 
-import { compileClickhouseQuery } from "./compile";
+import { compileClickhouseQuery, renderClickhouseExpression } from "./compile";
 import { getClickhouseKysely } from "./dialect";
-import { QueryCompileError, TypeCompatibilityError } from "./errors";
-import { arrayMap, leftUTF8, metadataValue } from "./extensions";
+import {
+  QueryCompileError,
+  TypeCompatibilityError,
+  UnscopedRelationError,
+} from "./errors";
+import {
+  arrayMap,
+  leftUTF8,
+  mapValue,
+  metadataMap,
+  metadataValue,
+  traceSessionId,
+} from "./extensions";
 import { ArrayIndexNode } from "./nodes";
+import type { ClickHouseDatabase } from "./schema";
 import { TenancyInjectionPlugin } from "./tenancy";
 import { defineView, fromView } from "./views";
 
@@ -33,26 +46,26 @@ describe("schema-typed selection (condition 7)", () => {
   });
 });
 
-describe("metadata indexOf access (condition 7b)", () => {
+describe("metadata subscript access (condition 7b)", () => {
   // These tests use a two-layer strategy. This first test inspects the AST
   // itself (serialized to JSON) to prove `metadata[key]` is *lowered* to real
-  // operation nodes — an `ArrayIndexNode` subscript around an `indexOf(...)`
+  // operation nodes — an `ArrayIndexNode` subscript over a `mapFromArrays(...)`
   // `FunctionNode` — and never a `RawNode` (a raw SQL string). The sibling
   // tests below assert the SQL the compiler then emits. Separating them
   // isolates "the builder produced the right tree" (composable, escaped,
   // parameter-bound) from "the compiler rendered that tree correctly".
-  it("lowers metadata[key] to ArrayIndexNode + indexOf FunctionNode, not RawNode", () => {
+  it("lowers metadata[key] to ArrayIndexNode + mapFromArrays FunctionNode, not RawNode", () => {
     const qb = getClickhouseKysely()
       .selectFrom("events_core as e")
       .select((_eb) => [metadataValue("e", "a").as("a")])
-      .where((eb) => eb(metadataValue("e", "a"), ">", 2));
+      .where((eb) => eb(metadataValue("e", "a"), "=", "x"));
 
     const node = qb
       .withPlugin(new TenancyInjectionPlugin(ctx))
       .toOperationNode();
     const json = JSON.stringify(node);
     expect(json).toContain('"kind":"ArrayIndexNode"');
-    expect(json).toContain('"func":"indexOf"');
+    expect(json).toContain('"func":"mapFromArrays"');
     expect(json).not.toMatch(/"kind":"RawNode"/);
 
     // `.as("a")` wraps the expression in an AliasNode, so the first selection's
@@ -67,15 +80,17 @@ describe("metadata indexOf access (condition 7b)", () => {
     const qb = getClickhouseKysely()
       .selectFrom("events_core as e")
       .select((_eb) => [metadataValue("e", "a").as("a")])
-      .where((eb) => eb(metadataValue("e", "a"), ">", 2));
+      .where((eb) => eb(metadataValue("e", "a"), "=", "x"));
 
     const { sql: compiled, params } = compileClickhouseQuery(qb, ctx);
     const lower = compiled.toLowerCase();
-    expect(lower).toContain("metadata_values[indexof(e.metadata_names");
+    expect(lower).toContain(
+      "mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[",
+    );
     expect(lower).toContain("as a");
     expect(Object.values(params)).toContain("a");
-    expect(Object.values(params)).toContain(2);
-    expect(compiled).not.toMatch(/metadata_names,\s*'a'/);
+    expect(Object.values(params)).toContain("x");
+    expect(compiled).not.toMatch(/\['a'\]/);
   });
 
   it("emits the same lowering in HAVING", () => {
@@ -83,12 +98,12 @@ describe("metadata indexOf access (condition 7b)", () => {
       .selectFrom("events_core as e")
       .select("environment")
       .groupBy("environment")
-      .having((eb) => eb(metadataValue("e", "a"), ">", 2));
+      .having((eb) => eb(metadataValue("e", "a"), "=", "x"));
 
     const { sql: compiled, params } = compileClickhouseQuery(qb, ctx);
     expect(compiled.toLowerCase()).toContain("having");
     expect(compiled.toLowerCase()).toContain(
-      "metadata_values[indexof(e.metadata_names",
+      "mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[",
     );
     expect(Object.values(params)).toContain("a");
   });
@@ -190,5 +205,43 @@ describe("arrayMap", () => {
       "arrayMap(v -> arrayMap(v1 -> concat(v, v1), e.tags), e.metadata_names)",
     );
     expect(compiled).toContain("arrayMap(v -> leftUTF8(v, 2), e.tags)");
+  });
+});
+
+describe("renderClickhouseExpression", () => {
+  const eb = expressionBuilder<{ e: ClickHouseDatabase["events_core"] }, "e">();
+  const metadata = metadataMap(
+    eb.ref("e.metadata_names"),
+    eb.ref("e.metadata_values"),
+  );
+
+  it("renders a typed expression as the SQL the compiler emits inline", () => {
+    expect(renderClickhouseExpression(metadata)).toBe(
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))",
+    );
+    expect(renderClickhouseExpression(traceSessionId())).toBe(
+      "argMaxIf(session_id, event_ts, session_id != '')",
+    );
+  });
+
+  it("rejects a subquery", () => {
+    const subquery = getClickhouseKysely()
+      .selectFrom("events_core")
+      .select("trace_id");
+    expect(() => renderClickhouseExpression(subquery)).toThrow(
+      UnscopedRelationError,
+    );
+  });
+
+  it("rejects a raw fragment that introduces a relation", () => {
+    expect(() =>
+      renderClickhouseExpression(sql`(select trace_id from events_core)`),
+    ).toThrow(UnscopedRelationError);
+  });
+
+  it("rejects a bound value", () => {
+    expect(() => renderClickhouseExpression(mapValue(metadata, "key"))).toThrow(
+      /cannot bind parameters/,
+    );
   });
 });

@@ -1,5 +1,9 @@
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
+import { ApiKeyId, OrganizationId } from "@langfuse/shared/rbac";
 
+import { env } from "@/src/env.mjs";
+import { authorize } from "@/src/features/rbac/authorize";
+import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
@@ -27,7 +31,7 @@ export class GatewayApiKeyAuthenticator {
   private readonly cache: GatewayResolveCache;
 
   constructor(
-    prisma: PrismaClient,
+    private readonly prisma: PrismaClient,
     config: GatewayApiKeyAuthenticatorConfig = {},
   ) {
     this.repository = new GatewayResolveRepository(prisma);
@@ -101,12 +105,51 @@ export class GatewayApiKeyAuthenticator {
         : null,
     };
 
+    if (env.API_AUTH_MIGRATION === "enforce") {
+      await assertCanInvokeGateway(this.prisma, row.apiKeyId, organizationId);
+    }
+
     await this.cache.set({
       ...params,
       context,
       expiresAt: row.apiKey.expiresAt,
     });
     return context;
+  }
+}
+
+/** assertCanInvokeGateway denies the key when its stored roles do not grant gateway:invoke on the organization. */
+async function assertCanInvokeGateway(
+  prisma: PrismaClient,
+  apiKeyId: string,
+  organizationId: string,
+) {
+  const roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
+  const tenant = OrganizationId(organizationId);
+  const allowed = authorize(
+    {
+      principal: {
+        kind: "apiKey",
+        apiKeyId,
+        userId: null,
+        isInAppAgentKey: false,
+        publicKey: "",
+        scope: "ORGANIZATION",
+        presentation: "privateKey",
+        organizations: [],
+        boundResource: { orgId: organizationId },
+      },
+      policies: roles.flatMap((role) => role.policies),
+    },
+    tenant,
+    "gateway:invoke",
+    tenant,
+  ).success;
+  if (!allowed) {
+    throw new GatewayControlPlaneError(
+      "API key is not allowed to invoke the gateway",
+      403,
+    );
   }
 }
 
