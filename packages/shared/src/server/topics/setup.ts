@@ -1,7 +1,12 @@
 import type { z } from "zod";
 import { InvalidRequestError } from "../../errors";
-import { topicsSetupSchema, type TopicRule } from "../../topics";
 import {
+  topicsAutomaticProcessingSchema,
+  topicsSetupSchema,
+  type TopicRule,
+} from "../../topics";
+import {
+  checkStoredTopicsModels,
   prepareTopicsModelSettings,
   writeTopicsModelSettings,
 } from "./model-config";
@@ -12,12 +17,20 @@ import {
 } from "../tracingReadinessSettings";
 import {
   ensureDefaultTopicFacets,
+  getTopicRule,
+  listTopicRules,
   writeTopicRule,
   type TopicRuleInput,
 } from "./postgres";
-import { invalidateTopicsProcessingActive } from "./processing-gate";
+import {
+  invalidateTopicsProcessingActive,
+  topicRuleWhere,
+} from "./processing-gate";
 
-/** One Topics setup: models, the four built-in facets, and a single rule. */
+/**
+ * One Topics setup: models, the four built-in facets, and a single rule. It
+ * keeps the stored automatic-processing state, pause and sampling rate.
+ */
 export async function saveTopicsSetup(
   projectId: string,
   input: z.input<typeof topicsSetupSchema>,
@@ -46,7 +59,6 @@ export async function saveTopicsSetup(
     embedding: setup.embedding,
     embeddingDimensions: setup.embeddingDimensions,
     clustering: setup.clustering,
-    enabled: setup.enabled,
   });
   return saveTopicRuleAndModels(
     {
@@ -54,7 +66,6 @@ export async function saveTopicsSetup(
       projectId,
       userId,
       filter: setup.filter,
-      sampling: setup.sampling,
       facetIds,
     },
     models,
@@ -88,4 +99,53 @@ export async function saveTopicRuleAndModels(
   await cacheTracingReadinessSettings(rule.projectId, { traceIdleMs });
   await invalidateTopicsProcessingActive(rule.projectId);
   return saved;
+}
+
+/**
+ * Turns automatic processing of new traces on or off. Turning it on requires all
+ * three stored models and re-tests them after a pause; either direction clears
+ * a pause.
+ * Sampling, when given, is written to the project's Topics rule.
+ */
+export async function setTopicsAutomaticProcessing(
+  projectId: string,
+  input: z.input<typeof topicsAutomaticProcessingSchema>,
+  userId: string | null = null,
+): Promise<{ ruleBefore: TopicRule; ruleAfter: TopicRule }> {
+  const { enabled, sampling } = topicsAutomaticProcessingSchema.parse(input);
+  const [config, rules] = await Promise.all([
+    prisma.topicConfig.findUnique({ where: { projectId } }),
+    listTopicRules(projectId),
+  ]);
+  const rule = rules[0];
+  if (!config || !rule)
+    throw new InvalidRequestError(
+      "Save the Topics setup in Configure Topics first.",
+    );
+  if (rules.length > 1)
+    throw new InvalidRequestError(
+      "This project has more than one Topics rule.",
+    );
+  if (enabled) await checkStoredTopicsModels(config);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.topicConfig.update({
+      where: { projectId },
+      data: {
+        enabled,
+        blockedAt: null,
+        blockReason: null,
+        blockMessage: null,
+        updatedBy: userId,
+      },
+    });
+    if (sampling !== undefined && sampling !== rule.sampling)
+      await tx.evaluationRule.update({
+        where: { ...topicRuleWhere(projectId), id: rule.id },
+        data: { sampling },
+      });
+  });
+  await invalidateTopicsProcessingActive(projectId);
+  const ruleAfter = (await getTopicRule(projectId, rule.id)) ?? rule;
+  return { ruleBefore: rule, ruleAfter };
 }

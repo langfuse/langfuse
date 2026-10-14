@@ -34,10 +34,16 @@ import {
   getEnabledTopicsModels,
   listTopicFacets,
   listTopicRules,
+  isValidTopicSummary,
   pauseTopicsModels,
+  writeTopicSummaries,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
-import type { TopicFacet, TopicRule } from "@langfuse/shared/topics";
+import type {
+  TopicFacet,
+  TopicRule,
+  TopicSummary,
+} from "@langfuse/shared/topics";
 import { recordTraceBatchTranscript } from "../../features/traceBatching/traceBatchTranscript";
 import * as traceBatchTranscript from "../../features/traceBatching/traceBatchTranscript";
 import {
@@ -55,7 +61,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
 }));
 
 vi.mock("../../features/topics/summarizeAssembledTrace", () => ({
-  summarizeAssembledTrace: vi.fn(async () => "unchanged"),
+  summarizeAssembledTrace: vi.fn(async () => ({
+    outcome: "unchanged",
+    rows: [],
+  })),
 }));
 
 vi.mock("@langfuse/shared/topics/server", () => ({
@@ -67,6 +76,8 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   listTopicFacets: vi.fn(async () => []),
   listTopicRules: vi.fn(async () => []),
   pauseTopicsModels: vi.fn(),
+  writeTopicSummaries: vi.fn(),
+  isValidTopicSummary: vi.fn(() => true),
 }));
 
 // Exercise real tokenization without starting the compiled worker-thread pool.
@@ -606,11 +617,11 @@ describe("trace batch queue", () => {
     vi.mocked(summarizeAssembledTrace)
       .mockImplementationOnce(async () => {
         await first;
-        return "summarized";
+        return { outcome: "summarized", rows: [] };
       })
       .mockImplementationOnce(async () => {
         await second;
-        return "summarized";
+        return { outcome: "summarized", rows: [] };
       });
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
       for (const traceId of ["a", "b", "c"]) {
@@ -684,10 +695,13 @@ describe("trace batch queue", () => {
       resolveSecond();
       await processing;
       env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES = originalCap;
-      vi.mocked(summarizeAssembledTrace).mockResolvedValue("unchanged");
+      vi.mocked(summarizeAssembledTrace).mockResolvedValue({
+        outcome: "unchanged",
+        rows: [],
+      });
     }
   });
-  it("finishes the batch past a failed trace, reports outcomes and does not re-enqueue the failure", async () => {
+  it("finishes the batch past a failed trace, writes rows once, retries transient errors and drops only failing rows", async () => {
     const traces = ["a", "b", "c"];
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
       for (const projectId of traces)
@@ -712,11 +726,19 @@ describe("trace batch queue", () => {
         };
     });
     vi.mocked(summarizeAssembledTrace).mockImplementation(
-      async ({ projectId }) => {
-        if (projectId === "b")
-          throw new TopicsProviderUnavailable("bad output", "invalid_output");
-        return "summarized";
-      },
+      async ({ projectId }) => ({
+        outcome: "summarized",
+        rows: [{ projectId, state: "complete" } as TopicSummary],
+        // A failed trace still returns its valid facets.
+        ...(projectId === "b"
+          ? {
+              failure: new TopicsProviderUnavailable(
+                "bad output",
+                "invalid_output",
+              ),
+            }
+          : {}),
+      }),
     );
     const add = vi.fn();
     vi.spyOn(TraceBatchQueue, "getInstance").mockReturnValue({
@@ -754,10 +776,132 @@ describe("trace batch queue", () => {
       1,
       { outcome: "failed", reason: "invalid_output" },
     );
+    expect(writeTopicSummaries).toHaveBeenCalledOnce();
+    expect(
+      vi
+        .mocked(writeTopicSummaries)
+        .mock.calls[0][0].map((row) => row.projectId),
+    ).toEqual(traces);
     expect(add).not.toHaveBeenCalled();
-    vi.mocked(summarizeAssembledTrace).mockImplementation(
-      async () => "unchanged",
+
+    // c's invalid row is dropped before the insert; a transient error retries the rest.
+    vi.mocked(recordIncrement).mockClear();
+    vi.mocked(isValidTopicSummary).mockImplementation(
+      (row) => row.projectId !== "c",
     );
+    vi.mocked(writeTopicSummaries).mockRejectedValueOnce(
+      new Error("Timeout error."),
+    );
+    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual(
+      expect.objectContaining({ traceCount: 3 }),
+    );
+    const outcomeCalls = vi
+      .mocked(recordIncrement)
+      .mock.calls.filter(([name]) => name === "langfuse.topics.trace_outcomes");
+    expect(outcomeCalls).toEqual(
+      expect.arrayContaining([
+        ["langfuse.topics.trace_outcomes", 1, { outcome: "summarized" }],
+        [
+          "langfuse.topics.trace_outcomes",
+          1,
+          { outcome: "failed", reason: "invalid_output" },
+        ],
+        [
+          "langfuse.topics.trace_outcomes",
+          1,
+          { outcome: "failed", reason: "storage" },
+        ],
+      ]),
+    );
+    expect(outcomeCalls).toHaveLength(3);
+    expect(writeTopicSummaries).toHaveBeenCalledTimes(3);
+    expect(
+      vi
+        .mocked(writeTopicSummaries)
+        .mock.lastCall![0].map((row) => row.projectId),
+    ).toEqual(["a", "b"]);
+
+    // Like ClickhouseWriter, an outage drops the insert once instead of splitting it.
+    vi.mocked(recordIncrement).mockClear();
+    vi.mocked(isValidTopicSummary).mockImplementation(() => true);
+    vi.mocked(writeTopicSummaries)
+      .mockReset()
+      .mockRejectedValue(new Error("connect ECONNREFUSED"));
+    await traceBatchQueueProcessor(job, undefined);
+    expect(writeTopicSummaries).toHaveBeenCalledOnce();
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcomes",
+      2,
+      { outcome: "failed", reason: "storage" },
+    );
+    vi.mocked(writeTopicSummaries).mockReset();
+    vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
+      outcome: "unchanged",
+      rows: [],
+    }));
+  });
+
+  it("stores completed traces' rows before rethrowing a failed stream, so a retry skips them", async () => {
+    const failure = new Error("query failed");
+    const event = (projectId: string) => ({
+      project_id: projectId,
+      trace_id: "trace",
+      environment: "default",
+      span_id: "span",
+      parent_span_id: null,
+      start_time: "2026-09-11 00:00:00.000000",
+      event_ts: "2026-09-11 00:00:00.000000",
+      type: "GENERATION",
+      name: "generation",
+      input: JSON.stringify([{ role: "user", content: projectId }]),
+      output: JSON.stringify({ role: "assistant", content: "answer" }),
+      metadata: {},
+      level: "DEFAULT",
+      status_message: null,
+      tool_definitions: {},
+      tool_calls: [],
+      tool_call_names: [],
+    });
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      yield event("a");
+      // b's boundary completes a; b itself is cut off by the failure.
+      yield event("b");
+      throw failure;
+    });
+    vi.mocked(summarizeAssembledTrace).mockImplementation(
+      async ({ projectId }) => ({
+        outcome: "summarized",
+        rows: [{ projectId, state: "complete" } as TopicSummary],
+      }),
+    );
+    const job = {
+      data: {
+        id: "stream-failure",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: ["a", "b"].map((projectId) => ({
+            projectId,
+            traceId: "trace",
+            minStart: 0,
+            maxStart: 1,
+            revision: "r",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await expect(traceBatchQueueProcessor(job, undefined)).rejects.toBe(
+      failure,
+    );
+    expect(writeTopicSummaries).toHaveBeenCalledOnce();
+    expect(vi.mocked(writeTopicSummaries).mock.calls[0][0]).toEqual([
+      { projectId: "a", state: "complete" },
+    ]);
+    vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
+      outcome: "unchanged",
+      rows: [],
+    }));
   });
 
   it("summarizes only the saved rule's facets and skips traces outside its sampling", async () => {
@@ -866,7 +1010,7 @@ describe("trace batch queue", () => {
             "authentication",
             "summary",
           );
-        return "summarized";
+        return { outcome: "summarized", rows: [] };
       },
     );
     const job = {
@@ -915,9 +1059,10 @@ describe("trace batch queue", () => {
       2,
       { outcome: "disabled" },
     );
-    vi.mocked(summarizeAssembledTrace).mockImplementation(
-      async () => "unchanged",
-    );
+    vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
+      outcome: "unchanged",
+      rows: [],
+    }));
   });
 
   it("assembles each tenant's trace with its latest environment at the boundary and EOF", async () => {

@@ -114,6 +114,18 @@ describe("EventsSessionAggregationQueryBuilder", () => {
     expect(query).not.toContain("tool_calls");
   });
 
+  it("selects only the session fields the caller lists", () => {
+    const { query } = new EventsSessionAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectSessionFields(["session_id", "trace_count"])
+      .buildWithParams();
+
+    expect(query).toContain("uniq(trace_id) AS trace_count");
+    expect(query).not.toContain("trace_ids");
+    expect(query).not.toContain("sumMap");
+  });
+
   it("selects tool aggregates only when requested", () => {
     const { query } = new EventsSessionAggregationQueryBuilder({
       projectId: "test-project",

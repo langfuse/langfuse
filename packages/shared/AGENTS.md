@@ -83,6 +83,8 @@
     Facet versions use `(projectId, facetId, version)`. Reads require a time
     range; replacement includes the source minute, with run/origin suffixes
     for assignments. Definition bounds retain original creation dates on reuse.
+    `getLatestFacetSummaries` returns display fields; processing reads use
+    `listTopicSummaries` or `getTopicClusteringSummaries` for complete summaries.
   - `execution-store.ts`: one BatchAction per request, compact counters and run references.
     Writes accept progress only; immutable settings stay in the stored request.
     Trace inputs and paid outputs belong outside the execution store.
@@ -98,12 +100,16 @@
     worker model calls own tracing allowlisting, organization consent, usage,
     cost and vector validation.
   - `model-config.ts`: per-project `topic_configs` (three connection +
-    model slots and the automatic-processing switch). Saving tests every slot
-    with a real call; Anthropic works for summaries and clustering but fails the
-    embedding test. The embedding model and dimensions are locked once embeddings
-    exist. `setup.ts` tests the models, then commits the single Topics rule,
-    models, and per-project trace idle time together. Refresh the Redis readiness
-    setting only after that transaction commits.
+    model slots and the automatic-processing state). Saving keeps the stored
+    state and pause (a first save starts off) and tests every slot with a real
+    call while processing is on, otherwise only the changed slots; Anthropic
+    works for summaries and clustering but fails the embedding test. The
+    embedding model and dimensions are locked once embeddings exist. `setup.ts`
+    tests the models, then commits the single Topics rule, models, and
+    per-project trace idle time together. Refresh the Redis readiness setting
+    only after that transaction commits. `setTopicsAutomaticProcessing` is the
+    only path that turns processing on (after testing all stored models when it
+    was off or paused), clears a pause, or changes the rule's sampling rate.
   - `processing-gate.ts`: `isTopicsProcessingActive`, the ingestion gate for
     trace batching (allowlisted, enabled with all three models, and an active
     rule with an unblocked facet), cached in Redis both ways. Any write to a

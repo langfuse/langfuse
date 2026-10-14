@@ -137,10 +137,6 @@ describe("Topics eval-backed configuration", () => {
           facetIds: [facets[0].id],
         },
         {
-          enabled: true,
-          blockedAt: null,
-          blockReason: null,
-          blockMessage: null,
           // No such connection: the foreign key rejects the model write.
           summaryLlmApiKeyId: "missing-connection",
           summaryModel: "gpt-6-luna",
@@ -165,10 +161,6 @@ describe("Topics eval-backed configuration", () => {
   it("records who created and last updated the Topics configuration", async () => {
     const facets = await ensureDefaultTopicFacets(auditProjectId);
     const models = {
-      enabled: false,
-      blockedAt: null,
-      blockReason: null,
-      blockMessage: null,
       summaryLlmApiKeyId: null,
       summaryModel: null,
       embeddingLlmApiKeyId: null,
@@ -548,10 +540,28 @@ describe("Topics definition persistence", () => {
       },
       { ...latest, facetId: "other-facet", facetVersion: 2 },
     ]);
+    const displaySummary = {
+      projectId: summary.projectId,
+      facetId: summary.facetId,
+      facetVersion: summary.facetVersion,
+      traceId: summary.traceId,
+      sessionId: summary.sessionId,
+      state: summary.state,
+      summary: summary.summary,
+      unitStartTime: summary.unitStartTime,
+      processedAt: summary.processedAt,
+    };
     for (const version of [1, undefined])
       expect(
         await getLatestFacetSummaries(projectId, "facet", version, oldRange),
-      ).toEqual([latest]);
+      ).toEqual([
+        {
+          ...displaySummary,
+          summary: latest.summary,
+          sessionId: latest.sessionId,
+          processedAt: latest.processedAt,
+        },
+      ]);
 
     const moved: TopicSummary = {
       ...summary,
@@ -588,13 +598,27 @@ describe("Topics definition persistence", () => {
     await writeTopicSummaries([newerVersion]);
     expect(
       await getLatestFacetSummaries(projectId, "facet", undefined, oldRange),
-    ).toEqual([newerVersion]);
+    ).toEqual([
+      {
+        ...displaySummary,
+        facetVersion: newerVersion.facetVersion,
+        processedAt: newerVersion.processedAt,
+      },
+    ]);
     expect(
       await getLatestFacetSummaries(projectId, "facet", undefined, newRange),
     ).toEqual([]);
     expect(
       await getLatestFacetSummaries(projectId, "facet", 1, newRange),
-    ).toEqual([moved]);
+    ).toEqual([
+      {
+        ...displaySummary,
+        unitStartTime: moved.unitStartTime,
+        processedAt: moved.processedAt,
+        state: moved.state,
+        summary: moved.summary,
+      },
+    ]);
 
     const internalFacet = "internal-environments";
     const internalTraces = [

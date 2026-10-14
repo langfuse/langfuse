@@ -46,12 +46,19 @@ export async function stageAuditLogEvents(
 /**
  * Maps a staging row to its ClickHouse `audit_logs` row. The staging row's
  * `created_at` is the event timestamp. Throws when the payload does not
- * match `AuditLogStagingPayloadSchema`.
+ * match `AuditLogStagingPayloadSchema` or carries fields it does not know,
+ * which a newer version may have staged, so that no field is dropped.
  */
 export function convertAuditLogStagingRowToClickhouse(
   row: Pick<AuditLogStaging, "id" | "createdAt" | "payload">,
 ): AuditLogRecordInsertType {
   const event = AuditLogStagingPayloadSchema.parse(row.payload);
+  const unknownFields = findDroppedFields(row.payload, event);
+  if (unknownFields.length > 0) {
+    throw new Error(
+      `Staged audit event has unknown fields: ${unknownFields.join(", ")}`,
+    );
+  }
   const { actor } = event;
 
   return {
@@ -84,3 +91,24 @@ export function convertAuditLogStagingRowToClickhouse(
     request_id: event.request?.requestId ?? "",
   };
 }
+
+/**
+ * Returns the dotted paths of object keys in `input` that are missing from
+ * `parsed`, i.e. the keys a zod object schema stripped while parsing.
+ */
+function findDroppedFields(
+  input: unknown,
+  parsed: unknown,
+  path = "",
+): string[] {
+  if (!isRecord(input) || !isRecord(parsed)) return [];
+  return Object.keys(input).flatMap((key) => {
+    const keyPath = path === "" ? key : `${path}.${key}`;
+    return key in parsed
+      ? findDroppedFields(input[key], parsed[key], keyPath)
+      : [keyPath];
+  });
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);

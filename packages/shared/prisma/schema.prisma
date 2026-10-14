@@ -136,6 +136,7 @@ model Organization {
   verifiedDomains                  VerifiedDomain[]
   gatewayConfig                    GatewayConfig?
   gatewayAiConnections             GatewayAiConnection[]
+  organizationLlmApiKeys           LlmApiKeys[]             @relation("OrganizationLlmApiKeys")
   roleAssignments                  RoleAssignment[]         @relation("RoleAssignmentTenant")
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentOrganization") @ignore
@@ -505,14 +506,18 @@ model LlmApiKeys {
   extraHeaderKeys   String[] @default([]) @map("extra_header_keys")
   config            Json?
 
-  projectId       String            @map("project_id")
-  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId      String?       @map("project_id")
+  project        Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  organizationId String?       @map("organization_id")
+  organization   Organization? @relation("OrganizationLlmApiKeys", fields: [organizationId], references: [id], onDelete: Cascade)
+
   DefaultLlmModel DefaultLlmModel[] @relation("LlmApiKeyId")
   topicSummaryConfigs    TopicConfig[] @relation("TopicConfigSummaryLlmApiKey")
   topicEmbeddingConfigs  TopicConfig[] @relation("TopicConfigEmbeddingLlmApiKey")
   topicClusteringConfigs TopicConfig[] @relation("TopicConfigClusteringLlmApiKey")
 
   @@unique([projectId, provider])
+  @@unique([organizationId, provider])
   @@map("llm_api_keys")
 }
 
@@ -1090,9 +1095,14 @@ model AuditLog {
 // A row is deleted once ClickHouse has acknowledged its insert, so the table
 // stays near-empty. `payload` holds an `AuditLogStagingPayload`.
 model AuditLogStaging {
-  id        String   @id @db.Uuid // UUIDv7, so id order follows creation time
-  createdAt DateTime @default(now()) @map("created_at")
+  id        String    @id @db.Uuid // UUIDv7, so id order follows creation time
+  createdAt DateTime  @default(now()) @map("created_at")
   payload   Json
+  // Set when the relay could not map `payload` to a ClickHouse row. The row
+  // stays and is retried after a delay, e.g. once a newer worker that knows
+  // its schema is deployed.
+  failedAt  DateTime? @map("failed_at")
+  lastError String?   @map("last_error")
 
   @@map("audit_log_staging")
 }

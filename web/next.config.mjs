@@ -137,10 +137,6 @@ const nextConfig = {
   turbopack: {
     resolveAlias: {
       "@langfuse/shared": "./packages/shared/src",
-      // Turbopack 16.4 dev omits required factories from Lucide's ESM build.
-      ...(process.env.NODE_ENV === "development"
-        ? { "lucide-react": "lucide-react/dist/cjs/lucide-react.js" }
-        : {}),
     },
     rules: {
       "*.md": {

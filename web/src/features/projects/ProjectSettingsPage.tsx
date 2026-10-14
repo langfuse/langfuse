@@ -125,24 +125,27 @@ const getProjectSettingsPages = ({
         {showRetentionSettings && <ConfigureRetention />}
         <div>
           <Header title="Debug Information" />
-          <JSONView
-            title="Metadata"
-            json={{
-              project: {
-                name: project.name,
-                id: project.id,
-                ...project.metadata,
-              },
-              org: {
-                name: organization.name,
-                id: organization.id,
-                ...organization.metadata,
-              },
-              ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && {
-                cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-              }),
-            }}
-          />
+          <Card className="mb-4 p-3">
+            <JSONView
+              title="Metadata"
+              json={{
+                project: {
+                  name: project.name,
+                  id: project.id,
+                  ...project.metadata,
+                },
+                org: {
+                  name: organization.name,
+                  id: organization.id,
+                  ...organization.metadata,
+                },
+                ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && {
+                  cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+                }),
+              }}
+              borderless
+            />
+          </Card>
         </div>
         <SettingsDangerZone
           items={[
@@ -231,7 +234,12 @@ const getProjectSettingsPages = ({
     ],
     content: (
       <div className="flex flex-col gap-6">
-        <LlmApiKeyList projectId={project.id} />
+        <LlmApiKeyList
+          projectId={project.id}
+          projectName={project.name}
+          organizationId={organization.id}
+          organizationName={organization.name}
+        />
       </div>
     ),
     show: showLLMConnectionsSettings,
