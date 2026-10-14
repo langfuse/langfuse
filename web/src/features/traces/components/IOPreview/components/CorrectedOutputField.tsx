@@ -306,7 +306,7 @@ export function CorrectedOutputField({
         value={displayValue}
         mode={strictJsonMode ? "json" : "text"}
         editable={false}
-        className="bg-surface-output [&_.cm-gutters]:bg-transparent! [&_.cm-scroller]:bg-transparent!"
+        className="bg-surface-section [&_.cm-gutters]:bg-transparent! [&_.cm-scroller]:bg-transparent!"
       />
     );
 

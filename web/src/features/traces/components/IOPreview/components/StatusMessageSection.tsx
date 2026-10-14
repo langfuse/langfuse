@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { IOSection } from "@/src/components/ui/IOSection";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { StatusMessage } from "@/src/components/design-system/StatusMessage/StatusMessage";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
   getStatusMessagePresentation,
@@ -34,10 +34,12 @@ export function StatusMessageSection({
     );
   }
 
+  // The status message paints its own level-coloured box.
   return (
     <IOSection
       title={presentation.title}
       onCopy={() => copyTextToClipboard(status.message)}
+      boxed={false}
     >
       <StatusMessage
         level={status.level}

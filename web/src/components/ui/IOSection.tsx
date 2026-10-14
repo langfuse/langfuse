@@ -16,14 +16,15 @@ export type IOSectionProps = {
   /** Controlled state; the caret calls `onCollapsedChange`. */
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
+  /** Off for bodies that bring their own box (status messages, toned tables). */
+  boxed?: boolean;
   children: React.ReactNode;
 };
 
 /**
- * One I/O section of the trace view: a grey card holding a header row (caret,
- * title, hover controls) and the body under it. The caret hides the whole
- * body; a collapsed section is just the header bar and does not render its
- * children.
+ * One I/O section of the trace view: a header row (caret, title, hover
+ * controls) over a boxed body. The caret hides the whole body; a collapsed
+ * section is just the header row and does not render its children.
  */
 export function IOSection({
   title,
@@ -34,6 +35,7 @@ export function IOSection({
   defaultCollapsed = false,
   collapsed,
   onCollapsedChange,
+  boxed = true,
   children,
 }: IOSectionProps) {
   const [internalCollapsed, setInternalCollapsed] = useState(defaultCollapsed);
@@ -52,11 +54,12 @@ export function IOSection({
 
   return (
     // overflow-clip (not hidden) so the sticky header can track the panel scroll.
-    <div className="group/iosection bg-surface-output flex flex-col overflow-clip rounded-md">
+    // overflow-clip (not hidden) so the sticky header can track the panel scroll.
+    <div className="group/iosection flex flex-col overflow-clip">
       <MarkdownJsonViewHeader
         title={title}
         titleIcon={titleIcon}
-        inset
+        flush
         leading={
           <button
             type="button"
@@ -75,8 +78,14 @@ export function IOSection({
         controlButtons={isCollapsed ? undefined : controlButtons}
       />
       {!isCollapsed && (
-        <div className="io-message-content ph-no-capture px-3 pb-2">
-          {children}
+        <div className="io-message-content ph-no-capture pt-1">
+          {boxed ? (
+            <div className="bg-surface-section overflow-hidden rounded-md px-3 py-2">
+              {children}
+            </div>
+          ) : (
+            children
+          )}
         </div>
       )}
     </div>
