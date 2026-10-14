@@ -64,11 +64,11 @@ class SoftDeleteFilterTransformer extends ClickHouseOperationNodeTransformer {
   /**
    * CTE names visible to the select being transformed: one set per enclosing
    * select that declares a WITH. A relation named like a CTE in scope is that
-   * CTE, not the physical table. Inside a CTE body only the CTEs declared
-   * before it are visible (plus itself under WITH RECURSIVE), matching
-   * ClickHouse: `WITH events_core AS (SELECT … FROM events_core)` reads the
-   * table. Pushed before a select's children are transformed and popped
-   * after, so it is empty between compiles.
+   * CTE, not the physical table. A CTE body sees every sibling CTE except
+   * itself (itself too under WITH RECURSIVE), matching ClickHouse:
+   * `WITH events_core AS (SELECT … FROM events_core)` reads the table.
+   * Pushed before a select's children are transformed and popped after, so
+   * it is empty between compiles.
    */
   private readonly cteScopes: Set<string>[] = [];
 
@@ -95,24 +95,21 @@ class SoftDeleteFilterTransformer extends ClickHouseOperationNodeTransformer {
     node: WithNode,
     queryId?: QueryId,
   ): WithNode {
-    // Replace this select's full scope with the names visible to each body.
-    const full = this.cteScopes.pop();
-    const visible = new Set<string>();
+    const full = this.cteScopes.pop() ?? new Set<string>();
     try {
       const expressions = node.expressions.map((expr) => {
-        const name = cteName(expr);
-        if (node.recursive) visible.add(name);
-        this.cteScopes.push(new Set(visible));
+        const visible = new Set(full);
+        if (!node.recursive) visible.delete(cteName(expr));
+        this.cteScopes.push(visible);
         try {
           return this.transformNode(expr, queryId);
         } finally {
           this.cteScopes.pop();
-          visible.add(name);
         }
       });
       return { ...node, expressions };
     } finally {
-      if (full) this.cteScopes.push(full);
+      if (full.size) this.cteScopes.push(full);
     }
   }
 }

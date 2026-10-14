@@ -132,22 +132,21 @@ describe("soft-delete filtering", () => {
     ).not.toContain("is_deleted");
   });
 
-  it("resolves a CTE body's own name to the table, and earlier CTE names to the CTE", () => {
-    expect(
-      compile(
-        getClickhouseKysely()
-          .with("events_core", (qb) =>
-            qb.selectFrom("events_core").select("trace_id"),
-          )
-          .with("later", (qb) =>
-            qb.selectFrom("events_core").select("trace_id"),
-          )
-          .selectFrom("later")
-          .select("trace_id"),
-      ),
-    ).toMatchInlineSnapshot(
-      `"with events_core as (select trace_id from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8}), later as (select trace_id from events_core where project_id = {p1:String}) select trace_id from later"`,
+  it("resolves a CTE body's own name to the table, and sibling CTE names to the CTE", () => {
+    const sql = compile(
+      getClickhouseKysely()
+        .with("before", (qb) => qb.selectFrom("events_core").select("trace_id"))
+        .with("events_core", (qb) =>
+          qb.selectFrom("events_core").select("trace_id"),
+        )
+        .with("after", (qb) => qb.selectFrom("events_core").select("trace_id"))
+        .selectFrom("after")
+        .select("trace_id"),
     );
+    expect(sql).toContain(
+      "events_core as (select trace_id from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8})",
+    );
+    expect(sql.match(/is_deleted/g)).toHaveLength(1);
   });
 
   it("resolves a recursive CTE body's own name to the CTE", () => {
