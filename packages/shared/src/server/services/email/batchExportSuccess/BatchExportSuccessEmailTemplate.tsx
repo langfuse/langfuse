@@ -8,11 +8,11 @@ import {
   Hr,
   Html,
   Img,
-  Preview,
   Section,
   Tailwind,
   Text,
 } from "@react-email/components";
+import { EmailPreview } from "../EmailPreview";
 
 interface BatchExportSuccessTemplateProps {
   userName: string;
@@ -34,7 +34,7 @@ export const BatchExportSuccessEmailTemplate = ({
   return (
     <Html>
       <Head />
-      <Preview>{previewText}</Preview>
+      <EmailPreview>{previewText}</EmailPreview>
       <Tailwind>
         <Body className="mx-auto my-auto bg-background font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">

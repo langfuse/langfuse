@@ -81,6 +81,15 @@ describe("sendResetPasswordVerificationRequest", () => {
     expect(mail.html).toContain("Forgot your Langfuse password?");
   });
 
+  it("renders the preheader without invisible padding characters", async () => {
+    const mail = await sentMail("http://localhost:3000/auth/reset-password");
+
+    expect(mail.html).toContain("Your Langfuse reset code");
+    // Hidden zero-width/bidi padding is a common spam-filter evasion pattern
+    // and gets transactional mail flagged as dangerous by Gmail.
+    expect(mail.html).not.toMatch(/[\u200B-\u200F\uFEFF]/);
+  });
+
   it("falls back to password reset copy when no callback URL is present", async () => {
     await sendResetPasswordVerificationRequest({
       ...verificationRequestParams("http://localhost:3000/auth/reset-password"),

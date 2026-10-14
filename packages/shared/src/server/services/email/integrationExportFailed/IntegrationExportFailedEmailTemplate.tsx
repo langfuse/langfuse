@@ -8,11 +8,11 @@ import {
   Hr,
   Html,
   Img,
-  Preview,
   Section,
   Tailwind,
   Text,
 } from "@react-email/components";
+import { EmailPreview } from "../EmailPreview";
 
 export type IntegrationExportFailedEmailCopy = {
   /** Sentence-initial, for the subject and preview: "Blob storage export failed for …". */
@@ -44,7 +44,7 @@ export const IntegrationExportFailedEmailTemplate = ({
   return (
     <Html>
       <Head />
-      <Preview>{preview}</Preview>
+      <EmailPreview>{preview}</EmailPreview>
       <Tailwind>
         <Body className="bg-background my-auto mx-auto font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">

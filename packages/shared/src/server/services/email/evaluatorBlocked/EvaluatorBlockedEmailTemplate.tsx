@@ -8,11 +8,11 @@ import {
   Hr,
   Html,
   Img,
-  Preview,
   Section,
   Tailwind,
   Text,
 } from "@react-email/components";
+import { EmailPreview } from "../EmailPreview";
 import { EvaluatorBlockReason } from "@prisma/client";
 
 type EvaluatorBlockedEmailTemplateProps = {
@@ -139,10 +139,10 @@ export const EvaluatorBlockedEmailTemplate = ({
   return (
     <Html>
       <Head />
-      <Preview>
+      <EmailPreview>
         LLM evaluator &quot;{evaluatorName}&quot; in project &quot;
         {projectName}&quot; paused: {getReasonSummary(blockReason)}
-      </Preview>
+      </EmailPreview>
       <Tailwind>
         <Body className="bg-background my-auto mx-auto font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">

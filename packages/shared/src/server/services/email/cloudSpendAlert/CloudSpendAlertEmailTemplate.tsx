@@ -8,13 +8,13 @@ import {
   Hr,
   Html,
   Img,
-  Preview,
   Section,
   Text,
   Tailwind,
   Row,
   Column,
 } from "@react-email/components";
+import { EmailPreview } from "../EmailPreview";
 
 interface CloudSpendAlertEmailProps {
   organizationName: string;
@@ -38,9 +38,9 @@ export const CloudSpendAlertEmailTemplate = ({
   return (
     <Html>
       <Head />
-      <Preview>
+      <EmailPreview>
         {`Spend alert · ${organizationName} reached $${threshold.toFixed(2)}`}
-      </Preview>
+      </EmailPreview>
       <Tailwind>
         <Body className="bg-background my-auto mx-auto font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">
