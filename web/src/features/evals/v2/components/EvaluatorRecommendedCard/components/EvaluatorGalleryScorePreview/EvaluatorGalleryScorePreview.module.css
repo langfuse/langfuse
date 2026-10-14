@@ -19,7 +19,7 @@
 }
 
 :global(.dark) .preview {
-  --preview-base: hsl(var(--border));
+  --preview-base: hsl(var(--control-track));
 }
 
 .preview::after {
