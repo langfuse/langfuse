@@ -1,4 +1,4 @@
-import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import { z } from "zod";
 import {
   getObservationsV2FromEventsTableForPublicApi,
@@ -40,22 +40,25 @@ export const [getObservationTool, handleGetObservation] = defineTool({
   ].join("\n"),
   action: "traces:read",
   baseSchema: GetObservationBaseSchema,
-  inputSchema: GetObservationBaseSchema,
+  inputSchema: GetObservationBaseSchema.refine(
+    (input) => {
+      const rangeMs =
+        new Date(input.toStartTime).getTime() -
+        new Date(input.fromStartTime).getTime();
+      return rangeMs > 0 && rangeMs <= OBSERVATION_MAX_RANGE_MS;
+    },
+    {
+      message:
+        "getObservation requires fromStartTime before toStartTime with a maximum range of 90 days.",
+      path: ["toStartTime"],
+    },
+  ),
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.observations.get",
       context,
       attributes: { "mcp.observation_id": input.observationId },
       fn: async (span) => {
-        const rangeMs =
-          new Date(input.toStartTime).getTime() -
-          new Date(input.fromStartTime).getTime();
-        if (rangeMs <= 0 || rangeMs > OBSERVATION_MAX_RANGE_MS) {
-          throw new InvalidRequestError(
-            "getObservation requires fromStartTime before toStartTime with a maximum range of 90 days.",
-          );
-        }
-
         const dataAccessWindow = clampToDataAccessDays({
           plan: context.plan,
           fromTimestamp: input.fromStartTime,
