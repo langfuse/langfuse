@@ -49,6 +49,7 @@ describe("table registry derivation", () => {
     expect(COLUMN_BIND_TYPES.metadata_names).toBe("Array(String)");
     expect(COLUMN_BIND_TYPES.is_deleted).toBe("UInt8");
     expect(COLUMN_BIND_TYPES.metadata).toBe("Map(String, String)");
+    expect(COLUMN_BIND_TYPES.cost_details).toBe("Map(String, Decimal(18, 12))");
   });
 
   // The assertions themselves are compile-time (`tsc` is the test); this only

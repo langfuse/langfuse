@@ -36,7 +36,6 @@ export type ChColumnType =
   | "Nullable(UInt16)"
   | "Nullable(DateTime64(6))"
   | "Array(String)"
-  | "Map(String, Float)"
   | "Map(String, UInt64)"
   | "Map(String, Decimal(18,12))"
   | "Map(String, String)";
@@ -58,7 +57,6 @@ type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
               : T extends "Array(String)"
                 ? string[]
                 : T extends
-                      | "Map(String, Float)"
                       | "Map(String, UInt64)"
                       | "Map(String, Decimal(18,12))"
                   ? Record<string, number>
@@ -81,7 +79,6 @@ const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
   "DateTime64(6)": "date",
   "Nullable(DateTime64(6))": "date",
   "Array(String)": "array",
-  "Map(String, Float)": "map",
   "Map(String, UInt64)": "map",
   "Map(String, Decimal(18,12))": "map",
   "Map(String, String)": "map",
@@ -179,7 +176,7 @@ const TABLE_REGISTRY = {
       project_id: "String",
       start_time: "DateTime",
       trace_id: "String",
-      cost_details: "Map(String, Float)",
+      cost_details: "Map(String, Decimal(18,12))",
       usage_details: "Map(String, UInt64)",
     },
   }),
@@ -283,7 +280,6 @@ const BIND_TYPE: Record<ChColumnType, string> = {
   "DateTime64(6)": "DateTime64(6)",
   "Nullable(DateTime64(6))": "DateTime64(6)",
   "Array(String)": "Array(String)",
-  "Map(String, Float)": "Map(String, Float64)",
   "Map(String, UInt64)": "Map(String, UInt64)",
   "Map(String, Decimal(18,12))": "Map(String, Decimal(18, 12))",
   "Map(String, String)": "Map(String, String)",
