@@ -214,9 +214,9 @@ impl ProviderTransport {
         let body = match route {
             Route::OpenAiChatCompletions => {
                 chat_completions::request_stream_usage(headers, &body, provider_model)
-                    .map_or_else(|| rewrite_model(body, model_range, provider_model), Ok)?
+                    .map_or_else(|| rewrite_model(&body, model_range, provider_model), Ok)?
             }
-            _ => rewrite_model(body, model_range, provider_model)?,
+            _ => rewrite_model(&body, model_range, provider_model)?,
         };
         capture.set_provider_model(provider_model);
         correlation.record_upstream(UpstreamTarget::for_connection(
@@ -292,7 +292,7 @@ impl ProviderTransport {
 }
 
 fn rewrite_model(
-    body: Bytes,
+    body: &[u8],
     model_range: Range<usize>,
     provider_model: &str,
 ) -> Result<Bytes, ProviderError> {

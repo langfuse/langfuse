@@ -333,20 +333,7 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
     let observed = observed.lock().unwrap();
     assert_eq!(observed.len(), 3);
     for (name, headers, payload) in &*observed {
-        let child = spans
-            .iter()
-            .find(|span| {
-                span.name == *name
-                    && (*name != "resolver"
-                        || span.parent_span_id
-                            == spans
-                                .iter()
-                                .find(|span| span.name == "resolution")
-                                .unwrap()
-                                .span_context
-                                .span_id())
-            })
-            .unwrap();
+        let child = outbound_span(&spans, name);
         assert_outbound_context(headers, (*name != "provider.headers").then_some(child));
         if *name == "ingestion" {
             assert_generation_context(payload);
@@ -356,6 +343,17 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
 }
 
 type SpanData = opentelemetry_sdk::trace::SpanData;
+
+fn outbound_span<'a>(spans: &'a [SpanData], name: &str) -> &'a SpanData {
+    let resolution = spans.iter().find(|span| span.name == "resolution").unwrap();
+    spans
+        .iter()
+        .find(|span| {
+            span.name == name
+                && (name != "resolver" || span.parent_span_id == resolution.span_context.span_id())
+        })
+        .unwrap()
+}
 
 /// Every phase between the caller's headers and the last body byte has a span in
 /// the server trace, so a waterfall shows no unattributed wall time. Batched

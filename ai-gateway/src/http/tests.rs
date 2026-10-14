@@ -1178,21 +1178,7 @@ async fn chat_completions_streams_carry_the_request_and_generation_ids() {
     let telemetry =
         Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
     let (resolved, mut resolution_ids) = tokio::sync::mpsc::channel(1);
-    let web = FakeServer::start(move |request| {
-        let resolved = resolved.clone();
-        async move {
-            if let Some(response) = authentication_response(&request) {
-                return response;
-            }
-            let id = request.headers()["langfuse-gateway-request-id"]
-                .to_str()
-                .unwrap()
-                .to_owned();
-            resolved.send(id).await.unwrap();
-            resolution_response_for(ApiFormat::OpenAiChatCompletions, "provider-chat")
-        }
-    })
-    .await;
+    let web = chat_completion_resolution_server(resolved).await;
     let provider = FakeServer::start(|request| async move {
         assert_eq!(request.uri(), "/v1/chat/completions");
         Response::builder()
@@ -1262,6 +1248,26 @@ async fn chat_completions_streams_carry_the_request_and_generation_ids() {
     telemetry
         .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
         .await;
+}
+
+async fn chat_completion_resolution_server(
+    resolved: tokio::sync::mpsc::Sender<String>,
+) -> FakeServer {
+    FakeServer::start(move |request| {
+        let resolved = resolved.clone();
+        async move {
+            if let Some(response) = authentication_response(&request) {
+                return response;
+            }
+            let id = request.headers()["langfuse-gateway-request-id"]
+                .to_str()
+                .unwrap()
+                .to_owned();
+            resolved.send(id).await.unwrap();
+            resolution_response_for(ApiFormat::OpenAiChatCompletions, "provider-chat")
+        }
+    })
+    .await
 }
 
 #[tokio::test]
