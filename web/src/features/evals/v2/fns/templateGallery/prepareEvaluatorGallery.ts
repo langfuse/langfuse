@@ -80,11 +80,16 @@ export function prepareEvaluatorGallery({
       label: category.label,
       count: managedByCategory.get(category.key)?.length ?? 0,
     })),
-    {
-      key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
-      label: "Your templates",
-      count: customTemplateCount,
-    },
+    // Projects without saved evaluators get no empty "Your templates" entry.
+    ...(customTemplateCount > 0
+      ? [
+          {
+            key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
+            label: "Your templates",
+            count: customTemplateCount,
+          },
+        ]
+      : []),
   ];
 
   // Own templates last: catalog sections lead the browse view.
