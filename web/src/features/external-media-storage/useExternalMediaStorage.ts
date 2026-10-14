@@ -9,7 +9,10 @@ export function getExternalMediaStorageStatus(
 }
 
 /** Shared by the integration page and the integrations overview card. */
-export function useExternalMediaStorage(projectId: string) {
+export function useExternalMediaStorage(
+  projectId: string,
+  meta?: Record<string, unknown>,
+) {
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "integrations:CRUD",
@@ -22,7 +25,7 @@ export function useExternalMediaStorage(projectId: string) {
   const isFeatureEnabled = featureAvailability.data === true;
   const query = api.externalMediaStorage.get.useQuery(
     { projectId },
-    { enabled: Boolean(projectId && hasAccess && isFeatureEnabled) },
+    { enabled: Boolean(projectId && hasAccess && isFeatureEnabled), meta },
   );
   const status = query.data
     ? getExternalMediaStorageStatus(query.data.config)

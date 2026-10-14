@@ -435,12 +435,18 @@ const Integrations = (props: { projectId: string }) => {
     projectId: props.projectId,
     scope: "integrations:CRUD",
   });
-  const posthog = usePostHogIntegration(props.projectId);
-  const mixpanel = useMixpanelIntegration(props.projectId);
-  const blobStorage = useBlobStorageIntegration(props.projectId);
-  const externalMediaStorage = useExternalMediaStorage(props.projectId);
-  const slack = useSlackIntegration(props.projectId);
-  const webCallouts = useWebCallouts(props.projectId);
+
+  // Hide toast errors on integration screen. Error will appear inside integration
+  const silentError = { silentAllErrors: true };
+  const posthog = usePostHogIntegration(props.projectId, silentError);
+  const mixpanel = useMixpanelIntegration(props.projectId, silentError);
+  const blobStorage = useBlobStorageIntegration(props.projectId, silentError);
+  const externalMediaStorage = useExternalMediaStorage(
+    props.projectId,
+    silentError,
+  );
+  const slack = useSlackIntegration(props.projectId, silentError);
+  const webCallouts = useWebCallouts(props.projectId, silentError);
 
   return (
     <div>

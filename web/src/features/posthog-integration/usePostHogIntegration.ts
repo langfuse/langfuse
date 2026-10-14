@@ -14,14 +14,17 @@ export function getPostHogStatus(
 }
 
 /** Shared by the integration page and the integrations overview card. */
-export function usePostHogIntegration(projectId: string) {
+export function usePostHogIntegration(
+  projectId: string,
+  meta?: Record<string, unknown>,
+) {
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "integrations:CRUD",
   });
   const query = api.posthogIntegration.get.useQuery(
     { projectId },
-    { enabled: hasAccess },
+    { enabled: hasAccess, meta },
   );
   const status =
     query.isLoading || !hasAccess

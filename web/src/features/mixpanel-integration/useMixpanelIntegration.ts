@@ -9,14 +9,17 @@ export function getMixpanelStatus(config: { enabled: boolean } | null): Status {
 }
 
 /** Shared by the integration page and the integrations overview card. */
-export function useMixpanelIntegration(projectId: string) {
+export function useMixpanelIntegration(
+  projectId: string,
+  meta?: Record<string, unknown>,
+) {
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "integrations:CRUD",
   });
   const query = api.mixpanelIntegration.get.useQuery(
     { projectId },
-    { enabled: hasAccess },
+    { enabled: hasAccess, meta },
   );
   const status =
     query.isLoading || !hasAccess

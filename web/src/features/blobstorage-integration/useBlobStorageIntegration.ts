@@ -15,7 +15,10 @@ export function getBlobStorageStatus(
 }
 
 /** Shared by the integration page and the integrations overview card. */
-export function useBlobStorageIntegration(projectId: string) {
+export function useBlobStorageIntegration(
+  projectId: string,
+  meta?: Record<string, unknown>,
+) {
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "integrations:CRUD",
@@ -25,6 +28,7 @@ export function useBlobStorageIntegration(projectId: string) {
     { projectId },
     {
       enabled: hasAccess && hasEntitlement,
+      meta,
       refetchOnMount: false,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,

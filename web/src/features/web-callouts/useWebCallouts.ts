@@ -12,14 +12,17 @@ export function getWebCalloutsStatus(
 }
 
 /** Shared by the integration page and the integrations overview card. */
-export function useWebCallouts(projectId: string | undefined) {
+export function useWebCallouts(
+  projectId: string | undefined,
+  meta?: Record<string, unknown>,
+) {
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "integrations:CRUD",
   });
   const query = api.webCallouts.all.useQuery(
     { projectId: projectId ?? "" },
-    { enabled: Boolean(projectId) && hasAccess },
+    { enabled: Boolean(projectId) && hasAccess, meta },
   );
   const status = query.data ? getWebCalloutsStatus(query.data) : undefined;
 

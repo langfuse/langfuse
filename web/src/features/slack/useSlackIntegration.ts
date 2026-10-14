@@ -12,14 +12,17 @@ export function getSlackStatus(
 }
 
 /** Shared by the integration page and the integrations overview card. */
-export function useSlackIntegration(projectId: string) {
+export function useSlackIntegration(
+  projectId: string,
+  meta?: Record<string, unknown>,
+) {
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "automations:read",
   });
   const query = api.slack.getIntegrationStatus.useQuery(
     { projectId },
-    { enabled: Boolean(projectId) && hasAccess },
+    { enabled: Boolean(projectId) && hasAccess, meta },
   );
   const status =
     query.isLoading || !hasAccess ? undefined : getSlackStatus(query.data);
