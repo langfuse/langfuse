@@ -50,7 +50,7 @@ export function MarkdownJsonViewHeader({
   );
 
   return (
-    <div className="io-message-header flex flex-row items-center justify-between px-1 py-1 text-base font-bold capitalize">
+    <div className="io-message-header flex flex-row items-center justify-between px-1 py-1 text-sm font-bold capitalize">
       {/* Masked from session recordings: the title can be a customer-provided
           message `name` (or tool name) rather than a fixed role string. */}
       <div className="ph-no-capture flex items-center gap-2">

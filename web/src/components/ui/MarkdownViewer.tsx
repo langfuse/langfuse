@@ -439,13 +439,13 @@ function MarkdownRenderer({
 
   if (tooLargeOrDeep) {
     return (
-      <div className={cn("space-y-2 overflow-x-auto text-base", className)}>
+      <div className={cn("space-y-2 overflow-x-auto text-sm", className)}>
         <div className="text-muted-foreground flex items-center gap-1 text-xs">
           <Info className="icon-sm" />
           Content is too large or deeply nested to render as markdown.
           Displaying as plain text.
         </div>
-        <pre className="text-base break-words whitespace-pre-wrap">
+        <pre className="text-sm break-words whitespace-pre-wrap">
           {markdown}
         </pre>
       </div>
@@ -459,7 +459,7 @@ function MarkdownRenderer({
     return (
       <div
         className={cn(
-          "space-y-2 overflow-x-auto text-base wrap-break-word",
+          "space-y-2 overflow-x-auto text-sm wrap-break-word",
           className,
         )}
       >

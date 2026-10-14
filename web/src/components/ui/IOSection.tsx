@@ -72,9 +72,10 @@ export function IOSection({
           </button>
         }
         handleOnCopy={onCopy}
-        hideCopyButton={!onCopy}
+        // A collapsed section offers nothing to copy or act on.
+        hideCopyButton={!onCopy || isCollapsed}
         hoverRevealControls
-        controlButtons={controlButtons}
+        controlButtons={isCollapsed ? undefined : controlButtons}
       />
       {!isCollapsed && (
         <div className="io-message-content ph-no-capture px-1 pt-1 pb-2">

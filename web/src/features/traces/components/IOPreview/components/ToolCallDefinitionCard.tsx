@@ -77,7 +77,7 @@ function ToolCallArgumentsList({
             className="min-w-0"
           >
             <div className="mb-1.5 flex min-w-0 items-center justify-between gap-2">
-              <div className="text-foreground font-mono text-xs font-bold">
+              <div className="text-muted-foreground text-xs font-bold">
                 Call {toolCall.invocationNumber}
               </div>
               {toolCall.id && (
@@ -204,7 +204,7 @@ function ToolGroupSummary({
 
   // Quiet reveal row at the bottom of the group, inside the section box.
   const summaryButton = (
-    <div className="flex w-fit items-center gap-2 py-2 text-xs">
+    <div className="flex w-fit items-center gap-2 text-sm not-first:pt-1.5 not-last:pb-1.5">
       <span
         className={cn(
           "text-muted-foreground",
@@ -215,7 +215,6 @@ function ToolGroupSummary({
       </span>
       <Button
         variant="text"
-        size="sm"
         text={expanded ? "Show less" : "Show more"}
         onClick={onToggle}
       />
@@ -259,17 +258,17 @@ function ToolCallStatusBadge({
   statusText: string;
   toolCalls: ToolCallInvocation[];
 }) {
+  // Fixed-width column so "called" and "not called" start at the same x.
   const badge = (
-    <Badge
-      variant={isCalled ? undefined : "secondary"}
-      className={cn(
-        "text-xs font-bold whitespace-nowrap",
-        isCalled &&
-          "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
-      )}
-    >
+    <span className="text-muted-foreground flex w-20 items-center gap-1.5 text-xs whitespace-nowrap">
       {statusText}
-    </Badge>
+      {isCalled && (
+        <span
+          className="size-1.5 translate-y-px rounded-full bg-green-500 dark:bg-green-400"
+          aria-hidden
+        />
+      )}
+    </span>
   );
 
   if (!isCalled || toolCalls.length === 0) {
@@ -328,17 +327,20 @@ function ToolDefinitionRow({
   const statusText = getStatusText(callCount);
 
   return (
-    <div className="w-full">
+    <div className="group/tool-row w-full">
       <button
         type="button"
-        className="hover:bg-muted/20 flex w-full cursor-pointer items-center justify-between gap-2 py-2 text-left"
+        className="hover:bg-muted/20 flex w-full cursor-pointer items-center justify-between gap-2 py-1.5 text-left group-first/tool-row:pt-0 group-last/tool-row:pb-0"
         onClick={onToggle}
         aria-expanded={isExpanded}
       >
         <div className="flex min-w-0 items-center gap-2">
           <Wrench className="text-muted-foreground icon-base shrink-0" />
           <span
-            className="ph-no-capture text-foreground block truncate text-sm font-bold"
+            className={cn(
+              "ph-no-capture block truncate text-sm",
+              isCalled ? "text-foreground" : "text-muted-foreground",
+            )}
             title={tool.name}
           >
             {toolDefinitionNumber !== undefined && (
@@ -364,7 +366,8 @@ function ToolDefinitionRow({
       </button>
 
       {isExpanded && (
-        <div className="border-border relative border-t py-3">
+        // Indented to the tool name (icon-base + gap-2).
+        <div className="border-border relative border-t py-3 pl-5.5">
           <div className="absolute top-1 right-0">
             <div className="h-fit py-0.5">
               <Tabs
@@ -388,7 +391,7 @@ function ToolDefinitionRow({
                   <div className="text-muted-foreground mb-1.5 text-xs font-bold">
                     Description
                   </div>
-                  <div className="ph-no-capture text-foreground text-sm">
+                  <div className="ph-no-capture text-muted-foreground text-sm">
                     {tool.description}
                   </div>
                 </div>

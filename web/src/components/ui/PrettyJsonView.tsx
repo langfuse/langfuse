@@ -162,16 +162,16 @@ function getEmptyValueDisplay(value: unknown): string | null {
 function getContainerClasses(
   scrollable: boolean | undefined,
   codeClassName: string | undefined,
-  baseClasses = "whitespace-pre-wrap wrap-break-word text-xs",
+  baseClasses = "whitespace-pre-wrap wrap-break-word p-3 text-xs",
   borderless = false,
 ) {
   return cn(
     baseClasses,
     borderless
-      ? "rounded-md overflow-clip"
+      ? "rounded-md overflow-clip p-0"
       : scrollable
-        ? "p-3"
-        : "rounded-sm border p-3",
+        ? ""
+        : "rounded-sm border",
     codeClassName,
   );
 }

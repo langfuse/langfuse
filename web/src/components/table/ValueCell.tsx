@@ -518,7 +518,6 @@ export const ValueCell = memo(
           <div className="flex">
             <TextButton
               variant="text"
-              size="sm"
               text={isCellExpanded ? "Show less" : "Show more"}
               onClick={(e) => {
                 e.stopPropagation();
