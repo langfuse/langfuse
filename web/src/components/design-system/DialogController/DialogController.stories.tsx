@@ -227,3 +227,85 @@ export const InitialState = meta.story({
     );
   },
 });
+
+function ControlledExample() {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  return (
+    <>
+      <output data-testid="open-state">{open ? "open" : "closed"}</output>
+      <button type="button" onClick={() => setOpen(true)}>
+        Open from header
+      </button>
+      <button type="button" onClick={() => setOpen(true)}>
+        Open from notice
+      </button>
+      <DialogController
+        open={open}
+        onOpenChange={setOpen}
+        renderDialog={({ closeDialog }) => (
+          <Dialog title="Controlled dialog">
+            <Dialog.Body>
+              <input
+                aria-label="Draft"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+              />
+              <button type="button" onClick={() => setOpen(false)}>
+                Close from owner
+              </button>
+              <button type="button" onClick={closeDialog}>
+                Close from content
+              </button>
+            </Dialog.Body>
+          </Dialog>
+        )}
+      />
+    </>
+  );
+}
+
+export const Controlled = meta.story({
+  name: "(Test) Controlled open state",
+  render: () => <ControlledExample />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Open from header" }),
+    );
+    await userEvent.type(body.getByRole("textbox", { name: "Draft" }), "kept");
+    await userEvent.click(
+      body.getByRole("button", { name: "Close from owner" }),
+    );
+    await waitFor(() => {
+      expect(canvas.getByTestId("open-state")).toHaveTextContent("closed");
+      expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Open from notice" }),
+    );
+    await expect(body.getByRole("textbox", { name: "Draft" })).toHaveValue(
+      "kept",
+    );
+    await userEvent.click(
+      body.getByRole("button", { name: "Close from content" }),
+    );
+    await waitFor(() =>
+      expect(canvas.getByTestId("open-state")).toHaveTextContent("closed"),
+    );
+
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Open from header" }),
+    );
+    await waitFor(() => expect(body.getByRole("dialog")).toBeVisible());
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(canvas.getByTestId("open-state")).toHaveTextContent("closed");
+      expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  },
+});
