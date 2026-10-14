@@ -9,6 +9,10 @@ import {
 } from "vitest";
 import { Job } from "bullmq";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import {
+  EvalFailureReason,
+  UnrecoverableEvalFailureError,
+} from "../../features/evaluation/evalFailureErrors";
 
 const QueueName = {
   LLMAsJudgeExecution: "llm-as-a-judge-execution-queue",
@@ -116,6 +120,7 @@ import { processObservationEval } from "../../features/evaluation/observationEva
 import {
   LLMAsJudgeExecutionQueue,
   classifyEvaluatorLlmError,
+  logger,
   recordDistribution,
   recordIncrement,
   traceException,
@@ -520,6 +525,62 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
       expect(traceException).not.toHaveBeenCalled();
     });
+
+    it.each([
+      EvalFailureReason.InvalidModelConfig,
+      EvalFailureReason.InvalidModelOutput,
+    ])("should record %s failures as customer_error", async (reason) => {
+      (processObservationEval as Mock).mockRejectedValue(
+        new UnrecoverableEvalFailureError("customer failure", reason),
+      );
+      vi.mocked(isUnrecoverableError).mockReturnValue(true);
+
+      await llmAsJudgeExecutionQueueProcessor(createMockJob());
+
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.terminal",
+        1,
+        { evaluator_type: "llm_as_judge", outcome: "customer_error" },
+      );
+    });
+
+    it.each([
+      {
+        error: new UnrecoverableEvalFailureError(
+          "invalid JSON",
+          EvalFailureReason.InvalidObservationData,
+        ),
+        reason: "invalid_observation_data",
+      },
+      {
+        error: new UnrecoverableError("Evaluator identity missing"),
+        reason: "unrecoverable",
+      },
+    ])(
+      "should tag terminal platform errors with reason $reason and warn",
+      async ({ error, reason }) => {
+        (processObservationEval as Mock).mockRejectedValue(error);
+        vi.mocked(isUnrecoverableError).mockReturnValue(true);
+
+        await llmAsJudgeExecutionQueueProcessor(createMockJob());
+
+        expect(recordIncrement).toHaveBeenCalledWith(
+          "langfuse.evaluation.execution.terminal",
+          1,
+          { evaluator_type: "llm_as_judge", outcome: "platform_error", reason },
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(jobExecutionId),
+          expect.objectContaining({
+            projectId,
+            jobExecutionId,
+            errorName: "UnrecoverableError",
+            outcome: "platform_error",
+            reason,
+          }),
+        );
+      },
+    );
   });
 
   describe("unexpected errors (retryable by BullMQ)", () => {
@@ -593,7 +654,11 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       expect(recordIncrement).toHaveBeenCalledWith(
         "langfuse.evaluation.execution.terminal",
         1,
-        { evaluator_type: "llm_as_judge", outcome: "platform_error" },
+        {
+          evaluator_type: "llm_as_judge",
+          outcome: "platform_error",
+          reason: "unexpected",
+        },
       );
     });
   });
