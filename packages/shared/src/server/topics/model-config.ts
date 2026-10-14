@@ -161,35 +161,6 @@ export async function pauseTopicsModels(
   await invalidateTopicsProcessingActive(projectId);
 }
 
-/**
- * Pauses Topics in every running config that uses a connection about to be
- * deleted. Callers that pass a transaction call
- * `invalidateTopicsProcessingActive` after it commits.
- */
-export async function pauseTopicsModelsUsingConnection(
-  params: { projectId: string; llmApiKeyId: string; provider: string },
-  tx: Prisma.TransactionClient = prisma,
-): Promise<void> {
-  const { projectId, llmApiKeyId, provider } = params;
-  await tx.topicConfig.updateMany({
-    where: {
-      projectId,
-      enabled: true,
-      OR: [
-        { summaryLlmApiKeyId: llmApiKeyId },
-        { embeddingLlmApiKeyId: llmApiKeyId },
-        { clusteringLlmApiKeyId: llmApiKeyId },
-      ],
-    },
-    data: {
-      enabled: false,
-      blockedAt: new Date(),
-      blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-      blockMessage: `The LLM connection "${provider}" was deleted. Choose another connection in Configure Topics, then turn automatic processing back on.`,
-    },
-  });
-}
-
 /** Keeps Topics connection references valid before an LLM connection is deleted. */
 export async function handleTopicsLlmApiKeyDeletion(params: {
   tx: Prisma.TransactionClient;
