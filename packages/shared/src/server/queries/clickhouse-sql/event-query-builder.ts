@@ -141,58 +141,57 @@ const EVENTS_FIELDS = {
 
   // Identity & basic fields
   id: "e.span_id as id",
-  traceId: 'e.trace_id as "trace_id"',
-  projectId: 'e.project_id as "project_id"',
-  environment: 'e.environment as "environment"',
+  traceId: "e.trace_id as trace_id",
+  projectId: "e.project_id as project_id",
+  environment: "e.environment as environment",
   type: "e.type as type",
-  parentObservationId: 'e.parent_span_id as "parent_observation_id"',
+  parentObservationId: "e.parent_span_id as parent_observation_id",
   isRootObservation: `toBool(${eventsTableIsRootObservationSql}) as "is_root_observation"`,
-  isAppRoot: 'e.is_app_root as "is_app_root"',
+  isAppRoot: "e.is_app_root as is_app_root",
   name: "e.name as name",
   level: "e.level as level",
-  statusMessage: 'e.status_message as "status_message"',
+  statusMessage: "e.status_message as status_message",
   version: "e.version as version",
   bookmarked: "e.bookmarked as bookmarked",
   public: "e.public as public",
-  userId: 'e.user_id as "user_id"',
-  sessionId: 'e.session_id as "session_id"',
+  userId: "e.user_id as user_id",
+  sessionId: "e.session_id as session_id",
   // String-typed on purpose; see eventsTableTraceNameSelectSql (LFE-14924).
   traceName: `${eventsTableTraceNameSelectSql} as "trace_name"`,
 
   // Time fields
-  startTime: 'e.start_time as "start_time"',
-  endTime: 'e.end_time as "end_time"',
-  completionStartTime: 'e.completion_start_time as "completion_start_time"',
-  createdAt: 'e.created_at as "created_at"',
-  updatedAt: 'e.updated_at as "updated_at"',
+  startTime: "e.start_time as start_time",
+  endTime: "e.end_time as end_time",
+  completionStartTime: "e.completion_start_time as completion_start_time",
+  createdAt: "e.created_at as created_at",
+  updatedAt: "e.updated_at as updated_at",
   eventTs: "e.event_ts",
 
   // Model fields
-  providedModelName: 'e.provided_model_name as "provided_model_name"',
-  internalModelId: 'e.model_id as "internal_model_id"',
+  providedModelName: "e.provided_model_name as provided_model_name",
+  internalModelId: "e.model_id as internal_model_id",
   modelParameters: "e.model_parameters as model_parameters",
 
   // Usage & cost fields
-  providedUsageDetails: 'e.provided_usage_details as "provided_usage_details"',
-  usageDetails: 'e.usage_details as "usage_details"',
-  providedCostDetails: 'e.provided_cost_details as "provided_cost_details"',
-  costDetails: 'e.cost_details as "cost_details"',
-  totalCost: 'e.total_cost as "total_cost"',
+  providedUsageDetails: "e.provided_usage_details as provided_usage_details",
+  usageDetails: "e.usage_details as usage_details",
+  providedCostDetails: "e.provided_cost_details as provided_cost_details",
+  costDetails: "e.cost_details as cost_details",
+  totalCost: "e.total_cost as total_cost",
 
   // Prompt fields
-  promptId: 'e.prompt_id as "prompt_id"',
-  promptName: 'e.prompt_name as "prompt_name"',
-  promptVersion: 'e.prompt_version as "prompt_version"',
+  promptId: "e.prompt_id as prompt_id",
+  promptName: "e.prompt_name as prompt_name",
+  promptVersion: "e.prompt_version as prompt_version",
 
   // Tool fields
-  toolDefinitions: 'e.tool_definitions as "tool_definitions"',
-  toolCalls: 'e.tool_calls as "tool_calls"',
-  toolCallNames: 'e.tool_call_names as "tool_call_names"',
+  toolDefinitions: "e.tool_definitions as tool_definitions",
+  toolCalls: "e.tool_calls as tool_calls",
+  toolCallNames: "e.tool_call_names as tool_call_names",
 
   // Pricing tier
-  usagePricingTierId: 'e.usage_pricing_tier_id as "usage_pricing_tier_id"',
-  usagePricingTierName:
-    'e.usage_pricing_tier_name as "usage_pricing_tier_name"',
+  usagePricingTierId: "e.usage_pricing_tier_id as usage_pricing_tier_id",
+  usagePricingTierName: "e.usage_pricing_tier_name as usage_pricing_tier_name",
 
   // I/O & metadata fields
   input: "e.input",
@@ -203,26 +202,25 @@ const EVENTS_FIELDS = {
   release: "e.release as release",
 
   // Model ID with different alias for exports
-  modelId: 'e.model_id as "model_id"',
+  modelId: "e.model_id as model_id",
 
   // Experiment fields (denormalized on events table)
-  experimentId: 'e.experiment_id as "experiment_id"',
-  experimentName: 'e.experiment_name as "experiment_name"',
-  experimentDescription: 'e.experiment_description as "experiment_description"',
-  experimentDatasetId: 'e.experiment_dataset_id as "experiment_dataset_id"',
+  experimentId: "e.experiment_id as experiment_id",
+  experimentName: "e.experiment_name as experiment_name",
+  experimentDescription: "e.experiment_description as experiment_description",
+  experimentDatasetId: "e.experiment_dataset_id as experiment_dataset_id",
   experimentMetadata:
     "mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values) as experiment_metadata",
 
   // Experiment item fields
-  experimentItemId: 'e.experiment_item_id as "experiment_item_id"',
+  experimentItemId: "e.experiment_item_id as experiment_item_id",
   experimentItemRootSpanId:
-    'e.experiment_item_root_span_id as "experiment_item_root_span_id"',
+    "e.experiment_item_root_span_id as experiment_item_root_span_id",
   experimentItemExpectedOutput:
-    'e.experiment_item_expected_output as "experiment_item_expected_output"',
+    "e.experiment_item_expected_output as experiment_item_expected_output",
   experimentItemMetadata:
     "mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) as experiment_item_metadata",
-  experimentItemVersion:
-    'e.experiment_item_version as "experiment_item_version"',
+  experimentItemVersion: "e.experiment_item_version as experiment_item_version",
 
   // Calculated fields
   latency:
@@ -571,6 +569,12 @@ type SelectableFieldSetName = {
     : never;
 }[FieldSetName];
 
+type EventsFieldSelection<K> = K extends EventsExpressionField
+  ? (typeof EVENTS_FIELD_EXPRESSIONS)[K]
+  : K extends EventsColumnField
+    ? (typeof EVENTS_FIELDS)[K]
+    : never;
+
 function isEventsExpressionField(key: string): key is EventsExpressionField {
   return Object.hasOwn(EVENTS_FIELD_EXPRESSIONS, key);
 }
@@ -578,8 +582,11 @@ function isEventsExpressionField(key: string): key is EventsExpressionField {
 /**
  * Query-AST selections for the given field sets, in EVENTS_FIELDS declaration
  * order. Column fields are the EVENTS_FIELDS strings themselves, so Kysely
- * checks each against the table registry.
+ * checks each against the table registry and infers the selected row.
  */
+export function eventsFieldSetSelections<S extends SelectableFieldSetName>(
+  ...setNames: S[]
+): Array<EventsFieldSelection<(typeof FIELD_SETS)[S][number]>>;
 export function eventsFieldSetSelections(
   ...setNames: SelectableFieldSetName[]
 ): EventsSelection[] {

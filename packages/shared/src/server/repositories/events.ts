@@ -1092,6 +1092,7 @@ async function getObservationByIdFromEventsTableInternal({
       ? db.selectFrom("events_full as e")
       : db.selectFrom("events_core as e")
   )
+    // Built per call: events.ts and the builder module import each other.
     .select(
       eventsFieldSetSelections(
         "byIdBase",
