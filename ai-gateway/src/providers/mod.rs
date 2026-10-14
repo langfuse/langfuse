@@ -213,7 +213,7 @@ impl ProviderTransport {
         // Capture the caller's body shape, but keep upstream-only changes out of the input.
         let body = match route {
             Route::OpenAiChatCompletions => {
-                chat_completions::request_stream_usage(headers, &body, provider_model)
+                chat_completions::request_stream_usage(&body, provider_model)
                     .map_or_else(|| rewrite_model(&body, model_range, provider_model), Ok)?
             }
             _ => rewrite_model(&body, model_range, provider_model)?,

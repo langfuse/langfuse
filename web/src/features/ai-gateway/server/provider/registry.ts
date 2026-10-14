@@ -27,7 +27,7 @@ export const GatewayResolveResponseSchema = z
         id: z.string(),
         name: z.string(),
         provider: z.enum(gatewayProviderIds),
-        provider_model: z.string().optional(),
+        provider_model: z.string(),
         api_format: GatewayApiFormatSchema,
         base_url: z.url(),
         auth: z.union([
@@ -61,6 +61,9 @@ export const GatewayResolveResponseSchema = z
       .strict(),
   })
   .strict();
+export type GatewayResolveResponse = z.infer<
+  typeof GatewayResolveResponseSchema
+>;
 
 export const GatewayModelsResponseSchema = z
   .object({

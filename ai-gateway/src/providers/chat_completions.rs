@@ -2,26 +2,17 @@
 //! gateway opts in on the caller's behalf. The resulting usage chunk is relayed.
 use std::fmt;
 
-use axum::{body::Bytes, http::HeaderMap};
+use axum::body::Bytes;
 use serde::{
     Deserialize, Deserializer,
     de::{MapAccess, Visitor},
 };
 use serde_json::{Value, value::RawValue};
 
-use crate::transport::identity_encoding;
-
 /// The rewritten body for a streamed request that did not ask for usage, or
 /// `None` when the original bytes must be forwarded unchanged. Every other
 /// top-level member keeps its original bytes and position.
-pub(super) fn request_stream_usage(
-    headers: &HeaderMap,
-    body: &[u8],
-    provider_model: &str,
-) -> Option<Bytes> {
-    if !identity_encoding(headers) {
-        return None;
-    }
+pub(super) fn request_stream_usage(body: &[u8], provider_model: &str) -> Option<Bytes> {
     let Members(mut members) = serde_json::from_slice(body).ok()?;
     // Duplicate members are resolved differently by different parsers.
     if count(&members, "model") != 1
@@ -104,10 +95,9 @@ impl<'de> Deserialize<'de> for Members {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::{HeaderValue, header};
 
     fn rewrite(body: &str) -> Option<String> {
-        request_stream_usage(&HeaderMap::new(), body.as_bytes(), "provider-model")
+        request_stream_usage(body.as_bytes(), "provider-model")
             .map(|bytes| String::from_utf8(bytes.to_vec()).unwrap())
     }
 
@@ -151,15 +141,5 @@ mod tests {
         ] {
             assert_eq!(rewrite(body), None, "{body}");
         }
-        let mut encoded = HeaderMap::new();
-        encoded.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
-        assert!(
-            request_stream_usage(
-                &encoded,
-                br#"{"model":"m","stream":true}"#,
-                "provider-model"
-            )
-            .is_none()
-        );
     }
 }
