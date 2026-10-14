@@ -310,6 +310,7 @@ fn rewrite_model(
     rewritten.extend_from_slice(&body[..model_range.start]);
     rewritten.extend_from_slice(&model);
     rewritten.extend_from_slice(&body[model_range.end..]);
+    drop(body);
     Ok(Bytes::from(rewritten))
 }
 
