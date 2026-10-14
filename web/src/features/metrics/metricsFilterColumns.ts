@@ -17,7 +17,8 @@ export type GetMetricsFilterColumnsParams = {
   modelOptions: SingleValueOption[];
   toolNamesOptions: SingleValueOption[];
   calledToolNamesOptions: SingleValueOption[];
-  skillNameOptions?: SingleValueOption[];
+  skillNamesAvailableOptions?: SingleValueOption[];
+  skillsNamesLoadedOptions?: SingleValueOption[];
   observationLevelOptions: SingleValueOption[];
   experimentNameOptions: SingleValueOption[];
   experimentDatasetOptions: SingleValueOption[];
@@ -47,7 +48,8 @@ const getMetricsFilterColumnSpecs = ({
   modelOptions,
   toolNamesOptions,
   calledToolNamesOptions,
-  skillNameOptions = [],
+  skillNamesAvailableOptions = [],
+  skillsNamesLoadedOptions = [],
   observationLevelOptions,
   experimentNameOptions,
   experimentDatasetOptions,
@@ -239,10 +241,20 @@ const getMetricsFilterColumnSpecs = ({
         ? [
             {
               column: {
-                name: "Skill Name",
-                id: "skillName",
+                name: "Skill Names (Available)",
+                id: "skillNamesAvailable",
                 type: "arrayOptions",
-                options: skillNameOptions,
+                options: skillNamesAvailableOptions,
+                internal: "internalValue",
+              },
+              customSelect: true,
+            } satisfies MetricsFilterColumnSpec,
+            {
+              column: {
+                name: "Skill Names (Loaded)",
+                id: "skillsNamesLoaded",
+                type: "arrayOptions",
+                options: skillsNamesLoadedOptions,
                 internal: "internalValue",
               },
               customSelect: true,

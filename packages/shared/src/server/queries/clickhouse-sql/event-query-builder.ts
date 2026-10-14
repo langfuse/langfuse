@@ -7,6 +7,10 @@ import {
   eventsTableTraceNameAggregationSql,
   eventsTableTraceNameSelectSql,
 } from "../../../eventsTable";
+import type {
+  SkillsAvailable,
+  SkillsResourceLoaded,
+} from "../../../features/skills/trace";
 import { expressionBuilder, sql, type SelectExpression } from "kysely";
 
 import { renderClickhouseExpression } from "../../query-ast/compile";
@@ -560,6 +564,12 @@ type EventsColumnField = {
 const EVENTS_FIELD_EXPRESSIONS = {
   traceName: sql.raw<string>(eventsTableTraceNameSelectSql).as("trace_name"),
   metadata: eventsMetadataMap.as("metadata"),
+  skillsAvailable: sql
+    .ref<SkillsAvailable>("e.skills_available")
+    .as("skills_available"),
+  skillsResourceLoaded: sql
+    .ref<SkillsResourceLoaded>("e.skills_resource_loaded")
+    .as("skills_resource_loaded"),
 } satisfies Partial<
   Record<Exclude<EventsFieldKey, EventsColumnField>, EventsSelection>
 >;
