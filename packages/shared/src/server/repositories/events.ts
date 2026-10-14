@@ -1200,7 +1200,7 @@ export const getTraceByIdFromEventsTable = async ({
         ),
       )
       .groupBy(["trace_id", "project_id"])
-      .orderBy(sql`timestamp`, "desc");
+      .orderBy("timestamp", "desc");
   };
 
   const metadataSelect = excludeMetadata
