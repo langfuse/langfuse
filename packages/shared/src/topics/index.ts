@@ -112,6 +112,8 @@ export type TopicBackfillSource = z.infer<typeof topicBackfillSourceSchema>;
 export const topicBackfillInputSchema = z.object({
   source: topicBackfillSourceSchema,
   limit: z.number().int().min(1).max(TOPIC_BACKFILL_MAX_TRACES),
+  /** Idempotency key: a retry with the same key schedules nothing new. */
+  requestId: topicIdSchema,
 });
 export const topicTraceSelectionSnapshotSchema =
   topicTraceSelectionCriteriaSchema.safeExtend({

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { prisma } from "../../db";
 import { InvalidRequestError } from "../../errors";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
@@ -197,6 +197,7 @@ export async function scheduleTopicBackfill(input: {
   projectId: string;
   source: TopicBackfillSource;
   limit: number;
+  requestId: string;
 }): Promise<{ traceCount: number }> {
   const [config, models, facets, rules, readiness] = await Promise.all([
     prisma.topicConfig.findUnique({
@@ -222,6 +223,9 @@ export async function scheduleTopicBackfill(input: {
     throw new InvalidRequestError(
       "Backfills need the trace-batch queue, which this deployment does not run.",
     );
+  const id = backfillJobId(input.projectId, input.requestId);
+  const existing = await queue.getJob(id);
+  if (existing) return { traceCount: existing.data.payload.traces.length };
   const selected = new Set(rule.facetIds);
   const traces = await selectTopicBackfillTraces({
     ...input,
@@ -235,7 +239,6 @@ export async function scheduleTopicBackfill(input: {
     seed: randomUUID(),
   });
   if (traces.length === 0) return { traceCount: 0 };
-  const id = randomUUID();
   const event = TraceBatchBackfillEventSchema.parse({
     id,
     timestamp: new Date(),
@@ -250,4 +253,11 @@ export async function scheduleTopicBackfill(input: {
   });
   await queue.add(QueueJobs.TraceBatchBackfill, event, { jobId: id });
   return { traceCount: traces.length };
+}
+
+/** Completed jobs stay in the queue for an hour, which bounds the retry window. */
+function backfillJobId(projectId: string, requestId: string) {
+  return createHash("sha256")
+    .update(JSON.stringify(["backfill-request", projectId, requestId]))
+    .digest("hex");
 }

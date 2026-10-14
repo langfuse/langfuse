@@ -50,7 +50,10 @@ project permissions. Processing additionally requires the project allowlist.
   opener. It schedules past traces with the saved models, facets, and rule
   filter, whether automatic processing is on or off, and ignores the rule's
   sampling rate. It is disabled until models and the rule are saved, and while
-  Topics is paused or unavailable.
+  Topics is paused or unavailable. The controller owns the mutation and its
+  `requestId`, so a pending submit survives a close; a retry of the same values
+  reuses the id, and the server returns the queued job for it instead of
+  scheduling again.
   Process traces or Update topics opens its own run dialog. Overlay owners stay
   outside the responsive header menu. Facet versions contain only prompts;
   processing settings and embedding dimensions are frozen on executions.

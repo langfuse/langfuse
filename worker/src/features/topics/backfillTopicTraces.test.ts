@@ -361,10 +361,18 @@ describe("scheduleTopicBackfill", () => {
       summary("partly-summarized", facets[0]),
     ]);
   });
+  const queuedJobs = new Map<string, { data: unknown }>();
   beforeEach(() => {
     addJob.mockReset();
+    queuedJobs.clear();
+    addJob.mockImplementation(
+      async (_name: string, data: unknown, options: { jobId: string }) => {
+        queuedJobs.set(options.jobId, { data });
+      },
+    );
     vi.spyOn(TraceBatchQueue, "getInstance").mockReturnValue({
       add: addJob,
+      getJob: async (jobId: string) => queuedJobs.get(jobId),
     } as never);
   });
   afterEach(() => vi.restoreAllMocks());
@@ -384,7 +392,12 @@ describe("scheduleTopicBackfill", () => {
 
   it("schedules the newest idle traces that miss a current facet summary, with whole-trace bounds", async () => {
     await expect(
-      scheduleTopicBackfill({ projectId, source: "ready", limit: 10 }),
+      scheduleTopicBackfill({
+        projectId,
+        source: "ready",
+        limit: 10,
+        requestId: randomUUID(),
+      }),
     ).resolves.toEqual({ traceCount: 3 });
     expect(scheduledTraces()).toEqual([
       expect.objectContaining({
@@ -405,13 +418,39 @@ describe("scheduleTopicBackfill", () => {
   });
 
   it("reaches older ready traces behind newer summarized ones", async () => {
-    await scheduleTopicBackfill({ projectId, source: "ready", limit: 1 });
+    await scheduleTopicBackfill({
+      projectId,
+      source: "ready",
+      limit: 1,
+      requestId: randomUUID(),
+    });
     expect(scheduledTraces().map(({ traceId }) => traceId)).toEqual(["long"]);
+  });
+
+  it("schedules a retried request once and reports the original trace count", async () => {
+    const request = {
+      projectId,
+      source: "random" as const,
+      limit: 2,
+      requestId: randomUUID(),
+    };
+    await expect(scheduleTopicBackfill(request)).resolves.toEqual({
+      traceCount: 2,
+    });
+    await expect(
+      scheduleTopicBackfill({ ...request, limit: 5 }),
+    ).resolves.toEqual({ traceCount: 2 });
+    expect(addJob).toHaveBeenCalledTimes(1);
   });
 
   it("samples random traces from the window regardless of readiness or summaries", async () => {
     await expect(
-      scheduleTopicBackfill({ projectId, source: "random", limit: 20 }),
+      scheduleTopicBackfill({
+        projectId,
+        source: "random",
+        limit: 20,
+        requestId: randomUUID(),
+      }),
     ).resolves.toEqual({ traceCount: 10 });
     const traces = scheduledTraces();
     expect(new Set(traces.map(({ traceId }) => traceId))).toEqual(
@@ -438,6 +477,7 @@ describe("scheduleTopicBackfill", () => {
         projectId: unconfigured,
         source: "ready",
         limit: 5,
+        requestId: randomUUID(),
       }),
     ).rejects.toThrow("Choose every model");
     expect(addJob).not.toHaveBeenCalled();
@@ -453,7 +493,12 @@ describe("scheduleTopicBackfill", () => {
     });
     try {
       await expect(
-        scheduleTopicBackfill({ projectId, source: "ready", limit: 5 }),
+        scheduleTopicBackfill({
+          projectId,
+          source: "ready",
+          limit: 5,
+          requestId: randomUUID(),
+        }),
       ).rejects.toThrow("Topics is paused: Provider rejected the key");
       expect(addJob).not.toHaveBeenCalled();
     } finally {

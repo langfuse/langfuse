@@ -12,7 +12,7 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
-import { useTopicBackfill } from "./useTopicBackfill";
+import { type TopicBackfill } from "./useTopicBackfill";
 
 const COUNT_MESSAGE = `Choose between 1 and ${TOPIC_BACKFILL_MAX_TRACES} traces.`;
 const backfillFormSchema = z.object({
@@ -44,22 +44,21 @@ const SOURCES: ReadonlyArray<{
 ];
 
 export type BackfillDialogProps = {
-  projectId: string;
+  backfill: TopicBackfill;
   closeDialog: () => void;
 };
 
 /** Dialog content; render it inside a `DialogController`. */
-export function BackfillDialog({
-  projectId,
-  closeDialog,
-}: BackfillDialogProps) {
+export function BackfillDialog({ backfill, closeDialog }: BackfillDialogProps) {
   const formId = useId();
   const form = useForm<BackfillFormValues>({
     resolver: zodResolver(backfillFormSchema),
     defaultValues: { source: "ready", limit: 50 },
   });
-  const backfill = useTopicBackfill({ projectId, onScheduled: closeDialog });
 
+  function handleSubmit(values: BackfillFormValues) {
+    backfill.schedule(values, closeDialog);
+  }
   function handleSourceChange(value: string) {
     form.setValue("source", topicBackfillSourceSchema.parse(value));
   }
@@ -87,7 +86,7 @@ export function BackfillDialog({
           id={formId}
           noValidate
           className="flex flex-col gap-5"
-          onSubmit={form.handleSubmit(backfill.schedule)}
+          onSubmit={form.handleSubmit(handleSubmit)}
         >
           <p>
             Summarize past traces with your saved facets and models. This runs
