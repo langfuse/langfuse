@@ -166,7 +166,7 @@ export const CompactLegend = meta.story({
       items: data.map((item, index) => ({
         id: item.label,
         label: `production-evaluation-run-${item.label}-with-a-long-name`,
-        color: ["#3a3dee", "#07b9d5", "#f18a42"][index] ?? "",
+        color: chartColors[index] ?? "",
       })),
     },
   },

@@ -3,12 +3,13 @@ import preview from "../../../../../.storybook/preview";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { AreaChart } from "./AreaChart";
 import { type LineChartLegend } from "../LineChart/LineChart";
+import { chartColors } from "../constants";
 import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
 import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
 
 const series = [
-  { id: "api", label: "API", color: "#3a3dee" },
-  { id: "worker", label: "Worker", color: "#07b9d5" },
+  { id: "api", label: "API", color: chartColors[0] },
+  { id: "worker", label: "Worker", color: chartColors[1] },
 ];
 
 const data = Array.from({ length: 14 }, (_, index) => ({
@@ -293,11 +294,11 @@ export const OverlappingAreas = meta.story({
     await expect(stops).toHaveLength(4);
     await expect(stops[0]).toHaveAttribute(
       "stop-color",
-      "color-mix(in srgb, #3a3dee 75%, hsl(var(--background)))",
+      `color-mix(in srgb, ${chartColors[0]} 75%, hsl(var(--background)))`,
     );
     await expect(stops[2]).toHaveAttribute(
       "stop-color",
-      "color-mix(in srgb, #07b9d5 75%, hsl(var(--background)))",
+      `color-mix(in srgb, ${chartColors[1]} 75%, hsl(var(--background)))`,
     );
     for (const fill of fills) {
       await expect(fill).not.toHaveAttribute("fill-opacity");
@@ -310,11 +311,11 @@ export const OverlappingAreas = meta.story({
     await userEvent.hover(hoverArea);
     await expect(stops[0]).toHaveAttribute(
       "stop-color",
-      "color-mix(in srgb, #3a3dee 75%, hsl(var(--background)))",
+      `color-mix(in srgb, ${chartColors[0]} 75%, hsl(var(--background)))`,
     );
     await expect(stops[2]).toHaveAttribute(
       "stop-color",
-      "color-mix(in srgb, #07b9d5 75%, hsl(var(--background)))",
+      `color-mix(in srgb, ${chartColors[1]} 75%, hsl(var(--background)))`,
     );
     for (const stroke of canvasElement.querySelectorAll('path[stroke^="#"]')) {
       await expect(stroke).toHaveAttribute("stroke-width", "2");
@@ -401,11 +402,15 @@ export const WithLegend = meta.story({
       canvas.getByRole("button", { name: "Show API" }),
     ).toHaveAttribute("aria-pressed", "false");
     await expect(
-      canvasElement.querySelector('linearGradient stop[stop-color*="#3a3dee"]'),
+      canvasElement.querySelector(
+        `linearGradient stop[stop-color*="${chartColors[0]}"]`,
+      ),
     ).not.toBeInTheDocument();
     await userEvent.click(canvas.getByRole("button", { name: "Show API" }));
     await expect(
-      canvasElement.querySelector('linearGradient stop[stop-color*="#3a3dee"]'),
+      canvasElement.querySelector(
+        `linearGradient stop[stop-color*="${chartColors[0]}"]`,
+      ),
     ).toBeInTheDocument();
   },
 });
@@ -429,10 +434,12 @@ export const HighlightLegend = meta.story({
       canvas.getByRole("button", { name: "Show all series" }),
     ).toHaveAttribute("aria-pressed", "true");
     await expect(
-      canvasElement.querySelector('linearGradient stop[stop-color*="#07b9d5"]'),
+      canvasElement.querySelector(
+        `linearGradient stop[stop-color*="${chartColors[1]}"]`,
+      ),
     ).toHaveAttribute(
       "stop-color",
-      "color-mix(in srgb, #07b9d5 15%, hsl(var(--background)))",
+      `color-mix(in srgb, ${chartColors[1]} 15%, hsl(var(--background)))`,
     );
   },
 });

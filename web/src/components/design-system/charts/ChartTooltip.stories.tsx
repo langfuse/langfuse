@@ -3,6 +3,7 @@ import preview from "../../../../.storybook/preview";
 import { expect, spyOn, userEvent, within } from "storybook/test";
 
 import { ChartTooltip } from "../internal/charts/ChartTooltip";
+import { chartColors, toChartFill } from "./constants";
 
 type ChartTooltipController = Parameters<
   ComponentProps<typeof ChartTooltip>["children"]
@@ -27,7 +28,11 @@ function ChartTooltipDemo({ data }: ChartTooltipDemoProps) {
             width="240"
             height="120"
             rx="12"
-            fill={activeIndex === data.index ? "#6366f1" : "#a5b4fc"}
+            fill={
+              activeIndex === data.index
+                ? chartColors[0]
+                : toChartFill(chartColors[0])
+            }
             className="outline-hidden focus-visible:outline-2 focus-visible:outline-offset-2"
             role="graphics-symbol"
             tabIndex={0}
@@ -51,8 +56,8 @@ const itemsData: ChartTooltipDemoProps["data"] = {
   index: 0,
   anchor: { type: "element" },
   items: [
-    { id: "api", label: "API", value: "$18.42", color: "#6366f1" },
-    { id: "worker", label: "Worker", value: "$12.08", color: "#06b6d4" },
+    { id: "api", label: "API", value: "$18.42", color: chartColors[0] },
+    { id: "worker", label: "Worker", value: "$12.08", color: chartColors[1] },
   ],
 };
 
@@ -108,8 +113,8 @@ export const WithHeading = meta.story({
       anchor: { type: "element" },
       heading: "September 22, 2026",
       items: [
-        { id: "api", label: "API", value: "1,240", color: "#6366f1" },
-        { id: "worker", label: "Worker", value: "830", color: "#06b6d4" },
+        { id: "api", label: "API", value: "1,240", color: chartColors[0] },
+        { id: "worker", label: "Worker", value: "830", color: chartColors[1] },
       ],
     },
   },
@@ -132,19 +137,19 @@ export const Emphasis = meta.story({
           id: "emphasized",
           label: "Emphasized",
           value: "82",
-          color: "#6366f1",
+          color: chartColors[0],
         },
         {
           id: "dimmed-a",
           label: "Dimmed",
           value: "12",
-          color: "#f59e0b",
+          color: chartColors[1],
         },
         {
           id: "dimmed-b",
           label: "Also dimmed",
           value: "8",
-          color: "#06b6d4",
+          color: chartColors[2],
         },
       ],
     },
@@ -166,7 +171,7 @@ export const Primary = meta.story({
       anchor: { type: "element" },
       label: "Claude Sonnet",
       value: "31 (31%)",
-      color: "#6366f1",
+      color: chartColors[0],
     },
   },
   play: async ({ canvasElement }) => {
@@ -189,7 +194,7 @@ export const PrimaryWithDetails = meta.story({
       heading: "Other",
       label: "Combined slices",
       value: "8 (8%)",
-      color: "#6366f1",
+      color: chartColors[0],
       details: [
         { label: "Small model", value: "5 (5%)" },
         { label: "Legacy model", value: "3 (3%)" },
@@ -265,7 +270,7 @@ export const LongContent = meta.story({
           id: "long-model",
           label: "A model name that is intentionally long enough to truncate",
           value: "$1,234,567.890123",
-          color: "#6366f1",
+          color: chartColors[0],
         },
       ],
     },
