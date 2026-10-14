@@ -14,13 +14,20 @@ use crate::transport::identity_encoding;
 /// The rewritten body for a streamed request that did not ask for usage, or
 /// `None` when the original bytes must be forwarded unchanged. Every other
 /// top-level member keeps its original bytes and position.
-pub(super) fn request_stream_usage(headers: &HeaderMap, body: &[u8]) -> Option<Bytes> {
+pub(super) fn request_stream_usage(
+    headers: &HeaderMap,
+    body: &[u8],
+    provider_model: &str,
+) -> Option<Bytes> {
     if !identity_encoding(headers) {
         return None;
     }
     let Members(mut members) = serde_json::from_slice(body).ok()?;
     // Duplicate members are resolved differently by different parsers.
-    if count(&members, "stream") != 1 || count(&members, "stream_options") > 1 {
+    if count(&members, "model") != 1
+        || count(&members, "stream") != 1
+        || count(&members, "stream_options") > 1
+    {
         return None;
     }
     if member(&members, "stream")? != "true" {
@@ -40,6 +47,8 @@ pub(super) fn request_stream_usage(headers: &HeaderMap, body: &[u8]) -> Option<B
     let mut options = options;
     options.insert("include_usage".to_owned(), Value::Bool(true));
     let options = RawValue::from_string(Value::Object(options).to_string()).ok()?;
+    let model = RawValue::from_string(serde_json::to_string(provider_model).ok()?).ok()?;
+    members.iter_mut().find(|(key, _)| key == "model")?.1 = model;
     match members.iter_mut().find(|(key, _)| key == "stream_options") {
         Some((_, raw)) => *raw = options,
         None => members.push(("stream_options".to_owned(), options)),
@@ -98,7 +107,7 @@ mod tests {
     use axum::http::{HeaderValue, header};
 
     fn rewrite(body: &str) -> Option<String> {
-        request_stream_usage(&HeaderMap::new(), body.as_bytes())
+        request_stream_usage(&HeaderMap::new(), body.as_bytes(), "provider-model")
             .map(|bytes| String::from_utf8(bytes.to_vec()).unwrap())
     }
 
@@ -108,19 +117,21 @@ mod tests {
             rewrite(r#"{"model":"gpt-4.1", "messages":[{"role":"user","content":"1.0e2 \u00e9"}],"stream":true}"#)
                 .as_deref(),
             Some(
-                r#"{"model":"gpt-4.1","messages":[{"role":"user","content":"1.0e2 \u00e9"}],"stream":true,"stream_options":{"include_usage":true}}"#
+                r#"{"model":"provider-model","messages":[{"role":"user","content":"1.0e2 \u00e9"}],"stream":true,"stream_options":{"include_usage":true}}"#
             )
         );
         assert_eq!(
             rewrite(r#"{"stream_options":{"include_obfuscation":false,"include_usage":false},"stream":true,"model":"m"}"#)
                 .as_deref(),
             Some(
-                r#"{"stream_options":{"include_obfuscation":false,"include_usage":true},"stream":true,"model":"m"}"#
+                r#"{"stream_options":{"include_obfuscation":false,"include_usage":true},"stream":true,"model":"provider-model"}"#
             )
         );
         assert_eq!(
-            rewrite(r#"{"stream":true,"stream_options":null}"#).as_deref(),
-            Some(r#"{"stream":true,"stream_options":{"include_usage":true}}"#)
+            rewrite(r#"{"model":"m","stream":true,"stream_options":null}"#).as_deref(),
+            Some(
+                r#"{"model":"provider-model","stream":true,"stream_options":{"include_usage":true}}"#
+            )
         );
     }
 
@@ -142,6 +153,13 @@ mod tests {
         }
         let mut encoded = HeaderMap::new();
         encoded.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
-        assert!(request_stream_usage(&encoded, br#"{"stream":true}"#).is_none());
+        assert!(
+            request_stream_usage(
+                &encoded,
+                br#"{"model":"m","stream":true}"#,
+                "provider-model"
+            )
+            .is_none()
+        );
     }
 }

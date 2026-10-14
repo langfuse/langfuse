@@ -200,6 +200,7 @@ has no unattributed wall time:
 
 | Span | Covers |
 | --- | --- |
+| `authentication` | The credential-only `resolver` Web call made before reading the request body |
 | `resolution` | Resolution admission, the `resolver` Web call, and execution admission; `gateway.outcome` is `admitted`, `resolution_failed`, or `busy` |
 | `request.body` | Buffering the caller's request body, mostly upload time; `http.request.body.size` |
 | `request.capture` | Parsing the request for inference telemetry; CPU-bound and proportional to `http.request.body.size` |
@@ -371,14 +372,15 @@ error type follows the status (`authentication_error`, `permission_error`,
 `not_found_error`, `request_too_large`, `invalid_request_error`, `overloaded_error`,
 `api_error`).
 
-After validating the credential header, the gateway buffers and validates the
-request under a request-body admission budget, resolves the credential through Web
-under a separate budget, and holds the body slot until execution is admitted. Model
-catalogs use another budget so slow catalog discovery cannot block inference
-resolution. Execution capacity remains reserved through response completion. An
-exhausted budget returns 503 immediately without a waiting queue. Request-body,
-model-catalog, and Web-resolution budgets share one configurable size; execution
-capacity is configured independently. Their defaults of 128 are provisional
+After validating the credential header, the gateway authenticates it through Web
+before reading the body. It then buffers and validates the request under a
+request-body admission budget, resolves the model-aware route through Web under a
+separate budget, and holds the body slot through the provider request. Model catalogs
+use another budget so slow catalog discovery cannot block inference resolution.
+Execution capacity remains reserved through response completion. An exhausted budget
+returns 503 immediately without a waiting queue. Request-body and execution budgets
+use the active-request limit; model-catalog and Web-call budgets use the resolution
+limit. Their defaults of 128 are provisional
 guardrails, not measured capacity: tune them using load tests for the instance
 resources, request sizes and stream durations. These limits bound work; they do not
 guarantee fairness between clients or tenants.
@@ -820,15 +822,22 @@ async fn example(web_base_url: &str, service_key: &str, gateway_key: &str)
     -> Result<(), ResolutionError>
 {
     let control_plane = ControlPlaneClient::new(ControlPlaneConfig::new(web_base_url, service_key)?)?;
-    let context = control_plane.resolve(gateway_key, ApiFormat::OpenAiResponses).await?;
+    let request_id = "018f47a2-4d6e-7a61-b495-5e5f665c1e12";
+    control_plane.authenticate(gateway_key, ApiFormat::OpenAiResponses, request_id).await?;
+    let context = control_plane
+        .resolve(gateway_key, ApiFormat::OpenAiResponses, "gpt-4.1", request_id)
+        .await?;
     assert_eq!(context.connection().base_url(), "https://api.openai.com/v1");
     Ok(())
 }
 ```
 
-Each call sends `POST <base path>/api/internal/ai-gateway/v1/resolve` with
+Before body processing, inference sends
+`GET <base path>/api/internal/ai-gateway/v1/authenticate?api_format=<format>`.
+After extracting the model it sends
+`POST <base path>/api/internal/ai-gateway/v1/resolve` with
 `Authorization: Bearer <gateway key>`, the Web v1 HMAC header, and exactly
-`{"apiFormat":"<format>"}`, where the format is the one the public route serves
+`{"apiFormat":"<format>","model":"<model>"}`, where the format is the one the public route serves
 (`openai.chat-completions` for `/openai/v1/chat/completions`, `openai.responses` for
 the other `/openai/v1` routes). The client neither receives nor
 parses an inference request body. Reuse the resolver across requests: its connection
@@ -898,7 +907,7 @@ cargo test --locked
 - `http.rs`: credential extraction, bounded body reads and gateway error envelopes.
 - `inference.rs`: `InferenceService` coordinates resolution, admission and forwarding.
 - `providers/mod.rs`: `ProviderTransport` with shared admission, the `Route` enum of
-  official operations (method, upstream path, capture, forwarded query) and credential
+  official operations (method, upstream path and capture), model rewriting and credential
   placement.
 - `providers/model_list`: provider-native OpenAI and Anthropic model catalog responses.
 - `transport/mod.rs`: per-format header policies, bounded byte relay and response lifetime.

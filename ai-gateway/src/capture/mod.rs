@@ -82,14 +82,6 @@ impl ProtocolCapture {
         }
     }
 
-    fn requested_model(&self) -> Option<&str> {
-        match self {
-            Self::OpenAiResponses(capture) => capture.requested_model(),
-            Self::OpenAiChatCompletions(capture) => capture.requested_model(),
-            Self::AnthropicMessages(capture) => capture.requested_model(),
-        }
-    }
-
     fn client_metadata(&self) -> Option<&Map<String, Value>> {
         match self {
             Self::OpenAiResponses(capture) => capture.client_metadata(),
@@ -206,13 +198,6 @@ impl ExecutionCapture {
             self.metadata["client_request_id"] = json!(client_id);
         }
         self.delivery = Some((telemetry, delivery));
-    }
-
-    /// The request's `model`, if the capture could parse it.
-    pub fn requested_model(&self) -> Option<&str> {
-        self.protocol
-            .as_ref()
-            .and_then(ProtocolCapture::requested_model)
     }
 
     pub fn set_provider_model(&mut self, model: &str) {

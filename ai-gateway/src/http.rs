@@ -1,4 +1,4 @@
-use std::{error::Error, sync::Arc, time::Duration};
+use std::{error::Error, ops::Range, sync::Arc, time::Duration};
 
 use axum::{
     Json, Router,
@@ -9,6 +9,7 @@ use axum::{
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
+use serde_json::value::RawValue;
 use tracing::Instrument;
 
 use crate::{
@@ -181,67 +182,77 @@ async fn relay(
     correlation: &mut RequestCorrelation,
 ) -> Result<Response, InferenceHttpError> {
     // Model extraction and upstream rewriting require an uncompressed JSON body.
-    if route.requires_model_rewrite() && !crate::transport::identity_encoding(request.headers()) {
+    if !crate::transport::identity_encoding(request.headers()) {
         return Err(InferenceHttpError::UnsupportedEncoding);
     }
-    let body_permit = route
-        .requires_model_rewrite()
-        .then(|| inference.try_reserve_request_body())
-        .transpose()
+    inference
+        .authenticate(gateway_key, route.api_format(), correlation)
+        .await
+        .map_err(InferenceHttpError::Resolution)?;
+    let _body_permit = inference
+        .try_reserve_request_body()
         .map_err(InferenceHttpError::from)?;
     let (parts, body) = request.into_parts();
-    let (bytes, model) = request_body_and_model(route, body).await?;
-    let resolution_permit = inference
-        .try_reserve_resolution()
-        .map_err(InferenceHttpError::Resolution)?;
+    let request_body = request_body_and_model(body).await?;
     let (permit, context) = inference
         .resolve_and_admit(
-            resolution_permit,
             gateway_key,
             route.api_format(),
-            model.as_deref(),
+            &request_body.model,
             correlation,
         )
         .await
         .map_err(InferenceHttpError::from)?;
-    drop(body_permit);
     inference
         .forward(
             permit,
             context,
             &parts.headers,
-            bytes,
+            request_body.bytes,
+            request_body.model_range,
             route,
-            None,
             correlation,
         )
         .await
         .map_err(InferenceHttpError::Provider)
 }
 
-#[derive(Deserialize)]
-struct InferenceRequest {
+struct InferenceRequestBody {
+    bytes: Bytes,
     model: String,
+    model_range: Range<usize>,
 }
 
-async fn request_body_and_model(
-    route: Route,
-    body: Body,
-) -> Result<(Bytes, Option<String>), InferenceHttpError> {
-    if !route.requires_model_rewrite() {
-        return Ok((Bytes::new(), None));
-    }
+#[derive(Deserialize)]
+struct InferenceRequest<'a> {
+    #[serde(borrow)]
+    model: &'a RawValue,
+}
+
+async fn request_body_and_model(body: Body) -> Result<InferenceRequestBody, InferenceHttpError> {
     let bytes = read_request_body(body).await?;
-    let model = request_model(&bytes)?;
-    Ok((bytes, Some(model)))
-}
-
-fn request_model(body: &[u8]) -> Result<String, InferenceHttpError> {
-    serde_json::from_slice::<InferenceRequest>(body)
-        .ok()
-        .map(|request| request.model)
-        .filter(|model| !model.is_empty())
-        .ok_or(InferenceHttpError::InvalidBody)
+    let request = serde_json::from_slice::<InferenceRequest<'_>>(&bytes)
+        .map_err(|_| InferenceHttpError::InvalidBody)?;
+    let raw_model = request.model.get();
+    let model =
+        serde_json::from_str::<String>(raw_model).map_err(|_| InferenceHttpError::InvalidBody)?;
+    if model.is_empty() {
+        return Err(InferenceHttpError::InvalidBody);
+    }
+    let start = raw_model
+        .as_ptr()
+        .addr()
+        .checked_sub(bytes.as_ptr().addr())
+        .ok_or(InferenceHttpError::InvalidBody)?;
+    let end = start
+        .checked_add(raw_model.len())
+        .filter(|end| *end <= bytes.len())
+        .ok_or(InferenceHttpError::InvalidBody)?;
+    Ok(InferenceRequestBody {
+        bytes,
+        model,
+        model_range: start..end,
+    })
 }
 
 /// Buffer the client body. The wait is mostly the caller's upload, so it gets its

@@ -18,6 +18,7 @@ use std::{
 };
 
 const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
+const AUTHENTICATE_PATH: &str = "/api/internal/ai-gateway/v1/authenticate";
 const MODELS_PATH: &str = "/api/internal/ai-gateway/v1/models";
 const REQUEST_ID_HEADER: &str = "langfuse-gateway-request-id";
 // Web sits behind load balancers that drop idle connections after 60s by default
@@ -133,7 +134,7 @@ impl ControlPlaneClient {
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
-        model: Option<&str>,
+        model: &str,
         request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
         let timestamp = SystemTime::now()
@@ -141,6 +142,34 @@ impl ControlPlaneClient {
             .map_err(|_| ResolutionError::Unavailable)?;
         self.resolve_at(gateway_key, api_format, model, timestamp, request_id)
             .await
+    }
+
+    /// Authenticate a gateway credential before the caller's request body is read.
+    ///
+    /// # Errors
+    /// Returns the same sanitized authentication and transport errors as [`Self::resolve`].
+    pub async fn authenticate(
+        &self,
+        gateway_key: &str,
+        api_format: ApiFormat,
+        request_id: &str,
+    ) -> Result<(), ResolutionError> {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| ResolutionError::Unavailable)?;
+        let mut endpoint = self.config.endpoint(AUTHENTICATE_PATH);
+        endpoint
+            .query_pairs_mut()
+            .append_pair("api_format", api_format.as_str());
+        let request = self.authenticated_request(
+            Method::GET,
+            endpoint,
+            gateway_key,
+            timestamp.as_secs(),
+            request_id,
+        )?;
+        self.execute(request, self.config.resolve_limits).await?;
+        Ok(())
     }
 
     /// Fetch the caller-visible model catalog from trusted Web.
@@ -174,18 +203,15 @@ impl ControlPlaneClient {
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
-        model: Option<&str>,
+        model: &str,
         timestamp: Duration,
         request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
         let started = Instant::now();
-        let body = match model {
-            Some(model) => serde_json::to_vec(&serde_json::json!({
-                "apiFormat": api_format,
-                "model": model,
-            })),
-            None => serde_json::to_vec(&serde_json::json!({ "apiFormat": api_format })),
-        }
+        let body = serde_json::to_vec(&serde_json::json!({
+            "apiFormat": api_format,
+            "model": model,
+        }))
         .map_err(|_| ResolutionError::Configuration)?;
         let request = self
             .authenticated_request(

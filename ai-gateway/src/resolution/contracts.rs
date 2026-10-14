@@ -153,8 +153,7 @@ pub struct ProviderConnection {
     name: Option<String>,
     #[serde(deserialize_with = "string_enum")]
     provider: Provider,
-    #[serde(default)]
-    provider_model: Option<String>,
+    provider_model: String,
     #[serde(deserialize_with = "string_enum")]
     api_format: ApiFormat,
     base_url: String,
@@ -172,8 +171,8 @@ impl ProviderConnection {
     pub fn provider(&self) -> Provider {
         self.provider
     }
-    pub fn provider_model(&self) -> Option<&str> {
-        self.provider_model.as_deref()
+    pub fn provider_model(&self) -> &str {
+        &self.provider_model
     }
     pub fn api_format(&self) -> ApiFormat {
         self.api_format
@@ -329,10 +328,7 @@ pub(super) fn decode(
         ]
         .iter()
         .any(|value| value.trim().is_empty())
-        || connection
-            .provider_model
-            .as_deref()
-            .is_some_and(|model| model.trim().is_empty())
+        || connection.provider_model.trim().is_empty()
     {
         return Err(ResolutionError::InvalidResponse);
     }

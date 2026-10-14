@@ -1,4 +1,6 @@
 //! Resolve the caller's credential, then execute using only the trusted context.
+use std::ops::Range;
+
 use axum::{
     body::{Body, Bytes},
     http::{HeaderMap, Response},
@@ -28,10 +30,6 @@ pub(crate) enum RequestPreparationError {
     Provider(ProviderError),
 }
 
-pub(crate) struct ResolutionPermit<'a> {
-    _permit: SemaphorePermit<'a>,
-}
-
 pub(crate) struct RequestBodyPermit<'a> {
     _permit: SemaphorePermit<'a>,
 }
@@ -56,7 +54,7 @@ impl InferenceService {
             provider: ProviderTransport::new(max_active_requests)
                 .map_err(|_| ResolutionError::Configuration)?
                 .with_telemetry(telemetry.clone()),
-            request_body_capacity: Semaphore::new(max_concurrent_resolutions),
+            request_body_capacity: Semaphore::new(max_active_requests),
             model_catalog_capacity: Semaphore::new(max_concurrent_resolutions),
             resolution_capacity: Semaphore::new(max_concurrent_resolutions),
             telemetry: Some(telemetry),
@@ -67,12 +65,11 @@ impl InferenceService {
         self.telemetry.clone()
     }
 
-    pub(crate) fn try_reserve_resolution(&self) -> Result<ResolutionPermit<'_>, ResolutionError> {
-        let permit = self.resolution_capacity.try_acquire().map_err(|_| {
+    fn try_reserve_resolution(&self) -> Result<SemaphorePermit<'_>, ResolutionError> {
+        self.resolution_capacity.try_acquire().map_err(|_| {
             crate::observability::rejected("resolution");
             ResolutionError::Unavailable
-        })?;
-        Ok(ResolutionPermit { _permit: permit })
+        })
     }
 
     pub(crate) fn try_reserve_request_body(
@@ -103,15 +100,32 @@ impl InferenceService {
         crate::providers::model_list::provider_response(&body, api_format)
     }
 
+    pub(crate) async fn authenticate(
+        &self,
+        gateway_key: &str,
+        api_format: ApiFormat,
+        correlation: &RequestCorrelation,
+    ) -> Result<(), ResolutionError> {
+        let span = tracing::info_span!("authentication", otel.kind = "internal");
+        async {
+            let _permit = self.try_reserve_resolution()?;
+            let _active = crate::observability::Active::new("resolution");
+            self.control_plane
+                .authenticate(gateway_key, api_format, correlation.id())
+                .await
+        }
+        .instrument(span)
+        .await
+    }
+
     /// Authenticate, then reserve execution capacity. The API format comes from the public route,
     /// so Web selects a compatible connection. A successful resolution is recorded even if
     /// execution admission then fails.
     pub(crate) async fn resolve_and_admit(
         &self,
-        resolution_permit: ResolutionPermit<'_>,
         gateway_key: &str,
         api_format: ApiFormat,
-        model: Option<&str>,
+        model: &str,
         correlation: &mut RequestCorrelation,
     ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
         let span = tracing::info_span!(
@@ -121,13 +135,7 @@ impl InferenceService {
         );
         async {
             let prepared = self
-                .prepare(
-                    resolution_permit,
-                    gateway_key,
-                    api_format,
-                    model,
-                    correlation,
-                )
+                .prepare(gateway_key, api_format, model, correlation)
                 .await;
             tracing::Span::current().record(
                 "gateway.outcome",
@@ -145,12 +153,14 @@ impl InferenceService {
 
     async fn prepare(
         &self,
-        resolution_permit: ResolutionPermit<'_>,
         gateway_key: &str,
         api_format: ApiFormat,
-        model: Option<&str>,
+        model: &str,
         correlation: &mut RequestCorrelation,
     ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
+        let resolution_permit = self
+            .try_reserve_resolution()
+            .map_err(RequestPreparationError::Resolution)?;
         let context = {
             let _active = crate::observability::Active::new("resolution");
             self.control_plane
@@ -177,12 +187,20 @@ impl InferenceService {
         context: ResolvedRequestContext,
         headers: &HeaderMap,
         body: Bytes,
+        model_range: Range<usize>,
         route: Route,
-        query: Option<&str>,
         correlation: &mut RequestCorrelation,
     ) -> Result<Response<Body>, ProviderError> {
         self.provider
-            .forward_route(permit, context, headers, body, route, query, correlation)
+            .forward_route(
+                permit,
+                context,
+                headers,
+                body,
+                model_range,
+                route,
+                correlation,
+            )
             .await
     }
 

@@ -1,13 +1,12 @@
 mod chat_completions;
 pub(crate) mod model_list;
 
-use std::{convert::Infallible, sync::Arc, time::Duration};
+use std::{ops::Range, sync::Arc, time::Duration};
 
 use axum::{
     body::{Body, Bytes},
     http::{HeaderMap, HeaderName, HeaderValue, Response, header},
 };
-use futures_util::stream;
 use reqwest::Client;
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_tracing::DisableOtelPropagation;
@@ -51,17 +50,6 @@ impl Route {
                 Provider::Anthropic => ApiFormat::AnthropicMessages,
             },
         }
-    }
-
-    pub(crate) fn requires_model_rewrite(self) -> bool {
-        matches!(
-            self,
-            Self::OpenAiResponses
-                | Self::OpenAiResponsesCompact
-                | Self::OpenAiChatCompletions
-                | Self::AnthropicMessages
-                | Self::AnthropicCountTokens
-        )
     }
 
     fn path(self) -> &'static str {
@@ -174,6 +162,7 @@ impl ProviderTransport {
 
     /// # Errors
     /// See [`Self::forward_route`].
+    #[cfg(test)]
     pub async fn forward(
         &self,
         permit: RequestPermit,
@@ -181,13 +170,14 @@ impl ProviderTransport {
         headers: &HeaderMap,
         body: Bytes,
     ) -> Result<Response<Body>, ProviderError> {
+        let model_range = model_range(&body)?;
         self.forward_route(
             permit,
             context,
             headers,
             body,
+            model_range,
             Route::OpenAiResponses,
-            None,
             &mut RequestCorrelation::from_headers(headers),
         )
         .await
@@ -203,17 +193,14 @@ impl ProviderTransport {
         context: ResolvedRequestContext,
         headers: &HeaderMap,
         body: Bytes,
+        model_range: Range<usize>,
         route: Route,
-        query: Option<&str>,
         correlation: &mut RequestCorrelation,
     ) -> Result<Response<Body>, ProviderError> {
         let api_format = route.api_format();
         let (credential_name, mut credential) = provider_credential(&context)?;
         credential.set_sensitive(true);
         let provider_model = context.connection().provider_model();
-        if route.requires_model_rewrite() && provider_model.is_none() {
-            return Err(ProviderError::Configuration);
-        }
         let mut capture = if route.captures_generation() {
             let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
             if let Some(telemetry) = &self.telemetry {
@@ -226,34 +213,24 @@ impl ProviderTransport {
         // Capture the caller's body shape, but keep upstream-only changes out of the input.
         let body = match route {
             Route::OpenAiChatCompletions => {
-                chat_completions::request_stream_usage(headers, &body).unwrap_or(body)
+                chat_completions::request_stream_usage(headers, &body, provider_model)
+                    .map_or_else(|| rewrite_model(body, model_range, provider_model), Ok)?
             }
-            _ => body,
+            _ => rewrite_model(body, model_range, provider_model)?,
         };
-        let body = if let (true, Some(provider_model)) =
-            (route.requires_model_rewrite(), provider_model)
-        {
-            capture.set_provider_model(provider_model);
-            ProviderRequestBody::with_rewritten_model(body, provider_model)
-        } else {
-            ProviderRequestBody::Contiguous(body)
-        };
-        let model = capture
-            .requested_model()
-            .and_then(|_| provider_model.map(str::to_owned));
-        correlation.record_upstream(UpstreamTarget::for_connection(context.connection(), model));
+        capture.set_provider_model(provider_model);
+        correlation.record_upstream(UpstreamTarget::for_connection(
+            context.connection(),
+            Some(provider_model.to_owned()),
+        ));
         let mut upstream = self
             .client
-            .post(self.request_url(route, query))
+            .post(self.request_url(route))
             .with_extension(DisableOtelPropagation)
             .headers(transport::request_headers(headers, api_format))
             .header(header::ACCEPT_ENCODING, "identity")
             .header(credential_name, credential);
-        if route.requires_model_rewrite() {
-            upstream = upstream
-                .header(header::CONTENT_LENGTH, body.len())
-                .body(body.into_reqwest());
-        }
+        upstream = upstream.body(body);
         let response = tokio::time::timeout_at(
             permit
                 .deadline
@@ -294,7 +271,7 @@ impl ProviderTransport {
         Ok(downstream)
     }
 
-    fn request_url(&self, route: Route, query: Option<&str>) -> String {
+    fn request_url(&self, route: Route) -> String {
         let base = self
             .origin_override
             .as_deref()
@@ -303,10 +280,6 @@ impl ProviderTransport {
         let mut url = String::with_capacity(base.len() + route.path().len());
         url.push_str(base);
         url.push_str(route.path());
-        if let Some(query) = query.filter(|query| !query.is_empty()) {
-            url.push('?');
-            url.push_str(query);
-        }
         url
     }
 
@@ -318,76 +291,44 @@ impl ProviderTransport {
     }
 }
 
-enum ProviderRequestBody {
-    Contiguous(Bytes),
-    Segmented([Bytes; 3]),
+fn rewrite_model(
+    body: Bytes,
+    model_range: Range<usize>,
+    provider_model: &str,
+) -> Result<Bytes, ProviderError> {
+    if model_range.start > model_range.end || model_range.end > body.len() {
+        return Err(ProviderError::Configuration);
+    }
+    let model = serde_json::to_vec(provider_model).map_err(|_| ProviderError::Configuration)?;
+    let capacity = body.len() - model_range.len() + model.len();
+    let mut rewritten = Vec::with_capacity(capacity);
+    rewritten.extend_from_slice(&body[..model_range.start]);
+    rewritten.extend_from_slice(&model);
+    rewritten.extend_from_slice(&body[model_range.end..]);
+    Ok(Bytes::from(rewritten))
 }
 
-impl ProviderRequestBody {
-    fn with_rewritten_model(body: Bytes, provider_model: &str) -> Self {
-        let (start, end) = {
-            // Borrow the raw top-level value so its slice still points into `body`.
-            // Re-serializing the full request can reorder nested schema properties and
-            // normalize otherwise untouched caller JSON.
-            let Ok(request) = serde_json::from_slice::<ModelMember<'_>>(&body) else {
-                // The HTTP layer validates `model` before forwarding. Preserve the
-                // original bytes if this helper still receives an unexpected body.
-                return Self::Contiguous(body);
-            };
-            let model = request.model.get();
-            // Convert the borrowed value's position into indexes for a surgical
-            // replacement, with bounds checks before slicing the original body.
-            let Some(start) = (model.as_ptr() as usize).checked_sub(body.as_ptr() as usize) else {
-                return Self::Contiguous(body);
-            };
-            let end = start.saturating_add(model.len());
-            if end > body.len() {
-                return Self::Contiguous(body);
-            }
-            (start, end)
-        };
-        let Ok(model) = serde_json::to_vec(provider_model) else {
-            return Self::Contiguous(body);
-        };
-        Self::Segmented([body.slice(..start), Bytes::from(model), body.slice(end..)])
+#[cfg(test)]
+pub(crate) fn model_range(body: &[u8]) -> Result<Range<usize>, ProviderError> {
+    #[derive(serde::Deserialize)]
+    struct ModelMember<'a> {
+        #[serde(borrow)]
+        model: &'a serde_json::value::RawValue,
     }
 
-    fn into_reqwest(self) -> reqwest::Body {
-        match self {
-            Self::Contiguous(body) => body.into(),
-            Self::Segmented(segments) => reqwest::Body::wrap_stream(stream::iter(
-                segments.into_iter().map(Ok::<_, Infallible>),
-            )),
-        }
-    }
-
-    fn len(&self) -> usize {
-        match self {
-            Self::Contiguous(body) => body.len(),
-            Self::Segmented(segments) => segments.iter().map(Bytes::len).sum(),
-        }
-    }
-
-    #[cfg(test)]
-    fn into_bytes(self) -> Bytes {
-        match self {
-            Self::Contiguous(body) => body,
-            Self::Segmented(segments) => {
-                let capacity = segments.iter().map(Bytes::len).sum();
-                let mut body = Vec::with_capacity(capacity);
-                for segment in segments {
-                    body.extend_from_slice(&segment);
-                }
-                Bytes::from(body)
-            }
-        }
-    }
-}
-
-#[derive(serde::Deserialize)]
-struct ModelMember<'a> {
-    #[serde(borrow)]
-    model: &'a serde_json::value::RawValue,
+    let request = serde_json::from_slice::<ModelMember<'_>>(body)
+        .map_err(|_| ProviderError::Configuration)?;
+    let model = request.model.get();
+    let start = model
+        .as_ptr()
+        .addr()
+        .checked_sub(body.as_ptr().addr())
+        .ok_or(ProviderError::Configuration)?;
+    let end = start
+        .checked_add(model.len())
+        .filter(|end| *end <= body.len())
+        .ok_or(ProviderError::Configuration)?;
+    Ok(start..end)
 }
 
 fn provider_credential(

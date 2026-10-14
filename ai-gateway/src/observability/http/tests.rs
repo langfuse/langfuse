@@ -205,7 +205,7 @@ async fn provider_http_errors_are_traced_without_changing_the_response() {
                 provider.try_admit().unwrap(),
                 context,
                 &HeaderMap::new(),
-                Bytes::from_static(b"{}"),
+                Bytes::from_static(br#"{"model":"requested"}"#),
             )
             .await
             .unwrap();
@@ -248,6 +248,9 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
     let web = FakeServer::start(move |request| {
         let web_calls = web_calls.clone();
         async move {
+            if request.uri().path() == "/api/internal/ai-gateway/v1/authenticate" {
+                return Response::new(Body::from("{}"));
+            }
             let (parts, body) = request.into_parts();
             let bytes = axum::body::to_bytes(body, 64 * 1024).await.unwrap();
             let ingestion = parts.uri.path() == "/api/public/otel/v1/traces";
@@ -330,7 +333,20 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
     let observed = observed.lock().unwrap();
     assert_eq!(observed.len(), 3);
     for (name, headers, payload) in &*observed {
-        let child = spans.iter().find(|span| span.name == *name).unwrap();
+        let child = spans
+            .iter()
+            .find(|span| {
+                span.name == *name
+                    && (*name != "resolver"
+                        || span.parent_span_id
+                            == spans
+                                .iter()
+                                .find(|span| span.name == "resolution")
+                                .unwrap()
+                                .span_context
+                                .span_id())
+            })
+            .unwrap();
         assert_outbound_context(headers, (*name != "provider.headers").then_some(child));
         if *name == "ingestion" {
             assert_generation_context(payload);
@@ -346,10 +362,10 @@ type SpanData = opentelemetry_sdk::trace::SpanData;
 /// ingestion runs in its own trace, linked back to each request it carries.
 fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
     let named = |name: &str| spans.iter().find(|span| span.name == name).unwrap();
-    assert_eq!(spans.len(), 9);
+    assert_eq!(spans.len(), 11);
     for (name, parent) in [
+        ("authentication", server),
         ("resolution", server),
-        ("resolver", named("resolution")),
         ("request.body", server),
         ("request.capture", server),
         ("provider.headers", server),
@@ -368,6 +384,18 @@ fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
             "{name}"
         );
     }
+    let resolver_parents = spans
+        .iter()
+        .filter(|span| span.name == "resolver")
+        .map(|span| span.parent_span_id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        resolver_parents,
+        [
+            named("authentication").span_context.span_id(),
+            named("resolution").span_context.span_id(),
+        ]
+    );
     let batch = named("telemetry.batch");
     assert_eq!(batch.parent_span_id, opentelemetry::trace::SpanId::INVALID);
     assert_ne!(

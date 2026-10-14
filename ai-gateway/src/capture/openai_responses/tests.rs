@@ -529,7 +529,7 @@ async fn upstream_read_timeout_is_logged_as_timeout() {
             provider.try_admit().unwrap(),
             context,
             &HeaderMap::new(),
-            Bytes::from_static(b"{}"),
+            Bytes::from_static(br#"{"model":"requested"}"#),
         )
         .await
         .unwrap();
@@ -584,7 +584,7 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
                 provider.try_admit().unwrap(),
                 context,
                 &HeaderMap::new(),
-                Bytes::from_static(br#"{"input":"request-content"}"#),
+                Bytes::from_static(br#"{"model":"requested","input":"request-content"}"#),
             )
             .await
             .unwrap();
@@ -648,7 +648,7 @@ async fn provider_future_finalizes_on_timeout_and_cancellation_before_headers() 
             provider.try_admit().unwrap(),
             context,
             &headers,
-            Bytes::from_static(b"{}"),
+            Bytes::from_static(br#"{"model":"requested"}"#),
         );
         if cancel {
             tokio::select! {
@@ -745,7 +745,9 @@ async fn client_compression_preferences_do_not_disable_capture() {
                 provider.try_admit().unwrap(),
                 context,
                 &headers,
-                Bytes::from(json!({"input":"hello","stream":streaming}).to_string()),
+                Bytes::from(
+                    json!({"model":"requested","input":"hello","stream":streaming}).to_string(),
+                ),
             )
             .await
             .unwrap();

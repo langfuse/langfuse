@@ -44,48 +44,54 @@ fn model_rewrite_changes_only_the_top_level_model_bytes() {
     let expected = Bytes::from_static(
         br#"{ "z": {"second":2, "first":1}, "model" : "provider-model", "number": 1.0e2, "escaped":"\u00e9" }"#,
     );
+    let model_range = model_range(&original).unwrap();
     assert_eq!(
-        ProviderRequestBody::with_rewritten_model(original, "provider-model").into_bytes(),
+        rewrite_model(original, model_range, "provider-model").unwrap(),
         expected
     );
 }
 
 #[test]
-fn model_rewrite_preserves_bodies_without_a_valid_top_level_model() {
+fn model_rewrite_fails_closed_for_an_invalid_model_range() {
     let missing = Bytes::from_static(br#"{"input":{"model":"nested-model"}}"#);
-    assert_eq!(
-        ProviderRequestBody::with_rewritten_model(missing.clone(), "provider-model").into_bytes(),
-        missing
-    );
-
-    let malformed = Bytes::from_static(br#"{"model":"unterminated}"#);
-    assert_eq!(
-        ProviderRequestBody::with_rewritten_model(malformed.clone(), "provider-model").into_bytes(),
-        malformed
-    );
-}
-
-#[test]
-fn model_rewrite_reuses_the_original_body_storage() {
-    let original = Bytes::from_static(br#"{"model":"connection:model","input":"large"}"#);
-    let original_start = original.as_ptr();
-    let original_end = original_start.wrapping_add(original.len());
-
-    let ProviderRequestBody::Segmented([prefix, model, suffix]) =
-        ProviderRequestBody::with_rewritten_model(original, "provider-model")
-    else {
-        panic!("valid model rewrite should produce segmented body");
-    };
-
-    assert_eq!(prefix.as_ptr(), original_start);
-    assert_eq!(suffix.as_ptr().wrapping_add(suffix.len()), original_end);
-    assert_eq!(model, r#""provider-model""#);
+    assert!(matches!(
+        rewrite_model(missing, 100..110, "provider-model"),
+        Err(ProviderError::Configuration)
+    ));
 }
 
 #[tokio::test]
-async fn missing_provider_model_fails_before_capture_delivery() {
-    use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
+async fn invalid_model_rewrite_never_reaches_the_provider() {
+    let upstream = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let relay = provider(&upstream, 1);
+    let result = relay
+        .forward_route(
+            relay.try_admit().unwrap(),
+            resolved_request_context("provider-secret").await,
+            &HeaderMap::new(),
+            Bytes::from_static(br#"{"model":"requested"}"#),
+            100..110,
+            Route::OpenAiResponses,
+            &mut crate::correlation::RequestCorrelation::default(),
+        )
+        .await;
 
+    assert!(matches!(result, Err(ProviderError::Configuration)));
+    assert_eq!(upstream.calls(), 0);
+}
+
+#[test]
+fn model_rewrite_accepts_a_shorter_provider_model() {
+    let original = Bytes::from_static(br#"{"model":"connection:model","input":"large"}"#);
+    let model_range = model_range(&original).unwrap();
+    assert_eq!(
+        rewrite_model(original, model_range, "m").unwrap(),
+        r#"{"model":"m","input":"large"}"#
+    );
+}
+
+#[tokio::test]
+async fn missing_provider_model_fails_resolution() {
     let web = FakeServer::start(|_| async {
         let bytes = to_bytes(
             crate::test_support::resolution_response("provider-secret").into_body(),
@@ -101,37 +107,20 @@ async fn missing_provider_model_fails_before_capture_delivery() {
         Response::new(Body::from(body.to_string()))
     })
     .await;
-    let context = web
+    let result = web
         .control_plane()
         .resolve(
             "gateway-secret",
             ApiFormat::OpenAiResponses,
-            Some("Production key:gpt-4o"),
+            "Production key:gpt-4o",
             "test-request-id",
         )
-        .await
-        .unwrap();
-    let sink = FakeServer::start(|_| async { Response::new(Body::from("{}")) }).await;
-    let telemetry =
-        Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
-    let upstream = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
-
-    let result = relay
-        .forward(
-            relay.try_admit().unwrap(),
-            context,
-            &HeaderMap::new(),
-            Bytes::from_static(br#"{"model":"gpt-4o"}"#),
-        )
         .await;
 
-    assert!(matches!(result, Err(ProviderError::Configuration)));
-    telemetry
-        .shutdown(Instant::now() + Duration::from_secs(1))
-        .await;
-    assert_eq!(sink.calls(), 0);
-    assert_eq!(upstream.calls(), 0);
+    assert!(matches!(
+        result,
+        Err(crate::resolution::ResolutionError::InvalidResponse)
+    ));
 }
 
 #[tokio::test]
@@ -257,7 +246,7 @@ async fn preserves_provider_failures_without_retries_or_redirects() {
                 relay.try_admit().unwrap(),
                 resolved_request_context("provider-secret").await,
                 &HeaderMap::new(),
-                Bytes::new(),
+                Bytes::from_static(br#"{"model":"requested"}"#),
             )
             .await
             .unwrap();
@@ -299,7 +288,7 @@ async fn streams_sse_incrementally_and_holds_admission_until_eof() {
             relay.try_admit().unwrap(),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
-            Bytes::new(),
+            Bytes::from_static(br#"{"model":"requested"}"#),
         )
         .await
         .unwrap();
@@ -346,22 +335,22 @@ async fn simultaneous_requests_keep_provider_credentials_and_bodies_isolated() {
             relay.try_admit().unwrap(),
             alice,
             &headers,
-            Bytes::from_static(b"alice-body")
+            Bytes::from_static(br#"{"model":"requested","owner":"alice"}"#)
         ),
         relay.forward(
             relay.try_admit().unwrap(),
             bob,
             &headers,
-            Bytes::from_static(b"bob-body")
+            Bytes::from_static(br#"{"model":"requested","owner":"bob"}"#)
         ),
     );
     assert_eq!(
         to_bytes(alice.unwrap().into_body(), 1024).await.unwrap(),
-        "Bearer alice-secret:alice-body"
+        r#"Bearer alice-secret:{"model":"provider-model","owner":"alice"}"#
     );
     assert_eq!(
         to_bytes(bob.unwrap().into_body(), 1024).await.unwrap(),
-        "Bearer bob-secret:bob-body"
+        r#"Bearer bob-secret:{"model":"provider-model","owner":"bob"}"#
     );
     assert_eq!(upstream.calls(), 2);
 }
@@ -399,7 +388,7 @@ async fn dropping_downstream_cancels_upstream_and_releases_admission() {
             relay.try_admit().unwrap(),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
-            Bytes::new(),
+            Bytes::from_static(br#"{"model":"requested"}"#),
         )
         .await
         .unwrap();
@@ -432,7 +421,7 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
             relay.try_admit().unwrap(),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
-            Bytes::new(),
+            Bytes::from_static(br#"{"model":"requested"}"#),
         )
         .await;
     assert!(matches!(response, Err(ProviderError::Timeout)));
@@ -453,7 +442,7 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
             relay.try_admit().unwrap(),
             context,
             &HeaderMap::new(),
-            Bytes::new(),
+            Bytes::from_static(br#"{"model":"requested"}"#),
         )
         .await
         .unwrap();
@@ -710,8 +699,8 @@ async fn compact_posts_compact_path_and_captures_ingestion() {
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::from_static(COMPACT),
+            model_range(COMPACT).unwrap(),
             Route::OpenAiResponsesCompact,
-            None,
             &mut crate::correlation::RequestCorrelation::default(),
         )
         .await
@@ -915,8 +904,8 @@ async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_f
                 .concat(),
             ),
             Bytes::from_static(REQUEST),
+            model_range(REQUEST).unwrap(),
             Route::AnthropicMessages,
-            None,
             &mut crate::correlation::RequestCorrelation::default(),
         )
         .await
@@ -969,8 +958,8 @@ async fn count_tokens_relays_the_body() {
             context,
             &headers(&[("content-type", "application/json")]),
             Bytes::from_static(br#"{"model":"claude-sonnet-4-5","messages":[]}"#),
+            model_range(br#"{"model":"claude-sonnet-4-5","messages":[]}"#).unwrap(),
             Route::AnthropicCountTokens,
-            None,
             &mut crate::correlation::RequestCorrelation::default(),
         )
         .await
@@ -1087,8 +1076,8 @@ async fn chat_completions_streams_request_usage_and_relay_the_usage_chunk() {
                     .concat(),
                 ),
                 Bytes::from_static(request.as_bytes()),
+                model_range(request.as_bytes()).unwrap(),
                 Route::OpenAiChatCompletions,
-                None,
                 &mut crate::correlation::RequestCorrelation::default(),
             )
             .await
@@ -1135,8 +1124,8 @@ async fn chat_completions_rewrite_non_streamed_models() {
             .await,
             &headers(&[("content-type", "application/json")]),
             Bytes::from_static(JSON_REQUEST.as_bytes()),
+            model_range(JSON_REQUEST.as_bytes()).unwrap(),
             Route::OpenAiChatCompletions,
-            None,
             &mut crate::correlation::RequestCorrelation::default(),
         )
         .await
