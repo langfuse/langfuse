@@ -290,11 +290,12 @@ function functionCall<T>(
 }
 
 /**
- * ClickHouse `leftUTF8(expression, length)`. The length is inlined as an
- * integer literal; it must be a positive integer.
+ * ClickHouse `leftUTF8(expression, length)`; `expression` is a column name or
+ * a string expression. The length is inlined as an integer literal; it must be
+ * a positive integer.
  */
 export function leftUTF8(
-  expression: Expression<string>,
+  expression: string | Expression<string>,
   length: number,
 ): ChExpression<string> {
   if (!Number.isInteger(length) || length < 1) {
@@ -303,7 +304,7 @@ export function leftUTF8(
     );
   }
   return functionCall("leftUTF8", [
-    expression,
+    typeof expression === "string" ? columnRef(expression) : expression,
     ValueNode.createImmediate(length),
   ]);
 }

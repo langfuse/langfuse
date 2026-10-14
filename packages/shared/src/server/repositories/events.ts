@@ -1084,10 +1084,6 @@ async function getObservationByIdFromEventsTableInternal({
   // an observation may start slightly before its anchor (e.g. the parent
   // trace).
   const db = getClickhouseKysely();
-  const ioSelects = observationIoSelects(
-    fetchWithInputOutput,
-    renderingProps.truncated,
-  );
   const needsFullTable =
     fetchWithInputOutput && renderingProps.truncated !== true;
 
@@ -1096,7 +1092,10 @@ async function getObservationByIdFromEventsTableInternal({
       ? db.selectFrom("events_full as e")
       : db.selectFrom("events_core as e")
   )
-    .select([...observationByIdSelects(), ...ioSelects] as never)
+    .select(observationByIdSelects() as never)
+    .$if(fetchWithInputOutput, (qb) =>
+      qb.select(observationIoSelects(renderingProps.truncated)),
+    )
     .where("span_id", "=", id)
     .$if(startTime != null, (qb) =>
       qb.where((eb) =>
@@ -1132,19 +1131,18 @@ async function getObservationByIdFromEventsTableInternal({
   });
 }
 
+/** `input`/`output`, capped to the server-side char limit on a truncated read. */
 function observationIoSelects(
-  fetchWithInputOutput: boolean,
   truncated: boolean | undefined,
-) {
-  if (!fetchWithInputOutput) return [];
-  if (truncated) {
-    const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
-    return [
-      sql.raw(`leftUTF8(input, ${charLimit})`).as("input"),
-      sql.raw(`leftUTF8(output, ${charLimit})`).as("output"),
-    ];
-  }
-  return [sql`input`, sql`output`];
+): ReadonlyArray<
+  "input" | "output" | AliasedExpression<string, "input" | "output">
+> {
+  if (!truncated) return ["input", "output"];
+  const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
+  return [
+    leftUTF8("input", charLimit).as("input"),
+    leftUTF8("output", charLimit).as("output"),
+  ];
 }
 
 /**
@@ -1294,8 +1292,8 @@ function traceIoSelects(excludeInputOutput: boolean, truncated: boolean) {
   if (truncated) {
     const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
     return [
-      sql.raw(`leftUTF8(t.input, ${charLimit})`).as("input"),
-      sql.raw(`leftUTF8(t.output, ${charLimit})`).as("output"),
+      leftUTF8("t.input", charLimit).as("input"),
+      leftUTF8("t.output", charLimit).as("output"),
     ];
   }
   return [sql`t.input`, sql`t.output`];
@@ -2646,8 +2644,8 @@ export async function getAgentGraphDataFromEventsTable(params: {
         "e.name as name",
         "e.start_time as start_time",
         "e.end_time as end_time",
-        mapValue(metadata, "langgraph_node").as("node"),
-        mapValue(metadata, "langgraph_step").as("step"),
+        mapValue<string>(metadata, "langgraph_node").as("node"),
+        mapValue<string>(metadata, "langgraph_step").as("step"),
       ];
     })
     .where("e.trace_id", "=", traceId)
