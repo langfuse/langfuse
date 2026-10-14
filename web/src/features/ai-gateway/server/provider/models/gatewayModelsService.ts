@@ -1,5 +1,5 @@
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
-import { redis as defaultRedis } from "@langfuse/shared/src/server";
+import { logger, redis as defaultRedis } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
@@ -52,7 +52,17 @@ export class GatewayModelsService {
         }),
       })),
     );
-    if (results.some((result) => !result.catalog.success)) {
+    const failures = results.filter((result) => !result.catalog.success);
+    if (failures.length > 0) {
+      logger.warn("Gateway model discovery omitted unavailable connections", {
+        organizationId: params.context.organizationId,
+        connections: failures.map(({ connection, catalog }) => ({
+          id: connection.id,
+          error: catalog.success ? undefined : catalog.error,
+        })),
+      });
+    }
+    if (results.length > 0 && failures.length === results.length) {
       throw new GatewayControlPlaneError(
         "Gateway model discovery is temporarily unavailable",
         503,

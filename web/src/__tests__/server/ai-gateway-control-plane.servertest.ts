@@ -1184,7 +1184,7 @@ describe("AI gateway control plane", () => {
     expect(fetcher).toHaveBeenCalledTimes(3);
   });
 
-  it("fails model discovery instead of returning a partial catalog", async () => {
+  it("returns partial catalogs and fails only when every connection fails", async () => {
     const { caller, org } = await prepare();
     await caller.aiGateway.createConnection({
       orgId: org.id,
@@ -1219,6 +1219,26 @@ describe("AI gateway control plane", () => {
     });
     await expect(
       new GatewayModelsService(prisma, fetcher, null).list({
+        context,
+        apiFormat: "openai.chat-completions",
+      }),
+    ).resolves.toEqual({
+      data: [
+        {
+          id: "OpenAI fallback:available-model",
+          provider: "OPENAI",
+          canonicalSlug: "available-model",
+          displayName: "available-model",
+          createdAt: "1970-01-01T00:00:10.000Z",
+        },
+      ],
+    });
+
+    const unavailableFetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 500 }));
+    await expect(
+      new GatewayModelsService(prisma, unavailableFetcher, null).list({
         context,
         apiFormat: "openai.chat-completions",
       }),
