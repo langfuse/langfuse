@@ -538,6 +538,10 @@ export class OtelIngestionProcessor {
                     scopeSpan?.scope,
                     span.name,
                   );
+                // AI SDK agent spans carry aggregate usage duplicating their
+                // child model-call spans — skip model/usage/cost for them.
+                // Also Claude Managed Agent create_session spans have a model logged
+                // but no usage
                 const skipModelUsageAndCost = this.shouldSkipModelUsageAndCost(
                   spanAttributes,
                   observationType,
