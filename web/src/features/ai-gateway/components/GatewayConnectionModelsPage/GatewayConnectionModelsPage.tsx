@@ -80,7 +80,7 @@ export function GatewayConnectionModelsPage({
   const deleteConnection = () => onDelete(connection);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <ConfirmationDialogController
         title="Delete provider credential"
         text={`Delete “${connection.name}”? Requests will immediately stop using it.`}

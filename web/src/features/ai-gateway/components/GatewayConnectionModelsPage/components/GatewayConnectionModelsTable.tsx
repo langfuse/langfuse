@@ -160,7 +160,7 @@ export function GatewayConnectionModelsTable({
 
   return (
     <>
-      <div className="flex max-h-[60dvh] min-h-0 flex-col overflow-hidden rounded-md border">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border">
         <GatewayConnectionModelsToolbar
           columns={columns}
           filteredModelIds={filteredModelIds}
