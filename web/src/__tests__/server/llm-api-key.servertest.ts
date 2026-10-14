@@ -254,6 +254,44 @@ describe("llmApiKey.all RPC", () => {
         adapter: LLMAdapter.Anthropic,
         customModels: ["claude-sonnet-4-5"],
       }),
+    ).resolves.toBeUndefined();
+    await expect(
+      prisma.llmApiKeys.findUniqueOrThrow({
+        where: { id: incompatibleProjectConnection.id },
+        select: { customModels: true },
+      }),
+    ).resolves.toEqual({ customModels: ["claude-sonnet-4-5"] });
+
+    const service = new LlmConnectionService();
+    await expect(
+      service.upsert({
+        owner: {
+          type: "project",
+          projectId,
+          organizationId: orgId,
+        },
+        input: {
+          provider,
+          adapter: LLMAdapter.Anthropic,
+          secretKey: "rotated-project-secret",
+        },
+        actor: { userId: session.user!.id, orgId, projectId },
+      }),
+    ).resolves.toMatchObject({ created: false });
+    await expect(
+      service.upsert({
+        owner: {
+          type: "project",
+          projectId,
+          organizationId: orgId,
+        },
+        input: {
+          provider,
+          adapter: LLMAdapter.Azure,
+          secretKey: "azure-project-secret",
+        },
+        actor: { userId: session.user!.id, orgId, projectId },
+      }),
     ).rejects.toThrow(
       "Project and organization connections with the same provider name must use the same adapter.",
     );
