@@ -163,4 +163,18 @@ describe("prepareBreakdownSegments", () => {
       "input",
     ]);
   });
+
+  it("rolls up the components a server-side top-N already truncated", () => {
+    // A non-time-series v2 breakdown is a top-N query ordered by the metric, so
+    // the aggregate — always the largest row — takes a slot and the smallest
+    // components never arrive. What is left of it then stands for them, and the
+    // pie still totals what the project really spent.
+    const data = [point(undefined, "total", 10), point(undefined, "input", 6)];
+    const segments = prepareBreakdownSegments(data, "total");
+
+    expect(segments).toEqual([
+      point(undefined, "total", 4),
+      point(undefined, "input", 6),
+    ]);
+  });
 });

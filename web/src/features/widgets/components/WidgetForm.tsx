@@ -1160,11 +1160,13 @@ export function WidgetForm({
                   missingValue={getWidgetMissingBucketValue(
                     selectedAggregation,
                   )}
-                  breakdownAggregateValue={getDimensionAggregateValue(
-                    selectedView,
-                    values.dimensions[0]?.field,
-                    viewVersion,
-                  )}
+                  breakdownAggregateValue={getDimensionAggregateValue({
+                    view: selectedView,
+                    version: viewVersion,
+                    dimension: values.dimensions[0]?.field,
+                    measure: selectedMeasure,
+                    aggregation: selectedAggregation,
+                  })}
                 />
                 {chartLoadingState.isLoading && (
                   <ChartLoadingState

@@ -1746,6 +1746,19 @@ export function requiresV2(params: {
 }
 
 /**
+ * Looks a view declaration up for display code, which reads what a query
+ * already validated and so wants `undefined` for an unknown view rather than
+ * the throw `getViewDeclaration` raises on the request path.
+ */
+function findViewDeclaration(
+  viewName: string,
+  version: ViewVersion,
+): ViewDeclarationType | undefined {
+  const versionViews = viewDeclarations[version];
+  return versionViews[viewName as keyof typeof versionViews];
+}
+
+/**
  * Returns the declared unit for a measure in a given view/version, or undefined
  * if the view or measure is not found. Use this to drive display formatting
  * (e.g. unit === "millisecond" → convert to seconds before rendering).
@@ -1755,9 +1768,7 @@ function getMeasureUnit(
   measureName: string,
   version: ViewVersion = "v1",
 ): string | undefined {
-  const versionViews = viewDeclarations[version];
-  const view = versionViews[viewName as keyof typeof versionViews];
-  return view?.measures[measureName]?.unit;
+  return findViewDeclaration(viewName, version)?.measures[measureName]?.unit;
 }
 
 /**
@@ -1777,26 +1788,42 @@ export function getResultUnit(
 }
 
 /**
- * Returns the member of a dimension whose value is already the sum of that
- * dimension's other members, or undefined when it has none — `costType` and
- * `usageType` expand map keys that include a `"total"` alongside the components
- * it adds up.
+ * Returns the member of a breakdown whose value is already the sum of that
+ * breakdown's other members, or undefined when nothing about the query makes
+ * that true.
  *
- * Use this to recognise the aggregate by its dimension rather than by its name:
- * a chart that renders a breakdown as one whole (a stacked bar, a pie) must
- * leave the aggregate out of the segments or it counts the same value twice,
- * while an unrelated breakdown that happens to contain a category called
- * "total" must keep it.
+ * `costType` and `usageType` expand map keys that include a `"total"` beside the
+ * components it adds up, but the ARRAY JOIN emits one row per key for *every*
+ * measure, and only the value paired with the dimension — summed — inherits the
+ * relationship. Count those rows instead, or take their maximum, and `"total"`
+ * is a peer category whose value says nothing about the others.
+ *
+ * So the aggregate is recognised by what the query asked for, never by a
+ * member's name: a chart that renders a breakdown as one whole (a stacked bar,
+ * a pie) must not draw the aggregate at full value beside the components it
+ * sums, while a breakdown that merely contains a category called "total" keeps
+ * every member untouched.
  */
-export function getDimensionAggregateValue(
-  viewName: string,
-  dimensionName: string | undefined,
-  version: ViewVersion,
-): string | undefined {
-  if (!dimensionName) return undefined;
-  const versionViews = viewDeclarations[version];
-  const view = versionViews[viewName as keyof typeof versionViews];
-  return view?.dimensions[dimensionName]?.aggregateValue;
+export function getDimensionAggregateValue(params: {
+  view: string;
+  version: ViewVersion;
+  dimension: string | undefined;
+  measure: string | undefined;
+  aggregation: string | undefined;
+}): string | undefined {
+  const { view, version, dimension, measure, aggregation } = params;
+  if (!dimension || !measure || aggregation !== "sum") return undefined;
+
+  const declaration = findViewDeclaration(view, version);
+
+  const aggregateValue = declaration?.dimensions[dimension]?.aggregateValue;
+  if (!aggregateValue) return undefined;
+
+  // `requiresDimension` is how a measure declares which dimension it is expanded
+  // alongside; any other measure is reading the same rows for something else.
+  return declaration?.measures[measure]?.requiresDimension === dimension
+    ? aggregateValue
+    : undefined;
 }
 
 const measureNamesSet = new Set<string>();
