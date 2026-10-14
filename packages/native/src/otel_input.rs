@@ -335,6 +335,13 @@ pub fn validate_otel_json(
     }))
 }
 
+/// Synchronously check raw bytes for possible media without copying or validating JSON.
+/// Callers must bound input size to limit JS-thread work; a match still needs extraction.
+#[napi]
+pub fn has_otel_media_candidate(bytes: Buffer) -> bool {
+    otel_media::may_contain_media_candidate(&bytes)
+}
+
 /// Extract media from unmasked input. Null means the caller should parse its original bytes;
 /// marker-free input has NOT been validated. Masking callers must use validateOtelJson first.
 #[napi(ts_return_type = "Promise<EarlyOtelBatch | null>")]

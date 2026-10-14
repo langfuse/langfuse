@@ -1,10 +1,23 @@
+import { expressionBuilder, sql } from "kysely";
 import { describe, expect, it } from "vitest";
 
-import { compileClickhouseQuery } from "./compile";
+import { compileClickhouseQuery, renderClickhouseExpression } from "./compile";
 import { getClickhouseKysely } from "./dialect";
-import { TypeCompatibilityError } from "./errors";
-import { metadataValue } from "./extensions";
+import {
+  QueryCompileError,
+  TypeCompatibilityError,
+  UnscopedRelationError,
+} from "./errors";
+import {
+  arrayMap,
+  leftUTF8,
+  mapValue,
+  metadataMap,
+  metadataValue,
+  traceSessionId,
+} from "./extensions";
 import { ArrayIndexNode } from "./nodes";
+import type { ClickHouseDatabase } from "./schema";
 import { TenancyInjectionPlugin } from "./tenancy";
 import { defineView, fromView } from "./views";
 
@@ -144,5 +157,89 @@ describe("ArrayIndexNode identity", () => {
         ),
       ),
     ).toBe(true);
+  });
+});
+
+describe("leftUTF8", () => {
+  it("inlines a positive integer length", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events_core as e")
+      .select((eb) => [leftUTF8(eb.ref("e.input"), 100).as("input")]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    expect(compiled).toContain("leftUTF8(e.input, 100)");
+  });
+
+  it.each([0, -1, 1.5, Number.NaN])("rejects length %s", (length) => {
+    expect(() =>
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .select((eb) => [leftUTF8(eb.ref("e.input"), length).as("input")]),
+    ).toThrow(QueryCompileError);
+  });
+});
+
+describe("arrayMap", () => {
+  it("names nested lambda parameters apart so the inner one does not shadow", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events_core as e")
+      .select((eb) => [
+        arrayMap<string, string[]>(
+          (name) =>
+            arrayMap<string, string>(
+              (tag) => eb.fn<string>("concat", [name, tag]),
+              eb.ref("e.tags"),
+            ),
+          eb.ref("e.metadata_names"),
+        ).as("nested"),
+        arrayMap<string, string>(
+          (value) => leftUTF8(value, 2),
+          eb.ref("e.tags"),
+        ).as("sibling"),
+      ]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    expect(compiled).toContain(
+      "arrayMap(v -> arrayMap(v1 -> concat(v, v1), e.tags), e.metadata_names)",
+    );
+    expect(compiled).toContain("arrayMap(v -> leftUTF8(v, 2), e.tags)");
+  });
+});
+
+describe("renderClickhouseExpression", () => {
+  const eb = expressionBuilder<{ e: ClickHouseDatabase["events_core"] }, "e">();
+  const metadata = metadataMap(
+    eb.ref("e.metadata_names"),
+    eb.ref("e.metadata_values"),
+  );
+
+  it("renders a typed expression as the SQL the compiler emits inline", () => {
+    expect(renderClickhouseExpression(metadata)).toBe(
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))",
+    );
+    expect(renderClickhouseExpression(traceSessionId())).toBe(
+      "argMaxIf(session_id, event_ts, session_id != '')",
+    );
+  });
+
+  it("rejects a subquery", () => {
+    const subquery = getClickhouseKysely()
+      .selectFrom("events_core")
+      .select("trace_id");
+    expect(() => renderClickhouseExpression(subquery)).toThrow(
+      UnscopedRelationError,
+    );
+  });
+
+  it("rejects a raw fragment that introduces a relation", () => {
+    expect(() =>
+      renderClickhouseExpression(sql`(select trace_id from events_core)`),
+    ).toThrow(UnscopedRelationError);
+  });
+
+  it("rejects a bound value", () => {
+    expect(() => renderClickhouseExpression(mapValue(metadata, "key"))).toThrow(
+      /cannot bind parameters/,
+    );
   });
 });

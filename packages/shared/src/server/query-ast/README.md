@@ -90,8 +90,13 @@ suffix to run there. Promote it to a required check once it has proven stable.
   explicit non-version LIMIT BY. Auto-lowering does not declare scores as
   `{ strategy: "final" }`; callers opt in with `$call(useFinal(["scores"]))`.
 - **Value binds take their ClickHouse type from the compared column** in the
-  table registry (`total_cost > 1` emits `{p:Float64}`, not inferred
+  table registry (`scores.value > 1` emits `{p:Float64}`, not inferred
   `{p:Int64}`). Same-value binds still intern to one placeholder.
+- **Bind dates as JS `Date`**, never as pre-formatted strings. The compiler
+  sends a `Date` as the UTC wall-clock string ingestion writes
+  (`toClickhouseDateTime`), so binds match stored rows whatever the server
+  timezone. Use `toDate` / `toStartOfMinute` from `extensions.ts` for
+  date-truncated comparisons.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
@@ -201,7 +206,7 @@ is where tenancy is enforced:
 4. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
    present, so `qb.compile()` without the plugin also fails. Value binds take
    their ClickHouse type from the compared column's registry entry when one is
-   in scope (`total_cost > 1` → `{p:Float64}`).
+   in scope (`scores.value > 1` → `{p:Float64}`).
 5. Raw-SQL table sources (``selectFrom(sql`...`)``) and raw fragments embedding
    a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`.
    Kysely's own keyword fragments (`asc`/`desc`) are not relations.

@@ -1,9 +1,10 @@
+import { TupleParam } from "@clickhouse/client";
 import { sql as sql_ } from "kysely";
 import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
-import { useFinal } from "./extensions";
+import { tupleIn, useFinal } from "./extensions";
 
 const ctx = { projectId: "proj-1" };
 const START = new Date("2026-01-01T00:00:00.000Z");
@@ -13,14 +14,14 @@ function compile(builder: Parameters<typeof compileClickhouseQuery>[0]) {
 }
 
 describe("typed params from the column registry", () => {
-  it("binds an integer compared to total_cost as Float64, not Int64", () => {
+  it("binds an integer compared to a Float column as Float64, not Int64", () => {
     const { sql, params } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
-        .select("span_id")
-        .where("total_cost", ">", 1),
+        .selectFrom("scores")
+        .select("id")
+        .where("value", ">", 1),
     );
-    expect(sql).toMatch(/total_cost > \{p\d+:Float64\}/);
+    expect(sql).toMatch(/value > \{p\d+:Float64\}/);
     expect(sql).not.toMatch(/\{p\d+:Int64\}/);
     expect(Object.values(params)).toContain(1);
   });
@@ -28,11 +29,21 @@ describe("typed params from the column registry", () => {
   it("binds an IN list against a Float column as Array(Float64)", () => {
     const { sql } = compile(
       getClickhouseKysely()
+        .selectFrom("scores")
+        .select("id")
+        .where("value", "in", [1, 2]),
+    );
+    expect(sql).toMatch(/value in \(\{p\d+:Array\(Float64\)\}\)/);
+  });
+
+  it("binds a number compared to total_cost as Decimal(18, 12)", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
         .selectFrom("events_core")
         .select("span_id")
-        .where("total_cost", "in", [1, 2]),
+        .where("total_cost", ">", 1),
     );
-    expect(sql).toMatch(/total_cost in \(\{p\d+:Array\(Float64\)\}\)/);
+    expect(sql).toMatch(/total_cost > \{p\d+:Decimal\(18, 12\)\}/);
   });
 
   it("wraps an IN list against an Array column as Array(Array(...))", () => {
@@ -49,7 +60,6 @@ describe("typed params from the column registry", () => {
   });
 
   it("keeps the column's DateTime precision through toStartOfMinute / toDate", () => {
-    const start = "2026-01-01 00:00:00.000";
     const { sql: minuteSql } = compile(
       getClickhouseKysely()
         .selectFrom("events_core")
@@ -58,7 +68,7 @@ describe("typed params from the column registry", () => {
           eb(
             eb.fn("toStartOfMinute", ["start_time"]),
             "=",
-            eb.fn("toStartOfMinute", [eb.val(start)]),
+            eb.fn("toStartOfMinute", [eb.val(START)]),
           ),
         ),
     );
@@ -74,12 +84,31 @@ describe("typed params from the column registry", () => {
           eb(
             eb.fn("toDate", [eb.ref("t.timestamp")]),
             "=",
-            eb.fn("toDate", [eb.val(start)]),
+            eb.fn("toDate", [eb.val(START)]),
           ),
         ),
     );
     expect(dateSql).toMatch(
       /toDate\(t\.timestamp\) = toDate\(\{p\d+:DateTime64\(3\)\}\)/,
+    );
+  });
+
+  // Rows are written as UTC wall-clock strings that ClickHouse parses in the
+  // server timezone; Date binds must take the same form to match them.
+  it("binds a Date as the UTC wall-clock string ingestion writes", () => {
+    const { sql, params } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where("start_time", ">=", new Date(-1000))
+        .where("start_time", "<=", START),
+    );
+    expect(sql).toMatch(/start_time >= \{p\d+:DateTime64\(6\)\}/);
+    expect(Object.values(params)).toEqual(
+      expect.arrayContaining([
+        "1969-12-31 23:59:59.000",
+        "2026-01-01 00:00:00.000",
+      ]),
     );
   });
 
@@ -376,6 +405,44 @@ describe("typed params from the column registry", () => {
     );
     expect(sql).toMatch(/limit \{p\d+:Int64\}/);
     expect(sql).not.toMatch(/limit \{p\d+:String\}/);
+  });
+
+  it("binds a TupleParam list as Array(Tuple(...)) for a tuple IN", () => {
+    const { sql, params } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .select("e.span_id")
+        .where((eb) =>
+          tupleIn(eb.refTuple("e.trace_id", "e.span_id"), [
+            new TupleParam(["t1", "s1"]),
+          ]),
+        ),
+    );
+    expect(sql).toMatch(
+      /\(e\.trace_id, e\.span_id\) in \{p\d+:Array\(Tuple\(String, String\)\)\}/,
+    );
+    expect(Object.values(params)).toContainEqual([
+      new TupleParam(["t1", "s1"]),
+    ]);
+  });
+
+  it("binds distinct bare TupleParams as separate Tuple(...) placeholders", () => {
+    const { sql, params } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select((eb) => [
+          eb.val(new TupleParam(["a", 1])).as("first"),
+          eb.val(new TupleParam(["b", 2])).as("second"),
+        ]),
+    );
+    const placeholders = sql.match(/\{p\d+:Tuple\(String, Int64\)\}/g);
+    expect(new Set(placeholders)).toHaveProperty("size", 2);
+    expect(Object.values(params)).toEqual(
+      expect.arrayContaining([
+        new TupleParam(["a", 1]),
+        new TupleParam(["b", 2]),
+      ]),
+    );
   });
 
   it("interns the same typed value to one placeholder across UNION branches", () => {

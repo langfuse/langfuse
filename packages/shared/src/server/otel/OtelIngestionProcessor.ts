@@ -38,6 +38,7 @@ import {
 } from "./attributes";
 import {
   isClaudeManagedAgentSessionCreation,
+  isClaudeManagedAgentSpan,
   ObservationTypeMapperRegistry,
 } from "./ObservationTypeMapper";
 import { env } from "../../env";
@@ -672,6 +673,7 @@ export class OtelIngestionProcessor {
                   sessionId: this.extractSessionId(
                     spanAttributes,
                     decodeMetadataValues,
+                    scopeSpan.scope?.name,
                   ),
                   release:
                     (spanAttributes?.[
@@ -1155,7 +1157,11 @@ export class OtelIngestionProcessor {
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
         userId: this.extractUserId(attributes, decodeMetadataValues),
-        sessionId: this.extractSessionId(attributes, decodeMetadataValues),
+        sessionId: this.extractSessionId(
+          attributes,
+          decodeMetadataValues,
+          instrumentationScopeName,
+        ),
         public: this.extractPublic(attributes),
         tags: this.extractTags(attributes, decodeMetadataValues),
         environment: this.extractEnvironment(attributes, resourceAttributes),
@@ -1195,7 +1201,12 @@ export class OtelIngestionProcessor {
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
         userId: this.extractUserId(attributes, decodeMetadataValues),
-        sessionId: this.extractSessionId(attributes, decodeMetadataValues),
+        /** CMA session inference belongs to root traces and individual observations. */
+        sessionId: this.extractSessionId(
+          attributes,
+          decodeMetadataValues,
+          undefined,
+        ),
         public: this.extractPublic(attributes),
         tags: this.extractTags(attributes, decodeMetadataValues),
         environment: this.extractEnvironment(attributes, resourceAttributes),
@@ -2736,12 +2747,19 @@ export class OtelIngestionProcessor {
   private extractSessionId(
     attributes: Record<string, unknown>,
     decodeMetadataValues: boolean,
+    instrumentationScopeName: string | undefined,
   ): string | undefined {
+    const sessionIdKeys = ["langfuse.session.id", "session.id"];
+
+    /** Claude Managed Agents sessions span multiple threads; conversation IDs identify individual threads. */
+    if (isClaudeManagedAgentSpan(attributes, instrumentationScopeName)) {
+      sessionIdKeys.push("anthropic.session.id");
+    }
+
     return this.extractStringAttribute(
       attributes,
       [
-        "langfuse.session.id",
-        "session.id",
+        ...sessionIdKeys,
         "gen_ai.conversation.id",
         `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_session_id`,
         `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_session_id`,

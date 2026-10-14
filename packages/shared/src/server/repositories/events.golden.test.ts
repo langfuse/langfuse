@@ -28,11 +28,16 @@ vi.mock("./clickhouse", async (importOriginal) => {
 
 import {
   getAgentGraphDataFromEventsTable,
+  getEventsForAnalyticsIntegrations,
   getLastTraceTimestampsByProjectsFromEventsTable,
   getLatestSdkVersionInfoFromEvents,
   getObservationByIdFromEventsTable,
   getObservationMetricsForPromptsFromEvents,
+  getObservationFullIOForSessionFromEventsTable,
+  getObservationIOFieldByteLengthFromEventsTable,
+  getObservationsBatchIOFromEventsTable,
   getObservationsTraceIdsFromEventsTable,
+  getObservationsV2FromEventsTableForPublicApi,
   getObservationsWithPromptNameFromEvents,
   getSessionMetricsFromEvents,
   getTraceByIdFromEventsTable,
@@ -40,7 +45,9 @@ import {
   hasAnySessionFromEventsTable,
   hasAnyTraceFromEventsTable,
   hasAnyUserFromEventsTable,
+  streamObservationIOFieldFromEventsTable,
 } from "./events";
+import { getTraceBatchEventStream } from "./trace-batch";
 
 const FIXED_PROJECT_ID = "golden-project";
 const FIXED_PROJECT_IDS = ["golden-project", "golden-project-b"] as const;
@@ -48,8 +55,7 @@ const FIXED_TRACE_ID = "golden-trace";
 const FIXED_OBSERVATION_ID = "golden-span";
 const FIXED_START_TIME = new Date("2026-01-01T00:00:00.000Z");
 const FIXED_FROM_TIMESTAMP = new Date("2025-12-01T00:00:00.000Z");
-const FIXED_CH_MIN = "2026-01-01 00:00:00.000";
-const FIXED_CH_MAX = "2026-01-01 01:00:00.000";
+const FIXED_AGENT_GRAPH_MAX = new Date("2026-01-01T01:00:00.000Z");
 const FIXED_TO_TIMESTAMP = new Date("2026-01-02T00:00:00.000Z");
 const FIXED_PROMPT_NAMES = ["golden-prompt", "golden-prompt-b"];
 const FIXED_PROMPT_IDS = ["golden-prompt-id", "golden-prompt-id-b"];
@@ -125,8 +131,8 @@ describeWithClickhouse("golden: events point-reads & existence family", () => {
     await getAgentGraphDataFromEventsTable({
       projectId: FIXED_PROJECT_ID,
       traceId: FIXED_TRACE_ID,
-      chMinStartTime: FIXED_CH_MIN,
-      chMaxStartTime: FIXED_CH_MAX,
+      minStartTime: FIXED_START_TIME,
+      maxStartTime: FIXED_AGENT_GRAPH_MAX,
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
@@ -325,6 +331,7 @@ describeWithClickhouse("golden: events simple aggregates family", () => {
     await getSessionMetricsFromEvents({
       projectId: FIXED_PROJECT_ID,
       sessionIds: [],
+      fields: ["session_id", "trace_count"],
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
@@ -333,6 +340,7 @@ describeWithClickhouse("golden: events simple aggregates family", () => {
     await getSessionMetricsFromEvents({
       projectId: FIXED_PROJECT_ID,
       sessionIds: FIXED_SESSION_IDS,
+      fields: ["session_id", "trace_count"],
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
@@ -341,6 +349,7 @@ describeWithClickhouse("golden: events simple aggregates family", () => {
     await getSessionMetricsFromEvents({
       projectId: FIXED_PROJECT_ID,
       sessionIds: FIXED_SESSION_IDS,
+      fields: ["session_id", "trace_count"],
       queryFromTimestamp: FIXED_FROM_TIMESTAMP,
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
@@ -353,3 +362,149 @@ describeWithClickhouse("golden: events simple aggregates family", () => {
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 });
+
+describeWithClickhouse("golden: events IO payload reads family", () => {
+  const observations = [
+    { id: FIXED_OBSERVATION_ID, traceId: FIXED_TRACE_ID },
+    { id: "golden-span-b", traceId: FIXED_TRACE_ID },
+    { id: "golden-span-c", traceId: "golden-trace-b" },
+  ];
+  const batchBase = {
+    projectId: FIXED_PROJECT_ID,
+    observations,
+    minStartTime: FIXED_FROM_TIMESTAMP,
+    maxStartTime: FIXED_START_TIME,
+  };
+  const ioRead = {
+    projectId: FIXED_PROJECT_ID,
+    traceId: FIXED_TRACE_ID,
+    observationId: FIXED_OBSERVATION_ID,
+    startTime: FIXED_START_TIME,
+  };
+
+  beforeEach(() => {
+    resetCaptures();
+  });
+
+  it("getObservationsBatchIOFromEventsTable truncated", async () => {
+    await getObservationsBatchIOFromEventsTable(batchBase);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getObservationsBatchIOFromEventsTable full", async () => {
+    await getObservationsBatchIOFromEventsTable({
+      ...batchBase,
+      truncated: false,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getObservationsBatchIOFromEventsTable full+ioCharLimit+experiment+toolCalls", async () => {
+    await getObservationsBatchIOFromEventsTable({
+      ...batchBase,
+      truncated: false,
+      ioCharLimit: 5000.7,
+      includeExperimentFields: true,
+      includeToolCallFields: true,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it.each([
+    ["truncated", true],
+    ["full", false],
+  ] as const)(
+    "getObservationsBatchIOFromEventsTable %s+experiment",
+    async (_, truncated) => {
+      await getObservationsBatchIOFromEventsTable({
+        ...batchBase,
+        truncated,
+        includeExperimentFields: true,
+      });
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    },
+  );
+
+  it("getObservationsBatchIOFromEventsTable truncated+sessionId", async () => {
+    await getObservationsBatchIOFromEventsTable({
+      ...batchBase,
+      sessionId: "golden-session",
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it.each(["input", "output", "metadata"] as const)(
+    "getObservationIOFieldByteLengthFromEventsTable field=%s",
+    async (field) => {
+      await getObservationIOFieldByteLengthFromEventsTable({
+        ...ioRead,
+        field,
+      });
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    },
+  );
+
+  it.each(["input", "output", "metadata"] as const)(
+    "streamObservationIOFieldFromEventsTable field=%s",
+    async (field) => {
+      await streamObservationIOFieldFromEventsTable({ ...ioRead, field });
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    },
+  );
+
+  it("getObservationFullIOForSessionFromEventsTable", async () => {
+    await getObservationFullIOForSessionFromEventsTable({
+      ...ioRead,
+      sessionId: "golden-session",
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+});
+
+describeWithClickhouse(
+  "golden: events metadata map and session resolution",
+  () => {
+    beforeEach(() => {
+      resetCaptures();
+    });
+
+    it("getObservationsV2FromEventsTableForPublicApi fields=core+metadata expandMetadataKeys=set", async () => {
+      await getObservationsV2FromEventsTableForPublicApi({
+        projectId: FIXED_PROJECT_ID,
+        page: 1,
+        limit: 50,
+        fields: ["core", "metadata"],
+        expandMetadataKeys: ["golden-key"],
+      });
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    it("getEventsForAnalyticsIntegrations", async () => {
+      for await (const _ of getEventsForAnalyticsIntegrations(
+        FIXED_PROJECT_ID,
+        "golden-project-name",
+        FIXED_FROM_TIMESTAMP,
+        FIXED_START_TIME,
+      )) {
+        // The harness streams no rows.
+      }
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    it("getTraceBatchEventStream", async () => {
+      for await (const _ of getTraceBatchEventStream({
+        traces: [
+          {
+            projectId: FIXED_PROJECT_ID,
+            traceId: FIXED_TRACE_ID,
+            minStart: FIXED_FROM_TIMESTAMP.getTime(),
+            maxStart: FIXED_START_TIME.getTime(),
+          },
+        ],
+      })) {
+        // The harness streams no rows.
+      }
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+  },
+);

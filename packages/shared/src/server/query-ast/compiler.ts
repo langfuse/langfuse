@@ -22,6 +22,7 @@ import {
   type ValueListNode,
 } from "kysely";
 import type { QueryId } from "kysely";
+import { TupleParam } from "@clickhouse/client";
 
 import {
   ArrayJoinNode,
@@ -30,6 +31,7 @@ import {
   type ClickHouseSelectQueryNode,
   type LimitByNode,
 } from "./nodes";
+import { QueryCompileError } from "./errors";
 import { COLUMN_BIND_TYPES, TABLE_BIND_TYPES } from "./schema";
 import { assertTenancyStamped } from "./tenancy";
 
@@ -49,16 +51,38 @@ const DATE_WRAPPER_FNS = new Set([
   "toStartOfYear",
 ]);
 
+// Interning key for a bound value: equal keys share one placeholder within a
+// compile. E.g. `TupleParam(["a", 1])` → `t:["a",1]` and `TupleParam(["b", 2])`
+// → `t:["b",2]` bind as two placeholders. Object values need an explicit
+// branch, because `String(value)` renders every plain object as
+// `[object Object]`.
 function canonicalParamValue(value: unknown): string {
   if (value instanceof Date) return `d:${value.toISOString()}`;
+  if (value instanceof TupleParam) {
+    return `t:${JSON.stringify(value.values)}`;
+  }
   if (Array.isArray(value)) {
     return `a:${JSON.stringify(value)}`;
   }
   return `${typeof value}:${String(value)}`;
 }
 
+// A Date binds as the `YYYY-MM-DD hh:mm:ss.sss` UTC wall-clock string that
+// ingestion writes (`toClickhouseDateTime`). ClickHouse parses both in the
+// server timezone, so binds line up with stored rows on any server timezone.
+// The string form also covers instants before 1970.
+function serializeParamValue(value: unknown): unknown {
+  if (value instanceof Date) {
+    return value.toISOString().replace("T", " ").replace("Z", "");
+  }
+  return value;
+}
+
 function inferClickHouseType(value: unknown): string {
   if (value instanceof Date) return "DateTime64(3)";
+  if (value instanceof TupleParam) {
+    return `Tuple(${value.values.map(inferClickHouseType).join(", ")})`;
+  }
   if (Array.isArray(value)) {
     const inner = value.length === 0 ? "String" : inferClickHouseType(value[0]);
     return `Array(${inner})`;
@@ -215,6 +239,21 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.selectScopes = [];
     assertTenancyStamped(node);
     return super.compileQuery(node, queryId);
+  }
+
+  /**
+   * SQL text of one standalone expression, on a fresh compiler. The caller
+   * checks the tree is relation-free. A bind throws: the text is spliced into
+   * a query whose parameters this compiler does not own.
+   */
+  compileExpression(node: OperationNode): string {
+    this.visitNode(node);
+    if (Object.keys(this.namedParameters).length > 0) {
+      throw new QueryCompileError(
+        "A standalone expression cannot bind parameters; inline the value or build the whole query on the AST.",
+      );
+    }
+    return this.getSql();
   }
 
   // Emit identifiers unquoted. `clickhouse format` normalizes to unquoted
@@ -615,7 +654,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.addParameter(value);
     const name = `p${this.intern.size + 1}`;
     this.intern.set(key, name);
-    this.namedParameters[name] = value;
+    this.namedParameters[name] = serializeParamValue(value);
     return `{${name}:${inferred}}`;
   }
 }
