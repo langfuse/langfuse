@@ -33,6 +33,8 @@ export type ChColumnType =
   | "DateTime64(6)"
   | "UInt8"
   | "UInt16"
+  | "UInt64"
+  | "Bool"
   | "Nullable(UInt16)"
   | "Nullable(DateTime64(6))"
   | "Array(String)"
@@ -46,23 +48,25 @@ type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
     ? string | null
     : T extends "Float" | "Decimal(18,12)"
       ? number
-      : T extends "UInt8" | "UInt16"
+      : T extends "UInt8" | "UInt16" | "UInt64"
         ? number
-        : T extends "Nullable(UInt16)"
-          ? number | null
-          : T extends "DateTime" | "DateTime64(6)"
-            ? Date
-            : T extends "Nullable(DateTime64(6))"
-              ? Date | null
-              : T extends "Array(String)"
-                ? string[]
-                : T extends
-                      | "Map(String, UInt64)"
-                      | "Map(String, Decimal(18,12))"
-                  ? Record<string, number>
-                  : T extends "Map(String, String)"
-                    ? Record<string, string>
-                    : never;
+        : T extends "Bool"
+          ? boolean
+          : T extends "Nullable(UInt16)"
+            ? number | null
+            : T extends "DateTime" | "DateTime64(6)"
+              ? Date
+              : T extends "Nullable(DateTime64(6))"
+                ? Date | null
+                : T extends "Array(String)"
+                  ? string[]
+                  : T extends
+                        | "Map(String, UInt64)"
+                        | "Map(String, Decimal(18,12))"
+                    ? Record<string, number>
+                    : T extends "Map(String, String)"
+                      ? Record<string, string>
+                      : never;
 
 /** Coarse runtime category the aggregate type-check pass reasons about. */
 export type ColumnDataType = "string" | "number" | "date" | "array" | "map";
@@ -74,6 +78,9 @@ const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
   "Decimal(18,12)": "number",
   UInt8: "number",
   UInt16: "number",
+  UInt64: "number",
+  // ClickHouse stores Bool as UInt8, so numeric aggregates accept it.
+  Bool: "number",
   "Nullable(UInt16)": "number",
   DateTime: "date",
   "DateTime64(6)": "date",
@@ -159,6 +166,50 @@ const EVENTS_COLUMNS = {
   experiment_item_expected_output: "String",
   experiment_item_metadata_names: "Array(String)",
   experiment_item_metadata_values: "Array(String)",
+  version: "String",
+  release: "String",
+  trace_name: "String",
+  level: "String",
+  status_message: "String",
+  completion_start_time: "Nullable(DateTime64(6))",
+  is_app_root: "Bool",
+  bookmarked: "Bool",
+  public: "Bool",
+  model_id: "String",
+  provided_model_name: "String",
+  model_parameters: "String",
+  provided_usage_details: "Map(String, UInt64)",
+  provided_cost_details: "Map(String, Decimal(18,12))",
+  calculated_input_cost: "Decimal(18,12)",
+  calculated_output_cost: "Decimal(18,12)",
+  calculated_total_cost: "Decimal(18,12)",
+  usage_pricing_tier_id: "Nullable(String)",
+  usage_pricing_tier_name: "Nullable(String)",
+  tool_definitions: "Map(String, String)",
+  input_length: "UInt64",
+  output_length: "UInt64",
+  evaluator_id: "String",
+  evaluation_rule_id: "String",
+  evaluator_execution_is_test: "Bool",
+  experiment_name: "String",
+  experiment_metadata_names: "Array(String)",
+  experiment_metadata_values: "Array(String)",
+  experiment_description: "String",
+  experiment_dataset_id: "String",
+  experiment_item_id: "String",
+  experiment_item_version: "Nullable(DateTime64(6))",
+  experiment_item_root_span_id: "String",
+  service_name: "String",
+  service_version: "String",
+  scope_name: "String",
+  scope_version: "String",
+  telemetry_sdk_name: "String",
+  telemetry_sdk_version: "String",
+  blob_storage_file_path: "String",
+  event_bytes: "UInt64",
+  created_at: "DateTime64(6)",
+  updated_at: "DateTime64(6)",
+  ingestion_api_key: "String",
 } as const satisfies Record<string, ChColumnType>;
 
 const TABLE_REGISTRY = {
@@ -273,6 +324,8 @@ const BIND_TYPE: Record<ChColumnType, string> = {
   "Decimal(18,12)": "Decimal(18, 12)",
   UInt8: "UInt8",
   UInt16: "UInt16",
+  UInt64: "UInt64",
+  Bool: "Bool",
   // A bound value is never NULL; NULL checks compile to `IS NULL`.
   "Nullable(String)": "String",
   "Nullable(UInt16)": "UInt16",
