@@ -65,8 +65,10 @@ class SoftDeleteFilterTransformer extends ClickHouseOperationNodeTransformer {
    * CTE names visible to the select being transformed: one set per enclosing
    * select that declares a WITH. A relation named like a CTE in scope is that
    * CTE, not the physical table. A CTE body sees every sibling CTE except
-   * itself (itself too under WITH RECURSIVE), matching ClickHouse:
-   * `WITH events_core AS (SELECT … FROM events_core)` reads the table.
+   * itself, matching ClickHouse: `WITH events_core AS (SELECT … FROM
+   * events_core)` reads the table. Under WITH RECURSIVE only the recursive
+   * UNION member reads the CTE; it is still filtered, so ClickHouse rejects
+   * the unknown column instead of the anchor returning deleted rows.
    * Pushed before a select's children are transformed and popped after, so
    * it is empty between compiles.
    */
@@ -99,7 +101,7 @@ class SoftDeleteFilterTransformer extends ClickHouseOperationNodeTransformer {
     try {
       const expressions = node.expressions.map((expr) => {
         const visible = new Set(full);
-        if (!node.recursive) visible.delete(cteName(expr));
+        visible.delete(cteName(expr));
         this.cteScopes.push(visible);
         try {
           return this.transformNode(expr, queryId);

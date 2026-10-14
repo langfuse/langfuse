@@ -149,7 +149,7 @@ describe("soft-delete filtering", () => {
     expect(sql.match(/is_deleted/g)).toHaveLength(1);
   });
 
-  it("resolves a recursive CTE body's own name to the CTE", () => {
+  it("filters a recursive CTE body that reads its own name, which is the table outside the recursive member", () => {
     expect(
       compile(
         getClickhouseKysely()
@@ -159,7 +159,9 @@ describe("soft-delete filtering", () => {
           .selectFrom("events_core")
           .select("trace_id"),
       ),
-    ).not.toContain("is_deleted");
+    ).toContain(
+      "(select trace_id from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8})",
+    );
   });
 
   it("filters a soft-delete table wrapped in FINAL", () => {
