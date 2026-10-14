@@ -47,7 +47,7 @@
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
 - Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely
-  ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata indexOf nodes,
+  ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata subscript nodes,
   `ExecutionContext` tenancy injection, per-table dedup lowering, virtual views,
   catalog parity). Compile only through `compileClickhouseQuery` in
   `src/server/query-ast/compile.ts`. SQL correctness is proven by a golden-SQL
