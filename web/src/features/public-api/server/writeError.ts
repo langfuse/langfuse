@@ -2,10 +2,6 @@ import { type NextApiResponse } from "next";
 
 import { type BaseError, ServiceUnavailableError } from "@langfuse/shared";
 
-/** ErrorOrgApiKeyRequired is the 403 message when a non-organization key hits an organization-scoped operation. */
-export const ErrorOrgApiKeyRequired =
-  "Invalid API key. Organization-scoped API key required for this operation.";
-
 /** writeScimError renders an auth-deny error in the SCIM error envelope. */
 export function writeScimError(res: NextApiResponse, error: BaseError): void {
   return res.status(error.httpCode).json({

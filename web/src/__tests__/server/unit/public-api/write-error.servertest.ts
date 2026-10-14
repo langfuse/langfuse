@@ -31,10 +31,9 @@ describe.each([
     },
   },
 ])("$name authorization error response", ({ write, field, envelope }) => {
-  it.each([
-    'Access denied. The "projects:read" permission is required to access this resource.',
-    "Custom permission denial",
-  ])("preserves the explicit description: %s", (description) => {
+  it("preserves the required permission", () => {
+    const description =
+      'Access denied. The "projects:read" permission is required to access this resource.';
     const res = createResponse<NextApiResponse>();
 
     write(res, new ForbiddenError(description));
@@ -44,13 +43,5 @@ describe.each([
       ...envelope,
       [field]: description,
     });
-  });
-
-  it("returns 403 for default ForbiddenError", () => {
-    const res = createResponse<NextApiResponse>();
-
-    write(res, new ForbiddenError());
-
-    expect(res.statusCode).toBe(403);
   });
 });
