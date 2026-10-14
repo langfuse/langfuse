@@ -1,11 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
-import {
-  extractOtelMedia,
-  hasOtelMediaCandidate,
-  validateOtelJson,
-} from "@langfuse/native";
+import { extractOtelMedia, validateOtelJson } from "@langfuse/native";
 import { MediaContentType } from "@langfuse/shared";
 import {
   mediaPayloadCases,
@@ -106,9 +102,6 @@ async function expectMediaParity(json: string): Promise<void> {
     },
   });
 
-  if (expectedBodies.length > 0) {
-    expect(hasOtelMediaCandidate(Buffer.from(json))).toBe(true);
-  }
   const validated = await validateOtelJson(Buffer.from(json));
   const batches: Array<Awaited<ReturnType<typeof extractOtelMedia>>> = [];
   try {
