@@ -4,8 +4,7 @@ import {
   parseOutboundUrl,
 } from "../outbound-url";
 
-// Same bucket-name rules the AWS SDK uses before it switches to
-// virtual-hosted addressing (`{bucket}.{endpoint host}`).
+/** Bucket names the AWS SDK virtual-hosts as `{bucket}.{endpoint host}`. */
 const DNS_COMPATIBLE_BUCKET_NAME = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
 const IP_SHAPED_BUCKET_NAME = /(?:\d+\.){3}\d+/;
 const ADJACENT_DOTS = /\.\./;
@@ -17,10 +16,7 @@ export type S3VirtualHostTarget = {
   region?: string | null;
 };
 
-// The S3 client dials `{bucket}.{allowlisted endpoint}` when path style is
-// off. Trust that one hostname the same way as the endpoint: the bucket
-// label cannot move the request onto a different parent host. Other names
-// under that parent stay rejected.
+/** withS3VirtualHostedBucket trusts `{bucket}.{allowlisted endpoint}` and rejects other names under that parent. */
 export function withS3VirtualHostedBucket(
   whitelist: OutboundUrlValidationWhitelist,
   target?: S3VirtualHostTarget,

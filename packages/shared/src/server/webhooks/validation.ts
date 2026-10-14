@@ -25,10 +25,7 @@ export function whitelistFromEnv(): WebhookValidationWhitelist {
   };
 }
 
-// Positive host list for webhook delivery and webhook saves only. The
-// exemption list above is also used by analytics exports, dataset remote
-// experiments, web callouts, and GitHub dispatch, which must stay
-// default-allow when this list is set.
+/** webhookWhitelistFromEnv adds the webhook-only positive host list to the shared exemption list. */
 export function webhookWhitelistFromEnv(): WebhookValidationWhitelist {
   return {
     ...whitelistFromEnv(),

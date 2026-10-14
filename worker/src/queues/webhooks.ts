@@ -16,7 +16,9 @@ import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   validateWebhookURL,
   webhookWhitelistFromEnv,
+  whitelistFromEnv,
   fetchWithSecureRedirects,
+  type WebhookValidationWhitelist,
   WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
   buildWebhookRequestHeaders,
 } from "@langfuse/shared/src/server";
@@ -208,6 +210,7 @@ async function executeHttpAction({
   actionConfig,
   additionalSensitiveHeaders,
   payloadType,
+  whitelist,
 }: {
   url: string;
   payload: string;
@@ -220,6 +223,7 @@ async function executeHttpAction({
   actionConfig: ActionDomainWithSecrets;
   additionalSensitiveHeaders?: string[];
   payloadType: WebhookInput["payload"]["type"];
+  whitelist: WebhookValidationWhitelist;
 }): Promise<{ httpStatus: number; responseBody: string }> {
   // monitor-alert does not write AutomationExecution rows; auto-disable rides a Redis counter instead.
   const isMonitorAlert = payloadType === "monitor-alert";
@@ -241,8 +245,6 @@ async function executeHttpAction({
         }, env.LANGFUSE_WEBHOOK_TIMEOUT_MS);
 
         try {
-          const whitelist = webhookWhitelistFromEnv();
-
           // Skip validation when flag is set (for tests with MSW mocking)
           if (!skipValidation) {
             await validateWebhookURL(url, whitelist);
@@ -560,6 +562,7 @@ async function executeWebhookAction({
     actionConfig,
     additionalSensitiveHeaders,
     payloadType: input.payload.type,
+    whitelist: webhookWhitelistFromEnv(),
   });
 }
 
@@ -701,6 +704,7 @@ async function executeGitHubDispatchAction({
     executionStart,
     actionConfig,
     payloadType: input.payload.type,
+    whitelist: whitelistFromEnv(),
   });
 }
 

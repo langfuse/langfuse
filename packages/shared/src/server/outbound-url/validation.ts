@@ -34,6 +34,8 @@ export class OutboundUrlValidationError extends Error {
 // can detect this failure by message when the typed `code` is lost — e.g. after
 // RedirectValidationError re-wraps the inner error by message text only.
 export const DNS_LOOKUP_FAILED_MESSAGE_PREFIX = "DNS lookup failed for";
+const HOST_NOT_IN_ALLOWLIST_MESSAGE =
+  "Host is not in the outbound URL allowlist";
 
 export interface OutboundUrlValidationWhitelist {
   hosts: string[];
@@ -205,12 +207,7 @@ export function validateOutboundResolvedIp({
   }
 }
 
-const HOST_NOT_IN_ALLOWLIST_MESSAGE =
-  "Host is not in the outbound URL allowlist";
-
-// Returns "allowed" when the host is on a configured positive allowlist and
-// may skip the private-address block. Throws when a list is configured and
-// the host is absent. Returns "not-configured" when no positive list is set.
+/** enforcePositiveAllowlist returns whether a configured positive host list allows this hostname. */
 function enforcePositiveAllowlist(
   hostname: string,
   whitelist: OutboundUrlValidationWhitelist,
