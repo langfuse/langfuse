@@ -56,7 +56,7 @@ export function ToolCallInvocationsView({
   }
 
   return (
-    <div className={cn("flex flex-col gap-1", className)}>
+    <div className={cn("flex flex-col gap-3", className)}>
       {toolCalls.map((toolCall, index) => {
         const invocationNumber = toolCallNumbers?.[index];
         // Without a paired result the arguments are the whole card and need no label.
@@ -77,11 +77,10 @@ export function ToolCallInvocationsView({
           <div
             key={`${toolCall.id}-${index}`}
             className={cn(
-              "py-2",
               message.role !== "assistant" &&
                 message.name !== "Output" &&
                 message.name !== "Model" &&
-                "w-full border-t",
+                "w-full border-t pt-2",
             )}
           >
             {/* Card header */}
@@ -106,7 +105,7 @@ export function ToolCallInvocationsView({
             </div>
 
             {/* Arguments view */}
-            <div className="py-2 [&_.io-message-content]:px-0">
+            <div className="pt-1 [&_.io-message-content]:px-0">
               {hasResponse && (
                 <div className="text-muted-foreground mb-1.5 text-xs font-bold">
                   Arguments
@@ -123,7 +122,7 @@ export function ToolCallInvocationsView({
                 projection sets `response`, so this section is beta-only by
                 data presence — legacy messages never carry the field. */}
             {response && (
-              <div className="py-2 [&_.io-message-content]:px-0">
+              <div className="pt-2 [&_.io-message-content]:px-0">
                 <div className="text-muted-foreground mb-1.5 text-xs font-bold">
                   Response
                   {response.isError && (

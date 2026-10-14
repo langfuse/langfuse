@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { cn } from "@/src/utils/tailwind";
 
 export type IOSectionProps = {
   title: React.ReactNode;
@@ -18,6 +19,9 @@ export type IOSectionProps = {
   onCollapsedChange?: (collapsed: boolean) => void;
   /** Off for bodies that bring their own box (status messages, toned tables). */
   boxed?: boolean;
+  /** Tighter vertical box padding for bodies whose rows carry their own
+      padding (tables, tool-call cards). */
+  dense?: boolean;
   children: React.ReactNode;
 };
 
@@ -36,6 +40,7 @@ export function IOSection({
   collapsed,
   onCollapsedChange,
   boxed = true,
+  dense = false,
   children,
 }: IOSectionProps) {
   const [internalCollapsed, setInternalCollapsed] = useState(defaultCollapsed);
@@ -80,7 +85,12 @@ export function IOSection({
       {!isCollapsed && (
         <div className="io-message-content ph-no-capture pt-1">
           {boxed ? (
-            <div className="bg-surface-section overflow-hidden rounded-md px-3 py-2">
+            <div
+              className={cn(
+                "bg-surface-section overflow-hidden rounded-md px-3",
+                dense ? "py-1" : "py-2",
+              )}
+            >
               {children}
             </div>
           ) : (

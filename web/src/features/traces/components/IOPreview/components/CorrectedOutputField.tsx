@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { Pencil, Trash, FileDiff, Check, Info } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
 import { IOSection } from "@/src/components/ui/IOSection";
 import { type ScoreDomain } from "@langfuse/shared";
@@ -16,6 +17,10 @@ import { CorrectedOutputDiffDialog } from "./CorrectedOutputDiffDialog";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import Link from "next/link";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+
+// The editor sits directly in the section box: no own chrome, the box's fill.
+const EDITOR_IN_SECTION_CLASSES =
+  "rounded-md border-0 bg-transparent [&_.cm-editor]:bg-transparent! [&_.cm-gutters]:bg-transparent! [&_.cm-scroller]:bg-transparent! [&_.cm-content]:bg-transparent!";
 
 interface CorrectedOutputFieldProps {
   projectId: string;
@@ -300,13 +305,17 @@ export function CorrectedOutputField({
         mode={strictJsonMode ? "json" : "text"}
         minHeight={200}
         placeholder="Enter corrected output..."
+        className={cn(
+          EDITOR_IN_SECTION_CLASSES,
+          "focus-within:ring-ring focus-within:ring-2",
+        )}
       />
     ) : (
       <CodeMirrorEditor
         value={displayValue}
         mode={strictJsonMode ? "json" : "text"}
         editable={false}
-        className="bg-surface-section [&_.cm-gutters]:bg-transparent! [&_.cm-scroller]:bg-transparent!"
+        className={EDITOR_IN_SECTION_CLASSES}
       />
     );
 
