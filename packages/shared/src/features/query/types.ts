@@ -46,6 +46,12 @@ export const viewDeclaration = z.object({
         .optional(),
       highCardinality: z.boolean().optional(),
       uiHidden: z.boolean().optional(),
+      // The member of this dimension whose value is already the sum of the
+      // other members (cost_details and usage_details carry a "total" key
+      // beside their components). Display-only; the query builder never reads
+      // it. A chart that renders the breakdown as one whole — a stacked bar, a
+      // pie — counts this member twice unless it leaves it out of the segments.
+      aggregateValue: z.string().optional(),
       // Expands dimension.sql independently with arrayJoin(), producing one row
       // per array element. Duplicate elements duplicate the source row; use
       // arrayDistinct(...) in sql when the intended grain is entity + distinct value.

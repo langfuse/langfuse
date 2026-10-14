@@ -12,6 +12,7 @@ import {
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { isChartDataEmpty } from "@/src/features/widgets/chart-library/isChartDataEmpty";
+import { prepareBreakdownSegments } from "@/src/features/widgets/chart-library/prepareBreakdownSegments";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { CardContent } from "@/src/components/ui/card";
 import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
@@ -46,6 +47,18 @@ const EMPTY_STATE_CHART_TYPES = new Set<DashboardWidgetChartType>([
   "NUMBER",
 ]);
 
+/**
+ * Chart types that render a breakdown as one whole, so their size is the sum of
+ * its members: a stacked bar's height and a pie's circle. Only these may not
+ * draw a breakdown's own aggregate alongside the components it sums — see
+ * {@link prepareBreakdownSegments}. Every other type draws each member
+ * independently and keeps the aggregate.
+ */
+const BREAKDOWN_AGGREGATING_CHART_TYPES = new Set<DashboardWidgetChartType>([
+  "BAR_TIME_SERIES",
+  "PIE",
+]);
+
 const ChartComponent = ({
   chartType,
   data,
@@ -69,6 +82,7 @@ const ChartComponent = ({
   colorBarsByCategory,
   zeroBaseline,
   emptyState,
+  breakdownAggregateValue,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -119,6 +133,15 @@ const ChartComponent = ({
    * would clip its own text. Pass a stable node so the memo still holds.
    */
   emptyState?: ReactNode;
+  /**
+   * The breakdown dimension's own aggregate member — the value whose metric is
+   * already the sum of the dimension's other values, as declared by
+   * `getDimensionAggregateValue` (`"total"` for Cost Type and Usage Type).
+   * Undefined when the breakdown has no such member, or there is no breakdown.
+   * Consumed by the chart types that add a breakdown up; see
+   * {@link prepareBreakdownSegments}.
+   */
+  breakdownAggregateValue?: string;
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -135,7 +158,18 @@ const ChartComponent = ({
   // straight to the visualiser, which formats them via the prepareTimeAxis
   // preparer — one source of truth, so every chart formats time the same way.
   // (LFE-10549)
-  const renderedData = data;
+  //
+  // A breakdown that carries its own aggregate is separated here, where the
+  // chart type is known: only the types that render the breakdown as one whole
+  // must leave it out, and the preparer returns `data` itself whenever nothing
+  // is separated, so the memoized subtrees below still bail out.
+  const renderedData = useMemo(
+    () =>
+      BREAKDOWN_AGGREGATING_CHART_TYPES.has(chartType)
+        ? prepareBreakdownSegments(data, breakdownAggregateValue)
+        : data,
+    [chartType, data, breakdownAggregateValue],
+  );
 
   const resolvedConfig = useMemo(() => {
     if (!config) return undefined;

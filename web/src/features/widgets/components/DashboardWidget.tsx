@@ -5,6 +5,7 @@ import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   buildWidgetOrderBy,
+  getDimensionAggregateValue,
   getResultUnit,
   isV2BreakdownChart,
   resolveWidgetRenderVersion,
@@ -821,6 +822,11 @@ export function DashboardWidget({
                 metricFormatter={chartPresentation?.metricFormatter}
                 missingValue={getWidgetMissingBucketValue(
                   widget.data.metrics[0]?.agg ?? "count",
+                )}
+                breakdownAggregateValue={getDimensionAggregateValue(
+                  widget.data.view,
+                  widget.data.dimensions[0]?.field,
+                  metricsVersion,
                 )}
               />
             </div>

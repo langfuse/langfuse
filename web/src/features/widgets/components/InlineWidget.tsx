@@ -6,6 +6,7 @@ import { type OrderByState } from "@langfuse/shared";
 import {
   type QueryType,
   type ViewVersion,
+  getDimensionAggregateValue,
   getResultUnit,
 } from "@langfuse/shared/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
@@ -427,6 +428,11 @@ export function WidgetContent({
         isLoading={queryResult.isPending || isExternalLoading}
         metricFormatter={chartPresentation?.metricFormatter}
         missingValue={getWidgetMissingBucketValue(metrics[0]?.agg ?? "count")}
+        breakdownAggregateValue={getDimensionAggregateValue(
+          view,
+          dimensions[0]?.field,
+          version,
+        )}
         hideXAxisLabels={hideXAxisLabels}
         colorBarsByCategory={colorBarsByCategory}
         legendPosition={legendPosition}

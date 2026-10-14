@@ -1402,6 +1402,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description:
         "Cost category key from cost_details map (e.g. 'input', 'output', 'total').",
+      aggregateValue: "total",
       pairExpand: {
         valuesSql: "mapValues(events_observations.cost_details)",
         valueAlias: "cost_value",
@@ -1413,6 +1414,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description:
         "Token usage category key from usage_details map (e.g. 'input', 'output', 'total').",
+      aggregateValue: "total",
       pairExpand: {
         valuesSql: "mapValues(events_observations.usage_details)",
         valueAlias: "usage_value",
@@ -1772,6 +1774,29 @@ export function getResultUnit(
 ): string | undefined {
   if (aggregation === "count" || aggregation === "uniq") return "integer";
   return getMeasureUnit(viewName, measureName, version);
+}
+
+/**
+ * Returns the member of a dimension whose value is already the sum of that
+ * dimension's other members, or undefined when it has none — `costType` and
+ * `usageType` expand map keys that include a `"total"` alongside the components
+ * it adds up.
+ *
+ * Use this to recognise the aggregate by its dimension rather than by its name:
+ * a chart that renders a breakdown as one whole (a stacked bar, a pie) must
+ * leave the aggregate out of the segments or it counts the same value twice,
+ * while an unrelated breakdown that happens to contain a category called
+ * "total" must keep it.
+ */
+export function getDimensionAggregateValue(
+  viewName: string,
+  dimensionName: string | undefined,
+  version: ViewVersion = "v1",
+): string | undefined {
+  if (!dimensionName) return undefined;
+  const versionViews = viewDeclarations[version];
+  const view = versionViews[viewName as keyof typeof versionViews];
+  return view?.dimensions[dimensionName]?.aggregateValue;
 }
 
 const measureNamesSet = new Set<string>();
