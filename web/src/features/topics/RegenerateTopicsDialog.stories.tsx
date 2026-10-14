@@ -1,6 +1,6 @@
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import {
   type TopicExecutionStatus,
   type TopicFacet,
@@ -58,9 +58,12 @@ const meta = preview.meta({
   },
   decorators: [
     (Story) => (
-      <DialogPrimitive.Root open>
-        <Story />
-      </DialogPrimitive.Root>
+      <DialogController
+        initialState={() => true}
+        renderDialog={() => <Story />}
+      >
+        {() => null}
+      </DialogController>
     ),
   ],
 });
