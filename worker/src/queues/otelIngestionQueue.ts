@@ -444,12 +444,11 @@ export const otelIngestionQueueProcessorBuilder = (
     job: Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>,
   ): Promise<void> => {
     let earlyBatch: EarlyOtelBatch | undefined;
-    const processingStartedAt = performance.now();
     let mediaPath: "early" | "reference" | undefined;
-    let writePathForMetric: OtelWritePath | undefined;
     let mediaPresence: OtelMediaPresence | undefined;
     let inputByteLength: number | undefined;
-    let completed = false;
+    let inputPreparationDurationMs: number | undefined;
+    const span = getCurrentSpan();
     try {
       const projectId = job.data.payload.authCheck.scope.projectId;
       const publicKey = job.data.payload.data.publicKey ?? "";
@@ -464,7 +463,6 @@ export const otelIngestionQueueProcessorBuilder = (
           job.data.payload.sdkVersion || UNKNOWN_INGESTION_SDK_VALUE,
       };
 
-      const span = getCurrentSpan();
       if (span) {
         span.setAttribute("messaging.bullmq.job.input.id", job.data.id);
         span.setAttribute(
@@ -524,6 +522,7 @@ export const otelIngestionQueueProcessorBuilder = (
       let parsedSpans: ResourceSpan[];
       if (earlyMediaEnabled) {
         const bytes = await eventStorage.downloadBytes(fileKey);
+        const preparationStartedAt = performance.now();
         inputByteLength = bytes.byteLength;
         recordHistogram(
           "langfuse.ingestion.s3_file_size_bytes",
@@ -551,9 +550,11 @@ export const otelIngestionQueueProcessorBuilder = (
         }
         ({ batch: earlyBatch, resourceSpans: parsedSpans } =
           await parsePreparedOtelBatch(prepared, bytes));
+        inputPreparationDurationMs = performance.now() - preparationStartedAt;
       } else {
         // Download file from blob storage
         const resourceSpans = await eventStorage.download(fileKey);
+        const preparationStartedAt = performance.now();
         inputByteLength = Buffer.byteLength(resourceSpans, "utf8");
 
         recordHistogram(
@@ -593,6 +594,7 @@ export const otelIngestionQueueProcessorBuilder = (
           }
           parsedSpans = maskingResult.data;
         }
+        inputPreparationDurationMs = performance.now() - preparationStartedAt;
       }
 
       // Generate events via OtelIngestionProcessor
@@ -764,7 +766,6 @@ export const otelIngestionQueueProcessorBuilder = (
         orgCutoffForcesDirect,
         langfuseSdkTraffic,
       });
-      writePathForMetric = writePath;
 
       span?.setAttribute("langfuse.ingestion.otel.write_path", writePath);
       recordIncrement("langfuse.ingestion.otel.write_path", 1, {
@@ -867,7 +868,6 @@ export const otelIngestionQueueProcessorBuilder = (
           directMediaPresence,
         );
       }
-      completed = true;
     } catch (e) {
       const fileKey = job.data.payload.data.fileKey;
       if (e instanceof ForbiddenError) {
@@ -893,13 +893,29 @@ export const otelIngestionQueueProcessorBuilder = (
       throw e;
     } finally {
       await earlyBatch?.dispose();
-      recordOtelQueueProcessingMetrics({
-        completed,
-        processingStartedAt,
+      if (mediaPath) {
+        span?.setAttribute(
+          "langfuse.ingestion.otel.media_presence",
+          mediaPresence ?? "unknown",
+        );
+        if (mediaPresence && mediaPresence !== "unknown") {
+          span?.setAttribute(
+            "langfuse.ingestion.otel.media_detected",
+            mediaPresence === "present",
+          );
+        }
+      }
+      if (inputPreparationDurationMs !== undefined) {
+        span?.setAttribute(
+          "langfuse.ingestion.otel.input_preparation_duration_ms",
+          inputPreparationDurationMs,
+        );
+      }
+      recordOtelInputPreparationMetrics({
+        durationMs: inputPreparationDurationMs,
         mediaPath,
         mediaPresence,
         inputByteLength,
-        writePath: writePathForMetric,
       });
     }
   };
@@ -909,51 +925,39 @@ function combineOtelMediaPresence(
   current: OtelMediaPresence | undefined,
   next: OtelMediaPresence,
 ): OtelMediaPresence {
-  if (current === "unknown" || next === "unknown") return "unknown";
   if (current === "present" || next === "present") return "present";
+  if (current === "unknown" || next === "unknown") return "unknown";
   return "absent";
 }
 
-function recordOtelQueueProcessingMetrics(params: {
-  completed: boolean;
-  processingStartedAt: number;
+function recordOtelInputPreparationMetrics(params: {
+  durationMs?: number;
   mediaPath?: "early" | "reference";
   mediaPresence?: OtelMediaPresence;
   inputByteLength?: number;
-  writePath?: OtelWritePath;
 }): void {
-  if (
-    !params.completed ||
-    !params.mediaPath ||
-    !params.writePath ||
-    !params.mediaPresence ||
-    params.mediaPresence === "unknown"
-  ) {
-    return;
-  }
+  if (params.durationMs === undefined || !params.mediaPath) return;
 
-  // One sample per completed queue attempt, including preparation, parsing,
-  // normalization, media work, and downstream writes.
-  const durationMs = performance.now() - params.processingStartedAt;
+  // The duration is captured after download and before event conversion.
+  // Media classification comes from the existing downstream detector.
   const tags = {
     media_path: params.mediaPath,
-    media_presence: params.mediaPresence,
-    write_path: params.writePath,
+    media_presence: params.mediaPresence ?? "unknown",
   };
   recordDistribution(
-    "langfuse.ingestion.otel.queue_processing_duration_ms",
-    durationMs,
+    "langfuse.ingestion.otel.input_preparation_duration_ms",
+    params.durationMs,
     tags,
   );
-  recordIncrement("langfuse.ingestion.otel.queue_processing_sample", 1, tags);
+  recordIncrement("langfuse.ingestion.otel.input_preparation_sample", 1, tags);
   recordIncrement(
-    "langfuse.ingestion.otel.queue_processing_duration_total_ms",
-    durationMs,
+    "langfuse.ingestion.otel.input_preparation_duration_total_ms",
+    params.durationMs,
     tags,
   );
   if (params.inputByteLength && params.inputByteLength > 0) {
     recordIncrement(
-      "langfuse.ingestion.otel.queue_input_bytes_total",
+      "langfuse.ingestion.otel.input_preparation_bytes_total",
       params.inputByteLength,
       tags,
     );
