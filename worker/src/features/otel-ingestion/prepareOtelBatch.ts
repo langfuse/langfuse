@@ -1,5 +1,6 @@
 import {
   extractOtelMedia,
+  hasOtelMediaCandidate,
   validateOtelJson,
   type EarlyOtelBatch,
   type ValidatedOtelJson,
@@ -13,6 +14,9 @@ import {
   applyIngestionMasking,
   isIngestionMaskingEnabled,
 } from "@langfuse/shared/src/server/ee/ingestionMasking";
+
+// Bound synchronous scanning; small marker-free inputs avoid a native task and copy.
+const MAX_SYNC_MEDIA_CHECK_BYTES = 64 * 1024;
 
 type PreparedInput =
   | {
@@ -43,7 +47,11 @@ export async function prepareOtelBatch(params: {
   let maskedInput: ValidatedOtelJson | undefined;
   try {
     if (!isIngestionMaskingEnabled()) {
-      const batch = extractMedia ? await extractOtelMedia(bytes) : null;
+      const needsExtraction =
+        extractMedia &&
+        (bytes.length > MAX_SYNC_MEDIA_CHECK_BYTES ||
+          hasOtelMediaCandidate(bytes));
+      const batch = needsExtraction ? await extractOtelMedia(bytes) : null;
       outcome = batch ? "native" : "unchanged";
       return { batch: batch ?? undefined, sourceUnchanged: !batch };
     }

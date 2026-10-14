@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const nativeMocks = vi.hoisted(() => ({
   validateOtelJson: vi.fn(),
   extractOtelMedia: vi.fn(),
+  hasOtelMediaCandidate: vi.fn(),
 }));
 const maskingMocks = vi.hoisted(() => ({
   applyIngestionMasking: vi.fn(),
@@ -13,10 +14,14 @@ vi.mock("@langfuse/native", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@langfuse/native")>();
   nativeMocks.validateOtelJson.mockImplementation(actual.validateOtelJson);
   nativeMocks.extractOtelMedia.mockImplementation(actual.extractOtelMedia);
+  nativeMocks.hasOtelMediaCandidate.mockImplementation(
+    actual.hasOtelMediaCandidate,
+  );
   return {
     ...actual,
     validateOtelJson: nativeMocks.validateOtelJson,
     extractOtelMedia: nativeMocks.extractOtelMedia,
+    hasOtelMediaCandidate: nativeMocks.hasOtelMediaCandidate,
   };
 });
 
@@ -37,6 +42,7 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
   beforeEach(() => {
     nativeMocks.validateOtelJson.mockClear();
     nativeMocks.extractOtelMedia.mockClear();
+    nativeMocks.hasOtelMediaCandidate.mockClear();
     maskingMocks.isIngestionMaskingEnabled.mockReturnValue(true);
     maskingMocks.applyIngestionMasking.mockImplementation(
       async (params: { data: unknown }) => ({
@@ -84,6 +90,7 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
         if ("error" in prepared) throw new Error("unexpected masking failure");
         expect(prepared.batch?.mediaCount()).toBe(disabled ? undefined : 0);
         expect(nativeMocks.extractOtelMedia).not.toHaveBeenCalled();
+        expect(nativeMocks.hasOtelMediaCandidate).not.toHaveBeenCalled();
         expect(prepared.sourceUnchanged).toBe(sourceUnchanged);
         const parsed = await parsePreparedOtelBatch(prepared, bytes);
         expect(parsed.batch).toBe(sourceUnchanged ? undefined : prepared.batch);
@@ -95,6 +102,37 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
                 ? "masked"
                 : "original",
         });
+      } finally {
+        await prepared.batch?.dispose();
+      }
+    },
+  );
+
+  it.each([
+    [64 * 1024, false, 0],
+    [64 * 1024 + 1, false, 1],
+    [64 * 1024, true, 1],
+  ] as const)(
+    "prepares %i bytes with media=%s using %i extraction tasks",
+    async (size, withMedia, tasks) => {
+      maskingMocks.isIngestionMaskingEnabled.mockReturnValue(false);
+      const input = withMedia
+        ? `data:image/png;base64,${Buffer.alloc(1024, "a").toString("base64")}`
+        : "ordinary";
+      const bytes = Buffer.from(JSON.stringify({ input }).padStart(size));
+      const prepared = await prepareOtelBatch({
+        bytes,
+        projectId: "project-id",
+        extractMedia: true,
+      });
+      try {
+        expect(nativeMocks.hasOtelMediaCandidate).toHaveBeenCalledTimes(
+          size <= 64 * 1024 ? 1 : 0,
+        );
+        expect(nativeMocks.extractOtelMedia).toHaveBeenCalledTimes(tasks);
+        expect(nativeMocks.validateOtelJson).not.toHaveBeenCalled();
+        expect(prepared.batch?.mediaCount() ?? 0).toBe(withMedia ? 1 : 0);
+        expect(prepared.sourceUnchanged).toBe(!withMedia);
       } finally {
         await prepared.batch?.dispose();
       }
