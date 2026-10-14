@@ -191,4 +191,24 @@ describe("toIOPreview", () => {
 
     expect(toIOPreview(io, "TOOL")).toEqual(toIOPreview(io));
   });
+
+  it.each([
+    {
+      name: "a LangChain dict message",
+      input: { type: "human", content: "List the files." },
+    },
+    {
+      name: "a LangChain serialised constructor envelope",
+      input: {
+        lc: 1,
+        type: "constructor",
+        id: ["langchain_core", "messages", "HumanMessage"],
+        kwargs: { content: "List the files." },
+      },
+    },
+  ])("keeps $name as chat on a TOOL observation", ({ input }) => {
+    const io = normalizeSpanIO({ input, output: ".:", metadata: undefined });
+
+    expect(toIOPreview(io, "TOOL")).toEqual(toIOPreview(io));
+  });
 });
