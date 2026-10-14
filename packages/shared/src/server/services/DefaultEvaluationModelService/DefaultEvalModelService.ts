@@ -102,14 +102,21 @@ export class DefaultEvalModelService {
   public static async handleLlmApiKeyDeletion(params: {
     tx: Prisma.TransactionClient;
     llmApiKeyId: string;
+    llmApiKeyOwner: {
+      projectId: string | null;
+      organizationId: string | null;
+    };
     provider: string;
     adapter: string;
   }): Promise<
     Array<{ projectId: string; defaultModelBlock: EvaluatorBlockResult }>
   > {
-    const { tx, llmApiKeyId, provider, adapter } = params;
+    const { tx, llmApiKeyId, llmApiKeyOwner, provider, adapter } = params;
     const defaultModels = await tx.defaultLlmModel.findMany({
-      where: { llmApiKeyId },
+      where: {
+        llmApiKeyId,
+        LlmApiKey: llmApiKeyOwner,
+      },
       select: { id: true, projectId: true },
     });
 

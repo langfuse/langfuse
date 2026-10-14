@@ -194,16 +194,29 @@ export async function pauseTopicsModelsUsingConnection(
 export async function handleTopicsLlmApiKeyDeletion(params: {
   tx: Prisma.TransactionClient;
   llmApiKeyId: string;
+  llmApiKeyOwner: {
+    projectId: string | null;
+    organizationId: string | null;
+  };
   provider: string;
   adapter: string;
 }): Promise<string[]> {
-  const { tx, llmApiKeyId, provider, adapter } = params;
+  const { tx, llmApiKeyId, llmApiKeyOwner, provider, adapter } = params;
   const configs = await tx.topicConfig.findMany({
     where: {
       OR: [
-        { summaryLlmApiKeyId: llmApiKeyId },
-        { embeddingLlmApiKeyId: llmApiKeyId },
-        { clusteringLlmApiKeyId: llmApiKeyId },
+        {
+          summaryLlmApiKeyId: llmApiKeyId,
+          summaryLlmApiKey: llmApiKeyOwner,
+        },
+        {
+          embeddingLlmApiKeyId: llmApiKeyId,
+          embeddingLlmApiKey: llmApiKeyOwner,
+        },
+        {
+          clusteringLlmApiKeyId: llmApiKeyId,
+          clusteringLlmApiKey: llmApiKeyOwner,
+        },
       ],
     },
     select: {

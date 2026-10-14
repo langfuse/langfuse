@@ -809,6 +809,10 @@ export class LlmConnectionService {
           await DefaultEvalModelService.handleLlmApiKeyDeletion({
             tx,
             llmApiKeyId: connection.id,
+            llmApiKeyOwner: {
+              projectId: connection.projectId,
+              organizationId: connection.organizationId,
+            },
             provider: connection.provider,
             adapter: connection.adapter,
           });
@@ -846,6 +850,10 @@ export class LlmConnectionService {
         const topicProjectIds = await handleTopicsLlmApiKeyDeletion({
           tx,
           llmApiKeyId: connection.id,
+          llmApiKeyOwner: {
+            projectId: connection.projectId,
+            organizationId: connection.organizationId,
+          },
           provider: connection.provider,
           adapter: connection.adapter,
         });
