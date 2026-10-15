@@ -4,6 +4,7 @@ import {
   type OperationNode,
   type QueryId,
   type SelectQueryNode,
+  type TableNode,
   type WithNode,
 } from "kysely";
 
@@ -98,7 +99,8 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
  * Transformer for passes that rewrite physical relations: it tracks which
  * names resolve to a CTE, so a relation named like a registry table is left
  * alone when it reads a CTE of that name. Subclasses rewrite each select in
- * {@link rewriteSelect}, after its children, and ask {@link isCte}.
+ * {@link rewriteSelect}, after its children, and ask {@link isCte}. The
+ * compiler's bind-type scopes (`compiler.ts`) resolve names the same way.
  */
 export abstract class CteScopedTransformer extends ClickHouseOperationNodeTransformer {
   /**
@@ -118,7 +120,10 @@ export abstract class CteScopedTransformer extends ClickHouseOperationNodeTransf
     node: ClickHouseSelectQueryNode,
   ): ClickHouseSelectQueryNode;
 
-  protected isCte(name: string): boolean {
+  /** A schema-qualified table (`default.traces`) is never a CTE. */
+  protected isCte(table: TableNode): boolean {
+    if (table.table.schema) return false;
+    const name = table.table.identifier.name;
     return this.cteScopes.some((scope) => scope.has(name));
   }
 

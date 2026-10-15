@@ -16,6 +16,7 @@ import {
   SetOperationNode,
   TableNode,
   ValueNode,
+  type CommonTableExpressionNode,
   type OperationNode,
   type PrimitiveValueListNode,
   type RootOperationNode,
@@ -97,18 +98,39 @@ function inferClickHouseType(value: unknown): string {
 }
 
 /**
- * Column bind types of the relation `name` resolves to: the innermost CTE of
- * that name, else the registry table, else undefined.
+ * Column bind types of the relation `table` resolves to: the innermost CTE of
+ * that name, else the registry table, else undefined. A schema-qualified table
+ * (`default.traces`) is never a CTE.
  */
 function relationBindTypes(
-  name: string,
-  scopes: readonly { ctes: Map<string, ColumnBindTypes> }[],
+  table: TableNode,
+  scopes: readonly SelectScope[],
 ): ColumnBindTypes | undefined {
-  for (const scope of [...scopes].reverse()) {
-    const cte = scope.ctes.get(name);
-    if (cte) return cte;
+  const name = table.table.identifier.name;
+  if (!table.table.schema) {
+    for (const scope of [...scopes].reverse()) {
+      const cte = scope.cte(name);
+      if (cte) return cte;
+    }
   }
   return TABLE_BIND_TYPES[name];
+}
+
+function cteName(node: CommonTableExpressionNode): string {
+  return node.name.table.table.identifier.name;
+}
+
+/**
+ * The scope a body of CTE `name` sees in place of its declaring SELECT: every
+ * sibling CTE but itself, as ClickHouse resolves `WITH traces AS (SELECT …
+ * FROM traces)` to the table, or to an enclosing CTE of that name. The
+ * declaring SELECT's FROM relations are not visible to the body.
+ */
+function withoutCte(scope: SelectScope, name: string): SelectScope {
+  return {
+    cte: (other) => (other === name ? undefined : scope.cte(other)),
+    relations: new Map(),
+  };
 }
 
 /**
@@ -164,8 +186,8 @@ function columnReference(
 type ColumnBindTypes = Readonly<Record<string, string>>;
 
 type SelectScope = {
-  /** CTEs declared by this SELECT's WITH → bind types of their output columns. */
-  ctes: Map<string, ColumnBindTypes>;
+  /** Bind types of the output columns of the CTE `name` this SELECT's WITH declares, or undefined if it declares none. */
+  cte: (name: string) => ColumnBindTypes | undefined;
   /** FROM/JOIN names and aliases → the relation's column bind types, or undefined when unknown. */
   relations: Map<string, ColumnBindTypes | undefined>;
 };
@@ -347,15 +369,11 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     node: SelectQueryNode,
     enclosing: readonly SelectScope[],
   ): SelectScope {
-    const scope: SelectScope = { ctes: new Map(), relations: new Map() };
+    const scope: SelectScope = {
+      cte: this.cteLookup(node, enclosing),
+      relations: new Map(),
+    };
     const scopes = [...enclosing, scope];
-    // In declaration order, so a CTE can read an earlier one.
-    for (const cte of node.with?.expressions ?? []) {
-      scope.ctes.set(
-        cte.name.table.table.identifier.name,
-        this.outputBindTypes(cte.expression, scopes) ?? COLUMN_BIND_TYPES,
-      );
-    }
     const relations = [
       ...(node.from?.froms ?? []),
       ...(node.joins ?? []).map((join) => join.table),
@@ -368,18 +386,70 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
         : wrapped;
       const aliased = AliasNode.is(relation) ? relation : undefined;
       const inner = aliased ? aliased.node : relation;
-      const table = TableNode.is(inner)
-        ? inner.table.identifier.name
-        : undefined;
-      const columns = table
-        ? relationBindTypes(table, scopes)
+      const columns = TableNode.is(inner)
+        ? relationBindTypes(inner, scopes)
         : this.outputBindTypes(inner, scopes);
-      if (table) scope.relations.set(table, columns);
+      if (TableNode.is(inner)) {
+        scope.relations.set(inner.table.identifier.name, columns);
+      }
       if (aliased && IdentifierNode.is(aliased.alias)) {
         scope.relations.set(aliased.alias.name, columns);
       }
     }
     return scope;
+  }
+
+  /**
+   * Lookup of the CTEs `node`'s WITH declares. A body is typed on its first
+   * read, against `enclosing` plus {@link withoutCte}, so it can read an
+   * earlier or a later sibling as ClickHouse does. A body that reads itself
+   * through a cycle (`a` → `b` → `a`) sees the name-only fallback.
+   */
+  private cteLookup(
+    node: SelectQueryNode,
+    enclosing: readonly SelectScope[],
+  ): SelectScope["cte"] {
+    const bodies = new Map(
+      (node.with?.expressions ?? []).map((cte) => [cteName(cte), cte]),
+    );
+    const typed = new Map<string, ColumnBindTypes>();
+    const lookup = (name: string): ColumnBindTypes | undefined => {
+      const cte = bodies.get(name);
+      if (!cte) return undefined;
+      const known = typed.get(name);
+      if (known) return known;
+      typed.set(name, COLUMN_BIND_TYPES);
+      const siblings: SelectScope = { cte: lookup, relations: new Map() };
+      const columns =
+        this.outputBindTypes(cte.expression, [
+          ...enclosing,
+          withoutCte(siblings, name),
+        ]) ?? COLUMN_BIND_TYPES;
+      typed.set(name, columns);
+      return columns;
+    };
+    return lookup;
+  }
+
+  /**
+   * The declaring SELECT's scope declares this CTE, so a body reading its own
+   * name would otherwise bind against the CTE instead of the table.
+   */
+  protected override visitCommonTableExpression(
+    node: CommonTableExpressionNode,
+  ): void {
+    const declaring = this.selectScopes.pop();
+    if (!declaring) {
+      super.visitCommonTableExpression(node);
+      return;
+    }
+    this.selectScopes.push(withoutCte(declaring, cteName(node)));
+    try {
+      super.visitCommonTableExpression(node);
+    } finally {
+      this.selectScopes.pop();
+      this.selectScopes.push(declaring);
+    }
   }
 
   /**

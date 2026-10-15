@@ -58,17 +58,17 @@ class SoftDeleteFilterTransformer extends CteScopedTransformer {
   protected rewriteSelect(
     node: ClickHouseSelectQueryNode,
   ): ClickHouseSelectQueryNode {
-    return filterSelect(node, (name) => this.isCte(name));
+    return filterSelect(node, (table) => this.isCte(table));
   }
 }
 
 function filterSelect(
   node: ClickHouseSelectQueryNode,
-  isCte: (name: string) => boolean,
+  isCte: (table: TableNode) => boolean,
 ): ClickHouseSelectQueryNode {
   const describe = (item: OperationNode) => {
     const relation = describeRelation(item);
-    return relation && !isCte(relation.tableName) ? relation : undefined;
+    return relation && !isCte(relation.node) ? relation : undefined;
   };
   const froms = (node.from?.froms ?? []).map(describe);
   const joins = (node.joins ?? []).map((join) => ({
@@ -138,7 +138,7 @@ function describeRelation(node: OperationNode): SoftDeleteRelation | undefined {
   if (TableNode.is(node)) {
     const tableName = node.table.identifier.name;
     const flag = SOFT_DELETE_COLUMNS[tableName];
-    return flag ? { tableName, flag } : undefined;
+    return flag ? { tableName, flag, node } : undefined;
   }
   return undefined;
 }
@@ -162,4 +162,5 @@ type SoftDeleteRelation = {
   tableName: string;
   alias?: string;
   flag: string;
+  node: TableNode;
 };

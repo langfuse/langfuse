@@ -377,6 +377,23 @@ describe("tenancy injection", () => {
       );
     });
 
+    it("scopes a schema-qualified table named like a CTE in scope", () => {
+      expect(
+        compile(
+          tracesCte
+            .selectFrom("traces")
+            .select("id")
+            .where(
+              "id",
+              "in",
+              db.withSchema("default").selectFrom("traces").select("id"),
+            ),
+        ),
+      ).toBe(
+        "with traces as (select trace_id as id from scores where project_id = {p1:String}) select id from traces where id in (select id from default.traces where project_id = {p1:String})",
+      );
+    });
+
     it("scopes the table again once a subquery leaves the CTE's select", () => {
       expect(
         compile(

@@ -40,7 +40,7 @@ const PROJECT_ID_COLUMN = "project_id";
 const TENANCY_STAMPED = new WeakSet<object>();
 
 type Relation =
-  | { kind: "table"; tableName: string; alias?: string }
+  | { kind: "table"; tableName: string; alias?: string; node: TableNode }
   | { kind: "subquery"; node: SelectQueryNode }
   | { kind: "raw" }
   | { kind: "other" };
@@ -81,14 +81,14 @@ class TenancyInjectionTransformer extends CteScopedTransformer {
   protected rewriteSelect(
     node: ClickHouseSelectQueryNode,
   ): ClickHouseSelectQueryNode {
-    return injectSelect(node, this.projectId, (name) => this.isCte(name));
+    return injectSelect(node, this.projectId, (table) => this.isCte(table));
   }
 }
 
 function injectSelect(
   node: ClickHouseSelectQueryNode,
   projectId: string,
-  isCte: (name: string) => boolean,
+  isCte: (table: TableNode) => boolean,
 ): ClickHouseSelectQueryNode {
   const fromRelations = (node.from?.froms ?? []).map(describeRelation);
   const joinRelations = (node.joins ?? []).map((join) => ({
@@ -106,9 +106,7 @@ function injectSelect(
   const isTenantedTable = (
     r: Relation,
   ): r is Extract<Relation, { kind: "table" }> =>
-    r.kind === "table" &&
-    TENANTED_TABLES.has(r.tableName) &&
-    !isCte(r.tableName);
+    r.kind === "table" && TENANTED_TABLES.has(r.tableName) && !isCte(r.node);
 
   const tenantedFrom = fromRelations.filter(isTenantedTable);
   const tenantedJoinCount = joinRelations.filter(({ relation }) =>
@@ -184,12 +182,12 @@ function describeRelation(node: OperationNode): Relation {
     const inner = describeRelation(node.node);
     if (inner.kind === "table") {
       const alias = identifierName(node.alias);
-      return { kind: "table", tableName: inner.tableName, alias };
+      return { ...inner, alias };
     }
     return inner;
   }
   if (TableNode.is(node)) {
-    return { kind: "table", tableName: tableNameOf(node) };
+    return { kind: "table", tableName: tableNameOf(node), node };
   }
   if (SelectQueryNode.is(node)) {
     return { kind: "subquery", node };
