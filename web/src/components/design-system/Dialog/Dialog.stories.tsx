@@ -59,6 +59,25 @@ export const VariantMatrix = meta.story({
   ),
 });
 
+export const WithFooterGuidance = meta.story({
+  args: {
+    title: "Create evaluator",
+    text: "Save this evaluator to reuse its configuration across evaluation rules.",
+    footerInfo:
+      "Next: attach a rule to run this evaluator on incoming observations.",
+    size: "lg",
+    actions: [{ label: "Create evaluator", onClick: fn() }],
+  },
+  render: (args) => (
+    <DialogController
+      initialState={() => true}
+      renderDialog={() => <Dialog {...args} />}
+    >
+      {() => null}
+    </DialogController>
+  ),
+});
+
 export const Autofocus = meta.story({
   name: "(Test) Autofocus",
   render: () => (
@@ -162,5 +181,67 @@ export const DestructiveOnlyAutofocus = meta.story({
     await waitFor(() =>
       expect(body.getByRole("button", { name: "Cancel" })).toHaveFocus(),
     );
+  },
+});
+
+export const ScrollableBody = meta.story({
+  name: "(Test) Long content scrolls above the footer",
+  render: () => (
+    <DialogController
+      initialState={() => true}
+      renderDialog={() => (
+        <Dialog
+          title="Scrollable dialog"
+          footerInfo="Review this content before continuing."
+          actions={[{ label: "Continue", onClick: fn() }]}
+        >
+          <Dialog.Body>
+            {Array.from({ length: 40 }, (_, index) => (
+              <p key={index}>Dialog content row {index + 1}</p>
+            ))}
+            <p>End of dialog content</p>
+          </Dialog.Body>
+        </Dialog>
+      )}
+    >
+      {() => null}
+    </DialogController>
+  ),
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const dialog = body.getByRole("dialog", { name: "Scrollable dialog" });
+    const end = within(dialog).getByText("End of dialog content");
+    const scroller = end.parentElement!;
+    const footer = dialog.querySelector("footer")!;
+    const guidance = within(footer).getByText(
+      "Review this content before continuing.",
+    );
+    const continueButton = within(footer).getByRole("button", {
+      name: "Continue",
+    });
+    function expectSeparateBodyAndFooter() {
+      const bounds = dialog.getBoundingClientRect();
+      const actions = footer.getBoundingClientRect();
+      expect(actions.top).toBeGreaterThanOrEqual(
+        scroller.getBoundingClientRect().bottom - 1,
+      );
+      expect(actions.bottom).toBeLessThanOrEqual(bounds.bottom + 1);
+      expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
+      expect(guidance.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        actions.bottom,
+      );
+      expect(guidance.getBoundingClientRect().right).toBeLessThanOrEqual(
+        continueButton.getBoundingClientRect().left,
+      );
+    }
+    await waitFor(expectSeparateBodyAndFooter);
+    scroller.scrollTop = scroller.scrollHeight;
+    await waitFor(() => {
+      expectSeparateBodyAndFooter();
+      expect(scroller.scrollTop).toBeGreaterThan(0);
+      expect(end.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        footer.getBoundingClientRect().top + 1,
+      );
+    });
   },
 });
