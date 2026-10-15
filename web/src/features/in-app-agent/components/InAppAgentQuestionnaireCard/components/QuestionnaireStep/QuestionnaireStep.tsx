@@ -123,7 +123,7 @@ export function QuestionnaireStep({
   const skipButton = (
     <Button
       text="Skip"
-      variant="secondary"
+      variant="outline"
       size="sm"
       disabled={isDisabled}
       onClick={onSkip}
