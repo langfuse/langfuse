@@ -95,22 +95,10 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
   const isMobile = useIsMobile();
   const trace = props.isLoading === true ? null : props.trace;
   const observations = props.isLoading === true ? null : props.observations;
-  const defaultObservationId = useMemo(() => {
-    // Only v4 (events-based) traces carry rootObservationType. Their trace
-    // summary is already shown in the header, so default to observation details.
-    // V3 traces lack this field and keep the trace-level detail view as default.
-    if (!trace?.rootObservationType || !observations) return null;
-    if (trace.rootObservationId) return trace.rootObservationId;
-
-    let firstRoot: ObservationReturnTypeWithMetadata | undefined;
-    for (const observation of observations) {
-      if (observation.parentObservationId) continue;
-      if (!firstRoot || observation.startTime < firstRoot.startTime) {
-        firstRoot = observation;
-      }
-    }
-    return firstRoot?.id ?? null;
-  }, [trace, observations]);
+  const defaultObservationId = useMemo(
+    () => resolveDefaultObservationId(trace, observations),
+    [trace, observations],
+  );
 
   return (
     <ViewPreferencesProvider traceContext={traceContext}>
@@ -415,4 +403,22 @@ function MobileTraceContent({ shouldShowGraph }: { shouldShowGraph: boolean }) {
       info={<TracePanelDetail />}
     />
   );
+}
+
+function resolveDefaultObservationId(
+  trace: TraceProps["trace"] | null,
+  observations: TraceProps["observations"] | null,
+) {
+  /** V4 defaults to observation details; v3 keeps the trace-level view. */
+  if (!trace?.rootObservationType || !observations) return null;
+  if (trace.rootObservationId) return trace.rootObservationId;
+
+  let firstRoot: ObservationReturnTypeWithMetadata | undefined;
+  for (const observation of observations) {
+    if (observation.parentObservationId) continue;
+    if (!firstRoot || observation.startTime < firstRoot.startTime) {
+      firstRoot = observation;
+    }
+  }
+  return firstRoot?.id ?? null;
 }
