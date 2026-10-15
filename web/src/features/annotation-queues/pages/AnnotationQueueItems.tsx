@@ -9,7 +9,6 @@ import {
   SidePanel,
   SidePanelContent,
   SidePanelHeader,
-  SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { AnnotationQueueSetupController } from "@/src/features/annotation-queues/components/AnnotationQueueSetupController";
 
@@ -74,9 +73,10 @@ export default function QueueItems({
               mobileTitle="Queue setup"
               id="queue-details"
               scrollable={false}
+              variant="sidebar"
             >
               <SidePanelHeader>
-                <SidePanelTitle>Queue setup</SidePanelTitle>
+                <span className="text-sm font-bold">Queue setup</span>
               </SidePanelHeader>
               <SidePanelContent className="isolate min-h-0 flex-1 gap-0">
                 {content}
