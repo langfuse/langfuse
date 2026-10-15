@@ -375,7 +375,7 @@ export function concat(...values: Expression<string>[]): ChExpression<string> {
 /** ClickHouse `length(array)`. */
 export function arrayLength(
   array: Expression<unknown[]>,
-): ChExpression<number> {
+): ChExpression<string> {
   return functionCall("length", [array]);
 }
 
@@ -385,22 +385,14 @@ export function notEmpty(array: Expression<unknown[]>): ChExpression<SqlBool> {
 }
 
 /**
- * ClickHouse `arrayExists(x -> predicate, array)`. The lambda parameter is
- * always `x`, so a nested `arrayExists` would shadow it.
+ * ClickHouse `arrayExists(x -> predicate, array)`. `predicate` receives the
+ * lambda parameter: `x` at the top level, `x1`, `x2`, … inside nested lambdas.
  */
 export function arrayExists<T>(
   predicate: (element: Expression<T>) => Expression<SqlBool>,
   array: Expression<T[]>,
 ): ChExpression<SqlBool> {
-  const param = ColumnNode.create("x");
-  const lambda = BinaryOperationNode.create(
-    param,
-    OperatorNode.create("->"),
-    predicate(
-      new ExpressionWrapper(param as unknown as OperationNode),
-    ).toOperationNode(),
-  );
-  return functionCall("arrayExists", [lambda, array]);
+  return functionCall("arrayExists", [lambda("x", predicate), array]);
 }
 
 /** ClickHouse `any(value)`: some value of the group. */
@@ -542,13 +534,33 @@ export function metadataMap(
   return mapFromArrays(arrayReverse(names), arrayReverse(values));
 }
 
-// Nesting depth of `arrayMap` bodies under construction. Each nesting level
+// Nesting depth of lambda bodies under construction. Each nesting level
 // names its lambda parameter differently, so an inner lambda never shadows
-// an outer one. Zero outside any `arrayMap` call.
-// Module state is safe here: `body` runs synchronously inside `arrayMap`, and
+// an outer one. Zero outside any lambda.
+// Module state is safe here: `body` runs synchronously inside `lambda`, and
 // JavaScript never interleaves another synchronous call with it, so concurrent
 // requests cannot observe each other's depth.
-let arrayMapDepth = 0;
+let lambdaDepth = 0;
+
+/** `p -> body(p)`, with `p` named `base` plus the nesting depth past zero. */
+function lambda<T, U>(
+  base: string,
+  body: (element: Expression<T>) => Expression<U>,
+): OperationNode {
+  const param = ColumnNode.create(
+    lambdaDepth === 0 ? base : `${base}${lambdaDepth}`,
+  );
+  lambdaDepth++;
+  let bodyNode: OperationNode;
+  try {
+    bodyNode = body(
+      new ExpressionWrapper(param as unknown as OperationNode),
+    ).toOperationNode();
+  } finally {
+    lambdaDepth--;
+  }
+  return BinaryOperationNode.create(param, OperatorNode.create("->"), bodyNode);
+}
 
 /**
  * ClickHouse `arrayMap(v -> body, array)`. `body` receives the lambda
@@ -559,24 +571,7 @@ export function arrayMap<T, U>(
   body: (element: Expression<T>) => Expression<U>,
   array: Expression<T[]>,
 ): ChExpression<U[]> {
-  const param = ColumnNode.create(
-    arrayMapDepth === 0 ? "v" : `v${arrayMapDepth}`,
-  );
-  arrayMapDepth++;
-  let bodyNode: OperationNode;
-  try {
-    bodyNode = body(
-      new ExpressionWrapper(param as unknown as OperationNode),
-    ).toOperationNode();
-  } finally {
-    arrayMapDepth--;
-  }
-  const lambda = BinaryOperationNode.create(
-    param,
-    OperatorNode.create("->"),
-    bodyNode,
-  );
-  return functionCall("arrayMap", [lambda, array]);
+  return functionCall("arrayMap", [lambda("v", body), array]);
 }
 
 /**

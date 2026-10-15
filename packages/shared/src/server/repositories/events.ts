@@ -40,6 +40,7 @@ import {
   includeDeleted,
   leftUTF8,
   limitBy,
+  literal,
   mapValue,
   medianExact,
   metadataMap,
@@ -1229,7 +1230,7 @@ export const getTraceByIdFromEventsTable = async ({
       "t.created_at",
       "t.updated_at",
       metadataSelect,
-      sql`0`.as("is_deleted"),
+      literal(0).as("is_deleted"),
       ...traceIoSelects(excludeInputOutput, truncated),
     ])
     .$if(timestamp != null, (qb) =>
@@ -1280,7 +1281,8 @@ function traceIoSelects(
 ): ReadonlyArray<
   "t.input" | "t.output" | AliasedExpression<unknown, "input" | "output">
 > {
-  if (excludeInputOutput) return [sql`''`.as("input"), sql`''`.as("output")];
+  if (excludeInputOutput)
+    return [literal("").as("input"), literal("").as("output")];
   if (truncated) {
     const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
     return [

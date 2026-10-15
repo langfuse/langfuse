@@ -355,50 +355,6 @@ const FIELD_SETS = {
     "experimentMetadata",
     "experimentDescription",
   ],
-  // getById field sets (reuse the same fields - all queries use `FROM events_<type> e`)
-  byIdBase: [
-    "id",
-    "traceId",
-    "projectId",
-    "environment",
-    "type",
-    "parentObservationId",
-    "startTime",
-    "endTime",
-    "name",
-    "metadata",
-    "level",
-    "statusMessage",
-    "version",
-    "release",
-    "userId",
-    "sessionId",
-    "traceName",
-    "tags",
-    "bookmarked",
-    "public",
-    "toolDefinitions",
-    "toolCalls",
-    "toolCallNames",
-    "skillsAvailable",
-    "skillsResourceLoaded",
-  ],
-  byIdModel: [
-    "providedModelName",
-    "internalModelId",
-    "modelParameters",
-    "providedUsageDetails",
-    "usageDetails",
-    "providedCostDetails",
-    "costDetails",
-    "totalCost",
-    "usagePricingTierId",
-    "usagePricingTierName",
-    "completionStartTime",
-  ],
-  byIdPrompt: ["promptId", "promptName", "promptVersion"],
-  byIdTimestamps: ["createdAt", "updatedAt", "eventTs"],
-
   // Public API v2 field sets (field groups for selective fetching)
   core: [
     "id",
@@ -2096,11 +2052,6 @@ export const EXPERIMENTS_AGGREGATION_FIELDS = {
     "groupUniqArrayIf(tuple(e.prompt_name, e.prompt_version), e.prompt_name != '') AS prompts",
   experimentMetadata:
     "any(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values)) AS experiment_metadata",
-
-  // Metrics fields
-  totalCost: "SUM(e.total_cost) AS total_cost",
-  latencyAvg:
-    "avgIf(date_diff('millisecond', e.start_time, e.end_time), e.span_id = e.experiment_item_root_span_id AND e.end_time IS NOT NULL) AS latency_avg",
 } as const;
 
 /**
@@ -2119,7 +2070,6 @@ const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
     "prompts",
     "experimentMetadata",
   ] as const,
-  metrics: ["experimentId", "totalCost", "latencyAvg"] as const,
   publicApiSummary: [
     "experimentId",
     "experimentName",
@@ -2135,10 +2085,6 @@ export type ExperimentsAggregationFieldSetName =
 
 /**
  * ExperimentsAggregationQueryBuilder - Aggregates events by (experiment_id, project_id).
- *
- * Use the "metrics" field set for cost and latency aggregations:
- * - Cost: SUM of all event costs for the experiment
- * - Latency: AVG of root span duration (where span_id = experiment_item_root_span_id)
  */
 export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   typeof EXPERIMENTS_AGGREGATION_FIELDS

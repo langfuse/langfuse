@@ -9,6 +9,7 @@ import {
   UnscopedRelationError,
 } from "./errors";
 import {
+  arrayExists,
   arrayMap,
   leftUTF8,
   literal,
@@ -206,6 +207,24 @@ describe("arrayMap", () => {
       "arrayMap(v -> arrayMap(v1 -> concat(v, v1), e.tags), e.metadata_names)",
     );
     expect(compiled).toContain("arrayMap(v -> leftUTF8(v, 2), e.tags)");
+  });
+});
+
+describe("arrayExists", () => {
+  it("names nested lambda parameters apart so the inner one does not shadow", () => {
+    const eb = expressionBuilder<
+      { e: ClickHouseDatabase["events_core"] },
+      "e"
+    >();
+    const nested = arrayExists<string>(
+      (name) =>
+        arrayExists<string>((tag) => eb(tag, "=", name), eb.ref("e.tags")),
+      eb.ref("e.metadata_names"),
+    );
+
+    expect(renderClickhouseExpression(nested)).toBe(
+      "arrayExists(x -> arrayExists(x1 -> x1 = x, e.tags), e.metadata_names)",
+    );
   });
 });
 
