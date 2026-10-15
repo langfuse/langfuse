@@ -1,8 +1,4 @@
-import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { useState } from "react";
-import { env } from "@/src/env.mjs";
-import { type ColumnDef } from "@tanstack/react-table";
-import { format } from "date-fns";
 import {
   eventsEvalFilterColumns,
   experimentEvalFilterColsWithOptions,
@@ -10,22 +6,13 @@ import {
   type FilterState,
   type TimeFilter,
 } from "@langfuse/shared";
-import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
-import { Button } from "@/src/components/design-system/Button/Button";
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
-import { Input } from "@/src/components/design-system/Input/Input";
-import { Textarea } from "@/src/components/ui/textarea";
-import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { Table } from "@/src/components/design-system/table/Table";
-import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { api, type RouterInputs } from "@/src/utils/api";
+import { toObservedOptions } from "@/src/features/search-bar";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
-import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
-import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
-import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
-import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/components/DateRangeInput/DateRangeInput";
+import {
+  TopicTraceSelectorView,
+  type TopicTraceSelectorViewProps,
+} from "./TopicTraceSelectorView";
 import { parseTraceInput } from "./parse-trace-input";
 import { TOPICS_BACKFILL_TRACE_LIMIT } from "./backfill-limit";
 import {
@@ -33,11 +20,9 @@ import {
   relativeTopicTimeRange,
   topicCalendarDates,
   topicCalendarRange,
-  topicTimeRangePresets,
 } from "./time-range";
 
 type PreviewInput = RouterInputs["topics"]["previewTraces"];
-type TracePreview = RouterOutputs["topics"]["previewTraces"]["traces"][number];
 type TopicTraceSelection = { count: number } & (
   | { traceIds: string[] }
   | {
@@ -47,17 +32,6 @@ type TopicTraceSelection = { count: number } & (
       >["selection"];
     }
 );
-const registry = {
-  ...RULE_FIELD_REGISTRY,
-  aiFilterPrompt: false,
-  fields: RULE_FIELD_REGISTRY.fields.filter(
-    (field) => field.id !== "isRootObservation",
-  ),
-  columns: RULE_FIELD_REGISTRY.columns.filter(
-    (column) => column.id !== "isRootObservation",
-  ),
-};
-
 export function useTopicTraceSelector({
   projectId,
   enabled,
@@ -202,237 +176,76 @@ export function useTopicTraceSelector({
     });
   };
 
-  let previewLabel = ready ? "Refresh selection" : "Preview traces";
-  if (request !== null && preview.isFetching) previewLabel = "Loading preview…";
-
+  const handleModeChange = (value: string) => {
+    setMode(value);
+    setRequest(null);
+  };
+  const handleFilterChange = (value: FilterState) => {
+    setFilter(value);
+    setRequest(null);
+  };
+  const handleTimeWindowChange = (value: string) => {
+    setTimeWindow(value);
+    setRequest(null);
+    setRange(
+      value === "custom"
+        ? topicCalendarRange(topicCalendarDates(range))
+        : relativeTopicTimeRange(Number(value)),
+    );
+  };
+  const handleRangeChange: TopicTraceSelectorViewProps["onRangeChange"] = (
+    value,
+  ) => {
+    setRange(value);
+    setRequest(null);
+  };
+  const handleLimitChange = (value: string) => {
+    setLimit(value);
+    setRequest(null);
+  };
+  const handleSamplingChange: TopicTraceSelectorViewProps["onSamplingChange"] =
+    (value) => {
+      setSampling(value);
+      setRequest(null);
+    };
+  let previewState: TopicTraceSelectorViewProps["preview"] = { status: "idle" };
+  if (ready && request) {
+    previewState = { status: "ready", data: ready, seed: request.seed };
+  } else if (request && preview.isFetching) {
+    previewState = { status: "loading" };
+  } else if (request && preview.error) {
+    previewState = { status: "error", message: preview.error.message };
+  }
   const controls = (
-    <div className="ph-no-capture flex min-w-0 flex-col gap-4">
-      <Tabs
-        value={mode}
-        onValueChange={(value) => {
-          setMode(value);
-          setRequest(null);
-        }}
-      >
-        <Tabs.List
-          variant="inset"
-          size="md"
-          aria-label="Trace selection method"
-        >
-          <Tabs.Trigger value="filters" label="Filters" />
-          <Tabs.Trigger value="paste" label="Paste IDs" />
-        </Tabs.List>
-      </Tabs>
-      {mode === "filters" ? (
-        <>
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="flex w-44 flex-col gap-1 text-sm">
-              Time range
-              <SelectInput
-                aria-label="Trace time range"
-                placeholder="Time range"
-                options={topicTimeRangePresets}
-                value={timeWindow}
-                onValueChange={(value) => {
-                  setTimeWindow(value);
-                  setRequest(null);
-                  setRange(
-                    value === "custom"
-                      ? topicCalendarRange(topicCalendarDates(range))
-                      : relativeTopicTimeRange(Number(value)),
-                  );
-                }}
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              Maximum traces
-              <div className="w-28">
-                <Input
-                  aria-label="Maximum traces"
-                  type="number"
-                  min={1}
-                  max={TOPICS_BACKFILL_TRACE_LIMIT}
-                  value={limit}
-                  onChange={(event) => {
-                    setLimit(event.target.value);
-                    setRequest(null);
-                  }}
-                />
-              </div>
-            </label>
-            <label className="flex w-44 flex-col gap-1 text-sm">
-              Selection
-              <SelectInput
-                aria-label="Trace sampling method"
-                placeholder="Selection"
-                options={[
-                  { value: "random", label: "Random sample" },
-                  { value: "latest", label: "Newest first" },
-                ]}
-                value={sampling}
-                onValueChange={(value) => {
-                  setSampling(value as "random" | "latest");
-                  setRequest(null);
-                }}
-              />
-            </label>
-          </div>
-          <p className="text-muted-foreground text-xs">
-            Process up to {TOPICS_BACKFILL_TRACE_LIMIT.toLocaleString()}{" "}
-            matching traces per run.
-          </p>
-          {timeWindow === "custom" && (
-            <DateRangeInput
-              value={topicCalendarDates(range)}
-              max={format(new Date(), "yyyy-MM-dd")}
-              fromAriaLabel="Trace start date"
-              toAriaLabel="Trace end date"
-              onValueChange={(value) => {
-                setRange(topicCalendarRange(value));
-                setRequest(null);
-              }}
-            />
-          )}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-bold">Filter observations</h3>
-            <FilterModeToggle mode={filterMode} onChange={setFilterMode} />
-          </div>
-          {filterMode === "builder" ? (
-            <ObservationFilterBuilder
-              columns={builderColumns}
-              filterState={filter}
-              queryOnlyColumnIds={registry.fields
-                .filter((field) => field.directFilter === false)
-                .map((field) => field.filterColumn ?? field.id)}
-              onChange={(value) => {
-                setFilter(value);
-                setRequest(null);
-              }}
-            />
-          ) : (
-            <>
-              <TableSearchBar
-                projectId={projectId}
-                tableName="topics-trace-selection"
-                registry={registry}
-                filterState={filter}
-                setFilterState={(value) => {
-                  setFilter(value);
-                  setRequest(null);
-                }}
-                observed={
-                  observed
-                    ? { ...observed, tags: observed.traceTags ?? [] }
-                    : undefined
-                }
-                isV4
-                onRequestColumns={options.requestColumns}
-                erroredColumns={options.erroredColumns}
-              />
-              <p className="text-muted-foreground text-xs">
-                Press Enter to apply your query before previewing.
-              </p>
-            </>
-          )}
-          <p className="text-muted-foreground text-sm">
-            A trace is included when an observation matches all filters in this
-            time range. Topics summarizes the available conversation in the
-            trace, including messages outside these filters.
-          </p>
-          {!validLimit && (
-            <Alert variant="destructive" size="sm">
-              <Alert.Description>
-                <p className="break-words">
-                  Enter between 1 and{" "}
-                  {TOPICS_BACKFILL_TRACE_LIMIT.toLocaleString()} traces.
-                </p>
-              </Alert.Description>
-            </Alert>
-          )}
-          {!validRange && (
-            <Alert variant="destructive" size="sm">
-              <Alert.Description>
-                <p className="break-words">
-                  Choose a start before the end, within a 93-day window.
-                </p>
-              </Alert.Description>
-            </Alert>
-          )}
-          <div className="self-start">
-            <Button
-              text={previewLabel}
-              type="button"
-              variant={ready ? "secondary" : "primary"}
-              disabled={
-                !validLimit ||
-                !validRange ||
-                (request !== null && preview.isFetching)
-              }
-              onClick={previewTraces}
-            />
-          </div>
-          {request !== null && preview.error && (
-            <Alert variant="destructive" size="sm">
-              <Alert.Description>
-                <p className="break-words">{preview.error.message}</p>
-              </Alert.Description>
-            </Alert>
-          )}
-          {ready ? (
-            <>
-              <p role="status" className="text-sm">
-                {ready.matchedTraceCount.toLocaleString()} matching traces ·{" "}
-                {selectedCount.toLocaleString()} selected
-                {request?.limit
-                  ? ` · sample of ${ready.selectedTraceCount.toLocaleString()}`
-                  : " · all matches selected"}
-              </p>
-              <p className="text-muted-foreground text-xs">
-                Showing {ready.traces.length.toLocaleString()} preview traces.
-                The matching traces are selected when you run Topics; counts may
-                change as new data arrives. Unchecked traces are excluded.
-              </p>
-              <TracePreviewTable
-                key={request?.seed}
-                projectId={projectId}
-                traces={ready.traces}
-                excluded={excluded}
-                onExcludedChange={setExcluded}
-              />
-            </>
-          ) : (
-            <p className="text-muted-foreground text-xs">
-              First preview and select your traces. Then choose Summarize &amp;
-              embed to start the run. Previewing does not use a model.
-            </p>
-          )}
-        </>
-      ) : (
-        <label className="flex flex-col gap-2 text-sm font-bold">
-          Trace IDs or links
-          <Textarea
-            aria-label="Trace IDs or links"
-            value={paste}
-            onChange={(event) => setPaste(event.target.value)}
-            placeholder="One trace ID or local trace link per line"
-            className="min-h-32 font-mono text-xs"
-          />
-          <span className="text-muted-foreground font-normal">
-            Up to {TOPICS_BACKFILL_TRACE_LIMIT.toLocaleString()} unique trace
-            IDs from this project.
-            {pastedIds ? ` ${pastedIds.length} selected.` : ""}
-          </span>
-          {pasteError && (
-            <span
-              role="alert"
-              className="text-destructive font-normal break-words"
-            >
-              {pasteError}
-            </span>
-          )}
-        </label>
-      )}
-    </div>
+    <TopicTraceSelectorView
+      projectId={projectId}
+      mode={mode}
+      onModeChange={handleModeChange}
+      filterMode={filterMode}
+      onFilterModeChange={setFilterMode}
+      filter={filter}
+      onFilterChange={handleFilterChange}
+      timeWindow={timeWindow}
+      range={range}
+      onTimeWindowChange={handleTimeWindowChange}
+      onRangeChange={handleRangeChange}
+      limit={limit}
+      onLimitChange={handleLimitChange}
+      sampling={sampling}
+      onSamplingChange={handleSamplingChange}
+      paste={paste}
+      onPasteChange={setPaste}
+      pastedCount={pastedIds?.length ?? null}
+      pasteError={pasteError}
+      preview={previewState}
+      onPreview={previewTraces}
+      excluded={excluded}
+      onExcludedChange={setExcluded}
+      builderColumns={builderColumns}
+      observed={observed}
+      onRequestColumns={options.requestColumns}
+      erroredColumns={options.erroredColumns}
+    />
   );
   let selection: TopicTraceSelection | null = null;
   if (mode === "paste") {
@@ -459,127 +272,4 @@ export function useTopicTraceSelector({
     controls,
     reset,
   };
-}
-
-function TracePreviewTable({
-  projectId,
-  traces,
-  excluded,
-  onExcludedChange,
-}: {
-  projectId: string;
-  traces: TracePreview[];
-  excluded: string[];
-  onExcludedChange: (ids: string[]) => void;
-}) {
-  const openTrace = (traceId: string) => {
-    const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
-    window.open(
-      `${basePath}/project/${projectId}/traces/${encodeURIComponent(traceId)}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
-  };
-  const [page, setPage] = useState(0);
-  const excludedIds = new Set(excluded);
-  const selectedCount = traces.length - excludedIds.size;
-  const pageCount = Math.max(1, Math.ceil(traces.length / 20));
-  const allChecked: boolean | "indeterminate" = (() => {
-    if (selectedCount === traces.length && traces.length > 0) return true;
-    if (selectedCount > 0) return "indeterminate";
-    return false;
-  })();
-  const columns: ColumnDef<TracePreview>[] = [
-    {
-      id: "selected",
-      size: 48,
-      enableResizing: false,
-      header: () => (
-        <Checkbox
-          aria-label="Select all previewed traces"
-          checked={allChecked}
-          disabled={traces.length === 0}
-          onCheckedChange={(checked) =>
-            onExcludedChange(
-              checked === true ? [] : traces.map((trace) => trace.id),
-            )
-          }
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          aria-label={`Select trace ${row.original.id}`}
-          checked={!excludedIds.has(row.original.id)}
-          onCheckedChange={(checked) =>
-            onExcludedChange(
-              checked === true
-                ? excluded.filter((id) => id !== row.original.id)
-                : excluded.concat(row.original.id),
-            )
-          }
-        />
-      ),
-    },
-    {
-      accessorKey: "name",
-      header: "Trace",
-      size: 300,
-      cell: ({ row: { original: trace } }) => (
-        <div className="min-w-0">
-          <TextLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(trace.id)}`}
-            value={trace.name ?? trace.id}
-            onClick={() => openTrace(trace.id)}
-          />
-          {trace.name && (
-            <span
-              title={trace.id}
-              className="text-muted-foreground block truncate font-mono text-xs"
-            >
-              {trace.id}
-            </span>
-          )}
-        </div>
-      ),
-    },
-    {
-      accessorKey: "timestamp",
-      header: "Matching time",
-      size: 176,
-      cell: ({ row }) => new Date(row.original.timestamp).toLocaleString(),
-    },
-    {
-      accessorKey: "environment",
-      header: "Environment",
-      size: 128,
-      cell: ({ row }) => (
-        <span title={row.original.environment} className="block truncate">
-          {row.original.environment}
-        </span>
-      ),
-    },
-  ];
-  return (
-    <div className="flex h-96 min-h-0 min-w-0 flex-col overflow-hidden rounded-md border">
-      <Table
-        tableName="Topics trace preview"
-        columns={columns}
-        data={{
-          status: "success",
-          data: traces.slice(page * 20, (page + 1) * 20),
-        }}
-        onRowClick={(trace) => openTrace(trace.id)}
-        noResultsMessage="No traces match these filters and time range."
-      />
-      {pageCount > 1 && (
-        <PaginationBar
-          mode="offset"
-          totalCount={traces.length}
-          state={{ pageIndex: page, pageSize: 20 }}
-          onChange={(next) => setPage(next.pageIndex)}
-          pageSizeOptions={[20]}
-        />
-      )}
-    </div>
-  );
 }

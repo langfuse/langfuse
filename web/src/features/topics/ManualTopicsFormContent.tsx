@@ -6,6 +6,7 @@ import { useTopicTraceSelector } from "./TopicTraceSelector";
 import { type RegenerateTopics } from "./useRegenerateTopics";
 import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
 import { ManualTopicsDialog } from "./ManualTopicsDialog";
+import { manualTopicsSelection } from "./manual-topics-selection";
 
 export function ManualTopicsFormContent({
   projectId,
@@ -57,6 +58,14 @@ export function ManualTopicsFormContent({
     settings.stored.embedding &&
     settings.stored.clustering,
   );
+  const selectionStatus = manualTopicsSelection({
+    operation,
+    summaryCounts: facets
+      .filter((facet) => selectedFacetIds.includes(facet.id))
+      .map((facet) => facet.summaries),
+    traceCount: selection?.count ?? 0,
+    smallSample,
+  });
   const disabledReason = (() => {
     if (!canWrite)
       return "You need permission to manage Topics in this project.";
@@ -69,33 +78,12 @@ export function ManualTopicsFormContent({
       return "Topics processing is not enabled for this project.";
     if (regenerate.prerequisiteReason) return regenerate.prerequisiteReason;
     if (running) return "A Topics run is in progress. Wait for it to finish.";
-    if (selectedFacets.length === 0) return "Select at least one active facet.";
-    if (operation === "update") {
-      if (regenerate.disabledReason) return regenerate.disabledReason;
-      if (
-        !facets.some(
-          (facet) => selectedFacetIds.includes(facet.id) && facet.summaries > 0,
-        )
-      )
-        return "No summaries are available for the selected facets. Summarize traces first.";
-      const minimum = smallSample ? 10 : 100;
-      if (
-        !facets.some(
-          (facet) =>
-            selectedFacetIds.includes(facet.id) && facet.summaries >= minimum,
-        )
-      )
-        return smallSample
-          ? "Each selected facet has fewer than 10 summaries. Summarize more traces or widen the time range."
-          : "Each selected facet has fewer than 100 summaries. Enable small sample mode, summarize more traces, or widen the time range.";
-    }
-    return null;
+    if (operation === "update" && regenerate.disabledReason)
+      return regenerate.disabledReason;
+    return selectionStatus.disabledReason;
   })();
   const isSubmitting = processPending || regenerate.isSubmitting;
-  const canSubmit =
-    !disabledReason &&
-    !isSubmitting &&
-    (operation === "update" || Boolean(selection?.count));
+  const canSubmit = !disabledReason && !isSubmitting && selectionStatus.ready;
   const model = (slot: "summary" | "embedding" | "clustering") => {
     const value = settings?.stored[slot];
     return {
