@@ -59,6 +59,25 @@ export const VariantMatrix = meta.story({
   ),
 });
 
+export const WithFooterGuidance = meta.story({
+  args: {
+    title: "Create evaluator",
+    text: "Save this evaluator to reuse its configuration across evaluation rules.",
+    footerInfo:
+      "Next: attach a rule to run this evaluator on incoming observations.",
+    size: "lg",
+    actions: [{ label: "Create evaluator", onClick: fn() }],
+  },
+  render: (args) => (
+    <DialogController
+      initialState={() => true}
+      renderDialog={() => <Dialog {...args} />}
+    >
+      {() => null}
+    </DialogController>
+  ),
+});
+
 export const Autofocus = meta.story({
   name: "(Test) Autofocus",
   render: () => (
