@@ -97,7 +97,6 @@ export function createOpenAIDecisionModelClient(params: {
       params.fetchImpl ??
       createSecureLlmFetch({
         logContext: "OpenAI decision model",
-        baseURL: params.baseURL,
         additionalSensitiveHeaders: Object.keys(params.extraHeaders ?? {}),
       }),
   });

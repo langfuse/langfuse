@@ -63,7 +63,6 @@ export function createTypeSafeDecisionModelClient(params: {
       params.fetchImpl ??
       createSecureLlmFetch({
         logContext: "TypeSafe decision model",
-        baseURL: params.baseURL,
         additionalSensitiveHeaders: Object.keys(params.extraHeaders ?? {}),
       }),
   });

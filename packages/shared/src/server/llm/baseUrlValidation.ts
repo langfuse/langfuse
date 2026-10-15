@@ -1,5 +1,4 @@
 import { env } from "../../env";
-import type { LLMCredentialSource } from "./ai-sdk/providers/types";
 import {
   type OutboundUrlValidationWhitelist,
   OutboundUrlValidationError,
@@ -27,17 +26,6 @@ export function llmBaseUrlWhitelistFromEnv(): LlmBaseUrlValidationWhitelist {
     ip_ranges: env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS || [],
     allowedHosts: env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS,
   };
-}
-
-/** llmFetchWhitelistForBaseUrl applies the positive host list only to user connections with a custom base URL. */
-export function llmFetchWhitelistForBaseUrl(
-  baseURL: string | null | undefined,
-  credentialSource: LLMCredentialSource = "user",
-): LlmBaseUrlValidationWhitelist {
-  const whitelist = llmBaseUrlWhitelistFromEnv();
-  if (baseURL && credentialSource === "user") return whitelist;
-  if ((whitelist.allowedHosts ?? []).length === 0) return whitelist;
-  return { ...whitelist, allowedHosts: [] };
 }
 
 export async function validateLlmConnectionBaseURL(

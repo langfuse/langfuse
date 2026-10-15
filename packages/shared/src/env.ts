@@ -518,10 +518,9 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
-  // When non-empty, a user connection with a custom base URL must use one of
-  // these hosts. Provider default hosts and Langfuse AI (LANGFUSE_AI_BASE_URL)
-  // are unchanged. Ignored on Langfuse Cloud, same as the LLM exemption list
-  // above.
+  // When non-empty, every outbound LLM request must use one of these hosts,
+  // including provider default hosts and Langfuse AI. Ignored on Langfuse
+  // Cloud, same as the LLM exemption list above.
   LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()

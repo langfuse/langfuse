@@ -7,9 +7,8 @@ import {
   RedirectValidationError,
   type RequestInitWithDispatcher,
 } from "../outbound-url";
-import type { LLMCredentialSource } from "./ai-sdk/providers/types";
 import {
-  llmFetchWhitelistForBaseUrl,
+  llmBaseUrlWhitelistFromEnv,
   validateLlmConnectionBaseURL,
 } from "./baseUrlValidation";
 import { LLMValidationError } from "./errors";
@@ -17,16 +16,11 @@ import { LLMValidationError } from "./errors";
 const MAX_LLM_REDIRECTS = 10;
 
 type SecureLlmFetchParams = {
-  baseURL?: string | null;
-  credentialSource?: LLMCredentialSource;
   logContext: string;
   additionalSensitiveHeaders?: string[];
 };
 
-/** createSecureLlmFetch applies the positive host list only to user connections with a custom base URL. */
 export function createSecureLlmFetch({
-  baseURL,
-  credentialSource,
   logContext,
   additionalSensitiveHeaders,
 }: SecureLlmFetchParams): typeof fetch {
@@ -35,8 +29,6 @@ export function createSecureLlmFetch({
       const { url, options } = await normalizeFetchInput(input, init);
 
       return await fetchSecureLlmUrl(url, options, {
-        baseURL,
-        credentialSource,
         logContext,
         additionalSensitiveHeaders,
       });
@@ -60,14 +52,9 @@ export function createSecureLlmFetch({
 export async function fetchSecureLlmUrl(
   url: string,
   options: RequestInit,
-  {
-    baseURL,
-    credentialSource,
-    logContext,
-    additionalSensitiveHeaders,
-  }: SecureLlmFetchParams,
+  { logContext, additionalSensitiveHeaders }: SecureLlmFetchParams,
 ): Promise<Response> {
-  const whitelist = llmFetchWhitelistForBaseUrl(baseURL, credentialSource);
+  const whitelist = llmBaseUrlWhitelistFromEnv();
   await validateLlmConnectionBaseURL(url, whitelist);
   const optionsWithoutDispatcher = stripCallerDispatcher(options);
   // If the operator configured HTTPS_PROXY, attach the NO_PROXY-aware proxy
