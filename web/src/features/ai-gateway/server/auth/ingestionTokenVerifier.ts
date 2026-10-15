@@ -12,7 +12,8 @@ import {
 import { requireGatewayEnabledForOrganization } from "../availability";
 import { verifyGatewayRequestSignature } from "./gatewayRequestSignatureVerifier";
 
-export const GATEWAY_INGESTION_TOKEN_TTL_SECONDS = 15 * 60;
+/** Outlives the gateway's default one-hour execution ceiling plus upload batching. */
+export const GATEWAY_INGESTION_TOKEN_TTL_SECONDS = 70 * 60;
 
 const GatewayIngestionClaimsSchema = z.strictObject({
   version: z.literal(1),
