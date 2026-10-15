@@ -326,14 +326,18 @@ export type ClickHouseDatabase = {
 };
 
 /**
- * Declared ClickHouse type per column, per registry table. A servertest checks
- * it against `system.columns` of the migrated database.
+ * Declared ClickHouse type per column, per physical registry table. A
+ * servertest checks it against `system.columns` of the migrated database. The
+ * logical `events` relation has no table of its own; its columns are
+ * `events_core`'s and `events_full`'s.
  */
 export const TABLE_COLUMN_TYPES: Record<
   string,
   Record<string, ChColumnType>
 > = Object.fromEntries(
-  Object.entries(TABLE_REGISTRY).map(([table, spec]) => [table, spec.columns]),
+  Object.entries(TABLE_REGISTRY)
+    .filter(([table]) => table !== "events")
+    .map(([table, spec]) => [table, spec.columns]),
 );
 
 /**
