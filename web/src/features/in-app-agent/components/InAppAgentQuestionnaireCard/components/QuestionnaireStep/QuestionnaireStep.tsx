@@ -9,7 +9,7 @@ import {
   type Ref,
 } from "react";
 import type { CheckedState } from "@radix-ui/react-checkbox";
-import { ArrowRight, ArrowUp } from "lucide-react";
+import { ArrowRight, ArrowUp, PencilLine } from "lucide-react";
 import { useController, type Control } from "react-hook-form";
 import {
   IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH,
@@ -21,6 +21,8 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import type { QuestionnaireFormValues } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/createQuestionnaireFormValues";
 import { updateQuestionnaireAnswer } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/updateQuestionnaireAnswer";
 import { cn } from "@/src/utils/tailwind";
+
+const OTHER_ANSWER_PLACEHOLDER = "Something else";
 
 const OTHER_ANSWER_BOX_CLASS_NAME =
   "border-input bg-background focus-within:border-ring rounded-md border transition-colors";
@@ -385,7 +387,7 @@ function MultipleChoiceOtherRow({
   };
 
   return (
-    <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
+    <div className="hover:bg-muted has-focus-visible:bg-muted flex items-center gap-3 rounded-lg px-2 py-2">
       <span className="flex h-5 shrink-0 items-center">
         <Checkbox
           aria-label="Use a custom answer"
@@ -394,17 +396,32 @@ function MultipleChoiceOtherRow({
           onCheckedChange={handleCheckedChange}
         />
       </span>
-      <span
-        className={cn(OTHER_ANSWER_BOX_CLASS_NAME, "flex flex-1 px-2.5 py-1.5")}
-      >
+      <span className="relative flex min-w-0 flex-1">
         <OtherAnswerInput
           ref={inputRef}
           value={value}
           isDisabled={isDisabled}
           onChange={onChange}
         />
+        {value === "" ? <OtherAnswerPlaceholderIcon /> : null}
       </span>
     </div>
+  );
+}
+
+/**
+ * Marks the unboxed field as editable. An invisible copy of the placeholder
+ * pushes the pen to where the placeholder text ends.
+ */
+function OtherAnswerPlaceholderIcon() {
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute inset-y-0 left-0 flex items-center gap-1.5 text-sm leading-5"
+    >
+      <span className="invisible">{OTHER_ANSWER_PLACEHOLDER}</span>
+      <PencilLine className="text-muted-foreground icon-sm" />
+    </span>
   );
 }
 
@@ -422,12 +439,12 @@ function OtherAnswerInput({
   onChange,
 }: OtherAnswerInputProps) {
   return (
-    // Bare input inside OTHER_ANSWER_BOX_CLASS_NAME: the design-system Input
-    // cannot hold the Skip button inside its box.
+    // Bare input: the design-system Input cannot hold the Skip button inside
+    // its box, and the multi-choice row stays unboxed like the options.
     <input
       ref={ref}
-      aria-label="Something else"
-      placeholder="Something else"
+      aria-label={OTHER_ANSWER_PLACEHOLDER}
+      placeholder={OTHER_ANSWER_PLACEHOLDER}
       maxLength={IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH}
       value={value}
       disabled={isDisabled}
