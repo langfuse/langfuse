@@ -20,7 +20,7 @@ const MIB: usize = 1024 * 1024;
 const DEFAULT_CONCURRENCY: usize = 128;
 const SEMAPHORE_CAPACITY: usize = tokio::sync::Semaphore::MAX_PERMITS;
 pub const DEFAULT_MAX_REQUEST_BYTES: usize = 32 * MIB;
-const DEFAULT_SHARED_REQUEST_BUFFER_BYTES: usize = 512 * MIB;
+const DEFAULT_SHARED_REQUEST_BUFFER_BYTES: usize = 1024 * MIB;
 const DEFAULT_MAX_EXECUTION_SECONDS: u32 = 60 * 60;
 const DEFAULT_STALL_TIMEOUT_SECONDS: u32 = 60;
 /// Buffered request body bounds per instance.
