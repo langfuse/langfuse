@@ -230,6 +230,10 @@ export function AnnotationQueueSetupForm({
                 className="flex flex-col gap-3"
                 aria-label="Queue score configs"
               >
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  Choose and arrange the score configs annotators fill out for
+                  items in this queue.
+                </p>
                 <Controller
                   control={form.control}
                   name="scoreConfigIds"
