@@ -5,6 +5,7 @@ import {
   type ExecutionContext,
 } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
+import { includeDeleted } from "../query-ast/extensions";
 import { queryClickhouse } from "./clickhouse";
 
 export type EnvironmentFilterProps = {
@@ -47,6 +48,7 @@ export const getEnvironmentsForProject = async (
           )
       : db
           .selectFrom("events_core")
+          .$call(includeDeleted())
           .select("environment")
           .distinct()
           .$if(fromTimestamp != null, (qb) =>

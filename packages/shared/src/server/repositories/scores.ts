@@ -75,7 +75,12 @@ import {
 } from "../queries/clickhouse-sql/query-fragments";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
-import { limitBy, mapKeys, useFinal } from "../query-ast/extensions";
+import {
+  includeDeleted,
+  limitBy,
+  mapKeys,
+  useFinal,
+} from "../query-ast/extensions";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
 import { promptGenerationEvents } from "./prompt-events";
 import {
@@ -420,6 +425,7 @@ export const getTraceScoresForDatasetRuns = async (
 const experimentItemEventsQuery = (experimentIds: string[]) =>
   getClickhouseKysely()
     .selectFrom("events_core as e")
+    .$call(includeDeleted())
     .select(["e.project_id", "e.experiment_id", "e.trace_id"])
     .where("e.experiment_id", "in", experimentIds)
     .where("e.experiment_id", "!=", "");

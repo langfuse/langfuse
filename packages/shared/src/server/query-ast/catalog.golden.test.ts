@@ -111,6 +111,7 @@ const CATALOG_MEMORY_DDL = `
     event_ts DateTime64(6),
     type String,
     total_cost Decimal(18, 12),
+    is_deleted UInt8,
     metadata_names Array(String),
     metadata_values Array(String)
   ) ENGINE = Memory;

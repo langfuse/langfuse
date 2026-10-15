@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { costFormatter } from "@/src/utils/numbers";
+import { centCostFormatter, costFormatter } from "@/src/utils/numbers";
 
 describe("costFormatter", () => {
   it("formats dashboard costs with cent precision", () => {
@@ -31,5 +31,19 @@ describe("costFormatter", () => {
     expect(costFormatter(undefined)).toBe("$0.00");
     expect(costFormatter(-0.000601)).toBe("-$0.000601");
     expect(costFormatter(-4.402973)).toBe("-$4.40");
+  });
+});
+
+describe("centCostFormatter", () => {
+  it("rounds to cents and flags sub-cent costs instead of showing $0.00", () => {
+    expect(centCostFormatter(0.36674048)).toBe("$0.37");
+    expect(centCostFormatter(0.005)).toBe("$0.01");
+    expect(centCostFormatter(0.0049)).toBe("<$0.01");
+    expect(centCostFormatter(0)).toBe("$0.00");
+  });
+
+  it("keeps the sign on negative costs", () => {
+    expect(centCostFormatter(-0.37)).toBe("-$0.37");
+    expect(centCostFormatter(-0.0049)).toBe("-<$0.01");
   });
 });

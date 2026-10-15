@@ -1,9 +1,9 @@
 import { fn, userEvent, expect } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 
-import preview from "../../../../../../../../../../.storybook/preview";
+import preview from "../../../../../../.storybook/preview";
 import { EvaluatorRecommendedCard } from "./EvaluatorRecommendedCard";
-import type { GalleryTemplate } from "../../../../../../types/templateGallery";
+import type { GalleryTemplate } from "../../types/templateGallery";
 
 const template = {
   source: "managed",
@@ -13,6 +13,7 @@ const template = {
   icon: "message-square",
   description: "Classifies user questions into predefined intent buckets.",
   maintainer: "langfuse",
+  previewScores: [{ name: "chat_intent", value: "billing_question" }],
   evaluator: {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
     promptMessages: [{ role: "user", content: "Classify {{input}}." }],

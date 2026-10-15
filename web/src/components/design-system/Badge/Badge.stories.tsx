@@ -25,6 +25,7 @@ const allColors = Object.keys({
   green: true,
   ghost: true,
   filled: true,
+  filledOnMuted: true,
   violetTint: true,
   skyTint: true,
   emeraldTint: true,

@@ -68,7 +68,7 @@ export function BarChartCore(
 function SingleBarChart({
   data,
   valueFormatter = (value) => value.toLocaleString(),
-  color = "hsl(var(--chart-1))",
+  color = "hsl(var(--chart-fill-1))",
   hideXAxisLabels = false,
   zeroBaseline = true,
   ariaLabel = "Bar chart",

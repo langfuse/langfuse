@@ -67,6 +67,13 @@ export function AutomaticProcessingDialog({
             rate below applies only to automatic processing. For manual
             processing, such as backfills, you set the sampling for each run.
           </p>
+          <p className="text-sm">
+            Each summarized trace joins the closest existing topic when it is
+            similar; otherwise it appears under Outliers. A facet without topics
+            gets its first ones once 100 traces from the last seven days are
+            summarized. Topics are not refreshed automatically; run{" "}
+            <em>Regenerate topics</em> to refresh them.
+          </p>
           {paused ? (
             <Alert variant="warning">
               <Alert.Title>Paused: {paused.shortLabel}</Alert.Title>
