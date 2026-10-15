@@ -30,6 +30,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
     eventType === "trace-create" ? "trace" : "observation",
   instrumentAsync: mocks.instrumentAsync,
   logger: mocks.logger,
+  measureOtelMainThread: (_phase: string, work: () => unknown) => work(),
   processOtelMedia: vi.fn(),
   recordDistribution: mocks.recordDistribution,
   recordIncrement: vi.fn(),
