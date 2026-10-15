@@ -39,6 +39,40 @@ const buildQueryWithFilter = (
   );
 
 describe("queryBuilder filter type validation", () => {
+  it("preserves v1 trace scope in an ungrouped total with an empty tag requirement", async () => {
+    const costQuery: QueryType = {
+      ...baseQuery,
+      metrics: [{ measure: "totalCost", aggregation: "sum" }],
+    };
+    const grouped = await new QueryBuilder(undefined, "v1").build(
+      { ...costQuery, dimensions: [{ field: "userId" }] },
+      "test-project",
+    );
+    const total = await buildQueryWithFilter(
+      { column: "tags", operator: "all of", value: [], type: "arrayOptions" },
+      costQuery,
+    );
+
+    for (const { query, parameters } of [grouped, total]) {
+      expect(query).toContain("INNER JOIN traces FINAL");
+      for (const operator of [">=", "<="]) {
+        const match = query.match(
+          new RegExp(`traces\\.timestamp ${operator} \\{([^:]+):`),
+        );
+        expect(match).not.toBeNull();
+        expect(parameters[match![1]]).toBe(
+          operator === ">="
+            ? "2025-01-01 00:00:00.000"
+            : "2025-01-02 00:00:00.000",
+        );
+      }
+    }
+    const tags = total.query.match(/hasAll\(traces\.tags, \{([^:]+):/);
+    expect(tags).not.toBeNull();
+    expect(total.parameters[tags![1]]).toEqual([]);
+    expect(total.query).not.toMatch(/LIMIT|traces\.user_id/);
+  });
+
   it("exposes only the typed Boolean score value as a dimension", () => {
     const view = getViewDeclaration("scores-boolean", "v2");
 
