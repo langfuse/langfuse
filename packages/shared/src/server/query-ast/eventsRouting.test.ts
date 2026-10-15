@@ -111,6 +111,18 @@ describe("logical events routing", () => {
     ).toEqual(["events_full"]);
   });
 
+  it("routes a raw identifier that names a truncated column to events_full", () => {
+    expect(
+      routedTables(
+        compile(
+          db
+            .selectFrom("events as e")
+            .select(sql<string>`${sql.id("e", "input")}`.as("x")),
+        ),
+      ),
+    ).toEqual(["events_full"]);
+  });
+
   it("keeps an unaliased logical read addressable by its name", () => {
     expect(
       compile(

@@ -10,10 +10,10 @@
  * to `events_core` silently returns truncated values or drops matches, so any
  * shape the pass does not recognise counts as truncation-sensitive.
  *
- * A reference is truncation-sensitive when it names a column in
- * {@link EVENTS_CORE_TRUNCATED_COLUMNS} (by bare column name, whichever
- * relation it belongs to), selects `*`, or is a raw fragment that mentions
- * such a column. The only exempt shape is a metadata predicate that
+ * A reference is truncation-sensitive when any identifier in it is named
+ * like a column in {@link EVENTS_CORE_TRUNCATED_COLUMNS} (whichever relation
+ * or alias it belongs to), it selects `*`, or it is a raw fragment that
+ * mentions such a column. The only exempt shape is a metadata predicate that
  * `metadataFilterIsEventsCoreSafe` accepts, the rule the raw-SQL builders
  * route by:
  *
@@ -94,8 +94,10 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
       this.readsLogicalEvents = true;
     }
     if (
-      (ColumnNode.is(node) &&
-        EVENTS_CORE_TRUNCATED_COLUMNS.has(node.column.name)) ||
+      // Identifiers rather than columns, so `sql.id("e", "input")` counts too;
+      // an alias named like a truncated column over-routes, which is safe.
+      (IdentifierNode.is(node) &&
+        EVENTS_CORE_TRUNCATED_COLUMNS.has(node.name)) ||
       (SelectQueryNode.is(node) &&
         (node.selections ?? []).some((s) => selectsAll(s.selection))) ||
       (RawNode.is(node) &&

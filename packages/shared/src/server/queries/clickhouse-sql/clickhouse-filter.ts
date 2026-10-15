@@ -20,8 +20,6 @@ import {
 } from "./fts";
 import { metadataFilterIsEventsCoreSafe } from "./events-core-truncation";
 
-export { metadataFilterIsEventsCoreSafe };
-
 export type ClickhouseOperator =
   | (typeof filterOperators)[keyof typeof filterOperators][number]
   | "!="

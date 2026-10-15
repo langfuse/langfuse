@@ -151,7 +151,7 @@ db.selectFrom("observations")
 **Write a LIMIT BY** (`limitBy`):
 
 ```ts
-db.selectFrom("events_core")
+db.selectFrom("events")
   .$call(softDeleteAfterLimit())
   .select(["span_id", "project_id"])
   .orderBy("event_ts", "desc")
@@ -169,15 +169,18 @@ db.selectFrom("scores as s")
 // … from scores as s final
 ```
 
-**Select a metadata value** (`metadataValue` — lowers `metadata[key]` to a subscript of `metadataMap`, so the last duplicate key wins; like `mapValue`, a string key is bound and a `literal(...)` key is inlined):
+**Filter on a metadata value** (`metadataValue` — lowers `metadata[key]` to a subscript of `metadataMap`, so the last duplicate key wins; like `mapValue`, a string key is bound and a `literal(...)` key is inlined):
 
 ```ts
 const filterKey: string = input.metadataKey; // caller-supplied, so bound
-db.selectFrom("events_core as e")
-  .select((eb) => [metadataValue("e", literal("my_key")).as("my_val")])
+db.selectFrom("events as e")
+  .select("e.span_id")
   .where((eb) => eb(metadataValue("e", filterKey), "=", "x"));
-// select mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))['my_key'] as my_val …
+// select e.span_id from events_core as e where … and mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[{p:String}] = {p:String}
 ```
+
+Selecting `metadataValue(...)` reads the truncated `metadata_values`, so it
+routes the query to `events_full`.
 
 ## Developing the dialect
 
