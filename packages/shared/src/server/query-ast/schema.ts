@@ -229,6 +229,21 @@ const EVENTS_COLUMNS = {
   ingestion_api_key: "String",
 } as const satisfies Record<string, ChColumnType>;
 
+/**
+ * Columns whose `events_core` copy differs from `events_full`:
+ * `events_core_mv` keeps the first 200 code points of `input`, `output`, and
+ * each `metadata_values` element, and `input_length` / `output_length` are
+ * materialized from the truncated copy. Any other read of them needs
+ * `events_full`.
+ */
+export const EVENTS_CORE_TRUNCATED_COLUMNS: ReadonlySet<string> = new Set([
+  "input",
+  "output",
+  "metadata_values",
+  "input_length",
+  "output_length",
+] satisfies ReadonlyArray<keyof typeof EVENTS_COLUMNS>);
+
 const TABLE_REGISTRY = {
   traces: defineTable({
     columns: {
@@ -258,6 +273,14 @@ const TABLE_REGISTRY = {
   // for the same reasons; selected when a point-read needs untruncated
   // input/output or metadata.
   events_full: defineTable({
+    columns: EVENTS_COLUMNS,
+    dedup: { strategy: "none" },
+    softDelete: "is_deleted",
+  }),
+  // Logical relation over events_core / events_full. The routing pass
+  // (`eventsRouting.ts`) replaces it with one of them before any other pass
+  // runs, so ClickHouse never sees this name.
+  events: defineTable({
     columns: EVENTS_COLUMNS,
     dedup: { strategy: "none" },
     softDelete: "is_deleted",

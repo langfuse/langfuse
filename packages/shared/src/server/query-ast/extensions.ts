@@ -372,6 +372,14 @@ export function concat(...values: Expression<string>[]): ChExpression<string> {
   return functionCall("concat", values);
 }
 
+/** ClickHouse `startsWith(haystack, prefix)`, with `prefix` bound. */
+export function startsWith(
+  haystack: Expression<string>,
+  prefix: string,
+): ChExpression<SqlBool> {
+  return functionCall("startsWith", [haystack, ValueNode.create(prefix)]);
+}
+
 /** ClickHouse `length(array)`. */
 export function arrayLength(
   array: Expression<unknown[]>,

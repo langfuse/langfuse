@@ -85,6 +85,15 @@ suffix to run there. Promote it to a required check once it has proven stable.
 - **Never filter `project_id` yourself.** The compile step injects
   `project_id = {projectId}` into every tenanted relation, so call sites pass
   only `projectId` (see `../repositories/environments.ts`).
+- **Read events through the logical `events` relation.**
+  `selectFrom("events as e")` compiles to `events_core` unless some
+  expression reads a column `events_core` truncates (`input`, `output`,
+  `metadata_values`, `input_length`, `output_length`), selects `*`, or
+  mentions one in raw SQL; then every `events` reference in the query
+  becomes `events_full`. Metadata `=` / `startsWith` predicates on
+  `metadataValue` stay on `events_core` when
+  `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL
+  builders. `events_core` / `events_full` stay selectable by name.
 - **Never filter `is_deleted` on a physical table yourself.** Tables that
   declare `softDelete` in the registry (`events_core`, `events_full`) get
   `is_deleted = 0` on every FROM/JOIN. A latest-version read (ordered by
