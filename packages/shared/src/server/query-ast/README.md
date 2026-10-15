@@ -30,7 +30,7 @@ changing how it emits SQL.
   hand-maintained tables that drift.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
 - `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `useFinal`,
-  `includeDeleted`) and typed ClickHouse functions and aggregates (`argMaxIf`,
+  `includeDeleted`, `softDeleteAfterLimit`) and typed ClickHouse functions and aggregates (`argMaxIf`,
   `countIf`, `sumMap`, `multiIf`, `metadataValue`, `literal`, …) that take
   `eb.ref(...)` expressions.
 - `views.ts` / `dedup.ts` / `softDelete.ts` — virtual views as CTEs, per-table
@@ -87,9 +87,12 @@ suffix to run there. Promote it to a required check once it has proven stable.
   only `projectId` (see `../repositories/environments.ts`).
 - **Never filter `is_deleted` on a physical table yourself.** Tables that
   declare `softDelete` in the registry (`events_core`, `events_full`) get
-  `is_deleted = 0` on every FROM/JOIN. A select that must see deleted rows
-  opts out with `$call(includeDeleted())`, e.g. a latest-version read that
-  drops tombstones after its `LIMIT 1 BY`.
+  `is_deleted = 0` on every FROM/JOIN. A latest-version read (`ORDER BY
+<version> DESC` with `LIMIT 1` or `LIMIT 1 BY`) marks itself
+  `$call(softDeleteAfterLimit())`, so a deletion (a newer row with the flag
+  set) wins the pick and is dropped after it, instead of an older live
+  version. A select that must see deleted rows opts out with
+  `$call(includeDeleted())`.
 - **Dedup is declared per table and must be an existing production idiom.**
   `events_core` and `events_full` are `none` (immutable at read time — no
   LIMIT BY, no FINAL).
@@ -206,7 +209,10 @@ and it is where tenancy is enforced:
    required parameter, so omitting it is also a compile-time type error.
 2. `SoftDeleteFilterPlugin` adds `<flag> = 0` for every FROM/JOIN relation
    whose table declares `softDelete`, except in selects marked with
-   `includeDeleted()`. It runs before tenancy, so the WHERE reads
+   `includeDeleted()`. A select marked `softDeleteAfterLimit()` is left
+   unfiltered and wrapped:
+   `select latest.<output>, … from (<select>, <flag>) as latest where
+latest.<flag> = 0`. It runs before tenancy, so the WHERE reads
    `project_id = … and is_deleted = … and …`.
 3. `TenancyInjectionPlugin` walks every FROM/JOIN and injects
    `project_id = {projectId}` on each tenanted physical table, unless the tree
