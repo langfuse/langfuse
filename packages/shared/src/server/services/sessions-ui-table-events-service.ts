@@ -56,7 +56,7 @@ export const getSessionTracesFromEvents = async (props: {
     .where("e.session_id", "=", sessionId)
     .groupBy(["trace_id", "project_id"])
     .orderBy(sql.ref("timestamp"), "asc");
-  const { sql: query, params } = compileClickhouseQuery(builder, { projectId });
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   const rows = await queryClickhouse<{
     id: string;

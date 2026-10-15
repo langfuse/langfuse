@@ -489,7 +489,7 @@ export const getScoresForExperimentItems = async (
 
   const compiled = compileClickhouseQuery(
     scoresForExperimentItemsQuery(experimentIds),
-    { projectId },
+    projectId,
   );
 
   const rows = await queryClickhouse<
@@ -2333,7 +2333,7 @@ export const buildAggregatedScoresForPromptsFromEventsQuery = (
       fetchScoreRelation,
       timeWindow,
     ),
-    { projectId },
+    projectId,
   );
   return { query: compiled.sql, params: compiled.params };
 };

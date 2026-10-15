@@ -15,3 +15,7 @@
 
 # Code review policy
 /REVIEW.md @nimarb
+
+# Normalized I/O and transcripts
+/packages/shared/src/utils/normalized-io/ @marliessophie
+/packages/shared/src/server/transcript/ @marliessophie

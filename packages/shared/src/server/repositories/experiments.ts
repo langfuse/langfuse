@@ -375,7 +375,7 @@ export const getExperimentMetricsFromEvents = async (props: {
     .where("e.experiment_id", "in", experimentIds)
     .where("e.experiment_id", "!=", "")
     .groupBy(["e.project_id", "e.experiment_id"]);
-  const { sql: query, params } = compileClickhouseQuery(builder, { projectId });
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   const res = await queryClickhouse<ExperimentMetricsReturnType>({
     query,

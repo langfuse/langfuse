@@ -9,7 +9,7 @@ metadata, `FilterState` embedding) will land under
 
 This folder is a compile-only ClickHouse dialect on Kysely 0.28: real
 `OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata map
-subscripts; a mandatory tenancy injection pass keyed on `ExecutionContext`;
+subscripts; a mandatory tenancy injection pass keyed on one `projectId`;
 per-table soft-delete filtering and dedup lowering from the registry;
 schema-typed selection; virtual views as WITH CTEs; catalog parity.
 
@@ -20,8 +20,8 @@ changing how it emits SQL.
 ## Layout
 
 - `compile.ts` — the one supported entry point,
-  `compileClickhouseQuery(query, ctx)`, and the `ExecutionContext` re-export.
-- `tenancy.ts` — the `ExecutionContext` type and the tenancy injection pass.
+  `compileClickhouseQuery(query, projectId)`.
+- `tenancy.ts` — the tenancy injection pass.
 - `schema.ts` — the physical table registry: one `defineTable` declaration per
   relation drives the Kysely row types (`ClickHouseDatabase`), the runtime
   column-type map (`COLUMN_DATA_TYPES`), the tenanted-table set
@@ -75,15 +75,14 @@ suffix to run there. Promote it to a required check once it has proven stable.
 
 ## Using it
 
-- **Compile only through `compileClickhouseQuery(query, ctx)`.** It is the one
-  supported path from a builder to `{ sql, params }`; the repository layer hands
-  that to `queryClickhouse`. `ctx` (an `ExecutionContext` carrying exactly one
-  `projectId`) is required — omitting it is a compile-time type error and
-  an empty one throws. There is no multi-project scope: a query reads one
-  project.
+- **Compile only through `compileClickhouseQuery(query, projectId)`.** It is
+  the one supported path from a builder to `{ sql, params }`; the repository
+  layer hands that to `queryClickhouse`. `projectId` is required — omitting it
+  is a compile-time type error and an empty one throws. There is no
+  multi-project scope: a query reads one project.
 - **Never filter `project_id` yourself.** The compile step injects
   `project_id = {projectId}` into every tenanted relation, so call sites pass
-  only `{ projectId }` (see `../repositories/environments.ts`).
+  only `projectId` (see `../repositories/environments.ts`).
 - **Never filter `is_deleted` on a physical table yourself.** Tables that
   declare `softDelete` in the registry (`events_core`, `events_full`) get
   `is_deleted = 0` on every FROM/JOIN. A select that must see deleted rows
@@ -183,16 +182,16 @@ not patched.
 `getClickhouseKysely()` returns a `Kysely` instance wired to a `DummyDriver`
 with SQLite adapter/introspector stand-ins (`dialect.ts`). Nothing ever
 connects or executes. The only supported output path is
-`compileClickhouseQuery(query, ctx)` → `{ sql, params }`, which the repository
-layer hands to `queryClickhouse`. Do **not** call `.execute()` / `.compile()`
+`compileClickhouseQuery(query, projectId)` → `{ sql, params }`, which the
+repository layer hands to `queryClickhouse`. Do **not** call `.execute()` / `.compile()`
 directly: the compiler refuses any tree that did not go through the tenancy pass.
 
 ### Tenancy injection — how the choke point works
 
-`compileClickhouseQuery(query, ctx)` is the only supported compile path, and it
-is where tenancy is enforced:
+`compileClickhouseQuery(query, projectId)` is the only supported compile path,
+and it is where tenancy is enforced:
 
-1. A missing/empty `ExecutionContext` throws (`QueryCompileError`) — `ctx` is a
+1. A missing/empty `projectId` throws (`QueryCompileError`) — `projectId` is a
    required parameter, so omitting it is also a compile-time type error.
 2. `SoftDeleteFilterPlugin` adds `<flag> = 0` for every FROM/JOIN relation
    whose table declares `softDelete`, except in selects marked with
@@ -201,7 +200,7 @@ is where tenancy is enforced:
 3. `TenancyInjectionPlugin` walks every FROM/JOIN and injects
    `project_id = {projectId}` on each tenanted physical table, unless the tree
    already carries a predicate that _proves_ that scope: the equality's value
-   must equal the context project, and — when more than one tenanted relation is
+   must equal `projectId`, and — when more than one tenanted relation is
    in scope — the column must be table-qualified. A qualified predicate covers a
    relation only when the qualifier matches its alias (if aliased) or its table
    name (if not) — so `scores AS traces` joined to `traces AS t` still scopes
