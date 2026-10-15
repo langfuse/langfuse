@@ -68,7 +68,6 @@ export const Create = meta.story({
             }}
             projectId="project-1"
             queueNames={[]}
-            onManageScoreConfigsClick={fn()}
             hasQueueAssignmentsReadAccess={false}
             isSubmitting={false}
             onSubmit={fn()}
@@ -86,7 +85,7 @@ export const Create = meta.story({
     const body = within(canvasElement.ownerDocument.body);
 
     await userEvent.click(
-      await body.findByRole("combobox", { name: "Add existing score config" }),
+      await body.findByRole("combobox", { name: "Select score configs" }),
     );
     await userEvent.type(
       await body.findByPlaceholderText("Search score configs..."),
@@ -102,7 +101,7 @@ export const Create = meta.story({
 });
 
 export const Edit = meta.story({
-  name: "(Test) Edit with archived config",
+  name: "(Test) Queue settings preserve score configs",
   args: {
     mode: "edit",
     initialValues: {
@@ -115,7 +114,6 @@ export const Edit = meta.story({
     projectId: "project-1",
     queueId: "queue-1",
     queueNames: ["Support review queue", "Other queue"],
-    onManageScoreConfigsClick: fn(),
     hasQueueAssignmentsReadAccess: false,
     isSubmitting: false,
     onSubmit: fn(),
@@ -131,15 +129,21 @@ export const Edit = meta.story({
   ),
   play: async ({ canvasElement, args }) => {
     const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(
-      body.getByRole("button", { name: "Remove Legacy quality from queue" }),
+    await expect(
+      body.queryByRole("combobox", { name: "Select score configs" }),
+    ).not.toBeInTheDocument();
+    await userEvent.clear(body.getByRole("textbox", { name: "Name" }));
+    await userEvent.type(
+      body.getByRole("textbox", { name: "Name" }),
+      "Renamed queue",
     );
-    body.getByRole("button", { name: "Move Correctness up" }).focus();
-    await userEvent.keyboard("{Enter}");
     await userEvent.click(body.getByRole("button", { name: "Save queue" }));
     await waitFor(() =>
       expect(args.onSubmit).toHaveBeenCalledWith(
-        expect.objectContaining({ scoreConfigIds: ["config-2", "config-1"] }),
+        expect.objectContaining({
+          name: "Renamed queue",
+          scoreConfigIds: ["config-1", "config-2", "config-3"],
+        }),
         expect.anything(),
       ),
     );
@@ -161,7 +165,6 @@ export const Submitting = meta.story({
             }}
             projectId="project-1"
             queueNames={[]}
-            onManageScoreConfigsClick={fn()}
             hasQueueAssignmentsReadAccess={false}
             isSubmitting={true}
             onSubmit={fn()}
@@ -192,7 +195,6 @@ export const WithAdvancedOpen = meta.story({
             }}
             projectId="project-1"
             queueNames={[]}
-            onManageScoreConfigsClick={fn()}
             hasQueueAssignmentsReadAccess={true}
             isSubmitting={false}
             onSubmit={fn()}

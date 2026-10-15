@@ -34,15 +34,25 @@ each project and queue; changing the current item keeps the same run history.
 
 ## Structure and consumers
 
-Queue setup keeps server data in tRPC and one editable draft in React Hook Form.
-`AnnotationQueueFormDialogController` owns permissions and dialog lifecycle;
-its data boundary waits for queue defaults and score configs before mounting
-`AnnotationQueueFormDialogContent`. Refetches do not reset the draft.
-`AnnotationQueueScoreConfigEditor` is controlled by ordered config IDs and renders
-query-backed definitions without copying them into local state. Existing config
-dialogs return explicit create/edit results; creating a config appends its ID to
-the draft without saving the queue. `saveQueueWithAssignments` owns the save/retry
-workflow independently of rendering. Dialog controllers own transient open state.
+Queue setup keeps server data in tRPC. The queue page has one setup sidebar:
+metadata and score configs are not repeated above the items table. The sidebar
+has a searchable, independently scrolling config list for large queues. Editor
+controllers live outside the responsive sidebar so closing its mobile sheet
+does not unmount a draft or leave the dialog hidden from assistive technology.
+
+`AnnotationQueueFormDialogController` owns queue creation and metadata/assignment
+settings, with one React Hook Form draft. Existing queues edit fields separately
+through `AnnotationQueueScoreConfigsDialogController`; its data boundary gates
+`AnnotationQueueScoreConfigsDialogContent`, which owns only the ordered-ID draft.
+Refetching a definition never resets selection or order. Settings and field saves
+send partial updates so neither overwrites the other.
+
+`QueueScoreConfigFields` adapts the existing project-wide create/edit dialogs to
+the controlled `AnnotationQueueScoreConfigEditor`. Creating a config appends its
+ID without saving the queue. Multi-selection appends new IDs; the design-system
+`SortableList` owns pointer/touch/keyboard dragging and reports a single reorder
+on drop. Both row removal and picker deselection confirm for populated queues.
+`saveQueueWithAssignments` retains creation/assignment retry coordination.
 
 `components/` contains queue forms, tables, and processing views. `components/shared`
 contains object/query adapters and layout primitives; `server/` contains queue and

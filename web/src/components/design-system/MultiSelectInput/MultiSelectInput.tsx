@@ -29,6 +29,7 @@ type MultiSelectInputProps<V> = {
   selectAllLabel?: string;
   error?: boolean;
   disabled?: boolean;
+  openState?: { open: boolean; onOpenChange: (open: boolean) => void };
 } & Pick<
   React.ComponentPropsWithoutRef<"button">,
   "id" | "aria-describedby" | "aria-invalid" | "aria-label"
@@ -46,12 +47,15 @@ function MultiSelectInputInner<V extends string>(
     selectAllLabel,
     error,
     disabled,
+    openState,
     ...triggerProps
   }: MultiSelectInputProps<V>,
   ref: React.ForwardedRef<HTMLButtonElement>,
 ) {
   const container = useLayerContainer("popover");
-  const [open, setOpen] = React.useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
+  const open = openState?.open ?? uncontrolledOpen;
+  const setOpen = openState?.onOpenChange ?? setUncontrolledOpen;
   const [search, setSearch] = React.useState("");
   const listId = React.useId();
   const allSelected =

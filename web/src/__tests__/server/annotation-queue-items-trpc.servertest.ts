@@ -222,6 +222,56 @@ describe("annotation queues trpc", () => {
   });
 
   describe("annotationQueues.update", () => {
+    it("updates queue fields independently without overwriting concurrent settings or config order", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const { caller } = createCallerForProjectRole(
+        setup,
+        "ADMIN",
+        "cloud:pro",
+      );
+      const first = await createScoreConfig(setup.project.id);
+      const second = await createScoreConfig(setup.project.id);
+      const queue = await caller.annotationQueues.create({
+        projectId: setup.project.id,
+        name: "configured-queue",
+        description: "Initial description",
+        scoreConfigIds: [first.id, second.id],
+      });
+      await caller.annotationQueues.create({
+        projectId: setup.project.id,
+        name: "another-queue",
+        scoreConfigIds: [first.id],
+      });
+      await prisma.annotationQueue.update({
+        where: { id: queue.id, projectId: setup.project.id },
+        data: { name: "Latest name", description: "Latest description" },
+      });
+
+      const configured = await caller.annotationQueues.update({
+        projectId: setup.project.id,
+        queueId: queue.id,
+        scoreConfigIds: [second.id, first.id],
+      });
+      expect(configured).toMatchObject({
+        name: "Latest name",
+        description: "Latest description",
+        scoreConfigIds: [second.id, first.id],
+      });
+
+      const settings = await caller.annotationQueues.update({
+        projectId: setup.project.id,
+        queueId: queue.id,
+        name: "Changed settings",
+        description: "Changed description",
+      });
+      expect(settings).toMatchObject({
+        name: "Changed settings",
+        description: "Changed description",
+        scoreConfigIds: [second.id, first.id],
+      });
+    });
+
     it("deduplicates resolved queue configs in first-occurrence order", async () => {
       const setup = await createOrgProjectAndApiKey();
       orgIds.push(setup.org.id);
@@ -370,7 +420,7 @@ describe("annotation queues trpc", () => {
   describe.each(["create", "update"] as const)(
     "annotationQueues.%s score config validation",
     (operation) => {
-      it.each(["duplicate", "other-project"] as const)(
+      it.each(["empty", "duplicate", "other-project"] as const)(
         "rejects %s score config IDs without changing the queue",
         async (invalidSelection) => {
           const setup = await createOrgProjectAndApiKey();
@@ -388,10 +438,12 @@ describe("annotation queues trpc", () => {
             name: "existing-queue",
             scoreConfigIds: [config.id],
           });
-          const scoreConfigIds =
-            invalidSelection === "duplicate"
-              ? [config.id, config.id]
-              : [config.id, otherConfig.id];
+          const invalidIds = {
+            empty: [],
+            duplicate: [config.id, config.id],
+            "other-project": [config.id, otherConfig.id],
+          };
+          const scoreConfigIds = invalidIds[invalidSelection];
           const input = {
             projectId: setup.project.id,
             name: "changed-queue",
@@ -401,7 +453,11 @@ describe("annotation queues trpc", () => {
           await expect(
             operation === "create"
               ? caller.annotationQueues.create(input)
-              : caller.annotationQueues.update({ ...input, queueId: queue.id }),
+              : caller.annotationQueues.update({
+                  projectId: setup.project.id,
+                  queueId: queue.id,
+                  scoreConfigIds,
+                }),
           ).rejects.toMatchObject({ code: "BAD_REQUEST" });
           expect(
             await prisma.annotationQueue.findMany({

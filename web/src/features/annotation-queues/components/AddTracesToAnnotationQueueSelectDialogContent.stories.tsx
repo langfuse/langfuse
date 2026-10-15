@@ -44,7 +44,6 @@ export const CreateQueueInStackedDialog = meta.story({
             }}
             projectId="project-1"
             queueNames={queueOptions.map((queue) => queue.name)}
-            onManageScoreConfigsClick={fn()}
             hasQueueAssignmentsReadAccess={false}
             isSubmitting={false}
             onSubmit={(data) => {

@@ -180,6 +180,18 @@ const run = async (
 ): Promise<SeedSummary> => {
   const startedAt = Date.now();
   const setupDemo = params["setup-demo"] === true;
+  const scoreConfigCount = Number(
+    params["score-config-count"] ?? CONFIG_DEFS.length,
+  );
+  if (
+    !Number.isInteger(scoreConfigCount) ||
+    scoreConfigCount < CONFIG_DEFS.length ||
+    scoreConfigCount > 500
+  ) {
+    throw new SeedError(
+      "--score-config-count must be an integer from 9 to 500",
+    );
+  }
   const coreItems = Math.max(
     setupDemo ? 4 : 1,
     Number(params["core-items"] ?? 12),
@@ -223,7 +235,7 @@ const run = async (
         // Mirror the real-run counts: 8 edge items (partial1/2, stale, 2 obs,
         // session, missing, done), of which 8 have traces (missing has none),
         // 2 carry observations, and 9 pre-existing scores (2+3+1+3) are seeded.
-        scoreConfigs: CONFIG_DEFS.length,
+        scoreConfigs: scoreConfigCount,
         queues: queueCount,
         items: coreItems + edgeItems + (setupDemo ? 4 : 0),
         traces: coreItems + 8,
@@ -239,8 +251,12 @@ const run = async (
   }
 
   // --- 1. Score configs (Postgres) ----------------------------------------
+  const extraConfigs = createExtraConfigDefinitions(
+    scoreConfigCount - CONFIG_DEFS.length,
+  );
+  const scoreConfigs = [...CONFIG_DEFS, ...extraConfigs];
   const configId: Record<string, string> = {};
-  for (const def of CONFIG_DEFS) {
+  for (const def of scoreConfigs) {
     const id = `${pfx}-cfg-${def.key}`;
     configId[def.key] = id;
     const base = {
@@ -260,12 +276,24 @@ const run = async (
   }
 
   // --- 2. Queues (Postgres) -----------------------------------------------
-  const coreConfigIds = (
-    setupDemo ? ["helpfulness", "accuracy", "quality", "feedback"] : CORE_KEYS
-  ).map((key) => configId[key]);
+  const selectedExtraCount = Math.ceil(extraConfigs.length * 0.6);
+  const coreConfigIds = [
+    ...(setupDemo
+      ? ["helpfulness", "accuracy", "quality", "feedback"]
+      : CORE_KEYS),
+    ...extraConfigs.slice(0, selectedExtraCount).map((def) => def.key),
+  ].map((key) => configId[key]);
   const edgeConfigIds = setupDemo
-    ? ["toxicity", "confidence", "feedback"].map((key) => configId[key])
-    : CONFIG_DEFS.map((def) => configId[def.key]);
+    ? [
+        "toxicity",
+        "confidence",
+        "feedback",
+        ...extraConfigs
+          .slice(extraConfigs.length - selectedExtraCount)
+          .reverse()
+          .map((def) => def.key),
+      ].map((key) => configId[key])
+    : scoreConfigs.map((def) => configId[def.key]);
   const coreQueueName = setupDemo
     ? "Queue setup demo · Answer quality"
     : "Keyboard QA · core types";
@@ -654,7 +682,7 @@ const run = async (
 
   // --- 5. Persist ClickHouse rows -----------------------------------------
   ctx.log(
-    `writing ${CONFIG_DEFS.length} score configs, ${queueCount} queues, ${items.length} items, ${traces.length} traces, ${observations.length} observations, ${scores.length} scores${withV4 ? `, ${events.length} events` : ""}`,
+    `writing ${scoreConfigs.length} score configs, ${queueCount} queues, ${items.length} items, ${traces.length} traces, ${observations.length} observations, ${scores.length} scores${withV4 ? `, ${events.length} events` : ""}`,
   );
   for (const batch of chunk(traces, 1000)) await createTracesCh(batch);
   for (const batch of chunk(observations, 1000))
@@ -713,7 +741,7 @@ const run = async (
     traceIds: traceIds.slice(0, 5),
     sessionIds: [sessionId],
     counts: {
-      scoreConfigs: CONFIG_DEFS.length,
+      scoreConfigs: scoreConfigs.length,
       queues: queueCount,
       items: items.length,
       traces: traces.length,
@@ -748,6 +776,13 @@ export const annotationQueueScenario: ScenarioDefinition = {
         "seed two differently configured demo queues and an unconfigured queue with four pending items (at least four core traces)",
     },
     {
+      flag: "score-config-count",
+      type: "number",
+      default: CONFIG_DEFS.length,
+      description:
+        "total project score configs (9–500); extra varied fields are attached in different subsets and orders to exercise long queue editors",
+    },
+    {
       flag: "v4",
       type: "boolean",
       default: true,
@@ -757,3 +792,63 @@ export const annotationQueueScenario: ScenarioDefinition = {
   ],
   run,
 };
+
+function createExtraConfigDefinitions(count: number): ConfigDef[] {
+  const names = [
+    "Response clarity",
+    "Source relevance",
+    "Policy compliance",
+    "Review notes",
+    "Answer completeness",
+    "Citation quality",
+    "Sensitive content",
+    "Improvement suggestions",
+    "Instruction following",
+    "Reasoning quality",
+    "Escalation needed",
+    "Reviewer rationale",
+  ];
+
+  return Array.from({ length: count }, (_, index) => {
+    const key = `additional-${index + 1}`;
+    const name = `${names[index % names.length]} ${index + 1}`;
+    const description =
+      "Synthetic score config for testing long queue field lists.";
+    switch (index % 4) {
+      case 0:
+        return {
+          key,
+          name,
+          description,
+          dataType: "NUMERIC",
+          minValue: 0,
+          maxValue: index % 8 === 0 ? 5 : 100,
+        };
+      case 1:
+        return {
+          key,
+          name,
+          description,
+          dataType: "CATEGORICAL",
+          categories: [
+            { label: "Meets expectations", value: 2 },
+            { label: "Needs improvement", value: 1 },
+            { label: "Does not meet expectations", value: 0 },
+          ],
+        };
+      case 2:
+        return {
+          key,
+          name,
+          description,
+          dataType: "BOOLEAN",
+          categories: [
+            { label: "True", value: 1 },
+            { label: "False", value: 0 },
+          ],
+        };
+      default:
+        return { key, name, description, dataType: "TEXT" };
+    }
+  });
+}

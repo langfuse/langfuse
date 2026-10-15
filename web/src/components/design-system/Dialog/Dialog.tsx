@@ -43,6 +43,8 @@ type DialogAction = {
 type DialogProps = {
   actions?: ReadonlyArray<DialogAction>;
   closeOnInteractionOutside?: boolean;
+  /** Disable when a child interaction handles activation keys on the document. */
+  stopPropagationOnEnterSpace?: boolean;
   size?: VariantProps<typeof dialogContentVariants>["size"];
   title: string;
 } & (
@@ -54,6 +56,7 @@ function DialogRoot({
   actions,
   children,
   closeOnInteractionOutside = false,
+  stopPropagationOnEnterSpace = true,
   size,
   text,
   title,
@@ -106,7 +109,10 @@ function DialogRoot({
         }}
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
+          if (
+            stopPropagationOnEnterSpace &&
+            (event.key === "Enter" || event.key === " ")
+          ) {
             event.stopPropagation();
           }
         }}

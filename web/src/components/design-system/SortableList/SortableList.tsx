@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import {
   closestCenter,
   DndContext,
@@ -53,7 +53,7 @@ function SortableRow({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "grid grid-cols-[auto_1fr] items-start gap-1",
+        "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-1",
         isDragging && "relative z-10 opacity-70",
       )}
     >
@@ -66,7 +66,7 @@ function SortableRow({
           compact ? "h-8" : "h-9",
         )}
         aria-label={`Reorder ${label}`}
-        title="Drag to reorder"
+        title="Drag to reorder. With a keyboard: Space to pick up or drop, arrow keys to move, Escape to cancel."
         {...attributes}
         {...listeners}
       >
@@ -88,6 +88,8 @@ export function SortableList<T>({
   onReorder,
   renderItem,
   gap = "sm",
+  disabled = false,
+  "aria-label": ariaLabel,
 }: {
   items: T[];
   getId: (item: T, index: number) => string;
@@ -96,7 +98,21 @@ export function SortableList<T>({
   renderItem: (item: T, index: number) => ReactNode;
   /** Row spacing: `sm` for compact input rows, `md` for cards. */
   gap?: "sm" | "md";
+  disabled?: boolean;
+  "aria-label"?: string;
 }) {
+  const [isKeyboardDragging, setIsKeyboardDragging] = useState(false);
+  useEffect(() => {
+    if (!isKeyboardDragging) return;
+    // Consume Escape before modal document listeners; the sensor still
+    // receives the event and cancels the drag without discarding the dialog.
+    const preventDialogDismissal = (event: KeyboardEvent) => {
+      if (event.key === "Escape") event.preventDefault();
+    };
+    window.addEventListener("keydown", preventDialogDismissal, true);
+    return () =>
+      window.removeEventListener("keydown", preventDialogDismissal, true);
+  }, [isKeyboardDragging]);
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor),
@@ -107,7 +123,8 @@ export function SortableList<T>({
   const ids = items.map(getId);
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
-    if (!over || active.id === over.id) return;
+    setIsKeyboardDragging(false);
+    if (disabled || !over || active.id === over.id) return;
     const fromIndex = ids.indexOf(String(active.id));
     const toIndex = ids.indexOf(String(over.id));
     if (fromIndex < 0 || toIndex < 0) return;
@@ -119,16 +136,23 @@ export function SortableList<T>({
       collisionDetection={closestCenter}
       modifiers={[restrictToVerticalAxis]}
       sensors={sensors}
+      onDragStart={({ activatorEvent }) =>
+        setIsKeyboardDragging(activatorEvent instanceof KeyboardEvent)
+      }
+      onDragCancel={() => setIsKeyboardDragging(false)}
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-        <ol className={cn("flex flex-col", gap === "md" ? "gap-3" : "gap-1.5")}>
+        <ol
+          aria-label={ariaLabel}
+          className={cn("flex flex-col", gap === "md" ? "gap-3" : "gap-1.5")}
+        >
           {items.map((item, index) => (
             <SortableRow
               key={ids[index]}
               id={ids[index]!}
               label={getLabel(item, index)}
-              disabled={items.length < 2}
+              disabled={disabled || items.length < 2}
               compact={gap === "sm"}
             >
               {renderItem(item, index)}

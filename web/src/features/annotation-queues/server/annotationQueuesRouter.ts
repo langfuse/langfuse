@@ -430,7 +430,7 @@ export const queueRouter = createTRPCRouter({
     }),
   update: protectedProjectProcedure
     .input(
-      QueueData.extend({
+      QueueData.partial().extend({
         projectId: z.string(),
         queueId: z.string(),
       }),
@@ -454,27 +454,31 @@ export const queueRouter = createTRPCRouter({
           throw new LangfuseNotFoundError("Queue not found in project");
         }
 
-        await validateProjectScoreConfigs(
-          ctx.prisma,
-          input.projectId,
-          input.scoreConfigIds,
-        );
+        if (input.scoreConfigIds !== undefined) {
+          await validateProjectScoreConfigs(
+            ctx.prisma,
+            input.projectId,
+            input.scoreConfigIds,
+          );
+        }
 
-        const existingQueueWithName =
-          await ctx.prisma.annotationQueue.findFirst({
-            where: {
-              projectId: input.projectId,
-              name: input.name,
-              id: { not: input.queueId },
-            },
-            select: { id: true },
-          });
+        if (input.name !== undefined) {
+          const existingQueueWithName =
+            await ctx.prisma.annotationQueue.findFirst({
+              where: {
+                projectId: input.projectId,
+                name: input.name,
+                id: { not: input.queueId },
+              },
+              select: { id: true },
+            });
 
-        if (existingQueueWithName) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: "A queue with this name already exists in the project",
-          });
+          if (existingQueueWithName) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "A queue with this name already exists in the project",
+            });
+          }
         }
 
         const updatedQueue = await ctx.prisma.annotationQueue.update({

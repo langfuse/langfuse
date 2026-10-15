@@ -1,22 +1,13 @@
 import { type ReactNode, useState } from "react";
-import {
-  type CreateQueueWithAssignments,
-  type ScoreConfigDomain,
-} from "@langfuse/shared";
+import { type CreateQueueWithAssignments } from "@langfuse/shared";
 
-import { Button } from "@/src/components/design-system/Button/Button";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { showErrorToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import {
-  CreateScoreConfigDialogController,
-  EditScoreConfigDialogController,
-} from "@/src/features/score-configs";
 import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
-import { AnnotationQueueScoreConfigEditor } from "./AnnotationQueueScoreConfigEditor";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { QueueScoreConfigFields } from "./QueueScoreConfigFields";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
@@ -79,9 +70,12 @@ function AnnotationQueueDialogData({
     projectId,
     scope: "annotationQueueAssignments:read",
   });
-  const capture = usePostHogClientCapture();
-  const { queueQuery, itemsQuery, configsQuery, allQueueNamesAndIds } =
-    useQueueFormData({ projectId, queueId, mode, isOpen });
+  const { queueQuery, configsQuery, allQueueNamesAndIds } = useQueueFormData({
+    projectId,
+    queueId,
+    mode,
+    isOpen,
+  });
   const utils = api.useUtils();
   const createQueueMutation = api.annotationQueues.create.useMutation();
   const editQueueMutation = api.annotationQueues.update.useMutation();
@@ -94,6 +88,7 @@ function AnnotationQueueDialogData({
           data,
           projectId,
           existingQueueId: queueId ?? createdQueueId,
+          includeScoreConfigs: mode === "create",
           createQueue: createQueueMutation.mutateAsync,
           updateQueue: editQueueMutation.mutateAsync,
           assignUsers: createQueueAssignmentsMutation.mutateAsync,
@@ -123,6 +118,7 @@ function AnnotationQueueDialogData({
       onSuccess,
       projectId,
       queueId,
+      mode,
       utils.annotationQueueAssignments,
       utils.annotationQueues,
     ],
@@ -130,12 +126,10 @@ function AnnotationQueueDialogData({
   const initialValues = prepareQueueFormValues(mode, queueQuery.data);
   const configs = configsQuery.data?.configs;
   const queues = allQueueNamesAndIds.data;
-  if (!configs || !initialValues || !queues) {
+  if ((mode === "create" && !configs) || !initialValues || !queues) {
     return (
       <Dialog
-        title={
-          mode === "edit" ? "Edit annotation queue" : "New annotation queue"
-        }
+        title={mode === "edit" ? "Queue settings" : "New annotation queue"}
       >
         <Dialog.Body>
           <Skeleton className="h-64 w-full" />
@@ -152,11 +146,6 @@ function AnnotationQueueDialogData({
       queueNames={queues
         .filter((queue) => queue.id !== (queueId ?? createdQueueId))
         .map((queue) => queue.name)}
-      onManageScoreConfigsClick={() => {
-        capture("score_configs:manage_configs_item_click", {
-          source: "AnnotationQueue",
-        });
-      }}
       hasQueueAssignmentsReadAccess={hasQueueAssignmentsReadAccess}
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
@@ -165,82 +154,14 @@ function AnnotationQueueDialogData({
       {({ value, onChange }) => (
         <QueueScoreConfigFields
           projectId={projectId}
-          configs={configs}
+          configs={configs ?? []}
           value={value}
           onChange={onChange}
           disabled={isSubmitting}
-          warnOnRemoval={mode === "edit" && itemsQuery.data?.totalItems !== 0}
+          warnOnRemoval={false}
         />
       )}
     </AnnotationQueueFormDialogContent>
-  );
-}
-
-function QueueScoreConfigFields({
-  projectId,
-  configs,
-  value,
-  onChange,
-  disabled,
-  warnOnRemoval,
-}: {
-  projectId: string;
-  configs: ScoreConfigDomain[];
-  value: string[];
-  onChange: (ids: string[]) => void;
-  disabled: boolean;
-  warnOnRemoval: boolean;
-}) {
-  return (
-    <CreateScoreConfigDialogController
-      projectId={projectId}
-      onAfterCreate={(config) => onChange([...value, config.id])}
-    >
-      {(create) => (
-        <EditScoreConfigDialogController projectId={projectId}>
-          {(edit) => (
-            <AnnotationQueueScoreConfigEditor
-              scoreConfigs={configs}
-              value={value}
-              onChange={onChange}
-              disabled={disabled}
-              warnOnRemoval={warnOnRemoval}
-              createAction={
-                <Button
-                  text="Create score config"
-                  size="sm"
-                  variant={
-                    configs.some((config) => !config.isArchived)
-                      ? "secondary"
-                      : "primary"
-                  }
-                  disabled={disabled || !!create.disabled}
-                  onClick={create.openDialog}
-                />
-              }
-              editAction={{
-                disabled: edit.disabled,
-                onClick: (configId) => {
-                  const config = configs.find(
-                    (candidate) => candidate.id === configId,
-                  );
-                  if (!config) return;
-                  edit.openDialog({
-                    id: config.id,
-                    name: config.name,
-                    dataType: config.dataType,
-                    description: config.description ?? undefined,
-                    minValue: config.minValue ?? undefined,
-                    maxValue: config.maxValue ?? undefined,
-                    categories: config.categories ?? undefined,
-                  });
-                },
-              }}
-            />
-          )}
-        </EditScoreConfigDialogController>
-      )}
-    </CreateScoreConfigDialogController>
   );
 }
 
@@ -259,19 +180,15 @@ function useQueueFormData({
     { projectId, queueId: queueId ?? "" },
     { enabled: mode === "edit" && isOpen },
   );
-  const itemsQuery = api.annotationQueueItems.itemsByQueueId.useQuery(
-    { projectId, queueId: queueId ?? "", page: 0, limit: 1 },
-    { enabled: mode === "edit" && isOpen },
-  );
   const configsQuery = api.scoreConfigs.all.useQuery(
     { projectId },
-    { enabled: isOpen },
+    { enabled: isOpen && mode === "create" },
   );
   const allQueueNamesAndIds = api.annotationQueues.allNamesAndIds.useQuery(
     { projectId },
     { enabled: isOpen },
   );
-  return { queueQuery, itemsQuery, configsQuery, allQueueNamesAndIds };
+  return { queueQuery, configsQuery, allQueueNamesAndIds };
 }
 function prepareQueueFormValues(
   mode: "create" | "edit",
@@ -293,6 +210,7 @@ async function saveQueueWithAssignments({
   data,
   projectId,
   existingQueueId,
+  includeScoreConfigs,
   createQueue,
   updateQueue,
   assignUsers,
@@ -301,6 +219,7 @@ async function saveQueueWithAssignments({
   data: CreateQueueWithAssignments;
   projectId: string;
   existingQueueId: string | undefined;
+  includeScoreConfigs: boolean;
   createQueue: (
     input: RouterInputs["annotationQueues"]["create"],
   ) => Promise<{ id: string }>;
@@ -320,7 +239,11 @@ async function saveQueueWithAssignments({
   };
   let targetQueueId = existingQueueId;
   if (targetQueueId) {
-    await updateQueue({ ...queueData, queueId: targetQueueId });
+    await updateQueue({
+      ...queueData,
+      scoreConfigIds: includeScoreConfigs ? data.scoreConfigIds : undefined,
+      queueId: targetQueueId,
+    });
   } else {
     const queue = await createQueue(queueData);
     targetQueueId = queue.id;
