@@ -60,7 +60,10 @@ const defaultArgs: ComponentProps<typeof CurrentTopicsView> = {
     setSearchQuery: fn(),
   },
   onOpenTrace: fn(),
+  onGenerateTopics: fn(),
+  canGenerateTopics: true,
   onInspectTranscript: fn(),
+  canInspectTranscript: false,
   peekView: {
     itemType: "TRACE",
     tableName: "topics-current-traces",
@@ -261,3 +264,63 @@ async function afterPaint() {
 }
 
 type ControlledTopicsProps = ComponentProps<typeof CurrentTopicsView>;
+
+export const SummariesWithoutTopics = meta.story({
+  name: "(Test) Summaries without topics open generation",
+  args: {
+    facet: {
+      ...facet,
+      map: null,
+      topics: [],
+      rows: rows.map((row) => ({
+        ...row,
+        topicId: null,
+        topicName: null,
+        outcome: "awaiting_map",
+      })),
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByRole("button", { name: "Debug transcript" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("region", { name: "Topic traces" }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Generate topics" }),
+    );
+    await expect(args.onGenerateTopics).toHaveBeenCalledOnce();
+  },
+});
+
+export const InternalAdminTranscript = meta.story({
+  name: "(Test) Langfuse admins can debug transcripts",
+  args: { canInspectTranscript: true },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getAllByRole("button", { name: "Debug transcript" })[0],
+    );
+    await expect(args.onInspectTranscript).toHaveBeenCalledWith({
+      traceId: "trace-0",
+      facetVersion: 1,
+      unitStartTime: "2026-10-01T00:00:00.000Z",
+    });
+  },
+});
+
+export const ExistingTopicsWithoutAssignments = meta.story({
+  name: "(Test) Empty range keeps existing topics without prompting regeneration",
+  args: { facet: { ...facet, topics: [], rows: [] } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByRole("button", { name: "Generate topics" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("region", { name: "Topic traces" }),
+    ).toBeVisible();
+  },
+});

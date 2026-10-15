@@ -82,9 +82,15 @@ export function useTopicModelSettings({
         }
       : null;
 
+  const configurationError =
+    settings.error ?? readinessSettings.error ?? connections.error;
+
   return {
     configure: {
       settings: configureSettings,
+      error: configurationError
+        ? `Could not load Topics configuration: ${configurationError.message} Reload the page to retry.`
+        : null,
       triggerVariant:
         configureSettings && !configured
           ? ("primary" as const)
@@ -93,6 +99,7 @@ export function useTopicModelSettings({
     automaticProcessing: {
       ...automaticProcessing,
       dialog: {
+        projectId,
         rule,
         stored: settings.data,
         traceIdleMs: readinessSettings.data?.traceIdleMs ?? null,

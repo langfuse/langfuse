@@ -29,8 +29,10 @@ changing how it emits SQL.
   soft-delete flag columns (`SOFT_DELETE_COLUMNS`) — instead of
   hand-maintained tables that drift.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
-- `extensions.ts` — the `$call` helpers: `arrayJoin`, `mapKeys`, `mapValues`,
-  `limitBy`, `useFinal`, `includeDeleted`, `metadataValue`.
+- `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `useFinal`,
+  `includeDeleted`) and typed ClickHouse functions and aggregates (`argMaxIf`,
+  `countIf`, `sumMap`, `multiIf`, `metadataValue`, `literal`, …) that take
+  `eb.ref(...)` expressions.
 - `views.ts` / `dedup.ts` / `softDelete.ts` — virtual views as CTEs, per-table
   dedup lowering, and soft-delete filtering.
 - `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
@@ -103,6 +105,10 @@ suffix to run there. Promote it to a required check once it has proven stable.
   (`toClickhouseDateTime`), so binds match stored rows whatever the server
   timezone. Use `toDate` / `toStartOfMinute` from `extensions.ts` for
   date-truncated comparisons.
+- **Inline code constants with `literal(...)`, bind everything else.**
+  `eb("level", "=", literal("ERROR"))` renders `level = 'ERROR'`; a value that
+  comes from a caller is a plain bind, `eb("level", "=", level)`. `literal`
+  rejects backslashes and must never receive user input.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
@@ -168,7 +174,7 @@ preserve it:
 | ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE. | no    |
 | LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                               | no    |
 | FINAL              | Plugin wraps a FROM/JOIN table expression in `FinalTableNode`. Compiler emits `final` after that expression (`scores as s final`). `$call(useFinal(["scores"]))`. Tables declared `dedup: none` throw.     | no    |
-| metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a bound `ValueNode` key. Transformer + compiler special-case the node. No plugin.                                       | no    |
+| metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a bound `ValueNode` key. Transformer + compiler special-case the node. No plugin.                                      | no    |
 | Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                               | no    |
 
 These are real node objects whose children are traced Kysely

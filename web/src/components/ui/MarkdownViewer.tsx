@@ -282,7 +282,7 @@ const markdownUrlTransform: NonNullable<Options["urlTransform"]> = (
 const markdownComponents: NonNullable<Options["components"]> = {
   p({ children, node }) {
     if (isImageNode(node)) {
-      return <>{children}</>;
+      return children;
     }
     return <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>;
   },
@@ -592,15 +592,13 @@ export function MarkdownView({
   return (
     <div className="group/iosection overflow-hidden" key={theme}>
       {title ? (
-        <>
-          <MarkdownJsonViewHeader
-            title={title}
-            titleIcon={titleIcon}
-            handleOnCopy={handleOnCopy}
-            hoverRevealControls
-            controlButtons={controlButtons}
-          />
-        </>
+        <MarkdownJsonViewHeader
+          title={title}
+          titleIcon={titleIcon}
+          handleOnCopy={handleOnCopy}
+          hoverRevealControls
+          controlButtons={controlButtons}
+        />
       ) : null}
       {afterHeader}
       <div

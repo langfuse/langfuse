@@ -7,8 +7,10 @@ import {
 import { useState } from "react";
 import Decimal from "decimal.js";
 import Link from "next/link";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, InfoIcon } from "lucide-react";
 import { centCostFormatter, usdFormatter } from "@/src/utils/numbers";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/src/utils/tailwind";
@@ -82,6 +84,7 @@ export const BreakdownTooltip = ({
       ? usdFormatter(value, costFractionDigits, costFractionDigits)
       : undefined;
   const shareOf = createShareOf(contributionEntries);
+  const cacheHitRate = isCost ? null : getCacheHitRate(inputEntries, details);
   const displayedTotal =
     aggregatedDetails.total ??
     (isCost ? sumEntries(contributionEntries) : new Decimal(0));
@@ -155,6 +158,11 @@ export const BreakdownTooltip = ({
             <Section
               title={isCost ? "Input cost" : "Input usage"}
               entries={inputEntries}
+              lastRow={
+                cacheHitRate === null ? null : (
+                  <CacheHitRateRow rate={cacheHitRate} />
+                )
+              }
               {...sectionProps}
             />
 
@@ -269,6 +277,7 @@ interface SectionProps {
   shareOf: (value: number | Decimal) => number;
   /** Hairline above the section, matching the total row. */
   separated?: boolean;
+  lastRow?: React.ReactNode;
 }
 
 const Section = ({
@@ -278,6 +287,7 @@ const Section = ({
   formatExactValue,
   shareOf,
   separated = false,
+  lastRow,
 }: SectionProps) => {
   const sectionTotal = sumEntries(entries);
 
@@ -305,9 +315,109 @@ const Section = ({
           share={shareOf(value ?? 0)}
         />
       ))}
+      {lastRow}
     </div>
   );
 };
+
+function CacheHitRateRow({ rate }: { rate: number }) {
+  return (
+    <div className="text-muted-foreground col-span-4 grid grid-cols-subgrid items-center text-sm leading-5">
+      <span className="col-span-2 inline-flex items-center gap-1">
+        Cache hit rate
+        <CacheHitRateInfo />
+      </span>
+      <span className="text-foreground text-right font-mono text-xs tabular-nums">
+        {formatCacheHitRate(rate)}
+      </span>
+    </div>
+  );
+}
+
+function CacheHitRateInfo() {
+  return (
+    <CustomTooltip
+      placement="top"
+      content={
+        <div className="space-y-1.5">
+          <p>Cache-read tokens divided by total input tokens.</p>
+          <p>
+            For multi-turn interactions, above 90% is common when later turns
+            keep a stable prefix, and about 70% for a single turn with a fixed
+            rubric.
+          </p>
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <IconButton
+          {...getTriggerProps()}
+          icon={InfoIcon}
+          label="How cache hit rate is calculated"
+          size="xs"
+          variant="ghost"
+        />
+      )}
+    </CustomTooltip>
+  );
+}
+
+function getCacheHitRate(
+  entries: [string, number | undefined][],
+  details: Details | Details[],
+) {
+  const usageDetails = Array.isArray(details) ? details : [details];
+  const hasInconsistentTotal = usageDetails.some(({ total, ...buckets }) => {
+    if (total === undefined) return false;
+    return (
+      !isUsableTokenCount(total) ||
+      sumEntries(Object.entries(buckets)).gt(total)
+    );
+  });
+  if (hasInconsistentTotal) return null;
+
+  /** Generic read totals may overlap with each other or with modality counts. */
+  const hasOverlappingCacheReads = usageDetails.some((detail) => {
+    const readKeys = Object.entries(detail)
+      .filter(
+        ([key, value]) =>
+          key.includes("input") && isCacheReadKey(key) && (value ?? 0) > 0,
+      )
+      .map(([key]) => key);
+    return (
+      readKeys.length > 1 &&
+      readKeys.some(
+        (key) => !/^input_cached_(text|audio|image)_tokens$/.test(key),
+      )
+    );
+  });
+  if (hasOverlappingCacheReads) return null;
+  if (!entries.some(([key]) => /cache/i.test(key))) return null;
+  if (!entries.some(([key]) => key === "input")) return null;
+  if (entries.some(([, value]) => !isUsableTokenCount(value))) return null;
+
+  const total = sumEntries(entries);
+  if (total.lte(0)) return null;
+
+  const cacheRead = sumEntries(entries.filter(([key]) => isCacheReadKey(key)));
+  if (cacheRead.isNeg()) return null;
+
+  const rate = cacheRead.div(total);
+  return rate.toNumber();
+}
+
+function isUsableTokenCount(value: number | undefined) {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isCacheReadKey(key: string) {
+  if (/creation|cache_write/i.test(key)) return false;
+  return /cache_read|cached/i.test(key);
+}
+
+function formatCacheHitRate(rate: number) {
+  return `${(rate * 100).toFixed(1)}%`;
+}
 
 function sortEntriesByValue(entries: [string, number | undefined][]) {
   return entries.toSorted(([, a], [, b]) => (b ?? 0) - (a ?? 0));

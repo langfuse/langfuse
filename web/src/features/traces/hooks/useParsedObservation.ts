@@ -75,12 +75,13 @@ export function useParsedObservation({
       minStartTime: startTime ?? new Date(0),
       maxStartTime: startTime ?? new Date(),
       truncated: false,
+      includeSkills: true,
     },
     {
       ...sendAsPostOption,
       enabled: isV4,
       staleTime: 5 * 60 * 1000, // 5 minutes
-      select: (data) => data[0], // Extract single result from batch
+      select: (data): EventBatchIOOutput | undefined => data[0],
     },
   );
 
@@ -91,6 +92,8 @@ export function useParsedObservation({
           ...baseObservation,
           input: eventsQuery.data.input,
           output: eventsQuery.data.output,
+          skillsAvailable: eventsQuery.data.skillsAvailable,
+          skillsResourceLoaded: eventsQuery.data.skillsResourceLoaded,
           // Stringify metadata to match ObservationReturnTypeWithMetadata format
           metadata: stringifyMetadata(eventsQuery.data.metadata),
         } satisfies ObservationWithStringifiedIO;

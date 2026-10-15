@@ -51,8 +51,14 @@ async function batchMedia(batch: EarlyOtelBatch): Promise<MediaRegistry> {
     const count = batch.mediaCount();
     const media = new Map<string, ExtractedOtelMedia>();
     for (let offset = 0; offset < count; ) {
+      const resultStartedAt = performance.now();
       const page = batch.mediaPage(offset, MEDIA_PAGE_SIZE);
       for (const entry of page) media.set(entry.reference, entry);
+      recordDistribution(
+        "langfuse.ingestion.otel.main_thread_duration_ms",
+        performance.now() - resultStartedAt,
+        { phase: "media_descriptors", media_path: "early" },
+      );
       const nextOffset = offset + page.length;
       if (nextOffset <= offset)
         throw new Error("native media page returned no progress");

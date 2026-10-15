@@ -22,6 +22,7 @@ export * from "./services/email/commentMention/sendCommentMentionEmail";
 export * from "./services/email/blobStorageExportFailed/sendBlobStorageExportFailedEmail";
 export * from "./services/email/posthogExportFailed/sendPostHogExportFailedEmail";
 export * from "./services/PromptService";
+export * from "./services/SkillCacheService";
 export * from "./services/PromptService/types";
 export * from "./services/traces-ui-table-service";
 export * from "./services/InMemoryFilterService";

@@ -131,14 +131,12 @@ export function VirtualizedTreeNodeWrapper(
         {/* 2. Current element bars: up/down/horizontal connectors */}
         {visualDepth > 0 && (
           <div className="relative w-5 shrink-0">
-            <>
-              {/* Spine continuing to the next sibling */}
-              {!isLastSibling && (
-                <div className="bg-border-contrast absolute top-0 bottom-0 left-3 w-px" />
-              )}
-              {/* Rounded elbow into the icon */}
-              <div className="border-border-contrast absolute top-0 left-3 z-20 h-3.5 w-3 rounded-bl-md border-b border-l mask-r-from-40%" />
-            </>
+            {/* Spine continuing to the next sibling */}
+            {!isLastSibling && (
+              <div className="bg-border-contrast absolute top-0 bottom-0 left-3 w-px" />
+            )}
+            {/* Rounded elbow into the icon */}
+            <div className="border-border-contrast absolute top-0 left-3 z-20 h-3.5 w-3 rounded-bl-md border-b border-l mask-r-from-40%" />
           </div>
         )}
 

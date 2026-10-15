@@ -394,33 +394,31 @@ function SsoConfigDialogContent({
                 ) : null}
 
                 {selectedProvider === "custom" ? (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="authConfig.idToken"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-y-0 space-x-3 rounded-md border p-4">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value ?? false}
-                              onCheckedChange={(checked) =>
-                                field.onChange(checked === true)
-                              }
-                            />
-                          </FormControl>
-                          <div className="space-y-1 leading-none">
-                            <FormLabel>
-                              Use id_token claims only (skip userinfo)
-                            </FormLabel>
-                            <FormDescription>
-                              Leave off for IdPs that release email only via the
-                              userinfo endpoint.
-                            </FormDescription>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-                  </>
+                  <FormField
+                    control={form.control}
+                    name="authConfig.idToken"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-y-0 space-x-3 rounded-md border p-4">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value ?? false}
+                            onCheckedChange={(checked) =>
+                              field.onChange(checked === true)
+                            }
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>
+                            Use id_token claims only (skip userinfo)
+                          </FormLabel>
+                          <FormDescription>
+                            Leave off for IdPs that release email only via the
+                            userinfo endpoint.
+                          </FormDescription>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
                 ) : null}
               </DialogBody>
               <DialogFooter>
