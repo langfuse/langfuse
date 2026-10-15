@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  ForbiddenError,
+  InvalidRequestError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import {
   getTracingReadinessSettings,
   type Transcript,
@@ -569,7 +573,11 @@ export const topicsRouter = createTRPCRouter({
         unitStartTime: z.coerce.date(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      if (ctx.session.user.admin !== true)
+        throw new ForbiddenError(
+          "Transcript debugging is only available to Langfuse admins.",
+        );
       const [summary] = await listTopicSummaries(
         input.projectId,
         {

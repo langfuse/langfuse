@@ -104,6 +104,8 @@ export type StreamLLMTextOnAbortCallback<TOOLS extends ToolSet = ToolSet> =
 type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
   model: LLMModelRef;
   connection: LLMConnection;
+  /** Per-call OpenAI Chat provider selection; omitted preserves connection routing. */
+  openAIChatProvider?: "native";
   messages: ModelMessage[];
   /**
    * Tool definitions only. Supplying an `execute` function is rejected so a
@@ -316,6 +318,7 @@ async function prepareLLMTextCall<
   const languageModel = await buildAiSdkModel({
     model: options.model,
     modelConfig,
+    openAIChatProvider: options.openAIChatProvider,
     apiKey,
     baseURL: options.connection.baseURL,
     extraHeaders,

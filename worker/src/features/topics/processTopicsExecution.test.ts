@@ -181,6 +181,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
       facetId: string,
       version: number,
     ) => state.facets.get(`${facetId}/${version}`) ?? null,
+    listTopicFacets: async () => [],
     listTopicSummaries: async (
       projectId: string,
       filter: {
@@ -1335,27 +1336,42 @@ describe("Topics execution", () => {
     },
   );
 
-  it("reserves reused names before naming changed definitions", async () => {
-    await processSelection("source", 100);
-    await updateSelection("first");
-    const first = [...state.runs.values()].at(-1)!;
-    const unchanged = first.topics.find((topic) => topic.centroid[1] > 0.5)!;
-    for (const summary of state.summaries.values()) {
-      if (summary.embedding[0] > 0.5) summary.embedding[3] += 0.001;
-    }
-    state.name.mockResolvedValueOnce({
-      output: {
+  it.each(["renamed", "repeated", "failed"] as const)(
+    "publishes a changed definition whose name repeats a reused topic (retry %s)",
+    async (retry) => {
+      const persists = retry !== "renamed";
+      await processSelection("source", 100);
+      await updateSelection("first");
+      const first = [...state.runs.values()].at(-1)!;
+      const unchanged = first.topics.find((topic) => topic.centroid[1] > 0.5)!;
+      for (const summary of state.summaries.values()) {
+        if (summary.embedding[0] > 0.5) summary.embedding[3] += 0.001;
+      }
+      const colliding = {
+        output: {
+          name: unchanged.name,
+          description: "A colliding name.",
+          evidenceSummaryIds: ["m1"],
+        },
+      };
+      state.name.mockResolvedValueOnce(colliding);
+      if (retry === "repeated") state.name.mockResolvedValueOnce(colliding);
+      if (retry === "failed")
+        state.name.mockRejectedValueOnce(new Error("Naming unavailable"));
+      const calls = state.name.mock.calls.length;
+      await updateSelection("second");
+      const [, conflictCall] = state.name.mock.calls.slice(calls);
+      expect(conflictCall[2]).toMatchObject({
         name: unchanged.name,
-        description: "A colliding name.",
-        evidenceSummaryIds: ["m1"],
-      },
-    });
-    await updateSelection("second");
-    expect([...state.runs.values()].at(-1)).toMatchObject({
-      status: "failed",
-      error: "Topic names must be concise, non-empty, and distinct.",
-    });
-  });
+        description: unchanged.description,
+      });
+      const second = [...state.runs.values()].at(-1)!;
+      expect(second.status).toBe("completed");
+      expect(
+        second.topics.filter((topic) => topic.name === unchanged.name),
+      ).toHaveLength(persists ? 2 : 1);
+    },
+  );
 
   it("defers publication when assignments are not visible", async () => {
     await processSelection("source", 100);

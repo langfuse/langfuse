@@ -68,13 +68,7 @@ type AuditableResource =
   // legacy resources
   | "membership";
 
-type AuditLog = {
-  resourceType: AuditableResource;
-  resourceId: string;
-  action: string;
-  before?: unknown;
-  after?: unknown;
-} & (
+export type AuditLogActor =
   | {
       userId: string;
       orgId: string;
@@ -99,8 +93,15 @@ type AuditLog = {
       apiKeyId: string;
       orgId: string;
       projectId?: string;
-    }
-);
+    };
+
+export type AuditLog = {
+  resourceType: AuditableResource;
+  resourceId: string;
+  action: string;
+  before?: unknown;
+  after?: unknown;
+} & AuditLogActor;
 
 // Writes made by Langfuse itself rather than by a user or an API key pass these
 // sentinel actor ids. The Postgres row keeps them, because its actor type

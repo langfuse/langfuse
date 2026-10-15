@@ -1,8 +1,9 @@
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
-import { EvaluatorRecommendedCard } from "./components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
-import { EvaluatorRecommendedCards } from "./components/EvaluatorRecommendedCards/EvaluatorRecommendedCards";
+import { EvaluatorGallerySectionHeader } from "@/src/features/evals/v2/components/EvaluatorGallerySectionHeader/EvaluatorGallerySectionHeader";
+import { EvaluatorRecommendedCard } from "@/src/features/evals/v2/components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
+import { EvaluatorRecommendedCards } from "@/src/features/evals/v2/components/EvaluatorRecommendedCards/EvaluatorRecommendedCards";
 import { EvaluatorTemplateRow } from "./components/EvaluatorTemplateRow/EvaluatorTemplateRow";
 import type {
   GalleryTemplate,
@@ -10,91 +11,126 @@ import type {
 } from "@/src/features/evals/v2/types/templateGallery";
 import {
   EVALUATOR_GALLERY_PREVIEW_SIZE,
+  EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
   EVALUATOR_GALLERY_SAFETY_CALLOUT,
   EVALUATOR_GALLERY_SAFETY_SECTION_KEY,
 } from "@/src/features/evals/v2/constants/evaluatorGallery";
-import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import { getGalleryTemplateId } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
-import { cn } from "@/src/utils/tailwind";
+
+type EvaluatorGallerySectionProps = {
+  section: GallerySection;
+  expanded: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
+  onSelectTemplate: (template: GalleryTemplate, sectionKey: string) => void;
+};
+
+type ManagedGalleryTemplate = Extract<GalleryTemplate, { source: "managed" }>;
 
 export function EvaluatorGallerySection({
   section,
   expanded,
   onExpandedChange,
   onSelectTemplate,
-}: {
-  section: GallerySection;
-  expanded: boolean;
-  onExpandedChange?: (expanded: boolean) => void;
-  onSelectTemplate: (template: GalleryTemplate, sectionKey: string) => void;
-}) {
+}: EvaluatorGallerySectionProps) {
   const isRecommended =
     section.key === EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY;
-  const isSafety = section.key === EVALUATOR_GALLERY_SAFETY_SECTION_KEY;
   const selectTemplate = (template: GalleryTemplate) =>
     onSelectTemplate(template, section.key);
   const shownTemplates = expanded
     ? section.templates
     : section.templates.slice(0, EVALUATOR_GALLERY_PREVIEW_SIZE);
-  const totalCount = section.totalCount ?? section.templates.length;
-  const { icon: Icon, iconClassName } = getGalleryCategoryPresentation(
-    section.key,
+  // Only catalog templates carry preview scores; project templates stay rows.
+  const shownManagedTemplates = shownTemplates.filter(
+    (template): template is ManagedGalleryTemplate =>
+      template.source === "managed",
   );
+  const totalCount = section.totalCount ?? section.templates.length;
+  const canToggle =
+    totalCount > EVALUATOR_GALLERY_PREVIEW_SIZE && onExpandedChange;
+  const handleToggleExpanded = () => onExpandedChange?.(!expanded);
 
   return (
     <section className="flex scroll-mt-1 flex-col gap-3">
       {isRecommended ? (
         <EvaluatorRecommendedCards label={section.label}>
-          {shownTemplates.map((template) => (
+          {shownManagedTemplates.map((template) => (
             <EvaluatorRecommendedCard
-              key={getGalleryTemplateId(template)}
+              key={template.key}
               template={template}
               onSelect={selectTemplate}
             />
           ))}
         </EvaluatorRecommendedCards>
       ) : (
-        <>
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <Icon className={cn("icon-base shrink-0", iconClassName)} />
-              <h4 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
-                {section.label}
-              </h4>
-              {isSafety ? (
-                <InfoTooltip label={`About ${section.label}`}>
-                  {EVALUATOR_GALLERY_SAFETY_CALLOUT}
-                </InfoTooltip>
-              ) : null}
-            </div>
-            <div className="border-t" />
-          </div>
-          <div className="flex flex-col">
-            {shownTemplates.map((template) => (
-              <EvaluatorTemplateRow
-                key={getGalleryTemplateId(template)}
-                template={template}
-                onSelect={selectTemplate}
-              />
-            ))}
-          </div>
-        </>
+        <GalleryCategoryBlock
+          section={section}
+          templates={shownTemplates}
+          managedTemplates={shownManagedTemplates}
+          onSelectTemplate={selectTemplate}
+        />
       )}
-      {totalCount > EVALUATOR_GALLERY_PREVIEW_SIZE && onExpandedChange ? (
+      {canToggle ? (
         <button
           type="button"
           className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1.5 px-1 text-sm"
-          onClick={() => onExpandedChange(!expanded)}
+          onClick={handleToggleExpanded}
         >
-          {expanded ? (
-            <DropdownIndicator direction="up" nudge />
-          ) : (
-            <DropdownIndicator nudge />
-          )}
+          <DropdownIndicator direction={expanded ? "up" : "down"} nudge />
           {expanded ? "Show fewer" : `Show all ${totalCount} templates`}
         </button>
       ) : null}
     </section>
+  );
+}
+
+type GalleryCategoryBlockProps = {
+  section: GallerySection;
+  templates: GalleryTemplate[];
+  managedTemplates: ManagedGalleryTemplate[];
+  onSelectTemplate: (template: GalleryTemplate) => void;
+};
+
+/** A non-recommended section: project templates as rows, catalog ones as cards. */
+function GalleryCategoryBlock({
+  section,
+  templates,
+  managedTemplates,
+  onSelectTemplate,
+}: GalleryCategoryBlockProps) {
+  const isSafety = section.key === EVALUATOR_GALLERY_SAFETY_SECTION_KEY;
+  const isProject = section.key === EVALUATOR_GALLERY_PROJECT_SECTION_KEY;
+
+  return (
+    <>
+      <EvaluatorGallerySectionHeader label={section.label}>
+        {isSafety ? (
+          <InfoTooltip label={`About ${section.label}`}>
+            {EVALUATOR_GALLERY_SAFETY_CALLOUT}
+          </InfoTooltip>
+        ) : null}
+      </EvaluatorGallerySectionHeader>
+      {isProject ? (
+        <div className="flex flex-col">
+          {templates.map((template) => (
+            <EvaluatorTemplateRow
+              key={getGalleryTemplateId(template)}
+              template={template}
+              onSelect={onSelectTemplate}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 @2xl:grid-cols-3">
+          {managedTemplates.map((template) => (
+            <EvaluatorRecommendedCard
+              key={template.key}
+              template={template}
+              onSelect={onSelectTemplate}
+            />
+          ))}
+        </div>
+      )}
+    </>
   );
 }

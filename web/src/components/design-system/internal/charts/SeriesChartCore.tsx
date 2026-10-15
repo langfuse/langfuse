@@ -22,6 +22,8 @@ export type LineChartSeries = {
   id: string;
   label: string;
   color: string;
+  /** Area fill; falls back to `color`. */
+  fillColor?: string;
 };
 
 type ConfiguredLineChartSeries = LineChartSeries & {
@@ -87,7 +89,7 @@ type NormalizedDatum = LineChartValues & {
 
 const CATEGORY_TICK_GAP = 16;
 const SERIES_HOVER_DISTANCE = 10;
-const MAX_VISIBLE_POINT_RADIUS = 5;
+const MAX_VISIBLE_POINT_RADIUS = 4;
 const defaultValueFormatter = (value: number) => value.toLocaleString();
 
 const getSeriesSummaries = (
@@ -342,7 +344,9 @@ export function SeriesChartCore(
             return {
               id: item.id,
               label: item.label,
-              color: item.color,
+              color: props.areaVariant
+                ? (item.fillColor ?? item.color)
+                : item.color,
               value:
                 legend.summary === "sum" && summaries.get(item.id) !== null
                   ? {
@@ -847,11 +851,11 @@ function LineChartContent(
                       >
                         <stop
                           offset="0"
-                          stopColor={`color-mix(in srgb, ${item.color} ${dimmed ? 15 : 75}%, hsl(var(--background)))`}
+                          stopColor={`color-mix(in srgb, ${item.fillColor ?? item.color} ${dimmed ? 15 : 75}%, hsl(var(--background)))`}
                         />
                         <stop
                           offset="1"
-                          stopColor={`color-mix(in srgb, ${item.color} ${dimmed ? 5 : 25}%, hsl(var(--background)))`}
+                          stopColor={`color-mix(in srgb, ${item.fillColor ?? item.color} ${dimmed ? 5 : 25}%, hsl(var(--background)))`}
                         />
                       </linearGradient>
                     </defs>
@@ -869,8 +873,8 @@ function LineChartContent(
                   strokeOpacity={areaVariant && dimmed ? 0.2 : undefined}
                   strokeWidth={
                     item.emphasis === "emphasized" || proximityEmphasized
-                      ? 3.5
-                      : 2.5
+                      ? 3
+                      : 2
                   }
                   strokeLinejoin="round"
                   strokeLinecap="round"
@@ -894,7 +898,7 @@ function LineChartContent(
                       data-active-data-point={activeForSeries ? "" : undefined}
                       cx={getX(datum)}
                       cy={yScale(value)}
-                      r={activeForSeries ? 5 : 4}
+                      r={activeForSeries ? 4 : 3}
                       fill={item.color}
                       pointerEvents="none"
                     />
@@ -922,11 +926,13 @@ function LineChartContent(
               .sort((left, right) => right.value - left.value);
             const first = values[0];
             const heading = formatXTooltip(datum);
+            const swatchColor = (item: LineChartSeries) =>
+              areaVariant ? (item.fillColor ?? item.color) : item.color;
             const tooltipItems = values.map(({ item, value }) => ({
               id: item.id,
               label: item.label,
               value: valueFormatter(value),
-              color: hasDistinctColors ? item.color : undefined,
+              color: hasDistinctColors ? swatchColor(item) : undefined,
             }));
             const referenceProps = getReferenceProps(
               first

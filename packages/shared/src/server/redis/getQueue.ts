@@ -9,6 +9,7 @@ import { ExperimentCreateQueue } from "./experimentCreateQueue";
 import { TraceDeleteQueue } from "./traceDelete";
 import { TopicsQueue, TopicsUpdateQueue } from "../topics/queue";
 import { TopicsEmbeddingQueue } from "../topics/embedding-queue";
+import { TopicsAutomationQueue } from "../topics/automation-queue";
 import { TraceBatchQueue } from "./traceBatch";
 import { ProjectDeleteQueue } from "./projectDelete";
 import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
@@ -57,6 +58,8 @@ export function getQueue(
       return TopicsUpdateQueue.getInstance();
     case QueueName.TopicsEmbedding:
       return TopicsEmbeddingQueue.getInstance();
+    case QueueName.TopicsAutomation:
+      return TopicsAutomationQueue.getInstance();
     case QueueName.TraceBatch:
       return TraceBatchQueue.getInstance();
     case QueueName.BatchExport:
