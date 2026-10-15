@@ -104,3 +104,22 @@ jobs:
       - name: Check native addon dependency licenses
         working-directory: packages/native
         run: cargo deny --locked check licenses
+
+  # License checks are not required for merging, so a failure on main would
+  # otherwise go unnoticed. PR failures already show on the PR.
+  notify_failure:
+    needs: [license_check, rust_license_check]
+    if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # notify-slack-failure reads the failed jobs' logs
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          message: "❌ License check failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
