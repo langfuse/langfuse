@@ -74,31 +74,53 @@ export function TopicSetupNotice({
             description="Topics analyzes each trace along the questions you choose, called facets, and clusters similar answers, so you can see what users ask for, how runs end, and which issues come up along the way."
             steps={[
               {
-                title: "Set up Topics",
+                title: "Configure Topics",
                 description:
                   "Pick the models Topics runs on and the facets to analyze, such as intent, outcome, and issues.",
+                content: (
+                  <Button
+                    text="Configure Topics"
+                    size="sm"
+                    disabled={!canWrite || !canConfigure}
+                    onClick={onConfigure}
+                  />
+                ),
               },
               {
                 title: "Analyze traces",
                 description:
-                  "Topics summarizes new traces automatically, and past traces whenever you process them.",
+                  "After setup, enable automatic processing for incoming traces or summarize existing traces manually.",
+                content: (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      text="Automatic processing"
+                      variant="secondary"
+                      size="sm"
+                      disabled
+                    />
+                    <Button
+                      text="Summarize traces & embed"
+                      variant="secondary"
+                      size="sm"
+                      disabled
+                    />
+                  </div>
+                ),
               },
               {
                 title: "Gather insights",
                 description:
-                  "Similar summaries are clustered into topics, on demand or continuously, so patterns across your traces show up here.",
+                  "Once summaries are available, generate topics to discover recurring patterns across your traces.",
+                content: (
+                  <Button
+                    text="Generate topics"
+                    variant="secondary"
+                    size="sm"
+                    disabled
+                  />
+                ),
               },
             ]}
-            primaryAction={{
-              label: "Configure Topics",
-              component: (
-                <Button
-                  text="Configure Topics"
-                  disabled={!canWrite || !canConfigure}
-                  onClick={onConfigure}
-                />
-              ),
-            }}
           />
         </div>
       ) : null}
