@@ -1,8 +1,11 @@
 import { createMocks } from "node-mocks-http";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { env } from "@/src/env.mjs";
+import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
+import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
+import { gatewayModelsApiHandler } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsApiHandler";
 import handler from "@/src/pages/api/internal/ai-gateway/v1/models";
 
 // `env` is typed readonly, but the route reads it at call time, so overriding
@@ -87,5 +90,31 @@ describe("GET /api/internal/ai-gateway/v1/models", () => {
     await handler(req, res);
 
     expect(res.statusCode).toBe(401);
+  });
+
+  it("forwards the denial code so the gateway can name the missing permission", async () => {
+    const denial = vi
+      .spyOn(GatewayApiKeyAuthenticator.prototype, "authenticateModelsRequest")
+      .mockRejectedValue(
+        new GatewayControlPlaneError(
+          "Access denied.",
+          403,
+          "missing_permission",
+        ),
+      );
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>();
+
+    await gatewayModelsApiHandler({
+      req,
+      res,
+      fastHashedSecretKey: "hash",
+      apiFormat: "openai.responses",
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.getHeader("langfuse-gateway-error-code")).toBe(
+      "missing_permission",
+    );
+    denial.mockRestore();
   });
 });

@@ -402,6 +402,7 @@ impl InferenceHttpError {
                     R::InvalidCredential | R::Authentication => "authentication",
                     R::InvalidRequest => "invalid_request",
                     R::Forbidden => "forbidden",
+                    R::MissingPermission => "missing_permission",
                     R::ModelNotAllowed => "model_not_allowed",
                     R::NoRoute => "no_route",
                     R::Timeout => "timeout",
@@ -444,6 +445,12 @@ impl InferenceHttpError {
                 "Gateway access forbidden",
                 "permission_error",
                 "permission_denied",
+            ),
+            Self::Resolution(R::MissingPermission) => (
+                StatusCode::FORBIDDEN,
+                "Access denied. The \"gateway:invoke\" permission is required to access this resource.",
+                "permission_error",
+                "missing_permission",
             ),
             Self::Resolution(R::ModelNotAllowed) => (
                 StatusCode::FORBIDDEN,

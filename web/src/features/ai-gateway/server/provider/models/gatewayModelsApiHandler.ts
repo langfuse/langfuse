@@ -31,6 +31,9 @@ export async function gatewayModelsApiHandler({
     return res.status(200).json(GatewayModelsResponseSchema.parse(result));
   } catch (error) {
     if (error instanceof GatewayControlPlaneError) {
+      if (error.code) {
+        res.setHeader("langfuse-gateway-error-code", error.code);
+      }
       return res.status(error.status).json({ error: error.message });
     }
     return res.status(500).json({ error: "Internal server error" });

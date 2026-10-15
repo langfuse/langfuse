@@ -257,14 +257,16 @@ async fn read_response(
         200 => {}
         400 => return Err(ResolutionError::InvalidRequest),
         401 => return Err(ResolutionError::Authentication),
-        403 if response
-            .headers()
-            .get(ERROR_CODE_HEADER)
-            .is_some_and(|value| value == "model_not_allowed") =>
-        {
-            return Err(ResolutionError::ModelNotAllowed);
+        403 => {
+            let code = response.headers().get(ERROR_CODE_HEADER);
+            return Err(if code.is_some_and(|value| value == "model_not_allowed") {
+                ResolutionError::ModelNotAllowed
+            } else if code.is_some_and(|value| value == "missing_permission") {
+                ResolutionError::MissingPermission
+            } else {
+                ResolutionError::Forbidden
+            });
         }
-        403 => return Err(ResolutionError::Forbidden),
         404 => return Err(ResolutionError::NoRoute),
         429 | 500..=599 => return Err(ResolutionError::Unavailable),
         _ => return Err(ResolutionError::InvalidResponse),
@@ -301,6 +303,8 @@ pub enum ResolutionError {
     InvalidRequest,
     Authentication,
     Forbidden,
+    /// The key authenticated but its role does not grant `gateway:invoke`.
+    MissingPermission,
     ModelNotAllowed,
     NoRoute,
     Unavailable,
@@ -318,6 +322,7 @@ impl fmt::Display for ResolutionError {
             Self::InvalidRequest => "invalid gateway request",
             Self::Authentication => "gateway authentication failed",
             Self::Forbidden => "gateway access forbidden",
+            Self::MissingPermission => "gateway:invoke permission missing",
             Self::ModelNotAllowed => "model is not allowed",
             Self::NoRoute => "no eligible connection",
             Self::Unavailable => "resolution unavailable",

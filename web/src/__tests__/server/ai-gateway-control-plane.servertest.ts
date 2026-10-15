@@ -1377,7 +1377,9 @@ describe("AI gateway control plane", () => {
         authenticator.authenticateModelsRequest(request),
       ).rejects.toMatchObject({
         status: 403,
-        message: "API key is not allowed to invoke the gateway",
+        code: "missing_permission",
+        message:
+          'Access denied. The "gateway:invoke" permission is required to access this resource.',
       });
 
       Object.assign(env, { API_AUTH_MIGRATION: "legacy" });
