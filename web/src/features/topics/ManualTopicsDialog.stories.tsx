@@ -511,6 +511,15 @@ export const PreviewRequired = meta.story({
       view.getByRole("link", { name: "Support conversation" }),
     ).toBeVisible();
     await expect(summarize()).toBeEnabled();
+    await userEvent.click(view.getByRole("button", { name: /Past 7 days/ }));
+    await userEvent.click(
+      within(canvasElement.ownerDocument.body).getByText("Past 30 days", {
+        exact: true,
+      }),
+    );
+    await expect(summarize()).toBeDisabled();
+    await userEvent.click(view.getByRole("button", { name: "Preview traces" }));
+    await expect(summarize()).toBeEnabled();
     await userEvent.click(
       view.getByRole("checkbox", { name: "Select trace trace-support" }),
     );

@@ -177,20 +177,14 @@ export function ManualTopicsDialog({
                   <div className="flex flex-col gap-4">{traceControls}</div>
                 </section>
                 {operation === "update" ? (
-                  <section className="flex flex-col gap-2">
-                    <h2 className="font-bold">Time range</h2>
-                    <div className="self-start">
-                      <TimeRangePicker
-                        timeRange={generationTimeRange}
-                        onTimeRangeChange={onGenerationTimeRangeChange}
-                        timeRangePresets={[
-                          "last1Day",
-                          "last7Days",
-                          "last30Days",
-                        ]}
-                        maxRangeMs={30 * 86_400_000}
-                      />
-                    </div>
+                  <section className="self-start">
+                    <TimeRangePicker
+                      timeRange={generationTimeRange}
+                      onTimeRangeChange={onGenerationTimeRangeChange}
+                      timeRangePresets={["last1Day", "last7Days", "last30Days"]}
+                      maxRangeMs={30 * 86_400_000}
+                      className="my-0"
+                    />
                   </section>
                 ) : null}
               </Stepper>

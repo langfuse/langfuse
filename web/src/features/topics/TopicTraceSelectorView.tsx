@@ -2,7 +2,6 @@ import { useState, type ComponentProps } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { env } from "@/src/env.mjs";
 import { type ColumnDef } from "@tanstack/react-table";
-import { format } from "date-fns";
 import { type FilterState } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -18,14 +17,10 @@ import { TableSearchBar } from "@/src/features/search-bar";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
-import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/components/DateRangeInput/DateRangeInput";
+import { TimeRangePicker } from "@/src/components/date-picker";
+import { TIME_RANGES, type TimeRange } from "@/src/utils/date-range-utils";
 import { TOPICS_BACKFILL_TRACE_LIMIT } from "./backfill-limit";
-import {
-  isValidTopicTimeRange,
-  topicCalendarDates,
-  topicCalendarRange,
-  topicTimeRangePresets,
-} from "./time-range";
+import { isValidTopicTimeRange } from "./time-range";
 
 type PreviewData = RouterOutputs["topics"]["previewTraces"];
 type TracePreview = PreviewData["traces"][number];
@@ -76,6 +71,13 @@ const registry = {
   ),
 };
 
+const traceTimeRanges = {
+  "1": "last1Day",
+  "7": "last7Days",
+  "30": "last30Days",
+  "90": "last90Days",
+} as const;
+
 export function TopicTraceSelectorView({
   projectId,
   mode,
@@ -122,6 +124,24 @@ export function TopicTraceSelectorView({
     ready: "Refresh selection",
     error: "Preview traces",
   }[preview.status];
+  const timeRange: TimeRange =
+    timeWindow === "custom"
+      ? range
+      : {
+          range:
+            traceTimeRanges[timeWindow as keyof typeof traceTimeRanges] ??
+            "last7Days",
+        };
+  function handleTimeRangeChange(value: TimeRange) {
+    if ("from" in value) {
+      onTimeWindowChange("custom");
+      onRangeChange(value);
+      return;
+    }
+    const minutes =
+      TIME_RANGES[value.range as keyof typeof TIME_RANGES].minutes;
+    onTimeWindowChange(String(minutes / (24 * 60)));
+  }
   return (
     <div className="ph-no-capture flex min-w-0 flex-col gap-4">
       <Tabs value={mode} onValueChange={onModeChange}>
@@ -137,16 +157,20 @@ export function TopicTraceSelectorView({
       {mode === "filters" ? (
         <>
           <div className="flex flex-wrap items-end gap-3">
-            <label className="flex w-44 flex-col gap-1 text-sm">
-              Time range
-              <SelectInput
-                aria-label="Trace time range"
-                placeholder="Time range"
-                options={topicTimeRangePresets}
-                value={timeWindow}
-                onValueChange={onTimeWindowChange}
+            <div>
+              <TimeRangePicker
+                timeRange={timeRange}
+                onTimeRangeChange={handleTimeRangeChange}
+                timeRangePresets={[
+                  "last1Day",
+                  "last7Days",
+                  "last30Days",
+                  "last90Days",
+                ]}
+                maxRangeMs={93 * 86_400_000}
+                className="my-0"
               />
-            </label>
+            </div>
             <label className="flex flex-col gap-1 text-sm">
               Maximum traces
               <div className="w-28">
@@ -181,17 +205,6 @@ export function TopicTraceSelectorView({
             Process up to {TOPICS_BACKFILL_TRACE_LIMIT.toLocaleString()}{" "}
             matching traces per run.
           </p>
-          {timeWindow === "custom" && (
-            <DateRangeInput
-              value={topicCalendarDates(range)}
-              max={format(new Date(), "yyyy-MM-dd")}
-              fromAriaLabel="Trace start date"
-              toAriaLabel="Trace end date"
-              onValueChange={(value) => {
-                onRangeChange(topicCalendarRange(value));
-              }}
-            />
-          )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-bold">Filter observations</h3>
             <FilterModeToggle mode={filterMode} onChange={onFilterModeChange} />
