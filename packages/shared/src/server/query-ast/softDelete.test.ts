@@ -384,13 +384,33 @@ describe("soft-delete filtering", () => {
     const marked = () =>
       getClickhouseKysely()
         .selectFrom("events_core as e")
-        .$call(softDeleteAfterLimit());
+        .$call(softDeleteAfterLimit())
+        .limit(1);
     const rejects = (
       builder: Parameters<typeof compileClickhouseQuery>[0],
       message: RegExp,
     ) => expect(() => compile(builder)).toThrow(message);
 
     rejects(marked(), /without outputs/);
+    rejects(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .$call(softDeleteAfterLimit())
+        .select("e.span_id"),
+      /needs a LIMIT or LIMIT BY/,
+    );
+    rejects(
+      marked().select("e.trace_id").groupBy("e.trace_id"),
+      /cannot wrap a GROUP BY or set operation/,
+    );
+    rejects(
+      marked()
+        .select("e.span_id")
+        .unionAll(
+          getClickhouseKysely().selectFrom("events_core").select("span_id"),
+        ),
+      /cannot wrap a GROUP BY or set operation/,
+    );
     rejects(marked().selectAll(), /every output named/);
     rejects(marked().selectAll("e"), /every output named/);
     rejects(marked().select("e.is_deleted"), /adds `is_deleted` itself/);

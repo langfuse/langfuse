@@ -823,9 +823,9 @@ class SoftDeleteAfterLimitPlugin implements KyselyPlugin {
  * pick, where a deletion is a newer version with the flag set; filtering
  * first would return the older live version. Compiles to
  * `select latest.<output>, … from (<this select, flag added>) as latest where
- * latest.<flag> = 0`. The select reads exactly one soft-delete table, names
- * every output (no `*`, unaliased expressions), and does not select the flag
- * itself.
+ * latest.<flag> = 0`. The select reads exactly one soft-delete table, has a
+ * LIMIT or LIMIT BY, has no GROUP BY or set operation, names every output (no
+ * `*`, unaliased expressions), and does not select the flag itself.
  */
 export function softDeleteAfterLimit() {
   return <DB, TB extends keyof DB, O>(

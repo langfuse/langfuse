@@ -30,9 +30,9 @@ changing how it emits SQL.
   hand-maintained tables that drift.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
 - `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `useFinal`,
-  `includeDeleted`, `softDeleteAfterLimit`) and typed ClickHouse functions and aggregates (`argMaxIf`,
-  `countIf`, `sumMap`, `multiIf`, `metadataValue`, `literal`, …) that take
-  `eb.ref(...)` expressions.
+  `includeDeleted`, `softDeleteAfterLimit`) and typed ClickHouse functions and
+  aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`,
+  `literal`, …) that take `eb.ref(...)` expressions.
 - `views.ts` / `dedup.ts` / `softDelete.ts` — virtual views as CTEs, per-table
   dedup lowering, and soft-delete filtering.
 - `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
@@ -87,8 +87,8 @@ suffix to run there. Promote it to a required check once it has proven stable.
   only `projectId` (see `../repositories/environments.ts`).
 - **Never filter `is_deleted` on a physical table yourself.** Tables that
   declare `softDelete` in the registry (`events_core`, `events_full`) get
-  `is_deleted = 0` on every FROM/JOIN. A latest-version read (`ORDER BY
-<version> DESC` with `LIMIT 1` or `LIMIT 1 BY`) marks itself
+  `is_deleted = 0` on every FROM/JOIN. A latest-version read (ordered by
+  version, then `LIMIT 1` or `LIMIT 1 BY`) marks itself
   `$call(softDeleteAfterLimit())`, so a deletion (a newer row with the flag
   set) wins the pick and is dropped after it, instead of an older live
   version. A select that must see deleted rows opts out with
@@ -140,10 +140,12 @@ db.selectFrom("observations")
 
 ```ts
 db.selectFrom("events_core")
+  .$call(softDeleteAfterLimit())
   .select(["span_id", "project_id"])
   .orderBy("event_ts", "desc")
   .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] }));
-// … order by event_ts desc limit 1 by span_id, project_id
+// … order by event_ts desc limit 1 by span_id, project_id, wrapped by the
+// soft-delete pass so a deleted latest version is dropped
 ```
 
 **Write FINAL** (`useFinal` — ReplacingMergeTree reads; never on `events_core`):
@@ -210,9 +212,9 @@ and it is where tenancy is enforced:
 2. `SoftDeleteFilterPlugin` adds `<flag> = 0` for every FROM/JOIN relation
    whose table declares `softDelete`, except in selects marked with
    `includeDeleted()`. A select marked `softDeleteAfterLimit()` is left
-   unfiltered and wrapped:
-   `select latest.<output>, … from (<select>, <flag>) as latest where
-latest.<flag> = 0`. It runs before tenancy, so the WHERE reads
+   unfiltered, gets the flag added to its outputs, and is wrapped in an outer
+   select over those outputs that keeps rows with `latest.<flag> = 0`. It
+   runs before tenancy, so the WHERE reads
    `project_id = … and is_deleted = … and …`.
 3. `TenancyInjectionPlugin` walks every FROM/JOIN and injects
    `project_id = {projectId}` on each tenanted physical table, unless the tree

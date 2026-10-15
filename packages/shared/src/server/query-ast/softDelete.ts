@@ -157,6 +157,16 @@ function filterAfterLimit(
   node: ClickHouseSelectQueryNode,
   relation: SoftDeleteRelation,
 ): ClickHouseSelectQueryNode {
+  if (!node.limit && !node.limitBy) {
+    throw new QueryCompileError(
+      "softDeleteAfterLimit() needs a LIMIT or LIMIT BY to filter after.",
+    );
+  }
+  if (node.groupBy || node.setOperations) {
+    throw new QueryCompileError(
+      "softDeleteAfterLimit() cannot wrap a GROUP BY or set operation: the added flag would not match its shape.",
+    );
+  }
   const outputs = (node.selections ?? []).map((selection) => {
     const name = outputName(selection.selection);
     if (name === undefined) {
