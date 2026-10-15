@@ -73,7 +73,7 @@ export function ManualTopicsDialog({
   );
   const noSummaries = !selectedUpdates.some((facet) => facet.summaries > 0);
   const belowMinimum = selectedUpdates.filter(
-    (facet) => facet.summaries > 0 && facet.summaries < minimum,
+    (facet) => facet.summaries < minimum,
   );
   const facetLabel = selectedUpdates.length === 1 ? "facet" : "facets";
   const traceLabel = count === 1 ? "trace" : "traces";
@@ -307,7 +307,7 @@ export function ManualTopicsDialog({
                       onCheckedChange={onSmallSampleChange}
                     />
                   </label>
-                  {belowMinimum.length > 0 ? (
+                  {!noSummaries && belowMinimum.length > 0 ? (
                     <Alert variant="warning" size="sm">
                       <Alert.Description>
                         <p>

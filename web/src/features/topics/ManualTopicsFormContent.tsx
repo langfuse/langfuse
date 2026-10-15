@@ -14,6 +14,7 @@ export function ManualTopicsFormContent({
   generationTimeRange,
   onGenerationTimeRangeChange,
   settings,
+  configurationError,
   regenerate,
   running,
   processError,
@@ -69,6 +70,8 @@ export function ManualTopicsFormContent({
   const disabledReason = (() => {
     if (!canWrite)
       return "You need permission to manage Topics in this project.";
+    if (configurationError) return configurationError;
+    if (regenerate.prerequisiteReason) return regenerate.prerequisiteReason;
     if (!settings) return "Loading Topics configuration…";
     if (!configured)
       return "Choose the Topics models in Configure Topics first.";
@@ -76,7 +79,6 @@ export function ManualTopicsFormContent({
       return `Topics is paused. ${settings.stored.blockMessage ?? "Fix the model connection in Configure Topics."}`;
     if (!settings.stored.processingAvailable)
       return "Topics processing is not enabled for this project.";
-    if (regenerate.prerequisiteReason) return regenerate.prerequisiteReason;
     if (running) return "A Topics run is in progress. Wait for it to finish.";
     if (operation === "update" && regenerate.disabledReason)
       return regenerate.disabledReason;
@@ -175,6 +177,7 @@ type ManualTopicsFormContentProps = {
   generationTimeRange: TimeRange;
   onGenerationTimeRangeChange: (range: TimeRange) => void;
   settings: ConfigureTopicsSettingsInput | null;
+  configurationError: string | null;
   regenerate: RegenerateTopics;
   running: boolean;
   processError: string | null;

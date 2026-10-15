@@ -314,6 +314,40 @@ export const SubmissionError = meta.story({
   },
 });
 
+export const SkippedFacets = meta.story({
+  name: "(Test) Warns about empty facets in an otherwise eligible run",
+  args: {
+    operation: "update",
+    facets: facets.map((facet) => ({
+      ...facet,
+      summaries: facet.id === "outcome" ? 0 : facet.summaries,
+    })),
+  },
+  play: async ({ canvasElement }) => {
+    const view = within(
+      within(canvasElement.ownerDocument.body).getByRole("dialog", {
+        name: "Manual processing",
+      }),
+    );
+    await expect(
+      view.getByRole("button", { name: "Generate topics" }),
+    ).toBeEnabled();
+    await waitFor(() =>
+      expect(
+        view.getByText(/Outcome will be skipped: fewer than 100 summaries/),
+      ).toBeVisible(),
+    );
+    await userEvent.click(view.getByRole("checkbox", { name: "Intent" }));
+    await userEvent.click(view.getByRole("checkbox", { name: "Product area" }));
+    await expect(
+      view.getByRole("button", { name: "Generate topics" }),
+    ).toBeDisabled();
+    await expect(
+      view.getByRole("button", { name: "Go to Summarize traces & embed" }),
+    ).toBeVisible();
+  },
+});
+
 export const ReviewChoices = meta.story({
   name: "(Test) Review choices across steps and operations",
   play: async ({ canvasElement, args }) => {
