@@ -482,6 +482,10 @@ export function createQuestionnaireTool() {
       "The user may skip individual questions (skipped: true) or dismiss the form; respect that and do not ask the same questions again.",
     ].join(" "),
     inputSchema: InAppAgentQuestionnaireArgsSchema,
+    // Invalid args skip the approval pause so execute's input validation
+    // returns the error to the model instead of showing an unanswerable form.
+    requireApproval: (input) =>
+      InAppAgentQuestionnaireArgsSchema.safeParse(input).success,
     execute: async (input, context) => {
       // An approval without answers (e.g. from a client that predates the
       // questionnaire card) counts as skipping every question, so the model
