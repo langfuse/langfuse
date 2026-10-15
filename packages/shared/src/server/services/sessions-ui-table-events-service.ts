@@ -54,7 +54,6 @@ export const getSessionTracesFromEvents = async (props: {
     .selectFrom("events_full as e")
     .select(traceAggregationSelects() as never)
     .where("e.session_id", "=", sessionId)
-    .where("e.is_deleted", "=", 0)
     .groupBy(["trace_id", "project_id"])
     .orderBy(sql.ref("timestamp"), "asc");
   const { sql: query, params } = compileClickhouseQuery(builder, { projectId });
