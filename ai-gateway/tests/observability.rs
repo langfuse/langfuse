@@ -1,4 +1,10 @@
 #![cfg(unix)]
+#![expect(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test helpers outside #[test] functions"
+)]
 
 use axum::{Router, body::Bytes, extract::Request, routing::post};
 use opentelemetry_proto::tonic::collector::{

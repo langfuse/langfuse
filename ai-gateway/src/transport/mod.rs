@@ -3,7 +3,7 @@ use std::{
     fmt,
     pin::Pin,
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, PoisonError,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     task::{Context, Poll},
@@ -271,7 +271,7 @@ struct StreamResources<T> {
 impl<T> StreamResources<T> {
     fn release(&self, outcome: RelayOutcome) {
         let relay = {
-            let mut relay = self.relay.lock().expect("relay owner lock poisoned");
+            let mut relay = self.relay.lock().unwrap_or_else(PoisonError::into_inner);
             let taken = relay.take();
             // Only the winning finalizer publishes the body failure. In
             // particular, a deadline racing downstream EOF cannot change it later.
@@ -321,7 +321,7 @@ impl<T> StreamResources<T> {
         if let Some(capture) = self
             .relay
             .lock()
-            .expect("relay owner lock poisoned")
+            .unwrap_or_else(PoisonError::into_inner)
             .as_mut()
             .and_then(|relay| relay.capture.as_mut())
         {

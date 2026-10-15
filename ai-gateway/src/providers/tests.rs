@@ -609,7 +609,7 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
             Bytes::from_static(COMPACT),
             Route::OpenAiResponsesCompact,
             None,
-            &mut crate::correlation::RequestCorrelation::default(),
+            &mut RequestCorrelation::default(),
         )
         .await
         .unwrap();
@@ -633,7 +633,7 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
             Bytes::new(),
             Route::OpenAiModels,
             None,
-            &mut crate::correlation::RequestCorrelation::default(),
+            &mut RequestCorrelation::default(),
         )
         .await
         .unwrap();
@@ -824,7 +824,7 @@ async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_f
             Bytes::from_static(REQUEST),
             Route::AnthropicMessages,
             None,
-            &mut crate::correlation::RequestCorrelation::default(),
+            &mut RequestCorrelation::default(),
         )
         .await
         .unwrap();
@@ -909,7 +909,7 @@ async fn count_tokens_relays_the_body_and_models_forwards_only_pagination() {
                 Bytes::from(body),
                 route,
                 query.as_deref(),
-                &mut crate::correlation::RequestCorrelation::default(),
+                &mut RequestCorrelation::default(),
             )
             .await
             .unwrap();
@@ -1056,7 +1056,7 @@ async fn chat_completions_streams_request_usage_and_relay_the_usage_chunk() {
                 Bytes::from_static(request.as_bytes()),
                 Route::OpenAiChatCompletions,
                 None,
-                &mut crate::correlation::RequestCorrelation::default(),
+                &mut RequestCorrelation::default(),
             )
             .await
             .unwrap();
@@ -1104,7 +1104,7 @@ async fn chat_completions_forward_non_streamed_bodies_unchanged() {
             Bytes::from_static(JSON_REQUEST.as_bytes()),
             Route::OpenAiChatCompletions,
             None,
-            &mut crate::correlation::RequestCorrelation::default(),
+            &mut RequestCorrelation::default(),
         )
         .await
         .unwrap();
