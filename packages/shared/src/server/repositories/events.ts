@@ -686,7 +686,7 @@ export const getObservationMetricsForPromptsFromEvents = async (
       medianExact(
         sumMapValuesWhereKeyContains(eb.ref("e.usage_details"), "output"),
       ).as("median_output_usage"),
-      medianExact(mapValue(eb.ref("e.cost_details"), "total")).as(
+      medianExact(mapValue(eb.ref("e.cost_details"), literal("total"))).as(
         "median_total_cost",
       ),
       medianExact(
@@ -2642,8 +2642,8 @@ export async function getAgentGraphDataFromEventsTable(params: {
         "e.name as name",
         "e.start_time as start_time",
         "e.end_time as end_time",
-        mapValue<string>(metadata, "langgraph_node").as("node"),
-        mapValue<string>(metadata, "langgraph_step").as("step"),
+        mapValue<string>(metadata, literal("langgraph_node")).as("node"),
+        mapValue<string>(metadata, literal("langgraph_step")).as("step"),
       ];
     })
     .where("e.trace_id", "=", traceId)
@@ -3519,12 +3519,18 @@ export const getEventsForAnalyticsIntegrations = async function* (
     // Add analytics-specific computed fields
     .select((eb) => [
       // Token counts from usage/cost details
-      mapValue(eb.ref("e.usage_details"), "input").as("input_tokens"),
-      mapValue(eb.ref("e.usage_details"), "output").as("output_tokens"),
-      mapValue(eb.ref("e.usage_details"), "total").as("total_tokens"),
+      mapValue(eb.ref("e.usage_details"), literal("input")).as("input_tokens"),
+      mapValue(eb.ref("e.usage_details"), literal("output")).as(
+        "output_tokens",
+      ),
+      mapValue(eb.ref("e.usage_details"), literal("total")).as("total_tokens"),
       // Analytics integration session IDs from metadata (constructed from array columns)
-      metadataValue("e", "$posthog_session_id").as("posthog_session_id"),
-      metadataValue("e", "$mixpanel_session_id").as("mixpanel_session_id"),
+      metadataValue("e", literal("$posthog_session_id")).as(
+        "posthog_session_id",
+      ),
+      metadataValue("e", literal("$mixpanel_session_id")).as(
+        "mixpanel_session_id",
+      ),
     ])
     .where("e.start_time", ">=", minTimestamp)
     .where("e.start_time", "<", maxTimestamp)

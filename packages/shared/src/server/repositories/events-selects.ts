@@ -235,9 +235,10 @@ export const SESSION_AGGREGATION_SELECTS = {
     sumMap(eb.ref("cost_details")),
     "output",
   ).as("session_output_cost"),
-  session_total_cost: mapValue(sumMap(eb.ref("cost_details")), "total").as(
-    "session_total_cost",
-  ),
+  session_total_cost: mapValue(
+    sumMap(eb.ref("cost_details")),
+    literal("total"),
+  ).as("session_total_cost"),
   session_input_usage: sumMapValuesWhereKeyContains(
     sumMap(eb.ref("usage_details")),
     "input",
@@ -246,9 +247,10 @@ export const SESSION_AGGREGATION_SELECTS = {
     sumMap(eb.ref("usage_details")),
     "output",
   ).as("session_output_usage"),
-  session_total_usage: mapValue(sumMap(eb.ref("usage_details")), "total").as(
-    "session_total_usage",
-  ),
+  session_total_usage: mapValue(
+    sumMap(eb.ref("usage_details")),
+    literal("total"),
+  ).as("session_total_usage"),
 } satisfies Record<SessionEventsField, EventsSelection>;
 
 /** One observation's fields, without input/output. */
