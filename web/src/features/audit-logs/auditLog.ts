@@ -4,7 +4,7 @@ import {
   AuditLogRecordType,
   type Prisma,
 } from "@langfuse/shared/src/db";
-import { type AuditLogActor } from "@langfuse/shared";
+import { type AuditLogActor as StagedAuditLogActor } from "@langfuse/shared";
 import {
   deriveAuditLogEventId,
   formatSubmittedPublicKeyForLog,
@@ -108,7 +108,10 @@ export type AuditLog = {
 // cannot be SYSTEM. The staged event records a SYSTEM actor instead.
 const SYSTEM_ACTOR_USER_IDS = new Set(["stripe-webhook", "clickhouse-webhook"]);
 const ADMIN_API_KEY_IDS = new Set(["ADMIN_KEY", "ADMIN_API_KEY"]);
-const ADMIN_API_ACTOR: AuditLogActor = { type: "SYSTEM", name: "admin-api" };
+const ADMIN_API_ACTOR: StagedAuditLogActor = {
+  type: "SYSTEM",
+  name: "admin-api",
+};
 
 const STAGED_RECORD_SELECT = {
   id: true,
@@ -166,7 +169,9 @@ export async function auditLog(
   const persistRecord = isAuditLogEnabled();
   // Persisted records are also staged for ClickHouse, on Cloud only: the
   // worker relay that drains the staging table runs only there.
-  const stageRecord = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+  const stageRecord =
+    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
+    env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED === "true";
 
   const db = prisma ?? _prisma;
   // Defer JSON.stringify(before/after) until we know the record will be
@@ -322,7 +327,7 @@ export async function auditLog(
 function toUserActor(
   user: { id: string; name?: string | null; email?: string | null },
   roles: { orgRole?: Role; projectRole?: Role },
-): AuditLogActor {
+): StagedAuditLogActor {
   if (SYSTEM_ACTOR_USER_IDS.has(user.id)) {
     return { type: "SYSTEM", name: user.id };
   }
@@ -341,7 +346,7 @@ function toApiKeyActor(
   apiKeyId: string,
   userId: string | undefined,
   creator: { name?: string | null; email?: string | null } | null | undefined,
-): AuditLogActor {
+): StagedAuditLogActor {
   if (ADMIN_API_KEY_IDS.has(apiKeyId)) return ADMIN_API_ACTOR;
   return {
     type: "API_KEY",
@@ -363,7 +368,7 @@ async function stageChangeEvent(
   log: AuditLog,
   record: { id: string; createdAt: Date },
   scope: { orgId: string; projectId?: string },
-  actor: AuditLogActor,
+  actor: StagedAuditLogActor,
   db: typeof _prisma | Prisma.TransactionClient,
 ) {
   try {

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   cloudRegion: undefined as string | undefined,
   licenseKey: undefined as string | undefined,
+  stagingEnabled: "true",
 }));
 
 // Exercise the real gate rather than mocking it away: spread the real env and
@@ -18,6 +19,8 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
         if (prop === "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION")
           return mocks.cloudRegion;
         if (prop === "LANGFUSE_EE_LICENSE_KEY") return mocks.licenseKey;
+        if (prop === "LANGFUSE_AUDIT_LOG_STAGING_ENABLED")
+          return mocks.stagingEnabled;
         return Reflect.get(target, prop);
       },
     }),
@@ -49,6 +52,7 @@ describe("audit log license gate", () => {
   beforeEach(async () => {
     mocks.cloudRegion = undefined;
     mocks.licenseKey = undefined;
+    mocks.stagingEnabled = "true";
 
     const org = await createOrgProjectAndApiKey();
     orgId = org.orgId;
@@ -133,6 +137,13 @@ describe("audit log license gate", () => {
       mocks.cloudRegion = "US";
 
       expect(await auditAllActorShapes()).toEqual({ persisted: 3, staged: 3 });
+    });
+
+    it("persists records without staging them when staging is switched off", async () => {
+      mocks.cloudRegion = "US";
+      mocks.stagingEnabled = "false";
+
+      expect(await auditAllActorShapes()).toEqual({ persisted: 3, staged: 0 });
     });
   });
 
