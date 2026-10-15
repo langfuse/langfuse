@@ -13,6 +13,10 @@ import { useState, useEffect } from "react";
 import { Badge } from "@/src/components/ui/badge";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -22,7 +26,7 @@ import {
 
 export default function SlackIntegrationPage() {
   const router = useRouter();
-  const projectId = router.query.projectId as string;
+  const route = useReadyRouteParams(["projectId"]);
 
   // Handle popup OAuth completion
   useEffect(() => {
@@ -64,6 +68,11 @@ export default function SlackIntegrationPage() {
     }
   }, [router.query]);
 
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return <SlackIntegrationView projectId={route.params.projectId} />;
+}
+
+function SlackIntegrationView({ projectId }: { projectId: string }) {
   const { data: integrationStatus, isLoading } =
     api.slack.getIntegrationStatus.useQuery(
       { projectId },

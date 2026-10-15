@@ -14,9 +14,14 @@ export const AutomationButton = ({ projectId }: AutomationButtonProps) => {
     scope: "automations:read",
   });
 
-  const numberOfAutomations = api.automations.count.useQuery({
-    projectId,
-  });
+  const numberOfAutomations = api.automations.count.useQuery(
+    {
+      projectId,
+    },
+    {
+      enabled: Boolean(projectId),
+    },
+  );
 
   const numberIndicator = numberOfAutomations.isLoading ? (
     <span className="ml-1.5 inline-flex w-6 items-center justify-center rounded-sm bg-transparent px-1 text-xs">
