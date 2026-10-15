@@ -56,6 +56,57 @@ describe("splitConditions", () => {
     );
   });
 
+  it("ignores brackets in quotes and splits nothing inside an array", () => {
+    expect(
+      splitConditions(
+        [
+          "PREWHERE (s = 'p\\' (') AND (`x)` = 1) AND (z = 2)",
+          'HAVING ("a(" = 1) AND [c AND d] = e',
+        ].join("\n"),
+      ),
+    ).toBe(
+      [
+        "PREWHERE (s = 'p\\' (')",
+        "    AND (`x)` = 1)",
+        "    AND (z = 2)",
+        'HAVING ("a(" = 1)',
+        "    AND [c AND d] = e",
+      ].join("\n"),
+    );
+  });
+
+  it("indents a multi-line subquery under its AND and splits after it", () => {
+    expect(
+      splitConditions(
+        [
+          "WHERE (a = 1) AND (x IN (",
+          "    SELECT x",
+          "    FROM t",
+          "    WHERE (b = 2) AND (c = 3)",
+          ")) AND (d = 4) AND (y IN (",
+          "    SELECT y",
+          "))",
+          "ORDER BY a ASC",
+        ].join("\n"),
+      ),
+    ).toBe(
+      [
+        "WHERE (a = 1)",
+        "    AND (x IN (",
+        "        SELECT x",
+        "        FROM t",
+        "        WHERE (b = 2)",
+        "            AND (c = 3)",
+        "    ))",
+        "    AND (d = 4)",
+        "    AND (y IN (",
+        "        SELECT y",
+        "    ))",
+        "ORDER BY a ASC",
+      ].join("\n"),
+    );
+  });
+
   it("keeps an OR-rooted clause on one line", () => {
     expect(splitConditions("WHERE (a AND b) OR c")).toBe(
       "WHERE (a AND b) OR c",
