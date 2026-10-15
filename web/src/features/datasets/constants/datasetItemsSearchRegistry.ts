@@ -9,6 +9,16 @@ export const DATASET_ITEMS_FIELD_REGISTRY = fieldRegistryFromColumns(
     defaultSearchType: ["id"],
     freeTextScopeLabel: "item IDs",
     metadata: true,
+    // Postgres JSON metadata: a numeric cast fails on any non-numeric value.
+    filterStateErrors: (filters) =>
+      filters.some(
+        (filter) =>
+          filter.column === "metadata" && filter.type === "numberObject",
+      )
+        ? [
+            "Dataset item metadata supports text matches only. Use metadata.key:value or metadata.key:~value.",
+          ]
+        : [],
     scores: false,
     traceScores: false,
     searchExamples: [

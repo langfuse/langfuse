@@ -21,6 +21,15 @@ const metadataFilter: FilterState = [
 ];
 
 describe("dataset item search contract", () => {
+  it("rejects numeric metadata comparisons", () => {
+    const result = planCommit("metadata.count:>20", undefined, registry);
+    expect(result.status).toBe("invalid");
+    if (result.status !== "invalid") throw new Error(result.status);
+    expect(result.diagnostics.map((d) => d.message).join(" ")).toContain(
+      "Dataset item metadata supports text matches only",
+    );
+  });
+
   it("keeps bare phrases in the ID lane and resets to it when clearing", () => {
     expect(planCommit("item 123", undefined, registry)).toMatchObject({
       status: "committed",
