@@ -2,17 +2,22 @@ import {
   OBSERVATION_FIELD_GROUPS_PUBLIC_API,
   type ObservationFieldGroupPublicApi,
 } from "../../../domain/observation-field-groups";
-import {
-  eventsTableIsRootObservationSql,
-  eventsTableTraceNameAggregationSql,
-  eventsTableTraceNameSelectSql,
-} from "../../../eventsTable";
+import { eventsTableTraceNameAggregationSql } from "../../../eventsTable";
 import { expressionBuilder } from "kysely";
 
 import { renderClickhouseExpression } from "../../query-ast/compile";
-import { metadataMap, traceSessionId } from "../../query-ast/extensions";
+import {
+  metadataMap,
+  toBool,
+  traceSessionId,
+} from "../../query-ast/extensions";
 import type { ClickHouseDatabase } from "../../query-ast/schema";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
+import {
+  eventsTraceNameOrEmpty,
+  isRootObservation,
+  millisecondsSinceStart,
+} from "../../repositories/events-selects";
 import {
   FilterList,
   StringFilter,
@@ -145,7 +150,7 @@ const EVENTS_FIELDS = {
   environment: "e.environment as environment",
   type: "e.type as type",
   parentObservationId: "e.parent_span_id as parent_observation_id",
-  isRootObservation: `toBool(${eventsTableIsRootObservationSql}) as "is_root_observation"`,
+  isRootObservation: `${renderClickhouseExpression(toBool(isRootObservation))} as "is_root_observation"`,
   isAppRoot: "e.is_app_root as is_app_root",
   name: "e.name as name",
   level: "e.level as level",
@@ -155,8 +160,7 @@ const EVENTS_FIELDS = {
   public: "e.public as public",
   userId: "e.user_id as user_id",
   sessionId: "e.session_id as session_id",
-  // String-typed on purpose; see eventsTableTraceNameSelectSql (LFE-14924).
-  traceName: `${eventsTableTraceNameSelectSql} as "trace_name"`,
+  traceName: `${renderClickhouseExpression(eventsTraceNameOrEmpty)} as "trace_name"`,
 
   // Time fields
   startTime: "e.start_time as start_time",
@@ -226,10 +230,8 @@ const EVENTS_FIELDS = {
   experimentItemVersion: "e.experiment_item_version as experiment_item_version",
 
   // Calculated fields
-  latency:
-    "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency",
-  timeToFirstToken:
-    "if(isNull(e.completion_start_time), NULL, date_diff('millisecond', e.start_time, e.completion_start_time)) as \"time_to_first_token\"",
+  latency: `${renderClickhouseExpression(millisecondsSinceStart("e.end_time"))} as latency`,
+  timeToFirstToken: `${renderClickhouseExpression(millisecondsSinceStart("e.completion_start_time"))} as "time_to_first_token"`,
 } as const;
 
 const EVENTS_FIELD_ORDER_INDEX = new Map(

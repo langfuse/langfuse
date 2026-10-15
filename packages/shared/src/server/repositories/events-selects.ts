@@ -55,7 +55,8 @@ const eventsMetadataMap = metadataMap(
   eb.ref("e.metadata_values"),
 );
 
-const isRootObservation = eb.or([
+/** The event is a root observation: no parent span, or an app root. */
+export const isRootObservation = eb.or([
   eb("e.parent_span_id", "=", literal("")),
   eb("e.is_app_root", "=", literal(true)),
 ]);
@@ -73,8 +74,15 @@ export const eventsTraceName = eb.fn.coalesce(
   ),
 );
 
-// String-typed on purpose: '' when the event has no trace name.
-const traceNameSelect = ifNull(eventsTraceName, literal("")).as("trace_name");
+/**
+ * {@link eventsTraceName} as a non-null String, '' when the event has no trace
+ * name. Projected under `trace_name`, the nullable form would clash with the
+ * physical String column of the same name once a query also filters and sorts
+ * on it (ClickHouse AMBIGUOUS_COLUMN_NAME).
+ */
+export const eventsTraceNameOrEmpty = ifNull(eventsTraceName, literal(""));
+
+const traceNameSelect = eventsTraceNameOrEmpty.as("trace_name");
 
 /** The latest non-empty value of `column` across a trace's events. */
 const latestNonEmpty = (column: StringColumn) =>
@@ -294,7 +302,7 @@ export const OBSERVATION_BY_ID_SELECTS = [
 ] satisfies EventsSelection[];
 
 /** Milliseconds from an event's start to `end`, NULL while `end` is unset. */
-const millisecondsSinceStart = (
+export const millisecondsSinceStart = (
   end: "e.end_time" | "e.completion_start_time",
 ) =>
   ifElse(

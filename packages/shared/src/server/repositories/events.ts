@@ -3385,7 +3385,7 @@ export const hasAnyUserFromEventsTable = async (
 
 /**
  * Query for the events blob export. Full I/O reads events_full; everything
- * else reads events_core. `convertLatencyToSecondsInSql` is set by the paths
+ * else reads events_core. `convertLatencyToSecondsInSql` can be set by the paths
  * that skip the JS row enrichment (raw passthrough, Parquet), so they select
  * latency and time to first token in seconds instead of milliseconds.
  */
@@ -3501,7 +3501,6 @@ export const getEventsForBlobStorageExportParquet = function (
 
 /**
  * Streams events from ClickHouse for analytics integrations (PostHog, Mixpanel).
- * Uses EventsQueryBuilder for consistent query construction.
  * All fields come directly from the events table (which has denormalized trace-level data).
  */
 export const getEventsForAnalyticsIntegrations = async function* (
@@ -3550,7 +3549,7 @@ export const getEventsForAnalyticsIntegrations = async function* (
       timestamp: record.start_time,
       langfuse_observation_name: record.name,
       // The row type here is Record<string, unknown>; the column is a String
-      // projection (eventsTableTraceNameSelectSql).
+      // projection ('' when the event has no trace name).
       langfuse_trace_name: normalizeEventsTraceName(
         record.trace_name as string | null | undefined,
       ),
