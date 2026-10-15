@@ -7,11 +7,7 @@ import {
   eventsTableTraceNameAggregationSql,
   eventsTableTraceNameSelectSql,
 } from "../../../eventsTable";
-import type {
-  SkillsAvailable,
-  SkillsResourceLoaded,
-} from "../../../features/skills/trace";
-import { expressionBuilder, sql, type SelectExpression } from "kysely";
+import { expressionBuilder } from "kysely";
 
 import { renderClickhouseExpression } from "../../query-ast/compile";
 import { metadataMap, traceSessionId } from "../../query-ast/extensions";
@@ -359,50 +355,6 @@ const FIELD_SETS = {
     "experimentMetadata",
     "experimentDescription",
   ],
-  // getById field sets (reuse the same fields - all queries use `FROM events_<type> e`)
-  byIdBase: [
-    "id",
-    "traceId",
-    "projectId",
-    "environment",
-    "type",
-    "parentObservationId",
-    "startTime",
-    "endTime",
-    "name",
-    "metadata",
-    "level",
-    "statusMessage",
-    "version",
-    "release",
-    "userId",
-    "sessionId",
-    "traceName",
-    "tags",
-    "bookmarked",
-    "public",
-    "toolDefinitions",
-    "toolCalls",
-    "toolCallNames",
-    "skillsAvailable",
-    "skillsResourceLoaded",
-  ],
-  byIdModel: [
-    "providedModelName",
-    "internalModelId",
-    "modelParameters",
-    "providedUsageDetails",
-    "usageDetails",
-    "providedCostDetails",
-    "costDetails",
-    "totalCost",
-    "usagePricingTierId",
-    "usagePricingTierName",
-    "completionStartTime",
-  ],
-  byIdPrompt: ["promptId", "promptName", "promptVersion"],
-  byIdTimestamps: ["createdAt", "updatedAt", "eventTs"],
-
   // Public API v2 field sets (field groups for selective fetching)
   core: [
     "id",
@@ -542,76 +494,6 @@ const FIELD_SETS = {
 } as const;
 
 export type FieldSetName = keyof typeof FIELD_SETS;
-
-type EventsFieldKey = keyof typeof EVENTS_FIELDS;
-
-type EventsSelection = SelectExpression<
-  { e: ClickHouseDatabase["events_core"] },
-  "e"
->;
-
-/** Fields whose EVENTS_FIELDS entry is a registry column reference. */
-type EventsColumnField = {
-  [K in EventsFieldKey]: (typeof EVENTS_FIELDS)[K] extends EventsSelection
-    ? K
-    : never;
-}[EventsFieldKey];
-
-/**
- * Query-AST selections for fields that are not plain column references,
- * built from the same source as their EVENTS_FIELDS entry.
- */
-const EVENTS_FIELD_EXPRESSIONS = {
-  traceName: sql.raw<string>(eventsTableTraceNameSelectSql).as("trace_name"),
-  metadata: eventsMetadataMap.as("metadata"),
-  skillsAvailable: sql
-    .ref<SkillsAvailable>("e.skills_available")
-    .as("skills_available"),
-  skillsResourceLoaded: sql
-    .ref<SkillsResourceLoaded>("e.skills_resource_loaded")
-    .as("skills_resource_loaded"),
-} satisfies Partial<
-  Record<Exclude<EventsFieldKey, EventsColumnField>, EventsSelection>
->;
-
-type EventsExpressionField = keyof typeof EVENTS_FIELD_EXPRESSIONS;
-
-/** Field sets whose every field has a query-AST selection. */
-type SelectableFieldSetName = {
-  [S in FieldSetName]: (typeof FIELD_SETS)[S][number] extends
-    | EventsColumnField
-    | EventsExpressionField
-    ? S
-    : never;
-}[FieldSetName];
-
-type EventsFieldSelection<K> = K extends EventsExpressionField
-  ? (typeof EVENTS_FIELD_EXPRESSIONS)[K]
-  : K extends EventsColumnField
-    ? (typeof EVENTS_FIELDS)[K]
-    : never;
-
-function isEventsExpressionField(key: string): key is EventsExpressionField {
-  return Object.hasOwn(EVENTS_FIELD_EXPRESSIONS, key);
-}
-
-/**
- * Query-AST selections for the given field sets, in EVENTS_FIELDS declaration
- * order. Column fields are the EVENTS_FIELDS strings themselves, so Kysely
- * checks each against the table registry and infers the selected row.
- */
-export function eventsFieldSetSelections<S extends SelectableFieldSetName>(
-  ...setNames: S[]
-): Array<EventsFieldSelection<(typeof FIELD_SETS)[S][number]>>;
-export function eventsFieldSetSelections(
-  ...setNames: SelectableFieldSetName[]
-): EventsSelection[] {
-  return orderedFieldKeys(setNames.flatMap((s) => FIELD_SETS[s])).map((key) =>
-    isEventsExpressionField(key)
-      ? EVENTS_FIELD_EXPRESSIONS[key]
-      : EVENTS_FIELDS[key],
-  );
-}
 
 // Canonicalize by EVENTS_FIELDS declaration order so SELECT column order does
 // not follow caller field-set order. Clustered ClickHouse reads align result
@@ -2170,17 +2052,12 @@ export const EXPERIMENTS_AGGREGATION_FIELDS = {
     "groupUniqArrayIf(tuple(e.prompt_name, e.prompt_version), e.prompt_name != '') AS prompts",
   experimentMetadata:
     "any(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values)) AS experiment_metadata",
-
-  // Metrics fields
-  totalCost: "SUM(e.total_cost) AS total_cost",
-  latencyAvg:
-    "avgIf(date_diff('millisecond', e.start_time, e.end_time), e.span_id = e.experiment_item_root_span_id AND e.end_time IS NOT NULL) AS latency_avg",
 } as const;
 
 /**
  * Field sets for experiment aggregation queries.
  */
-export const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
+const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
   count: ["experimentId"] as const,
   base: [
     "experimentId",
@@ -2193,7 +2070,6 @@ export const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
     "prompts",
     "experimentMetadata",
   ] as const,
-  metrics: ["experimentId", "totalCost", "latencyAvg"] as const,
   publicApiSummary: [
     "experimentId",
     "experimentName",
@@ -2209,10 +2085,6 @@ export type ExperimentsAggregationFieldSetName =
 
 /**
  * ExperimentsAggregationQueryBuilder - Aggregates events by (experiment_id, project_id).
- *
- * Use the "metrics" field set for cost and latency aggregations:
- * - Cost: SUM of all event costs for the experiment
- * - Latency: AVG of root span duration (where span_id = experiment_item_root_span_id)
  */
 export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   typeof EXPERIMENTS_AGGREGATION_FIELDS
