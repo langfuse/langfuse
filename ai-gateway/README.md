@@ -400,7 +400,7 @@ seconds, and enough for the maximal body at 10 MiB per 30 seconds (97 seconds at
 Connecting to a provider may take 5 seconds. Executions end at a one-hour ceiling from
 admission by default, and earlier when they stall: 120 seconds by default without an
 upstream chunk, without the downstream accepting a chunk, or, for streamed calls
-(a single `"stream": true` member) and token counting, without provider response
+(`"stream": true`) and token counting, without provider response
 headers. A non-streamed generation waits for headers until the ceiling, because
 providers send nothing until the response is generated. Response size is not capped: a single task pumps chunks
 through a one-slot channel, with chunks at most 64 KiB. It stops reading when that

@@ -1861,12 +1861,13 @@ async fn buffered_bytes_reserve_the_allocation_not_just_the_length() {
 }
 
 #[test]
-fn a_repeated_stream_member_is_forwarded_as_a_non_streamed_call() {
+fn only_a_literal_true_stream_member_marks_a_streamed_call() {
     for (body, streaming) in [
         (r#"{"model":"m","stream":true}"#, true),
         (r#"{"model":"m","stream":false}"#, false),
         (r#"{"model":"m","stream":"true"}"#, false),
-        (r#"{"model":"m","stream":true,"stream":true}"#, false),
+        (r#"{"model":"m","stream":null}"#, false),
+        (r#"{"model":"m"}"#, false),
     ] {
         let request = request_body_and_model(Bytes::from_static(body.as_bytes()))
             .ok()
@@ -1876,10 +1877,13 @@ fn a_repeated_stream_member_is_forwarded_as_a_non_streamed_call() {
     }
     for body in [
         r#"{"model":"m","model":"n"}"#,
+        r#"{"model":"m","stream":true,"stream":true}"#,
         r#"{"stream":true}"#,
-        r#"["m"]"#,
     ] {
-        assert!(request_body_and_model(Bytes::from_static(body.as_bytes())).is_err());
+        assert!(
+            request_body_and_model(Bytes::from_static(body.as_bytes())).is_err(),
+            "{body}"
+        );
     }
 }
 

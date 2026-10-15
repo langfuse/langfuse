@@ -239,53 +239,13 @@ struct InferenceRequestBody {
     streaming: bool,
 }
 
-/// The top-level members routing reads. A repeated `stream` member is forwarded as a
-/// non-streamed call rather than rejected, so the provider decides what it means.
+#[derive(Deserialize)]
 struct InferenceRequest<'a> {
+    #[serde(borrow)]
     model: &'a RawValue,
-    streaming: bool,
-}
-
-impl<'de> Deserialize<'de> for InferenceRequest<'de> {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct RequestVisitor;
-        impl<'de> serde::de::Visitor<'de> for RequestVisitor {
-            type Value = InferenceRequest<'de>;
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("a JSON object")
-            }
-            fn visit_map<A: serde::de::MapAccess<'de>>(
-                self,
-                mut map: A,
-            ) -> Result<Self::Value, A::Error> {
-                let mut model = None;
-                let mut streams = 0_usize;
-                let mut streaming = false;
-                while let Some(key) = map.next_key::<std::borrow::Cow<'de, str>>()? {
-                    match key.as_ref() {
-                        "model" => {
-                            if model.is_some() {
-                                return Err(serde::de::Error::duplicate_field("model"));
-                            }
-                            model = Some(map.next_value::<&'de RawValue>()?);
-                        }
-                        "stream" => {
-                            streams += 1;
-                            streaming = map.next_value::<&'de RawValue>()?.get() == "true";
-                        }
-                        _ => {
-                            map.next_value::<serde::de::IgnoredAny>()?;
-                        }
-                    }
-                }
-                Ok(InferenceRequest {
-                    model: model.ok_or_else(|| serde::de::Error::missing_field("model"))?,
-                    streaming: streaming && streams == 1,
-                })
-            }
-        }
-        deserializer.deserialize_map(RequestVisitor)
-    }
+    /// Kept raw so a non-boolean value is left for the provider to reject.
+    #[serde(borrow, default)]
+    stream: Option<&'a RawValue>,
 }
 
 fn request_body_and_model(bytes: Bytes) -> Result<InferenceRequestBody, InferenceHttpError> {
@@ -306,7 +266,7 @@ fn request_body_and_model(bytes: Bytes) -> Result<InferenceRequestBody, Inferenc
         .checked_add(raw_model.len())
         .filter(|end| *end <= bytes.len())
         .ok_or(InferenceHttpError::InvalidBody)?;
-    let streaming = request.streaming;
+    let streaming = request.stream.is_some_and(|stream| stream.get() == "true");
     Ok(InferenceRequestBody {
         bytes,
         model,
