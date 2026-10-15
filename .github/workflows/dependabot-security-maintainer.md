@@ -89,8 +89,9 @@ tools:
     - "pnpm:*"
     - "npm view:*"
     - "node .agents/skills/pnpm-upgrade-package/scripts/check-release-age-window.mjs:*"
-    - "cargo update:*"
-    - "cargo tree:*"
+    # Never raw cargo: it accepts `--config`, which can launch subprocesses.
+    # The wrapper validates its arguments (scripts/ci/cargo-security.sh).
+    - "cargo-security:*"
     - "git diff:*"
     - "git restore:*"
     # Read-only filters with arguments; the bare defaults (head, tail, wc, ...)
@@ -111,18 +112,29 @@ steps:
       install: false
       cache: false
 
-  # The sandbox mounts /tmp/gh-aw read-write but not the runner's ~/.cargo, so
-  # install the pinned toolchain there and put its real cargo on PATH. Both
-  # Rust crates pin the same channel in rust-toolchain.toml.
-  - name: Install pinned Rust toolchain for Cargo lockfile updates
+  # The agent runs Cargo only through the cargo-security wrapper. The sandbox
+  # mounts runner.temp/gh-aw read-only, so the agent can change neither the
+  # wrapper, the per-crate pinned toolchains, nor the clickhouse overlay that
+  # the packages/native lockfile was resolved against. Only the wrapper's
+  # CARGO_HOME, /tmp/gh-aw/rust/cargo, is writable.
+  - name: Install the cargo-security wrapper and pinned Rust toolchains
     env:
-      RUSTUP_HOME: /tmp/gh-aw/rust/rustup
+      INSTALL_DIR: ${{ runner.temp }}/gh-aw/cargo-security
+      RUSTUP_HOME: ${{ runner.temp }}/gh-aw/cargo-security/rustup
     run: |
       set -euo pipefail
-      channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' ai-gateway/rust-toolchain.toml)"
-      rustup toolchain install "$channel" --profile minimal --no-self-update
-      dirname "$(rustup which --toolchain "$channel" cargo)" >> "$GITHUB_PATH"
-      echo "CARGO_HOME=/tmp/gh-aw/rust/cargo" >> "$GITHUB_ENV"
+      mkdir -p "$INSTALL_DIR/toolchains" "$INSTALL_DIR/cwd"
+      for crate in ai-gateway:ai-gateway packages/native:native; do
+        dir="${crate%%:*}"
+        slug="${crate##*:}"
+        channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' "$dir/rust-toolchain.toml")"
+        rustup toolchain install "$channel" --profile minimal --no-self-update
+        ln -s "$(dirname "$(rustup which --toolchain "$channel" cargo)")" "$INSTALL_DIR/toolchains/$slug"
+      done
+      sh packages/native/scripts/prepare-clickhouse-rs.sh
+      cp packages/native/.cargo/config.toml "$INSTALL_DIR/native-cargo-config.toml"
+      install -m 0755 scripts/ci/cargo-security.sh "$INSTALL_DIR/cargo-security"
+      echo "$INSTALL_DIR" >> "$GITHUB_PATH"
 
   - name: Fetch open npm Dependabot alerts
     env:
@@ -259,8 +271,10 @@ The current run's safe-output staged flag is
   `--ignore-scripts` for every install and dedupe command.
 - Modify only `package.json` files, `pnpm-workspace.yaml`, `pnpm-lock.yaml`,
   and `Cargo.toml`/`Cargo.lock` in `ai-gateway/` and `packages/native/`. Never
-  edit a lockfile manually. Run only `cargo update` and `cargo tree`; never
-  build, check, or test Rust code, because that executes build scripts. Never change source,
+  edit a lockfile manually. Run Cargo only through `cargo-security update` and
+  `cargo-security tree`; raw `cargo` is denied. Never build, check, or test
+  Rust code, because that executes build scripts. Never create Cargo config
+  files; the wrapper refuses to run when one exists. Never change source,
   tests, workflows, or agent instructions. The only allowed release-age policy
   change is a required `minimumReleaseAgeExclude` entry for the selected upgrade.
 - Keep each dependency independent: one branch, one commit, and one PR per
@@ -373,8 +387,10 @@ Every denied call still costs a full model turn, so follow these exactly.
 
 ## Rust upgrade loop
 
-Use this loop instead of the npm upgrade loop for a Rust group. Every `cargo`
-command takes `--manifest-path <crate-dir>/Cargo.toml`.
+Use this loop instead of the npm upgrade loop for a Rust group. `<crate-dir>`
+is exactly `ai-gateway` or `packages/native`. `cargo-security` accepts only the
+argument shapes below and adds the manifest path, the crate's pinned toolchain,
+and any Cargo config the crate needs; do not pass other flags.
 
 1. Start from clean `origin/main`. The target is the lowest
    `security_vulnerability.first_patched_version` that fixes every alert in the
@@ -383,7 +399,7 @@ command takes `--manifest-path <crate-dir>/Cargo.toml`.
 2. Create branch
    `deps/security-rust-<crate-dir-slug>-<crate>-<target-version>-${{ github.run_id }}`,
    where `<crate-dir-slug>` is `ai-gateway` or `native`.
-3. Run `cargo update --manifest-path <crate-dir>/Cargo.toml --package <crate> --precise <target-version>`.
+3. Run `cargo-security update <crate-dir> <crate> <target-version>`.
    When several versions of the crate are locked, qualify the spec as
    `<crate>@<installed-version>` and repeat for each vulnerable version.
    If the target is outside a direct dependency's version requirement, raise
@@ -392,7 +408,7 @@ command takes `--manifest-path <crate-dir>/Cargo.toml`.
    pins an older line, mark the group as attempted and continue; do not
    upgrade unrelated parents.
 4. Require all of these checks to pass:
-   - `cargo tree --manifest-path <crate-dir>/Cargo.toml --locked --invert <crate>`
+   - `cargo-security tree <crate-dir> <crate>` (a locked inverted tree)
      proves only versions at or above the target remain (use `<crate>@<version>`
      when several versions are locked)
    - `git diff --check`
