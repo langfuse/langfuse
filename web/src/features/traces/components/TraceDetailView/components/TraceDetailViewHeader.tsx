@@ -302,7 +302,7 @@ function LoadedTraceDetailViewHeader({
               output={trace.output}
               metadata={trace.metadata}
             >
-              {({ getTriggerProps }) => (
+              {({ getTriggerProps, totalCount }) => (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -311,6 +311,9 @@ function LoadedTraceDetailViewHeader({
                 >
                   <PlusIcon className="icon-base text-icon-foreground" />
                   <span>Add to</span>
+                  {totalCount > 0 && (
+                    <ActionButtonCountBadge count={totalCount} />
+                  )}
                   <DropdownIndicator size="sm" nudge />
                 </Button>
               )}

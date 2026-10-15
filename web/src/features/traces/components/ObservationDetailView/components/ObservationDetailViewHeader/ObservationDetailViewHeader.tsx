@@ -208,7 +208,10 @@ export const ObservationDetailViewHeader = memo(
       />
     );
 
-    const renderAddToButton = (triggerProps: Record<string, unknown> = {}) => (
+    const renderAddToButton = (
+      triggerProps: Record<string, unknown> = {},
+      totalCount = 0,
+    ) => (
       <Button
         variant="ghost"
         size="sm"
@@ -217,6 +220,7 @@ export const ObservationDetailViewHeader = memo(
       >
         <PlusIcon className="icon-base text-icon-foreground" />
         <span>Add to</span>
+        {totalCount > 0 && <ActionButtonCountBadge count={totalCount} />}
         <DropdownIndicator size="sm" nudge />
       </Button>
     );
@@ -392,8 +396,8 @@ export const ObservationDetailViewHeader = memo(
                       : undefined
                   }
                 >
-                  {({ getTriggerProps }) =>
-                    renderAddToButton(getTriggerProps())
+                  {({ getTriggerProps, totalCount }) =>
+                    renderAddToButton(getTriggerProps(), totalCount)
                   }
                 </ConnectedTraceObservationAddToDropdownMenuController>
               ) : (
