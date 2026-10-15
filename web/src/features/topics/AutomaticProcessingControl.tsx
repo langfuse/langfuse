@@ -1,4 +1,8 @@
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import {
+  StatusBadge,
+  type Status,
+} from "@/src/components/ui/StatusBadge/StatusBadge";
 import { cn } from "@/src/utils/tailwind";
 
 /**
@@ -15,7 +19,7 @@ export function AutomaticProcessingControl({
     <button
       type="button"
       className={cn(
-        "ring-offset-background focus-visible:ring-ring inline-flex h-7 shrink-0 items-center gap-2 rounded-md px-2 text-xs whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+        "ring-offset-background focus-visible:ring-ring inline-flex h-7 shrink-0 items-center rounded-md pr-2 text-xs whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
         state.status === "off" || state.status === "paused"
           ? "bg-primary text-primary-foreground hover:bg-primary/90"
           : "bg-secondary text-secondary-foreground hover:bg-secondary/80",
@@ -24,15 +28,11 @@ export function AutomaticProcessingControl({
       disabled={reason !== null}
       onClick={onOpen}
     >
-      <span aria-hidden className="relative inline-flex size-2 shrink-0">
-        {state.status === "on" ? (
-          <span className="bg-dark-green absolute inline-flex size-full animate-ping rounded-full opacity-75" />
-        ) : null}
-        <span
-          className={cn(
-            "relative inline-flex size-2 rounded-full",
-            dotClass(state),
-          )}
+      <span aria-hidden className="inline-flex shrink-0">
+        <StatusBadge
+          type={badgeStatus(state)}
+          variant="transparent"
+          showText={false}
         />
       </span>
       Automatic processing
@@ -46,10 +46,10 @@ export function AutomaticProcessingControl({
   );
 }
 
-function dotClass(state: AutomaticProcessingState) {
-  if (state.status === "on") return "bg-dark-green";
-  if (state.status === "paused") return "bg-dark-yellow";
-  return "bg-muted-foreground";
+function badgeStatus(state: AutomaticProcessingState): Status {
+  if (state.status === "on") return "active";
+  if (state.status === "paused") return "paused";
+  return "inactive";
 }
 
 function statusLabel(state: AutomaticProcessingState) {
