@@ -411,7 +411,9 @@ export const PreviewRequired = meta.story({
     await userEvent.click(
       view.getByRole("checkbox", { name: "Select trace trace-support" }),
     );
-    await expect(view.getByText("Run 3 facets on 1 trace")).toBeVisible();
+    const batchSummary = view.getByText("Run 3 facets on 1 trace");
+    await expect(batchSummary).toBeVisible();
+    await expect(batchSummary.closest("footer")).not.toBeNull();
     const limit = view.getByRole("spinbutton", { name: "Maximum traces" });
     await userEvent.clear(limit);
     await userEvent.type(limit, "1");
@@ -441,7 +443,9 @@ export const PastedBatch = meta.story({
       view.getByRole("textbox", { name: "Trace IDs or links" }),
       "trace-a\ntrace-b\ntrace-a",
     );
-    await expect(view.getByText("Run 3 facets on 2 traces")).toBeVisible();
+    const batchSummary = view.getByText("Run 3 facets on 2 traces");
+    await expect(batchSummary).toBeVisible();
+    await expect(batchSummary.closest("footer")).not.toBeNull();
     await expect(submit).toBeEnabled();
     await userEvent.click(submit);
     await expect(args.onSubmit).toHaveBeenCalledTimes(1);

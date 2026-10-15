@@ -99,6 +99,13 @@ export function ManualTopicsDialog({
     <Dialog
       title="Manual processing"
       size="lg"
+      footerInfo={
+        <p role="status" className="ph-no-capture">
+          {operation === "process"
+            ? processingSummary
+            : `${selectedUpdates.length} facets selected · stored summaries`}
+        </p>
+      }
       actions={[
         {
           label:
@@ -188,11 +195,6 @@ export function ManualTopicsDialog({
               ) : null}
             </Stepper>
             <Stepper number={3} title="Review & Run">
-              <p role="status" className="ph-no-capture text-muted-foreground">
-                {operation === "process"
-                  ? processingSummary
-                  : `${selectedUpdates.length} facets selected · stored summaries`}
-              </p>
               {operation === "process" ? (
                 <p>
                   Summarize and embed the selected traces, then assign them to
