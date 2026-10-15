@@ -22,10 +22,7 @@ import type { QuestionnaireFormValues } from "@/src/features/in-app-agent/compon
 import { updateQuestionnaireAnswer } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/updateQuestionnaireAnswer";
 import { cn } from "@/src/utils/tailwind";
 
-const OTHER_ANSWER_PLACEHOLDER = "Something else";
-
-const OTHER_ANSWER_BOX_CLASS_NAME =
-  "border-input bg-background focus-within:border-ring rounded-md border transition-colors";
+const OTHER_ANSWER_LABEL = "Something else";
 
 export type QuestionnaireStepProps = {
   control: Control<QuestionnaireFormValues>;
@@ -138,23 +135,24 @@ export function QuestionnaireStep({
 
   if (!question.allowMultiple) {
     return (
-      <div className="flex flex-col px-1.5 pb-1.5" onKeyDown={handleKeyDown}>
-        <div className="border-border flex flex-col border-b pb-1">
-          {question.options.map((option, optionIndex) => (
-            <SingleChoiceRow
-              key={optionIndex}
-              optionIndex={optionIndex}
-              label={option.label}
-              description={option.description}
-              isRecommended={option.recommended}
-              isSelected={answer.selectedOptionIndexes.includes(optionIndex)}
-              // A typed answer replaces the options, so they recede.
-              isDimmed={hasOtherText}
-              isDisabled={isDisabled}
-              onSelect={handleSelectOption}
-            />
-          ))}
-        </div>
+      <div
+        className="flex flex-col gap-1.5 px-3 pt-1.5 pb-3"
+        onKeyDown={handleKeyDown}
+      >
+        {question.options.map((option, optionIndex) => (
+          <SingleChoiceRow
+            key={optionIndex}
+            optionIndex={optionIndex}
+            label={option.label}
+            description={option.description}
+            isRecommended={option.recommended}
+            isSelected={answer.selectedOptionIndexes.includes(optionIndex)}
+            // A typed answer replaces the options, so they recede.
+            isDimmed={hasOtherText}
+            isDisabled={isDisabled}
+            onSelect={handleSelectOption}
+          />
+        ))}
         <OtherAnswerRow
           value={answer.otherText}
           isDisabled={isDisabled}
@@ -212,7 +210,7 @@ export function QuestionnaireStep({
 type SingleChoiceRowProps = {
   optionIndex: number;
   label: string;
-  description: string | null;
+  description: string;
   isRecommended: boolean;
   isSelected: boolean;
   isDimmed: boolean;
@@ -240,7 +238,7 @@ function SingleChoiceRow({
       aria-pressed={isSelected}
       data-dimmed={isDimmed}
       disabled={isDisabled}
-      className="group hover:bg-muted focus-visible:bg-muted aria-pressed:bg-muted flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm transition-opacity focus-visible:outline-hidden disabled:cursor-not-allowed data-[dimmed=true]:opacity-50"
+      className="group border-border hover:bg-muted focus-visible:bg-muted aria-pressed:bg-muted flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-opacity focus-visible:outline-hidden disabled:cursor-not-allowed data-[dimmed=true]:opacity-50"
       onClick={handleClick}
     >
       <OptionText
@@ -259,7 +257,7 @@ function SingleChoiceRow({
 type MultipleChoiceRowProps = {
   optionIndex: number;
   label: string;
-  description: string | null;
+  description: string;
   isRecommended: boolean;
   isSelected: boolean;
   isDisabled: boolean;
@@ -305,7 +303,7 @@ function MultipleChoiceRow({
 
 type OptionTextProps = {
   label: string;
-  description: string | null;
+  description: string;
   isRecommended: boolean;
 };
 
@@ -318,9 +316,7 @@ function OptionText({ label, description, isRecommended }: OptionTextProps) {
           <Badge text="Recommended" size="sm" color="green" />
         ) : null}
       </span>
-      {description ? (
-        <span className="text-muted-foreground text-xs">{description}</span>
-      ) : null}
+      <span className="text-muted-foreground text-xs">{description}</span>
     </span>
   );
 }
@@ -339,21 +335,22 @@ function OtherAnswerRow({
   children,
 }: OtherAnswerRowProps) {
   return (
-    <div className="pt-1.5">
-      <div
-        className={cn(
-          OTHER_ANSWER_BOX_CLASS_NAME,
-          "flex min-h-10 items-center gap-2 py-1 pr-1 pl-2.5",
-        )}
-      >
+    <label className="border-border focus-within:border-ring flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors">
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex items-center gap-1.5">
+          {OTHER_ANSWER_LABEL}
+          <PencilLine aria-hidden className="text-muted-foreground icon-sm" />
+        </span>
         <OtherAnswerInput
           value={value}
+          placeholder="Click to type your own answer…"
+          size="xs"
           isDisabled={isDisabled}
           onChange={onChange}
         />
-        {children}
-      </div>
-    </div>
+      </span>
+      {children}
+    </label>
   );
 }
 
@@ -400,6 +397,8 @@ function MultipleChoiceOtherRow({
         <OtherAnswerInput
           ref={inputRef}
           value={value}
+          placeholder={OTHER_ANSWER_LABEL}
+          size="sm"
           isDisabled={isDisabled}
           onChange={onChange}
         />
@@ -419,7 +418,7 @@ function OtherAnswerPlaceholderIcon() {
       aria-hidden
       className="pointer-events-none absolute inset-y-0 left-0 flex items-center gap-1.5 text-sm leading-5"
     >
-      <span className="invisible">{OTHER_ANSWER_PLACEHOLDER}</span>
+      <span className="invisible">{OTHER_ANSWER_LABEL}</span>
       <PencilLine className="text-muted-foreground icon-sm" />
     </span>
   );
@@ -428,6 +427,8 @@ function OtherAnswerPlaceholderIcon() {
 type OtherAnswerInputProps = {
   ref?: Ref<HTMLInputElement>;
   value: string;
+  placeholder: string;
+  size: "sm" | "xs";
   isDisabled: boolean;
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
 };
@@ -435,20 +436,25 @@ type OtherAnswerInputProps = {
 function OtherAnswerInput({
   ref,
   value,
+  placeholder,
+  size,
   isDisabled,
   onChange,
 }: OtherAnswerInputProps) {
   return (
-    // Bare input: the design-system Input cannot hold the Skip button inside
-    // its box, and the multi-choice row stays unboxed like the options.
+    // Bare input: both rows frame it themselves, which the always-boxed
+    // design-system Input cannot do.
     <input
       ref={ref}
-      aria-label={OTHER_ANSWER_PLACEHOLDER}
-      placeholder={OTHER_ANSWER_PLACEHOLDER}
+      aria-label={OTHER_ANSWER_LABEL}
+      placeholder={placeholder}
       maxLength={IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH}
       value={value}
       disabled={isDisabled}
-      className="placeholder:text-muted-foreground min-w-0 flex-1 border-0 bg-transparent p-0 text-sm leading-5 focus:ring-0 focus:outline-hidden disabled:cursor-not-allowed"
+      className={cn(
+        "placeholder:text-muted-foreground min-w-0 flex-1 border-0 bg-transparent p-0 focus:ring-0 focus:outline-hidden disabled:cursor-not-allowed",
+        size === "sm" ? "text-sm leading-5" : "text-xs leading-4",
+      )}
       onChange={onChange}
     />
   );
