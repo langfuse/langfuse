@@ -154,8 +154,8 @@ import {
   type SessionEventsFields,
   type SessionEventsMetricsRow,
   OrderByEntry,
-  eventsFieldSetKeys,
 } from "../queries/clickhouse-sql/event-query-builder";
+import { eventsFieldSetKeys } from "./events-field-sets";
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,

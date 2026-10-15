@@ -65,7 +65,6 @@ export {
   EventsSessionAggregationQueryBuilder,
   EventsQueryBuilder,
   ExperimentsAggregationQueryBuilder,
-  OBSERVATION_FIELD_GROUP_FIELD_NAMES,
   buildEventsFullTableSplitQuery,
   normalizeSessionCounts,
   type CTESchema,
@@ -77,6 +76,7 @@ export {
   type SessionEventsMetricsRow,
   type SplitQueryBuilder,
 } from "./clickhouse-sql/event-query-builder";
+export { OBSERVATION_FIELD_GROUP_FIELD_NAMES } from "../repositories/events-field-sets";
 export {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,

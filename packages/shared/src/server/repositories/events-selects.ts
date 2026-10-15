@@ -35,10 +35,8 @@ import {
   uniqIf,
 } from "../query-ast/extensions";
 import type { ClickHouseDatabase } from "../query-ast/schema";
-import type {
-  FieldSetFieldKey,
-  SessionEventsField,
-} from "../queries/clickhouse-sql/event-query-builder";
+import type { SessionEventsField } from "../queries/clickhouse-sql/event-query-builder";
+import type { FieldSetFieldKey } from "./events-field-sets";
 
 type EventsDb = { e: ClickHouseDatabase["events_core"] };
 type EventsRow = ClickHouseDatabase["events_core"];
