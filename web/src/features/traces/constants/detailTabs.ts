@@ -2,6 +2,7 @@ export const DETAIL_TABS = [
   "preview",
   "messages",
   "attributes",
+  "skills",
   "scores",
   "log",
 ] as const;
