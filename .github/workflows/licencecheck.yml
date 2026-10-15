@@ -11,11 +11,13 @@ on:
 
 permissions:
   contents: read
-  checks: write # Needed to create a check run for the license compliance check results
 
 jobs:
   license_check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write # Needed to create a check run for the license compliance check results
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
