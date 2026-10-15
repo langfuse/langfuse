@@ -13,7 +13,6 @@ import {
   type DecisionModelRequestQuestion,
 } from "../../evals/decisionModelEvaluatorExecution";
 import type { DecisionModelEntry } from "../../../features/evals/decisionModel";
-import { llmFetchWhitelistForBaseUrl } from "../baseUrlValidation";
 import { createSecureLlmFetch } from "../secureLlmFetch";
 
 /** Same text conversion the OpenAI SDK applies before POST /v1/decisions. */
@@ -98,7 +97,7 @@ export function createOpenAIDecisionModelClient(params: {
       params.fetchImpl ??
       createSecureLlmFetch({
         logContext: "OpenAI decision model",
-        whitelist: llmFetchWhitelistForBaseUrl(params.baseURL),
+        baseURL: params.baseURL,
         additionalSensitiveHeaders: Object.keys(params.extraHeaders ?? {}),
       }),
   });
