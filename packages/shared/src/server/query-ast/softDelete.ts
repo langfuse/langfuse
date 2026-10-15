@@ -6,7 +6,8 @@
  * for a JOIN with one, prepended to the WHERE otherwise. A RIGHT or FULL JOIN
  * in such a select fails to compile. A select that opts out with
  * `$call(includeDeleted())` is left unchanged; nested selects decide for
- * themselves.
+ * themselves. A select marked `$call(softDeleteAfterLimit())` keeps its rows
+ * and is wrapped in an outer select that filters on its output instead.
  *
  * Runs before tenancy, so the tenancy pass prepends `project_id` ahead of the
  * flag: `where project_id = … and is_deleted = … and <caller predicates>`.
@@ -20,6 +21,8 @@ import {
   JoinNode,
   OperatorNode,
   ReferenceNode,
+  SelectionNode,
+  SelectQueryNode,
   TableNode,
   ValueNode,
   WhereNode,
@@ -78,6 +81,23 @@ function filterSelect(
 
   const readsSoftDelete =
     froms.some(Boolean) || joins.some(({ relation }) => relation);
+  if (node.softDeleteAfterLimit) {
+    if (node.includeDeleted) {
+      throw new QueryCompileError(
+        "includeDeleted() and softDeleteAfterLimit() cannot mark the same select.",
+      );
+    }
+    const relations = [
+      ...froms,
+      ...joins.map(({ relation }) => relation),
+    ].filter((relation) => relation !== undefined);
+    if (relations.length !== 1) {
+      throw new QueryCompileError(
+        `softDeleteAfterLimit() needs a select that reads exactly one soft-delete table; it reads ${relations.length}.`,
+      );
+    }
+    return filterAfterLimit(node, relations[0]);
+  }
   if (node.includeDeleted) {
     if (!readsSoftDelete) {
       throw new QueryCompileError(
@@ -126,6 +146,80 @@ function filterSelect(
   };
 }
 
+const AFTER_LIMIT_ALIAS = "latest";
+
+/**
+ * `select latest.<output>, … from (<node + flag>) as latest where
+ * latest.<flag> = 0`: the inner select keeps its ORDER BY / LIMIT, so a newer
+ * deleted version wins the pick and the outer filter then drops it.
+ */
+function filterAfterLimit(
+  node: ClickHouseSelectQueryNode,
+  relation: SoftDeleteRelation,
+): ClickHouseSelectQueryNode {
+  const outputs = (node.selections ?? []).map((selection) => {
+    const name = outputName(selection.selection);
+    if (name === undefined) {
+      throw new QueryCompileError(
+        "softDeleteAfterLimit() needs every output named: select columns or alias expressions, not `*`.",
+      );
+    }
+    return name;
+  });
+  if (outputs.length === 0) {
+    throw new QueryCompileError(
+      "softDeleteAfterLimit() was applied to a select without outputs.",
+    );
+  }
+  if (outputs.includes(relation.flag)) {
+    throw new QueryCompileError(
+      `softDeleteAfterLimit() adds \`${relation.flag}\` itself; do not select it.`,
+    );
+  }
+
+  const inner = SelectQueryNode.cloneWithSelections(node, [
+    SelectionNode.create(
+      AliasNode.create(
+        qualifiedFlag(relation),
+        IdentifierNode.create(relation.flag),
+      ),
+    ),
+  ]);
+  const outer = SelectQueryNode.cloneWithSelections(
+    SelectQueryNode.createFrom([
+      AliasNode.create(inner, IdentifierNode.create(AFTER_LIMIT_ALIAS)),
+    ]),
+    outputs.map((name) =>
+      SelectionNode.create(
+        ReferenceNode.create(
+          ColumnNode.create(name),
+          TableNode.create(AFTER_LIMIT_ALIAS),
+        ),
+      ),
+    ),
+  );
+  return {
+    ...outer,
+    where: WhereNode.create(
+      notDeleted({
+        tableName: AFTER_LIMIT_ALIAS,
+        alias: AFTER_LIMIT_ALIAS,
+        flag: relation.flag,
+      }),
+    ),
+  };
+}
+
+/** Name ClickHouse gives a select output: `e.span_id` → `span_id`, `x as y` → `y`. */
+function outputName(node: OperationNode): string | undefined {
+  if (AliasNode.is(node)) {
+    return IdentifierNode.is(node.alias) ? node.alias.name : undefined;
+  }
+  if (ReferenceNode.is(node)) return outputName(node.column);
+  if (ColumnNode.is(node)) return node.column.name;
+  return undefined;
+}
+
 function describeRelation(node: OperationNode): SoftDeleteRelation | undefined {
   if (FinalTableNode.is(node)) {
     return describeRelation(unwrapFinalTable(node));
@@ -147,14 +241,18 @@ function describeRelation(node: OperationNode): SoftDeleteRelation | undefined {
  * Always qualified (by alias, else table name): a bare flag column would bind
  * to a same-named SELECT alias, e.g. `0 AS is_deleted`.
  */
-function notDeleted(relation: SoftDeleteRelation): OperationNode {
+function notDeleted(relation: FlagColumn): OperationNode {
   return BinaryOperationNode.create(
-    ReferenceNode.create(
-      ColumnNode.create(relation.flag),
-      TableNode.create(relation.alias ?? relation.tableName),
-    ),
+    qualifiedFlag(relation),
     OperatorNode.create("="),
     ValueNode.create(0),
+  );
+}
+
+function qualifiedFlag(relation: FlagColumn): ReferenceNode {
+  return ReferenceNode.create(
+    ColumnNode.create(relation.flag),
+    TableNode.create(relation.alias ?? relation.tableName),
   );
 }
 
@@ -164,3 +262,6 @@ type SoftDeleteRelation = {
   flag: string;
   node: TableNode;
 };
+
+/** No `node`: {@link filterAfterLimit} filters a derived table, not a TableNode. */
+type FlagColumn = Pick<SoftDeleteRelation, "tableName" | "alias" | "flag">;
