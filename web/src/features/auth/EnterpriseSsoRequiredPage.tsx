@@ -1,7 +1,7 @@
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -217,13 +217,20 @@ function EnterpriseSsoRequired({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Once the automatic sign-in attempt has failed once, do not re-arm it for
+  // this mount. Without this guard, onSubmit's setError(null) would clear the
+  // error-gate on autoRedirect and remount ScheduledSsoRedirect, racing the
+  // manual signIn call. The ref is set synchronously inside handleRedirectError
+  // before setError, so the render triggered by that setError already sees it.
+  const autoAttemptedRef = useRef(false);
 
   // The page is reachable with an arbitrary `callbackUrl`, and the redirect
   // below needs no interaction, so the destination is sanitized the same way
-  // the sign-in page sanitizes `targetPath`. Defaulting to "/" keeps the
-  // destination explicit: next-auth would otherwise fall back to the current
-  // URL, which is this interstitial.
-  const safeCallbackUrl = callbackUrl ? getSafeRedirectPath(callbackUrl) : "/";
+  // the sign-in page sanitizes `targetPath`. Passing undefined lets
+  // getSafeRedirectPath produce the NEXT_PUBLIC_BASE_PATH-aware safe default
+  // instead of hard-coding "/" which would land users at the bare origin root
+  // when the app is served under a sub-path.
+  const safeCallbackUrl = getSafeRedirectPath(callbackUrl);
 
   const enforcedDomain = emailDomain(email);
 
@@ -242,9 +249,10 @@ function EnterpriseSsoRequired({
   // without a custom SSO config, so there is nothing to redirect to and the
   // manual form stays the only way forward. A surfaced error does the same:
   // the automatic attempt has failed, so the form has to come back for the
-  // user to retry with.
+  // user to retry with. The autoAttemptedRef guard prevents re-arming after
+  // the automatic attempt fails and the user submits the form manually.
   const autoRedirect =
-    error === null
+    error === null && !autoAttemptedRef.current
       ? deriveAutoRedirect(enforcedDomain, enforcedProvider)
       : "unavailable";
 
@@ -255,6 +263,7 @@ function EnterpriseSsoRequired({
       expected: isJsonParseSyntaxError(err),
       extra: { context: "auth.enterpriseSso" },
     });
+    autoAttemptedRef.current = true;
     setError(UNEXPECTED_ERROR_MESSAGE);
   }, []);
 
