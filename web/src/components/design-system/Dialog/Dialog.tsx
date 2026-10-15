@@ -43,6 +43,8 @@ type DialogAction = {
 type DialogProps = {
   actions?: ReadonlyArray<DialogAction>;
   closeOnInteractionOutside?: boolean;
+  /** Supporting content displayed beside the dialog actions. */
+  footerInfo?: React.ReactNode;
   size?: VariantProps<typeof dialogContentVariants>["size"];
   title: string;
 } & (
@@ -54,6 +56,7 @@ function DialogRoot({
   actions,
   children,
   closeOnInteractionOutside = false,
+  footerInfo,
   size,
   text,
   title,
@@ -132,7 +135,7 @@ function DialogRoot({
           </header>
           {text !== undefined ? <DialogBody>{text}</DialogBody> : children}
           {actions?.length ? (
-            <DialogFooter>
+            <DialogFooter footerInfo={footerInfo}>
               <DialogPrimitive.Close asChild>
                 <Button
                   ref={cancelButtonRef}
@@ -172,10 +175,28 @@ function DialogBody({ children }: { children: React.ReactNode }) {
   );
 }
 
-function DialogFooter({ children }: { children: React.ReactNode }) {
+function DialogFooter({
+  children,
+  footerInfo,
+}: {
+  children: React.ReactNode;
+  footerInfo?: React.ReactNode;
+}) {
   return (
-    <footer className="bg-modal z-10 flex shrink-0 flex-col-reverse gap-2 rounded-b-lg p-4 sm:flex-row sm:justify-end [&>button]:w-full sm:[&>button]:w-auto">
-      {children}
+    <footer
+      className={cn(
+        "bg-modal z-10 flex shrink-0 flex-col gap-3 rounded-b-lg p-4 sm:flex-row sm:items-center sm:justify-end",
+        footerInfo && "border-t",
+      )}
+    >
+      {footerInfo ? (
+        <div className="text-muted-foreground min-w-0 text-sm sm:mr-auto">
+          {footerInfo}
+        </div>
+      ) : null}
+      <div className="flex shrink-0 flex-col-reverse gap-2 sm:flex-row [&>button]:w-full sm:[&>button]:w-auto">
+        {children}
+      </div>
     </footer>
   );
 }

@@ -59,6 +59,25 @@ export const VariantMatrix = meta.story({
   ),
 });
 
+export const WithFooterGuidance = meta.story({
+  args: {
+    title: "Create evaluator",
+    text: "Save this evaluator to reuse its configuration across evaluation rules.",
+    footerInfo:
+      "Next: attach a rule to run this evaluator on incoming observations.",
+    size: "lg",
+    actions: [{ label: "Create evaluator", onClick: fn() }],
+  },
+  render: (args) => (
+    <DialogController
+      initialState={() => true}
+      renderDialog={() => <Dialog {...args} />}
+    >
+      {() => null}
+    </DialogController>
+  ),
+});
+
 export const Autofocus = meta.story({
   name: "(Test) Autofocus",
   render: () => (
@@ -173,6 +192,7 @@ export const ScrollableBody = meta.story({
       renderDialog={() => (
         <Dialog
           title="Scrollable dialog"
+          footerInfo="Review this content before continuing."
           actions={[{ label: "Continue", onClick: fn() }]}
         >
           <Dialog.Body>
@@ -193,6 +213,12 @@ export const ScrollableBody = meta.story({
     const end = within(dialog).getByText("End of dialog content");
     const scroller = end.parentElement!;
     const footer = dialog.querySelector("footer")!;
+    const guidance = within(footer).getByText(
+      "Review this content before continuing.",
+    );
+    const continueButton = within(footer).getByRole("button", {
+      name: "Continue",
+    });
     function expectSeparateBodyAndFooter() {
       const bounds = dialog.getBoundingClientRect();
       const actions = footer.getBoundingClientRect();
@@ -201,6 +227,12 @@ export const ScrollableBody = meta.story({
       );
       expect(actions.bottom).toBeLessThanOrEqual(bounds.bottom + 1);
       expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
+      expect(guidance.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        actions.bottom,
+      );
+      expect(guidance.getBoundingClientRect().right).toBeLessThanOrEqual(
+        continueButton.getBoundingClientRect().left,
+      );
     }
     await waitFor(expectSeparateBodyAndFooter);
     scroller.scrollTop = scroller.scrollHeight;
