@@ -7,13 +7,12 @@ import {
   type KeyboardEvent,
   type SyntheticEvent,
 } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import type {
   InAppAgentQuestionnaireAnswers,
   InAppAgentQuestionnaireQuestion,
 } from "@langfuse/shared/in-app-agent";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
 import type { InAppAgentToolCallContent } from "@/src/features/in-app-agent/components/utils/utils";
@@ -93,11 +92,6 @@ function QuestionnaireForm({
     defaultValues: createQuestionnaireFormValues(questions),
   });
 
-  const otherText = useWatch({
-    control: form.control,
-    name: `answers.${stepIndex}.otherText`,
-  });
-
   const question = questions[stepIndex];
   const stepCount = questions.length;
   const isLastStep = stepIndex === stepCount - 1;
@@ -159,18 +153,6 @@ function QuestionnaireForm({
   };
 
   const nextLabel = isLastStep ? "Submit" : "Next";
-  // A typed answer brings its own submit button next to the input.
-  const nextButton =
-    otherText.trim().length > 0 ? null : (
-      <Button
-        text={nextLabel}
-        size="sm"
-        disabled={isDisabled}
-        loading={isSubmitting || form.formState.isSubmitting}
-        onClick={goToNextStep}
-      />
-    );
-
   return (
     <form
       aria-labelledby={titleId}
@@ -218,11 +200,9 @@ function QuestionnaireForm({
         questionIndex={stepIndex}
         submitLabel={nextLabel}
         isDisabled={isBusy}
+        onAdvance={goToNextStep}
         onSkip={handleSkip}
       />
-      {nextButton ? (
-        <div className="flex justify-end px-3 pb-3">{nextButton}</div>
-      ) : null}
     </form>
   );
 }
