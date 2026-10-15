@@ -14764,6 +14764,10 @@ components:
       title: utilsMetaResponse
       type: object
       properties:
+        deprecation:
+          $ref: '#/components/schemas/utilsMetaDeprecation'
+          nullable: true
+          description: Set on list responses of deprecated endpoints.
         page:
           type: integer
           description: current page number
@@ -14776,10 +14780,6 @@ components:
         totalPages:
           type: integer
           description: number of total pages given the current limit
-        deprecation:
-          $ref: '#/components/schemas/utilsMetaDeprecation'
-          nullable: true
-          description: Set on list responses of deprecated endpoints.
       required:
         - page
         - limit

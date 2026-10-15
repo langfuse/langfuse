@@ -165,14 +165,14 @@ export const deprecationResponseZod = z.object({
 export type ApiDeprecationInfo = z.infer<typeof deprecationResponseZod>;
 
 export const paginationMetaResponseZod = z.object({
-  page: z.number().int().positive(),
-  limit: z.number().int().positive(),
-  totalItems: z.number().int().nonnegative(),
-  totalPages: z.number().int().nonnegative(),
   /** Set on list responses of legacy public API endpoints. */
   deprecation: deprecationResponseZod
     .pick({ sunsetAt: true, replacement: true })
     .optional(),
+  page: z.number().int().positive(),
+  limit: z.number().int().positive(),
+  totalItems: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
 });
 
 export const urlRegex = /https?:\/\/[^\s/$.?#].[^\s]*/i;

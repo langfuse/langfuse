@@ -65,6 +65,7 @@ describe("public API deprecation signal", () => {
     );
 
     expect(Object.keys(response.body)[0]).toBe("_deprecation");
+    expect(Object.keys(response.body.meta)[0]).toBe("deprecation");
     expect(response.body.meta.deprecation).toEqual({
       sunsetAt: V3_SUNSET_DATE,
       replacement: OBSERVATIONS_V1_DEPRECATION.replacement,

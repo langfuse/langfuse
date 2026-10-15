@@ -10,6 +10,9 @@ types:
   #       docs: limit of items per page
   MetaResponse:
     properties:
+      deprecation:
+        type: optional<MetaDeprecation>
+        docs: Set on list responses of deprecated endpoints.
       page:
         type: integer
         docs: current page number
@@ -22,9 +25,6 @@ types:
       totalPages:
         type: integer
         docs: number of total pages given the current limit
-      deprecation:
-        type: optional<MetaDeprecation>
-        docs: Set on list responses of deprecated endpoints.
   MetaDeprecation:
     docs: Short deprecation signal next to the pagination fields. The full signal is the top-level `_deprecation` key.
     properties:

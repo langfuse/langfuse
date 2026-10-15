@@ -130,7 +130,7 @@ export const INGESTION_DEPRECATION: ApiDeprecationInfo = {
 
 // Stamp a deprecation signal onto a JSON response body: `_deprecation` as the
 // first key (agents and truncated tool output see the start of a body), plus
-// `meta.deprecation` next to the pagination fields agents read. Non-object
+// `meta.deprecation` ahead of the pagination fields agents read. Non-object
 // bodies (arrays, null, primitives) pass through unchanged so array/primitive
 // responses are never corrupted.
 export function attachDeprecation(
@@ -146,13 +146,13 @@ export function attachDeprecation(
   };
   if (isPlainObject(body.meta)) {
     stamped.meta = {
-      ...body.meta,
       deprecation: {
         ...(deprecation.sunsetAt ? { sunsetAt: deprecation.sunsetAt } : {}),
         ...(deprecation.replacement
           ? { replacement: deprecation.replacement }
           : {}),
       },
+      ...body.meta,
     };
   }
   return stamped;
