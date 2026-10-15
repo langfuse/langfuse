@@ -1,6 +1,5 @@
 import {
   NumericConfigFields,
-  SCORE_CONFIG_NAME_MAX_LENGTH,
   CategoricalConfigFields,
   BooleanConfigFields,
   TextConfigFields,
@@ -10,7 +9,7 @@ import { z } from "zod";
 import { type CreateConfig, type UpdateConfig } from "./upsertFormTypes";
 
 const ScoreConfigBaseSchema = z.object({
-  name: z.string().min(1).max(SCORE_CONFIG_NAME_MAX_LENGTH),
+  name: z.string().min(1).max(35),
   description: z.string().optional(),
 });
 
