@@ -178,6 +178,7 @@ import {
 } from "../../tableDefinitions";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import { escapeSqlLikePattern } from "../utils/sqlLike";
 import type {
   SkillsAvailable,
   SkillsResourceLoaded,
@@ -3211,7 +3212,7 @@ export const getUsersFromEventsTable = async (
     .whereRaw("e.is_deleted = 0")
     .when(Boolean(searchQuery), (b) =>
       b.whereRaw("e.user_id ILIKE {searchQuery: String}", {
-        searchQuery: `%${searchQuery}%`,
+        searchQuery: `%${escapeSqlLikePattern(searchQuery ?? "")}%`,
       }),
     )
     .orderBy("ORDER BY count DESC")
@@ -3260,7 +3261,9 @@ export const getUsersCountFromEventsTable = async (
     params: {
       projectId,
       ...appliedEventsFilter.params,
-      ...(searchQuery ? { searchQuery: `%${searchQuery}%` } : {}),
+      ...(searchQuery
+        ? { searchQuery: `%${escapeSqlLikePattern(searchQuery)}%` }
+        : {}),
     },
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",

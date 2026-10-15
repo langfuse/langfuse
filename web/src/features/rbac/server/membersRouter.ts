@@ -21,6 +21,7 @@ import {
   sendMembershipInvitationEmail,
   getUserProjectRoles,
   getUserProjectRolesCount,
+  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
@@ -45,11 +46,11 @@ function buildUserSearchFilter(searchQuery: string | undefined | null) {
     return Prisma.empty;
   }
 
-  const q = searchQuery;
+  const pattern = `%${escapeSqlLikePattern(searchQuery)}%`;
   const searchConditions: Prisma.Sql[] = [];
 
-  searchConditions.push(Prisma.sql`u.name ILIKE ${`%${q}%`}`);
-  searchConditions.push(Prisma.sql`u.email ILIKE ${`%${q}%`}`);
+  searchConditions.push(Prisma.sql`u.name ILIKE ${pattern}`);
+  searchConditions.push(Prisma.sql`u.email ILIKE ${pattern}`);
 
   return searchConditions.length > 0
     ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`

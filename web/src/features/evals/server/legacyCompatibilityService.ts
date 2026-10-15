@@ -23,6 +23,7 @@ import type {
 import {
   orderByToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
+  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { isEqual } from "lodash";
 import { isNotNullOrUndefined } from "@/src/utils/types";
@@ -759,8 +760,9 @@ export class LegacyEvalCompatibilityService {
         )})`
       : Prisma.empty;
     const search = params.searchQuery?.trim();
-    const searchCondition = search
-      ? Prisma.sql`AND (jc."score_name" ILIKE ${`%${search}%`} OR jc."rule_name" ILIKE ${`%${search}%`})`
+    const searchPattern = search ? `%${escapeSqlLikePattern(search)}%` : null;
+    const searchCondition = searchPattern
+      ? Prisma.sql`AND (jc."score_name" ILIKE ${searchPattern} OR jc."rule_name" ILIKE ${searchPattern})`
       : Prisma.empty;
     const paginationCondition =
       params.limit !== undefined
