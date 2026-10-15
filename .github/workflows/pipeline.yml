@@ -764,6 +764,7 @@ jobs:
       VITEST_MAX_WORKERS: "12"
       NODE_ENV: test
     strategy:
+      fail-fast: false
       matrix:
         node-version: [24]
         postgres-version: [15]
@@ -986,6 +987,7 @@ jobs:
       VITEST_MAX_WORKERS: ${{ matrix.deploy-mode == '-redis-cluster' && '8' || '4' }}
       NODE_ENV: test
     strategy:
+      fail-fast: false
       matrix:
         node-version: [24]
         postgres-version: [15]
