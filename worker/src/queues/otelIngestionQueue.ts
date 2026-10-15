@@ -562,9 +562,7 @@ export const otelIngestionQueueProcessorBuilder = (
         // Download file from blob storage
         const resourceSpans = await eventStorage.download(fileKey);
         const preparationStartedAt = performance.now();
-        inputByteLength = measureOtelMainThread("input_json", () =>
-          Buffer.byteLength(resourceSpans, "utf8"),
-        );
+        inputByteLength = Buffer.byteLength(resourceSpans, "utf8");
 
         recordHistogram(
           "langfuse.ingestion.s3_file_size_bytes",
@@ -576,9 +574,7 @@ export const otelIngestionQueueProcessorBuilder = (
         );
 
         // Parse spans from S3 download
-        parsedSpans = measureOtelMainThread("input_json", () =>
-          JSON.parse(resourceSpans),
-        );
+        parsedSpans = JSON.parse(resourceSpans);
 
         // Apply ingestion masking if enabled (EE feature)
         if (isIngestionMaskingEnabled()) {

@@ -10,9 +10,9 @@ import {
 afterEach(() => vi.restoreAllMocks());
 
 describe("OTEL synchronous phase totals", () => {
-  it("isolates interleaved jobs, excludes awaited gaps and sums repeated work", async () => {
+  it("isolates early attempts, skips reference timers and excludes awaited gaps", async () => {
     let now = 0;
-    vi.spyOn(performance, "now").mockImplementation(() => now);
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
     vi.mocked(recordDistribution).mockClear();
     let resume!: () => void;
     const gap = new Promise<void>((resolve) => {
@@ -30,12 +30,16 @@ describe("OTEL synchronous phase totals", () => {
       await dispatch;
       measureOtelMainThread("json_parse", () => {
         now += 5;
+        measureOtelMainThread("nested", () => {
+          now += 2;
+        });
       });
       measureOtelMainThread("json_parse", () => {
         now += 7;
       });
     }, recordDistribution);
     now += 1000;
+    const clockCallsBeforeReference = clock.mock.calls.length;
     await withOtelMainThreadTimings(async () => {
       setOtelMainThreadTimingTags({
         media_path: "reference",
@@ -48,6 +52,16 @@ describe("OTEL synchronous phase totals", () => {
         });
       });
     }, recordDistribution);
+    expect(clock).toHaveBeenCalledTimes(clockCallsBeforeReference);
+    await withOtelMainThreadTimings(async () => {
+      setOtelMainThreadTimingTags({
+        media_path: "early",
+        media_presence: "present",
+      });
+      measureOtelMainThread("json_parse", () => {
+        now += 11;
+      });
+    }, recordDistribution);
     resume();
     await early;
     expect(
@@ -56,9 +70,9 @@ describe("OTEL synchronous phase totals", () => {
         .mock.calls.map(([, value, tags]) => ({ value, tags })),
     ).toEqual([
       {
-        value: 13,
+        value: 11,
         tags: {
-          media_path: "reference",
+          media_path: "early",
           media_presence: "present",
           phase: "json_parse",
         },
@@ -72,7 +86,7 @@ describe("OTEL synchronous phase totals", () => {
         },
       },
       {
-        value: 12,
+        value: 14,
         tags: {
           media_path: "early",
           media_presence: "absent",

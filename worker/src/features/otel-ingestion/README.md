@@ -69,7 +69,7 @@ and `disabled` when neither is needed. Small inputs with a marker use
 original bytes are reused, not that the payload has no media.
 
 `langfuse.ingestion.otel.main_thread_duration_ms` records one accumulated sample
-per measured phase per queue attempt, tagged with `media_path` and downstream
+per measured phase per early-media queue attempt, tagged with `media_path=early` and downstream
 `media_presence` (or `unknown` on unclassified attempts). It covers candidate
 checking, native input copying/dispatch and result materialization, input
 length accounting, UTF-8 decoding and JSON parsing, masking JSON, legacy/direct
@@ -77,7 +77,8 @@ conversion, schema validation, media scans/JSON/rewrite, decoding/hashing, and
 record serialization/metadata flattening. Repeated media and per-record segments
 are summed before emission. Nested segments count only toward their outer phase.
 
-Each measured callback is synchronous. Native promises are awaited after its
+Reference-path calls are passthroughs: no clocks are read and no main-thread
+phase samples are emitted. Each measured callback is synchronous. Native promises are awaited after its
 timer stops. Download, libuv queue/compute, masking HTTP, uploads/association
 writes, database waits and disposal awaits are excluded. These are coarse
 explicit wall-clock timings of selected synchronous blocks, not a CPU profile:

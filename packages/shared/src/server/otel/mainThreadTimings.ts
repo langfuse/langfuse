@@ -12,7 +12,7 @@ type TimingContext = {
 };
 const timings = new AsyncLocalStorage<TimingContext>();
 
-/** Collect one sample per phase per queue attempt, including failed attempts. */
+/** Collect one sample per phase per early-media queue attempt, including failures. */
 export async function withOtelMainThreadTimings<T>(
   work: () => Promise<T>,
   record: (name: string, value: number, tags: Record<string, string>) => void,
@@ -22,7 +22,7 @@ export async function withOtelMainThreadTimings<T>(
     try {
       return await work();
     } finally {
-      if (context.tags) {
+      if (context.tags?.media_path === "early") {
         for (const [phase, durationMs] of context.durations) {
           record(
             "langfuse.ingestion.otel.main_thread_duration_ms",
@@ -47,12 +47,13 @@ export function setOtelMainThreadTimingTags(tags: TimingTags): void {
  * Time ONLY the synchronous call. Never pass an async callback here. Native
  * dispatch callbacks may return a promise: await it outside this interval so
  * only input copying and dispatch are counted. Nested calls belong to the
- * outer coarse phase, avoiding double counting. Outside an OTEL queue attempt,
- * this is a passthrough and emits no metrics.
+ * outer coarse phase, avoiding double counting. On the reference path and
+ * outside an early-media queue attempt, this is a passthrough with no timer.
  */
 export function measureOtelMainThread<T>(phase: string, work: () => T): T {
   const context = timings.getStore();
-  if (!context || context.measuring) return work();
+  if (!context || context.tags?.media_path !== "early" || context.measuring)
+    return work();
   const startedAt = performance.now();
   context.measuring = true;
   try {
