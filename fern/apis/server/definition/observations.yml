@@ -34,7 +34,7 @@ service:
 
         ## Filters
         Multiple filtering options are available via query parameters or the structured `filter` parameter.
-        When using the `filter` parameter, it takes precedence over individual query parameter filters.
+        A condition in the `filter` parameter replaces the query parameter for the same field. Query parameters for other fields still apply.
       method: GET
       path: /v2/observations
       request:
@@ -105,7 +105,7 @@ service:
           filter:
             type: optional<string>
             docs: |
-              JSON string containing an array of filter conditions. When provided, this takes precedence over query parameter filters (userId, name, type, level, environment, fromStartTime, ...).
+              JSON string containing an array of filter conditions. A condition on the same field as a query parameter filter (userId, name, type, level, environment, fromStartTime, ...) replaces that parameter. Query parameters for other fields still apply.
 
               ## Filter Structure
               Each filter condition has the following structure:
