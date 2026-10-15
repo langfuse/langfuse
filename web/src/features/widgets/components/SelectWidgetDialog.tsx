@@ -16,15 +16,15 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import startCase from "lodash/startCase";
 import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
 import { ChartTypeIllustration } from "@/src/features/widgets/components/ChartTypeIllustration";
-import { type HomeDashboardPresetId } from "@langfuse/shared";
+import {
+  HOME_DASHBOARD_PRESET_IDS,
+  type HomeDashboardPresetId,
+} from "@langfuse/shared";
 import {
   isSuggestedWidgetView,
   type ViewVersion,
 } from "@langfuse/shared/query";
-import {
-  getSuggestedHomePresetIds,
-  HOME_PRESET_METADATA,
-} from "@/src/features/dashboard/components/home-preset-registry";
+import { HOME_PRESET_METADATA } from "@/src/features/dashboard/components/home-preset-registry";
 import { useReadPath } from "@/src/features/events";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
@@ -145,7 +145,6 @@ export function SelectWidgetDialog({
     isSuggestedWidgetView(widget.view, suggestedVersion),
   );
   const hiddenWidgetCount = allProjectWidgets.length - projectWidgets.length;
-  const suggestedPresetIds = getSuggestedHomePresetIds(suggestedVersion);
   // Replaces the generic empty state when it hid every widget, so the two can
   // never contradict each other.
   const hiddenWidgetsNote =
@@ -232,7 +231,7 @@ export function SelectWidgetDialog({
                   {onSelectPreset && (
                     <Tabs.Trigger
                       value="home-cards"
-                      label={`Home cards (${suggestedPresetIds.length})`}
+                      label={`Home cards (${HOME_DASHBOARD_PRESET_IDS.length})`}
                     />
                   )}
                 </Tabs.List>
@@ -263,7 +262,7 @@ export function SelectWidgetDialog({
                   <div className="mt-2">
                     <Tabs.Content value="home-cards">
                       <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
-                        {suggestedPresetIds.map((presetId) => {
+                        {HOME_DASHBOARD_PRESET_IDS.map((presetId) => {
                           const meta = HOME_PRESET_METADATA[presetId];
                           return (
                             <button
