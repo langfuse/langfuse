@@ -347,7 +347,7 @@ describe("Topics filtered trace preview", () => {
     expect(request.preferredClickhouseService).toBe("EventsReadOnly");
   });
 
-  it("caps the preview query while preserving the full selected count", async () => {
+  it("caps manual backfill selection while preserving the full matching count", async () => {
     mocks.queryClickhouse.mockResolvedValue([
       {
         id: "trace-a",
@@ -362,20 +362,20 @@ describe("Topics filtered trace preview", () => {
       limit: null,
     });
     expect(response.matchedTraceCount).toBe(1001);
-    expect(response.selectedTraceCount).toBe(1001);
+    expect(response.selectedTraceCount).toBe(1000);
     expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(100);
-    await caller().previewTraces({ ...selection, limit: 10000 });
+    await caller().previewTraces({ ...selection, limit: 500 });
     expect(mocks.queryClickhouse.mock.calls[1][0].params.limit).toBe(100);
   });
 
-  it("resolves filtered triggers on the server without a trace cap and excludes unchecked traces", async () => {
+  it("caps filtered triggers before excluding unchecked traces", async () => {
     mocks.createTopicExecution.mockImplementation(async (resolved) => ({
       ...execution(),
       input: resolved,
       status: "queued",
     }));
     mocks.queryClickhouse.mockResolvedValue(
-      Array.from({ length: 1001 }, (_, index) => ({
+      Array.from({ length: 1000 }, (_, index) => ({
         id: `trace-${index}`,
         timestampMs: "1789430400000",
         name: "Agent",
@@ -401,16 +401,17 @@ describe("Topics filtered trace preview", () => {
     });
     const resolved = mocks.createTopicExecution.mock.calls[0][0];
     expect(resolved.processingConfig.maxInputTokens).toBe(2000);
-    expect(resolved.traceIds).toHaveLength(1000);
+    expect(resolved.traceIds).toHaveLength(999);
     expect(resolved.traceIds[0]).toBe("trace-1");
-    expect(resolved.traceIds.at(-1)).toBe("trace-1000");
+    expect(resolved.traceIds.at(-1)).toBe("trace-999");
     expect(mocks.enqueueTopicExecution).toHaveBeenCalledWith(
       projectId,
       "execution-a",
       resolved.traceIds,
     );
     expect(resolved).not.toHaveProperty("selection");
-    expect(mocks.queryClickhouse.mock.calls[0][0].query).not.toContain("LIMIT");
+    expect(mocks.queryClickhouse.mock.calls[0][0].query).toContain("LIMIT");
+    expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(1000);
     expect(mocks.queryClickhouse.mock.calls[0][0].params.samplingSeed).toBe(
       "sample-seed",
     );
@@ -426,6 +427,30 @@ describe("Topics filtered trace preview", () => {
         selection: criteria,
       }),
     ).rejects.toThrow("No traces match this selection");
+    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized manual backfill selections before querying or creating a run", async () => {
+    for (const selectionInput of [
+      { selection: { ...selection, limit: 1001 } },
+      {
+        traceIds: Array.from({ length: 1001 }, (_, index) => `trace-${index}`),
+      },
+    ]) {
+      await expect(
+        caller().trigger({
+          projectId,
+          requestId: "oversized-request",
+          operation: "process",
+          facets: selectedFacets,
+          ...selectionInput,
+        }),
+      ).rejects.toThrow("Select at most 1,000 traces");
+    }
+    await expect(
+      caller().previewTraces({ ...selection, limit: 1001 }),
+    ).rejects.toThrow("Select at most 1,000 traces");
+    expect(mocks.queryClickhouse).not.toHaveBeenCalled();
     expect(mocks.createTopicExecution).not.toHaveBeenCalled();
   });
 
