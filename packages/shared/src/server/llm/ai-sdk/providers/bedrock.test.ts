@@ -9,8 +9,10 @@ vi.mock("@aws-sdk/credential-providers", () => ({
   fromNodeProviderChain,
 }));
 
+import { OutboundUrlValidationError } from "../../../outbound-url";
 import {
   assertValidBedrockRegion,
+  buildBedrockEmbeddingModel,
   buildBedrockModel,
   resolveBedrockProviderAuth,
   translateBedrockProviderOptions,
@@ -189,5 +191,159 @@ describe("resolveBedrockProviderAuth", () => {
         allowDefaultCredentials: false,
       }),
     ).toThrow("Invalid Bedrock credentials");
+  });
+});
+
+function readProcessEnv(name: string): string | undefined {
+  const value = process.env[name];
+  return typeof value === "string" ? value : undefined;
+}
+
+function writeProcessEnv(name: string, value: string | undefined) {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}
+
+describe("Bedrock LLM host allowlist", () => {
+  const originalAllowedHosts = env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS;
+  const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const originalAiRegion = env.LANGFUSE_AI_AWS_BEDROCK_REGION;
+  const runtimeEndpointEnv = "AWS_ENDPOINT_URL_BEDROCK_RUNTIME";
+  const awsEndpointEnv = "AWS_ENDPOINT_URL";
+  const awsRegionEnv = "AWS_REGION";
+  const originalRuntimeEndpoint = readProcessEnv(runtimeEndpointEnv);
+  const originalAwsEndpoint = readProcessEnv(awsEndpointEnv);
+  const originalAwsRegion = readProcessEnv(awsRegionEnv);
+
+  const userConnection = {
+    modelId: "test-model",
+    apiKey: JSON.stringify({ apiKey: "bedrock-key" }),
+    config: { region: "eu-west-1" },
+    credentialSource: "user" as const,
+  };
+
+  beforeEach(() => {
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    env.LANGFUSE_AI_AWS_BEDROCK_REGION = undefined;
+    env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS = [];
+    writeProcessEnv(runtimeEndpointEnv, undefined);
+    writeProcessEnv(awsEndpointEnv, undefined);
+    writeProcessEnv(awsRegionEnv, undefined);
+  });
+
+  afterEach(() => {
+    env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS = originalAllowedHosts;
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    env.LANGFUSE_AI_AWS_BEDROCK_REGION = originalAiRegion;
+    writeProcessEnv(runtimeEndpointEnv, originalRuntimeEndpoint);
+    writeProcessEnv(awsEndpointEnv, originalAwsEndpoint);
+    writeProcessEnv(awsRegionEnv, originalAwsRegion);
+  });
+
+  it("leaves Bedrock open when the allowlist is empty", () => {
+    expect(() => buildBedrockModel(userConnection)).not.toThrow();
+    expect(() => buildBedrockEmbeddingModel(userConnection)).not.toThrow();
+  });
+
+  it("accepts the region host for chat and embeddings when it is listed", () => {
+    env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS = [
+      "bedrock-runtime.eu-west-1.amazonaws.com",
+    ];
+
+    expect(() => buildBedrockModel(userConnection)).not.toThrow();
+    expect(() => buildBedrockEmbeddingModel(userConnection)).not.toThrow();
+  });
+
+  it("rejects chat and embeddings when the region host is not listed", () => {
+    env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS = ["litellm.corp"];
+
+    expect(() => buildBedrockModel(userConnection)).toThrow(
+      OutboundUrlValidationError,
+    );
+    expect(() => buildBedrockEmbeddingModel(userConnection)).toThrow(
+      OutboundUrlValidationError,
+    );
+  });
+
+  it("checks the China partition host", () => {
+    env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS = [
+      "bedrock-runtime.cn-north-1.amazonaws.com.cn",
+    ];
+
+    expect(() =>
+      buildBedrockModel({
+        ...userConnection,
+        config: { region: "cn-north-1" },
+      }),
+    ).not.toThrow();
+    env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS = [
+      "bedrock-runtime.cn-north-1.amazonaws.com",
+    ];
+    expect(() =>
+      buildBedrockModel({
+        ...userConnection,
+        config: { region: "cn-north-1" },
+      }),
+    ).toThrow(OutboundUrlValidationError);
+  });
+
+  it("checks the Bedrock endpoint override host ahead of the region host", () => {
+    writeProcessEnv(runtimeEndpointEnv, "https://vpce.internal/bedrock");
+    writeProcessEnv(awsEndpointEnv, "https://other.internal");
+    env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS = ["vpce.internal"];
+
+    expect(() => buildBedrockModel(userConnection)).not.toThrow();
+
+    env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS = [
+      "bedrock-runtime.eu-west-1.amazonaws.com",
+    ];
+    expect(() => buildBedrockModel(userConnection)).toThrow(
+      OutboundUrlValidationError,
+    );
+  });
+
+  it("checks AWS_ENDPOINT_URL when the Bedrock-specific override is unset", () => {
+    writeProcessEnv(awsEndpointEnv, "https://proxy.internal");
+    env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS = ["proxy.internal"];
+
+    expect(() => buildBedrockModel(userConnection)).not.toThrow();
+  });
+
+  it("requires a region for Langfuse AI Bedrock when the allowlist is set", () => {
+    env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS = [
+      "bedrock-runtime.eu-west-1.amazonaws.com",
+    ];
+
+    expect(() =>
+      buildBedrockModel({
+        modelId: "test-model",
+        apiKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+        credentialSource: "langfuse",
+      }),
+    ).toThrow(
+      "Bedrock region is required when an LLM host allowlist is configured.",
+    );
+  });
+
+  it("uses the Langfuse AI Bedrock region when the allowlist is set", () => {
+    env.LANGFUSE_AI_AWS_BEDROCK_REGION = "eu-central-1";
+    env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS = [
+      "bedrock-runtime.eu-central-1.amazonaws.com",
+    ];
+
+    expect(() =>
+      buildBedrockModel({
+        modelId: "test-model",
+        apiKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+        credentialSource: "langfuse",
+      }),
+    ).not.toThrow();
+  });
+
+  it("ignores the allowlist on Langfuse Cloud", () => {
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    env.LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS = ["litellm.corp"];
+
+    expect(() => buildBedrockModel(userConnection)).not.toThrow();
   });
 });

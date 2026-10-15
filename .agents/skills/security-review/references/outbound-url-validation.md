@@ -147,8 +147,12 @@ Every outbound-URL surface MUST apply **all three** of:
   listed hosts are trusted (including private targets) and every other host
   is rejected. Unset and empty leave the default-allow behavior in place.
   `LANGFUSE_WEBHOOK_ALLOWED_HOSTS` applies to webhook saves and delivery
-  only. `LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS` applies to every outbound LLM
-  request, including provider default hosts and Langfuse AI. Blob storage
+  only.   `LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS` applies to every outbound LLM
+  request, including provider default hosts and Langfuse AI. Bedrock keeps
+  the AWS transport (VPC endpoints resolve to private IPs). When the list is
+  set, that provider checks the host the transport calls:
+  `bedrock-runtime.<region>.<partition>`, or the host of
+  `AWS_ENDPOINT_URL_BEDROCK_RUNTIME` / `AWS_ENDPOINT_URL` when set. Blob storage
   has no positive host list. For external media S3 virtual-hosted addressing,
   connect-time validation also trusts `{bucket}.{allowlisted endpoint host}`
   for that bucket.

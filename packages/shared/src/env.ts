@@ -519,8 +519,10 @@ const EnvSchema = z.object({
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
   // When non-empty, every outbound LLM request must use one of these hosts,
-  // including provider default hosts and Langfuse AI. Ignored on Langfuse
-  // Cloud, same as the LLM exemption list above.
+  // including provider default hosts and Langfuse AI. Bedrock checks
+  // bedrock-runtime.<region>.<partition>, or the host of
+  // AWS_ENDPOINT_URL_BEDROCK_RUNTIME / AWS_ENDPOINT_URL when one of those is
+  // set. Ignored on Langfuse Cloud, same as the LLM exemption list above.
   LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()
