@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { useEffect, type ComponentProps } from "react";
+import { useEffect } from "react";
 import {
   type ObservationType,
   type ScoreDomain,
@@ -20,7 +20,7 @@ import {
 import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
-import type { SectionSkills } from "./components/SectionSkills";
+import type { SectionSkillsProps } from "./components/SectionSkills";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -63,7 +63,7 @@ export interface ExpansionStateProps {
 }
 
 export interface IOPreviewProps extends ExpansionStateProps {
-  skills?: ComponentProps<typeof SectionSkills>["skills"];
+  skills?: SectionSkillsProps["skills"];
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   status?: ObservationStatusMessage;

@@ -65,3 +65,51 @@ export const ToggleItem = meta.story({
     });
   },
 });
+
+export const NestedDetails = meta.story({
+  name: "(Test) Nested Details",
+  args: {
+    type: "single",
+    collapsible: true,
+    children: (
+      <Accordion.Item value="summary" variant="plain">
+        <Accordion.Trigger variant="summary" size="sm">
+          Available resources
+        </Accordion.Trigger>
+        <Accordion.Content>
+          <Accordion type="single" collapsible>
+            <Accordion.Item value="files" variant="plain">
+              <Accordion.Trigger variant="compact" aria-label="Resource files">
+                2 files
+              </Accordion.Trigger>
+              <Accordion.Content>
+                <p>Resource file details</p>
+              </Accordion.Content>
+            </Accordion.Item>
+          </Accordion>
+        </Accordion.Content>
+      </Accordion.Item>
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const summary = canvas.getByRole("button", { name: "Available resources" });
+
+    await expect(summary).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(summary);
+
+    const files = canvas.getByRole("button", { name: "Resource files" });
+    await expect(files).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(files);
+    await expect(files).toHaveAttribute("aria-expanded", "true");
+    await expect(canvas.getByText("Resource file details")).toBeVisible();
+
+    await userEvent.click(summary);
+    await expect(summary).toHaveAttribute("aria-expanded", "false");
+    await waitFor(() => {
+      expect(
+        canvas.queryByText("Resource file details"),
+      ).not.toBeInTheDocument();
+    });
+  },
+});
