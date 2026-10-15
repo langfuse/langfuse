@@ -34,6 +34,8 @@ const state = vi.hoisted(() => ({
   configurationFailure: null as "settings" | "readiness" | "connections" | null,
   settings: {} as Record<string, unknown>,
   rules: [] as Array<{ facetIds: string[] }>,
+  countsPending: false,
+  countsFetching: false,
   summaryCountInput: vi.fn(),
   invalidateSummaryCounts: vi.fn(),
   counts: [] as Array<{ facetId: string; facetVersion: number; count: number }>,
@@ -222,7 +224,11 @@ vi.mock("@/src/utils/api", () => ({
           state.summaryCountInput(input);
           return typeof input === "symbol"
             ? { isPending: true }
-            : { isPending: false, data: state.counts };
+            : {
+                isPending: state.countsPending,
+                isFetching: state.countsFetching,
+                data: state.countsPending ? undefined : state.counts,
+              };
         },
       },
       trigger: {
@@ -319,6 +325,8 @@ beforeEach(() => {
   };
   state.rules = [];
   state.counts = [];
+  state.countsPending = false;
+  state.countsFetching = false;
   state.trigger.mockReset().mockResolvedValue({ id: "regenerated" });
   state.setQueryParams.mockImplementation(
     ({ dateRange }: { dateRange: string }) => {
@@ -651,6 +659,45 @@ it("counts summaries only while the open manual dialog is generating topics", as
   const completedRequests = countRequests().length;
   fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
   expect(countRequests()).toHaveLength(completedRequests);
+});
+
+it("keeps summary loading and refetching out of validation warnings", () => {
+  withSummaries();
+  state.counts = state.counts.map((count) => ({ ...count, count: 240 }));
+  state.countsPending = true;
+  state.countsFetching = true;
+  const page = render(<TopicsPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
+    button: 0,
+    ctrlKey: false,
+  });
+  const dialog = within(
+    screen.getByRole("dialog", { name: "Manual processing" }),
+  );
+  expect(
+    dialog.getByRole("button", { name: "Generate topics" }),
+  ).toBeDisabled();
+  expect(dialog.queryByRole("alert")).toBeNull();
+  expect(dialog.getByRole("status")).toHaveTextContent(/^2 facets selected$/);
+  state.countsPending = false;
+  state.countsFetching = false;
+  page.rerender(<TopicsPage />);
+  expect(dialog.getByRole("button", { name: "Generate topics" })).toBeEnabled();
+  expect(dialog.getAllByText("240 summaries")[0]).toBeVisible();
+  expect(dialog.getByRole("status")).toHaveTextContent(
+    "2 facets selected · 480 stored summaries",
+  );
+  state.countsFetching = true;
+  page.rerender(<TopicsPage />);
+  expect(dialog.getAllByText("240 summaries")[0]).toBeVisible();
+  expect(dialog.getByRole("status")).toHaveTextContent(
+    "2 facets selected · 480 stored summaries",
+  );
+  expect(dialog.queryByRole("alert")).toBeNull();
+  expect(
+    dialog.getByRole("button", { name: "Generate topics" }),
+  ).toBeDisabled();
 });
 
 it("regenerates the rule's facets that have summaries, at their latest version, over its default seven-day range, then opens the run", async () => {

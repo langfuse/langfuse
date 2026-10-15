@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { skipToken } from "@tanstack/react-query";
 import { api } from "@/src/utils/api";
@@ -35,13 +36,17 @@ export function ManualTopicsFormContent({
     },
   });
   const { operation, selectionIntent, reuse, smallSample } = form.watch();
+  const [submitted, setSubmitted] = useState(false);
+  const isSubmitting = processPending || regenerate.isSubmitting || submitted;
   const { selection, controls } = useTopicTraceSelector({
     projectId,
     enabled: operation === "process",
     filterOptionsEnabled: operation === "process",
   });
   const summaryCounts = api.topics.summaryCounts.useQuery(
-    operation === "update" && !regenerate.disabledReason && regenerate.timeRange
+    operation === "update" &&
+      (!regenerate.disabledReason || isSubmitting) &&
+      regenerate.timeRange
       ? {
           projectId,
           facets: regenerate.facets.map(({ facet, version }) => ({
@@ -53,9 +58,7 @@ export function ManualTopicsFormContent({
       : skipToken,
   );
   const availableCounts =
-    summaryCounts.data && !summaryCounts.error && !summaryCounts.isFetching
-      ? summaryCounts.data
-      : null;
+    summaryCounts.data && !summaryCounts.error ? summaryCounts.data : null;
   const facets = regenerate.facets.map(({ facet, version }) => {
     let summaries: number | null = null;
     if (availableCounts) {
@@ -96,7 +99,12 @@ export function ManualTopicsFormContent({
     traceCount: selection?.count ?? 0,
     smallSample,
   });
+  const isCountingSummaries =
+    operation === "update" &&
+    !regenerate.disabledReason &&
+    (summaryCounts.isPending || summaryCounts.isFetching);
   const disabledReason = (() => {
+    if (isSubmitting) return null;
     if (!canWrite)
       return "You need permission to manage Topics in this project.";
     if (configurationError) return configurationError;
@@ -112,8 +120,7 @@ export function ManualTopicsFormContent({
     if (operation === "update" && regenerate.disabledReason)
       return regenerate.disabledReason;
     if (operation === "update") {
-      if (summaryCounts.isPending || summaryCounts.isFetching)
-        return "Counting stored summaries…";
+      if (isCountingSummaries) return null;
       if (summaryCounts.error)
         return `Could not count stored summaries: ${summaryCounts.error.message}`;
       if (!facets.some((facet) => (facet.summaries ?? 0) > 0))
@@ -121,8 +128,11 @@ export function ManualTopicsFormContent({
     }
     return selectionStatus.disabledReason;
   })();
-  const isSubmitting = processPending || regenerate.isSubmitting;
-  const canSubmit = !disabledReason && !isSubmitting && selectionStatus.ready;
+  const canSubmit =
+    !disabledReason &&
+    !isSubmitting &&
+    !isCountingSummaries &&
+    selectionStatus.ready;
   const model = (slot: "summary" | "embedding" | "clustering") => {
     const value = settings?.stored[slot];
     return {
@@ -154,6 +164,7 @@ export function ManualTopicsFormContent({
       });
     })();
     if (id === null) return;
+    setSubmitted(true);
     closeDialog();
     onTriggered(id);
   }
@@ -200,6 +211,7 @@ export function ManualTopicsFormContent({
       onSmallSampleChange={handleSmallSampleChange}
       canSubmit={canSubmit}
       isSubmitting={isSubmitting}
+      isCountingSummaries={isCountingSummaries}
       disabledReason={disabledReason}
       error={operation === "process" ? processError : regenerate.error}
       onSubmit={submit}

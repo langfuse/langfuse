@@ -275,7 +275,9 @@ const meta = preview.meta({
             count={count}
             canSubmit={args.canSubmit && selectionStatus.ready}
             disabledReason={
-              args.disabledReason ?? selectionStatus.disabledReason
+              args.isCountingSummaries
+                ? null
+                : (args.disabledReason ?? selectionStatus.disabledReason)
             }
             onOperationChange={handleOperationChange}
             onToggleFacet={handleToggleFacet}
@@ -450,7 +452,7 @@ export const UnknownSummaryCounts = meta.story({
     operation: "update",
     facets: facets.map((facet) => ({ ...facet, summaries: null })),
     canSubmit: false,
-    disabledReason: "Counting stored summaries…",
+    isCountingSummaries: true,
   },
   play: async ({ canvasElement }) => {
     const view = within(
@@ -459,12 +461,34 @@ export const UnknownSummaryCounts = meta.story({
       }),
     );
     await waitFor(() =>
-      expect(view.getByText("Counting stored summaries…")).toBeVisible(),
+      expect(view.getByRole("status")).toHaveTextContent(/^3 facets selected$/),
     );
+    await expect(view.queryByRole("alert")).not.toBeInTheDocument();
     await expect(view.queryAllByText("No summaries")).toHaveLength(0);
     await expect(
       view.queryByRole("button", { name: "Go to Summarize traces & embed" }),
     ).not.toBeInTheDocument();
+    await expect(
+      view.getByRole("button", { name: "Generate topics" }),
+    ).toBeDisabled();
+  },
+});
+
+export const Submitting = meta.story({
+  name: "(Test) Starting a run does not flash validation warnings",
+  args: {
+    operation: "update",
+    isSubmitting: true,
+    canSubmit: false,
+    disabledReason: "A Topics run is in progress. Wait for it to finish.",
+  },
+  play: async ({ canvasElement }) => {
+    const view = within(
+      within(canvasElement.ownerDocument.body).getByRole("dialog", {
+        name: "Manual processing",
+      }),
+    );
+    await expect(view.queryByRole("alert")).not.toBeInTheDocument();
     await expect(
       view.getByRole("button", { name: "Generate topics" }),
     ).toBeDisabled();
@@ -489,11 +513,13 @@ export const PreviewRequired = meta.story({
     await userEvent.click(
       within(view.getByRole("row")).getAllByRole("combobox")[0],
     );
-    await userEvent.click(
-      await within(canvasElement.ownerDocument.body).findByRole("option", {
-        name: "User ID",
-      }),
+    await userEvent.type(
+      within(canvasElement.ownerDocument.body).getByPlaceholderText(
+        "Search for column",
+      ),
+      "User",
     );
+    await userEvent.keyboard("{Enter}");
     await userEvent.type(view.getByPlaceholderText("string"), "user-a");
     await userEvent.click(view.getByRole("tab", { name: "Query" }));
     await userEvent.click(view.getByRole("tab", { name: "Builder" }));

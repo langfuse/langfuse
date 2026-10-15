@@ -3,6 +3,7 @@ import { Info } from "lucide-react";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { type TopicOperation } from "@langfuse/shared/topics";
 import { type TimeRange } from "@/src/utils/date-range-utils";
 import { TimeRangePicker } from "@/src/components/date-picker";
@@ -31,6 +32,7 @@ export function ManualTopicsDialog({
   onSmallSampleChange,
   canSubmit,
   isSubmitting,
+  isCountingSummaries = false,
   disabledReason,
   error,
   onSubmit,
@@ -57,6 +59,22 @@ export function ManualTopicsDialog({
         before starting the run.
       </>
     );
+  const storedSummaryCount = selectedUpdates.every(
+    (facet) => facet.summaries !== null,
+  )
+    ? selectedUpdates.reduce(
+        (total, facet) => total + (facet.summaries ?? 0),
+        0,
+      )
+    : null;
+  const generationSummary = (
+    <>
+      {selectedUpdates.length} {facetLabel} selected
+      {storedSummaryCount !== null ? (
+        <> · {storedSummaryCount.toLocaleString()} stored summaries</>
+      ) : null}
+    </>
+  );
   function handleOperationChange(value: string) {
     onOperationChange(value as TopicOperation);
   }
@@ -156,7 +174,7 @@ export function ManualTopicsDialog({
               <p role="status" className="ph-no-capture text-muted-foreground">
                 {operation === "process"
                   ? processingSummary
-                  : `${selectedUpdates.length} facets selected · stored summaries`}
+                  : generationSummary}
               </p>
               {operation === "process" ? (
                 <p>
@@ -254,7 +272,9 @@ export function ManualTopicsDialog({
                       onCheckedChange={onSmallSampleChange}
                     />
                   </label>
-                  {!disabledReason &&
+                  {!isSubmitting &&
+                  !isCountingSummaries &&
+                  !disabledReason &&
                   !noSummaries &&
                   belowMinimum.length > 0 ? (
                     <Alert variant="warning" size="sm">
@@ -270,7 +290,7 @@ export function ManualTopicsDialog({
                   ) : null}
                 </>
               ) : null}
-              {disabledReason ? (
+              {!isSubmitting && disabledReason ? (
                 <Alert variant="warning" size="sm">
                   <Alert.Description>
                     <div className="flex flex-col items-start gap-2">
@@ -315,7 +335,7 @@ function FacetToggle({
     <label
       title={`${facet.description} (${facet.kind}, v${facet.version})`}
       className={cn(
-        "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 transition-colors",
+        "flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-2 transition-colors",
         selected
           ? "border-border-contrast bg-secondary"
           : "border-input text-muted-foreground hover:bg-accent",
@@ -326,9 +346,16 @@ function FacetToggle({
         checked={selected}
         onCheckedChange={handleCheckedChange}
       />
-      <span className="font-bold">{facet.name}</span>
+      <span className="self-baseline font-bold">{facet.name}</span>
       {operation === "update" ? (
-        <span className="text-muted-foreground text-xs">
+        <span
+          className="text-muted-foreground w-25 shrink-0 self-baseline truncate text-right text-xs tabular-nums"
+          title={
+            facet.summaries === null
+              ? undefined
+              : `${facet.summaries.toLocaleString()} summaries`
+          }
+        >
           {summaryLabel(facet.summaries)}
         </span>
       ) : null}
@@ -339,7 +366,14 @@ function FacetToggle({
 function summaryLabel(summaries: number | null) {
   if (summaries === null) return "Not counted";
   if (summaries === 0) return "No summaries";
-  return `${summaries.toLocaleString()} summaries`;
+  const count =
+    summaries > 1_000
+      ? compactNumberFormatter(
+          summaries,
+          summaries < 10_000 ? 1 : 0,
+        ).toLowerCase()
+      : summaries.toLocaleString();
+  return `${count} summaries`;
 }
 
 type Model = { model: string; connection: string };
@@ -367,6 +401,7 @@ export type ManualTopicsDialogProps = {
   onSmallSampleChange: (value: boolean) => void;
   canSubmit: boolean;
   isSubmitting: boolean;
+  isCountingSummaries?: boolean;
   disabledReason: string | null;
   error: string | null;
   onSubmit: () => void;
