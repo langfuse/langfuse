@@ -196,8 +196,11 @@ export async function handleDeleteMembership(
   });
 }
 
-/** lockOrganization serializes membership API mutations before reading owner state. */
-async function lockOrganization(tx: Prisma.TransactionClient, orgId: string) {
+/** lockOrganization serializes membership mutations before reading owner state. */
+export async function lockOrganization(
+  tx: Prisma.TransactionClient,
+  orgId: string,
+) {
   await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${orgId} FOR UPDATE`;
 }
 

@@ -1828,6 +1828,7 @@ describe("SCIM ownership boundary", () => {
   let secondOwnerId: string;
   let memberId: string;
   let adminAuth: string;
+  let ownerAuth: string;
   const createdEmails: string[] = [];
   const originalMode = env.API_AUTH_MIGRATION;
 
@@ -1850,12 +1851,17 @@ describe("SCIM ownership boundary", () => {
     ownerId = owner!.id;
     secondOwnerId = secondOwner!.id;
     memberId = member!.id;
-    const adminKey = await createApiKey(prisma, {
-      owner: OrganizationId(orgId),
-      role: SystemRoleId("ADMIN"),
-      createdBy: UserId(ownerId),
-    });
-    adminAuth = createBasicAuthHeader(adminKey.publicKey, adminKey.secretKey);
+    const [adminKey, ownerKey] = await Promise.all(
+      (["ADMIN", "LEGACY_ORGANIZATION_API_KEY"] as const).map((role) =>
+        createApiKey(prisma, {
+          owner: OrganizationId(orgId),
+          role: SystemRoleId(role),
+          createdBy: UserId(ownerId),
+        }),
+      ),
+    );
+    adminAuth = createBasicAuthHeader(adminKey!.publicKey, adminKey!.secretKey);
+    ownerAuth = createBasicAuthHeader(ownerKey!.publicKey, ownerKey!.secretKey);
   });
 
   afterEach(async () => {
@@ -1986,6 +1992,39 @@ describe("SCIM ownership boundary", () => {
       expect(await roleOf(ownerId)).toBe("OWNER");
     },
   );
+
+  it("lets a key with ownership permission grant OWNER via POST and PUT", async () => {
+    const email = `${randomUUID()}@example.com`;
+    createdEmails.push(email);
+    const created = await callScimRoute(scimUsersRoute, {
+      method: "POST",
+      authorization: ownerAuth,
+      body: {
+        schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        userName: email,
+        roles: ["OWNER"],
+      },
+    });
+    expect(created.status).toBe(201);
+    expect(
+      await prisma.organizationMembership.findFirst({
+        where: { orgId, user: { email } },
+      }),
+    ).toMatchObject({ role: "OWNER" });
+
+    const promoted = await callScimRoute(scimUserRoute, {
+      method: "PUT",
+      authorization: ownerAuth,
+      userId: memberId,
+      body: {
+        schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        active: true,
+        roles: ["OWNER"],
+      },
+    });
+    expect(promoted.status).toBe(200);
+    expect(await roleOf(memberId)).toBe("OWNER");
+  });
 
   it("lets an ADMIN key manage non-owner members", async () => {
     const email = `${randomUUID()}@example.com`;
