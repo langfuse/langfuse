@@ -1,4 +1,3 @@
-import { measureOtelMainThread } from "../../otel/mainThreadTimings";
 import { env, type SharedEnv } from "../../../env";
 import { logger } from "../../logger";
 import {
@@ -157,8 +156,7 @@ export async function applyIngestionMasking<T>(
   params: ApplyIngestionMaskingParams<T>,
   envOverride?: SharedEnv,
   transport: IngestionMaskingTransport<T> = {
-    body: (data) =>
-      measureOtelMainThread("input_json", () => JSON.stringify(data)),
+    body: (data) => JSON.stringify(data),
     read: async (response) => (await response.json()) as T,
   },
 ): Promise<MaskingResult<T>> {

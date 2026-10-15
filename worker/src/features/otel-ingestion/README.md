@@ -72,7 +72,7 @@ original bytes are reused, not that the payload has no media.
 per measured phase per early-media queue attempt, tagged with `media_path=early` and downstream
 `media_presence` (or `unknown` on unclassified attempts). It covers candidate
 checking, native input copying/dispatch and result materialization, input
-length accounting, UTF-8 decoding and JSON parsing, masking JSON, legacy/direct
+UTF-8 decoding and JSON parsing, legacy/direct
 conversion, schema validation, media scans/JSON/rewrite, decoding/hashing, and
 record serialization/metadata flattening. Repeated media and per-record segments
 are summed before emission. Nested segments count only toward their outer phase.
