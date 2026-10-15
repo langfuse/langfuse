@@ -14,6 +14,9 @@ const buttonVariants = cva(
         primary: "bg-primary text-primary-foreground hover:bg-primary/90",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        /** Stays visible on muted surfaces, where secondary blends in. */
+        outline:
+          "border-border-contrast bg-background hover:bg-accent hover:text-accent-foreground border",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         ghost: "hover:bg-accent hover:text-accent-foreground",
@@ -38,6 +41,7 @@ const buttonIconVariants = cva("icon-base shrink-0", {
     variant: {
       primary: "",
       secondary: "",
+      outline: "",
       destructive: "",
       ghost: "text-icon-foreground",
       text: "",
@@ -50,7 +54,13 @@ const buttonIconVariants = cva("icon-base shrink-0", {
 
 type ButtonProps = {
   text: string;
-  variant?: "primary" | "secondary" | "destructive" | "ghost" | "text";
+  variant?:
+    | "primary"
+    | "secondary"
+    | "outline"
+    | "destructive"
+    | "ghost"
+    | "text";
   size?: "default" | "sm";
 } & (
   | {
