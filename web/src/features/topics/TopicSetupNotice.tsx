@@ -1,3 +1,4 @@
+import { Sparkles } from "lucide-react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
@@ -63,7 +64,11 @@ export function TopicSetupNotice({
         </Alert>
       ) : null}
       {status?.kind === "setup" ? (
-        <div className="mx-auto w-full max-w-xl pt-12">
+        <div className="mx-auto flex w-full max-w-xl flex-col items-center pt-12">
+          <Sparkles
+            aria-hidden="true"
+            className="icon-xl text-muted-foreground"
+          />
           <SplashScreen
             title="Find patterns across your traces"
             description="Topics analyzes each trace along the questions you choose, called facets, and clusters similar answers, so you can see what users ask for, how runs end, and which issues come up along the way."
