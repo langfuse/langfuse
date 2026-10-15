@@ -3,6 +3,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import {
   IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   type AgUiMessage,
@@ -774,6 +775,81 @@ export const ToolApprovalRequired = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Waiting for your approval…" }),
     ).toBeVisible();
+  },
+});
+
+export const AnsweredQuestionnaire = meta.story({
+  name: "(Test) Answered questionnaire",
+  args: {
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: { type: "text", text: "Set up a hallucination evaluator." },
+      },
+      {
+        id: "assistant-intro",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "A few quick questions before I set it up.",
+        },
+      },
+      {
+        id: "assistant-questionnaire",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+              status: "succeeded",
+              args: "{}",
+              result: JSON.stringify({
+                type: "questionnaireAnswers",
+                answers: [
+                  {
+                    question: "Which environment should it run on?",
+                    answer: ["Staging"],
+                    skipped: false,
+                  },
+                  {
+                    question: "Which signals count as a failure?",
+                    answer: ["Unsupported claims", "Made-up citations"],
+                    skipped: false,
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      },
+      {
+        id: "assistant-answer",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The evaluator now runs on staging and flags unsupported claims and made-up citations.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.getByText("A few quick questions before I set it up."),
+    ).toBeVisible();
+    await expect(
+      canvas.getByText("Which environment should it run on?"),
+    ).toBeVisible();
+    await expect(canvas.getByText("Staging")).toBeVisible();
+    // Only the reply after the questionnaire is the turn's answer.
+    await expect(
+      canvas.getAllByRole("button", { name: "Copy message" }),
+    ).toHaveLength(1);
   },
 });
 

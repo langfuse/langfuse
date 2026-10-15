@@ -50,15 +50,11 @@ import {
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
-import type {
-  InAppAgentMessageFeedbackValue,
-  InAppAgentMessageSource,
-} from "../schema";
+import type { InAppAgentMessageFeedbackValue } from "../schema";
 import {
   IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
   IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   type InAppAgentQuestionnaireAnswers,
-  type InAppAgentQuestionnaireResult,
 } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
@@ -70,14 +66,16 @@ import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/use
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
 import { InAppAgentQuestionnaireCard } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/InAppAgentQuestionnaireCard";
 import { InAppAgentQuestionnaireSummary } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireSummary/InAppAgentQuestionnaireSummary";
-import { parseQuestionnaireToolResult } from "@/src/features/in-app-agent/fns/parseQuestionnaireToolResult";
+import {
+  buildConversationDisplayItems,
+  type ConversationDisplayItem,
+} from "@/src/features/in-app-agent/fns/buildConversationDisplayItems";
 import {
   getInAppAgentActivityProgressLabel,
   type InAppAgentError,
   type InAppAgentToolCallContent,
   isInAppAgentRateLimited,
 } from "@/src/features/in-app-agent/components/utils/utils";
-import { deduplicateBy } from "@/src/utils/arrays";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -278,320 +276,6 @@ export type InAppAgentWindowMessage = {
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent;
 };
-
-type ConversationDisplayItem =
-  | {
-      type: "user";
-      message: InAppAgentWindowMessage;
-      hasPreviousMessage: boolean;
-    }
-  | {
-      type: "activity";
-      /** Identifies the turn, not its contents: the drawer must survive both
-       * the first activity arriving and the run settling without remounting,
-       * or an expanded drawer collapses under the user. */
-      key: string;
-      messages: InAppAgentWindowMessage[];
-      startTimestamp?: number;
-      endTimestamp?: number;
-      followsUser: boolean;
-      isInProgress: boolean;
-    }
-  | {
-      type: "assistant";
-      message: InAppAgentWindowMessage;
-      followsUser: boolean;
-      isFinalAnswer: boolean;
-    }
-  | {
-      type: "questionnaire";
-      key: string;
-      answers: InAppAgentQuestionnaireResult["answers"];
-    };
-
-type InAppAgentTextMessage = InAppAgentWindowMessage & {
-  content: Extract<InAppAgentMessageContent, { type: "text" }>;
-};
-
-type InAppAgentRedirectActionContent = Extract<
-  InAppAgentMessageContent,
-  { type: "redirectAction" }
->;
-
-/**
- * Fold a turn's answer blocks into the single bubble the user reads. Each field
- * takes the last block that defined it, except `sources`, which arrive already
- * unioned across the whole turn so a citation earned mid-turn is not lost.
- */
-function joinAnswerMessages(
-  messages: InAppAgentWindowMessage[],
-  turnSources: InAppAgentMessageSource[],
-  turnRedirectAction: InAppAgentRedirectActionContent | undefined,
-): InAppAgentWindowMessage | null {
-  const textMessages = messages.filter(
-    (message): message is InAppAgentTextMessage =>
-      message.content.type === "text",
-  );
-  const lastText = textMessages.at(-1);
-
-  // A turn can end on a bare redirect with no text to attach it to.
-  if (!lastText) {
-    return messages.at(-1) ?? null;
-  }
-
-  const lastDefined = <T,>(
-    pick: (message: InAppAgentTextMessage) => T | undefined,
-  ): T | undefined =>
-    textMessages.reduce<T | undefined>(
-      (found, message) => pick(message) ?? found,
-      undefined,
-    );
-  const runId = lastDefined((message) => message.runId);
-  const feedbackMessageId = lastDefined((message) => message.feedbackMessageId);
-  const feedback = lastDefined((message) => message.content.feedback);
-
-  return {
-    ...lastText,
-    ...(runId ? { runId } : {}),
-    ...(feedbackMessageId ? { feedbackMessageId } : {}),
-    content: {
-      type: "text",
-      text: textMessages.map((message) => message.content.text).join("\n\n"),
-      ...(textMessages.some((message) => message.content.isStreaming)
-        ? { isStreaming: true }
-        : {}),
-      ...(turnSources.length > 0 ? { sources: turnSources } : {}),
-      ...(feedback ? { feedback } : {}),
-      ...(turnRedirectAction ? { redirectAction: turnRedirectAction } : {}),
-    },
-  };
-}
-
-function buildConversationDisplayItems(
-  messages: InAppAgentWindowMessage[],
-  isRunUnsettled: boolean,
-): ConversationDisplayItem[] {
-  const items: ConversationDisplayItem[] = [];
-  // A tool call awaiting approval is hoisted into its own card above the
-  // composer, and the drawer speaks for a turn that has produced nothing yet,
-  // so neither belongs in the transcript. A questionnaire is split out of its
-  // tool group: it hands the turn to the user, so it ends the turn before it.
-  const visibleMessages = messages.flatMap((message) => {
-    if (message.content.type === "loading") {
-      return [];
-    }
-
-    if (message.content.type !== "toolGroup") {
-      return [message];
-    }
-
-    const splitMessages: InAppAgentWindowMessage[] = [];
-    let pendingTools: InAppAgentToolCallContent[] = [];
-    const flushPendingTools = () => {
-      if (pendingTools.length === 0) {
-        return;
-      }
-      splitMessages.push({
-        ...message,
-        id:
-          splitMessages.length === 0
-            ? message.id
-            : `${message.id}-tools-${splitMessages.length}`,
-        content: { type: "toolGroup", tools: pendingTools },
-      });
-      pendingTools = [];
-    };
-
-    message.content.tools.forEach((tool, toolIndex) => {
-      if (isQuestionnaireBoundaryTool(tool)) {
-        flushPendingTools();
-        splitMessages.push({
-          ...message,
-          id: `${message.id}-questionnaire-${toolIndex}`,
-          content: { type: "toolGroup", tools: [tool] },
-        });
-      } else if (!tool.approval) {
-        pendingTools.push(tool);
-      }
-    });
-    flushPendingTools();
-
-    return splitMessages;
-  });
-
-  for (let index = 0; index < visibleMessages.length; ) {
-    const message = visibleMessages[index];
-    if (!message) {
-      break;
-    }
-
-    if (message.role === "user") {
-      items.push({
-        type: "user",
-        message,
-        hasPreviousMessage: index > 0,
-      });
-      index++;
-      continue;
-    }
-
-    const questionnaireTool = getQuestionnaireBoundaryTool(message);
-    if (questionnaireTool) {
-      // A pending questionnaire is answered in its hoisted card, not here.
-      const questionnaireResult = parseQuestionnaireToolResult(
-        questionnaireTool.result,
-      );
-      if (questionnaireResult) {
-        items.push({
-          type: "questionnaire",
-          key: message.id,
-          answers: questionnaireResult.answers,
-        });
-      }
-      index++;
-      continue;
-    }
-
-    const turnStartIndex = index;
-    while (
-      index < visibleMessages.length &&
-      visibleMessages[index]?.role === "assistant" &&
-      !getQuestionnaireBoundaryTool(visibleMessages[index])
-    ) {
-      index++;
-    }
-
-    const turnMessages = visibleMessages.slice(turnStartIndex, index);
-    const endsAtQuestionnaire = Boolean(
-      getQuestionnaireBoundaryTool(visibleMessages[index]),
-    );
-    const isInProgress = isRunUnsettled && index === visibleMessages.length;
-    const lastReasoningIndex = turnMessages.findLastIndex(
-      (turnMessage) => turnMessage.content.type === "reasoning",
-    );
-    // Trailing text is the answer; text before the turn's last thought is still
-    // work. A proposed redirect is always actionable, so it never stays behind
-    // in the drawer. Declared once, with the activity bucket as its exact
-    // complement, so no message can fall out of both.
-    const isAnswerPart = (
-      turnMessage: InAppAgentWindowMessage,
-      turnIndex: number,
-    ) =>
-      !isInProgress &&
-      (turnMessage.content.type === "redirectAction" ||
-        (turnMessage.content.type === "text" &&
-          turnIndex > lastReasoningIndex));
-    const answerMessages = turnMessages.filter(isAnswerPart);
-    const activityMessages = turnMessages.filter(
-      (turnMessage, turnIndex) => !isAnswerPart(turnMessage, turnIndex),
-    );
-    const turnSources = deduplicateBy(
-      turnMessages.flatMap((turnMessage) =>
-        turnMessage.content.type === "text"
-          ? (turnMessage.content.sources ?? [])
-          : [],
-      ),
-      (source) => source.url,
-    );
-    // A proposed redirect belongs to the turn, not to whichever block carried
-    // it: the tool result is merged into a preceding text message when there is
-    // one and emitted standalone when there is not, and either can land in the
-    // drawer.
-    const turnRedirectAction = turnMessages.reduce<
-      InAppAgentRedirectActionContent | undefined
-    >(
-      (found, turnMessage) =>
-        (turnMessage.content.type === "redirectAction"
-          ? turnMessage.content
-          : turnMessage.content.type === "text"
-            ? turnMessage.content.redirectAction
-            : undefined) ?? found,
-      undefined,
-    );
-    const joinedAnswer = joinAnswerMessages(
-      answerMessages,
-      turnSources,
-      turnRedirectAction,
-    );
-    const precedingMessage = visibleMessages[turnStartIndex - 1];
-    const followsUser =
-      precedingMessage?.role === "user" ||
-      Boolean(getQuestionnaireBoundaryTool(precedingMessage));
-
-    if (activityMessages.length > 0) {
-      items.push({
-        type: "activity",
-        key: getActivityKey(
-          followsUser ? precedingMessage?.id : turnMessages[0]?.id,
-        ),
-        messages: activityMessages,
-        startTimestamp: turnMessages.find(
-          (turnMessage) => turnMessage.timestamp !== undefined,
-        )?.timestamp,
-        endTimestamp:
-          joinedAnswer?.timestamp ?? activityMessages.at(-1)?.timestamp,
-        followsUser,
-        isInProgress,
-      });
-    }
-
-    if (joinedAnswer) {
-      items.push({
-        type: "assistant",
-        message: joinedAnswer,
-        followsUser: activityMessages.length === 0 && followsUser,
-        isFinalAnswer: !isInProgress && !endsAtQuestionnaire,
-      });
-    }
-  }
-
-  const lastItem = items.at(-1);
-  if (
-    isRunUnsettled &&
-    (lastItem?.type === "user" || lastItem?.type === "questionnaire")
-  ) {
-    // Same key the turn will claim once its first message lands, so the caret
-    // the user may already have opened is not torn down underneath them.
-    items.push({
-      type: "activity",
-      key: getActivityKey(
-        lastItem.type === "user" ? lastItem.message.id : lastItem.key,
-      ),
-      messages: [],
-      followsUser: true,
-      isInProgress: true,
-    });
-  }
-
-  return items;
-}
-
-function isQuestionnaireBoundaryTool(tool: InAppAgentToolCallContent) {
-  return (
-    tool.name === IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME &&
-    (tool.approval !== undefined ||
-      parseQuestionnaireToolResult(tool.result) !== null)
-  );
-}
-
-function getQuestionnaireBoundaryTool(
-  message: InAppAgentWindowMessage | undefined,
-) {
-  if (message?.content.type !== "toolGroup") {
-    return undefined;
-  }
-
-  const [tool, ...otherTools] = message.content.tools;
-  if (!tool || otherTools.length > 0 || !isQuestionnaireBoundaryTool(tool)) {
-    return undefined;
-  }
-
-  return tool;
-}
-
-function getActivityKey(turnAnchorMessageId: string | undefined) {
-  return `activity-${turnAnchorMessageId ?? "start"}`;
-}
 
 function formatWorkedDuration(totalSeconds: number) {
   const hours = Math.floor(totalSeconds / 3600);
