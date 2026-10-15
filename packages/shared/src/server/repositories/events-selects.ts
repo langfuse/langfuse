@@ -337,9 +337,8 @@ function traceAggregationSelectMap(eb: EventsExpressionBuilder) {
     error_count: countLevel(eb, "ERROR").as("error_count"),
     default_count: countLevel(eb, "DEFAULT").as("default_count"),
     debug_count: countLevel(eb, "DEBUG").as("debug_count"),
-    tags: argMaxIf(
+    tags: groupUniqArrayArrayIf(
       eb.ref("e.tags"),
-      eb.ref("e.event_ts"),
       notEmpty(eb.ref("e.tags")),
     ).as("tags"),
     release: latestNonEmptyOf(eb, "e.release").as("release"),
