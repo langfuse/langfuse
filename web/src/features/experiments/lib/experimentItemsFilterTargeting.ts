@@ -7,6 +7,7 @@ import { getExperimentColorStyles } from "@/src/features/experiments/components/
 export function supportsExperimentItemFilterTarget(field: FieldRef): boolean {
   return (
     field.type === "scores" ||
+    field.type === "metadata" ||
     (field.type === "field" && field.field.id === "level")
   );
 }
@@ -15,19 +16,43 @@ export function experimentItemsFilterTargeting({
   baselineId,
   experiments,
   colorExperimentIds,
+  scoreTypesForTarget,
+  observedForTarget,
 }: {
   baselineId?: string;
-  experiments: readonly { experimentId: string; experimentName: string }[];
+  experiments: readonly {
+    experimentId: string;
+    experimentName: string;
+    datasetName?: string | null;
+  }[];
   colorExperimentIds: string[];
+  scoreTypesForTarget?: FilterTargeting["scoreTypesForTarget"];
+  observedForTarget?: FilterTargeting["observedForTarget"];
 }): FilterTargeting {
+  const names = experiments.map((experiment) => experiment.experimentName);
+  const labels = experiments.map((experiment) =>
+    names.filter((name) => name === experiment.experimentName).length > 1
+      ? `${experiment.experimentName} (${experiment.datasetName ?? "Dataset"})`
+      : experiment.experimentName,
+  );
   return {
-    defaultTarget: "baseline",
+    defaultTarget: "all",
+    legacyDefaultTarget: "baseline",
+    scoreTypesForTarget,
+    observedForTarget,
     targets: [
+      {
+        id: "all",
+        label: "all",
+        displayLabel: "All selected experiments",
+        keyword: true,
+      },
       ...(baselineId
         ? [
             {
               id: "baseline",
               label: "baseline",
+              displayLabel: "Baseline",
               keyword: true,
               textClassName: getExperimentColorStyles(
                 baselineId,
@@ -36,9 +61,12 @@ export function experimentItemsFilterTargeting({
             },
           ]
         : []),
-      ...experiments.map((experiment) => ({
+      ...experiments.map((experiment, index) => ({
         id: experiment.experimentId,
-        label: experiment.experimentName,
+        label:
+          labels.filter((label) => label === labels[index]).length > 1
+            ? `${labels[index]} [${experiment.experimentId}]`
+            : labels[index],
         textClassName: getExperimentColorStyles(
           experiment.experimentId,
           colorExperimentIds,

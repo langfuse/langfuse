@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "./experimentItemsSearchRegistry";
 import { planCommit, filterStateToQueryText } from "@/src/features/search-bar";
-import { supportsExperimentItemFilterTarget } from "../lib/experimentItemsFilterTargeting";
+import {
+  experimentItemsFilterTargeting,
+  supportsExperimentItemFilterTarget,
+} from "../lib/experimentItemsFilterTargeting";
+import { scoreTypeContextFromObserved } from "@/src/features/search-bar/lib/observed-options";
+import { draftsSemanticallyEqual } from "@/src/features/search-bar/store/searchBarStore";
 
 import {
   singleFilterList,
@@ -62,13 +67,18 @@ describe("experiment item search contract", () => {
         value: "test",
       },
     ];
+    const query = filterStateToQueryText(
+      filters,
+      undefined,
+      EXPERIMENT_ITEMS_FIELD_REGISTRY,
+    );
+    expect(query.skippedFilters).toEqual([]);
+    expect(query.text).toBe(
+      "itemMetadata.language:en eventMetadata.model:test",
+    );
     expect(
-      filterStateToQueryText(
-        filters,
-        undefined,
-        EXPERIMENT_ITEMS_FIELD_REGISTRY,
-      ).skippedFilters,
-    ).toEqual(filters);
+      planCommit(query.text, undefined, EXPERIMENT_ITEMS_FIELD_REGISTRY),
+    ).toMatchObject({ status: "committed", filters });
     expect(
       planCommit(
         "metadata.language:en",
@@ -164,9 +174,9 @@ describe("experiment filter targets", () => {
       undefined,
       registry,
     ).text;
-    expect(text).toContain('@"Claude Sonnet"');
-    expect(text).toContain("@baseline");
-    expect(result.canonical).toContain('@"Claude Sonnet"');
+    expect(text).toContain('"Claude Sonnet".scores.');
+    expect(text).toContain("baseline.scores.");
+    expect(result.canonical).toContain('"Claude Sonnet".scores.');
     expect(decodeFiltersGeneric(encodeFiltersGeneric(result.filters))).toEqual(
       result.filters,
     );
@@ -207,7 +217,7 @@ describe("experiment filter targets", () => {
       },
       registry,
     );
-    const option = flattenOptions(plan).find((o) => o.kind === "pattern");
+    const option = flattenOptions(plan).find((o) => o.id === "target:run-b");
     if (!plan || !option || option.kind !== "pattern")
       throw new Error("Missing target suggestion");
     const { next } = applyPick(option, input, plan);
@@ -269,5 +279,273 @@ describe("experiment filter targets", () => {
       status: "committed",
       filters: [{ value: ["a@b.com"] }],
     });
+  });
+});
+
+describe("comparison target identity and options", () => {
+  const experiments = [
+    { experimentId: "run-a", experimentName: "Run A", datasetName: "Examples" },
+    { experimentId: "run-b", experimentName: "Run B", datasetName: "Examples" },
+  ];
+  const registryFor = (runs = experiments) => ({
+    ...EXPERIMENT_ITEMS_FIELD_REGISTRY,
+    targeting: experimentItemsFilterTargeting({
+      baselineId: "run-a",
+      experiments: runs,
+      colorExperimentIds: runs.map((run) => run.experimentId),
+    }),
+  });
+
+  it("defaults new filters to all while preserving old targetless URL filters on baseline", () => {
+    const registry = registryFor();
+    const result = planCommit(
+      "level:ERROR scores.quality:>0.8 itemMetadata.region:eu",
+      undefined,
+      registry,
+    );
+    expect(result).toMatchObject({
+      status: "committed",
+      filters: [
+        { column: "level", target: "all" },
+        { column: "scores_avg", target: "all" },
+        { column: "itemMetadata", target: "all" },
+      ],
+    });
+    const legacy: FilterState = [
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "quality",
+        operator: ">",
+        value: 0.8,
+      },
+    ];
+    const persisted = decodeFiltersGeneric(encodeFiltersGeneric(legacy));
+    expect(filterStateToQueryText(persisted, {}, registry).text).toBe(
+      "baseline.scores.quality:>0.8",
+    );
+    expect(
+      registry.targeting.targets.slice(0, 2).map((target) => target.id),
+    ).toEqual(["all", "baseline"]);
+  });
+
+  it.each([
+    ["has:itemMetadata.region", "all", "itemMetadata", "is set"],
+    ["-has:itemMetadata.region", "all", "itemMetadata", "is not set"],
+    [
+      "baseline.has:eventMetadata.region",
+      "baseline",
+      "eventMetadata",
+      "is set",
+    ],
+    [
+      "-baseline.has:eventMetadata.region",
+      "baseline",
+      "eventMetadata",
+      "is not set",
+    ],
+    ['"Run B".has:itemMetadata.region', "run-b", "itemMetadata", "is set"],
+    [
+      '-"Run B".has:eventMetadata.region',
+      "run-b",
+      "eventMetadata",
+      "is not set",
+    ],
+  ])("round-trips metadata presence: %s", (query, target, column, operator) => {
+    const registry = registryFor();
+    const result = planCommit(query, undefined, registry);
+    expect(result).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          type: "stringObject",
+          column,
+          key: "region",
+          operator,
+          value: "",
+          target,
+        },
+      ],
+    });
+    if (result.status !== "committed")
+      throw new Error("Expected valid presence filter");
+    const reversed = filterStateToQueryText(result.filters, {}, registry);
+    expect(reversed.skippedFilters).toEqual([]);
+    expect(reversed.text).toBe(query);
+    expect(planCommit(reversed.text, undefined, registry)).toMatchObject({
+      filters: result.filters,
+    });
+    const plan = planInputCompletions(
+      {
+        input: query,
+        caret: query.length,
+        observed: {},
+        recents: [],
+        currentQueryText: query,
+      },
+      registry,
+    );
+    expect(
+      flattenOptions(plan).some((option) => option.id === "target:run-a"),
+    ).toBe(true);
+  });
+
+  it("preserves quoted metadata keys in presence predicates", () => {
+    const registry = registryFor();
+    const result = planCommit(
+      'baseline.has:itemMetadata."source: name"',
+      undefined,
+      registry,
+    );
+    expect(result).toMatchObject({
+      status: "committed",
+      filters: [
+        { key: "source: name", target: "baseline", operator: "is set" },
+      ],
+    });
+    if (result.status !== "committed")
+      throw new Error("Expected valid presence filter");
+    expect(
+      planCommit(
+        filterStateToQueryText(result.filters, {}, registry).text,
+        undefined,
+        registry,
+      ),
+    ).toMatchObject({ filters: result.filters });
+  });
+
+  it.each([
+    ["Dataset A", "Dataset B"],
+    ["Dataset A", "Dataset A"],
+  ])(
+    "round-trips duplicate names across %s and %s",
+    (firstDataset, secondDataset) => {
+      const runs = experiments.map((run, index) => ({
+        ...run,
+        experimentName: "Repeated run",
+        datasetName: index === 0 ? firstDataset : secondDataset,
+      }));
+      const registry = registryFor(runs);
+      const targets = registry.targeting.targets.filter(
+        (target) => !target.keyword,
+      );
+      expect(new Set(targets.map((target) => target.label)).size).toBe(2);
+      for (const target of targets) {
+        const result = planCommit(
+          `${JSON.stringify(target.label)}.scores.quality:>0.8`,
+          undefined,
+          registry,
+        );
+        expect(result).toMatchObject({
+          status: "committed",
+          filters: [{ target: target.id }],
+        });
+        if (result.status !== "committed")
+          throw new Error("Expected valid target");
+        expect(
+          planCommit(
+            filterStateToQueryText(result.filters, {}, registry).text,
+            undefined,
+            registry,
+          ),
+        ).toMatchObject({ filters: result.filters });
+      }
+      expect(
+        planCommit('"Repeated run".level:ERROR', undefined, registry).status,
+      ).toBe("invalid");
+    },
+  );
+
+  it("keeps a pinned URL target when its experiment is renamed", () => {
+    const result = planCommit('"Run B".level:ERROR', undefined, registryFor());
+    if (result.status !== "committed") throw new Error("Expected valid target");
+    const renamed = registryFor(
+      experiments.map((run) => ({
+        ...run,
+        experimentName: `${run.experimentName} renamed`,
+      })),
+    );
+    const filters = decodeFiltersGeneric(encodeFiltersGeneric(result.filters));
+    const query = filterStateToQueryText(filters, {}, renamed);
+    expect(query.text).toBe('"Run B renamed".level:ERROR');
+    expect(planCommit(query.text, undefined, renamed)).toMatchObject({
+      filters: result.filters,
+    });
+  });
+
+  it("changes score type and suggestions with the selected experiment", () => {
+    const numeric = {
+      scores_avg: [{ value: "rating" }],
+      score_categories: [],
+      score_booleans: [],
+    };
+    const categorical = {
+      scores_avg: [],
+      score_categories: [{ value: "rating" }],
+      score_booleans: [],
+      "score_categories.rating": [{ value: "2.0" }, { value: "good" }],
+    };
+    const optionsFor = (target: string) =>
+      target === "run-b" ? categorical : numeric;
+    const registry = {
+      ...EXPERIMENT_ITEMS_FIELD_REGISTRY,
+      targeting: experimentItemsFilterTargeting({
+        baselineId: "run-a",
+        experiments,
+        colorExperimentIds: ["run-a", "run-b"],
+        observedForTarget: optionsFor,
+        scoreTypesForTarget: (target) =>
+          scoreTypeContextFromObserved(optionsFor(target)),
+      }),
+    };
+    const input = '"Run A".scores.rating:2.0';
+    const p = planInputCompletions(
+      {
+        input,
+        caret: input.length,
+        observed: numeric,
+        recents: [],
+        currentQueryText: input,
+      },
+      registry,
+    )!;
+    const target = flattenOptions(p).find(
+      (option) => option.id === "target:run-b",
+    )!;
+    if (target.kind !== "pattern")
+      throw new Error("Expected experiment option");
+    const { next } = applyPick(target, input, p);
+    expect(
+      planCommit(next, scoreTypeContextFromObserved(numeric), registry),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        { column: "score_categories", value: ["2.0"], target: "run-b" },
+      ],
+    });
+    const categoryInput = '"Run B".scores.rating:';
+    const categories = planInputCompletions(
+      {
+        input: categoryInput,
+        caret: categoryInput.length,
+        observed: numeric,
+        recents: [],
+        currentQueryText: categoryInput,
+      },
+      registry,
+    );
+    expect(
+      flattenOptions(categories)
+        .filter((option) => option.kind === "value")
+        .map((option) => option.label),
+    ).toEqual(["2.0", "good"]);
+    expect(
+      draftsSemanticallyEqual(
+        '"Run B".scores.rating:2.0',
+        '"Run B".scores.rating:2',
+        scoreTypeContextFromObserved(numeric),
+        registry,
+      ),
+    ).toBe(false);
   });
 });

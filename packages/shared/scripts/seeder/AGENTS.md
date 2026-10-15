@@ -30,6 +30,7 @@ pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latenc
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
 pnpm run seed -- custom-models --v4  # project-level model definitions (tiered + single-tier, one price at 0) + a trace whose generations link to them, plus one unpriced model
 pnpm run seed -- experiment-io  # one v4 experiment with three chat/nested JSON items for the Formatted/JSON switch
+pnpm run seed -- experiment-filters  # three v4 runs over 60 items, shifted numeric/categorical/boolean scores, status, metadata and missing results
 NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gallery --count 200  # project-owned evaluators via the seeded public API key
 ```
 

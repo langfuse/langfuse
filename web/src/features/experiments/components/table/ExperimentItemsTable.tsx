@@ -3,10 +3,8 @@
 import { useRouter } from "next/router";
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import {
-  DataTableControlsProvider,
-  DataTableControls,
-} from "@/src/components/table/data-table-controls";
+import { DataTableControlsProvider } from "@/src/components/table/data-table-controls";
+import { ExperimentFilterSidebar } from "../filters/ExperimentFilterSidebar";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { RunEvaluationDialog } from "@/src/features/batch-actions";
@@ -33,7 +31,10 @@ import {
   BatchActionType,
   EXPERIMENT_IO_TRUNCATE_LENGTH,
 } from "@langfuse/shared";
-import { groupExperimentFilters } from "../../lib/experimentFilterTargets";
+import {
+  getExperimentBatchEvaluationFilters,
+  groupExperimentFilters,
+} from "../../lib/experimentFilterTargets";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   COMPARISON_OPERATOR_PROPERTY,
@@ -583,12 +584,6 @@ export default function ExperimentItemsTable({
     );
   }, [experimentNames, allExperimentIds]);
 
-  const searchRegistry = useExperimentItemsSearchRegistry({
-    baselineId,
-    selectedExperiments: selectedExperimentNames,
-    colorExperimentIds,
-  });
-
   // A stacked cell holds one line per run, told apart by a colour marker only,
   // so every value and every comparison chip in it names its run on hover.
   const runNameOf = useCallback(
@@ -626,9 +621,30 @@ export default function ExperimentItemsTable({
     filterOptions: scoreFilterOptions,
     scoreColumns: serverScoreColumnDefs,
     isLoading: isFilterOptionsLoading,
+    optionsByExperiment,
   } = useExperimentItemsFilterOptions({
     projectId,
     experimentIds: allExperimentIds,
+  });
+
+  const optionsByTarget = useMemo(
+    () => ({
+      ...optionsByExperiment,
+      all: isFilterOptionsLoading ? undefined : scoreFilterOptions,
+      baseline: baselineId ? optionsByExperiment[baselineId] : undefined,
+    }),
+    [
+      optionsByExperiment,
+      isFilterOptionsLoading,
+      scoreFilterOptions,
+      baselineId,
+    ],
+  );
+  const searchRegistry = useExperimentItemsSearchRegistry({
+    baselineId,
+    selectedExperiments: selectedExperimentNames,
+    colorExperimentIds,
+    optionsByTarget,
   });
 
   // Use sidebar filter state for the sidebar UI (provides proper facets, options, etc.)
@@ -1798,11 +1814,24 @@ export default function ExperimentItemsTable({
     ).length;
   }, [selectedRows, rows]);
 
+  const batchEvaluationFilters = useMemo(
+    () =>
+      getExperimentBatchEvaluationFilters(
+        filtersByExperiment,
+        allExperimentIds,
+        selectAll,
+      ),
+    [filtersByExperiment, allExperimentIds, selectAll],
+  );
+  const isBatchEvaluationDisabled =
+    Boolean(groupedFilters.error) ||
+    (selectAll && batchEvaluationFilters === null);
+
   // Build query for batch actions (includes experiment context filter and root span filter)
   const batchActionQuery = useMemo(
     () => ({
       filter: [
-        ...filtersByExperiment.flatMap((f) => f.filters),
+        ...(batchEvaluationFilters ?? []),
         // Include experiment context filter
         ...(allExperimentIds.length > 0
           ? [
@@ -1824,7 +1853,7 @@ export default function ExperimentItemsTable({
       ],
       orderBy: orderByState,
     }),
-    [filtersByExperiment, orderByState, allExperimentIds],
+    [batchEvaluationFilters, orderByState, allExperimentIds],
   );
 
   const handleColumnGroupToggle = useCallback(
@@ -1848,6 +1877,10 @@ export default function ExperimentItemsTable({
           type: BatchActionType.Create,
           label: "Evaluate",
           description: "Run evaluators on selected items",
+          disabled: isBatchEvaluationDisabled,
+          disabledReason: groupedFilters.error
+            ? "Fix unavailable filter targets before evaluating items."
+            : "Select individual rows to evaluate when experiments have different filters.",
           icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
           customDialog: true,
           accessCheck: {
@@ -1935,7 +1968,9 @@ export default function ExperimentItemsTable({
                             }}
                             onCustomAction={(actionId) => {
                               if (
-                                actionId === ActionId.ObservationBatchEvaluation
+                                actionId ===
+                                  ActionId.ObservationBatchEvaluation &&
+                                !isBatchEvaluationDisabled
                               ) {
                                 setShowRunEvaluationDialog(true);
                               }
@@ -1964,9 +1999,18 @@ export default function ExperimentItemsTable({
           }
         >
           {!hideControls && (
-            <DataTableControls
-              key={viewControllers.filterEditorResetKey}
-              queryFilter={queryFilter}
+            <ExperimentFilterSidebar
+              key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+              filters={queryFilter.filterState}
+              onChange={queryFilter.setFilterState}
+              onClearAll={queryFilter.clearAll}
+              targets={(searchRegistry.targeting?.targets ?? []).map(
+                (target) => ({
+                  ...target,
+                  label: target.displayLabel ?? target.label,
+                }),
+              )}
+              optionsByTarget={optionsByTarget}
             />
           )}
 
@@ -2075,7 +2119,7 @@ export default function ExperimentItemsTable({
         )}
 
         {/* Run Evaluation Dialog */}
-        {showRunEvaluationDialog && (
+        {showRunEvaluationDialog && !isBatchEvaluationDisabled && (
           <RunEvaluationDialog
             projectId={projectId}
             selectedObservationIds={selectedObservationIds}

@@ -26,7 +26,11 @@ import {
 } from "./fields";
 import { serialize } from "./langQ";
 import { quoteIfNeeded } from "./quoting";
-import { targetReference } from "./targeting";
+import {
+  resolveAttachedTarget,
+  supportsFilterTarget,
+  targetReference,
+} from "./targeting";
 
 function filterNode(
   key: string,
@@ -203,10 +207,18 @@ function lowerSingle(
     }
     case "stringObject": {
       const id = registry.columnIdOf(filter.column);
-      if (id !== "metadata") return null;
+      const namespace =
+        Object.entries(registry.metadataNamespaces ?? {}).find(
+          ([, column]) => column === filter.column || column === id,
+        )?.[0] ?? (id === "metadata" && registry.metadata ? "metadata" : null);
+      if (namespace === null) return null;
       // A key with grammar chars (`:`, space, …) is quoted so it re-lexes as one
       // token (`metadata."my key"`); resolveField unquotes it on the way back.
-      const key = `metadata.${quoteIfNeeded(filter.key)}`;
+      const key = `${namespace}.${quoteIfNeeded(filter.key)}`;
+      if (filter.operator === "is set" || filter.operator === "is not set") {
+        const presence = filterNode("has", "=", [key]);
+        return filter.operator === "is not set" ? negate(presence) : presence;
+      }
       if (filter.operator === "does not contain") {
         return negate(filterNode(key, "~", [filter.value]));
       }
@@ -296,11 +308,13 @@ export function filterStateToQueryText(
       condition = node.child;
     }
     if (condition) {
-      const field = registry.resolveField(condition.key);
-      if (field && registry.targeting?.supports(field)) {
+      if (registry.targeting && supportsFilterTarget(condition, registry)) {
         const target = registry.targeting.targets.find(
           (entry) =>
-            entry.id === (filter.target ?? registry.targeting?.defaultTarget),
+            entry.id ===
+            (filter.target ??
+              registry.targeting?.legacyDefaultTarget ??
+              registry.targeting?.defaultTarget),
         );
         if (!target) {
           skipped.push(`${filter.column} (target unavailable)`);
@@ -418,6 +432,12 @@ function normalizeFilterValues(
 ): FilterNode {
   const ref = registry.resolveField(f.key);
   if (ref === null) return f;
+  if (ref.type === "scores" && registry.targeting?.scoreTypesForTarget) {
+    const target = resolveAttachedTarget(f, registry);
+    if (target && "id" in target) {
+      scoreTypes = registry.targeting.scoreTypesForTarget(target.id);
+    }
+  }
   // `:=` (exact) folds to `:` (=) everywhere the two lower identically.
   let op: FilterNode["op"] =
     f.op === "exact" && exactEqualsBareForm(ref) ? "=" : f.op;

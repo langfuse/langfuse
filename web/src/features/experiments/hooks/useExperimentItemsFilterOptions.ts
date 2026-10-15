@@ -1,4 +1,4 @@
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import { useMemo } from "react";
 import { type ExperimentItemScoreFilterOptions } from "@/src/features/experiments/types/charts";
 
@@ -20,6 +20,22 @@ const processCategoricalScoreOptions = (
     },
     {} as Record<string, string[]>,
   );
+
+function toFilterOptions(
+  data: RouterOutputs["experiments"]["itemsFilterOptions"] | undefined,
+): ExperimentItemScoreFilterOptions {
+  return {
+    scores_avg: data?.scores_avg,
+    score_categories: data
+      ? processCategoricalScoreOptions(data.score_categories)
+      : undefined,
+    score_booleans: data?.score_booleans,
+    score_name_levels_numeric: data?.score_name_levels_numeric,
+    score_name_levels_categorical: data?.score_name_levels_categorical,
+    score_name_levels_boolean: data?.score_name_levels_boolean,
+    level: EXPERIMENT_ITEM_LEVEL_OPTIONS,
+  };
+}
 
 /**
  * Experiment item filter options (scores) scoped to specific experiment IDs.
@@ -45,36 +61,36 @@ export const useExperimentItemsFilterOptions = ({
     },
   );
 
-  // Transform categorical scores into key-value format for sidebar filters
-  const transformedOptions = useMemo(() => {
-    if (!filterOptions.data) {
-      return {
-        scores_avg: undefined,
-        score_categories: undefined,
-        score_booleans: undefined,
-        score_name_levels_numeric: undefined,
-        score_name_levels_categorical: undefined,
-        score_name_levels_boolean: undefined,
-        level: EXPERIMENT_ITEM_LEVEL_OPTIONS,
-      } satisfies ExperimentItemScoreFilterOptions;
-    }
+  const transformedOptions = useMemo(
+    () => toFilterOptions(filterOptions.data),
+    [filterOptions.data],
+  );
 
-    // One entry per score name across both levels; the level maps tag each
-    // offered name with where it exists. `useSidebarFilterState` looks the maps
-    // up by these exact keys.
-    return {
-      scores_avg: filterOptions.data.scores_avg,
-      score_categories: processCategoricalScoreOptions(
-        filterOptions.data.score_categories,
+  // Score names and their types can differ between experiments. Suggestions
+  // and validation must use the options for the condition's own target.
+  const optionsByExperiment = api.useQueries(
+    (t) =>
+      experimentIds.map((experimentId) =>
+        t.experiments.itemsFilterOptions(
+          { projectId, experimentIds: [experimentId] },
+          {
+            enabled: Boolean(projectId),
+            staleTime: Infinity,
+            refetchOnMount: false,
+            refetchOnWindowFocus: false,
+          },
+        ),
       ),
-      score_booleans: filterOptions.data.score_booleans,
-      score_name_levels_numeric: filterOptions.data.score_name_levels_numeric,
-      score_name_levels_categorical:
-        filterOptions.data.score_name_levels_categorical,
-      score_name_levels_boolean: filterOptions.data.score_name_levels_boolean,
-      level: EXPERIMENT_ITEM_LEVEL_OPTIONS,
-    } satisfies ExperimentItemScoreFilterOptions;
-  }, [filterOptions.data]);
+    {
+      combine: (results) =>
+        Object.fromEntries(
+          results.map((result, index) => [
+            experimentIds[index],
+            result.data ? toFilterOptions(result.data) : undefined,
+          ]),
+        ) as Record<string, ExperimentItemScoreFilterOptions | undefined>,
+    },
+  );
 
   // Extract score column definitions for table columns
   const scoreColumns = useMemo(
@@ -90,6 +106,7 @@ export const useExperimentItemsFilterOptions = ({
   return {
     filterOptions: transformedOptions,
     scoreColumns,
+    optionsByExperiment,
     isLoading: filterOptions.isLoading,
   };
 };

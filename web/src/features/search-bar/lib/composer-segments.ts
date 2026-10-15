@@ -16,7 +16,7 @@ import { lexTokens, type Diagnostic } from "./langQ";
 import { validateQuery } from "./validate";
 
 export type FilterSegment = {
-  target?: { from: number; textClassName?: string };
+  target?: { from: number; to: number; textClassName?: string };
   id: string;
   kind: "filter";
   from: number;
@@ -235,6 +235,7 @@ export function deriveComposerSegments(
           ? {
               target: {
                 from: node.target.span.from - span.from,
+                to: node.target.span.to - span.from,
                 textClassName: (() => {
                   const resolved = resolveFilterTarget(node, registry);
                   return "id" in resolved

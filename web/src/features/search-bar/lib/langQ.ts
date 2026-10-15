@@ -7,7 +7,8 @@
 //   orExpr    := andExpr (OR andExpr)*
 //   andExpr   := unary ((AND)? unary)*            -- implicit AND on adjacency
 //   unary     := NOT unary | '-'term | '(' expr ')' | term
-//   term      := key ':' valueExpr | freeText
+//   term      := (target '.')? key ':' valueExpr | freeText
+//   target    := quotedName | hostKeyword        -- registry capability only
 //   valueExpr := ('>'|'<'|'>='|'<=') scalar | '=' scalar | globValue | '(' value (OR value)* ')'
 //   globValue := value with optional leading/trailing '*' wildcards:
 //                'v*' starts-with, '*v' ends-with, '*v*' contains, 'v' default
@@ -18,7 +19,7 @@
 // Langfuse filter contract can represent (e.g. cross-field OR) — those forms
 // are rejected with targeted messages in validate.ts, not here.
 
-import { serializeTarget } from "./targeting";
+import { readTargetPrefix, serializeTarget } from "./targeting";
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
 import {
   canonicalKey,
@@ -263,6 +264,48 @@ function reservedTokenIssue(raw: string): string | null {
 }
 
 function parseTermNode(
+  raw: string,
+  span: Span,
+  diagnostics: Diagnostic[],
+  registry: FieldRegistry,
+): FilterNode | TextNode {
+  const prefix = readTargetPrefix(raw, registry);
+  if (!prefix) return parseUnscopedTermNode(raw, span, diagnostics, registry);
+  const fieldRaw = raw.slice(prefix.length);
+  const fieldSpan = { from: span.from + prefix.length, to: span.to };
+  const node = parseUnscopedTermNode(
+    fieldRaw,
+    fieldSpan,
+    diagnostics,
+    registry,
+  );
+  if (node.kind !== "filter") {
+    diagnostics.push({
+      ...span,
+      severity: "error",
+      message: "Incomplete targeted filter — choose a field and value",
+    });
+    return {
+      kind: "filter",
+      key: fieldRaw,
+      rawKey: fieldRaw,
+      values: [],
+      op: "=",
+      target: {
+        ...prefix.target,
+        span: { from: span.from, to: fieldSpan.from },
+      },
+      span,
+    };
+  }
+  return {
+    ...node,
+    target: { ...prefix.target, span: { from: span.from, to: fieldSpan.from } },
+    span,
+  };
+}
+
+function parseUnscopedTermNode(
   raw: string,
   span: Span,
   diagnostics: Diagnostic[],
@@ -669,6 +712,13 @@ export function parse(
 
         if (filter && !node?.parenSpan && !filter.parenSpan) {
           next();
+          if (filter.target) {
+            diagnostics.push({
+              ...suffix.span,
+              severity: "error",
+              message: "A filter can only have one experiment target",
+            });
+          }
           const raw = suffix.raw.slice(1);
           const decoded = unquote(raw);
           filter.target = {
@@ -914,7 +964,7 @@ const OP_SYMBOL: Partial<Record<CompareOp, string>> = {
 
 function serializeFilter(node: FilterNode): string {
   const text = serializeBareFilter(node);
-  return node.target ? `${text} ${serializeTarget(node.target)}` : text;
+  return node.target ? `${serializeTarget(node.target)}${text}` : text;
 }
 
 function serializeBareFilter(node: FilterNode): string {

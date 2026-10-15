@@ -48,6 +48,161 @@ function plan(
   });
 }
 
+describe("experiment target completions", () => {
+  const registry = createFieldRegistry({
+    ...EVENTS_FIELD_REGISTRY,
+    metadataNamespaces: { eventMetadata: "eventMetadata" },
+    targeting: {
+      defaultTarget: "all",
+      supports: () => true,
+      targets: [
+        {
+          id: "all",
+          label: "all",
+          displayLabel: "All selected experiments",
+          keyword: true,
+        },
+        {
+          id: "baseline",
+          label: "baseline",
+          displayLabel: "Baseline",
+          keyword: true,
+        },
+        { id: "run-a", label: "Run A" },
+      ],
+      observedForTarget: (id) =>
+        id === "run-a"
+          ? {
+              ...OBSERVED,
+              scores_avg: [{ value: "run-only" }],
+              eventMetadata: [{ value: "model name" }],
+              "eventMetadata.model name": [{ value: "test" }],
+            }
+          : OBSERVED,
+    },
+  });
+  const targetedPlan = (input: string, caret = input.length) =>
+    planInputCompletions(
+      {
+        input,
+        caret,
+        observed: OBSERVED,
+        recents: [],
+        currentQueryText: input,
+      },
+      registry,
+    );
+
+  it("offers experiment scope from anywhere in a filter without removing value options", () => {
+    for (const caret of [2, 7, 11]) {
+      const p = targetedPlan("level:ERROR", Math.min(caret, 10));
+      expect(
+        p?.sections
+          .find((section) => section.title === "Experiment")
+          ?.options.map((option) => option.label),
+      ).toEqual(["All selected experiments", "Baseline", "Run A"]);
+    }
+    expect(
+      flattenOptions(targetedPlan("level:ERROR")).some(
+        (option) => option.kind === "value" && option.value === "WARNING",
+      ),
+    ).toBe(true);
+  });
+
+  it("changes scope on one condition and preserves another condition", () => {
+    const input = "baseline.level:ERROR scores.accuracy:>0.8";
+    const p = targetedPlan(input, 18)!;
+    const option = flattenOptions(p).find(
+      (option) => option.id === "target:run-a",
+    )!;
+    if (option.kind !== "pattern")
+      throw new Error("Expected experiment option");
+    expect(applyPick(option, input, p).next).toBe(
+      '"Run A".level:ERROR scores.accuracy:>0.8',
+    );
+    const all = flattenOptions(p).find((option) => option.id === "target:all")!;
+    if (all.kind !== "pattern") throw new Error("Expected experiment option");
+    expect(applyPick(all, input, p).next).toBe(
+      "level:ERROR scores.accuracy:>0.8",
+    );
+  });
+
+  it("retains scope when completing fields and values and selects scoped score options", () => {
+    const input = '"Run A".scores.';
+    const p = targetedPlan(input)!;
+    const score = flattenOptions(p).find(
+      (option) => option.kind === "field" && option.label === "scores.run-only",
+    )!;
+    expect(score).toBeDefined();
+    if (score.kind !== "field") throw new Error("Expected score");
+    expect(applyPick(score, input, p).next).toBe('"Run A".scores.run-only:');
+    const valueInput = '"Run A".level:ERROR';
+    const values = targetedPlan(valueInput)!;
+    const value = flattenOptions(values).find(
+      (option) => option.kind === "value" && option.value === "WARNING",
+    )!;
+    if (value.kind !== "value") throw new Error("Expected value");
+    expect(applyPick(value, valueInput, values).next.trim()).toBe(
+      '"Run A".level:WARNING',
+    );
+  });
+
+  it("completes partial quoted targets and namespace keys", () => {
+    const input = '"Run';
+    const p = targetedPlan(input)!;
+    const option = flattenOptions(p).find(
+      (option) => option.id === "target:run-a",
+    )!;
+    if (option.kind !== "pattern")
+      throw new Error("Expected experiment option");
+    expect(applyPick(option, input, p)).toMatchObject({
+      next: '"Run A".',
+      keepOpen: true,
+    });
+    const metadataInput = '"Run A".eventMetadata.';
+    const metadata = targetedPlan(metadataInput)!;
+    const key = flattenOptions(metadata).find(
+      (option) =>
+        option.kind === "field" && option.label === "eventMetadata.model name",
+    )!;
+    if (key.kind !== "field") throw new Error("Expected metadata key");
+    expect(applyPick(key, metadataInput, metadata).next).toBe(
+      '"Run A".eventMetadata."model name":',
+    );
+  });
+
+  it("rewrites metadata presence without dropping the selected experiment", () => {
+    for (const input of [
+      '"Run A".eventMetadata."model name":test',
+      '-"Run A".eventMetadata."model name":*test*',
+      '"Run A".eventMetadata."model name":=test',
+    ]) {
+      const p = targetedPlan(input)!;
+      for (const id of ["presence:set", "presence:missing"]) {
+        const option = flattenOptions(p).find((option) => option.id === id)!;
+        if (option.kind !== "pattern")
+          throw new Error("Expected presence option");
+        const next = applyPick(option, input, p).next.trim();
+        expect(next).toBe(
+          `${id === "presence:missing" ? "-" : ""}"Run A".has:eventMetadata."model name"`,
+        );
+        expect(validateQuery(next, undefined, registry).valid).toBe(true);
+      }
+    }
+    const input = '"Run A".has:';
+    const p = targetedPlan(input)!;
+    const key = flattenOptions(p).find(
+      (option) =>
+        option.kind === "value" &&
+        option.label === 'eventMetadata."model name"',
+    )!;
+    if (key.kind !== "value") throw new Error("Expected metadata key");
+    expect(
+      validateQuery(applyPick(key, input, p).next, undefined, registry).valid,
+    ).toBe(true);
+  });
+});
+
 describe("planInputCompletions", () => {
   it("offers only declared scope rewrites and keeps compatibility in: out of suggestions", () => {
     const registry = createFieldRegistry({

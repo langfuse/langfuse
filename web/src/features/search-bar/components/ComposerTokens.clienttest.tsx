@@ -67,4 +67,34 @@ describe("ComposerTokens", () => {
       expect(child.nodeType).toBe(Node.ELEMENT_NODE);
     }
   });
+
+  it("renders a target prefix with exact source text and its own color span", () => {
+    const draft = '-"Run: A".scores."Rouge Score":>0.8';
+    const { container } = render(
+      <ComposerTokens
+        draft={draft}
+        showDiagnostics={true}
+        registry={{
+          ...EVENTS_FIELD_REGISTRY,
+          targeting: {
+            defaultTarget: "all",
+            supports: () => true,
+            targets: [
+              { id: "run-a", label: "Run: A", textClassName: "text-pink-500" },
+            ],
+          },
+        }}
+      />,
+    );
+    expect(container.textContent?.split(WORD_JOINER).join("")).toBe(draft);
+    expect(container.querySelector('[data-part="target"]')?.textContent).toBe(
+      '"Run: A".',
+    );
+    expect(container.querySelector('[data-part="field"]')?.textContent).toBe(
+      'scores."Rouge Score"',
+    );
+    expect(container.querySelector('[data-part="value"]')?.textContent).toBe(
+      ">0.8",
+    );
+  });
 });
