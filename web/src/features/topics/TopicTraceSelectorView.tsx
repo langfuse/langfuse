@@ -154,7 +154,6 @@ export function TopicTraceSelectorView({
                   aria-label="Maximum traces"
                   type="number"
                   min={1}
-                  max={TOPICS_BACKFILL_TRACE_LIMIT}
                   value={limit}
                   onChange={(event) => {
                     onLimitChange(event.target.value);

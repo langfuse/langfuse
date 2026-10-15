@@ -16,7 +16,6 @@ type InputProps = Pick<
   | "disabled"
   | "id"
   | "inputMode"
-  | "max"
   | "maxLength"
   | "min"
   | "minLength"

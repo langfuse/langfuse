@@ -71,7 +71,9 @@ export function ManualTopicsDialog({
   const selectedUpdates = facets.filter((facet) =>
     selectedFacetIds.includes(facet.id),
   );
-  const noSummaries = !selectedUpdates.some((facet) => facet.summaries > 0);
+  const noSummaries =
+    selectedUpdates.length > 0 &&
+    !selectedUpdates.some((facet) => facet.summaries > 0);
   const belowMinimum = selectedUpdates.filter(
     (facet) => facet.summaries < minimum,
   );
@@ -138,12 +140,11 @@ export function ManualTopicsDialog({
             <Stepper
               number={1}
               title="Choose facets"
-              summary={`${selectedUpdates.length} of ${facets.length} selected`}
               description={
                 <span className="block pt-2">
                   {operation === "process"
                     ? "Choose the facets to summarize and embed your traces for."
-                    : "Choose the facets to generate topics for."}
+                    : "Facets to run clustering and generate topics for."}
                 </span>
               }
             >
@@ -160,6 +161,9 @@ export function ManualTopicsDialog({
                     />
                   ))}
                 </div>
+                <p className="text-muted-foreground text-xs">
+                  {selectedUpdates.length} of {facets.length} selected
+                </p>
               </fieldset>
             </Stepper>
             <Stepper
@@ -170,7 +174,7 @@ export function ManualTopicsDialog({
               description={
                 operation === "process"
                   ? "Set your filters or paste trace IDs. Preview matching traces and choose the batch to run. Previewing does not use a model."
-                  : "Choose the time range of stored summaries to use for topic generation."
+                  : "Time range of stored summaries to use for clustering and topic generation."
               }
             >
               <section hidden={operation !== "process"}>
@@ -187,10 +191,6 @@ export function ManualTopicsDialog({
                       maxRangeMs={30 * 86_400_000}
                     />
                   </div>
-                  <p className="text-muted-foreground text-xs">
-                    Generate topics from compatible summaries in this time
-                    range.
-                  </p>
                 </section>
               ) : null}
             </Stepper>
@@ -220,12 +220,14 @@ export function ManualTopicsDialog({
                         : models.clustering.model}
                     </dd>
                   </div>
-                  <div className="flex flex-wrap items-baseline gap-1.5">
-                    <dt className="text-muted-foreground">Embedding:</dt>
-                    <dd title={models.embedding.connection}>
-                      {models.embedding.model}
-                    </dd>
-                  </div>
+                  {operation === "process" ? (
+                    <div className="flex flex-wrap items-baseline gap-1.5">
+                      <dt className="text-muted-foreground">Embedding:</dt>
+                      <dd title={models.embedding.connection}>
+                        {models.embedding.model}
+                      </dd>
+                    </div>
+                  ) : null}
                 </dl>
                 <div className="ml-auto">
                   <Button
@@ -270,24 +272,6 @@ export function ManualTopicsDialog({
               ) : null}
               {operation === "update" ? (
                 <>
-                  {noSummaries ? (
-                    <Alert variant="warning" size="sm">
-                      <Alert.Description>
-                        <div className="flex flex-col items-start gap-2">
-                          <p>
-                            No summaries are available for the selected facets.
-                            Summarize traces first, then generate topics.
-                          </p>
-                          <Button
-                            text="Go to Summarize traces & embed"
-                            variant="secondary"
-                            size="sm"
-                            onClick={handleChooseSummarization}
-                          />
-                        </div>
-                      </Alert.Description>
-                    </Alert>
-                  ) : null}
                   <p className="text-muted-foreground text-xs">
                     Topic naming uses your configured model and incurs model
                     costs. New groups replace your current topics once the run
@@ -307,7 +291,9 @@ export function ManualTopicsDialog({
                       onCheckedChange={onSmallSampleChange}
                     />
                   </label>
-                  {!noSummaries && belowMinimum.length > 0 ? (
+                  {!disabledReason &&
+                  !noSummaries &&
+                  belowMinimum.length > 0 ? (
                     <Alert variant="warning" size="sm">
                       <Alert.Description>
                         <p>
@@ -321,22 +307,32 @@ export function ManualTopicsDialog({
                   ) : null}
                 </>
               ) : null}
+              {disabledReason ? (
+                <Alert variant="warning" size="sm">
+                  <Alert.Description>
+                    <div className="flex flex-col items-start gap-2">
+                      <p>{disabledReason}</p>
+                      {operation === "update" && noSummaries ? (
+                        <Button
+                          text="Go to Summarize traces & embed"
+                          variant="secondary"
+                          size="sm"
+                          onClick={handleChooseSummarization}
+                        />
+                      ) : null}
+                    </div>
+                  </Alert.Description>
+                </Alert>
+              ) : null}
+              {error ? (
+                <Alert variant="destructive" size="sm">
+                  <Alert.Description>
+                    <p>{error}</p>
+                  </Alert.Description>
+                </Alert>
+              ) : null}
             </Stepper>
           </div>
-          {disabledReason ? (
-            <Alert variant="warning" size="sm">
-              <Alert.Description>
-                <p>{disabledReason}</p>
-              </Alert.Description>
-            </Alert>
-          ) : null}
-          {error ? (
-            <Alert variant="destructive" size="sm">
-              <Alert.Description>
-                <p role="alert">{error}</p>
-              </Alert.Description>
-            </Alert>
-          ) : null}
         </div>
       </Dialog.Body>
     </Dialog>
