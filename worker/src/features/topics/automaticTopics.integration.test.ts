@@ -170,7 +170,7 @@ describe("automatic Topics assignment against storage", () => {
     expect(Number(count)).toBe(2);
   });
 
-  it("starts one discovery when concurrent jobs reach the threshold together", async () => {
+  it("starts one discovery when concurrent jobs reach the threshold, and queues it again if its job is lost", async () => {
     const facet = await createTopicFacet({
       projectId,
       name: "Discovery",
@@ -197,21 +197,29 @@ describe("automatic Topics assignment against storage", () => {
       },
     };
 
+    const startedAt = new Date();
+
     await Promise.all([
       processAutomaticTopicAssignments(batch),
       processAutomaticTopicAssignments(batch),
     ]);
-    await processAutomaticTopicAssignments(batch);
 
     const executions = await prisma.batchAction.findMany({
-      where: { projectId, userId: "system:topics" },
+      where: {
+        projectId,
+        userId: "system:topics",
+        createdAt: { gte: startedAt },
+      },
     });
     expect(executions).toHaveLength(1);
     expect(executions[0].status).toBe("QUEUED");
-    expect(enqueueTopicExecution).toHaveBeenCalledWith(
-      projectId,
-      executions[0].id,
-    );
+
+    // Its job was lost: the next job queues the same execution again despite its pending run.
+    vi.mocked(enqueueTopicExecution).mockClear();
+    await processAutomaticTopicAssignments(batch);
+    expect(vi.mocked(enqueueTopicExecution).mock.calls).toEqual([
+      [projectId, executions[0].id],
+    ]);
   });
 
   it("does not start discovery while a fit for the facet is still running", async () => {

@@ -211,19 +211,21 @@ async function startDiscovery(
   facet: TopicFacetRef,
   embeddingConfig: TopicEmbeddingConfig,
 ) {
-  if (!(await canStartDiscovery(projectId, facet, embeddingConfig))) return;
+  if (!(await usesCurrentEmbedding(projectId, embeddingConfig))) return;
   const requestId = hash(["topics-discovery", facet, embeddingConfig]);
   const existing = await readTopicExecutionForRequest(
     projectId,
     requestId,
     requestId,
   );
+  // Checked before the fit guard, which this execution's own pending run would trip.
   if (existing) {
     // Like the web trigger: a queued execution may have lost its job; failed ones resume from History.
     if (existing.status === "queued")
       await enqueueTopicExecution(projectId, existing.id);
     return;
   }
+  if (await hasMapOrFit(projectId, facet)) return;
   const to = new Date();
   const timeRange = { from: new Date(to.getTime() - DISCOVERY_WINDOW_MS), to };
   const [counts] = await getTopicSummaryCounts(
@@ -263,16 +265,22 @@ async function startDiscovery(
   });
 }
 
-/**
- * No map or fit, finished or in progress, exists for this or a newer facet version, and
- * automatic processing is still on with the embedding model these summaries used.
- */
-async function canStartDiscovery(
+/** Automatic processing is on with the embedding model these summaries used. */
+async function usesCurrentEmbedding(
   projectId: string,
-  facet: TopicFacetRef,
   embeddingConfig: TopicEmbeddingConfig,
 ) {
-  const owner = await prisma.topicClusteringRun.findFirst({
+  const models = (await getEnabledTopicsModels([projectId])).get(projectId);
+  return (
+    models !== undefined &&
+    models.embedding.model === embeddingConfig.embeddingModel &&
+    models.embedding.dimensions === embeddingConfig.embeddingDimensions
+  );
+}
+
+/** A map or fit, finished or in progress, exists for this or a newer facet version. */
+async function hasMapOrFit(projectId: string, facet: TopicFacetRef) {
+  const run = await prisma.topicClusteringRun.findFirst({
     where: {
       projectId,
       facetId: facet.facetId,
@@ -281,11 +289,5 @@ async function canStartDiscovery(
     },
     select: { id: true },
   });
-  if (owner) return false;
-  const models = (await getEnabledTopicsModels([projectId])).get(projectId);
-  return (
-    models !== undefined &&
-    models.embedding.model === embeddingConfig.embeddingModel &&
-    models.embedding.dimensions === embeddingConfig.embeddingDimensions
-  );
+  return run !== null;
 }

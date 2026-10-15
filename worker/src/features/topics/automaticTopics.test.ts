@@ -24,7 +24,7 @@ import {
 } from "./automaticTopics";
 
 vi.mock("@langfuse/shared/src/db", () => ({
-  prisma: { topicClusteringRun: { findFirst: vi.fn() } },
+  prisma: { topicClusteringRun: { findFirst: vi.fn(async () => null) } },
 }));
 
 const add = vi.fn();
