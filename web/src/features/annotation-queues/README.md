@@ -34,25 +34,22 @@ each project and queue; changing the current item keeps the same run history.
 
 ## Structure and consumers
 
-Queue setup keeps server data in tRPC. The queue page has one setup sidebar:
-metadata and score configs are not repeated above the items table. The sidebar
-has a searchable, independently scrolling config list for large queues. Editor
-controllers live outside the responsive sidebar so closing its mobile sheet
-does not unmount a draft or leave the dialog hidden from assistive technology.
-
-`AnnotationQueueFormDialogController` owns queue creation and metadata/assignment
-settings, with one React Hook Form draft. Existing queues edit fields separately
-through `AnnotationQueueScoreConfigsDialogController`; its data boundary gates
-`AnnotationQueueScoreConfigsDialogContent`, which owns only the ordered-ID draft.
-Refetching a definition never resets selection or order. Settings and field saves
-send partial updates so neither overwrites the other.
+Queue setup keeps server data in tRPC. `AnnotationQueueSetupController` gates
+initial loading and adapts mutations to `AnnotationQueueSetupForm`. Its React
+Hook Form draft lives above the responsive sidebar, so collapsing the panel or
+closing its mobile sheet preserves unsaved changes. The sidebar contains name,
+description, ordered score configs, and user assignments, with one scrolling
+body and a fixed Save/Discard footer. Saves patch only dirty queue fields.
+Background refreshes and project-wide config edits do not reset the draft.
 
 `QueueScoreConfigFields` adapts the existing project-wide create/edit dialogs to
 the controlled `AnnotationQueueScoreConfigEditor`. Creating a config appends its
 ID without saving the queue. Multi-selection appends new IDs; the design-system
 `SortableList` owns pointer/touch/keyboard dragging and reports a single reorder
 on drop. Both row removal and picker deselection confirm for populated queues.
-`saveQueueWithAssignments` retains creation/assignment retry coordination.
+`AnnotationQueueFormDialogController` handles queue creation and retains
+creation/assignment retry coordination. The queue list links to each queue's
+inline setup instead of exposing a separate edit action.
 
 `components/` contains queue forms, tables, and processing views. `components/shared`
 contains object/query adapters and layout primitives; `server/` contains queue and

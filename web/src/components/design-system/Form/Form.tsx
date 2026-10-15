@@ -22,15 +22,28 @@ export type FormAction = {
 
 export type FormProps = {
   id?: FormHTMLAttributes<HTMLFormElement>["id"];
+  density?: "default" | "compact";
   actions: FormAction[];
   children: ReactNode;
   onSubmit: FormHTMLAttributes<HTMLFormElement>["onSubmit"];
 };
 
-function FormRoot({ actions, children, id, onSubmit }: FormProps) {
+function FormRoot({
+  actions,
+  children,
+  density = "default",
+  id,
+  onSubmit,
+}: FormProps) {
   return (
-    <form id={id} className="space-y-8" onSubmit={onSubmit}>
-      <div className="space-y-5">{children}</div>
+    <form id={id} className="flex flex-col gap-8" onSubmit={onSubmit}>
+      <div
+        className={
+          density === "compact" ? "flex flex-col gap-4" : "flex flex-col gap-5"
+        }
+      >
+        {children}
+      </div>
       {actions.length > 0 && (
         <div className="flex gap-2">
           {actions.map((action) => {

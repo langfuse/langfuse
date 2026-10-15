@@ -84,7 +84,7 @@ export function AnnotationQueueScoreConfigEditor({
                 <p className="text-muted-foreground text-xs">
                   Fields appear in this order.
                 </p>
-                <div className="max-h-[45vh] min-h-0 overflow-y-auto rounded-md border p-2">
+                <div className="min-h-0">
                   <SortableList
                     items={value}
                     getId={(id) => id}

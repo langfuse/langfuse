@@ -3,9 +3,28 @@ import * as React from "react";
 import { LAYER_ORDER, type LayerName } from "./layers";
 import { PopoverLayerContext } from "./PopoverLayerProvider";
 
-const LayerContext = React.createContext<Map<LayerName, HTMLElement> | null>(
-  null,
-);
+const LayerContext = React.createContext<Map<
+  LayerName,
+  HTMLElement | null
+> | null>(null);
+
+/** Keeps nested overlays within the accessibility subtree of their parent. */
+export function LayerContainerProvider({
+  name,
+  container,
+  children,
+}: {
+  name: LayerName;
+  container: HTMLElement | null;
+  children: React.ReactNode;
+}) {
+  const inheritedLayers = React.useContext(LayerContext);
+  const layers = new Map(inheritedLayers);
+  layers.set(name, container);
+  return (
+    <LayerContext.Provider value={layers}>{children}</LayerContext.Provider>
+  );
+}
 
 function ensureLayerContainers(): Map<LayerName, HTMLElement> {
   let root = document.querySelector<HTMLElement>("[data-overlay-root]");
