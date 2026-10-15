@@ -165,7 +165,7 @@ export function QuestionnaireStep({
 
   return (
     <div onKeyDown={handleKeyDown}>
-      <div className="divide-border flex flex-col divide-y px-1.5 pb-1.5">
+      <div className="flex flex-col px-1.5 pb-1.5">
         {question.options.map((option, optionIndex) => (
           <MultipleChoiceRow
             key={optionIndex}
@@ -276,27 +276,24 @@ function MultipleChoiceRow({
   };
 
   return (
-    // The wrapper carries the list divider so it stays straight under the rounded hover.
-    <div className="py-1">
-      <label
-        htmlFor={id}
-        className="hover:bg-muted has-focus-visible:bg-muted flex cursor-pointer items-start gap-3 rounded-lg px-2 py-2 text-sm has-disabled:cursor-not-allowed"
-      >
-        <span className="flex h-5 shrink-0 items-center">
-          <Checkbox
-            id={id}
-            checked={isSelected}
-            disabled={isDisabled}
-            onCheckedChange={handleCheckedChange}
-          />
-        </span>
-        <OptionText
-          label={label}
-          description={description}
-          isRecommended={isRecommended}
+    <label
+      htmlFor={id}
+      className="hover:bg-muted has-focus-visible:bg-muted flex cursor-pointer items-start gap-3 rounded-lg px-2 py-2 text-sm has-disabled:cursor-not-allowed"
+    >
+      <span className="flex h-5 shrink-0 items-center">
+        <Checkbox
+          id={id}
+          checked={isSelected}
+          disabled={isDisabled}
+          onCheckedChange={handleCheckedChange}
         />
-      </label>
-    </div>
+      </span>
+      <OptionText
+        label={label}
+        description={description}
+        isRecommended={isRecommended}
+      />
+    </label>
   );
 }
 
@@ -379,23 +376,21 @@ function MultipleChoiceOtherRow({
   };
 
   return (
-    <div className="pt-1">
-      <div className="hover:bg-muted has-focus-visible:bg-muted flex items-center gap-3 rounded-lg px-2 py-2">
-        <span className="flex h-5 shrink-0 items-center">
-          <Checkbox
-            aria-label="Use a custom answer"
-            checked={isChecked}
-            disabled={isDisabled}
-            onCheckedChange={handleCheckedChange}
-          />
-        </span>
-        <OtherAnswerInput
-          ref={inputRef}
-          value={value}
-          isDisabled={isDisabled}
-          onChange={onChange}
+    <div className="hover:bg-muted has-focus-visible:bg-muted flex items-center gap-3 rounded-lg px-2 py-2">
+      <span className="flex h-5 shrink-0 items-center">
+        <Checkbox
+          aria-label="Use a custom answer"
+          checked={isChecked}
+          disabled={isDisabled}
+          onCheckedChange={handleCheckedChange}
         />
-      </div>
+      </span>
+      <OtherAnswerInput
+        ref={inputRef}
+        value={value}
+        isDisabled={isDisabled}
+        onChange={onChange}
+      />
     </div>
   );
 }
