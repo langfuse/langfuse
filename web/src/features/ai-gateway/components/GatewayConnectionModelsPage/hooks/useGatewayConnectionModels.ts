@@ -19,8 +19,8 @@ export function useGatewayConnectionModels({
         utils.aiGateway.refreshModels.invalidate({ orgId: organizationId }),
       ]);
     },
-    onError: async () => {
-      await connectionQuery.refetch();
+    onSettled: async (_connection, error) => {
+      if (error) await connectionQuery.refetch();
     },
   });
   const retryModels = api.aiGateway.retryConnection.useMutation({
