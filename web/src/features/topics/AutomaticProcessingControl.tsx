@@ -1,6 +1,5 @@
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { Circle, CircleCheck, CirclePause } from "lucide-react";
-import { Button } from "@/src/components/design-system/Button/Button";
+import { cn } from "@/src/utils/tailwind";
 
 /**
  * Topics header status for automatic processing. Turning it on or off and the
@@ -13,18 +12,31 @@ export function AutomaticProcessingControl({
 }: AutomaticProcessingControlProps) {
   const reason = disabledReason(state, canWrite);
   const button = (
-    <Button
-      text={`Automatic processing: ${statusLabel(state)}`}
-      icon={statusIcon(state)}
-      variant={
+    <button
+      type="button"
+      className={cn(
+        "ring-offset-background focus-visible:ring-ring inline-flex h-7 shrink-0 items-center gap-2 rounded-md px-2 text-xs whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
         state.status === "off" || state.status === "paused"
-          ? "primary"
-          : "secondary"
-      }
-      size="sm"
+          ? "bg-primary text-primary-foreground hover:bg-primary/90"
+          : "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      )}
+      aria-label={`Automatic processing: ${statusLabel(state)}`}
       disabled={reason !== null}
       onClick={onOpen}
-    />
+    >
+      <span aria-hidden className="relative inline-flex size-2 shrink-0">
+        {state.status === "on" ? (
+          <span className="bg-dark-green absolute inline-flex size-full animate-ping rounded-full opacity-75" />
+        ) : null}
+        <span
+          className={cn(
+            "relative inline-flex size-2 rounded-full",
+            dotClass(state),
+          )}
+        />
+      </span>
+      Automatic processing
+    </button>
   );
   if (!reason) return button;
   return (
@@ -34,10 +46,10 @@ export function AutomaticProcessingControl({
   );
 }
 
-function statusIcon(state: AutomaticProcessingState) {
-  if (state.status === "on") return CircleCheck;
-  if (state.status === "paused") return CirclePause;
-  return Circle;
+function dotClass(state: AutomaticProcessingState) {
+  if (state.status === "on") return "bg-dark-green";
+  if (state.status === "paused") return "bg-dark-yellow";
+  return "bg-muted-foreground";
 }
 
 function statusLabel(state: AutomaticProcessingState) {
