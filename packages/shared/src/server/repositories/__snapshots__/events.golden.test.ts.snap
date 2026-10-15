@@ -200,7 +200,7 @@ WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)}
 ]
 `;
 
-exports[`golden: events IO payload reads family > getObservationsBatchIOFromEventsTable full+ioCharLimit+experiment+toolCalls 1`] = `
+exports[`golden: events IO payload reads family > getObservationsBatchIOFromEventsTable full+ioCharLimit+experiment+toolCalls+skills 1`] = `
 [
   {
     "fn": "queryClickhouse",
@@ -249,6 +249,8 @@ exports[`golden: events IO payload reads family > getObservationsBatchIOFromEven
         arrayReverse(e.experiment_item_metadata_names),
         arrayReverse(arrayMap(v -> leftUTF8(v, 5000), e.experiment_item_metadata_values))
     ) AS experiment_item_metadata,
+    e.skills_available AS skills_available,
+    e.skills_resource_loaded AS skills_resource_loaded,
     e.tool_calls AS tool_calls,
     e.tool_call_names AS tool_call_names,
     mapFromArrays(
@@ -833,6 +835,8 @@ exports[`golden: events point-reads & existence family > getObservationByIdFromE
     e.prompt_id AS prompt_id,
     e.prompt_name AS prompt_name,
     e.prompt_version AS prompt_version,
+    e.skills_available AS skills_available,
+    e.skills_resource_loaded AS skills_resource_loaded,
     e.tool_definitions AS tool_definitions,
     e.tool_calls AS tool_calls,
     e.tool_call_names AS tool_call_names,
@@ -900,6 +904,8 @@ exports[`golden: events point-reads & existence family > getObservationByIdFromE
     e.prompt_id AS prompt_id,
     e.prompt_name AS prompt_name,
     e.prompt_version AS prompt_version,
+    e.skills_available AS skills_available,
+    e.skills_resource_loaded AS skills_resource_loaded,
     e.tool_definitions AS tool_definitions,
     e.tool_calls AS tool_calls,
     e.tool_call_names AS tool_call_names,
@@ -969,6 +975,8 @@ exports[`golden: events point-reads & existence family > getObservationByIdFromE
     e.prompt_id AS prompt_id,
     e.prompt_name AS prompt_name,
     e.prompt_version AS prompt_version,
+    e.skills_available AS skills_available,
+    e.skills_resource_loaded AS skills_resource_loaded,
     e.tool_definitions AS tool_definitions,
     e.tool_calls AS tool_calls,
     e.tool_call_names AS tool_call_names,
@@ -1042,6 +1050,8 @@ exports[`golden: events point-reads & existence family > getObservationByIdFromE
     e.prompt_id AS prompt_id,
     e.prompt_name AS prompt_name,
     e.prompt_version AS prompt_version,
+    e.skills_available AS skills_available,
+    e.skills_resource_loaded AS skills_resource_loaded,
     e.tool_definitions AS tool_definitions,
     e.tool_calls AS tool_calls,
     e.tool_call_names AS tool_call_names,

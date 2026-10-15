@@ -17,6 +17,8 @@ export type GetMetricsFilterColumnsParams = {
   modelOptions: SingleValueOption[];
   toolNamesOptions: SingleValueOption[];
   calledToolNamesOptions: SingleValueOption[];
+  skillNamesAvailableOptions?: SingleValueOption[];
+  skillsNamesLoadedOptions?: SingleValueOption[];
   observationLevelOptions: SingleValueOption[];
   experimentNameOptions: SingleValueOption[];
   experimentDatasetOptions: SingleValueOption[];
@@ -46,6 +48,8 @@ const getMetricsFilterColumnSpecs = ({
   modelOptions,
   toolNamesOptions,
   calledToolNamesOptions,
+  skillNamesAvailableOptions = [],
+  skillsNamesLoadedOptions = [],
   observationLevelOptions,
   experimentNameOptions,
   experimentDatasetOptions,
@@ -232,9 +236,29 @@ const getMetricsFilterColumnSpecs = ({
 
   if (selectedView === "observations") {
     filterColumns.push(
-      // v2-only filter columns (experiment data only exists in events table)
+      // These filters require the v2 events view.
       ...(viewVersion === "v2"
         ? [
+            {
+              column: {
+                name: "Skill Names (Available)",
+                id: "skillNamesAvailable",
+                type: "arrayOptions",
+                options: skillNamesAvailableOptions,
+                internal: "internalValue",
+              },
+              customSelect: true,
+            } satisfies MetricsFilterColumnSpec,
+            {
+              column: {
+                name: "Skill Names (Loaded)",
+                id: "skillsNamesLoaded",
+                type: "arrayOptions",
+                options: skillsNamesLoadedOptions,
+                internal: "internalValue",
+              },
+              customSelect: true,
+            } satisfies MetricsFilterColumnSpec,
             {
               column: {
                 name: "Experiment Name",

@@ -7,6 +7,10 @@ import {
   eventsTableTraceNameAggregationSql,
   eventsTableTraceNameSelectSql,
 } from "../../../eventsTable";
+import type {
+  SkillsAvailable,
+  SkillsResourceLoaded,
+} from "../../../features/skills/trace";
 import { expressionBuilder, sql, type SelectExpression } from "kysely";
 
 import { renderClickhouseExpression } from "../../query-ast/compile";
@@ -183,6 +187,10 @@ const EVENTS_FIELDS = {
   promptId: "e.prompt_id as prompt_id",
   promptName: "e.prompt_name as prompt_name",
   promptVersion: "e.prompt_version as prompt_version",
+
+  // Skill fields
+  skillsAvailable: 'e.skills_available as "skills_available"',
+  skillsResourceLoaded: 'e.skills_resource_loaded as "skills_resource_loaded"',
 
   // Tool fields
   toolDefinitions: "e.tool_definitions as tool_definitions",
@@ -376,6 +384,8 @@ const FIELD_SETS = {
     "toolDefinitions",
     "toolCalls",
     "toolCallNames",
+    "skillsAvailable",
+    "skillsResourceLoaded",
   ],
   byIdModel: [
     "providedModelName",
@@ -554,6 +564,12 @@ type EventsColumnField = {
 const EVENTS_FIELD_EXPRESSIONS = {
   traceName: sql.raw<string>(eventsTableTraceNameSelectSql).as("trace_name"),
   metadata: eventsMetadataMap.as("metadata"),
+  skillsAvailable: sql
+    .ref<SkillsAvailable>("e.skills_available")
+    .as("skills_available"),
+  skillsResourceLoaded: sql
+    .ref<SkillsResourceLoaded>("e.skills_resource_loaded")
+    .as("skills_resource_loaded"),
 } satisfies Partial<
   Record<Exclude<EventsFieldKey, EventsColumnField>, EventsSelection>
 >;

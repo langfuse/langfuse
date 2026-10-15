@@ -175,6 +175,10 @@ import {
 } from "../../tableDefinitions";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import type {
+  SkillsAvailable,
+  SkillsResourceLoaded,
+} from "../../features/skills/trace";
 
 export type EventBatchIOStringOutput = {
   id: string;
@@ -182,6 +186,11 @@ export type EventBatchIOStringOutput = {
   input: string | null;
   output: string | null;
   metadata: MetadataDomain;
+};
+
+export type EventBatchIOSkillFields = {
+  skillsAvailable: SkillsAvailable;
+  skillsResourceLoaded: SkillsResourceLoaded;
 };
 
 /** Raw ClickHouse storage shape: name-less JSON strings, names in the parallel toolCallNames array. */
@@ -198,10 +207,12 @@ export type EventBatchIOWithExperimentOutput = EventBatchIOStringOutput & {
 export type EventBatchIOResult<
   TIncludeExperiment extends boolean,
   TIncludeToolCalls extends boolean,
+  TIncludeSkills extends boolean = false,
 > = (TIncludeExperiment extends true
   ? EventBatchIOWithExperimentOutput
   : EventBatchIOStringOutput) &
-  (TIncludeToolCalls extends true ? EventBatchIOToolCallFields : object);
+  (TIncludeToolCalls extends true ? EventBatchIOToolCallFields : object) &
+  (TIncludeSkills extends true ? EventBatchIOSkillFields : object);
 
 const BATCH_IO_STRING_RENDERING_PROPS: RenderingProps = {
   // Batch I/O truncation is handled in SQL via leftUTF8 for performance.
@@ -2721,6 +2732,7 @@ export const deleteEventsOlderThanDays = async (
 export const getObservationsBatchIOFromEventsTable = async <
   TIncludeExperiment extends boolean = false,
   TIncludeToolCalls extends boolean = false,
+  TIncludeSkills extends boolean = false,
 >(opts: {
   projectId: string;
   observations: Array<{
@@ -2741,8 +2753,11 @@ export const getObservationsBatchIOFromEventsTable = async <
   includeExperimentFields?: TIncludeExperiment;
   /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
   includeToolCallFields?: TIncludeToolCalls;
+  includeSkillFields?: TIncludeSkills;
 }): Promise<
-  Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>
+  Array<
+    EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls, TIncludeSkills>
+  >
 > => {
   if (opts.observations.length === 0) {
     return [];
@@ -2805,6 +2820,14 @@ export const getObservationsBatchIOFromEventsTable = async <
         ).as("experiment_item_metadata"),
       ]),
     )
+    .$if(opts.includeSkillFields === true, (qb) =>
+      qb.select([
+        sql.ref<SkillsAvailable>("e.skills_available").as("skills_available"),
+        sql
+          .ref<SkillsResourceLoaded>("e.skills_resource_loaded")
+          .as("skills_resource_loaded"),
+      ]),
+    )
     .$if(opts.includeToolCallFields === true, (qb) =>
       qb.select([
         "e.tool_calls as tool_calls",
@@ -2846,6 +2869,8 @@ export const getObservationsBatchIOFromEventsTable = async <
     input: string | null;
     output: string | null;
     metadata: Record<string, string>;
+    skills_available?: SkillsAvailable;
+    skills_resource_loaded?: SkillsResourceLoaded;
     tool_calls?: string[];
     tool_call_names?: string[];
     experiment_item_expected_output?: string | null;
@@ -2864,6 +2889,12 @@ export const getObservationsBatchIOFromEventsTable = async <
     output: applyBatchIOStringRendering(r.output),
     metadata:
       r.metadata !== undefined ? parseMetadataCHRecordToDomain(r.metadata) : {},
+    ...(opts.includeSkillFields
+      ? {
+          skillsAvailable: r.skills_available ?? [],
+          skillsResourceLoaded: r.skills_resource_loaded ?? [],
+        }
+      : {}),
     ...(opts.includeToolCallFields
       ? {
           toolCalls: r.tool_calls ?? [],
@@ -2879,7 +2910,9 @@ export const getObservationsBatchIOFromEventsTable = async <
               : {},
         }
       : {}),
-  })) as Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>;
+  })) as Array<
+    EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls, TIncludeSkills>
+  >;
 };
 
 /**
