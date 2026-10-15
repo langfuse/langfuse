@@ -409,21 +409,36 @@ function formatSqlExpr(expr: string, indent: string): string {
   return lines.join("\n");
 }
 
-const CONDITION_CLAUSE = /^(\s*)(PREWHERE|WHERE|HAVING) (.*)$/;
-const AND = " AND ";
+function routeOf(tags: unknown): string {
+  if (tags && typeof tags === "object" && "route" in tags) {
+    const route = (tags as { route?: unknown }).route;
+    if (typeof route === "string" && route.trim()) return route.trim();
+  }
+  return "unknown";
+}
 
 /**
- * A condition clause whose last conjunct is still open at the end of a line (a
- * multi-line subquery). Lives until a line starts back at `depth`.
+ * Normalize an ordered list of captured queries into golden entries. The order
+ * is significant — one repository call may emit several queries (e.g.
+ * environments emits its tracing read and its scores read), and their sequence
+ * is part of the baseline.
  */
-type OpenClause = {
-  /** Bracket depth at the start of the clause line. */
-  depth: number;
-  /** Emitted indent of the clause line; continuation `AND`s go one level in. */
-  indent: string;
-  /** Extra indent for the subquery lines, so they sit inside their `AND`. */
-  shift: string;
-};
+export function normalizeCapturedQueries(
+  captured: readonly CapturedQuery[],
+): GoldenQuery[] {
+  return captured.map((c) => {
+    const { sql, params } = normalizeParams(formatSql(c.query), c.params);
+    return {
+      fn: c.fn,
+      route: routeOf(c.tags),
+      sql: wrapLongSql(splitConditions(sql)),
+      params,
+    };
+  });
+}
+
+const CONDITION_CLAUSE = /^(\s*)(PREWHERE|WHERE|HAVING) (.*)$/;
+const AND = " AND ";
 
 /**
  * Put each top-level `AND` condition of a `WHERE`/`PREWHERE`/`HAVING` clause on
@@ -448,40 +463,68 @@ export function splitConditions(sql: string): string {
   for (const line of sql.split("\n")) {
     while (open.length > 0 && depth <= open[open.length - 1].depth) open.pop();
     const shift = open.map((c) => c.shift).join("");
-    const top = open.at(-1);
     const lineDepth = depth;
     depth = depthAfter(line, depth);
 
-    const match = CONDITION_CLAUSE.exec(line);
-    if (match) {
-      const [, indent, keyword, body] = match;
-      const conditions = splitTopLevelAnd(body);
-      const clause = { depth: lineDepth, indent: shift + indent, shift: "" };
-      out.push(`${clause.indent}${keyword} ${conditions[0]}`);
-      pushConditions(out, clause, conditions.slice(1));
-      if (depth > lineDepth) open.push(clause);
+    const clause = splitClauseLine(line, lineDepth, shift);
+    if (clause) {
+      out.push(...clause.lines);
+      if (depth > lineDepth) open.push(clause.open);
       continue;
     }
 
-    const close = top ? closeIndex(line, lineDepth, top.depth) : -1;
-    if (!top || close === -1 || !line.startsWith(AND, close)) {
-      out.push(shift + line);
+    const top = open.at(-1);
+    const closing = top && splitClosingLine(line, lineDepth, shift, top);
+    if (closing) {
+      out.push(...closing);
+      top.shift = WRAP_INDENT;
       continue;
     }
-    out.push(shift + line.slice(0, close));
-    pushConditions(out, top, splitTopLevelAnd(line.slice(close + AND.length)));
+
+    out.push(shift + line);
   }
   return out.join("\n");
 }
 
-function pushConditions(
-  out: string[],
+/** Split a `WHERE`/`PREWHERE`/`HAVING` line; null for any other line. */
+function splitClauseLine(
+  line: string,
+  depth: number,
+  shift: string,
+): { lines: string[]; open: OpenClause } | null {
+  const match = CONDITION_CLAUSE.exec(line);
+  if (!match) return null;
+  const [, indent, keyword, body] = match;
+  const [first, ...rest] = splitTopLevelAnd(body);
+  const open = {
+    depth,
+    indent: shift + indent,
+    shift: rest.length > 0 ? WRAP_INDENT : "",
+  };
+  return {
+    lines: [`${open.indent}${keyword} ${first}`, ...andLines(open, rest)],
+    open,
+  };
+}
+
+/**
+ * Split the line that closes `clause`'s open conjunct and continues with more
+ * conjuncts (`)) AND (b) AND (c`); null for any other line.
+ */
+function splitClosingLine(
+  line: string,
+  depth: number,
+  shift: string,
   clause: OpenClause,
-  conditions: string[],
-): void {
-  for (const c of conditions)
-    out.push(`${clause.indent}${WRAP_INDENT}AND ${c}`);
-  if (conditions.length > 0) clause.shift = WRAP_INDENT;
+): string[] | null {
+  const close = closeIndex(line, depth, clause.depth);
+  if (close === -1 || !line.startsWith(AND, close)) return null;
+  const conditions = splitTopLevelAnd(line.slice(close + AND.length));
+  return [shift + line.slice(0, close), ...andLines(clause, conditions)];
+}
+
+function andLines(clause: OpenClause, conditions: string[]): string[] {
+  return conditions.map((c) => `${clause.indent}${WRAP_INDENT}AND ${c}`);
 }
 
 /** `[index, char]` for every character of `text` outside quotes. */
@@ -532,30 +575,15 @@ function splitTopLevelAnd(expr: string): string[] {
   return parts;
 }
 
-function routeOf(tags: unknown): string {
-  if (tags && typeof tags === "object" && "route" in tags) {
-    const route = (tags as { route?: unknown }).route;
-    if (typeof route === "string" && route.trim()) return route.trim();
-  }
-  return "unknown";
-}
-
 /**
- * Normalize an ordered list of captured queries into golden entries. The order
- * is significant — one repository call may emit several queries (e.g.
- * environments emits its tracing read and its scores read), and their sequence
- * is part of the baseline.
+ * A condition clause whose last conjunct is still open at the end of a line (a
+ * multi-line subquery). Lives until a line starts back at `depth`.
  */
-export function normalizeCapturedQueries(
-  captured: readonly CapturedQuery[],
-): GoldenQuery[] {
-  return captured.map((c) => {
-    const { sql, params } = normalizeParams(formatSql(c.query), c.params);
-    return {
-      fn: c.fn,
-      route: routeOf(c.tags),
-      sql: wrapLongSql(splitConditions(sql)),
-      params,
-    };
-  });
-}
+type OpenClause = {
+  /** Bracket depth at the start of the clause line. */
+  depth: number;
+  /** Emitted indent of the clause line; continuation `AND`s go one level in. */
+  indent: string;
+  /** Extra indent for the subquery lines, so they sit inside their `AND`. */
+  shift: string;
+};

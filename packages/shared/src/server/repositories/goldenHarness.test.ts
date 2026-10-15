@@ -107,6 +107,29 @@ describe("splitConditions", () => {
     );
   });
 
+  it("indents a later subquery when the first one opens on the WHERE line", () => {
+    expect(
+      splitConditions(
+        [
+          "WHERE (x IN (",
+          "    SELECT x",
+          ")) AND (y IN (",
+          "    SELECT y",
+          "))",
+        ].join("\n"),
+      ),
+    ).toBe(
+      [
+        "WHERE (x IN (",
+        "    SELECT x",
+        "))",
+        "    AND (y IN (",
+        "        SELECT y",
+        "    ))",
+      ].join("\n"),
+    );
+  });
+
   it("keeps an OR-rooted clause on one line", () => {
     expect(splitConditions("WHERE (a AND b) OR c")).toBe(
       "WHERE (a AND b) OR c",
