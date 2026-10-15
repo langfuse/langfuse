@@ -2,10 +2,13 @@
 
 import {
   useId,
+  useRef,
   type ChangeEvent,
   type KeyboardEvent,
   type ReactNode,
+  type Ref,
 } from "react";
+import type { CheckedState } from "@radix-ui/react-checkbox";
 import { ArrowRight, ArrowUp } from "lucide-react";
 import { useController, type Control } from "react-hook-form";
 import {
@@ -73,6 +76,15 @@ export function QuestionnaireStep({
       updateQuestionnaireAnswer(answer, question, {
         type: "setOtherText",
         otherText: event.target.value,
+      }),
+    );
+  };
+
+  const handleClearOtherText = () => {
+    field.onChange(
+      updateQuestionnaireAnswer(answer, question, {
+        type: "setOtherText",
+        otherText: "",
       }),
     );
   };
@@ -166,10 +178,12 @@ export function QuestionnaireStep({
             onToggle={handleToggleOption}
           />
         ))}
-        <OtherAnswerRow
+        <MultipleChoiceOtherRow
           value={answer.otherText}
+          isChecked={hasOtherText}
           isDisabled={isDisabled}
           onChange={handleOtherTextChange}
+          onClear={handleClearOtherText}
         />
       </div>
       <div className="border-border flex items-center gap-2 border-t px-3 py-2">
@@ -324,18 +338,92 @@ function OtherAnswerRow({
   return (
     <div className="pt-1">
       <div className="has-focus-visible:bg-muted flex min-h-11 items-center gap-2 rounded-lg px-2 py-1.5">
-        {/* The design-system Input is always boxed; this row reads as a list item. */}
-        <input
-          aria-label="Something else"
-          placeholder="Something else"
-          maxLength={IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH}
+        <OtherAnswerInput
           value={value}
-          disabled={isDisabled}
-          className="placeholder:text-muted-foreground min-w-0 flex-1 border-0 bg-transparent p-0 text-sm focus:ring-0 focus:outline-hidden disabled:cursor-not-allowed"
+          isDisabled={isDisabled}
           onChange={onChange}
         />
         {children}
       </div>
     </div>
+  );
+}
+
+type MultipleChoiceOtherRowProps = {
+  value: string;
+  isChecked: boolean;
+  isDisabled: boolean;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onClear: () => void;
+};
+
+/**
+ * The checkbox mirrors whether a custom answer is typed: checking it focuses
+ * the input, unchecking it clears the text.
+ */
+function MultipleChoiceOtherRow({
+  value,
+  isChecked,
+  isDisabled,
+  onChange,
+  onClear,
+}: MultipleChoiceOtherRowProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleCheckedChange = (checked: CheckedState) => {
+    if (checked === true) {
+      inputRef.current?.focus();
+      return;
+    }
+    onClear();
+  };
+
+  return (
+    <div className="pt-1">
+      <div className="hover:bg-muted has-focus-visible:bg-muted flex items-center gap-3 rounded-lg px-2 py-2">
+        <span className="flex h-5 shrink-0 items-center">
+          <Checkbox
+            aria-label="Use a custom answer"
+            checked={isChecked}
+            disabled={isDisabled}
+            onCheckedChange={handleCheckedChange}
+          />
+        </span>
+        <OtherAnswerInput
+          ref={inputRef}
+          value={value}
+          isDisabled={isDisabled}
+          onChange={onChange}
+        />
+      </div>
+    </div>
+  );
+}
+
+type OtherAnswerInputProps = {
+  ref?: Ref<HTMLInputElement>;
+  value: string;
+  isDisabled: boolean;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+};
+
+function OtherAnswerInput({
+  ref,
+  value,
+  isDisabled,
+  onChange,
+}: OtherAnswerInputProps) {
+  return (
+    // The design-system Input is always boxed; this row reads as a list item.
+    <input
+      ref={ref}
+      aria-label="Something else"
+      placeholder="Something else"
+      maxLength={IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH}
+      value={value}
+      disabled={isDisabled}
+      className="placeholder:text-muted-foreground min-w-0 flex-1 border-0 bg-transparent p-0 text-sm leading-5 focus:ring-0 focus:outline-hidden disabled:cursor-not-allowed"
+      onChange={onChange}
+    />
   );
 }

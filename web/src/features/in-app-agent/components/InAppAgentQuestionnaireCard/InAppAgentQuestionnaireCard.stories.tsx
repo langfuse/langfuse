@@ -219,6 +219,39 @@ export const MultipleChoiceShortcut = meta.story({
   },
 });
 
+export const MultipleChoiceCustomAnswer = meta.story({
+  name: "(Test) Multiple choice checks the custom answer while it has text",
+  args: {
+    tool: createQuestionnaireTool({ questions: [failureSignalsQuestion] }),
+    onAnswerQuestionnaire: fn().mockResolvedValue(undefined),
+    onRejectToolCall: fn().mockResolvedValue(undefined),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const customAnswerCheckbox = canvas.getByRole("checkbox", {
+      name: "Use a custom answer",
+    });
+    await expect(customAnswerCheckbox).not.toBeChecked();
+
+    await userEvent.click(customAnswerCheckbox);
+    await expect(canvas.getByLabelText("Something else")).toHaveFocus();
+    await userEvent.keyboard("Timeouts");
+    await expect(customAnswerCheckbox).toBeChecked();
+    await expect(canvas.getByText("1 selected")).toBeVisible();
+
+    await userEvent.click(customAnswerCheckbox);
+    await expect(canvas.getByLabelText("Something else")).toHaveValue("");
+    await expect(canvas.getByText("0 selected")).toBeVisible();
+
+    await userEvent.type(canvas.getByLabelText("Something else"), "Timeouts");
+    await userEvent.click(canvas.getByRole("button", { name: "Submit" }));
+    await expect(args.onAnswerQuestionnaire).toHaveBeenCalledWith(
+      "approval-questionnaire-1",
+      [{ selectedOptionIndexes: [], otherText: "Timeouts" }],
+    );
+  },
+});
+
 export const AnswerAllSteps = meta.story({
   name: "(Test) Answers every step, jumps back, and submits once",
   args: {
