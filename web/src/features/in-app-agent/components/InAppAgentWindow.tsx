@@ -58,6 +58,7 @@ import {
   IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
   IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   type InAppAgentQuestionnaireAnswers,
+  type InAppAgentQuestionnaireResult,
 } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
@@ -68,6 +69,8 @@ import { InAppAgentNotice } from "@/src/features/in-app-agent/components/InAppAg
 import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/useInAppAgentBackgroundHint";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
 import { InAppAgentQuestionnaireCard } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/InAppAgentQuestionnaireCard";
+import { InAppAgentQuestionnaireSummary } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireSummary/InAppAgentQuestionnaireSummary";
+import { parseQuestionnaireToolResult } from "@/src/features/in-app-agent/fns/parseQuestionnaireToolResult";
 import {
   getInAppAgentActivityProgressLabel,
   type InAppAgentError,
@@ -299,6 +302,11 @@ type ConversationDisplayItem =
       message: InAppAgentWindowMessage;
       followsUser: boolean;
       isFinalAnswer: boolean;
+    }
+  | {
+      type: "questionnaire";
+      key: string;
+      answers: InAppAgentQuestionnaireResult["answers"];
     };
 
 type InAppAgentTextMessage = InAppAgentWindowMessage & {
@@ -366,7 +374,8 @@ function buildConversationDisplayItems(
   const items: ConversationDisplayItem[] = [];
   // A tool call awaiting approval is hoisted into its own card above the
   // composer, and the drawer speaks for a turn that has produced nothing yet,
-  // so neither belongs in the transcript.
+  // so neither belongs in the transcript. A questionnaire is split out of its
+  // tool group: it hands the turn to the user, so it ends the turn before it.
   const visibleMessages = messages.flatMap((message) => {
     if (message.content.type === "loading") {
       return [];
@@ -376,17 +385,38 @@ function buildConversationDisplayItems(
       return [message];
     }
 
-    const visibleTools = message.content.tools.filter((tool) => !tool.approval);
-    if (visibleTools.length === 0) {
-      return [];
-    }
-
-    return [
-      {
+    const splitMessages: InAppAgentWindowMessage[] = [];
+    let pendingTools: InAppAgentToolCallContent[] = [];
+    const flushPendingTools = () => {
+      if (pendingTools.length === 0) {
+        return;
+      }
+      splitMessages.push({
         ...message,
-        content: { ...message.content, tools: visibleTools },
-      } satisfies InAppAgentWindowMessage,
-    ];
+        id:
+          splitMessages.length === 0
+            ? message.id
+            : `${message.id}-tools-${splitMessages.length}`,
+        content: { type: "toolGroup", tools: pendingTools },
+      });
+      pendingTools = [];
+    };
+
+    message.content.tools.forEach((tool, toolIndex) => {
+      if (isQuestionnaireBoundaryTool(tool)) {
+        flushPendingTools();
+        splitMessages.push({
+          ...message,
+          id: `${message.id}-questionnaire-${toolIndex}`,
+          content: { type: "toolGroup", tools: [tool] },
+        });
+      } else if (!tool.approval) {
+        pendingTools.push(tool);
+      }
+    });
+    flushPendingTools();
+
+    return splitMessages;
   });
 
   for (let index = 0; index < visibleMessages.length; ) {
@@ -405,15 +435,36 @@ function buildConversationDisplayItems(
       continue;
     }
 
+    const questionnaireTool = getQuestionnaireBoundaryTool(message);
+    if (questionnaireTool) {
+      // A pending questionnaire is answered in its hoisted card, not here.
+      const questionnaireResult = parseQuestionnaireToolResult(
+        questionnaireTool.result,
+      );
+      if (questionnaireResult) {
+        items.push({
+          type: "questionnaire",
+          key: message.id,
+          answers: questionnaireResult.answers,
+        });
+      }
+      index++;
+      continue;
+    }
+
     const turnStartIndex = index;
     while (
       index < visibleMessages.length &&
-      visibleMessages[index]?.role === "assistant"
+      visibleMessages[index]?.role === "assistant" &&
+      !getQuestionnaireBoundaryTool(visibleMessages[index])
     ) {
       index++;
     }
 
     const turnMessages = visibleMessages.slice(turnStartIndex, index);
+    const endsAtQuestionnaire = Boolean(
+      getQuestionnaireBoundaryTool(visibleMessages[index]),
+    );
     const isInProgress = isRunUnsettled && index === visibleMessages.length;
     const lastReasoningIndex = turnMessages.findLastIndex(
       (turnMessage) => turnMessage.content.type === "reasoning",
@@ -463,7 +514,9 @@ function buildConversationDisplayItems(
       turnRedirectAction,
     );
     const precedingMessage = visibleMessages[turnStartIndex - 1];
-    const followsUser = precedingMessage?.role === "user";
+    const followsUser =
+      precedingMessage?.role === "user" ||
+      Boolean(getQuestionnaireBoundaryTool(precedingMessage));
 
     if (activityMessages.length > 0) {
       items.push({
@@ -487,18 +540,23 @@ function buildConversationDisplayItems(
         type: "assistant",
         message: joinedAnswer,
         followsUser: activityMessages.length === 0 && followsUser,
-        isFinalAnswer: !isInProgress,
+        isFinalAnswer: !isInProgress && !endsAtQuestionnaire,
       });
     }
   }
 
   const lastItem = items.at(-1);
-  if (isRunUnsettled && lastItem?.type === "user") {
+  if (
+    isRunUnsettled &&
+    (lastItem?.type === "user" || lastItem?.type === "questionnaire")
+  ) {
     // Same key the turn will claim once its first message lands, so the caret
     // the user may already have opened is not torn down underneath them.
     items.push({
       type: "activity",
-      key: getActivityKey(lastItem.message.id),
+      key: getActivityKey(
+        lastItem.type === "user" ? lastItem.message.id : lastItem.key,
+      ),
       messages: [],
       followsUser: true,
       isInProgress: true,
@@ -506,6 +564,29 @@ function buildConversationDisplayItems(
   }
 
   return items;
+}
+
+function isQuestionnaireBoundaryTool(tool: InAppAgentToolCallContent) {
+  return (
+    tool.name === IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME &&
+    (tool.approval !== undefined ||
+      parseQuestionnaireToolResult(tool.result) !== null)
+  );
+}
+
+function getQuestionnaireBoundaryTool(
+  message: InAppAgentWindowMessage | undefined,
+) {
+  if (message?.content.type !== "toolGroup") {
+    return undefined;
+  }
+
+  const [tool, ...otherTools] = message.content.tools;
+  if (!tool || otherTools.length > 0 || !isQuestionnaireBoundaryTool(tool)) {
+    return undefined;
+  }
+
+  return tool;
 }
 
 function getActivityKey(turnAnchorMessageId: string | undefined) {
@@ -1472,6 +1553,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                             : "worked"
                         }
                       />
+                    </li>
+                  );
+                }
+
+                if (item.type === "questionnaire") {
+                  return (
+                    <li key={item.key} className="w-full">
+                      <InAppAgentQuestionnaireSummary answers={item.answers} />
                     </li>
                   );
                 }
