@@ -204,8 +204,8 @@ jobs:
       - name: Check for unused Rust dependencies
         run: cargo machete
       # Licenses are checked in licencecheck.yml with the other license checks.
-      # Advisories are checked in ai-gateway-dependency-audit.yml: the RustSec
-      # database changes independently of this repo and must not block merges.
+      # Advisories come from Dependabot alerts, remediated by
+      # dependabot-security-maintainer, so a new advisory never blocks merges.
       - name: Check Rust dependency bans and sources
         run: cargo deny --locked check bans sources
       - name: Run Rust tests
