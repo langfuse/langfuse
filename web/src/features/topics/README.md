@@ -49,7 +49,7 @@ project permissions. Processing additionally requires the project allowlist.
   Generate topics tabs. `DialogController` owns the overlay above the page and
   the mobile actions menu. Once models are configured, Configure Topics lives
   in the overflow menu. `ManualTopicsDialog` is the presentational layout shared
-  by the app and Storybook prototype. `ManualTopicsFormContent` owns the draft
+  by the app and its isolated `ManualTopicsDialog.stories.tsx` stories. `ManualTopicsFormContent` owns the draft
   and uses the real trace selector. `useTopicPipelineForm` owns process writes;
   `useRegenerateTopics` owns active/latest facet counts and generate writes.
   Mutation errors and request IDs outlive dialog dismissal, so retrying an
