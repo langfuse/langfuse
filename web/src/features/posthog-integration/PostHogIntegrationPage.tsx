@@ -70,7 +70,7 @@ export default function PostHogIntegrationPage() {
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
-        actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
+        actionButtonsLeft: status && <StatusBadge type={status} />,
         actionButtonsRight: (
           <Button
             href="https://langfuse.com/integrations/analytics/posthog"

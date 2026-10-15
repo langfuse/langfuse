@@ -636,32 +636,30 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
 
   return (
-    <>
-      <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="mx-auto w-fit">
-            <LangfuseIcon alt="" />
-          </div>
-          <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
-            Create new account
-          </h2>
+    <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="mx-auto w-fit">
+          <LangfuseIcon alt="" />
         </div>
-        {isLangfuseCloud ? (
-          <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
-            No credit card required.
-          </div>
-        ) : null}
-
-        {isLangfuseCloud && <CloudRegionSwitch isSignUpPage />}
-
-        <div className="bg-card mt-14 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-10">
-          {children}
-        </div>
-        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
-          <CloudPrivacyNotice action="creating an account" />
-        )}
+        <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
+          Create new account
+        </h2>
       </div>
-    </>
+      {isLangfuseCloud ? (
+        <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
+          No credit card required.
+        </div>
+      ) : null}
+
+      {isLangfuseCloud && <CloudRegionSwitch isSignUpPage />}
+
+      <div className="bg-card mt-14 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-10">
+        {children}
+      </div>
+      {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
+        <CloudPrivacyNotice action="creating an account" />
+      )}
+    </div>
   );
 }
 

@@ -1,5 +1,19 @@
 /* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
+import {
+  MAX_SKILLS_PER_OBSERVATION,
+  SkillsAvailableSchema,
+  SkillsResourceLoadedSchema,
+  type SkillsAvailable,
+  type SkillsResourceLoaded,
+} from "../../features/skills/trace";
+import {
+  MAX_SKILL_CATALOG_JSON_BYTES,
+  MAX_SKILL_ERROR_JSON_BYTES,
+  MAX_SKILL_PATH_LENGTH,
+  MAX_SKILL_TOOL_ARGS_JSON_BYTES,
+  SKILL_RESOURCE_TOOL_NAMES,
+} from "../../features/skills/constants";
 
 import {
   ForbiddenError,
@@ -627,6 +641,14 @@ export class OtelIngestionProcessor {
                     span.status?.message ??
                     null,
 
+                  ...this.extractSkills(
+                    spanAttributes,
+                    observationType,
+                    this.extractName(span.name, spanAttributes),
+                    input,
+                    output,
+                    span.status?.code,
+                  ),
                   promptName: canLinkPrompt
                     ? (spanAttributes?.[
                         LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME
@@ -1352,6 +1374,14 @@ export class OtelIngestionProcessor {
       model: skipModelUsageAndCost
         ? undefined
         : this.extractModelName(attributes),
+      ...this.extractSkills(
+        attributes,
+        mappedObservationType,
+        this.extractName(span.name, attributes),
+        input,
+        output,
+        span.status?.code,
+      ),
       promptName: canLinkPrompt
         ? (attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME] ??
           attributes["langfuse.prompt.name"] ??
@@ -1895,6 +1925,7 @@ export class OtelIngestionProcessor {
       LangfuseOtelSpanAttributes.TRACE_OUTPUT,
       LangfuseOtelSpanAttributes.OBSERVATION_INPUT,
       LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT,
+      LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE,
       // Vercel AI SDK
       "ai.prompt.messages",
       "ai.prompt",
@@ -3902,6 +3933,203 @@ export class OtelIngestionProcessor {
     } catch {
       // Fallthrough
     }
+  }
+
+  private extractSkills(
+    attributes: Record<string, unknown>,
+    observationType: string,
+    toolName: string,
+    input: unknown,
+    output: unknown,
+    statusCode: number | undefined,
+  ): {
+    skillsAvailable?: SkillsAvailable;
+    skillsResourceLoaded?: SkillsResourceLoaded;
+  } {
+    const manifest =
+      attributes[LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE];
+    // Skill inference is enabled only when an availability attribute is reported.
+    if (!manifest) return {};
+    if (
+      observationType !== ObservationType.GENERATION &&
+      (observationType !== ObservationType.TOOL ||
+        !SKILL_RESOURCE_TOOL_NAMES.has(toolName) ||
+        output == null ||
+        statusCode === 2 ||
+        parseObservationLevel(
+          attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL],
+        ) === ObservationLevel.ERROR)
+    ) {
+      return {};
+    }
+
+    let parsedManifest = Array.isArray(manifest)
+      ? manifest
+      : this.parseJsonPayloadWithMaxSize(
+          manifest,
+          MAX_SKILL_CATALOG_JSON_BYTES,
+          "skillsAvailable",
+        );
+    if (
+      Array.isArray(parsedManifest) &&
+      parsedManifest.length > MAX_SKILLS_PER_OBSERVATION
+    ) {
+      logger.warn("OTEL skill catalog dropped: item limit exceeded", {
+        projectId: this.projectId,
+        count: parsedManifest.length,
+        limit: MAX_SKILLS_PER_OBSERVATION,
+      });
+      parsedManifest = undefined;
+    }
+    const available = Array.isArray(parsedManifest)
+      ? SkillsAvailableSchema.safeParse(parsedManifest)
+      : undefined;
+    if (observationType === ObservationType.GENERATION) {
+      if (available?.success) return { skillsAvailable: available.data };
+      return {};
+    }
+
+    const candidate = this.extractSkillResource(
+      toolName,
+      input,
+      output,
+      available?.success ? available.data : [],
+    );
+    if (!candidate) return {};
+    if (
+      typeof candidate.filePath === "string" &&
+      candidate.filePath.length > MAX_SKILL_PATH_LENGTH
+    ) {
+      logger.warn(
+        "OTEL skill resource load dropped: path length limit exceeded",
+        {
+          projectId: this.projectId,
+          toolName,
+          length: candidate.filePath.length,
+          limit: MAX_SKILL_PATH_LENGTH,
+        },
+      );
+      return {};
+    }
+    const loaded = SkillsResourceLoadedSchema.element.safeParse(candidate);
+    if (!loaded.success) return {};
+
+    return {
+      ...(available?.success ? { skillsAvailable: available.data } : {}),
+      skillsResourceLoaded: [
+        { skillName: loaded.data.skillName, filePath: loaded.data.filePath },
+      ],
+    };
+  }
+
+  private extractSkillResource(
+    toolName: string,
+    input: unknown,
+    output: unknown,
+    available: SkillsAvailable,
+  ) {
+    const args = this.parseJsonPayloadWithMaxSize(
+      input,
+      MAX_SKILL_TOOL_ARGS_JSON_BYTES,
+      "toolInput",
+    );
+    if (!OtelIngestionProcessor.isPlainObject(args)) return;
+    const oversizedPath = [args.path, args.file_path].find(
+      (path) =>
+        typeof path === "string" &&
+        path.length > MAX_SKILL_TOOL_ARGS_JSON_BYTES,
+    );
+    if (typeof oversizedPath === "string") {
+      logger.warn(
+        "OTEL skill resource load dropped: input path length limit exceeded",
+        {
+          projectId: this.projectId,
+          toolName,
+          length: oversizedPath.length,
+          limit: MAX_SKILL_TOOL_ARGS_JSON_BYTES,
+        },
+      );
+      return;
+    }
+
+    switch (toolName) {
+      case "skill":
+      case "Skill":
+      case "loadSkill":
+        if (this.isFailedSkillActivation(output)) return;
+        return {
+          skillName: args.name ?? args.skill,
+          filePath: "SKILL.md",
+        };
+      case "skill_read":
+        return {
+          skillName: args.skillName,
+          filePath: args.path,
+        };
+      case "readFile":
+      case "Read":
+        return this.extractSkillResourceFromPath(
+          args.path ?? args.file_path,
+          available,
+        );
+      default:
+        return;
+    }
+  }
+
+  private extractSkillResourceFromPath(
+    path: unknown,
+    available: SkillsAvailable,
+  ) {
+    if (typeof path !== "string") return;
+    const segments = path.split("/");
+    const matches = segments.filter((segment) =>
+      available.some((skill) => skill.skillName === segment),
+    );
+    if (matches.length !== 1) return;
+    const skillName = matches[0];
+    return {
+      skillName,
+      filePath: segments.slice(segments.indexOf(skillName) + 1).join("/"),
+    };
+  }
+
+  private isFailedSkillActivation(output: unknown): boolean {
+    const result = this.parseJsonPayloadWithMaxSize(
+      output,
+      MAX_SKILL_ERROR_JSON_BYTES,
+      "toolOutput",
+    );
+    const text = typeof result === "string" ? result : output;
+    return (
+      (OtelIngestionProcessor.isPlainObject(result) &&
+        (result.isError === true || result.error !== undefined)) ||
+      (typeof text === "string" &&
+        /^(?:Skill|File) ".*" not found/.test(
+          text.slice(0, MAX_SKILL_ERROR_JSON_BYTES),
+        ))
+    );
+  }
+
+  private parseJsonPayloadWithMaxSize(
+    payload: unknown,
+    maxBytes: number,
+    field: "skillsAvailable" | "toolInput" | "toolOutput",
+  ): unknown {
+    if (
+      typeof payload === "string" &&
+      (payload.length > maxBytes ||
+        Buffer.byteLength(payload, "utf8") > maxBytes)
+    ) {
+      logger.warn("OTEL skill payload parsing skipped: byte limit exceeded", {
+        projectId: this.projectId,
+        field,
+        limitBytes: maxBytes,
+        stringLength: payload.length,
+      });
+      return undefined;
+    }
+    return this.parseJsonPayload(payload);
   }
 
   /**

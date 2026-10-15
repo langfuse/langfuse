@@ -399,13 +399,14 @@ describeWithClickhouse("golden: events IO payload reads family", () => {
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 
-  it("getObservationsBatchIOFromEventsTable full+ioCharLimit+experiment+toolCalls", async () => {
+  it("getObservationsBatchIOFromEventsTable full+ioCharLimit+experiment+toolCalls+skills", async () => {
     await getObservationsBatchIOFromEventsTable({
       ...batchBase,
       truncated: false,
       ioCharLimit: 5000.7,
       includeExperimentFields: true,
       includeToolCallFields: true,
+      includeSkillFields: true,
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });

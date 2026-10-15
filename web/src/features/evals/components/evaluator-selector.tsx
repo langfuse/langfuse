@@ -240,77 +240,75 @@ export function EvaluatorSelector({
         )}
 
         {filteredTemplates.langfuse.length > 0 && (
-          <>
-            <InputCommandGroup heading="Langfuse managed evaluators">
-              {filteredTemplates.langfuse.map((template) => {
-                const isInvalid = isTemplateInvalid(template);
+          <InputCommandGroup heading="Langfuse managed evaluators">
+            {filteredTemplates.langfuse.map((template) => {
+              const isInvalid = isTemplateInvalid(template);
 
-                return (
-                  <InputCommandItem
-                    key={`langfuse-${template.id}`}
-                    disabled={isInvalid}
-                    onSelect={() => {
-                      onTemplateSelect(
-                        template.id,
-                        template.name,
-                        template.version,
-                      );
-                    }}
-                    className={cn(
-                      template.id === selectedTemplateId && "bg-secondary",
-                    )}
-                  >
+              return (
+                <InputCommandItem
+                  key={`langfuse-${template.id}`}
+                  disabled={isInvalid}
+                  onSelect={() => {
+                    onTemplateSelect(
+                      template.id,
+                      template.name,
+                      template.version,
+                    );
+                  }}
+                  className={cn(
+                    template.id === selectedTemplateId && "bg-secondary",
+                  )}
+                >
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="mr-1 flex min-w-0 items-center">
+                        <span className="truncate" title={template.name}>
+                          {template.name}
+                        </span>
+                        {template.type === EvalTemplateType.CODE &&
+                        (template.sourceCodeLanguage ===
+                          EvalTemplateSourceCodeLanguage.TYPESCRIPT ||
+                          template.sourceCodeLanguage ===
+                            EvalTemplateSourceCodeLanguage.PYTHON) ? (
+                          <CodeTemplateLanguageIcon
+                            sourceCodeLanguage={template.sourceCodeLanguage}
+                          />
+                        ) : null}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="right"
+                      className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-3rem)] overflow-y-auto"
+                    >
+                      <TemplatePreviewTooltipContent template={template} />
+                    </TooltipContent>
+                  </Tooltip>
+                  <MaintainerTooltip maintainer={getMaintainer(template)} />
+                  {isInvalid && (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="mr-1 flex min-w-0 items-center">
-                          <span className="truncate" title={template.name}>
-                            {template.name}
-                          </span>
-                          {template.type === EvalTemplateType.CODE &&
-                          (template.sourceCodeLanguage ===
-                            EvalTemplateSourceCodeLanguage.TYPESCRIPT ||
-                            template.sourceCodeLanguage ===
-                              EvalTemplateSourceCodeLanguage.PYTHON) ? (
-                            <CodeTemplateLanguageIcon
-                              sourceCodeLanguage={template.sourceCodeLanguage}
-                            />
-                          ) : null}
-                        </div>
+                        <AlertCircle className="icon-base ml-1 text-yellow-500" />
                       </TooltipTrigger>
-                      <TooltipContent
-                        side="right"
-                        className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-3rem)] overflow-y-auto"
-                      >
-                        <TemplatePreviewTooltipContent template={template} />
+                      <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
+                        <p>Requires project-level evaluation model</p>
+                        <Link
+                          href={`/project/${projectId}/evals/default-model`}
+                          className="mt-2 block text-blue-600 hover:underline"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Configure default model
+                        </Link>
                       </TooltipContent>
                     </Tooltip>
-                    <MaintainerTooltip maintainer={getMaintainer(template)} />
-                    {isInvalid && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <AlertCircle className="icon-base ml-1 text-yellow-500" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
-                          <p>Requires project-level evaluation model</p>
-                          <Link
-                            href={`/project/${projectId}/evals/default-model`}
-                            className="mt-2 block text-blue-600 hover:underline"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            Configure default model
-                          </Link>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                    {template.id === selectedTemplateId && (
-                      <CheckIcon className="icon-base ml-auto" />
-                    )}
-                  </InputCommandItem>
-                );
-              })}
-            </InputCommandGroup>
-          </>
+                  )}
+                  {template.id === selectedTemplateId && (
+                    <CheckIcon className="icon-base ml-auto" />
+                  )}
+                </InputCommandItem>
+              );
+            })}
+          </InputCommandGroup>
         )}
       </InputCommandList>
     </InputCommand>

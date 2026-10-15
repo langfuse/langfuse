@@ -100,7 +100,7 @@ export default function SlackIntegrationPage() {
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
-        actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
+        actionButtonsLeft: status && <StatusBadge type={status} />,
         actionButtonsRight: <AutomationButton projectId={projectId} />,
       }}
     >

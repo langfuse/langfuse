@@ -127,6 +127,11 @@ FROM traces;
 -- time it is ingested. A unit is billed once in a billing window of
 -- ingested_at when its id appears there and not in the 24 hours before the
 -- window starts (getBillableUnitCountsByProjectInWindow).
+-- Most reads are scoped to a project or an org, so project_id leads the key.
+-- Weekly partitions bound what a cross-project window scan reads: granules
+-- where one project ends and the next begins cannot be skipped by time.
+-- event_id is not in PRIMARY KEY because it never narrows a read and would
+-- dominate the in-memory index of a table that is never trimmed.
 CREATE TABLE IF NOT EXISTS billable_events (
     ingested_at DateTime('UTC') DEFAULT now(),
     project_id String,
@@ -135,8 +140,9 @@ CREATE TABLE IF NOT EXISTS billable_events (
     event_time DateTime64(3),
     event_bytes UInt64
 ) ENGINE = MergeTree
-PARTITION BY toYYYYMM(ingested_at)
-ORDER BY (toStartOfFifteenMinutes(ingested_at), project_id, event_type, event_id);
+PARTITION BY toMonday(ingested_at)
+PRIMARY KEY (project_id, toStartOfFifteenMinutes(ingested_at))
+ORDER BY (project_id, toStartOfFifteenMinutes(ingested_at), event_type, event_id);
 
 -- The billing MVs only take rows created in the last 48 hours, so re-inserts
 -- of historic rows that keep their created_at (v4 backfills, updates) are not

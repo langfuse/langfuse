@@ -117,9 +117,7 @@ const GetMonitorErrorPage = ({ error }: { error: APIError }) => {
 
 /** EditMonitorLoadingPage renders a loading page while the monitor is loading */
 const EditMonitorLoadingPage = ({ projectId }: { projectId: string }) => (
-  <Page withPadding headerProps={getHeaderProps(projectId)}>
-    <></>
-  </Page>
+  <Page withPadding headerProps={getHeaderProps(projectId)} />
 );
 
 /** getHeaderProps returns the page header properties for the EditMonitors page */
