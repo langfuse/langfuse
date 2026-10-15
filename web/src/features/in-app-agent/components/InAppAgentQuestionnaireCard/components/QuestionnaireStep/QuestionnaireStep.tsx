@@ -83,7 +83,7 @@ export function QuestionnaireStep({
   );
 
   return (
-    <div className="flex flex-col gap-1.5 px-3 pb-3">
+    <div className="flex flex-col gap-2 px-3 pb-3">
       {selectionMode === "single" ? (
         <RadioGroup
           value={getSingleSelectionValue(answer)}
