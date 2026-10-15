@@ -24,17 +24,30 @@ import { getTracesForBlobStorageExport } from "./traces";
 import { getObservationsForBlobStorageExport } from "./observations";
 import { getScoresForBlobStorageExport } from "./scores";
 import { getEventsForBlobStorageExport } from "./events";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
 const PROJECT = "proj-1";
 const MIN = new Date("2026-01-01T00:00:00.000Z");
 const MAX = new Date("2026-01-01T01:00:00.000Z");
 
-const capturedQuery = (): string => {
+const capturedCall = (): {
+  query: string;
+  params: Record<string, unknown>;
+} => {
   expect(mockQueryClickhouseStream).toHaveBeenCalledTimes(1);
   const call = mockQueryClickhouseStream.mock.calls[0] as unknown as [
-    { query: string },
+    { query: string; params: Record<string, unknown> },
   ];
-  return call[0].query;
+  return call[0];
+};
+
+const capturedQuery = (): string => capturedCall().query;
+
+/** The value bound right after `predicate` (e.g. `e.start_time >= `). */
+const boundValue = (predicate: string): unknown => {
+  const { query, params } = capturedCall();
+  const name = query.split(predicate + "{")[1]?.split(":")[0];
+  return name === undefined ? undefined : params[name];
 };
 
 const namedParamBounds = {
@@ -97,6 +110,17 @@ describe("blob-storage export window is half-open", () => {
       expect(query).not.toContain(bounds.inclusiveUpper);
     },
   );
+
+  it("getEventsForBlobStorageExport binds min to the lower and max to the upper bound", async () => {
+    getEventsForBlobStorageExport(PROJECT, MIN, MAX);
+
+    expect(boundValue("e.start_time >= ")).toBe(
+      convertDateToClickhouseDateTime(MIN),
+    );
+    expect(boundValue("e.start_time < ")).toBe(
+      convertDateToClickhouseDateTime(MAX),
+    );
+  });
 
   it("boundary row belongs to the next window only (traces)", async () => {
     // Window 1 [MIN, MAX) excludes a row at exactly MAX...
