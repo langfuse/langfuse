@@ -9,6 +9,7 @@ import {
   DEFAULT_EVALUATOR_BACKFILL_ITEMS,
   MAX_EVALUATOR_BACKFILL_ITEMS,
 } from "@/src/features/evals/v2/constants/evaluatorBackfill";
+import { INTERNAL_EVALUATION_ENVIRONMENT_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
@@ -16,6 +17,12 @@ type EvaluatorBackfillScope = {
   filter: FilterState;
   sampling: number;
 };
+
+// Live rules skip internal environments when scheduling; a backfill only
+// carries the rule filter, so it must exclude them explicitly.
+function getBackfillFilter(scope: EvaluatorBackfillScope): FilterState {
+  return [...scope.filter, ...INTERNAL_EVALUATION_ENVIRONMENT_FILTERS];
+}
 
 function getBackfillRange(
   window: Exclude<EvaluatorBackfillWindow, "custom">,
@@ -102,7 +109,7 @@ export function useEvaluatorSavedBackfill({
           await utils.client.evalsV2.activationCostEstimates.mutate({
             projectId,
             evaluatorIds: [evaluatorId],
-            filter: scope.filter,
+            filter: getBackfillFilter(scope),
             sampling: scope.sampling,
             shouldRunMissingTest,
             timeRange: estimateRange,
@@ -218,7 +225,7 @@ export function useEvaluatorSavedBackfill({
       projectId,
       query: {
         filter: [
-          ...scope.filter,
+          ...getBackfillFilter(scope),
           {
             column: "startTime",
             type: "datetime",

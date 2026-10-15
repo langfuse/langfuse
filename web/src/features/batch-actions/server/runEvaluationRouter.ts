@@ -10,7 +10,7 @@ import {
   logger,
   QueueJobs,
   applyCommentFilters,
-  getEvalTargetObservationsCountFromEventsTable,
+  getObservationsCountFromEventsTable,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import {
@@ -146,7 +146,7 @@ export const runEvaluationRouter = createTRPCRouter({
 
         const observationCount = commentFilterResult?.hasNoMatches
           ? 0
-          : await getEvalTargetObservationsCountFromEventsTable(countQueryOpts);
+          : await getObservationsCountFromEventsTable(countQueryOpts);
 
         if (
           rowLimit === undefined &&

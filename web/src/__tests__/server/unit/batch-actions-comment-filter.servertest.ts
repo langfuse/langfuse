@@ -13,8 +13,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     applyCommentFilters: mocks.applyCommentFilters,
     getObservationsCountFromEventsTable:
       mocks.getObservationsCountFromEventsTable,
-    getEvalTargetObservationsCountFromEventsTable:
-      mocks.getObservationsCountFromEventsTable,
     getObservationsTableCount: mocks.getObservationsTableCount,
     BatchActionQueue: {
       getInstance: vi.fn(() => ({ add: mocks.queueAdd })),

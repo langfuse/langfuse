@@ -5,9 +5,6 @@ import {
   getObservationsForTraceFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getObservationsCountFromEventsTable,
-  getEvalTargetObservationsCountFromEventsTable,
-  getEventsStreamForEval,
-  LangfuseInternalTraceEnvironment,
   getObservationsCountsFromEventsTable,
   getObservationByIdFromEventsTable,
   getAgentGraphDataFromEventsTable,
@@ -1261,67 +1258,6 @@ describe("Clickhouse Events Repository Test", () => {
 
       expect(count).toBe(5);
       expect(observations.length).toBe(5);
-    });
-  });
-
-  maybe("eval target selection", () => {
-    const createEnvironmentEvents = async () => {
-      const uniqueProjectId = randomUUID();
-      const environments = [
-        "default",
-        LangfuseInternalTraceEnvironment.PromptExperiments,
-        LangfuseInternalTraceEnvironment.LLMJudge,
-        LangfuseInternalTraceEnvironment.CodeEval,
-        "llm-as-a-judge",
-      ];
-      const events = environments.map((environment) =>
-        createEvent({
-          id: randomUUID(),
-          span_id: randomUUID(),
-          project_id: uniqueProjectId,
-          trace_id: randomUUID(),
-          environment,
-        }),
-      );
-      await createEventsCh(events);
-      return { uniqueProjectId, events };
-    };
-
-    it("counts only observations the eval executor will run on", async () => {
-      const { uniqueProjectId } = await createEnvironmentEvents();
-
-      await expect(
-        getObservationsCountFromEventsTable({
-          projectId: uniqueProjectId,
-          filter: [],
-        }),
-      ).resolves.toBe(5);
-      await expect(
-        getEvalTargetObservationsCountFromEventsTable({
-          projectId: uniqueProjectId,
-          filter: [],
-        }),
-      ).resolves.toBe(2);
-    });
-
-    it("streams only observations the eval executor will run on", async () => {
-      const { uniqueProjectId, events } = await createEnvironmentEvents();
-
-      const rows: Array<{ environment: string }> = [];
-      for await (const row of await getEventsStreamForEval({
-        projectId: uniqueProjectId,
-        filter: [],
-        rowLimit: 100,
-      })) {
-        rows.push(row);
-      }
-
-      expect(rows.map((row) => row.environment).sort()).toEqual(
-        events
-          .slice(0, 2)
-          .map((event) => event.environment)
-          .sort(),
-      );
     });
   });
 
