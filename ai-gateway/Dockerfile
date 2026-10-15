@@ -26,10 +26,10 @@ ARG TARGETARCH
 # the official rust:1.98.0-bookworm image links against Debian's glibc 2.36,
 # so binaries built there refuse to run on UBI9 (glibc 2.34). Building on UBI9
 # keeps the toolchain and the binary on the FIPS-validated platform.
-# No `dnf upgrade`: nothing from this stage but the binary reaches the runtime
-# image, whose packages are installed fresh by the rpm-installer stage.
-# Linking against the base image's glibc also keeps it at or below the
-# runtime's version.
+# No `dnf upgrade`: nothing from this stage but the binary and the license
+# notices reaches the runtime image, whose packages are installed fresh by the
+# rpm-installer stage. Linking against the base image's glibc also keeps it at
+# or below the runtime's version.
 RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip && \
     dnf clean all
 
@@ -51,6 +51,22 @@ RUN set -eux; \
     /tmp/rust-1.98.0-${triple}/install.sh --prefix=/usr/local \
     --components=rustc,cargo,rust-std-${triple}; \
     rm -rf /tmp/rust.tar.gz /tmp/rust-1.98.0-${triple}
+
+# cargo-about renders the third-party license notices shipped in the runtime
+# image. Pinned, checksum-verified static release binary (sha256 from the
+# release's `.tar.gz.sha256` assets), so the builder does not compile it.
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+    amd64) about_arch=x86_64; about_sha256=9099a59e820c38a68b9d65f300662a567d56562f9a10f6aa4c7e86c17c2566af ;; \
+    arm64) about_arch=aarch64; about_sha256=af5169282fb6f84e13471493f405437e43ac517744c9ae12fbe2cdf0a6f0e5a8 ;; \
+    *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    about_dir="cargo-about-0.9.2-${about_arch}-unknown-linux-musl"; \
+    curl -fsSL -o /tmp/cargo-about.tar.gz "https://github.com/EmbarkStudios/cargo-about/releases/download/0.9.2/${about_dir}.tar.gz"; \
+    echo "${about_sha256}  /tmp/cargo-about.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/cargo-about.tar.gz -C /tmp; \
+    install -m 0755 "/tmp/${about_dir}/cargo-about" /usr/local/bin/cargo-about; \
+    rm -rf /tmp/cargo-about.tar.gz "/tmp/${about_dir}"
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS deps
 
@@ -77,6 +93,14 @@ RUN cargo build --release --frozen && \
 COPY src ./src
 
 RUN cargo build --release --frozen
+
+# Runs in parallel with the compile. `--frozen` reads licenses only from the
+# fetched crate sources, and `generate` fails on any dependency whose license
+# about.toml does not accept.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} deps AS licenses
+
+COPY about.toml about.hbs ./
+RUN cargo about generate --frozen --fail about.hbs -o THIRD_PARTY_LICENSES.txt
 
 # Runtime rootfs assembled with dnf --installroot and layered onto ubi9-micro:
 # the final image carries no package manager, python, or curl. It holds only
@@ -110,6 +134,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} ${MICRO_BASE_IMAGE} AS runtime
 
 COPY --from=rpm-installer /mnt/rootfs /
 COPY --from=builder /app/target/release/ai-gateway /usr/local/bin/ai-gateway
+COPY --from=licenses /app/THIRD_PARTY_LICENSES.txt /usr/share/licenses/ai-gateway/THIRD_PARTY_LICENSES.txt
 ARG BUILD_ID
 ENV BUILD_ID=$BUILD_ID
 

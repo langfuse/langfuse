@@ -802,6 +802,13 @@ grace period longer than the gateway shutdown timeout. The smoke test uses an
 isolated container and an ephemeral host port, checks read-only/non-root startup,
 probes, rejection of unauthenticated inference and a clean SIGTERM exit, then removes it.
 
+The image ships the license notices of every third-party crate compiled into the
+binary at `/usr/share/licenses/ai-gateway/THIRD_PARTY_LICENSES.txt`, rendered by
+[cargo-about](https://github.com/EmbarkStudios/cargo-about) from `about.hbs`.
+`about.toml` lists the accepted licenses; the image build fails when a dependency
+uses any other license, so a new license needs an explicit entry there. To render
+the file locally: `cargo about generate --locked --fail about.hbs`.
+
 ## Tests and module boundaries
 
 ### Web resolution client
