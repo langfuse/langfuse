@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { useMemo } from "react";
+import { useMemo, type ComponentProps } from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
   type ObservationType,
@@ -17,6 +17,7 @@ import {
 } from "../../hooks/useIOPreviewParser";
 import { ChatMessageList } from "../ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
+import { SectionSkills } from "./components/SectionSkills";
 import {
   type ExpansionStateProps,
   type IOPreviewContentMode,
@@ -93,6 +94,7 @@ function JsonInputOutputView({
 }
 
 export interface IOPreviewPrettyProps extends ExpansionStateProps {
+  skills?: ComponentProps<typeof SectionSkills>["skills"];
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   status?: ObservationStatusMessage;
@@ -132,6 +134,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
  * view, use IOPreviewJSON instead.
  */
 export function IOPreviewPretty({
+  skills,
   input,
   output,
   status,
@@ -281,6 +284,10 @@ export function IOPreviewPretty({
           toolCallsByName={toolCallsByName}
           toolNameToDefinitionNumber={toolNameToDefinitionNumber}
         />
+      ) : null}
+
+      {showData && skills && skills.items.length > 0 ? (
+        <SectionSkills projectId={projectId} skills={skills} />
       ) : null}
 
       {shouldRenderMessages ? (

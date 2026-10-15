@@ -20,7 +20,7 @@
 
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { cn } from "@/src/utils/tailwind";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ComponentProps } from "react";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -69,7 +69,6 @@ import { ObservationPreview } from "./ObservationPreview";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 import { DetailAttributesTab } from "../DetailAttributesTab";
-import { DetailSkillsTab } from "../DetailSkillsTab";
 import { buildModelParameters } from "@/src/features/traces/fns/buildModelParameters";
 import { buildObservationAttributes } from "@/src/features/traces/fns/buildObservationAttributes";
 
@@ -125,7 +124,6 @@ export function ConnectedObservationDetailView({
     isAnnotationMode,
     hasObservations: observations.length > 0,
     canViewScores: true,
-    hasSkills: observation.type === "GENERATION" || observation.type === "TOOL",
   });
   const showLogViewTab = tabs.includes("log");
   const showScoresTab = tabs.includes("scores");
@@ -336,6 +334,25 @@ export function ConnectedObservationDetailView({
     return null;
   }, [observation.latency, observation.startTime, observation.endTime]);
 
+  const previewSkills: ComponentProps<
+    typeof ObservationPreview
+  >["previewProps"]["skills"] = (() => {
+    if (!internalFeaturesEnabled) return undefined;
+    if (observation.type === "GENERATION") {
+      return {
+        kind: "available",
+        items: observationWithIO?.skillsAvailable ?? [],
+      };
+    }
+    if (observation.type === "TOOL") {
+      return {
+        kind: "loaded",
+        items: observationWithIO?.skillsResourceLoaded ?? [],
+      };
+    }
+    return undefined;
+  })();
+
   return (
     <CommentDrawerController
       projectId={projectId}
@@ -486,6 +503,7 @@ export function ConnectedObservationDetailView({
                 previewProps={{
                   observationName: observation.name ?? undefined,
                   observationType: observation.type,
+                  skills: previewSkills,
                   input: observationWithIOCompat.data?.input ?? undefined,
                   output: observationWithIOCompat.data?.output ?? undefined,
                   status: observation.statusMessage
@@ -563,26 +581,6 @@ export function ConnectedObservationDetailView({
                 currentView={selectedViewTab}
               />
             </Tabs.Content>
-
-            {tabs.includes("skills") ? (
-              <Tabs.Content value="skills" layout="fill">
-                <DetailSkillsTab
-                  projectId={projectId}
-                  isLoading={isLoadingObservation}
-                  skills={
-                    observation.type === "GENERATION"
-                      ? {
-                          kind: "available",
-                          items: observationWithIO?.skillsAvailable ?? [],
-                        }
-                      : {
-                          kind: "loaded",
-                          items: observationWithIO?.skillsResourceLoaded ?? [],
-                        }
-                  }
-                />
-              </Tabs.Content>
-            ) : null}
 
             {showScoresTab ? (
               <Tabs.Content value="scores" layout="fill">

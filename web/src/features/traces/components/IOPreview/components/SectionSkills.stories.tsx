@@ -1,12 +1,11 @@
-import preview from "../../../../.storybook/preview";
-import { DetailSkillsTab } from "./DetailSkillsTab";
+import preview from "../../../../../../.storybook/preview";
+import { SectionSkills } from "./SectionSkills";
 
-const meta = preview.meta({ component: DetailSkillsTab });
+const meta = preview.meta({ component: SectionSkills });
 
 export const Available = meta.story({
   args: {
     projectId: "storybook-project",
-    isLoading: false,
     skills: {
       kind: "available",
       items: [
@@ -26,6 +25,12 @@ export const Available = meta.story({
           skillVersion: 2,
         },
         { skillName: "account-security" },
+        { skillName: "billing-support" },
+        { skillName: "return-policy" },
+        { skillName: "order-tracking" },
+        { skillName: "customer-escalation" },
+        { skillName: "tone-of-voice" },
+        { skillName: "product-guide" },
       ],
     },
   },
@@ -34,7 +39,6 @@ export const Available = meta.story({
 export const Loaded = meta.story({
   args: {
     projectId: "storybook-project",
-    isLoading: false,
     skills: {
       kind: "loaded",
       items: [
@@ -59,21 +63,5 @@ export const Loaded = meta.story({
         { skillName: "local-customer-support", filePath: "SKILL.md" },
       ],
     },
-  },
-});
-
-export const Empty = meta.story({
-  args: {
-    projectId: "storybook-project",
-    isLoading: false,
-    skills: { kind: "loaded", items: [] },
-  },
-});
-
-export const Loading = meta.story({
-  args: {
-    projectId: "storybook-project",
-    isLoading: true,
-    skills: { kind: "available", items: [] },
   },
 });
