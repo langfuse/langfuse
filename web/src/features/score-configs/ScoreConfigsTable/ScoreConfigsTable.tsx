@@ -140,7 +140,7 @@ export function ScoreConfigsTable({
         getButton: ({ row }) => ({
           text: "Edit",
           disabled: !!editAction.disabled,
-          title: editAction.disabled?.reason,
+          disabledReason: editAction.disabled?.reason,
           onClick: () => editAction.openDialog(row.original),
         }),
       }),

@@ -14,7 +14,7 @@ export function createButtonTableColumn<TData extends RowData, TValue>({
 }: TableColumnOptions<TData, TValue> & {
   getButton: (context: CellContext<TData, TValue | null | undefined>) => {
     text: string;
-    title?: string;
+    disabledReason?: string;
     onClick: () => void;
     disabled?: boolean;
     loading?: boolean;
@@ -25,9 +25,9 @@ export function createButtonTableColumn<TData extends RowData, TValue>({
     enableResizing: false,
     loadingCell: <Skeleton className="h-8 w-16" />,
     renderCell: (_, context) => {
-      const buttonProps = getButton(context);
+      const { disabledReason, ...buttonProps } = getButton(context);
       return (
-        <div>
+        <div title={buttonProps.disabled ? disabledReason : undefined}>
           <Button size="sm" {...buttonProps} />
         </div>
       );
