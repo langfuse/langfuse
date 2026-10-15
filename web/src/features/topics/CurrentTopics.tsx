@@ -1,3 +1,4 @@
+import { useSession } from "next-auth/react";
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { cn } from "@/src/utils/tailwind";
@@ -19,11 +20,14 @@ export function CurrentTopics({
   selectedFacetId,
   tracePanelRef,
   traceFilters,
+  onGenerateTopics,
+  canGenerateTopics,
 }: CurrentTopicsProps) {
-  const selectedFacet = result.data?.find(
+  const selectedFacet = result.data?.facets.find(
     (facet) => facet.facetId === selectedFacetId,
   );
-  const empty = !result.isLoading && !result.error && result.data?.length === 0;
+  const empty =
+    !result.isLoading && !result.error && result.data?.facets.length === 0;
   return (
     <section
       className={cn(
@@ -47,6 +51,8 @@ export function CurrentTopics({
           timeRange={timeRange}
           tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
+          onGenerateTopics={onGenerateTopics}
+          canGenerateTopics={canGenerateTopics}
         />
       )}
     </section>
@@ -59,7 +65,10 @@ function CurrentFacet({
   timeRange,
   tracePanelRef,
   traceFilters,
+  onGenerateTopics,
+  canGenerateTopics,
 }: CurrentFacetProps) {
+  const { data: session } = useSession();
   const mapResult = useCurrentTopicMap(projectId, facet.map?.runId, timeRange);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
@@ -93,7 +102,10 @@ function CurrentFacet({
           mapResult={mapResult}
           tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
+          onGenerateTopics={onGenerateTopics}
+          canGenerateTopics={canGenerateTopics}
           onOpenTrace={peekNavigation.openPeek}
+          canInspectTranscript={session?.user?.admin === true}
           onInspectTranscript={openDialog}
           peekView={peekView}
         />
@@ -105,11 +117,13 @@ function CurrentFacet({
 export function useCurrentTopics({
   projectId,
   running,
+  pollForSummaries = false,
   refreshAfter,
   timeRange,
 }: {
   projectId: string;
   running: boolean;
+  pollForSummaries?: boolean;
   refreshAfter: number;
   timeRange: TopicTimeRange;
 }) {
@@ -127,7 +141,12 @@ export function useCurrentTopics({
     queryFn: ({ signal }) =>
       client.topics.currentResults.query({ projectId, timeRange }, { signal }),
     placeholderData: keepPreviousData,
-    refetchInterval: running ? 3000 : false,
+    refetchInterval: (query) => {
+      if (running) return 3000;
+      return pollForSummaries && !query.state.data?.hasStoredSummaries
+        ? 10000
+        : false;
+    },
     enabled: isValidTopicTimeRange(timeRange),
     meta: { toastOperation: "topics.load" },
   });
@@ -154,6 +173,8 @@ type CurrentTopicsProps = {
   selectedFacetId: string | undefined;
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
+  onGenerateTopics: () => void;
+  canGenerateTopics: boolean;
 };
 
 type CurrentFacetProps = {
@@ -162,9 +183,11 @@ type CurrentFacetProps = {
   timeRange: TopicTimeRange;
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
+  onGenerateTopics: () => void;
+  canGenerateTopics: boolean;
 };
 
-type Facet = RouterOutputs["topics"]["currentResults"][number];
+type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
 type SummarySource = Pick<
   Facet["rows"][number],
   "traceId" | "facetVersion" | "unitStartTime"

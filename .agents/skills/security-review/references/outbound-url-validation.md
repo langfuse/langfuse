@@ -91,12 +91,15 @@ Every outbound-URL surface MUST apply **all three** of:
    new wrapper under `packages/shared/src/server/...` that delegates to
    `validateOutboundUrlHost` so blocklist behavior, DNS rebinding handling,
    and credential checks stay centralized.
-3. Define the env allowlist trio for self-hosted users who legitimately point
+3. Define the env exemption trio for self-hosted users who legitimately point
    at private network targets (mirroring
    `LANGFUSE_WEBHOOK_WHITELISTED_HOST/IPS/IP_SEGMENTS`,
    `LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST/IPS/IP_SEGMENTS`, and
-   `LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST/IPS/IP_SEGMENTS`). Do
-   not share another surface's allowlist; each surface keeps its own.
+   `LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST/IPS/IP_SEGMENTS`). Those
+   variables only exempt listed targets from the private-address block. A
+   positive host list is a separate `*_ALLOWED_HOSTS` variable: when it is
+   non-empty, every other host is rejected. Do not share another surface's
+   list; each surface keeps its own.
 4. Add the env vars to `.env*.example` and the package `env.mjs/ts`.
 5. Call the wrapper from:
    - every tRPC mutation that writes the URL,
@@ -133,19 +136,35 @@ Every outbound-URL surface MUST apply **all three** of:
 
 ## Env Allowlist Behavior
 
-- Cloud (`NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` set) forces strict mode.
-  Allowlist env vars are ignored on Cloud, and HTTPS is enforced for surfaces
-  that require it (LLM base URL, blob storage endpoint).
-- Self-hosted reads the per-surface env trio:
-  - `LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST/IPS/IP_SEGMENTS`
-  - `LANGFUSE_WEBHOOK_WHITELISTED_HOST/IPS/IP_SEGMENTS`
-  - `LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST/IPS/IP_SEGMENTS`
+- On Langfuse Cloud, LLM connections, blob storage, and external media
+  storage ignore both the exemption lists and `*_ALLOWED_HOSTS`. Webhooks and
+  SSO discovery still read theirs. HTTPS is enforced for surfaces that require
+  it (LLM base URL, blob storage endpoint).
+- Self-hosted reads the per-surface exemption trio (`*_WHITELISTED_HOST`,
+  `*_WHITELISTED_IPS`, `*_WHITELISTED_IP_SEGMENTS`) for LLM connections,
+  webhooks, blob storage, external media storage, and SSO discovery. A
+  non-empty `*_ALLOWED_HOSTS` on the same surface is a positive host list:
+  listed hosts are trusted (including private targets) and every other host
+  is rejected. Unset and empty leave the default-allow behavior in place.
+  `LANGFUSE_WEBHOOK_ALLOWED_HOSTS` applies to webhook saves and delivery
+  only.   `LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS` applies to every outbound LLM
+  request, including provider default hosts and Langfuse AI. Bedrock keeps
+  the AWS transport (VPC endpoints resolve to private IPs). When the list is
+  set, that provider checks the host the transport calls:
+  `bedrock-runtime.<region>.<partition>`, or the host of
+  `AWS_ENDPOINT_URL_BEDROCK_RUNTIME` / `AWS_ENDPOINT_URL` when set. Blob storage
+  has no positive host list. For external media S3 virtual-hosted addressing,
+  connect-time validation also trusts `{bucket}.{allowlisted endpoint host}`
+  for that bucket.
+- `LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS` adds CIDR ranges to the built-in
+  private-address block for outbound URL checks that already run. Blob
+  storage stays opt-in, so these ranges do not by themselves turn blob
+  validation on. Per-surface exemptions still win over those ranges.
 - Blob storage endpoint validation is **opt-in** today on self-hosted (the
-  helper is a no-op until the operator configures one of the allowlist env
-  vars). There is a `TODO(next major)` in
-  `blobStorageEndpointValidation.ts` to flip the default; until then, do not
-  rely on blob storage validation for new surfaces — wire your own wrapper
-  that defaults to strict.
+  helper is a no-op until the operator configures one of the exemption env
+  vars). There is a `TODO(next major)` in `blobStorageEndpointValidation.ts`
+  to flip the default; until then, do not rely on blob storage validation
+  for new surfaces — wire your own wrapper that defaults to strict.
 
 ## Negative Tests (Required)
 

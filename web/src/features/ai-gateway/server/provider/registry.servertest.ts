@@ -78,6 +78,7 @@ describe("AI gateway provider registry", () => {
           organizationId: "org-1",
           provider: "OPENAI",
           encryptedCredential: "unused",
+          allowedModels: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -135,6 +136,7 @@ describe("AI gateway provider registry", () => {
           provider: "ANTHROPIC",
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
+          allowedModels: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -183,6 +185,7 @@ describe("AI gateway provider registry", () => {
           provider: "OPENAI",
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
+          allowedModels: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -224,6 +227,7 @@ describe("AI gateway provider registry", () => {
           provider: "OPENAI",
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
+          allowedModels: null,
         }),
       },
     } as unknown as PrismaClient;

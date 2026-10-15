@@ -1,5 +1,9 @@
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
+import { ApiKeyId, OrganizationId } from "@langfuse/shared/rbac";
 
+import { env } from "@/src/env.mjs";
+import { authorize } from "@/src/features/rbac/authorize";
+import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
@@ -9,7 +13,9 @@ import {
   gatewayProviders,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
-import { resolveGatewayModelRoute } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 import {
   type CachedResolveContext,
   GATEWAY_RESOLVE_KEY_NON_EXISTENT,
@@ -32,9 +38,10 @@ type GatewayApiKeyAuthenticatorConfig = {
 export class GatewayApiKeyAuthenticator {
   private readonly repository: GatewayResolveRepository;
   private readonly cache: GatewayResolveCache;
+  private readonly modelRoutingService = new GatewayModelRoutingService();
 
   constructor(
-    prisma: PrismaClient,
+    private readonly prisma: PrismaClient,
     config: GatewayApiKeyAuthenticatorConfig = {},
   ) {
     this.repository = new GatewayResolveRepository(prisma);
@@ -47,9 +54,25 @@ export class GatewayApiKeyAuthenticator {
     model: string;
   }): Promise<GatewayApiKeyAuthContext> {
     const context = await this.authenticateKey(params);
-    const route = resolveGatewayModelRoute(params.model, context.connections);
+    const route = this.modelRoutingService.resolve(
+      params.model,
+      context.connections,
+    );
     if (!route) {
       throw new GatewayControlPlaneError("Invalid gateway model", 400);
+    }
+    if (
+      route.connection &&
+      !isGatewayModelAllowed(
+        route.connection.allowedModels,
+        route.providerModel,
+      )
+    ) {
+      throw new GatewayControlPlaneError(
+        "Model is not allowed for this provider connection",
+        403,
+        "model_not_allowed",
+      );
     }
 
     return {
@@ -131,8 +154,15 @@ export class GatewayApiKeyAuthenticator {
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
         : null,
       ingestionMode: gatewayConfig?.ingestionMode ?? null,
-      connections: organization.gatewayAiConnections,
+      connections: organization.gatewayAiConnections.map((connection) => ({
+        ...connection,
+        allowedModels: parseGatewayAllowedModels(connection.allowedModels),
+      })),
     };
+
+    if (env.API_AUTH_MIGRATION === "enforce") {
+      await assertCanInvokeGateway(this.prisma, row.apiKeyId, organizationId);
+    }
 
     await this.cache.set({
       fastHashedSecretKey: params.fastHashedSecretKey,
@@ -141,6 +171,41 @@ export class GatewayApiKeyAuthenticator {
       expiresAt: row.apiKey.expiresAt,
     });
     return context;
+  }
+}
+
+/** assertCanInvokeGateway denies the key when its stored roles do not grant gateway:invoke on the organization. */
+async function assertCanInvokeGateway(
+  prisma: PrismaClient,
+  apiKeyId: string,
+  organizationId: string,
+) {
+  const roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
+  const tenant = OrganizationId(organizationId);
+  const allowed = authorize(
+    {
+      principal: {
+        kind: "apiKey",
+        apiKeyId,
+        userId: null,
+        isInAppAgentKey: false,
+        publicKey: "",
+        scope: "ORGANIZATION",
+        presentation: "privateKey",
+        organizations: [],
+        boundResource: { orgId: organizationId },
+      },
+      policies: roles.flatMap((role) => role.policies),
+    },
+    tenant,
+    "gateway:invoke",
+    tenant,
+  ).success;
+  if (!allowed) {
+    throw new GatewayControlPlaneError(
+      "API key is not allowed to invoke the gateway",
+      403,
+    );
   }
 }
 

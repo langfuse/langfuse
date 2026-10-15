@@ -19,6 +19,7 @@ import {
   type SkillSelector,
 } from "@langfuse/shared";
 import type { Prisma, PrismaClient, SkillBlob } from "@langfuse/shared/src/db";
+import { SkillCacheService, redis } from "@langfuse/shared/src/server";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 import type { AuthorizationContext } from "@/src/features/auth/policy/types";
 import { auditLog } from "@/src/features/audit-logs/server";
@@ -123,7 +124,11 @@ function serializeVersion(skill: SkillWithRelations) {
 }
 
 export class SkillService {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly skillCacheService: SkillCacheService;
+
+  constructor(private readonly prisma: PrismaClient) {
+    this.skillCacheService = new SkillCacheService(prisma, redis);
+  }
 
   async skillVersions(params: {
     projectId: string;
@@ -250,9 +255,26 @@ export class SkillService {
     projectId: string;
     name: string;
     selector: SkillSelector;
+    includeContent?: boolean;
   }) {
     const skill = await this.findSkillVersion(params);
-    return serializeVersion(skill);
+    const version = serializeVersion(skill);
+    if (!params.includeContent) return version;
+
+    const { data } = await this.getFileContents({
+      projectId: params.projectId,
+      sha256Hashes: version.files.map((file) => file.sha256Hash),
+    });
+    const contentByHash = new Map(
+      data.map(({ sha256Hash, content }) => [sha256Hash, content]),
+    );
+    return {
+      ...version,
+      files: version.files.map((file) => ({
+        ...file,
+        content: contentByHash.get(file.sha256Hash),
+      })),
+    };
   }
 
   async loadResource(params: {
@@ -573,7 +595,7 @@ export class SkillService {
     actor: SkillActor;
   }): Promise<void> {
     const where = { projectId: params.projectId, name: params.name };
-    await this.prisma.$transaction(async (tx) => {
+    const versions = await this.prisma.$transaction(async (tx) => {
       await this.lockSkill(tx, params.projectId, params.name);
       const versions = await tx.skill.findMany({
         where,
@@ -604,6 +626,11 @@ export class SkillService {
         tx,
       );
       await tx.skill.deleteMany({ where });
+      return versions.map(({ version }) => ({ name: params.name, version }));
+    });
+    await this.skillCacheService.invalidateCache({
+      projectId: params.projectId,
+      versions,
     });
   }
 
@@ -673,6 +700,10 @@ export class SkillService {
           );
         }
       }
+    });
+    await this.skillCacheService.invalidateCache({
+      projectId: params.projectId,
+      versions: [{ name: params.name, version: params.version }],
     });
   }
 

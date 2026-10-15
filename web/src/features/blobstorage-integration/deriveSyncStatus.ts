@@ -1,4 +1,14 @@
+import type { Status } from "@/src/components/ui/StatusBadge/StatusBadge";
 import type { BlobStorageSyncStatus } from "@/src/features/blobstorage-integration/types";
+
+export const syncStatusToBadge: Record<BlobStorageSyncStatus, Status> = {
+  up_to_date: "active",
+  running: "running",
+  queued: "queued",
+  idle: "pending",
+  disabled: "disabled",
+  error: "error",
+};
 
 const MAX_RUN_AGE_MS = 2 * 60 * 60 * 1000;
 

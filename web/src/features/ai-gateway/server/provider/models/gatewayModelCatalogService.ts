@@ -75,6 +75,42 @@ export class GatewayModelCatalogService {
     );
   }
 
+  async listCachedModels(
+    organizationId: string,
+  ): Promise<ModelRefreshResult[]> {
+    const connections = await this.listAllConnections(
+      organizationId,
+      "ENABLED",
+    );
+    return Promise.all(
+      connections.map(async (connection) => {
+        const cachedModels = await this.getCachedModels(
+          organizationId,
+          connection.id,
+        );
+        return {
+          connectionId: connection.id,
+          success: true as const,
+          models:
+            cachedModels?.map(({ id }) => id) ?? connection.allowedModels ?? [],
+        };
+      }),
+    );
+  }
+
+  async listModelConnections(organizationId: string) {
+    const connections = await this.listAllConnections(
+      organizationId,
+      "ENABLED",
+    );
+    return connections.map(({ id, name, provider, allowedModels }) => ({
+      id,
+      name,
+      provider,
+      allowedModels,
+    }));
+  }
+
   async refreshModels(params: {
     organizationId: string;
     connectionId: string;
@@ -202,7 +238,7 @@ export class GatewayModelCatalogService {
       fetcher: this.fetcher,
     });
     if (!models.success) {
-      if (models.error === "unauthorized") {
+      if (models.error === "unauthorized" && connection.status === "ENABLED") {
         await this.repository.updateConnectionStatus({
           organizationId: params.organizationId,
           id: connection.id,

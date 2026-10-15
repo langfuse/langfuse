@@ -181,6 +181,46 @@ async function prepare(role: Role = Role.OWNER) {
   };
 }
 
+async function createCallerForOrganizationRole(
+  setup: Awaited<ReturnType<typeof prepare>>,
+  role: Role,
+) {
+  const suffix = randomUUID();
+  const user = await prisma.user.create({
+    data: {
+      email: `gateway-role-${suffix}@example.test`,
+      name: `Gateway ${role.toLowerCase()}`,
+    },
+  });
+  await prisma.organizationMembership.create({
+    data: { orgId: setup.org.id, userId: user.id, role },
+  });
+  cleanupUsers.push(user.id);
+
+  const session: Session = {
+    ...setup.session,
+    user: {
+      ...setup.session.user,
+      id: user.id,
+      name: user.name,
+      organizations: setup.session.user.organizations.map((organization) =>
+        organization.id === setup.org.id
+          ? {
+              ...organization,
+              role,
+              projects: organization.projects.map((project) => ({
+                ...project,
+                role,
+              })),
+            }
+          : organization,
+      ),
+    },
+  };
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+  return appRouter.createCaller({ ...ctx, prisma });
+}
+
 describe("AI gateway control plane", () => {
   it.each([
     {
@@ -244,6 +284,178 @@ describe("AI gateway control plane", () => {
     ).rejects.toThrow("active project in the organization");
   });
 
+  it.each([Role.MEMBER, Role.VIEWER])(
+    "allows %s to read models without granting gateway management",
+    async (role) => {
+      const { caller, org } = await prepare(role);
+
+      await expect(
+        caller.aiGateway.listModelConnections({ orgId: org.id }),
+      ).resolves.toEqual([]);
+      await expect(
+        caller.aiGateway.refreshModels({ orgId: org.id }),
+      ).resolves.toEqual([]);
+      await expect(
+        caller.aiGateway.listConnections({ orgId: org.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(
+        caller.aiGateway.getConfig({ orgId: org.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    },
+  );
+
+  it.each([
+    { adminRole: Role.OWNER, readRole: Role.MEMBER },
+    { adminRole: Role.ADMIN, readRole: Role.VIEWER },
+  ])(
+    "returns the full model catalog to $adminRole and filters disabled models for $readRole",
+    async ({ adminRole, readRole }) => {
+      const setup = await prepare(adminRole);
+      const connection = await setup.caller.aiGateway.createConnection({
+        orgId: setup.org.id,
+        name: "OpenAI",
+        provider: "OPENAI",
+        credential: "sk-test-openai",
+      });
+      await setup.caller.aiGateway.updateConnectionModels({
+        orgId: setup.org.id,
+        id: connection.id,
+        allowedModels: ["enabled-model"],
+        expectedUpdatedAt: connection.updatedAt,
+      });
+      const readCaller = await createCallerForOrganizationRole(setup, readRole);
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        Response.json({
+          data: [
+            { id: "disabled-model", created: 10 },
+            { id: "enabled-model", created: 20 },
+          ],
+        }),
+      );
+
+      try {
+        await expect(
+          setup.caller.aiGateway.refreshModels({ orgId: setup.org.id }),
+        ).resolves.toEqual([
+          {
+            connectionId: connection.id,
+            success: true,
+            models: ["disabled-model", "enabled-model"],
+          },
+        ]);
+        await new GatewayModelCatalogService(prisma).clearModelCache(
+          setup.org.id,
+          connection.id,
+        );
+        fetchSpy.mockClear();
+        await expect(
+          readCaller.aiGateway.refreshModels({ orgId: setup.org.id }),
+        ).resolves.toEqual([
+          {
+            connectionId: connection.id,
+            success: true,
+            models: ["enabled-model"],
+          },
+        ]);
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    },
+  );
+
+  it("blocks an auto-granted demo organization VIEWER from gateway catalog metadata", async () => {
+    const setup = await prepare();
+    const connection = await setup.caller.aiGateway.createConnection({
+      orgId: setup.org.id,
+      name: "Shared OpenAI",
+      provider: "OPENAI",
+      credential: "sk-shared-openai",
+    });
+    await setup.caller.aiGateway.updateConnectionModels({
+      orgId: setup.org.id,
+      id: connection.id,
+      allowedModels: ["enabled-model"],
+      expectedUpdatedAt: connection.updatedAt,
+    });
+    const viewerCaller = await createCallerForOrganizationRole(
+      setup,
+      Role.VIEWER,
+    );
+    const originalDemoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID;
+    Object.assign(env, { NEXT_PUBLIC_DEMO_ORG_ID: setup.org.id });
+
+    try {
+      await expect(
+        setup.caller.aiGateway.listModelConnections({
+          orgId: setup.org.id,
+        }),
+      ).resolves.toEqual([
+        {
+          id: connection.id,
+          name: "Shared OpenAI",
+          provider: "OPENAI",
+          allowedModels: ["enabled-model"],
+        },
+      ]);
+      await expect(
+        viewerCaller.aiGateway.listModelConnections({ orgId: setup.org.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    } finally {
+      Object.assign(env, {
+        NEXT_PUBLIC_DEMO_ORG_ID: originalDemoOrgId,
+      });
+    }
+  });
+
+  it("blocks an auto-granted demo organization VIEWER from model refresh side effects", async () => {
+    const setup = await prepare();
+    const connection = await setup.caller.aiGateway.createConnection({
+      orgId: setup.org.id,
+      name: "Shared OpenAI",
+      provider: "OPENAI",
+      credential: "sk-shared-openai",
+    });
+    const viewerCaller = await createCallerForOrganizationRole(
+      setup,
+      Role.VIEWER,
+    );
+    const originalDemoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID;
+    Object.assign(env, { NEXT_PUBLIC_DEMO_ORG_ID: setup.org.id });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 401 }));
+
+    try {
+      const refreshOutcome = await viewerCaller.aiGateway
+        .refreshModels({ orgId: setup.org.id })
+        .then(
+          () => "fulfilled" as const,
+          () => "rejected" as const,
+        );
+      const storedConnection =
+        await prisma.gatewayAiConnection.findUniqueOrThrow({
+          where: { id: connection.id },
+          select: { status: true },
+        });
+
+      expect({
+        refreshOutcome,
+        providerCalls: fetchSpy.mock.calls.length,
+        connectionStatus: storedConnection.status,
+      }).toEqual({
+        refreshOutcome: "rejected",
+        providerCalls: 0,
+        connectionStatus: "ENABLED",
+      });
+    } finally {
+      fetchSpy.mockRestore();
+      Object.assign(env, {
+        NEXT_PUBLIC_DEMO_ORG_ID: originalDemoOrgId,
+      });
+    }
+  });
+
   it("stores provider credentials encrypted and never returns them", async () => {
     const { caller, org } = await prepare();
     const credential = "sk-test-gateway-redaction";
@@ -269,6 +481,16 @@ describe("AI gateway control plane", () => {
     const listed = await caller.aiGateway.listConnections({ orgId: org.id });
     expect(listed.data[0]).not.toHaveProperty("encryptedCredential");
     expect(JSON.stringify(listed)).not.toContain(credential);
+    await expect(
+      caller.aiGateway.listModelConnections({ orgId: org.id }),
+    ).resolves.toEqual([
+      {
+        id: created.id,
+        name: "OpenAI primary",
+        provider: "OPENAI",
+        allowedModels: null,
+      },
+    ]);
 
     const stored = await prisma.gatewayAiConnection.findUniqueOrThrow({
       where: { id: created.id },
@@ -682,6 +904,145 @@ describe("AI gateway control plane", () => {
     ).rejects.toMatchObject({ status: 404 });
   });
 
+  it("persists connection model allowlists and enforces them for resolve and models", async () => {
+    configureGatewayJwtSigning();
+    const { caller, org, project } = await prepare();
+    await caller.aiGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      ingestionMode: "FULL",
+    });
+    const connection = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test-openai",
+    });
+    const gatewayKey = await caller.aiGateway.createApiKey({
+      orgId: org.id,
+      metadata: {},
+    });
+    const fastHashedSecretKey = createShaHash(gatewayKey.secretKey, env.SALT);
+
+    await expect(
+      authenticateRequest({
+        fastHashedSecretKey,
+        apiFormat: "openai.responses",
+        model: "OpenAI:gpt-4o",
+      }),
+    ).resolves.toMatchObject({
+      connection: { id: connection.id, provider_model: "gpt-4o" },
+    });
+
+    await caller.aiGateway.updateConnectionModels({
+      orgId: org.id,
+      id: connection.id,
+      allowedModels: ["gpt-4o-mini"],
+      expectedUpdatedAt: connection.updatedAt,
+    });
+
+    await expect(
+      authenticateRequest({
+        fastHashedSecretKey,
+        apiFormat: "openai.responses",
+        model: "OpenAI:gpt-4o",
+      }),
+    ).rejects.toMatchObject({
+      status: 403,
+      code: "model_not_allowed",
+    });
+    await expect(
+      authenticateRequest({
+        fastHashedSecretKey,
+        apiFormat: "openai.responses",
+        model: "gpt-4o",
+      }),
+    ).rejects.toMatchObject({
+      status: 403,
+      code: "model_not_allowed",
+    });
+    await expect(
+      authenticateRequest({
+        fastHashedSecretKey,
+        apiFormat: "openai.responses",
+        model: "OpenAI:gpt-4o-mini",
+      }),
+    ).resolves.toMatchObject({
+      connection: { id: connection.id, provider_model: "gpt-4o-mini" },
+    });
+
+    const context = await new GatewayApiKeyAuthenticator(
+      prisma,
+    ).authenticateModelsRequest({
+      fastHashedSecretKey,
+      apiFormat: "openai.responses",
+    });
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        data: [
+          { id: "gpt-4o", created: 10 },
+          { id: "gpt-4o-mini", created: 20 },
+        ],
+      }),
+    );
+    await expect(
+      new GatewayModelsService(prisma, fetcher, null).list({
+        context,
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toMatchObject({
+      data: [{ id: "OpenAI:gpt-4o-mini" }],
+    });
+
+    const listed = await caller.aiGateway.listConnections({ orgId: org.id });
+    expect(listed.data[0]?.allowedModels).toEqual(["gpt-4o-mini"]);
+    await caller.aiGateway.updateConnectionModels({
+      orgId: org.id,
+      id: connection.id,
+      allowedModels: null,
+      expectedUpdatedAt: listed.data[0]!.updatedAt,
+    });
+    const allowAll = await caller.aiGateway.getConnection({
+      orgId: org.id,
+      id: connection.id,
+    });
+    expect(allowAll.allowedModels).toBeNull();
+  });
+
+  it("rejects stale concurrent model allowlist updates", async () => {
+    const { caller, org } = await prepare();
+    const connection = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test-openai",
+    });
+
+    await caller.aiGateway.updateConnectionModels({
+      orgId: org.id,
+      id: connection.id,
+      allowedModels: ["gpt-4o"],
+      expectedUpdatedAt: connection.updatedAt,
+    });
+    await expect(
+      caller.aiGateway.updateConnectionModels({
+        orgId: org.id,
+        id: connection.id,
+        allowedModels: ["gpt-4o-mini"],
+        expectedUpdatedAt: connection.updatedAt,
+      }),
+    ).rejects.toThrow(
+      "Model access changed while this page was open. Reload and try again.",
+    );
+
+    await expect(
+      caller.aiGateway.getConnection({
+        orgId: org.id,
+        id: connection.id,
+      }),
+    ).resolves.toMatchObject({ allowedModels: ["gpt-4o"] });
+  });
+
   it("requires connection names to be unique within an organization", async () => {
     const { caller, org } = await prepare();
     await expect(
@@ -820,7 +1181,40 @@ describe("AI gateway control plane", () => {
     ).toBe(1);
   });
 
-  it("keeps routing priorities contiguous through reorders and deletes", async () => {
+  it("keeps disabled connections disabled after model discovery auth failures", async () => {
+    const { caller, org } = await prepare();
+    const connection = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "Anthropic",
+      provider: "ANTHROPIC",
+      credential: "sk-ant-test",
+    });
+    await caller.aiGateway.updateConnection({
+      orgId: org.id,
+      id: connection.id,
+      status: "DISABLED",
+    });
+    const unauthorizedFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 401 }));
+
+    await new GatewayModelCatalogService(
+      prisma,
+      unauthorizedFetch,
+    ).refreshModels({
+      organizationId: org.id,
+      connectionId: connection.id,
+    });
+
+    await expect(
+      prisma.gatewayAiConnection.findUnique({
+        where: { id: connection.id },
+        select: { status: true },
+      }),
+    ).resolves.toEqual({ status: "DISABLED" });
+  });
+
+  it("orders connections by creation time", async () => {
     const { caller, org } = await prepare();
     const created = [];
     for (const name of ["first", "second", "third"]) {
@@ -833,71 +1227,34 @@ describe("AI gateway control plane", () => {
         }),
       );
     }
-    const priorities = async () =>
+    await Promise.all([
+      prisma.gatewayAiConnection.update({
+        where: { id: created[0].id },
+        data: { createdAt: new Date("2026-10-03T00:00:00.000Z") },
+      }),
+      prisma.gatewayAiConnection.update({
+        where: { id: created[1].id },
+        data: { createdAt: new Date("2026-10-01T00:00:00.000Z") },
+      }),
+      prisma.gatewayAiConnection.update({
+        where: { id: created[2].id },
+        data: { createdAt: new Date("2026-10-02T00:00:00.000Z") },
+      }),
+    ]);
+
+    const listNames = async () =>
       (
-        await prisma.gatewayAiConnection.findMany({
-          where: { organizationId: org.id },
-          select: { name: true, routingPriority: true },
-          orderBy: { routingPriority: "asc" },
+        await caller.aiGateway.listConnections({
+          orgId: org.id,
         })
-      ).map(({ name, routingPriority }) => [name, routingPriority]);
+      ).data.map(({ name }) => name);
+    await expect(listNames()).resolves.toEqual(["second", "third", "first"]);
 
-    expect(await priorities()).toEqual([
-      ["first", 0],
-      ["second", 1],
-      ["third", 2],
-    ]);
-
-    // Reversing every row would violate the unique (organization_id,
-    // routing_priority) index if the writes were applied in place.
-    await caller.aiGateway.reorderConnections({
-      orgId: org.id,
-      connectionIds: [...created].reverse().map(({ id }) => id),
-    });
-    expect(await priorities()).toEqual([
-      ["third", 0],
-      ["second", 1],
-      ["first", 2],
-    ]);
-
-    // Two reorders racing on one organization must serialize rather than
-    // deadlock on rows locked in opposite orders.
-    await expect(
-      Promise.all([
-        caller.aiGateway.reorderConnections({
-          orgId: org.id,
-          connectionIds: created.map(({ id }) => id),
-        }),
-        caller.aiGateway.reorderConnections({
-          orgId: org.id,
-          connectionIds: [...created].reverse().map(({ id }) => id),
-        }),
-      ]),
-    ).resolves.toHaveLength(2);
-    expect((await priorities()).map(([, priority]) => priority)).toEqual([
-      0, 1, 2,
-    ]);
-
-    // Deleting from the middle must close the gap it leaves behind.
     await caller.aiGateway.deleteConnection({
       orgId: org.id,
       id: created[1].id,
     });
-    expect((await priorities()).map(([, priority]) => priority)).toEqual([
-      0, 1,
-    ]);
-
-    await expect(
-      caller.aiGateway.reorderConnections({
-        orgId: org.id,
-        connectionIds: [created[0].id],
-      }),
-    ).rejects.toThrow(
-      "Reorder must contain every organization gateway connection exactly once",
-    );
-    expect((await priorities()).map(([, priority]) => priority)).toEqual([
-      0, 1,
-    ]);
+    await expect(listNames()).resolves.toEqual(["third", "first"]);
   });
 
   it("serves repeat resolves from cache and drops it when a connection changes", async () => {
@@ -987,6 +1344,54 @@ describe("AI gateway control plane", () => {
     // query generator against the primary.
     expect(lookup).toHaveBeenCalledOnce();
     lookup.mockRestore();
+  });
+
+  it("enforces gateway:invoke when API key role enforcement is on", async () => {
+    const originalMigration = env.API_AUTH_MIGRATION;
+    const originalCache = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED;
+    Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "false" });
+    try {
+      const { caller, org } = await prepare();
+      const gatewayKey = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        metadata: {},
+      });
+      const authenticator = new GatewayApiKeyAuthenticator(prisma);
+      const request = {
+        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+        apiFormat: "openai.responses" as const,
+      };
+
+      Object.assign(env, { API_AUTH_MIGRATION: "enforce" });
+      await expect(
+        authenticator.authenticateModelsRequest(request),
+      ).resolves.toMatchObject({
+        organizationId: org.id,
+      });
+
+      await prisma.roleAssignment.updateMany({
+        where: { apiKeyId: gatewayKey.id },
+        data: { systemRole: "INGEST", roleId: "system/INGEST" },
+      });
+      await expect(
+        authenticator.authenticateModelsRequest(request),
+      ).rejects.toMatchObject({
+        status: 403,
+        message: "API key is not allowed to invoke the gateway",
+      });
+
+      Object.assign(env, { API_AUTH_MIGRATION: "legacy" });
+      await expect(
+        authenticator.authenticateModelsRequest(request),
+      ).resolves.toMatchObject({
+        organizationId: org.id,
+      });
+    } finally {
+      Object.assign(env, {
+        API_AUTH_MIGRATION: originalMigration,
+        LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: originalCache,
+      });
+    }
   });
 
   it("blocks deletion of the default ingestion project", async () => {
@@ -1204,12 +1609,14 @@ describe("AI gateway control plane", () => {
     });
     const fetcher = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response(null, { status: 500 }))
-      .mockResolvedValue(
-        Response.json({
-          data: [{ id: "available-model", created: 10 }],
-        }),
-      );
+      .mockImplementation(async (_, init) => {
+        const authorization = new Headers(init?.headers).get("authorization");
+        return authorization === "Bearer sk-openai"
+          ? new Response(null, { status: 500 })
+          : Response.json({
+              data: [{ id: "available-model", created: 10 }],
+            });
+      });
 
     const context = await new GatewayApiKeyAuthenticator(
       prisma,

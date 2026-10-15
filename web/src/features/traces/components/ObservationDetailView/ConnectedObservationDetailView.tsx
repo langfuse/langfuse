@@ -69,6 +69,7 @@ import { ObservationPreview } from "./ObservationPreview";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 import { DetailAttributesTab } from "../DetailAttributesTab";
+import { DetailSkillsTab } from "../DetailSkillsTab";
 import { buildModelParameters } from "@/src/features/traces/fns/buildModelParameters";
 import { buildObservationAttributes } from "@/src/features/traces/fns/buildObservationAttributes";
 
@@ -124,6 +125,7 @@ export function ConnectedObservationDetailView({
     isAnnotationMode,
     hasObservations: observations.length > 0,
     canViewScores: true,
+    hasSkills: observation.type === "GENERATION" || observation.type === "TOOL",
   });
   const showLogViewTab = tabs.includes("log");
   const showScoresTab = tabs.includes("scores");
@@ -483,6 +485,7 @@ export function ConnectedObservationDetailView({
                 onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
                 previewProps={{
                   observationName: observation.name ?? undefined,
+                  observationType: observation.type,
                   input: observationWithIOCompat.data?.input ?? undefined,
                   output: observationWithIOCompat.data?.output ?? undefined,
                   status: observation.statusMessage
@@ -560,6 +563,26 @@ export function ConnectedObservationDetailView({
                 currentView={selectedViewTab}
               />
             </Tabs.Content>
+
+            {tabs.includes("skills") ? (
+              <Tabs.Content value="skills" layout="fill">
+                <DetailSkillsTab
+                  projectId={projectId}
+                  isLoading={isLoadingObservation}
+                  skills={
+                    observation.type === "GENERATION"
+                      ? {
+                          kind: "available",
+                          items: observationWithIO?.skillsAvailable ?? [],
+                        }
+                      : {
+                          kind: "loaded",
+                          items: observationWithIO?.skillsResourceLoaded ?? [],
+                        }
+                  }
+                />
+              </Tabs.Content>
+            ) : null}
 
             {showScoresTab ? (
               <Tabs.Content value="scores" layout="fill">

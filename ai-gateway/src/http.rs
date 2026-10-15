@@ -462,6 +462,7 @@ impl InferenceHttpError {
                     R::InvalidCredential | R::Authentication => "authentication",
                     R::InvalidRequest => "invalid_request",
                     R::Forbidden => "forbidden",
+                    R::ModelNotAllowed => "model_not_allowed",
                     R::NoRoute => "no_route",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
@@ -503,6 +504,12 @@ impl InferenceHttpError {
                 "Gateway access forbidden",
                 "permission_error",
                 "permission_denied",
+            ),
+            Self::Resolution(R::ModelNotAllowed) => (
+                StatusCode::FORBIDDEN,
+                "Model is not allowed for this provider connection",
+                "permission_error",
+                "model_not_allowed",
             ),
             Self::Resolution(R::NoRoute) => (
                 StatusCode::NOT_FOUND,

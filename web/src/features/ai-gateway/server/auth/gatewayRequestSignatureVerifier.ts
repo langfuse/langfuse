@@ -8,20 +8,21 @@ import { env } from "@/src/env.mjs";
 import { verifyHmacSha256 } from "@/src/server/utils/hmac";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import { resolveGatewayModelRoute } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
 import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
+import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 
 const RESOLVE_METHOD = "POST";
 const MODELS_METHOD = "GET";
 const SIGNATURE_DOMAIN = "gateway-web-v1";
 const SIGNATURE_MAX_AGE_SECONDS = 5 * 60;
+const modelRoutingService = new GatewayModelRoutingService();
 const resolveBodySchema = z
   .object({
     apiFormat: GatewayApiFormatSchema,
     model: z
       .string()
-      .refine((model) => resolveGatewayModelRoute(model, []) !== null),
+      .refine((model) => modelRoutingService.resolve(model, []) !== null),
   })
   .strict();
 const modelsQuerySchema = z

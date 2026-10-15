@@ -187,6 +187,7 @@ export const SessionObservationIO = ({
       output={observation.output ?? undefined}
       metadata={observation.metadata ?? undefined}
       observationName={observation.name ?? undefined}
+      observationType={observation.type}
       hideIfNull
       media={observationMedia.data}
       projectId={projectId}

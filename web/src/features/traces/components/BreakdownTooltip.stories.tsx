@@ -1,4 +1,4 @@
-import { expect, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { BreakdownTooltip } from "./BreakdownTooltip";
@@ -54,6 +54,14 @@ const nearDecimalCostDetails = {
   total: 0.058342999997,
 };
 
+const promptCacheUsage = {
+  cache_read_input_tokens: 208_706,
+  cache_creation_input_tokens: 41_313,
+  input: 952,
+  output: 2_254,
+  total: 253_225,
+};
+
 const priceSource = {
   projectId: "project-1",
   modelId: "gpt-5.6/priority",
@@ -70,6 +78,13 @@ export const Usage = meta.story({
   args: {
     details: usageDetails,
     children: <span>185 tokens</span>,
+  },
+});
+
+export const WithCacheHitRate = meta.story({
+  args: {
+    details: promptCacheUsage,
+    children: <span>253,225 tokens</span>,
   },
 });
 
@@ -148,7 +163,7 @@ async function openBreakdownTooltip(
     : null;
   if (!tooltip) throw new Error("Tooltip content was not rendered");
 
-  return { trigger, content: within(tooltip) };
+  return { trigger, content: within(tooltip), tooltip };
 }
 
 export const TestLinksMatchedPricingTier = meta.story({
@@ -170,7 +185,7 @@ export const TestLinksMatchedPricingTier = meta.story({
       "href",
       "/project/project-1/settings/models/gpt-5.6%2Fpriority?pricingTier=tier-priority",
     );
-    await expect(link).toHaveClass("text-xs", "italic");
+    await expect(link).toHaveClass("text-xs");
   },
 });
 
@@ -194,7 +209,7 @@ export const TestProvidedAtIngestionLabel = meta.story({
 });
 
 export const TestCostFormattingAndTruncation = meta.story({
-  name: "(Test) Aligns cost precision and hides zero costs",
+  name: "(Test) Flags sub-cent costs, keeps exact values in titles",
   args: {
     details: floatingPointCostDetails,
     children: <span>$0.0001775</span>,
@@ -203,11 +218,12 @@ export const TestCostFormattingAndTruncation = meta.story({
   play: async ({ canvasElement }) => {
     const { content } = await openBreakdownTooltip(canvasElement, "$0.0001775");
 
-    await expect(content.getAllByText("$0.0000275")).toHaveLength(2);
-    await expect(content.getAllByText("$0.0001500")).toHaveLength(2);
-    await expect(content.getByText("$0.0001775")).toBeInTheDocument();
+    await expect(content.getAllByText("<$0.01")).toHaveLength(5);
+    await expect(content.getAllByTitle("$0.0000275")).toHaveLength(2);
+    await expect(content.getAllByTitle("$0.0001500")).toHaveLength(2);
+    await expect(content.getByTitle("$0.0001775")).toBeInTheDocument();
     await expect(
-      content.queryByText("$0.000177499999"),
+      content.queryByTitle("$0.000177499999"),
     ).not.toBeInTheDocument();
     await expect(content.getByText("—")).toBeInTheDocument();
 
@@ -227,13 +243,238 @@ export const TestNearDecimalCostFormatting = meta.story({
   play: async ({ canvasElement }) => {
     const { content } = await openBreakdownTooltip(canvasElement, "$0.058343");
 
-    await expect(content.getAllByText("$0.039065")).toHaveLength(1);
-    await expect(content.getAllByText("$0.003488")).toHaveLength(1);
-    await expect(content.getAllByText("$0.015790")).toHaveLength(2);
-    await expect(content.getByText("$0.042553")).toBeInTheDocument();
-    await expect(content.getByText("$0.058343")).toBeInTheDocument();
+    await expect(content.getAllByText("$0.04")).toHaveLength(2);
+    await expect(content.getByText("<$0.01")).toBeInTheDocument();
+    await expect(content.getAllByText("$0.02")).toHaveLength(2);
+    await expect(content.getByText("$0.06")).toBeInTheDocument();
+    await expect(content.getByTitle("$0.039065")).toBeInTheDocument();
+    await expect(content.getByTitle("$0.003488")).toBeInTheDocument();
+    await expect(content.getAllByTitle("$0.015790")).toHaveLength(2);
+    await expect(content.getByTitle("$0.042553")).toBeInTheDocument();
+    await expect(content.getByTitle("$0.058343")).toBeInTheDocument();
     await expect(
-      content.queryByText("$0.058342999997"),
+      content.queryByTitle("$0.058342999997"),
     ).not.toBeInTheDocument();
+  },
+});
+
+export const TestShareOfTotal = meta.story({
+  name: "(Test) Shows each row's share of the total",
+  args: {
+    details: cacheCostDetails,
+    children: <span>$0.03782809</span>,
+    isCost: true,
+  },
+  play: async ({ canvasElement }) => {
+    const { content } = await openBreakdownTooltip(
+      canvasElement,
+      "$0.03782809",
+    );
+
+    await expect(content.getByText("70%")).toBeInTheDocument();
+    await expect(content.getByText("83%")).toBeInTheDocument();
+    await expect(content.getAllByText("17%")).toHaveLength(2);
+    // Other section: subtotal and its only row.
+    await expect(content.getAllByText("<1%")).toHaveLength(2);
+    await expect(content.getByText("$0.04")).toBeInTheDocument();
+  },
+});
+
+export const TestCacheHitRate = meta.story({
+  name: "(Test) Shows cache hit rate after input usage details",
+  args: {
+    details: promptCacheUsage,
+    children: <span>253,225 tokens</span>,
+  },
+  play: async ({ canvasElement }) => {
+    const { trigger, content, tooltip } = await openBreakdownTooltip(
+      canvasElement,
+      "253,225 tokens",
+    );
+    const text = tooltip.textContent ?? "";
+
+    await expect(content.getByText("83.2%")).toBeInTheDocument();
+    await expect(text.indexOf("Input usage")).toBeLessThan(
+      text.indexOf("Cache hit rate"),
+    );
+    await expect(text.lastIndexOf("input")).toBeLessThan(
+      text.indexOf("Cache hit rate"),
+    );
+    await expect(text.indexOf("Cache hit rate")).toBeLessThan(
+      text.indexOf("Output usage"),
+    );
+
+    const help = content.getByRole("button", {
+      name: "How cache hit rate is calculated",
+    });
+    await userEvent.hover(help);
+    await expect(
+      await within(canvasElement.ownerDocument.body).findByText(
+        "Cache-read tokens divided by total input tokens.",
+      ),
+    ).toBeInTheDocument();
+    await expect(content.getByText("Cache hit rate")).toBeInTheDocument();
+
+    await userEvent.unhover(help);
+    await waitFor(() =>
+      expect(
+        within(canvasElement.ownerDocument.body).queryByText(
+          "Cache-read tokens divided by total input tokens.",
+        ),
+      ).not.toBeInTheDocument(),
+    );
+    trigger.focus();
+    await userEvent.tab();
+    await expect(
+      canvasElement.ownerDocument.activeElement,
+    ).toHaveAccessibleName("How cache hit rate is calculated");
+    await expect(canvasElement.ownerDocument.activeElement?.tagName).toBe(
+      "BUTTON",
+    );
+    await expect(
+      await within(canvasElement.ownerDocument.body).findByText(
+        "Cache-read tokens divided by total input tokens.",
+      ),
+    ).toBeInTheDocument();
+    await expect(content.getByText("Cache hit rate")).toBeInTheDocument();
+  },
+});
+
+export const TestZeroCacheHitRate = meta.story({
+  name: "(Test) Shows zero cache hit rate when no tokens were read",
+  args: {
+    details: {
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 40,
+      input: 60,
+      output: 10,
+      total: 110,
+    },
+    children: <span>110 tokens</span>,
+  },
+  play: async ({ canvasElement }) => {
+    const { content } = await openBreakdownTooltip(canvasElement, "110 tokens");
+    await expect(content.getByText("Cache hit rate")).toBeInTheDocument();
+    await expect(content.getByText("0.0%")).toBeInTheDocument();
+  },
+});
+
+export const TestCacheReadAliases = meta.story({
+  name: "(Test) Distinguishes cache-read aliases from separate counts",
+  render: () => (
+    <div className="flex flex-col gap-2">
+      <BreakdownTooltip
+        details={{ input: 0, input_cached_tokens: 900, input_cache_read: 900 }}
+      >
+        <span>Bedrock usage with duplicate cache reads</span>
+      </BreakdownTooltip>
+      <BreakdownTooltip
+        details={{
+          input: 100,
+          input_cached_tokens: 100,
+          input_cached_text_tokens: 60,
+          input_cached_audio_tokens: 40,
+        }}
+      >
+        <span>Cached total with text and audio breakdown</span>
+      </BreakdownTooltip>
+      <BreakdownTooltip
+        details={[
+          { input: 50, input_cached_tokens: 50 },
+          { input: 50, input_cache_read: 50 },
+        ]}
+      >
+        <span>Different read keys across generations</span>
+      </BreakdownTooltip>
+      <BreakdownTooltip
+        details={{
+          input: 100,
+          input_cached_text_tokens: 30,
+          input_cached_audio_tokens: 70,
+        }}
+      >
+        <span>Cached text and audio</span>
+      </BreakdownTooltip>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const ambiguous = await openBreakdownTooltip(
+      canvasElement,
+      "Bedrock usage with duplicate cache reads",
+    );
+    await expect(
+      ambiguous.content.queryByText("Cache hit rate"),
+    ).not.toBeInTheDocument();
+
+    const totalAndBreakdown = await openBreakdownTooltip(
+      canvasElement,
+      "Cached total with text and audio breakdown",
+    );
+    await expect(
+      totalAndBreakdown.content.queryByText("Cache hit rate"),
+    ).not.toBeInTheDocument();
+
+    const aggregated = await openBreakdownTooltip(
+      canvasElement,
+      "Different read keys across generations",
+    );
+    await expect(aggregated.content.getByText("50.0%")).toBeInTheDocument();
+
+    const modalities = await openBreakdownTooltip(
+      canvasElement,
+      "Cached text and audio",
+    );
+    await expect(modalities.content.getByText("50.0%")).toBeInTheDocument();
+  },
+});
+
+const hiddenCacheUsage = [
+  ["no cache tokens", { input: 100, output: 20, total: 120 }],
+  ["zero input", { cache_read_input_tokens: 0, input: 0, output: 1, total: 1 }],
+  [
+    "cache tokens without input",
+    { input_cached_tokens: 100, output: 20, total: 120 },
+  ],
+  [
+    "inclusive input and cache tokens",
+    { input: 100, cache_read_input_tokens: 80, output: 50, total: 150 },
+  ],
+  [
+    "unnormalized cached content",
+    { input: 100, cached_content_token_count: 80, output: 10, total: 190 },
+  ],
+  [
+    "unnormalized cache writes",
+    { input: 90, cache_write_tokens: 10, output: 5, total: 105 },
+  ],
+] as const;
+
+export const TestHiddenCacheHitRate = meta.story({
+  name: "(Test) Hides cache hit rate for incomplete or inconsistent usage",
+  render: () => (
+    <div className="flex flex-col gap-2">
+      {hiddenCacheUsage.map(([label, details]) => (
+        <BreakdownTooltip key={label} details={details}>
+          <span>{label}</span>
+        </BreakdownTooltip>
+      ))}
+      <BreakdownTooltip details={promptCacheUsage} isCost>
+        <span>cost breakdown</span>
+      </BreakdownTooltip>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    for (const [label] of hiddenCacheUsage) {
+      const { content } = await openBreakdownTooltip(canvasElement, label);
+      await expect(
+        content.queryByText("Cache hit rate"),
+      ).not.toBeInTheDocument();
+    }
+
+    const { content } = await openBreakdownTooltip(
+      canvasElement,
+      "cost breakdown",
+    );
+    await expect(content.queryByText("Cache hit rate")).not.toBeInTheDocument();
   },
 });

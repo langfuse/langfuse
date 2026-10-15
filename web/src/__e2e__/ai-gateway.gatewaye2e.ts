@@ -173,14 +173,13 @@ describe("AI gateway live end-to-end", () => {
 
     const connections = await prisma.gatewayAiConnection.findMany({
       where: { organizationId: ORGANIZATION_ID },
-      orderBy: { routingPriority: "asc" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: {
         id: true,
         provider: true,
         status: true,
         encryptedCredential: true,
         displaySecret: true,
-        routingPriority: true,
         updatedAt: true,
       },
     });
@@ -194,11 +193,6 @@ describe("AI gateway live end-to-end", () => {
       }),
     );
 
-    let nextRoutingPriority =
-      Math.max(
-        -1,
-        ...connections.map(({ routingPriority }) => routingPriority),
-      ) + 1;
     for (const provider of ENABLED_PROVIDERS) {
       const credential = PROVIDER_CREDENTIALS[provider];
       const existingConnection = connections.find(
@@ -224,11 +218,9 @@ describe("AI gateway live end-to-end", () => {
             provider,
             encryptedCredential: encrypt(credential),
             displaySecret: getDisplaySecretKey(credential),
-            routingPriority: nextRoutingPriority,
             status: GatewayConnectionStatus.ENABLED,
           },
         });
-        nextRoutingPriority += 1;
         createdConnectionIds.add(connection.id);
         connectionIdsByProvider.set(provider, connection.id);
         continue;

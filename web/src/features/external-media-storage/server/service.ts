@@ -77,7 +77,12 @@ function createStorageService(integration: ExternalMediaStorageRecord) {
     awsSseKmsKeyId: undefined,
     externalEndpoint: undefined,
     connectionValidation:
-      externalMediaStorageEndpointConnectionValidationOptions(),
+      externalMediaStorageEndpointConnectionValidationOptions({
+        endpoint: integration.endpoint,
+        bucketName: integration.bucketName,
+        forcePathStyle: integration.forcePathStyle,
+        region: integration.region,
+      }),
   });
 }
 

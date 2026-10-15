@@ -3,7 +3,9 @@ import { logger, redis as defaultRedis } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
-import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
+import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
@@ -74,14 +76,18 @@ export class GatewayModelsService {
 
     return {
       data: successfulResults
-        .flatMap(({ connection, catalog }) =>
-          catalog.success
-            ? catalog.models.map((model) => ({
-                ...model,
-                id: formatGatewayModelSlug(connection.name, model.id),
-              }))
-            : [],
-        )
+        .flatMap(({ connection, catalog }) => {
+          if (!catalog.success) return [];
+          const allowedModels = toGatewayAllowedModelsSet(
+            connection.allowedModels,
+          );
+          return catalog.models
+            .filter((model) => isGatewayModelAllowed(allowedModels, model.id))
+            .map((model) => ({
+              ...model,
+              id: formatGatewayModelSlug(connection.name, model.id),
+            }));
+        })
         .sort(compareModels),
     };
   }

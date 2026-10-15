@@ -54,6 +54,52 @@ impl Encode for Decimal64 {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct SkillReference {
+    pub(crate) langfuse_skill_id: Option<String>,
+    pub(crate) skill_version: Option<u32>,
+    pub(crate) skill_name: String,
+}
+
+impl Encode for SkillReference {
+    fn produces() -> DataTypeNode {
+        <(Option<String>, Option<u32>, String)>::produces()
+    }
+
+    fn encode(&self, writer: &mut ValueWriter<'_>) -> Result<(), EncodeError> {
+        (
+            &self.langfuse_skill_id,
+            &self.skill_version,
+            &self.skill_name,
+        )
+            .encode(writer)
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct SkillResourceLoaded {
+    pub(crate) langfuse_skill_id: Option<String>,
+    pub(crate) skill_version: Option<u32>,
+    pub(crate) skill_name: String,
+    pub(crate) file_path: String,
+}
+
+impl Encode for SkillResourceLoaded {
+    fn produces() -> DataTypeNode {
+        <(Option<String>, Option<u32>, String, String)>::produces()
+    }
+
+    fn encode(&self, writer: &mut ValueWriter<'_>) -> Result<(), EncodeError> {
+        (
+            &self.langfuse_skill_id,
+            &self.skill_version,
+            &self.skill_name,
+            &self.file_path,
+        )
+            .encode(writer)
+    }
+}
+
 /// An owned ClickHouse Native-format block and its row count.
 ///
 /// Ownership is part of the transport contract: the later JS transport can retry this complete
