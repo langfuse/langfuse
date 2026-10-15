@@ -59,10 +59,7 @@ function requireGatewayAdmin(params: { session: Session; orgId: string }) {
   });
 }
 
-function requireGatewayRead(params: {
-  session: Session;
-  orgId: string;
-}): boolean {
+function requireGatewayRead(params: { session: Session; orgId: string }) {
   requireGatewayEnabledForOrganization(params.orgId);
   const canManageGateway = hasOrganizationAccess({
     session: params.session,
@@ -93,7 +90,6 @@ function requireGatewayRead(params: {
     organizationId: params.orgId,
     scope: "gateway:read",
   });
-  return canManageGateway;
 }
 
 export const aiGatewayRouter = createTRPCRouter({
@@ -251,9 +247,14 @@ export const aiGatewayRouter = createTRPCRouter({
   refreshModels: protectedOrganizationProcedure
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
-      const canManageGateway = requireGatewayRead({
+      requireGatewayRead({
         session: ctx.session,
         orgId: input.orgId,
+      });
+      const canManageGateway = hasOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "gateway:manage",
       });
       const catalogService = new GatewayModelCatalogService(ctx.prisma);
       const results = canManageGateway
