@@ -26,6 +26,11 @@ vi.mock("../otel/OtelIngestionProcessor", () => ({
   },
 }));
 
+// Request-shape tests use the real SDK and replace the separately tested secure transport.
+vi.mock("../llm/secureLlmFetch", () => ({
+  createSecureLlmFetch: () => globalThis.fetch,
+}));
+
 const trace: TraceSinkParams = {
   targetProjectId: "ai-features-project",
   traceId: "0af7651916cd43dd8448eb211c80319c",
@@ -272,68 +277,99 @@ describe("generateTopicText", () => {
     });
   });
 
-  it("reports automatic cache usage and keeps inference successful when tracing fails", async () => {
-    publishToOtelIngestionQueue.mockRejectedValueOnce(new Error("queue down"));
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        Response.json({
-          id: "chatcmpl-1",
-          object: "chat.completion",
-          created: 1,
-          model: "gpt-6-luna",
-          choices: [
-            {
-              index: 0,
-              finish_reason: "stop",
-              message: {
-                role: "assistant",
-                content: JSON.stringify({ summary: "Account access" }),
+  it.each([
+    [undefined, "gpt-6-luna", "none", true],
+    ["https://eu.api.openai.com/v1", "gpt-5-mini", "minimal", true],
+    ["https://EU.API.OPENAI.COM./v1", "gpt-5.6-terra", "none", true],
+    ["https://eu.api.openai.com/v1", "gpt-4o", undefined, false],
+    [
+      "https://eu.api.openai.com.example.com/v1",
+      "gpt-6-luna",
+      undefined,
+      false,
+    ],
+  ] as const)(
+    "generates and traces Topics on %s / %s",
+    async (baseURL, model, reasoning, completionTokens) => {
+      publishToOtelIngestionQueue.mockRejectedValueOnce(
+        new Error("queue down"),
+      );
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json({
+            id: "chatcmpl-1",
+            object: "chat.completion",
+            created: 1,
+            model,
+            choices: [
+              {
+                index: 0,
+                finish_reason: "stop",
+                message: {
+                  role: "assistant",
+                  content: JSON.stringify({ summary: "Account access" }),
+                },
               },
+            ],
+            usage: {
+              prompt_tokens: 3000,
+              completion_tokens: 200,
+              total_tokens: 3200,
+              prompt_tokens_details: { cached_tokens: 2560 },
             },
-          ],
-          usage: {
-            prompt_tokens: 3000,
-            completion_tokens: 200,
-            total_tokens: 3200,
-            prompt_tokens_details: { cached_tokens: 2560 },
+          }),
+        ),
+      );
+
+      const result = await generateTopicText({
+        model: {
+          slot: "summary",
+          provider: "openai-topics",
+          adapter: LLMAdapter.OpenAI,
+          model,
+          connection: {
+            secretKey: encrypt("sk-test"),
+            baseURL,
+            config: { useResponsesApi: false },
           },
+        },
+        system: [{ text: "System prompt and facets.", cache: true }],
+        input: "I cannot sign in.",
+        schema: z.object({ summary: z.string() }),
+        maxOutputTokens: 256,
+        trace,
+      });
+
+      const request = new Request(...vi.mocked(globalThis.fetch).mock.calls[0]);
+      expect(request.url).toBe(
+        `${new URL(baseURL ?? "https://api.openai.com/v1")}/chat/completions`,
+      );
+      const body = (await request.json()) as Record<string, unknown>;
+      expect(body.max_completion_tokens).toBe(
+        completionTokens ? 256 : undefined,
+      );
+      expect(body.max_tokens).toBe(completionTokens ? undefined : 256);
+      expect(body.reasoning_effort).toBe(reasoning);
+      expect(body.response_format).toMatchObject({ type: "json_schema" });
+      expect(tracedGeneration()).toMatchObject({
+        "langfuse.observation.output": JSON.stringify({
+          summary: "Account access",
         }),
-      ),
-    );
-
-    const result = await generateTopicText({
-      model: {
-        slot: "summary",
-        provider: "openai-topics",
-        adapter: LLMAdapter.OpenAI,
-        model: "gpt-6-luna",
-        connection: { secretKey: encrypt("sk-test") },
-      },
-      system: [{ text: "System prompt and facets.", cache: true }],
-      input: "I cannot sign in.",
-      schema: z.object({ summary: z.string() }),
-      maxOutputTokens: 256,
-      trace,
-    });
-
-    expect(tracedGeneration()).toMatchObject({
-      "langfuse.observation.output": JSON.stringify({
-        summary: "Account access",
-      }),
-      "langfuse.observation.model.name": "gpt-6-luna",
-      "langfuse.observation.usage_details": JSON.stringify({
-        input: 440,
-        output: 200,
-        total: 3200,
-        input_cached_tokens: 2560,
-      }),
-    });
-    expect(result.usage).toMatchObject({
-      inputTokens: 3000,
-      cacheReadTokens: 2560,
-    });
-  });
+        "langfuse.observation.model.name": model,
+        "langfuse.observation.usage_details": JSON.stringify({
+          input: 440,
+          output: 200,
+          total: 3200,
+          input_cached_tokens: 2560,
+        }),
+      });
+      expect(result.usage).toMatchObject({
+        inputTokens: 3000,
+        cacheReadTokens: 2560,
+      });
+    },
+  );
   it("retains SDK usage when no output is generated", async () => {
     vi.stubGlobal(
       "fetch",

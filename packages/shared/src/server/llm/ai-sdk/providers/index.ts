@@ -42,6 +42,7 @@ export async function buildAiSdkModel(params: {
   projectId?: string;
   model: { adapter: LLMAdapter; id: string };
   modelConfig: AiSdkModelConfig;
+  openAIChatProvider?: "native";
   apiKey: string;
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
@@ -68,6 +69,7 @@ export async function buildAiSdkModel(params: {
         baseURL,
         extraHeaders,
         apiMode: modelConfig.openAIApiMode ?? "chat-completions",
+        chatProvider: params.openAIChatProvider,
         fetch: createFetch("OpenAI LLM base URL"),
       });
 

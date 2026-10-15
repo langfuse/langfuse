@@ -15,6 +15,7 @@ export function buildOpenAIModel(params: {
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
   apiMode: OpenAIApiMode;
+  chatProvider?: "native";
   fetch: typeof fetch;
 }): LanguageModel {
   const { apiKey, baseURL, extraHeaders, apiMode, modelId } = params;
@@ -26,6 +27,7 @@ export function buildOpenAIModel(params: {
 
   if (
     apiMode === "chat-completions" &&
+    params.chatProvider !== "native" &&
     isOpenAICompatibleEndpoint(processedBaseURL)
   ) {
     const provider = createOpenAICompatible({
@@ -85,6 +87,7 @@ export function buildOpenAIEmbeddingModel(params: {
   }).embedding(modelId);
 }
 
+/** Preserves custom-URL routing and raw provider options for saved connections. */
 export function isOpenAICompatibleEndpoint(
   baseURL: string | null | undefined,
 ): baseURL is string {
@@ -96,10 +99,7 @@ export function isOpenAICompatibleEndpoint(
       return false;
     }
 
-    const hostname = url.hostname.replace(/\.$/, "");
-    return (
-      hostname !== "api.openai.com" && !hostname.endsWith(".api.openai.com")
-    );
+    return url.hostname !== "api.openai.com";
   } catch {
     return false;
   }
@@ -143,7 +143,6 @@ const OPENAI_PROVIDER_OPTION_KEY_MAP: Record<string, string> = {
   verbosity: "textVerbosity",
   store: "store",
   user: "user",
-  metadata: "metadata",
   // camelCase (already AI SDK-shaped)
   reasoningEffort: "reasoningEffort",
   serviceTier: "serviceTier",

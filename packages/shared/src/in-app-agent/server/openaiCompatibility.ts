@@ -22,8 +22,8 @@ const CHAT_COMPLETIONS_CALL = {
 
 /**
  * Instance-AI equivalent of a project LLM connection's `useResponsesApi`
- * toggle. Unset uses Responses for first-party OpenAI (including regional hosts
- * and blank URLs); other hosts use Chat Completions until the operator opts in.
+ * toggle. Unset follows first-party OpenAI (`api.openai.com` / blank URL);
+ * any other host stays on Chat Completions until the operator opts in.
  */
 export function resolveLangfuseAIOpenAICall(params: {
   baseURL?: string | null;
