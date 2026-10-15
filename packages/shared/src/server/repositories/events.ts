@@ -677,16 +677,18 @@ export const getObservationMetricsForPromptsFromEvents = async (
       "e.prompt_version as prompt_version",
       eb.fn.min("e.start_time").as("first_observation"),
       eb.fn.max("e.start_time").as("last_observation"),
-      medianExact(sumMapValuesWhereKeyContains("e.usage_details", "input")).as(
-        "median_input_usage",
+      medianExact(
+        sumMapValuesWhereKeyContains(eb.ref("e.usage_details"), "input"),
+      ).as("median_input_usage"),
+      medianExact(
+        sumMapValuesWhereKeyContains(eb.ref("e.usage_details"), "output"),
+      ).as("median_output_usage"),
+      medianExact(mapValue(eb.ref("e.cost_details"), "total")).as(
+        "median_total_cost",
       ),
-      medianExact(sumMapValuesWhereKeyContains("e.usage_details", "output")).as(
-        "median_output_usage",
-      ),
-      medianExact(mapValue("e.cost_details", "total")).as("median_total_cost"),
-      medianExact(dateDiff("millisecond", "e.start_time", "e.end_time")).as(
-        "median_latency_ms",
-      ),
+      medianExact(
+        dateDiff("millisecond", eb.ref("e.start_time"), eb.ref("e.end_time")),
+      ).as("median_latency_ms"),
     ])
     .where("e.is_deleted", "=", 0)
     .groupBy(["e.prompt_id", "e.prompt_version"])
@@ -732,7 +734,7 @@ export const getObservationsWithPromptNameFromEvents = async (
 ) => {
   const builder = getClickhouseKysely()
     .selectFrom("events_core")
-    .select([uniq("span_id").as("count"), "prompt_name"])
+    .select((eb) => [uniq(eb.ref("span_id")).as("count"), "prompt_name"])
     .where("prompt_name", "in", promptNames)
     .where("prompt_name", "!=", "")
     .$if(fromTimestamp != null, (qb) =>

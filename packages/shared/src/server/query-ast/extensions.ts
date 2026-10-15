@@ -153,12 +153,6 @@ function columnRef(name: string): OperationNode {
     : ColumnNode.create(name);
 }
 
-function columnOrExpression(
-  value: string | OperationNodeSource,
-): OperationNode {
-  return typeof value === "string" ? columnRef(value) : toNode(value);
-}
-
 function arrayFunction<T>(fn: string, column: string): Expression<T[]> {
   return new ExpressionWrapper<
     ClickHouseDatabase,
@@ -178,10 +172,8 @@ export function mapValues<V = string>(column: string): Expression<V[]> {
 }
 
 /** ClickHouse `uniq(value)`, an approximate distinct count. */
-export function uniq(
-  value: string | Expression<unknown>,
-): ChExpression<string> {
-  return aggregate("uniq", [columnOrExpression(value)]);
+export function uniq(value: Expression<unknown>): ChExpression<string> {
+  return aggregate("uniq", [value]);
 }
 
 /** ClickHouse `count()`. Kysely's `eb.fn.countAll()` renders `count(*)`. */
@@ -208,11 +200,11 @@ export function medianExact(
 
 type DateDiffUnit = "millisecond" | "second" | "minute" | "hour" | "day";
 
-/** ClickHouse `dateDiff(unit, start, end)`; `start`/`end` are columns or expressions. */
+/** ClickHouse `dateDiff(unit, start, end)`. */
 export function dateDiff(
   unit: DateDiffUnit,
-  start: string | Expression<unknown>,
-  end: string | Expression<unknown>,
+  start: Expression<unknown>,
+  end: Expression<unknown>,
 ): ChExpression<number> {
   return new ExpressionWrapper<
     ClickHouseDatabase,
@@ -223,20 +215,20 @@ export function dateDiff(
     // than bound. `DateDiffUnit` keeps it to known keywords.
     FunctionNode.create("dateDiff", [
       ValueNode.createImmediate(unit),
-      columnOrExpression(start),
-      columnOrExpression(end),
+      start.toOperationNode(),
+      end.toOperationNode(),
     ]) as unknown as OperationNode,
   );
 }
 
-/** `map[key]` subscript with a bound key, on a map column or expression. */
+/** `map[key]` subscript with a bound key. */
 export function mapValue<V = number>(
-  map: string | Expression<Record<string, V>>,
+  map: Expression<Record<string, V>>,
   key: string,
 ): ChExpression<V> {
   return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
     ArrayIndexNode.create(
-      typeof map === "string" ? columnRef(map) : map.toOperationNode(),
+      map.toOperationNode(),
       ValueNode.create(key),
     ) as unknown as OperationNode,
   );
@@ -248,7 +240,7 @@ export function mapValue<V = number>(
  * The lambda is built as a `->` binary operation; Kysely has no lambda node.
  */
 export function sumMapValuesWhereKeyContains(
-  map: string | Expression<Record<string, unknown>>,
+  map: Expression<Record<string, unknown>>,
   needle: string,
 ): ChExpression<number> {
   const keyMatches = BinaryOperationNode.create(
@@ -271,7 +263,7 @@ export function sumMapValuesWhereKeyContains(
   >(
     FunctionNode.create("arraySum", [
       FunctionNode.create("mapValues", [
-        FunctionNode.create("mapFilter", [lambda, columnOrExpression(map)]),
+        FunctionNode.create("mapFilter", [lambda, map.toOperationNode()]),
       ]),
     ]) as unknown as OperationNode,
   );
