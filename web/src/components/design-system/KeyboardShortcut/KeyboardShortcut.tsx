@@ -1,7 +1,6 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { useIsMac } from "@/src/hooks/useIsMac";
-import { cn } from "@/src/utils/tailwind";
 
 type LetterKey =
   | "A"
@@ -141,14 +140,14 @@ export function KeyboardShortcut({
       {keys.map((key, index) => {
         const label = getKeyboardKeyLabel(key, isMac);
         // Modifier and arrow glyphs draw small and high in the mono face; one step up, letters nudged up to meet them.
-        // ↵ is the exception: it hangs below the baseline, so it is lifted to center with ⌘.
         const isSymbol = /^[^\p{L}\p{N}]$/u.test(label);
-        const symbolClass = cn(
-          symbolSizeClass[size ?? "default"],
-          label === "↵" && "translate-y-[-0.15em]",
-        );
         return (
-          <span key={index} className={isSymbol ? symbolClass : letterClass}>
+          <span
+            key={index}
+            className={
+              isSymbol ? symbolSizeClass[size ?? "default"] : letterClass
+            }
+          >
             {label}
           </span>
         );

@@ -3,10 +3,6 @@ import { ExternalLink, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { type MouseEventHandler, type Ref } from "react";
 
-import {
-  KeyboardShortcut,
-  type KeyboardShortcutProps,
-} from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { cn } from "@/src/utils/tailwind";
 
@@ -63,7 +59,6 @@ type ButtonProps = {
       disabled?: never;
       loading?: never;
       icon?: LucideIcon;
-      shortcutKeys?: never;
       form?: never;
       onClick?: never;
       type?: never;
@@ -75,8 +70,6 @@ type ButtonProps = {
       form?: string;
       icon?: LucideIcon;
       loading?: boolean;
-      /** Hint for a shortcut the caller handles; the button does not bind it. */
-      shortcutKeys?: KeyboardShortcutProps["keys"];
       onClick?: MouseEventHandler<HTMLButtonElement>;
       type?: "button" | "submit";
     }
@@ -132,15 +125,6 @@ export function Button(props: ButtonProps) {
   }
 
   const Icon = props.icon;
-  const shortcutVariant =
-    (props.variant ?? "primary") === "primary" ? "inverse" : "default";
-  const shortcutHint = props.shortcutKeys ? (
-    <KeyboardShortcut
-      keys={props.shortcutKeys}
-      size="sm"
-      variant={shortcutVariant}
-    />
-  ) : null;
 
   return (
     <button
@@ -161,7 +145,6 @@ export function Button(props: ButtonProps) {
         <>
           {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
           {props.text}
-          {shortcutHint}
         </>
       )}
     </button>

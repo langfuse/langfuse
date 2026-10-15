@@ -165,7 +165,6 @@ function QuestionnaireForm({
       <Button
         text={nextLabel}
         size="sm"
-        shortcutKeys={["Mod", "Enter"]}
         disabled={isDisabled}
         loading={isSubmitting || form.formState.isSubmitting}
         onClick={goToNextStep}

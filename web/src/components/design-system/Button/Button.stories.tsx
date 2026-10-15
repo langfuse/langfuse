@@ -90,14 +90,6 @@ export const Ghost = meta.story({
   },
 });
 
-export const WithShortcut = meta.story({
-  args: {
-    onClick: fn(),
-    text: "Next",
-    shortcutKeys: ["Mod", "Enter"],
-  },
-});
-
 export const Loading = meta.story({
   name: "(Test) Loading",
   args: {
