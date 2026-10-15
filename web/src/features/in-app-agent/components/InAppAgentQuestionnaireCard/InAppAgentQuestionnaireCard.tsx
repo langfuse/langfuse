@@ -8,12 +8,11 @@ import {
   type SyntheticEvent,
 } from "react";
 import { useForm, useWatch } from "react-hook-form";
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import type {
   InAppAgentQuestionnaireAnswers,
   InAppAgentQuestionnaireQuestion,
 } from "@langfuse/shared/in-app-agent";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
@@ -89,7 +88,6 @@ function QuestionnaireForm({
 }: QuestionnaireFormProps) {
   const titleId = useId();
   const [stepIndex, setStepIndex] = useState(0);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
   const form = useForm({
     defaultValues: createQuestionnaireFormValues(questions),
@@ -134,17 +132,17 @@ function QuestionnaireForm({
     goToNextStep();
   };
 
-  const handleBack = () => {
+  const handlePreviousStep = () => {
     setStepIndex(Math.max(stepIndex - 1, 0));
+  };
+
+  const handleNextStep = () => {
+    setStepIndex(Math.min(stepIndex + 1, stepCount - 1));
   };
 
   const handleSkip = () => {
     form.resetField(`answers.${stepIndex}`);
     goToNextStep();
-  };
-
-  const handleToggleCollapsed = () => {
-    setIsCollapsed(!isCollapsed);
   };
 
   const handleDismiss = () => {
@@ -161,17 +159,6 @@ function QuestionnaireForm({
   };
 
   const nextLabel = isLastStep ? "Submit" : "Next";
-  const backButton =
-    stepIndex > 0 ? (
-      <Button
-        text="Back"
-        variant="ghost"
-        size="sm"
-        disabled={isBusy}
-        onClick={handleBack}
-      />
-    ) : null;
-
   // A typed answer brings its own submit button next to the input.
   const nextButton =
     otherText.trim().length > 0 ? null : (
@@ -193,23 +180,30 @@ function QuestionnaireForm({
       onKeyDown={handleKeyDown}
     >
       <div className="flex items-start gap-2 px-3 py-2.5">
-        {stepCount > 1 ? (
-          <Badge
-            text={`${stepIndex + 1}/${stepCount}`}
-            size="sm"
-            color="filled"
-          />
-        ) : null}
         <h3 id={titleId} className="min-w-0 flex-1 text-sm leading-5 font-bold">
           {question.question}
         </h3>
-        <IconButton
-          icon={isCollapsed ? ChevronDown : ChevronUp}
-          label={isCollapsed ? "Expand questions" : "Collapse questions"}
-          size="sm"
-          aria-expanded={!isCollapsed}
-          onClick={handleToggleCollapsed}
-        />
+        {stepCount > 1 ? (
+          <div className="flex shrink-0 items-center">
+            <IconButton
+              icon={ChevronLeft}
+              label="Previous question"
+              size="sm"
+              disabled={isBusy || stepIndex === 0}
+              onClick={handlePreviousStep}
+            />
+            <span className="text-muted-foreground px-0.5 text-xs whitespace-nowrap tabular-nums">
+              {stepIndex + 1} of {stepCount}
+            </span>
+            <IconButton
+              icon={ChevronRight}
+              label="Next question"
+              size="sm"
+              disabled={isBusy || isLastStep}
+              onClick={handleNextStep}
+            />
+          </div>
+        ) : null}
         <IconButton
           icon={X}
           label="Dismiss questions"
@@ -218,26 +212,18 @@ function QuestionnaireForm({
           onClick={handleDismiss}
         />
       </div>
-      {isCollapsed ? null : (
-        <>
-          <QuestionnaireStep
-            key={stepIndex}
-            control={form.control}
-            question={question}
-            questionIndex={stepIndex}
-            submitLabel={nextLabel}
-            isDisabled={isBusy}
-            onSkip={handleSkip}
-          />
-          {backButton || nextButton ? (
-            <div className="flex items-center gap-2 px-3 pb-3">
-              {backButton}
-              <span className="flex-1" />
-              {nextButton}
-            </div>
-          ) : null}
-        </>
-      )}
+      <QuestionnaireStep
+        key={stepIndex}
+        control={form.control}
+        question={question}
+        questionIndex={stepIndex}
+        submitLabel={nextLabel}
+        isDisabled={isBusy}
+        onSkip={handleSkip}
+      />
+      {nextButton ? (
+        <div className="flex justify-end px-3 pb-3">{nextButton}</div>
+      ) : null}
     </form>
   );
 }

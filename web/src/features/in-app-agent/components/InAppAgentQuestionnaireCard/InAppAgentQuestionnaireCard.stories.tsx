@@ -109,10 +109,10 @@ export const MalformedArguments = meta.story({
 });
 
 export const AnswerAllSteps = meta.story({
-  name: "(Test) Answers every step and submits once",
+  name: "(Test) Answers every step, jumps back, and submits once",
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("1/3")).toBeVisible();
+    await expect(canvas.getByText("1 of 3")).toBeVisible();
 
     await userEvent.click(canvas.getByText("Staging"));
     await userEvent.click(canvas.getByLabelText("Something else"));
@@ -122,12 +122,24 @@ export const AnswerAllSteps = meta.story({
     ).not.toBeInTheDocument();
     await userEvent.click(canvas.getByRole("button", { name: "Next" }));
 
-    await expect(canvas.getByText("2/3")).toBeVisible();
+    await expect(canvas.getByText("2 of 3")).toBeVisible();
     await userEvent.click(canvas.getByText("High latency"));
     await userEvent.click(canvas.getByText("Tool errors"));
-    await userEvent.click(canvas.getByRole("button", { name: /Next/ }));
 
-    await expect(canvas.getByText("3/3")).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Previous question" }),
+    );
+    await expect(canvas.getByText("1 of 3")).toBeVisible();
+    await expect(canvas.getByLabelText("Something else")).toHaveValue(
+      "Preview environment",
+    );
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Next question" }),
+    );
+    await expect(canvas.getByText("2 of 3")).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Next" }));
+
+    await expect(canvas.getByText("3 of 3")).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Skip" }));
 
     await expect(args.onAnswerQuestionnaire).toHaveBeenCalledTimes(1);
@@ -149,7 +161,7 @@ export const SingleQuestionShortcut = meta.story({
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.queryByText("1/1")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("1 of 1")).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByText("Staging"));
     await userEvent.keyboard("{Meta>}{Enter}{/Meta}");
