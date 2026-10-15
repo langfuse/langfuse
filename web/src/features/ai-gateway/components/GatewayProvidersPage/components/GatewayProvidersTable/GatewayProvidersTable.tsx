@@ -1,7 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
-import { Pencil, RefreshCw, Route, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { ListTree, Pencil, RefreshCw, Route, Trash2 } from "lucide-react";
 import { SiAnthropic, SiOpenai } from "react-icons/si";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
@@ -16,8 +15,8 @@ import type {
 
 export type GatewayProvidersTableProps = {
   connections: GatewayConnection[];
-  modelCounts: Record<string, number | "loading">;
-  getModelsUrl: (connection: GatewayConnection) => string;
+  modelCounts: Record<string, { enabled: number; total: number } | "loading">;
+  onSelect: (connection: GatewayConnection) => void;
   onRetry: (connection: GatewayConnection) => void;
   onEdit: (connection: GatewayConnection) => void;
   onDelete: (connection: GatewayConnection) => void;
@@ -35,7 +34,7 @@ const connectionStatus = {
 export function GatewayProvidersTable({
   connections,
   modelCounts,
-  getModelsUrl,
+  onSelect,
   onRetry,
   onEdit,
   onDelete,
@@ -74,15 +73,10 @@ export function GatewayProvidersTable({
         id: "models",
         header: "Models",
         size: 180,
-        cell: ({ row }) => (
-          <ModelCount
-            value={modelCounts[row.original.id]}
-            href={getModelsUrl(row.original)}
-          />
-        ),
+        cell: ({ row }) => <ModelCount value={modelCounts[row.original.id]} />,
       },
     ],
-    [getModelsUrl, modelCounts],
+    [modelCounts],
   );
 
   return (
@@ -90,6 +84,13 @@ export function GatewayProvidersTable({
       tableName="gateway-provider-credentials"
       columns={columns}
       actions={(connection) => [
+        {
+          id: "models",
+          type: "item",
+          title: "Show models",
+          icon: ListTree,
+          onClick: () => onSelect(connection),
+        },
         {
           id: "retry",
           type: "item",
@@ -117,6 +118,7 @@ export function GatewayProvidersTable({
         },
       ]}
       data={{ status: "success", data: connections }}
+      onRowClick={onSelect}
       noResultsMessage="No provider credentials configured."
     />
   );
@@ -124,17 +126,15 @@ export function GatewayProvidersTable({
 
 function ModelCount({
   value,
-  href,
 }: {
-  value: number | "loading" | undefined;
-  href: string;
+  value: { enabled: number; total: number } | "loading" | undefined;
 }) {
   if (value === "loading") return <>Loading…</>;
   if (value === undefined) return <>—</>;
   return (
-    <Link className="text-primary hover:underline" href={href}>
-      {value} {value === 1 ? "model" : "models"} available
-    </Link>
+    <>
+      {value.enabled} of {value.total} enabled
+    </>
   );
 }
 

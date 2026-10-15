@@ -7,10 +7,12 @@ const meta = preview.meta({ component: GatewayModelsTable });
 
 const actions = {
   noResultsMessage: "No models were returned by the configured providers.",
+  organizationId: "org-story",
+  canManageGateway: true,
   pagination: {
-    mode: "cursor" as const,
-    state: { pageIndex: 0, pageSize: 10 },
-    hasNextPage: true,
+    mode: "offset" as const,
+    state: { pageIndex: 0, pageSize: 50 },
+    totalCount: 2,
     onChange: fn(),
   },
 };
@@ -22,30 +24,17 @@ export const Default = meta.story({
       status: "success",
       data: [
         {
-          id: "gpt-5-mini",
-          availableVia: [
-            {
-              connectionId: "primary",
-              connectionName: "Primary",
-              provider: "OPENAI",
-            },
-            {
-              connectionId: "fallback",
-              connectionName: "Fallback",
-              provider: "OPENAI",
-            },
-          ],
+          id: "Primary:gpt-5-mini",
+          connectionId: "primary",
+          connectionName: "Primary",
+          provider: "OPENAI",
           apiFormats: ["OpenAI Responses", "OpenAI Chat Completions"],
         },
         {
-          id: "claude-sonnet-4-5",
-          availableVia: [
-            {
-              connectionId: "anthropic",
-              connectionName: "Anthropic production",
-              provider: "ANTHROPIC",
-            },
-          ],
+          id: "Anthropic production:claude-sonnet-4-5",
+          connectionId: "anthropic",
+          connectionName: "Anthropic production",
+          provider: "ANTHROPIC",
           apiFormats: ["Anthropic Messages"],
         },
       ],
@@ -60,7 +49,7 @@ export const Loading = meta.story({
 export const Empty = meta.story({
   args: {
     ...actions,
-    pagination: { ...actions.pagination, hasNextPage: false },
+    pagination: { ...actions.pagination, totalCount: 0 },
     data: { status: "success", data: [] },
   },
 });

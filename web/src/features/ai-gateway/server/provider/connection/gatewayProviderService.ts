@@ -4,7 +4,11 @@ import {
   type GatewayProvider,
   type PrismaClient,
 } from "@langfuse/shared/src/db";
-import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  LangfuseConflictError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { LLMAdapter, testModelCall } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
@@ -36,6 +40,12 @@ export class GatewayProviderService {
 
   list(params: { organizationId: string; cursor?: string; limit: number }) {
     return this.repository.listConnections(params);
+  }
+
+  async get(params: { organizationId: string; id: string }) {
+    const connection = await this.repository.getSafeConnection(params);
+    if (!connection) throw new LangfuseNotFoundError("Gateway connection");
+    return connection;
   }
 
   async listAll(organizationId: string, status?: GatewayConnectionStatus) {
@@ -191,41 +201,44 @@ export class GatewayProviderService {
     return deleted;
   }
 
-  async reorder(params: {
+  async updateAllowedModels(params: {
     organizationId: string;
-    connectionIds: string[];
+    id: string;
+    allowedModels: string[] | null;
+    expectedUpdatedAt: Date;
     session: OrgAuthedContext["session"];
   }) {
-    const existing = await this.listAll(params.organizationId);
-    const existingIds = new Set(existing.map((connection) => connection.id));
-    const requestedIds = new Set(params.connectionIds);
-    if (
-      requestedIds.size !== params.connectionIds.length ||
-      requestedIds.size !== existingIds.size ||
-      params.connectionIds.some((id) => !existingIds.has(id))
-    ) {
-      throw new InvalidRequestError(
-        "Reorder must contain every organization gateway connection exactly once",
+    const existing = await this.get({
+      organizationId: params.organizationId,
+      id: params.id,
+    });
+    const updated = await this.repository.updateAllowedModels({
+      organizationId: params.organizationId,
+      id: params.id,
+      expectedUpdatedAt: params.expectedUpdatedAt,
+      allowedModels:
+        params.allowedModels === null
+          ? null
+          : [...new Set(params.allowedModels)],
+    });
+    if (!updated) {
+      throw new LangfuseConflictError(
+        "Model access changed while this page was open. Reload and try again.",
       );
     }
-    await this.repository.reorderConnections({
-      organizationId: params.organizationId,
-      connectionIds: params.connectionIds,
-    });
-    const reordered = await this.listAll(params.organizationId);
     await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     await auditLog(
       {
         session: params.session,
         resourceType: "gatewayAiConnection",
-        resourceId: params.organizationId,
-        action: "reorder",
+        resourceId: params.id,
+        action: "update",
         before: existing,
-        after: reordered,
+        after: updated,
       },
       this.prisma,
     );
-    return reordered;
+    return updated;
   }
 }
 

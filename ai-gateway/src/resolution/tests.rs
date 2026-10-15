@@ -280,6 +280,33 @@ async fn denied_and_failed_resolutions_are_classified_without_retries_or_body_le
 }
 
 #[tokio::test]
+async fn model_policy_rejections_are_distinct_from_other_forbidden_responses() {
+    let web = FakeWeb::start(|_| async {
+        Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .header("langfuse-gateway-error-code", "model_not_allowed")
+            .body(Body::from("private-upstream-error"))
+            .unwrap()
+    })
+    .await;
+
+    let error = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap_err();
+
+    assert!(matches!(error, ResolutionError::ModelNotAllowed));
+    assert!(!format!("{error:?} {error}").contains("private-upstream-error"));
+}
+
+#[tokio::test]
 async fn never_follows_redirects_with_credentials() {
     let destination =
         FakeWeb::start(|_| async { response(success("project-1", "provider-token")) }).await;

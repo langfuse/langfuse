@@ -1,8 +1,10 @@
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
-import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
+import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
 import type { RouterOutputs } from "@/src/utils/api";
 
-type Connection = RouterOutputs["aiGateway"]["listConnections"]["data"][number];
+type Connection = RouterOutputs["aiGateway"]["listModelConnections"][number];
 type RefreshResult = RouterOutputs["aiGateway"]["refreshModels"][number];
 
 const providerFormats = {
@@ -14,11 +16,9 @@ export type ApiFormat = (typeof providerFormats)[GatewayProvider][number];
 
 type ModelRow = {
   id: string;
-  availableVia: Array<{
-    connectionId: string;
-    connectionName: string;
-    provider: GatewayProvider;
-  }>;
+  connectionId: string;
+  connectionName: string;
+  provider: GatewayProvider;
   apiFormats: ApiFormat[];
 };
 
@@ -37,17 +37,16 @@ export function aggregateModels(
     seenConnectionIds.add(connection.id);
     const result = resultsByConnectionId.get(connection.id);
     if (!result?.success) continue;
+    const allowedModels = toGatewayAllowedModelsSet(connection.allowedModels);
     for (const modelId of result.models.toSorted((left, right) =>
       left.localeCompare(right),
     )) {
-      const availableVia = {
+      if (!isGatewayModelAllowed(allowedModels, modelId)) continue;
+      models.push({
+        id: formatGatewayModelSlug(connection.name, modelId),
         connectionId: connection.id,
         connectionName: connection.name,
         provider: connection.provider,
-      };
-      models.push({
-        id: formatGatewayModelSlug(connection.name, modelId),
-        availableVia: [availableVia],
         apiFormats: [...providerFormats[connection.provider]],
       });
     }

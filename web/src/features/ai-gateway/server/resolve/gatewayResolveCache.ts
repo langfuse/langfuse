@@ -35,6 +35,7 @@ export const CachedResolveContext = z.object({
       name: z.string(),
       provider: z.enum(["OPENAI", "ANTHROPIC"]),
       encryptedCredential: z.string(),
+      allowedModels: z.array(z.string()).nullable(),
     }),
   ),
 });
@@ -90,6 +91,11 @@ export class GatewayResolveCache {
         );
         recordIncrement("langfuse.gateway.resolve.cache_miss", 1);
         return null;
+      }
+
+      if (parsed.data === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
+        recordIncrement("langfuse.gateway.resolve.cache_hit", 1);
+        return parsed.data;
       }
 
       recordIncrement("langfuse.gateway.resolve.cache_hit", 1);
@@ -150,7 +156,7 @@ export class GatewayResolveCache {
   /**
    * Drops every cached resolve context for an organization. Call this after any
    * change that alters what /resolve would answer: connections, credentials,
-   * routing priority, connection status, or the gateway config.
+   * connection status, model access, or the gateway config.
    */
   async invalidateOrganization(organizationId: string) {
     if (!this.enabled) return;
@@ -172,11 +178,11 @@ export class GatewayResolveCache {
     if (!this.enabled) return;
 
     try {
-      await Promise.all([
-        ...gatewayApiFormats.map((apiFormat) =>
+      await Promise.all(
+        gatewayApiFormats.map((apiFormat) =>
           this.redis!.del(contextCacheKey(fastHashedSecretKey, apiFormat)),
         ),
-      ]);
+      );
     } catch (error) {
       logger.error("Error invalidating gateway resolve cache", error);
     }

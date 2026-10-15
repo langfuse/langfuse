@@ -1533,6 +1533,51 @@ async fn anthropic_credential_conflicts_and_failures_use_the_native_error_envelo
 }
 
 #[tokio::test]
+async fn model_policy_rejections_use_provider_native_permission_errors() {
+    let web = FakeServer::start(|_| async {
+        Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .header("langfuse-gateway-error-code", "model_not_allowed")
+            .body(Body::from("private-web-body"))
+            .unwrap()
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
+
+    let openai = gateway
+        .post()
+        .bearer_auth("gateway-key")
+        .body(r#"{"model":"Production key:gpt-4.1"}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(openai.status(), StatusCode::FORBIDDEN);
+    let openai_body: serde_json::Value =
+        serde_json::from_str(&openai.text().await.unwrap()).unwrap();
+    assert_eq!(openai_body["error"]["type"], "permission_error");
+    assert_eq!(openai_body["error"]["code"], "model_not_allowed");
+
+    let anthropic = reqwest::Client::new()
+        .post(format!("{}/anthropic/v1/messages", gateway.url))
+        .header("x-api-key", "gateway-key")
+        .body(r#"{"model":"Production key:claude-sonnet-4-5"}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(anthropic.status(), StatusCode::FORBIDDEN);
+    let anthropic_body: serde_json::Value =
+        serde_json::from_str(&anthropic.text().await.unwrap()).unwrap();
+    assert_eq!(anthropic_body["error"]["type"], "permission_error");
+    assert_eq!(
+        anthropic_body["error"]["message"],
+        "Model is not allowed for this provider connection"
+    );
+    assert_eq!(web.calls(), 2);
+    assert_eq!(provider.calls(), 0);
+}
+
+#[tokio::test]
 async fn anthropic_capacity_rejections_use_the_native_envelope() {
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let busy = ProviderTransport::for_test(

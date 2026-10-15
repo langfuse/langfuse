@@ -13,7 +13,9 @@ import {
   gatewayProviders,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
-import { resolveGatewayModelRoute } from "@/src/features/ai-gateway/fns/gatewayModelSlug";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 import {
   type CachedResolveContext,
   GATEWAY_RESOLVE_KEY_NON_EXISTENT,
@@ -36,6 +38,7 @@ type GatewayApiKeyAuthenticatorConfig = {
 export class GatewayApiKeyAuthenticator {
   private readonly repository: GatewayResolveRepository;
   private readonly cache: GatewayResolveCache;
+  private readonly modelRoutingService = new GatewayModelRoutingService();
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -51,9 +54,25 @@ export class GatewayApiKeyAuthenticator {
     model: string;
   }): Promise<GatewayApiKeyAuthContext> {
     const context = await this.authenticateKey(params);
-    const route = resolveGatewayModelRoute(params.model, context.connections);
+    const route = this.modelRoutingService.resolve(
+      params.model,
+      context.connections,
+    );
     if (!route) {
       throw new GatewayControlPlaneError("Invalid gateway model", 400);
+    }
+    if (
+      route.connection &&
+      !isGatewayModelAllowed(
+        route.connection.allowedModels,
+        route.providerModel,
+      )
+    ) {
+      throw new GatewayControlPlaneError(
+        "Model is not allowed for this provider connection",
+        403,
+        "model_not_allowed",
+      );
     }
 
     return {
@@ -135,7 +154,10 @@ export class GatewayApiKeyAuthenticator {
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
         : null,
       ingestionMode: gatewayConfig?.ingestionMode ?? null,
-      connections: organization.gatewayAiConnections,
+      connections: organization.gatewayAiConnections.map((connection) => ({
+        ...connection,
+        allowedModels: parseGatewayAllowedModels(connection.allowedModels),
+      })),
     };
 
     if (env.API_AUTH_MIGRATION === "enforce") {

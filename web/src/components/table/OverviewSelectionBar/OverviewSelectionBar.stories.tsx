@@ -1,7 +1,7 @@
 import { fn } from "storybook/test";
 import { Trash2 } from "lucide-react";
 
-import preview from "../../../../../../.storybook/preview";
+import preview from "../../../../.storybook/preview";
 import { Button } from "@/src/components/ui/button";
 import { OverviewSelectionBar } from "./OverviewSelectionBar";
 
