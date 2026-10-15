@@ -13,11 +13,17 @@ import {
   TraceBatchQueue,
   createEvent,
   createEventsCh,
+  createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { LLMAdapter } from "@langfuse/shared";
 import {
+  ensureDefaultTopicFacets,
   loadTopicTranscript,
+  saveTopicRule,
+  scheduleTopicBackfill,
   selectTopicTraceRows,
+  writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 
 const enabled = vi.hoisted(() => vi.fn(() => true));
@@ -244,5 +250,262 @@ describe("Topics trace selection and backfill", () => {
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
     expect(ids).toEqual([{ id: preview[0].id }]);
     expect(backfill.map(({ id }) => id)).toEqual(ids.map(({ id }) => id));
+  });
+});
+
+describe("scheduleTopicBackfill", () => {
+  const minute = 60_000;
+  const now = Date.now();
+  const addJob = vi.fn();
+  const summarizedBacklog = ["done-1", "done-2", "done-3", "done-4"];
+  let projectId: string;
+
+  const event = (
+    traceId: string,
+    startAgoMinutes: number,
+    updatedAgoMinutes: number,
+    parentSpanId?: string,
+  ) =>
+    createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      span_id: `${traceId}-${startAgoMinutes}`,
+      parent_span_id: parentSpanId ?? null,
+      start_time: new Date(now - startAgoMinutes * minute),
+      updated_at: new Date(now - updatedAgoMinutes * minute),
+    });
+
+  beforeAll(async () => {
+    ({ projectId } = await createOrgProjectAndApiKey());
+    const connection = await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider: `openai-${randomUUID()}`,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "encrypted",
+        displaySecretKey: "...key",
+      },
+    });
+    // Backfills run without automatic processing.
+    await prisma.topicConfig.create({
+      data: {
+        projectId,
+        enabled: false,
+        summaryLlmApiKeyId: connection.id,
+        summaryModel: "gpt-6-luna",
+        embeddingLlmApiKeyId: connection.id,
+        embeddingModel: "text-embedding-3-small",
+        embeddingDimensions: 1024,
+        clusteringLlmApiKeyId: connection.id,
+        clusteringModel: "gpt-5.6-terra",
+      },
+    });
+    await prisma.tracingReadinessSettings.create({
+      data: { projectId, traceIdleMs: 10 * minute },
+    });
+    const facets = await ensureDefaultTopicFacets(projectId);
+    await saveTopicRule({
+      projectId,
+      filter: [],
+      facetIds: facets.map(({ id }) => id),
+      sampling: 0.1,
+    });
+
+    await createEventsCh([
+      // A child starts after the root, so the read window must cover it.
+      event("ready", 60, 40),
+      event("ready", 50, 40, "ready-60"),
+      event("summarized", 55, 45),
+      event("partly-summarized", 58, 45),
+      // Newer summarized traces fill a candidate cut taken before the summary check.
+      ...summarizedBacklog.map((traceId, index) =>
+        event(traceId, 20 + index, 20),
+      ),
+      // The root is recent, but the trace began three days earlier.
+      event("long", 30, 25),
+      event("long", 3 * 24 * 60, 25, "long-30"),
+      // Still inside the idle time, by start and by last write.
+      event("recent", 5, 5),
+      // Old start, but a write arrived within the idle time.
+      event("active", 120, 2),
+      event("outside-window", 8 * 24 * 60, 8 * 24 * 60),
+    ]);
+    const summary = (traceId: string, facet: (typeof facets)[number]) => ({
+      projectId,
+      traceId,
+      sessionId: null,
+      facetId: facet.id,
+      facetVersion: facet.versions[0].version,
+      triggerType: "manual_poc" as const,
+      environment: "default",
+      traceName: "agent-turn",
+      unitStartTime: new Date(now - 55 * minute).toISOString(),
+      state: "complete" as const,
+      summary: "summary",
+      embedding: [0.1],
+      transcriptId: "transcript",
+      transcriptVersion: "v1",
+      summaryModel: "gpt-6-luna",
+      embeddingModel: "text-embedding-3-small",
+      providedUsageDetails: {},
+      usageDetails: {},
+      providedCostDetails: {},
+      costDetails: {},
+      processedAt: new Date(now - 30 * minute).toISOString(),
+      metadata: {},
+    });
+    await writeTopicSummaries([
+      ...["summarized", ...summarizedBacklog].flatMap((traceId) =>
+        facets.map((facet) => summary(traceId, facet)),
+      ),
+      summary("partly-summarized", facets[0]),
+    ]);
+  });
+  const queuedJobs = new Map<string, { data: unknown }>();
+  beforeEach(() => {
+    addJob.mockReset();
+    queuedJobs.clear();
+    addJob.mockImplementation(
+      async (_name: string, data: unknown, options: { jobId: string }) => {
+        queuedJobs.set(options.jobId, { data });
+      },
+    );
+    vi.spyOn(TraceBatchQueue, "getInstance").mockReturnValue({
+      add: addJob,
+      getJob: async (jobId: string) => queuedJobs.get(jobId),
+    } as never);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  const scheduledTraces = () => {
+    expect(addJob).toHaveBeenCalledTimes(1);
+    const [name, data, options] = addJob.mock.calls[0];
+    expect(name).toBe(QueueJobs.TraceBatchBackfill);
+    expect(options.jobId).toBe(data.id);
+    return data.payload.traces as {
+      traceId: string;
+      minStart: number;
+      maxStart: number;
+      estimates: { eventUpdateCount: number; serializedEventBytes: number };
+    }[];
+  };
+
+  it("schedules the newest idle traces that miss a current facet summary, with whole-trace bounds", async () => {
+    await expect(
+      scheduleTopicBackfill({
+        projectId,
+        source: "ready",
+        limit: 10,
+        requestId: randomUUID(),
+      }),
+    ).resolves.toEqual({ traceCount: 3 });
+    expect(scheduledTraces()).toEqual([
+      expect.objectContaining({
+        traceId: "long",
+        minStart: now - 3 * 24 * 60 * minute,
+        maxStart: now - 30 * minute,
+      }),
+      expect.objectContaining({
+        projectId,
+        traceId: "ready",
+        minStart: now - 60 * minute,
+        maxStart: now - 50 * minute,
+        estimates: { eventUpdateCount: 2, serializedEventBytes: 4 },
+        revision: expect.any(String),
+      }),
+      expect.objectContaining({ traceId: "partly-summarized" }),
+    ]);
+  });
+
+  it("reaches older ready traces behind newer summarized ones", async () => {
+    await scheduleTopicBackfill({
+      projectId,
+      source: "ready",
+      limit: 1,
+      requestId: randomUUID(),
+    });
+    expect(scheduledTraces().map(({ traceId }) => traceId)).toEqual(["long"]);
+  });
+
+  it("schedules a retried request once and reports the original trace count", async () => {
+    const request = {
+      projectId,
+      source: "random" as const,
+      limit: 2,
+      requestId: randomUUID(),
+    };
+    await expect(scheduleTopicBackfill(request)).resolves.toEqual({
+      traceCount: 2,
+    });
+    await expect(
+      scheduleTopicBackfill({ ...request, limit: 5 }),
+    ).resolves.toEqual({ traceCount: 2 });
+    expect(addJob).toHaveBeenCalledTimes(1);
+  });
+
+  it("samples random traces from the window regardless of readiness or summaries", async () => {
+    await expect(
+      scheduleTopicBackfill({
+        projectId,
+        source: "random",
+        limit: 20,
+        requestId: randomUUID(),
+      }),
+    ).resolves.toEqual({ traceCount: 10 });
+    const traces = scheduledTraces();
+    expect(new Set(traces.map(({ traceId }) => traceId))).toEqual(
+      new Set([
+        "ready",
+        "summarized",
+        "partly-summarized",
+        ...summarizedBacklog,
+        "long",
+        "recent",
+        "active",
+      ]),
+    );
+    expect(traces.find(({ traceId }) => traceId === "ready")).toMatchObject({
+      minStart: now - 60 * minute,
+      maxStart: now - 50 * minute,
+    });
+  });
+
+  it("refuses a project without saved models", async () => {
+    const { projectId: unconfigured } = await createOrgProjectAndApiKey();
+    await expect(
+      scheduleTopicBackfill({
+        projectId: unconfigured,
+        source: "ready",
+        limit: 5,
+        requestId: randomUUID(),
+      }),
+    ).rejects.toThrow("Choose every model");
+    expect(addJob).not.toHaveBeenCalled();
+  });
+
+  it("refuses a paused project with the pause reason", async () => {
+    await prisma.topicConfig.update({
+      where: { projectId },
+      data: {
+        blockedAt: new Date(),
+        blockMessage: "Provider rejected the key",
+      },
+    });
+    try {
+      await expect(
+        scheduleTopicBackfill({
+          projectId,
+          source: "ready",
+          limit: 5,
+          requestId: randomUUID(),
+        }),
+      ).rejects.toThrow("Topics is paused: Provider rejected the key");
+      expect(addJob).not.toHaveBeenCalled();
+    } finally {
+      await prisma.topicConfig.update({
+        where: { projectId },
+        data: { blockedAt: null, blockMessage: null },
+      });
+    }
   });
 });

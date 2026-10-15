@@ -97,6 +97,13 @@ vi.mock("./AutomaticProcessingDialogController", () => ({
     children: (control: { openDialog: () => void }) => ReactNode;
   }) => children({ openDialog: vi.fn() }),
 }));
+vi.mock("./BackfillDialogController", () => ({
+  BackfillDialogController: ({
+    children,
+  }: {
+    children: (control: { openDialog: () => void }) => ReactNode;
+  }) => children({ openDialog: vi.fn() }),
+}));
 vi.mock("./CurrentTopics", () => ({
   useCurrentTopics: (input: {
     running: boolean;

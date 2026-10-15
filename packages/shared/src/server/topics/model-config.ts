@@ -128,12 +128,29 @@ export async function getTopicsModels(
 }
 
 /** Loads the enabled, fully configured projects of a trace batch in one query. */
-export async function getEnabledTopicsModels(
+export function getEnabledTopicsModels(
   projectIds: string[],
+): Promise<Map<string, TopicsModels>> {
+  return findTopicsModels(projectIds, { enabled: true });
+}
+
+/**
+ * Loads the fully configured projects of a backfill batch, whether or not
+ * automatic processing is on. Paused projects are left out.
+ */
+export function getBackfillTopicsModels(
+  projectIds: string[],
+): Promise<Map<string, TopicsModels>> {
+  return findTopicsModels(projectIds, { blockedAt: null });
+}
+
+async function findTopicsModels(
+  projectIds: string[],
+  where: Prisma.TopicConfigWhereInput,
 ): Promise<Map<string, TopicsModels>> {
   if (!projectIds.length) return new Map();
   const rows = await prisma.topicConfig.findMany({
-    where: { projectId: { in: projectIds }, enabled: true },
+    where: { projectId: { in: projectIds }, ...where },
     include: withConnections,
   });
   const models = new Map<string, TopicsModels>();

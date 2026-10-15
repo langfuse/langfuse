@@ -101,6 +101,20 @@ export const topicTraceSelectionCriteriaSchema = topicRuleConfigSchema
     message: "Select at most 93 days of traces.",
     path: ["from"],
   });
+export const TOPIC_BACKFILL_MAX_TRACES = 500;
+export const TOPIC_BACKFILL_WINDOW_DAYS = 7;
+/**
+ * `ready`: the newest idle traces that lack a summary for a current facet
+ * version. `random`: a uniform sample of traces from the window.
+ */
+export const topicBackfillSourceSchema = z.enum(["ready", "random"]);
+export type TopicBackfillSource = z.infer<typeof topicBackfillSourceSchema>;
+export const topicBackfillInputSchema = z.object({
+  source: topicBackfillSourceSchema,
+  limit: z.number().int().min(1).max(TOPIC_BACKFILL_MAX_TRACES),
+  /** Idempotency key: a retry with the same key schedules nothing new. */
+  requestId: topicIdSchema,
+});
 export const topicTraceSelectionSnapshotSchema =
   topicTraceSelectionCriteriaSchema.safeExtend({
     excludedTraceIds: z.array(topicTraceIdSchema).default([]),

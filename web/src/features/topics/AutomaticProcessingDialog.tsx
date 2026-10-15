@@ -64,8 +64,8 @@ export function AutomaticProcessingDialog({
           <p className="text-sm">
             New traces are summarized with your saved facets and models once
             they have been idle for {idleTimeLabel(traceIdleMs)}. The sampling
-            rate below applies only to automatic processing. For manual
-            processing, such as backfills, you set the sampling for each run.
+            rate below applies only to automatic processing; backfills process
+            every trace they select.
           </p>
           <p className="text-sm">
             Each summarized trace joins the closest existing topic when it is

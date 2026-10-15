@@ -11,12 +11,15 @@ import {
   recordDistribution,
   recordGauge,
   recordIncrement,
+  QueueJobs,
+  TraceBatchBackfillEventSchema,
   TraceBatchEventSchema,
   type QueueName,
   type TQueueJobTypes,
   type Transcript,
 } from "@langfuse/shared/src/server";
 import {
+  getBackfillTopicsModels,
   getEnabledTopicsModels,
   isTopicsProjectEnabled,
   isValidTopicSummary,
@@ -41,6 +44,7 @@ import { isRetryableClickhouseInsertError } from "../services/ClickhouseWriter";
 import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
 import { enqueueTopicsAutomation } from "../features/topics/topicsAutomation";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
+import { enqueueTraceBatchBackfill } from "../features/traceBatching/traceBatchBackfill";
 
 type TraceBatchObservation = Observation & { eventTimestamp: string };
 
@@ -50,9 +54,13 @@ type TraceOutcome = (
   | { outcome: "failed"; reason: string }
 ) & { rows: TopicSummary[] };
 
+type TraceBatchOrigin = "automatic" | "backfill";
+
 /**
  * Topics settings of one batch, loaded with one query while the read starts.
- * A project paused mid-batch is skipped for the rest of the batch.
+ * Automatic batches need automatic processing on and apply the rule's
+ * sampling; backfill batches need only unpaused models and summarize every
+ * trace. A project paused mid-batch is skipped for the rest of the batch.
  */
 class TopicsBatchProjects {
   private readonly models: Promise<Map<string, TopicsModels>>;
@@ -62,9 +70,15 @@ class TopicsBatchProjects {
   >();
   private readonly paused = new Set<string>();
 
-  constructor(projectIds: Iterable<string>) {
+  constructor(
+    projectIds: Iterable<string>,
+    private readonly origin: TraceBatchOrigin,
+  ) {
     const allowed = [...new Set(projectIds)].filter(isTopicsProjectEnabled);
-    this.models = getEnabledTopicsModels(allowed);
+    this.models =
+      origin === "backfill"
+        ? getBackfillTopicsModels(allowed)
+        : getEnabledTopicsModels(allowed);
     // A failed load fails each trace that reads it, not the whole batch.
     this.models.catch(() => {});
   }
@@ -80,7 +94,12 @@ class TopicsBatchProjects {
       // A failed load fails this trace only; the next trace loads again.
       settings.catch(() => this.settings.delete(projectId));
     }
-    return { models, ...(await settings) };
+    const { facets, sampling } = await settings;
+    return {
+      models,
+      facets,
+      sampling: this.origin === "backfill" ? 1 : sampling,
+    };
   }
 
   async pause(projectId: string, error: TopicsProviderUnavailable) {
@@ -236,7 +255,37 @@ export function recordTraceBatchActiveReads(): void {
   recordGauge("langfuse.trace_batch.active_reads", activeReads);
 }
 
+function getTraceBatchDisabledReason() {
+  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return "not_cloud";
+  if (env.LANGFUSE_TRACE_BATCH_READ_ENABLED !== "true") return "reads_disabled";
+  return undefined;
+}
+
 export const traceBatchQueueProcessor: Processor<
+  TQueueJobTypes[QueueName.TraceBatch]
+> = async (job) => {
+  if (job.name === QueueJobs.TraceBatchBackfill) {
+    const disabledReason = getTraceBatchDisabledReason();
+    if (disabledReason) {
+      job.opts.removeOnComplete = true;
+      recordIncrement("langfuse.trace_batch.discarded_jobs", 1, {
+        reason: disabledReason,
+      });
+      logger.warn("Trace batch backfill discarded", {
+        jobId: job.id,
+        reason: disabledReason,
+      });
+      return { discarded: disabledReason };
+    }
+    const backfill = TraceBatchBackfillEventSchema.parse(job.data);
+    return {
+      jobCount: await enqueueTraceBatchBackfill(backfill.payload.traces),
+    };
+  }
+  return processTraceBatch(job);
+};
+
+const processTraceBatch: Processor<
   TQueueJobTypes[QueueName.TraceBatch]
 > = async (job) => {
   const startedAt = performance.now();
@@ -267,15 +316,7 @@ export const traceBatchQueueProcessor: Processor<
       "langfuse.trace_batch.job_id": job.id,
       "langfuse.trace_batch.attempt": job.attemptsMade + 1,
     });
-    const disabledReason = (() => {
-      if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-        return "not_cloud";
-      }
-      if (env.LANGFUSE_TRACE_BATCH_READ_ENABLED !== "true") {
-        return "reads_disabled";
-      }
-      return undefined;
-    })();
+    const disabledReason = getTraceBatchDisabledReason();
     if (disabledReason) {
       outcome = "discard";
       // BullMQ reads these options after the processor returns, then removes atomically.
@@ -299,6 +340,7 @@ export const traceBatchQueueProcessor: Processor<
     let droppedRows = new Set<TopicSummary>();
     const topics = new TopicsBatchProjects(
       batch.traces.map((trace) => trace.projectId),
+      event.origin ?? "automatic",
     );
     const queryOptions = {
       maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,

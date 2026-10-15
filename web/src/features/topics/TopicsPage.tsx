@@ -43,6 +43,7 @@ import { useTopicModelSettings } from "./TopicModelSettings";
 import { AutomaticProcessingControl } from "./AutomaticProcessingControl";
 import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
 import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
+import { BackfillDialogController } from "./BackfillDialogController";
 import { TopicSetupNotice } from "./TopicSetupNotice";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsFilters } from "./TopicsFilters";
@@ -152,14 +153,19 @@ function TopicsWorkspaceView({ projectId, facets }: TopicsWorkspaceViewProps) {
           {...modelSettings.automaticProcessing.dialog}
         >
           {({ openDialog: openAutomaticProcessing }) => (
-            <TopicsWorkspaceContent
-              projectId={projectId}
-              facets={facets}
-              canWrite={canWrite}
-              modelSettings={modelSettings}
-              openConfigure={openConfigure}
-              openAutomaticProcessing={openAutomaticProcessing}
-            />
+            <BackfillDialogController projectId={projectId}>
+              {({ openDialog: openBackfill }) => (
+                <TopicsWorkspaceContent
+                  projectId={projectId}
+                  facets={facets}
+                  canWrite={canWrite}
+                  modelSettings={modelSettings}
+                  openConfigure={openConfigure}
+                  openAutomaticProcessing={openAutomaticProcessing}
+                  openBackfill={openBackfill}
+                />
+              )}
+            </BackfillDialogController>
           )}
         </AutomaticProcessingDialogController>
       )}
@@ -172,6 +178,7 @@ type TopicsWorkspaceContentProps = TopicsWorkspaceViewProps & {
   modelSettings: ReturnType<typeof useTopicModelSettings>;
   openConfigure: () => void;
   openAutomaticProcessing: (initialEnabled: boolean) => void;
+  openBackfill: () => void;
 };
 
 function TopicsWorkspaceContent({
@@ -181,6 +188,7 @@ function TopicsWorkspaceContent({
   modelSettings,
   openConfigure,
   openAutomaticProcessing,
+  openBackfill,
 }: TopicsWorkspaceContentProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const { timeRange, setTimeRange } = useGlobalDateRange({
@@ -313,6 +321,7 @@ function TopicsWorkspaceContent({
   function turnAutomaticProcessingBackOn() {
     openAutomaticProcessing(true);
   }
+  const backfillDisabled = !canWrite || !modelSettings.backfillReady;
   const actions = (
     <div className="ph-no-capture flex items-center justify-end gap-1">
       <AutomaticProcessingControl
@@ -326,6 +335,13 @@ function TopicsWorkspaceContent({
         size="sm"
         disabled={!modelSettings.configure.settings}
         onClick={openConfigure}
+      />
+      <Button
+        text="Run backfill"
+        variant="secondary"
+        size="sm"
+        disabled={backfillDisabled}
+        onClick={openBackfill}
       />
       {primaryAction}
       <DropdownMenu
@@ -369,6 +385,10 @@ function TopicsWorkspaceContent({
         actionButtonsMenu: ({ closeMenu }) => (
           <TopicsActionsMenu
             triggerAction={triggerAction}
+            backfillAction={{
+              disabled: backfillDisabled,
+              onSelect: openBackfill,
+            }}
             closeMenu={closeMenu}
             onOpenHistory={openHistory}
             onRefresh={refreshResults}
