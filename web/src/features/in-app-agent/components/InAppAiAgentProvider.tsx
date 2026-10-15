@@ -237,7 +237,7 @@ export function InAppAiAgentProvider({
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
 
   if (!projectId || !hasInAppAgentEntitlement) {
-    return <>{children}</>;
+    return children;
   }
 
   return (

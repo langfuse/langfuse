@@ -73,10 +73,8 @@ export default function BlobStorageIntegrationPage() {
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
-        actionButtonsLeft: (
-          <>
-            {syncStatus && <StatusBadge type={syncStatusToBadge[syncStatus]} />}
-          </>
+        actionButtonsLeft: syncStatus && (
+          <StatusBadge type={syncStatusToBadge[syncStatus]} />
         ),
         actionButtonsRight: (
           <Button asChild variant="secondary">

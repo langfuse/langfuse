@@ -13,7 +13,7 @@ export const BillingCurrentPlanLabel = () => {
 
   return (
     <div>
-      <>Current plan: {planLabel} </>
+      Current plan: {planLabel}
       {cancellation?.isCancelled && preparedCancellationDate && (
         <>
           <span>(will end on </span>

@@ -166,28 +166,26 @@ export function useTopicPipelineForm({
     }
   }
   const operationControls = (
-    <>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="w-64 max-w-full">
-          <SelectInput
-            aria-label="Pipeline operation"
-            placeholder="Pipeline operation"
-            options={[
-              { value: "process", label: "Process traces" },
-              { value: "update", label: "Update topics" },
-            ]}
-            value={operation}
-            onValueChange={(value) => {
-              setOperation(value as TopicOperation);
-              resetTraceSelection();
-              setError(null);
-              if (value === "update")
-                utils.topics.summaryCounts.invalidate({ projectId });
-            }}
-          />
-        </div>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="w-64 max-w-full">
+        <SelectInput
+          aria-label="Pipeline operation"
+          placeholder="Pipeline operation"
+          options={[
+            { value: "process", label: "Process traces" },
+            { value: "update", label: "Update topics" },
+          ]}
+          value={operation}
+          onValueChange={(value) => {
+            setOperation(value as TopicOperation);
+            resetTraceSelection();
+            setError(null);
+            if (value === "update")
+              utils.topics.summaryCounts.invalidate({ projectId });
+          }}
+        />
       </div>
-    </>
+    </div>
   );
   let actionLabel = "Update topics";
   if (operation === "process")
