@@ -20,6 +20,10 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import type { QuestionnaireFormValues } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/createQuestionnaireFormValues";
 import { updateQuestionnaireAnswer } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/updateQuestionnaireAnswer";
+import { cn } from "@/src/utils/tailwind";
+
+const OTHER_ANSWER_BOX_CLASS_NAME =
+  "border-input bg-background focus-within:border-ring rounded-md border transition-colors";
 
 export type QuestionnaireStepProps = {
   control: Control<QuestionnaireFormValues>;
@@ -334,7 +338,12 @@ function OtherAnswerRow({
 }: OtherAnswerRowProps) {
   return (
     <div className="pt-1.5">
-      <div className="has-focus-visible:bg-muted flex min-h-11 items-center gap-2 rounded-lg px-2 py-1.5">
+      <div
+        className={cn(
+          OTHER_ANSWER_BOX_CLASS_NAME,
+          "flex min-h-10 items-center gap-2 py-1 pr-1 pl-2.5",
+        )}
+      >
         <OtherAnswerInput
           value={value}
           isDisabled={isDisabled}
@@ -376,7 +385,7 @@ function MultipleChoiceOtherRow({
   };
 
   return (
-    <div className="hover:bg-muted has-focus-visible:bg-muted flex items-center gap-3 rounded-lg px-2 py-2">
+    <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
       <span className="flex h-5 shrink-0 items-center">
         <Checkbox
           aria-label="Use a custom answer"
@@ -385,12 +394,16 @@ function MultipleChoiceOtherRow({
           onCheckedChange={handleCheckedChange}
         />
       </span>
-      <OtherAnswerInput
-        ref={inputRef}
-        value={value}
-        isDisabled={isDisabled}
-        onChange={onChange}
-      />
+      <span
+        className={cn(OTHER_ANSWER_BOX_CLASS_NAME, "flex flex-1 px-2.5 py-1.5")}
+      >
+        <OtherAnswerInput
+          ref={inputRef}
+          value={value}
+          isDisabled={isDisabled}
+          onChange={onChange}
+        />
+      </span>
     </div>
   );
 }
@@ -409,7 +422,8 @@ function OtherAnswerInput({
   onChange,
 }: OtherAnswerInputProps) {
   return (
-    // The design-system Input is always boxed; this row reads as a list item.
+    // Bare input inside OTHER_ANSWER_BOX_CLASS_NAME: the design-system Input
+    // cannot hold the Skip button inside its box.
     <input
       ref={ref}
       aria-label="Something else"
