@@ -12,8 +12,12 @@ ignore = []
 
 [licenses]
 confidence-threshold = 0.93
-# Permissive licenses only. Copyleft licenses (GPL, LGPL, MPL, AGPL, ...) need
-# a deliberate review before being added because the gateway ships as a binary.
+# Same policy as .github/workflows/licencecheck.yml for pnpm packages: no weak,
+# strong, or network copyleft (LGPL, MPL, EPL, GPL, AGPL, SSPL, ...), since the
+# gateway is open source and ships as a statically linked binary to self-hosters.
+# This is an allow-list, so source-available or non-commercial licenses (BUSL,
+# Elastic, CC-BY-NC, ...) and unknown licenses also fail. A dual-licensed crate
+# passes when one of its options is listed here.
 allow = [
     "0BSD",
     "Apache-2.0",

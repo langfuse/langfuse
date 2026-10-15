@@ -17,8 +17,10 @@
   with `pnpm run rust:deny` after changing `Cargo.toml` or `Cargo.lock`.
 - Fix an advisory by updating the crate (`cargo update -p <crate>`). Add an
   `[advisories].ignore` entry with a `reason` only when it does not apply.
-- Do not add a license to the allow-list without a human decision; copyleft
-  licenses need review because the gateway ships as a binary.
+- The license allow-list follows the repo policy in
+  `.github/workflows/licencecheck.yml`: no weak, strong, or network copyleft,
+  because the gateway is open source and ships as a binary to self-hosters. Do
+  not add a license to the allow-list without a human decision.
 - `cargo machete` (`pnpm run rust:unused-deps`) fails CI on unused
   dependencies. Remove the dependency rather than ignoring it, unless it is
   only used through a macro the tool cannot see.
