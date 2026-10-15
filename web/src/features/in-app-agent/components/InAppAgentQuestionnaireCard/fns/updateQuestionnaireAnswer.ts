@@ -1,4 +1,5 @@
 import type { InAppAgentQuestionnaireQuestion } from "@langfuse/shared/in-app-agent";
+import { assertUnreachable } from "@/src/utils/types";
 import type { QuestionnaireFormAnswer } from "./createQuestionnaireFormValues";
 
 type QuestionnaireAnswerAction =
@@ -21,15 +22,11 @@ export function updateQuestionnaireAnswer(
   if (action.type === "toggleOther") {
     return toggleOther(answer, question);
   }
+  if (action.type === "setOtherText") {
+    return setOtherText(answer, question, action.otherText);
+  }
 
-  return {
-    ...answer,
-    selectedOptionIndexes: question.allowMultiple
-      ? answer.selectedOptionIndexes
-      : [],
-    isOtherSelected: true,
-    otherText: action.otherText,
-  };
+  return assertUnreachable(action);
 }
 
 function toggleOption(
@@ -68,5 +65,20 @@ function toggleOther(
         ? []
         : answer.selectedOptionIndexes,
     isOtherSelected,
+  };
+}
+
+function setOtherText(
+  answer: QuestionnaireFormAnswer,
+  question: InAppAgentQuestionnaireQuestion,
+  otherText: string,
+): QuestionnaireFormAnswer {
+  return {
+    ...answer,
+    selectedOptionIndexes: question.allowMultiple
+      ? answer.selectedOptionIndexes
+      : [],
+    isOtherSelected: true,
+    otherText,
   };
 }
