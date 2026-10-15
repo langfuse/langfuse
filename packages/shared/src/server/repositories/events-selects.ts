@@ -35,8 +35,31 @@ import {
   uniqIf,
 } from "../query-ast/extensions";
 import type { ClickHouseDatabase } from "../query-ast/schema";
-import type { SessionEventsField } from "../queries/clickhouse-sql/event-query-builder";
 import type { FieldSetFieldKey } from "./events-field-sets";
+
+/** One row of the session aggregation (`SESSION_AGGREGATION_SELECTS`). */
+export type SessionEventsMetricsRow = {
+  session_id: string;
+  max_timestamp: string;
+  min_timestamp: string;
+  trace_ids: string[];
+  user_ids: string[];
+  trace_count: number;
+  trace_tags: string[];
+  environment?: string;
+  total_observations: number;
+  duration: number;
+  session_usage_details: Record<string, number>;
+  session_cost_details: Record<string, number>;
+  session_input_cost: string;
+  session_output_cost: string;
+  session_total_cost: string;
+  session_input_usage: string;
+  session_output_usage: string;
+  session_total_usage: string;
+};
+
+export type SessionEventsField = keyof SessionEventsMetricsRow;
 
 type EventsDb = { e: ClickHouseDatabase["events_core"] };
 type EventsRow = ClickHouseDatabase["events_core"];

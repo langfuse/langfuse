@@ -142,6 +142,8 @@ import {
   OBSERVATION_BY_ID_SELECTS,
   SESSION_AGGREGATION_SELECTS,
   TRACE_AGGREGATION_SELECTS,
+  type SessionEventsField,
+  type SessionEventsMetricsRow,
 } from "./events-selects";
 import {
   EventsQueryBuilder,
@@ -150,9 +152,7 @@ import {
   buildEventsFullTableSplitQuery,
   type QueryWithParams,
   normalizeSessionCounts,
-  type SessionEventsField,
   type SessionEventsFields,
-  type SessionEventsMetricsRow,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
 import { eventsFieldSetKeys } from "./events-field-sets";

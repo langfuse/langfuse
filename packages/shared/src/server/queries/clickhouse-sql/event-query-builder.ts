@@ -19,6 +19,8 @@ import {
   eventsTraceNameOrEmpty,
   isRootObservation,
   millisecondsSinceStart,
+  type SessionEventsField,
+  type SessionEventsMetricsRow,
 } from "../../repositories/events-selects";
 import {
   FilterList,
@@ -1160,29 +1162,6 @@ export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
  * ClickHouse row type for session-level metrics queries from the events table.
  * Matches the columns produced by EVENTS_SESSION_AGGREGATION_FIELDS below.
  */
-export type SessionEventsMetricsRow = {
-  session_id: string;
-  max_timestamp: string;
-  min_timestamp: string;
-  trace_ids: string[];
-  user_ids: string[];
-  trace_count: number;
-  trace_tags: string[];
-  environment?: string;
-  total_observations: number;
-  duration: number;
-  session_usage_details: Record<string, number>;
-  session_cost_details: Record<string, number>;
-  session_input_cost: string;
-  session_output_cost: string;
-  session_total_cost: string;
-  session_input_usage: string;
-  session_output_usage: string;
-  session_total_usage: string;
-};
-
-export type SessionEventsField = keyof SessionEventsMetricsRow;
-
 /**
  * ClickHouse returns the UInt64 counts as strings.
  */
