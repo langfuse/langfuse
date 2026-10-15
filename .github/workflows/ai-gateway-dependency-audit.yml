@@ -1,6 +1,6 @@
 name: AI Gateway Security Advisories
 # Checks ai-gateway dependencies against RustSec advisories with cargo-deny.
-# Licenses, bans, and sources are required checks in pipeline.yml
+# Licenses are checked in licencecheck.yml; bans and sources in pipeline.yml
 # (tests-ai-gateway). Advisories live here because the advisory database
 # changes independently of this repo: path filtering keeps a newly published
 # advisory from blocking unrelated PRs, and the weekly run surfaces it on main.
