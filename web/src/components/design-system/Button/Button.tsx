@@ -69,7 +69,6 @@ type ButtonProps = {
       disabled?: boolean;
       form?: string;
       icon?: LucideIcon;
-      /** Shows a spinner over the hidden label, so the width never changes. */
       loading?: boolean;
       onClick?: MouseEventHandler<HTMLButtonElement>;
       type?: "button" | "submit";
