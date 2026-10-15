@@ -19,8 +19,6 @@ pub struct GatewayConfig {
 const MIB: usize = 1024 * 1024;
 pub const DEFAULT_MAX_REQUEST_BYTES: usize = 32 * MIB;
 const DEFAULT_REQUEST_BUFFER_BYTES: usize = 512 * MIB;
-const MAX_REQUEST_BYTES_CEILING: usize = 1024 * MIB;
-const MAX_REQUEST_BUFFER_BYTES: usize = 64 * 1024 * MIB;
 /// Longest configurable execution; Web's two-hour ingestion tokens outlive it plus the upload.
 const MAX_EXECUTION_CEILING_SECONDS: u64 = 90 * 60;
 
@@ -209,21 +207,25 @@ fn request_limits(
     buffer_bytes: Option<&str>,
 ) -> Result<RequestLimits, GatewayConfigError> {
     let defaults = RequestLimits::default();
+    // One request reserves its body in a single semaphore acquisition, which takes a u32.
+    let max_reservation = usize::try_from(u32::MAX)
+        .unwrap_or(usize::MAX)
+        .min(tokio::sync::Semaphore::MAX_PERMITS);
     let max_request_bytes = max_request_bytes
         .map_or(Some(defaults.max_request_bytes), |value| {
             value.parse::<usize>().ok()
         })
-        .filter(|bytes| (MIB..=MAX_REQUEST_BYTES_CEILING).contains(bytes))
+        .filter(|bytes| (MIB..=max_reservation).contains(bytes))
         .ok_or(GatewayConfigError(
-            "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES must be an integer from 1048576 (1 MiB) to 1073741824 (1 GiB)",
+            "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES must be an integer of at least 1048576 (1 MiB) and within a single semaphore reservation",
         ))?;
     let buffer_bytes = buffer_bytes
         .map_or(Some(defaults.buffer_bytes), |value| {
             value.parse::<usize>().ok()
         })
-        .filter(|bytes| (max_request_bytes..=MAX_REQUEST_BUFFER_BYTES).contains(bytes))
+        .filter(|bytes| (max_request_bytes..=tokio::sync::Semaphore::MAX_PERMITS).contains(bytes))
         .ok_or(GatewayConfigError(
-            "LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES must be an integer from LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES to 68719476736 (64 GiB)",
+            "LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES must be an integer of at least LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES within the semaphore capacity",
         ))?;
     Ok(RequestLimits {
         max_request_bytes,
@@ -491,6 +493,16 @@ mod tests {
                 buffer_bytes: MIB,
             }
         );
+        let largest_reservation = u32::MAX.to_string();
+        assert_eq!(
+            request_limits(Some(&largest_reservation), Some(&largest_reservation)).unwrap(),
+            RequestLimits {
+                max_request_bytes: usize::try_from(u32::MAX).unwrap(),
+                buffer_bytes: usize::try_from(u32::MAX).unwrap(),
+            }
+        );
+        let over_reservation = (u64::from(u32::MAX) + 1).to_string();
+        let over_capacity = (tokio::sync::Semaphore::MAX_PERMITS + 1).to_string();
         for (max, buffer, name) in [
             (
                 Some("1048575"),
@@ -498,12 +510,12 @@ mod tests {
                 "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES",
             ),
             (
-                Some("1073741825"),
+                Some(over_reservation.as_str()),
                 None,
                 "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES",
             ),
             (Some("32MiB"), None, "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES"),
-            // The default buffer cannot admit a single request at the 1 GiB limit.
+            // The default buffer cannot admit a single request at this limit.
             (
                 Some("1073741824"),
                 None,
@@ -516,7 +528,7 @@ mod tests {
             ),
             (
                 None,
-                Some("68719476737"),
+                Some(over_capacity.as_str()),
                 "LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES",
             ),
             (
