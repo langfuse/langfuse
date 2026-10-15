@@ -8461,6 +8461,7 @@ components:
           type: string
         name:
           type: string
+          description: Score config name. Maximum 80 characters.
         createdAt:
           type: string
           format: date-time
@@ -13221,7 +13222,7 @@ components:
         name:
           type: string
           description: >-
-            Name of the score config. Max 35 characters. Only letters, numbers,
+            Name of the score config. Max 80 characters. Only letters, numbers,
             underscores, spaces, periods, parentheses, and hyphens are allowed.
         dataType:
           $ref: '#/components/schemas/ScoreConfigDataType'
@@ -13270,7 +13271,7 @@ components:
           type: string
           nullable: true
           description: >-
-            Name of the score config. Max 35 characters. Only letters, numbers,
+            Name of the score config. Max 80 characters. Only letters, numbers,
             underscores, spaces, periods, parentheses, and hyphens are allowed.
         categories:
           type: array
