@@ -44,8 +44,16 @@ const failureSignalsQuestion: InAppAgentQuestionnaireQuestion = {
       description: "Any tool call that returned an error.",
       recommended: true,
     },
-    { label: "Empty output", description: null, recommended: false },
-    { label: "High latency", description: null, recommended: false },
+    {
+      label: "Empty output",
+      description: "The model returned no text.",
+      recommended: false,
+    },
+    {
+      label: "High latency",
+      description: "The trace took longer than 30 seconds.",
+      recommended: false,
+    },
   ],
   allowMultiple: true,
 };

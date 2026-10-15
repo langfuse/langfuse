@@ -10,7 +10,11 @@ const args = {
     {
       question: "Which evaluator type?",
       options: [
-        { label: "LLM-as-a-judge", description: null, recommended: true },
+        {
+          label: "LLM-as-a-judge",
+          description: "Model-graded",
+          recommended: true,
+        },
         { label: "Code", description: "Deterministic", recommended: false },
       ],
       allowMultiple: false,
@@ -129,5 +133,22 @@ describe("InAppAgentQuestionnaireArgsSchema", () => {
     expect(InAppAgentQuestionnaireArgsSchema.safeParse(args).success).toBe(
       true,
     );
+  });
+
+  it("rejects a question where only some options have a description", () => {
+    const [firstQuestion] = args.questions;
+    const result = InAppAgentQuestionnaireArgsSchema.safeParse({
+      questions: [
+        {
+          ...firstQuestion,
+          options: [
+            { ...firstQuestion.options[0], description: null },
+            { ...firstQuestion.options[1], description: "Deterministic" },
+          ],
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
   });
 });

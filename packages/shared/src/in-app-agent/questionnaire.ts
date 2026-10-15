@@ -30,8 +30,17 @@ const InAppAgentQuestionnaireQuestionSchema = z.object({
       (options) => options.filter((option) => option.recommended).length <= 1,
       { message: "Mark at most one option per question as recommended." },
     )
+    .refine(
+      (options) =>
+        new Set(options.map((option) => Boolean(option.description?.trim())))
+          .size === 1,
+      {
+        message:
+          "Give either every option of a question a description, or none.",
+      },
+    )
     .describe(
-      `${IN_APP_AGENT_QUESTIONNAIRE_MIN_OPTIONS} to ${IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS} distinct answer options. Do not add an "Other" option; the user can always type a custom answer.`,
+      `${IN_APP_AGENT_QUESTIONNAIRE_MIN_OPTIONS} to ${IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS} distinct answer options. Give either every option a description or none. Do not add an "Other" option; the user can always type a custom answer.`,
     ),
   allowMultiple: z
     .boolean()
