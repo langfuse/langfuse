@@ -11,7 +11,7 @@ import { useStore } from "zustand";
 import {
   Download,
   Loader2,
-  Plus,
+  Pencil,
   TriangleAlert,
   RotateCcw,
   Save,
@@ -439,7 +439,7 @@ export function SkillEditor({
             if (view.kind === "version") await view.onEdit();
           }}
         >
-          <Plus className="icon-base mr-1.5" />
+          <Pencil className="icon-base mr-1.5" />
           {view.kind === "version" && view.hasDraft ? "Resume draft" : "Edit"}
         </Button>
       ) : (
