@@ -57,8 +57,8 @@ export const TestMixedHeights = meta.story({
   },
 });
 
-export const TestKeyboardSortingInDialog = meta.story({
-  name: "(Test) Keyboard Sorting Inside a Dialog",
+export const TestSortingInDialog = meta.story({
+  name: "(Test) Sorting Inside a Dialog",
   args: {
     items: ["First", "Second"],
     getId: String,
@@ -113,6 +113,25 @@ export const TestKeyboardSortingInDialog = meta.story({
     await expect(
       body.getByRole("button", { name: "Reorder Second" }),
     ).not.toHaveAttribute("aria-pressed", "true");
+    const handle = body.getByRole("button", { name: "Reorder Second" });
+    const bounds = handle.getBoundingClientRect();
+    await userEvent.pointer({
+      target: handle,
+      keys: "[MouseLeft>]",
+      coords: { clientX: bounds.left + 5, clientY: bounds.top + 5 },
+    });
+    await userEvent.pointer({
+      target: handle,
+      coords: { clientX: bounds.left + 5, clientY: bounds.top + 15 },
+    });
+    await waitFor(() => expect(handle).toHaveAttribute("aria-pressed", "true"));
+    await userEvent.keyboard("{Escape}");
+    await expect(
+      body.getByRole("dialog", { name: "Reorder choices" }),
+    ).toHaveAttribute("data-state", "open");
+    await expect(handle).not.toHaveAttribute("aria-pressed", "true");
+    await expect(args.onReorder).toHaveBeenCalledTimes(1);
+    await userEvent.pointer({ keys: "[/MouseLeft]" });
     await userEvent.keyboard("{Escape}");
     await waitFor(() =>
       expect(

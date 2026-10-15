@@ -9,8 +9,10 @@ trace and observation. Trace/session detail, annotation queues, and dataset
 comparison supply their targets and scores. The adapters prepare data and gate
 the form on score-config readiness. Target identity keys the mounted form;
 refetches of the same target preserve its draft.
-Queue editing waits for the initial queue refresh. A fixed form snapshots its
-targets and configs for that item, so later refreshes preserve open drafts.
+Queue editing waits for the initial queue refresh. A fixed form retains its
+fields and order for that item while using refreshed score config definitions,
+including categories added inline. Removed queue fields keep their initial
+definition until reopen, so queue setup changes cannot discard open drafts.
 Reopening the item applies the latest queue fields and their order.
 
 | Owner                                                          | Responsibility                                                                                                                                                                                                 |
@@ -23,6 +25,7 @@ Reopening the item applies the latest queue fields and their order.
 | `hooks/useScoreMutations.ts`                                   | tRPC mutation bridge and optimistic shared score-cache writes/rollback. Server/query state remains in tRPC.                                                                                                    |
 | `lib/annotationConfigSelection.ts`, `hooks/useScoreConfigs.ts` | Config query data, explicit selection changes, and remembered empty-config choices for each target type.                                                                                                       |
 | `components/AnnotationScoreRow.tsx`                            | Value-control presentation, mount-local score-comment draft, and DOM focus deferral while opening its clear menu.                                                                                              |
+| `components/ScoreConfigDescription.tsx`                        | Inline descriptions shared by field previews and annotation rows; per-config collapse preference in local storage and overflow measured in the browser.                                                        |
 | `hooks/useAnnotationKeyboard.ts`                               | Browser keyboard integration, reading current rows only when a key is pressed.                                                                                                                                 |
 
 Actions resolve a row by target + config both at invocation and async completion.
@@ -67,6 +70,7 @@ explicitly. Autosave and query refreshes never request focus.
 | `useAnnotationKeyboard` capture listener | Escape focus handling before the parent drawer's capture listener.                  | Retained; symmetric registration/cleanup.                                    |
 | `useAnnotationKeyboard` activation focus | DOM focus when the ready form becomes active, after the opening menu closes.        | Retained; scheduled frame cancelled on inactivity or unmount.                |
 | Score-comment editor                     | No external system: draft was mirrored from `savedComment`.                         | Removed; popover mount seeds the editor.                                     |
+| `ScoreConfigDescription`                 | ResizeObserver measures whether the description needs disclosure.                   | Retained; disconnects on description change or unmount.                      |
 
 No other direct effects exist in this feature. Query, cache, and local-storage
 hooks keep their existing external ownership. The shared `ScoreCacheProvider`

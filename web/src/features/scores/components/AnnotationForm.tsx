@@ -110,7 +110,31 @@ export function AnnotationFormContent({
   const allowManualSelection = suppliedTargets.some(
     (target) => target.configControl.allowManualSelection,
   );
-  const targets = allowManualSelection ? suppliedTargets : initialTargets;
+  const targets = allowManualSelection
+    ? suppliedTargets
+    : initialTargets.map((initialTarget) => {
+        const liveTarget = suppliedTargets.find(
+          (target) => target.key === initialTarget.key,
+        );
+        const liveConfigs = new Map(
+          liveTarget?.configControl.configs.map((config) => [
+            config.id,
+            config,
+          ]),
+        );
+        return {
+          ...initialTarget,
+          configControl: {
+            ...initialTarget.configControl,
+            // Keep this item's fields and order, but accept definition updates
+            // such as a category added while annotating. Removed queue fields
+            // retain their definition until the item is reopened.
+            configs: initialTarget.configControl.configs.map(
+              (config) => liveConfigs.get(config.id) ?? config,
+            ),
+          },
+        };
+      });
   const primaryTarget = targets[0]!;
   const { scoreMetadata, analyticsData } = primaryTarget;
   const initialFormData = targets.flatMap((target) =>

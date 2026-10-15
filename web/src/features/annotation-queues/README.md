@@ -37,9 +37,11 @@ each project and queue; changing the current item keeps the same run history.
 Queue setup keeps server data in tRPC. `AnnotationQueueSetupController` gates
 initial loading and adapts mutations to `AnnotationQueueSetupForm`. Its React
 Hook Form draft lives above the responsive sidebar, so collapsing the panel or
-closing its mobile sheet preserves unsaved changes. The sidebar contains name,
-description, ordered score configs, and user assignments, with one scrolling
-body and a fixed Save/Discard footer. Saves patch only dirty queue fields.
+closing its mobile sheet preserves unsaved changes. `AnnotationQueueItems` owns
+the mobile open state across initial loading. The Settings tab contains name,
+description, and user assignments; the Annotation panel tab contains ordered
+field previews. Both share one draft and a fixed Save/Discard footer.
+Saves patch only dirty queue fields.
 Background refreshes and project-wide config edits do not reset the draft.
 
 `QueueScoreConfigFields` adapts the existing project-wide create/edit dialogs to

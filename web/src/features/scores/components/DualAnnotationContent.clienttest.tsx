@@ -1029,6 +1029,70 @@ describe("unified annotation targets", () => {
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
+  it("uses refreshed category definitions without changing an open queue's fields or order", async () => {
+    mocks.create.mockResolvedValue({});
+    const category: ScoreConfigDomain = {
+      ...defaultConfig,
+      dataType: "CATEGORICAL",
+      categories: [{ label: "Old", value: 1 }],
+    };
+    const feedback: ScoreConfigDomain = {
+      ...defaultConfig,
+      id: "feedback",
+      name: "Feedback",
+      dataType: "TEXT",
+      categories: null,
+    };
+    const contentFor = (orderedConfigs: ScoreConfigDomain[]) => (
+      <AnnotationForm
+        scoreTarget={{ type: "session", sessionId: "session" }}
+        serverScores={[]}
+        scoreMetadata={{ projectId: "project", queueId: "queue" }}
+        analyticsData={{
+          type: "session",
+          source: "AnnotationQueue",
+          isV4: true,
+        }}
+        configSelection={{ mode: "fixed", configs: orderedConfigs }}
+      />
+    );
+    const view = renderContent(contentFor([feedback, category]));
+    const text = within(
+      screen.getByRole("group", { name: "Feedback" }),
+    ).getByRole("textbox");
+    fireEvent.change(text, { target: { value: "Keep my draft" } });
+    view.rerenderContent(
+      contentFor([
+        {
+          ...category,
+          description: "Updated guidance",
+          categories: [...category.categories!, { label: "New", value: 7 }],
+        },
+        { ...defaultConfig, id: "extra", name: "Extra" },
+        feedback,
+      ]),
+    );
+    expect(screen.getByText("Updated guidance")).toBeVisible();
+    expect(text).toHaveValue("Keep my draft");
+    expect(
+      screen.getAllByRole("group").map((row) => row.getAttribute("aria-label")),
+    ).toEqual(["Feedback", "Quality"]);
+    const newCategory = within(
+      screen.getByRole("group", { name: "Quality" }),
+    ).getByRole("tab", { name: /New/ });
+    expect(newCategory).toBeEnabled();
+    fireEvent.mouseDown(newCategory);
+    await waitFor(() =>
+      expect(mocks.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          configId: "quality",
+          value: 7,
+          stringValue: "New",
+        }),
+      ),
+    );
+  });
+
   it("preserves fixed queue text and comment drafts through config refresh and applies fields on reopen", async () => {
     const feedback = {
       ...defaultConfig,

@@ -111,9 +111,9 @@ export function SortableList<T>({
   disabled?: boolean;
   "aria-label"?: string;
 }) {
-  const [isKeyboardDragging, setIsKeyboardDragging] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   useEffect(() => {
-    if (!isKeyboardDragging) return;
+    if (!isDragging) return;
     // Consume Escape before modal document listeners; the sensor still
     // receives the event and cancels the drag without discarding the dialog.
     const preventDialogDismissal = (event: KeyboardEvent) => {
@@ -122,7 +122,7 @@ export function SortableList<T>({
     window.addEventListener("keydown", preventDialogDismissal, true);
     return () =>
       window.removeEventListener("keydown", preventDialogDismissal, true);
-  }, [isKeyboardDragging]);
+  }, [isDragging]);
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor),
@@ -133,7 +133,7 @@ export function SortableList<T>({
   const ids = items.map(getId);
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
-    setIsKeyboardDragging(false);
+    setIsDragging(false);
     if (disabled || !over || active.id === over.id) return;
     const fromIndex = ids.indexOf(String(active.id));
     const toIndex = ids.indexOf(String(over.id));
@@ -146,10 +146,8 @@ export function SortableList<T>({
       collisionDetection={closestCenter}
       modifiers={[restrictToVerticalAxis]}
       sensors={sensors}
-      onDragStart={({ activatorEvent }) =>
-        setIsKeyboardDragging(activatorEvent instanceof KeyboardEvent)
-      }
-      onDragCancel={() => setIsKeyboardDragging(false)}
+      onDragStart={() => setIsDragging(true)}
+      onDragCancel={() => setIsDragging(false)}
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
