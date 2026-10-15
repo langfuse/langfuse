@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 
 import Header from "@/src/components/layouts/header";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   AlertDialog,
@@ -23,6 +24,9 @@ import {
   isOrganizationOnlyFeaturePreviewFlag,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
+import { canOpenPersonalFeaturePreviews } from "@/src/features/feature-previews/canOpenPersonalFeaturePreviews";
+import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
@@ -40,8 +44,21 @@ export function OrganizationFeaturePreviewsSettings({
   const [proposedChange, setProposedChange] = useState<ProposedChange | null>(
     null,
   );
+  const [personalPreviewsOpen, setPersonalPreviewsOpen] = useState(false);
   const session = useSession();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const capture = usePostHogClientCapture();
+  const canOpenPersonalPreviews = canOpenPersonalFeaturePreviews({
+    isLangfuseCloud,
+    v4BetaEnabled: session.data?.user?.v4BetaEnabled === true,
+    isAdmin: session.data?.user?.admin === true,
+  });
+  const openPersonalPreviews = (source: "description" | "preview_row") => {
+    capture("organization_settings:personal_feature_previews_opened", {
+      source,
+    });
+    setPersonalPreviewsOpen(true);
+  };
   const utils = api.useUtils();
   const defaultsQuery = api.organizations.getFeatureFlagOrgDefaults.useQuery({
     orgId,
@@ -94,10 +111,22 @@ export function OrganizationFeaturePreviewsSettings({
     <div className="flex flex-col gap-4">
       <div>
         <Header title="Feature Previews" />
-        <p className="text-muted-foreground text-sm">
-          Enable previews for everyone while they are using this organization.
-          New members inherit these defaults automatically.
-        </p>
+        <div className="flex flex-col gap-1">
+          <p className="text-muted-foreground text-sm">
+            Enable previews for everyone while they are using this organization.
+            New members inherit these defaults automatically.
+          </p>
+          {canOpenPersonalPreviews ? (
+            <p className="text-muted-foreground text-sm">
+              Some previews apply only to your account and are not listed here.{" "}
+              <Button
+                variant="text"
+                text="Open personal feature previews"
+                onClick={() => openPersonalPreviews("description")}
+              />
+            </p>
+          ) : null}
+        </div>
       </div>
 
       {experimentalFeaturesEnabled ? (
@@ -139,8 +168,18 @@ export function OrganizationFeaturePreviewsSettings({
                 ) : null}
                 {requiresPersonalEnablement ? (
                   <p className="text-destructive text-xs">
-                    Enable this preview in your personal Feature Preview
-                    settings before enabling it for the organization.
+                    Enable this preview in your{" "}
+                    {canOpenPersonalPreviews ? (
+                      <Button
+                        variant="text"
+                        size="sm"
+                        text="personal Feature Preview settings"
+                        onClick={() => openPersonalPreviews("preview_row")}
+                      />
+                    ) : (
+                      "personal Feature Preview settings"
+                    )}{" "}
+                    before enabling it for the organization.
                   </p>
                 ) : null}
               </div>
@@ -215,6 +254,13 @@ export function OrganizationFeaturePreviewsSettings({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {canOpenPersonalPreviews ? (
+        <ControlledFeaturePreviewModal
+          open={personalPreviewsOpen}
+          onOpenChange={setPersonalPreviewsOpen}
+        />
+      ) : null}
     </div>
   );
 }
