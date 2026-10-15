@@ -6,6 +6,7 @@ import {
   type InAppAgentQuestionnaireAnswers,
   type InAppAgentToolApprovalRequest,
   AgUiMessageSchema,
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   parseInAppAgentInterruptEvent,
@@ -182,6 +183,11 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
         ...this.view,
         currentRun,
         attachment: hasSettled ? { status: "detached" } : this.view.attachment,
+        pendingToolApprovals: isCancellableBackgroundRun(currentRun.status)
+          ? this.view.pendingToolApprovals
+          : this.view.pendingToolApprovals.filter(
+              (pending) => pending.status !== "submitting",
+            ),
       });
       if (hasSettled) {
         // Status follows all persisted events and is authoritative even if the
@@ -349,7 +355,12 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       this.setApprovalStatus(input.toolCallId, "pending");
       throw error;
     }
-    this.resolveApproval(input.toolCallId);
+    // An answered questionnaire stays visible as submitting until its tool
+    // result arrives; dropping it here would leave a gap in which the
+    // transcript has nothing to show for the answers.
+    if (!(input.approved && this.isQuestionnaireApproval(input.toolCallId))) {
+      this.resolveApproval(input.toolCallId);
+    }
     await this.refreshAttachmentAfterCommand(attachmentGeneration);
   }
 
@@ -426,6 +437,45 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
         (pending) => pending.approvalRequest.toolCallId !== toolCallId,
       ),
     });
+  }
+
+  private isQuestionnaireApproval(toolCallId: string): boolean {
+    return this.view.pendingToolApprovals.some(
+      (pending) =>
+        pending.approvalRequest.toolCallId === toolCallId &&
+        pending.approvalRequest.toolName ===
+          IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+    );
+  }
+
+  /**
+   * The server forgets an approval once it is decided, so a snapshot taken
+   * before the resumed run posts the questionnaire's result would drop it.
+   * Keep it while that run still executes and has not produced the result.
+   */
+  private getQuestionnairesAwaitingResult(
+    hydrated: BackgroundExecutionHydration,
+  ): BackgroundExecutionApprovalView[] {
+    if (!isExecutingRun(hydrated.currentRun)) {
+      return [];
+    }
+
+    const knownToolCallIds = new Set([
+      ...hydrated.pendingToolApprovals.map(
+        (pending) => pending.approvalRequest.toolCallId,
+      ),
+      ...hydrated.messages.flatMap((message) =>
+        message.role === "tool" ? [message.toolCallId] : [],
+      ),
+    ]);
+
+    return this.view.pendingToolApprovals.filter(
+      (pending) =>
+        pending.status === "submitting" &&
+        pending.approvalRequest.toolName ===
+          IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME &&
+        !knownToolCallIds.has(pending.approvalRequest.toolCallId),
+    );
   }
 
   private setApprovalStatus(
@@ -505,6 +555,10 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     this.agent.setCursor(hydrated.eventCursor);
     this.setView({
       ...hydrated,
+      pendingToolApprovals: [
+        ...hydrated.pendingToolApprovals,
+        ...this.getQuestionnairesAwaitingResult(hydrated),
+      ],
       liveMessageRevision: this.view.liveMessageRevision,
       cancelStatus: "idle",
       attachment: { status: "detached" },

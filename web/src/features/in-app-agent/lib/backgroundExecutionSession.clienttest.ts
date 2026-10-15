@@ -3,6 +3,7 @@ import type { AgentSubscriber } from "@ag-ui/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   type AgUiMessage,
@@ -521,6 +522,87 @@ describe("BackgroundExecutionSessionController", () => {
     expect(session.getSnapshot().pendingToolApprovals).toMatchObject([
       { status: "pending" },
     ]);
+  });
+
+  it("keeps an answered questionnaire submitting until its tool result arrives", async () => {
+    let subscriber: AgentSubscriber | undefined;
+    const questionnaireApproval = {
+      runId: "run-1",
+      status: "pending",
+      approvalRequest: {
+        type: "tool_approval_request",
+        toolCallId: "questionnaire-call",
+        toolName: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+        runId: "run-1",
+      },
+    } satisfies BackgroundExecutionView["pendingToolApprovals"][number];
+    const session = new BackgroundExecutionSessionController({
+      agent: {
+        ...createAgent(),
+        subscribe: vi.fn((nextSubscriber: AgentSubscriber) => {
+          subscriber = nextSubscriber;
+          return { unsubscribe: vi.fn() };
+        }),
+        connectAgent: vi.fn(() => new Promise<unknown>(() => undefined)),
+      },
+      hydrate: vi.fn().mockResolvedValue(runningView),
+      cancelRun: vi.fn(),
+      decideApproval: vi.fn().mockResolvedValue(undefined),
+      initialView: { pendingToolApprovals: [questionnaireApproval] },
+    });
+
+    await session.decide({
+      runId: "run-1",
+      toolCallId: "questionnaire-call",
+      approved: true,
+    });
+
+    expect(session.getSnapshot().pendingToolApprovals).toEqual([
+      { ...questionnaireApproval, status: "submitting" },
+    ]);
+
+    await subscriber?.onToolCallResultEvent?.({
+      event: { toolCallId: "questionnaire-call" },
+    } as never);
+
+    expect(session.getSnapshot().pendingToolApprovals).toEqual([]);
+  });
+
+  it("drops an answered questionnaire once its run is no longer executing", async () => {
+    const session = new BackgroundExecutionSessionController({
+      agent: createAgent(),
+      hydrate: vi.fn().mockResolvedValue({
+        ...runningView,
+        currentRun: {
+          ...runningView.currentRun,
+          status: InAppAgentRunStatus.FAILED,
+        },
+      }),
+      cancelRun: vi.fn(),
+      decideApproval: vi.fn().mockResolvedValue(undefined),
+      initialView: {
+        pendingToolApprovals: [
+          {
+            runId: "run-1",
+            status: "pending",
+            approvalRequest: {
+              type: "tool_approval_request",
+              toolCallId: "questionnaire-call",
+              toolName: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+              runId: "run-1",
+            },
+          },
+        ],
+      },
+    });
+
+    await session.decide({
+      runId: "run-1",
+      toolCallId: "questionnaire-call",
+      approved: true,
+    });
+
+    expect(session.getSnapshot().pendingToolApprovals).toEqual([]);
   });
 
   it("keeps run-start failures outside attachment state", async () => {
