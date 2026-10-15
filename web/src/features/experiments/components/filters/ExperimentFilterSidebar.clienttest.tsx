@@ -2,6 +2,8 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { type FilterState } from "@langfuse/shared";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
+import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
 import { ExperimentFilterSidebar } from "./ExperimentFilterSidebar";
 
 const { capture, changed } = vi.hoisted(() => ({
@@ -57,8 +59,9 @@ const targets = [
   { id: "run-b", label: "Run B" },
 ];
 const options = {
-  scores_avg: ["private-quality"],
+  scores_avg: ["private-passed", "private-rating", "private-quality"],
   score_categories: { "private-rating": ["good"] },
+  score_booleans: ["private-passed"],
   level: ["DEFAULT", "ERROR"],
 };
 const optionsByTarget = Object.fromEntries(
@@ -95,13 +98,17 @@ function Harness({ initialFilters }: { initialFilters: FilterState }) {
 describe("experiment filter sidebar", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("adds a complete all-experiments score condition from an empty sidebar and captures metadata only", () => {
+  it("opens a type picker and immediately applies the displayed score default without a draft card", () => {
     render(<Harness initialFilters={[]} />);
     expect(screen.getByText("No active filters.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Filter to add" }), {
-      target: { value: "scores_avg" },
-    });
+    const picker = screen.getByRole("dialog");
+    expect(within(picker).getByText("private-quality >= 0")).toBeTruthy();
+    expect(screen.queryByRole("form")).toBeNull();
+    expect(changed).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(picker).getByRole("button", { name: /Numeric score/ }),
+    );
     expect(
       (
         screen.getByRole("combobox", {
@@ -109,17 +116,11 @@ describe("experiment filter sidebar", () => {
         }) as HTMLSelectElement
       ).value,
     ).toBe("all");
-    fireEvent.change(screen.getByRole("combobox", { name: "Score name" }), {
-      target: { value: "private-quality" },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "Filter value" }), {
-      target: { value: "0.7" },
-    });
-    expect(changed).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Add condition" }));
     expect(changed).toHaveBeenLastCalledWith([
-      { ...numeric("all"), operator: "=", value: 0.7 },
+      { ...numeric("all"), operator: ">=", value: 0 },
     ]);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add condition" })).toBeNull();
     expect(capture).toHaveBeenCalledTimes(1);
     expect(capture).toHaveBeenCalledWith(
       "filters:applied",
@@ -130,7 +131,6 @@ describe("experiment filter sidebar", () => {
       }),
     );
     expect(JSON.stringify(capture.mock.calls)).not.toContain("private-quality");
-    expect(JSON.stringify(capture.mock.calls)).not.toContain("0.7");
   });
 
   it("retargets and removes one of two identical score predicates without changing the other", () => {
@@ -174,6 +174,227 @@ describe("experiment filter sidebar", () => {
     expect(capture).toHaveBeenCalledTimes(2);
     expect(JSON.stringify(capture.mock.calls)).not.toContain("run-a");
     expect(JSON.stringify(capture.mock.calls)).not.toContain("run-b");
+  });
+
+  it.each([
+    {
+      label: "Status",
+      expected: {
+        column: "level",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["DEFAULT"],
+        target: "all",
+      },
+    },
+    {
+      label: "Categorical score",
+      expected: {
+        column: "score_categories",
+        type: "categoryOptions",
+        key: "private-rating",
+        operator: "any of",
+        value: ["good"],
+        target: "all",
+      },
+    },
+    {
+      label: "Boolean score",
+      expected: {
+        column: "score_booleans",
+        type: "booleanObject",
+        key: "private-passed",
+        operator: "=",
+        value: true,
+        target: "all",
+      },
+    },
+  ])(
+    "applies a valid $label default directly from the picker",
+    ({ label, expected }) => {
+      render(
+        <ExperimentFilterSidebar
+          filters={[]}
+          onChange={changed}
+          onClearAll={vi.fn()}
+          targets={targets}
+          optionsByTarget={optionsByTarget}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
+      fireEvent.click(
+        within(screen.getByRole("dialog")).getByRole("button", {
+          name: new RegExp(label),
+        }),
+      );
+      expect(changed).toHaveBeenCalledExactlyOnceWith([expected]);
+      expect(screen.queryByRole("dialog")).toBeNull();
+    },
+  );
+
+  it("keeps metadata setup inside the popup and discards cancellation before adding a complete presence filter", () => {
+    render(<Harness initialFilters={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: /^Item metadata/,
+      }),
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(
+      (
+        within(dialog).getByRole("button", {
+          name: "Add filter",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    fireEvent.submit(within(dialog).getByRole("form"));
+    fireEvent.change(
+      within(dialog).getByRole("textbox", { name: "Metadata key" }),
+      { target: { value: "discarded" } },
+    );
+    expect(
+      within(screen.getByRole("complementary")).queryByRole("form"),
+    ).toBeNull();
+    expect(changed).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(capture).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: /^Item metadata/,
+      }),
+    );
+    const nextDialog = screen.getByRole("dialog");
+    expect(
+      (
+        within(nextDialog).getByRole("textbox", {
+          name: "Metadata key",
+        }) as HTMLInputElement
+      ).value,
+    ).toBe("");
+    fireEvent.change(
+      within(nextDialog).getByRole("textbox", { name: "Metadata key" }),
+      { target: { value: " private key " } },
+    );
+    fireEvent.click(
+      within(nextDialog).getByRole("button", { name: "Add filter" }),
+    );
+    expect(changed).toHaveBeenCalledExactlyOnceWith([
+      {
+        column: "itemMetadata",
+        type: "stringObject",
+        key: " private key ",
+        operator: "is set",
+        value: "",
+        target: "all",
+      },
+    ]);
+    expect(
+      screen.getByRole("form", { name: "Item metadata filter" }),
+    ).toBeTruthy();
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(capture.mock.calls)).not.toContain("private key");
+  });
+
+  it("disables unavailable score defaults until options contain an observed score", () => {
+    const props = {
+      filters: [],
+      onChange: changed,
+      onClearAll: vi.fn(),
+      targets,
+    };
+    const { rerender } = render(
+      <ExperimentFilterSidebar
+        {...props}
+        optionsByTarget={{ all: undefined }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
+    const numericChoice = () =>
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: /Numeric score/,
+      }) as HTMLButtonElement;
+    expect(numericChoice().disabled).toBe(true);
+    expect(numericChoice().textContent).toContain("Loading scores");
+    rerender(
+      <ExperimentFilterSidebar {...props} optionsByTarget={{ all: {} }} />,
+    );
+    expect(numericChoice().disabled).toBe(true);
+    expect(numericChoice().textContent).toContain("No scores of this type");
+    fireEvent.click(numericChoice());
+    expect(changed).not.toHaveBeenCalled();
+    rerender(
+      <ExperimentFilterSidebar {...props} optionsByTarget={optionsByTarget} />,
+    );
+    expect(numericChoice().disabled).toBe(false);
+    fireEvent.click(numericChoice());
+    expect(changed).toHaveBeenCalledExactlyOnceWith([
+      { ...numeric("all"), operator: ">=", value: 0 },
+    ]);
+  });
+
+  it("shows an addable catalog when active-only is unchecked without creating pending cards", () => {
+    render(<Harness initialFilters={[]} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show only active" }));
+    expect(screen.getByText("Available filters")).toBeTruthy();
+    expect(screen.queryByRole("form")).toBeNull();
+    expect(changed).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Numeric score/ }));
+    expect(changed).toHaveBeenLastCalledWith([
+      { ...numeric("all"), operator: ">=", value: 0 },
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: /^Metadata/ }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(
+      within(dialog).getByRole("textbox", { name: "Metadata key" }),
+      { target: { value: "private-field" } },
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add filter" }));
+    expect(changed).toHaveBeenLastCalledWith([
+      { ...numeric("all"), operator: ">=", value: 0 },
+      {
+        column: "eventMetadata",
+        type: "stringObject",
+        key: "private-field",
+        operator: "is set",
+        value: "",
+        target: "all",
+      },
+    ]);
+  });
+
+  it("keeps creation choices accessible and actionable inside the mobile modal sheet", () => {
+    render(
+      <LayerProvider>
+        <Sheet open>
+          <SheetContent side="bottom" aria-describedby={undefined}>
+            <SheetTitle>Filters</SheetTitle>
+            <ExperimentFilterSidebar
+              layout="inline"
+              filters={[]}
+              onChange={changed}
+              onClearAll={vi.fn()}
+              targets={targets}
+              optionsByTarget={optionsByTarget}
+            />
+          </SheetContent>
+        </Sheet>
+      </LayerProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Boolean score/ }));
+    expect(changed).toHaveBeenCalledExactlyOnceWith([
+      {
+        column: "score_booleans",
+        type: "booleanObject",
+        key: "private-passed",
+        operator: "=",
+        value: true,
+        target: "all",
+      },
+    ]);
   });
 
   it("keeps the applied condition when another experiment records the same score name as a different type", () => {

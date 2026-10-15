@@ -5,6 +5,7 @@ import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
 import { Button } from "@/src/components/ui/button";
+import { PopoverController } from "@/src/components/ui/popover";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { ScoreTag } from "@/src/components/score-tag";
 import { useDataTableControls } from "@/src/components/table/data-table-controls";
@@ -16,9 +17,12 @@ import {
   editExperimentFilter,
   EXPERIMENT_FILTER_KINDS,
   experimentFilterToDraft,
-  newExperimentFilterDraft,
   type ExperimentFilterDraft,
 } from "./experimentFilterEditing";
+import {
+  AvailableExperimentFilters,
+  ExperimentFilterCreationContent,
+} from "./ExperimentFilterCreation";
 
 type TargetOption = { id: string; label: string; textClassName?: string };
 type TargetOptions = ExperimentItemScoreFilterOptions & {
@@ -138,14 +142,12 @@ function ExperimentFilterBlock({
   optionsByTarget,
   onApply,
   onRemove,
-  isNew,
 }: {
   initialDraft: ExperimentFilterDraft;
   targets: readonly TargetOption[];
   optionsByTarget: ExperimentFilterSidebarProps["optionsByTarget"];
   onApply: (filter: FilterState[number]) => void;
   onRemove: () => void;
-  isNew: boolean;
 }) {
   const [draft, setDraft] = useState(initialDraft);
   const id = useId();
@@ -165,8 +167,7 @@ function ExperimentFilterBlock({
   const invalidType = isScore && incompatibleScore(draft, options);
   const scoreOptionsUnavailable = isScore && options === undefined;
   const completed = completeExperimentFilter(draft);
-  const hasChanges =
-    isNew || JSON.stringify(draft) !== JSON.stringify(initialDraft);
+  const hasChanges = JSON.stringify(draft) !== JSON.stringify(initialDraft);
   const title = kind?.label ?? draft.column;
   const availableTargets = targets.map((entry) => ({
     value: entry.id,
@@ -302,7 +303,7 @@ function ExperimentFilterBlock({
             !completed || !target || invalidType || scoreOptionsUnavailable
           }
         >
-          {isNew ? "Add condition" : "Apply changes"}
+          Apply changes
         </Button>
       )}
     </form>
@@ -319,9 +320,10 @@ export function ExperimentFilterSidebar({
 }: ExperimentFilterSidebarProps) {
   const { open, setOpen, isMobile } = useDataTableControls();
   const capture = usePostHogClientCapture();
-  const [adding, setAdding] = useState(false);
-  const [draftColumn, setDraftColumn] = useState<string | null>(null);
   const [showOnlyActive, setShowOnlyActive] = useState(true);
+  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(
+    null,
+  );
   const activeOnlyId = useId();
   const occurrences = new Map<string, number>();
   const filterBlocks = filters.map((filter, index) => {
@@ -338,8 +340,6 @@ export function ExperimentFilterSidebar({
         : editExperimentFilter(filters, index, filter);
     if (JSON.stringify(next) === JSON.stringify(filters)) return;
     onChange(next);
-    setDraftColumn(null);
-    setAdding(false);
     capture("filters:applied", {
       surface: "sidebar",
       tableName: "experiment-items",
@@ -393,7 +393,7 @@ export function ExperimentFilterSidebar({
       </div>
     );
 
-  return (
+  const sidebar = (
     <aside
       aria-label="Experiment filters"
       className={cn(
@@ -443,22 +443,18 @@ export function ExperimentFilterSidebar({
             />
             Show only active
           </label>
-          {(filters.length > 0 || draftColumn) && (
+          {filters.length > 0 && (
             <Button
               variant="ghost"
               size="sm"
               className="h-6 px-1 text-xs"
-              onClick={() => {
-                onClearAll();
-                setDraftColumn(null);
-                setAdding(false);
-              }}
+              onClick={onClearAll}
             >
               Clear all
             </Button>
           )}
         </div>
-        {filters.length === 0 && !draftColumn && (
+        {filters.length === 0 && (
           <p className="text-muted-foreground py-3 text-center text-xs">
             No active filters.
           </p>
@@ -471,47 +467,51 @@ export function ExperimentFilterSidebar({
             optionsByTarget={optionsByTarget}
             onApply={(replacement) => apply(replacement, index)}
             onRemove={() => remove(index)}
-            isNew={false}
           />
         ))}
-        {draftColumn && (
-          <ExperimentFilterBlock
-            key={`new:${draftColumn}`}
-            initialDraft={newExperimentFilterDraft(draftColumn)}
-            targets={targets}
-            optionsByTarget={optionsByTarget}
-            onApply={(filter) => apply(filter)}
-            onRemove={() => {
-              setDraftColumn(null);
-              setAdding(false);
-            }}
-            isNew={true}
+        {!showOnlyActive && (
+          <AvailableExperimentFilters
+            options={optionsByTarget.all}
+            onAdd={(filter) => apply(filter)}
+            portalContainer={portalContainer}
           />
         )}
-        {(adding || !showOnlyActive) && !draftColumn && (
-          <SelectInput
-            aria-label="Filter to add"
-            value=""
-            options={EXPERIMENT_FILTER_KINDS.map((kind) => ({
-              value: kind.column,
-              label: kind.label,
-            }))}
-            onValueChange={setDraftColumn}
-            placeholder="Choose filter"
-            search={{ placeholder: "Search filters" }}
-          />
-        )}
-        {!draftColumn && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setAdding(!adding)}
-          >
-            <Plus className="mr-1.5 size-3.5" />
-            Add filter
-          </Button>
-        )}
+        <PopoverController
+          align="start"
+          contentClassName="ph-no-capture w-72"
+          disabled={false}
+          modal={false}
+          portalContainer={portalContainer}
+          renderContent={({ closePopover }) => (
+            <ExperimentFilterCreationContent
+              options={optionsByTarget.all}
+              onCancel={closePopover}
+              onAdd={(filter) => {
+                apply(filter);
+                closePopover();
+              }}
+            />
+          )}
+        >
+          {({ Trigger }) => (
+            <Trigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Plus className="size-3.5" />
+                Add filter
+              </Button>
+            </Trigger>
+          )}
+        </PopoverController>
       </div>
     </aside>
+  );
+
+  return (
+    <>
+      {sidebar}
+      {layout === "inline" && (
+        <div data-layer="popover" ref={setPortalContainer} />
+      )}
+    </>
   );
 }
