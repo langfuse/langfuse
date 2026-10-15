@@ -40,16 +40,16 @@ FROM
     FROM scores AS s
     WHERE (s.project_id = {param1:String})
         AND ((s.project_id, toDate(s.timestamp), s.name, s.id) IN (
-        SELECT DISTINCT
-            s.project_id,
-            toDate(s.timestamp),
-            s.name,
-            s.id
-        FROM scores AS s
-        WHERE (s.project_id = {param1:String})
-            AND (project_id = {param2:String})
-            AND (s.trace_id = {param3:String})
-    ))
+            SELECT DISTINCT
+                s.project_id,
+                toDate(s.timestamp),
+                s.name,
+                s.id
+            FROM scores AS s
+            WHERE (s.project_id = {param1:String})
+                AND (project_id = {param2:String})
+                AND (s.trace_id = {param3:String})
+        ))
     GROUP BY
         s.project_id,
         toDate(s.timestamp),
@@ -122,16 +122,16 @@ FROM
         FROM scores AS s
         WHERE (s.project_id = {param1:String})
             AND ((s.project_id, toDate(s.timestamp), s.name, s.id) IN (
-            SELECT DISTINCT
-                s.project_id,
-                toDate(s.timestamp),
-                s.name,
-                s.id
-            FROM scores AS s
-            WHERE (s.project_id = {param1:String})
-                AND (project_id = {param2:String})
-                AND (s.trace_id = {param3:String})
-        ))
+                SELECT DISTINCT
+                    s.project_id,
+                    toDate(s.timestamp),
+                    s.name,
+                    s.id
+                FROM scores AS s
+                WHERE (s.project_id = {param1:String})
+                    AND (project_id = {param2:String})
+                    AND (s.trace_id = {param3:String})
+            ))
         GROUP BY
             s.project_id,
             toDate(s.timestamp),

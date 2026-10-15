@@ -465,13 +465,15 @@ WHERE (e.project_id = {param1:String})
     AND (e.trace_id IN ({param3:Array(String)}))
     AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))}))
     AND (e.trace_id IN (
-    SELECT trace_id
-    FROM events_core
-    WHERE (project_id = {param1:String})
-        AND (trace_id IN ({param3:Array(String)}))
-    GROUP BY trace_id
-    HAVING argMaxIf(session_id, event_ts, session_id != '') = {param5:String}
-)) AND (e.start_time >= {param6:DateTime64(6)}) AND (e.start_time <= {param7:DateTime64(6)})",
+        SELECT trace_id
+        FROM events_core
+        WHERE (project_id = {param1:String})
+            AND (trace_id IN ({param3:Array(String)}))
+        GROUP BY trace_id
+        HAVING argMaxIf(session_id, event_ts, session_id != '') = {param5:String}
+    ))
+    AND (e.start_time >= {param6:DateTime64(6)})
+    AND (e.start_time <= {param7:DateTime64(6)})",
   },
 ]
 `;
@@ -679,18 +681,20 @@ exports[`golden: events metadata map and session resolution > getObservationsV2F
         FROM events_full AS e
         WHERE (e.project_id = {param1:String})
             AND (e.start_time >= (((
-            SELECT (min(start_time), max(start_time))
-            FROM base
-        )).1)) AND (e.start_time <= (((
-            SELECT (min(start_time), max(start_time))
-            FROM base
-        )).2)) AND ((e.start_time, e.trace_id, e.span_id) IN (
-            SELECT
-                start_time,
-                trace_id,
-                id
-            FROM base
-        ))
+                SELECT (min(start_time), max(start_time))
+                FROM base
+            )).1))
+            AND (e.start_time <= (((
+                SELECT (min(start_time), max(start_time))
+                FROM base
+            )).2))
+            AND ((e.start_time, e.trace_id, e.span_id) IN (
+                SELECT
+                    start_time,
+                    trace_id,
+                    id
+                FROM base
+            ))
     )
 SELECT
     b.id AS id,
@@ -771,10 +775,11 @@ WHERE (e.project_id IN ({param1:Array(String)}))
     AND (e.trace_id IN ({param2:Array(String)}))
     AND ((e.project_id, e.trace_id) IN ({param3:Array(Tuple(String, String))}))
     AND (xxHash32(e.trace_id) IN (
-    SELECT arrayJoin(arrayMap(id -> xxHash32(id), {param2:Array(String)}))
-)) AND (
-    e.start_time >= fromUnixTimestamp64Milli({param4:Int64})
-) AND (e.start_time <= fromUnixTimestamp64Milli({param5:Int64})) AND arrayExists((group_project_id, group_trace_ids, min_ms, max_ms) -> ((e.project_id = group_project_id) AND has(group_trace_ids, e.trace_id) AND ((e.start_time >= fromUnixTimestamp64Milli(min_ms)) AND (e.start_time <= fromUnixTimestamp64Milli(max_ms)))), {param6:Array(String)}, {param7:Array(Array(String))}, {param8:Array(Int64)}, {param9:Array(Int64)})
+        SELECT arrayJoin(arrayMap(id -> xxHash32(id), {param2:Array(String)}))
+    ))
+    AND (e.start_time >= fromUnixTimestamp64Milli({param4:Int64}))
+    AND (e.start_time <= fromUnixTimestamp64Milli({param5:Int64}))
+    AND arrayExists((group_project_id, group_trace_ids, min_ms, max_ms) -> ((e.project_id = group_project_id) AND has(group_trace_ids, e.trace_id) AND ((e.start_time >= fromUnixTimestamp64Milli(min_ms)) AND (e.start_time <= fromUnixTimestamp64Milli(max_ms)))), {param6:Array(String)}, {param7:Array(Array(String))}, {param8:Array(Int64)}, {param9:Array(Int64)})
 ORDER BY
     e.project_id ASC,
     e.trace_id ASC",

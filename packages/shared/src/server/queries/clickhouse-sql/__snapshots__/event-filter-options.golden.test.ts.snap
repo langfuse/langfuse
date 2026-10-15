@@ -62,12 +62,12 @@ exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=scoredTrac
         SAMPLE 6000000
         WHERE (e.project_id = {param2:String})
             AND (e.trace_id IN (
-            SELECT DISTINCT trace_id
-            FROM scores
-            WHERE (project_id = {param2:String})
-                AND (timestamp >= {param3:DateTime64(3, 'UTC')})
-                AND (timestamp <= {param4:DateTime64(3, 'UTC')})
-        ))
+                SELECT DISTINCT trace_id
+                FROM scores
+                WHERE (project_id = {param2:String})
+                    AND (timestamp >= {param3:DateTime64(3, 'UTC')})
+                    AND (timestamp <= {param4:DateTime64(3, 'UTC')})
+            ))
     ),
     option_rows AS
     (
