@@ -73,13 +73,15 @@ export function AgentTools({
           />
         </div>
       )}
-      <Table
-        tableName="Agent tools"
-        columns={columns}
-        data={{ status: "success", data: tools }}
-        rowHeight="m"
-        onRowClick={(tool) => onSelectTool(tool.name)}
-      />
+      <div className="flex min-h-48 flex-1 flex-col">
+        <Table
+          tableName="Agent tools"
+          columns={columns}
+          data={{ status: "success", data: tools }}
+          rowHeight="s"
+          onRowClick={(tool) => onSelectTool(tool.name)}
+        />
+      </div>
       {tools.some((tool) => tool.available) && (
         <p className="text-muted-foreground text-xs">
           Available-tool declarations seen in discovery history:{" "}

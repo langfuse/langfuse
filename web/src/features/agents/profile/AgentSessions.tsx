@@ -233,20 +233,22 @@ export function AgentSessions({
           />
         </div>
       )}
-      <Table
-        tableName="Agent sessions"
-        columns={columns}
-        data={{
-          status: "success",
-          data: rows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize),
-        }}
-        rowHeight="m"
-        onRowClick={(row) => {
-          if (row.sessionId) openPeek(row.sessionId);
-          else if (row.traceId)
-            router.push(buildTracePath({ projectId, traceId: row.traceId }));
-        }}
-      />
+      <div className="flex min-h-48 flex-1 flex-col">
+        <Table
+          tableName="Agent sessions"
+          columns={columns}
+          data={{
+            status: "success",
+            data: rows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize),
+          }}
+          rowHeight="s"
+          onRowClick={(row) => {
+            if (row.sessionId) openPeek(row.sessionId);
+            else if (row.traceId)
+              router.push(buildTracePath({ projectId, traceId: row.traceId }));
+          }}
+        />
+      </div>
       <PaginationBar
         mode="offset"
         totalCount={rows.length}

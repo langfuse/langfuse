@@ -20,10 +20,13 @@ alternatives for comparison.
 - `prototype-options`: typed URL choices with project-scoped browser defaults.
   No new telemetry records names, identifiers, glyphs or search values.
 - `AgentDetailPage`: scope and tab navigation, preserving `tab=runs` as AGENT
-  invocations. Sessions is the default. Tabs precede contextual charts.
+  invocations. Sessions is the default. Tabs precede contextual charts. A minimum
+  workspace height protects table rows; the page scrolls when context grows.
 - `profile`: pure chart/session preparation, period-scoped session rows, executed
   tools, comparison evidence, coverage and genuine session peek. The peek reuses
   session detail APIs and conversation components; it loads content only on open.
+  Comparison and coverage details expand on demand, retaining compact summaries
+  and visible comparison status above the table workspace.
 - `AgentSkills`: native-load/legacy evidence, authorized exact-name catalog links
   and a separate declaration view. A catalog match does not establish loaded version.
 - `agent-map`: existing trace-local ancestry explorer and graph renderer.

@@ -140,13 +140,15 @@ export function AgentSkills({
         </div>
       )}
       {skills.length > 0 && (
-        <Table
-          tableName="Observed agent skills"
-          columns={columns}
-          data={{ status: "success", data: skills }}
-          rowHeight="m"
-          onRowClick={(row) => onSelectSkill(row.name)}
-        />
+        <div className="flex min-h-48 flex-1 flex-col">
+          <Table
+            tableName="Observed agent skills"
+            columns={columns}
+            data={{ status: "success", data: skills }}
+            rowHeight="s"
+            onRowClick={(row) => onSelectSkill(row.name)}
+          />
+        </div>
       )}
       {projection.coverage.groupsTruncated && (
         <p className="text-muted-foreground text-xs">
