@@ -1,5 +1,5 @@
 use crate::resolution::ControlPlaneConfig;
-use std::{env, error::Error, fmt, net::SocketAddr, time::Duration};
+use std::{env, error::Error, fmt, net::SocketAddr, ops::RangeInclusive, time::Duration};
 use tracing::level_filters::LevelFilter;
 
 pub struct GatewayConfig {
@@ -17,6 +17,8 @@ pub struct GatewayConfig {
 }
 
 const MIB: usize = 1024 * 1024;
+const DEFAULT_CONCURRENCY: usize = 128;
+const SEMAPHORE_CAPACITY: usize = tokio::sync::Semaphore::MAX_PERMITS;
 pub const DEFAULT_MAX_REQUEST_BYTES: usize = 32 * MIB;
 const DEFAULT_SHARED_REQUEST_BUFFER_BYTES: usize = 512 * MIB;
 /// Longest configurable execution; Web's two-hour ingestion tokens outlive it plus the upload.
@@ -149,16 +151,12 @@ impl GatewayConfig {
         .ok_or(GatewayConfigError(
             "LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT must be true or false",
         ))?;
-        let seconds: u64 = shutdown_timeout.unwrap_or("10").parse().map_err(|_| {
-            GatewayConfigError(
-                "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
-            )
-        })?;
-        if !(1..=300).contains(&seconds) {
-            return Err(GatewayConfigError(
-                "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
-            ));
-        }
+        let seconds = integer_setting(
+            shutdown_timeout,
+            10,
+            1..=300,
+            "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
+        )?;
         let log_level = match log_level.unwrap_or("info") {
             "debug" => LevelFilter::DEBUG,
             "info" => LevelFilter::INFO,
@@ -187,12 +185,16 @@ impl GatewayConfig {
             shutdown_timeout: Duration::from_secs(seconds),
             log_level,
             log_format,
-            max_active_requests: concurrency_limit(
+            max_active_requests: integer_setting(
                 max_active_requests,
+                DEFAULT_CONCURRENCY,
+                1..=SEMAPHORE_CAPACITY,
                 "LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS must be a positive integer within the semaphore capacity",
             )?,
-            max_concurrent_resolutions: concurrency_limit(
+            max_concurrent_resolutions: integer_setting(
                 max_concurrent_resolutions,
+                DEFAULT_CONCURRENCY,
+                1..=SEMAPHORE_CAPACITY,
                 "LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS must be a positive integer within the semaphore capacity",
             )?,
             telemetry_buffer_bytes: crate::telemetry::DEFAULT_RETAINED_BYTES,
@@ -210,23 +212,19 @@ fn request_limits(
     // One request reserves its body in a single semaphore acquisition, which takes a u32.
     let max_reservation = usize::try_from(u32::MAX)
         .unwrap_or(usize::MAX)
-        .min(tokio::sync::Semaphore::MAX_PERMITS);
-    let max_request_bytes = max_request_bytes
-        .map_or(Some(defaults.max_request_bytes), |value| {
-            value.parse::<usize>().ok()
-        })
-        .filter(|bytes| (MIB..=max_reservation).contains(bytes))
-        .ok_or(GatewayConfigError(
-            "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES must be an integer of at least 1048576 (1 MiB) and within a single semaphore reservation",
-        ))?;
-    let shared_buffer_bytes = shared_buffer_bytes
-        .map_or(Some(defaults.shared_buffer_bytes), |value| {
-            value.parse::<usize>().ok()
-        })
-        .filter(|bytes| (max_request_bytes..=tokio::sync::Semaphore::MAX_PERMITS).contains(bytes))
-        .ok_or(GatewayConfigError(
-            "LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES must be an integer of at least LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES within the semaphore capacity",
-        ))?;
+        .min(SEMAPHORE_CAPACITY);
+    let max_request_bytes = integer_setting(
+        max_request_bytes,
+        defaults.max_request_bytes,
+        MIB..=max_reservation,
+        "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES must be an integer of at least 1048576 (1 MiB) and within a single semaphore reservation",
+    )?;
+    let shared_buffer_bytes = integer_setting(
+        shared_buffer_bytes,
+        defaults.shared_buffer_bytes,
+        max_request_bytes..=SEMAPHORE_CAPACITY,
+        "LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES must be an integer of at least LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES within the semaphore capacity",
+    )?;
     Ok(RequestLimits {
         max_request_bytes,
         shared_buffer_bytes,
@@ -238,54 +236,44 @@ fn execution_limits(
     stall_timeout: Option<&str>,
 ) -> Result<ExecutionLimits, GatewayConfigError> {
     let defaults = ExecutionLimits::default();
-    let seconds = |value: Option<&str>, default: Duration, range: std::ops::RangeInclusive<u64>| {
-        value
-            .map_or(Some(default.as_secs()), |value| value.parse::<u64>().ok())
-            .filter(|seconds| range.contains(seconds))
-            .map(Duration::from_secs)
-    };
-    let max_execution = seconds(
+    let max_execution = integer_setting(
         max_execution,
-        defaults.max_execution,
+        defaults.max_execution.as_secs(),
         60..=MAX_EXECUTION_CEILING_SECONDS,
-    )
-    .ok_or(GatewayConfigError(
         "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS must be an integer from 60 to 5400",
-    ))?;
-    let default_stall = defaults.stall_timeout.min(max_execution);
-    let stall_timeout = seconds(stall_timeout, default_stall, 1..=max_execution.as_secs())
-        .ok_or(GatewayConfigError(
-            "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS must be an integer from 1 to LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
-        ))?;
-    Ok(ExecutionLimits {
-        max_execution,
+    )?;
+    let stall_timeout = integer_setting(
         stall_timeout,
+        defaults.stall_timeout.as_secs().min(max_execution),
+        1..=max_execution,
+        "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS must be an integer from 1 to LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
+    )?;
+    Ok(ExecutionLimits {
+        max_execution: Duration::from_secs(max_execution),
+        stall_timeout: Duration::from_secs(stall_timeout),
     })
 }
 
-fn concurrency_limit(
-    value: Option<&str>,
-    message: &'static str,
-) -> Result<usize, GatewayConfigError> {
-    value
-        .unwrap_or("128")
-        .parse::<usize>()
-        .ok()
-        .filter(|limit| (1..=tokio::sync::Semaphore::MAX_PERMITS).contains(limit))
-        .ok_or(GatewayConfigError(message))
+fn telemetry_buffer_bytes(value: Option<&str>) -> Result<usize, GatewayConfigError> {
+    integer_setting(
+        value,
+        crate::telemetry::DEFAULT_RETAINED_BYTES,
+        4 * MIB..=4096 * MIB,
+        "LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES must be an integer from 4194304 (4 MiB) to 4294967296 (4 GiB)",
+    )
 }
 
-fn telemetry_buffer_bytes(value: Option<&str>) -> Result<usize, GatewayConfigError> {
-    let Some(value) = value else {
-        return Ok(crate::telemetry::DEFAULT_RETAINED_BYTES);
-    };
+/// An unset value takes `default`. Errors carry only `message`, never the supplied value.
+fn integer_setting<T: std::str::FromStr + PartialOrd>(
+    value: Option<&str>,
+    default: T,
+    range: RangeInclusive<T>,
+    message: &'static str,
+) -> Result<T, GatewayConfigError> {
     value
-        .parse::<usize>()
-        .ok()
-        .filter(|bytes| (4 * MIB..=4096 * MIB).contains(bytes))
-        .ok_or(GatewayConfigError(
-            "LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES must be an integer from 4194304 (4 MiB) to 4294967296 (4 GiB)",
-        ))
+        .map_or(Some(default), |value| value.parse().ok())
+        .filter(|value| range.contains(value))
+        .ok_or(GatewayConfigError(message))
 }
 
 fn read_env(name: &'static str) -> Result<Option<String>, GatewayConfigError> {
