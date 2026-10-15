@@ -212,16 +212,21 @@ const HOME_PRESETS: Record<
   ),
 };
 
+type HomePresetMetadata = {
+  name: string;
+  description: string;
+  illustration: string;
+};
+
 /**
  * Display metadata for the preset picker (Add Widget dialog). `illustration`
- * keys into ChartTypeIllustration.
+ * keys into ChartTypeIllustration. `v2` overrides the label for a card that
+ * measures something else on the v2 read path.
  */
-export const HOME_PRESET_METADATA: Record<
+const HOME_PRESET_METADATA: Record<
   HomeDashboardPresetId,
-  {
-    name: string;
-    description: string;
-    illustration: string;
+  HomePresetMetadata & {
+    v2?: Pick<HomePresetMetadata, "name" | "description">;
   }
 > = {
   "home-traces": {
@@ -263,6 +268,10 @@ export const HOME_PRESET_METADATA: Record<
     name: "Trace Latency Percentiles",
     description: "p50–p99 latencies per trace name",
     illustration: "PIVOT_TABLE",
+    v2: {
+      name: "Root Observation Latency Percentiles",
+      description: "p50–p99 root observation latencies per trace name",
+    },
   },
   "home-latency-table-generations": {
     name: "Generation Latency Percentiles",
@@ -285,6 +294,14 @@ export const HOME_PRESET_METADATA: Record<
     illustration: "HISTOGRAM",
   },
 };
+
+export function getHomePresetMetadata(
+  presetId: HomeDashboardPresetId,
+  version: ViewVersion,
+): HomePresetMetadata {
+  const { v2, ...metadata } = HOME_PRESET_METADATA[presetId];
+  return version === "v2" && v2 ? { ...metadata, ...v2 } : metadata;
+}
 
 export function getHomePreset(
   presetId: string,

@@ -21,7 +21,7 @@ export type LatencyTableKind = "traces" | "generations" | "observations";
 const LATENCY_TABLE_KINDS: Record<
   LatencyTableKind,
   {
-    title: string;
+    title: (metricsVersion: ViewVersion) => string;
     nameHeader: string;
     /** Result field that carries the row label. */
     nameField: (metricsVersion: ViewVersion) => string;
@@ -34,7 +34,10 @@ const LATENCY_TABLE_KINDS: Record<
   }
 > = {
   traces: {
-    title: "Trace latency percentiles",
+    title: (metricsVersion) =>
+      metricsVersion === "v2"
+        ? "Root observation latency percentiles"
+        : "Trace latency percentiles",
     nameHeader: "Trace Name",
     nameField: (metricsVersion) =>
       metricsVersion === "v2" ? "traceName" : "name",
@@ -83,7 +86,7 @@ const LATENCY_TABLE_KINDS: Record<
     }),
   },
   generations: {
-    title: "Generation latency percentiles",
+    title: () => "Generation latency percentiles",
     nameHeader: "Generation Name",
     nameField: () => "name",
     buildQuery: (globalFilterState, fromTimestamp, toTimestamp) => ({
@@ -112,7 +115,7 @@ const LATENCY_TABLE_KINDS: Record<
     }),
   },
   observations: {
-    title: "Observation latency percentiles",
+    title: () => "Observation latency percentiles",
     nameHeader: "Observation",
     nameField: () => "name",
     buildQuery: (globalFilterState, fromTimestamp, toTimestamp) => ({
@@ -248,7 +251,7 @@ export const LatencyTable = ({
       // shrink so the row area scrolls internally. (LFE-11035)
       className={cn(className, "h-full")}
       cardContentClassName="min-h-0"
-      title={title}
+      title={title(metricsVersion)}
       isLoading={isLoading || latencies.isPending}
     >
       <DashboardTable

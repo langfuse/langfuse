@@ -24,7 +24,7 @@ import {
   isSuggestedWidgetView,
   type ViewVersion,
 } from "@langfuse/shared/query";
-import { HOME_PRESET_METADATA } from "@/src/features/dashboard/components/home-preset-registry";
+import { getHomePresetMetadata } from "@/src/features/dashboard/components/home-preset-registry";
 import { useReadPath } from "@/src/features/events";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
@@ -263,7 +263,10 @@ export function SelectWidgetDialog({
                     <Tabs.Content value="home-cards">
                       <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
                         {HOME_DASHBOARD_PRESET_IDS.map((presetId) => {
-                          const meta = HOME_PRESET_METADATA[presetId];
+                          const meta = getHomePresetMetadata(
+                            presetId,
+                            suggestedVersion,
+                          );
                           return (
                             <button
                               key={presetId}
