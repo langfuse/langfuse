@@ -1,21 +1,14 @@
 import { useRef, useState } from "react";
-import { skipToken } from "@tanstack/react-query";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
   type TopicExecutionStatus,
   type TopicFacet,
   type TopicFacetRef,
-  type TopicFacetVersion,
   type TopicRule,
   type TopicTimeRange,
 } from "@langfuse/shared/topics";
 
 type TopicExecutionList = RouterOutputs["topics"]["executions"];
-type RegenerateFacet = {
-  facet: TopicFacet;
-  version: TopicFacetVersion;
-  summaries: number;
-};
 export type RegenerateRequest = {
   facets: TopicFacetRef[];
   exploratory: boolean;
@@ -69,33 +62,6 @@ export function useRegenerateTopics({
   const runInProgress = Boolean(
     executions?.some((execution) => isBusy(execution.status)),
   );
-  const summaryCounts = api.topics.summaryCounts.useQuery(
-    timeRange &&
-      configured &&
-      canWrite &&
-      !settings.data?.blockedAt &&
-      !runInProgress &&
-      prerequisiteReason === null &&
-      candidates.length > 0
-      ? {
-          projectId,
-          facets: candidates.map(({ facet, version }) => ({
-            facetId: facet.id,
-            version: version.version,
-          })),
-          timeRange,
-        }
-      : skipToken,
-  );
-  const regenerateFacets: RegenerateFacet[] = candidates.map((candidate) => ({
-    ...candidate,
-    summaries:
-      summaryCounts.data?.find(
-        (count) =>
-          count.facetId === candidate.facet.id &&
-          count.facetVersion === candidate.version.version,
-      )?.count ?? 0,
-  }));
   const pausedMessage = settings.data?.blockedAt
     ? (settings.data.blockMessage ?? "")
     : null;
@@ -112,14 +78,6 @@ export function useRegenerateTopics({
       runInProgress,
       hasTimeRange: timeRange !== null,
       facetCount: candidates.length,
-      summaries: {
-        isPending: summaryCounts.isPending,
-        error: summaryCounts.error?.message ?? null,
-        total: regenerateFacets.reduce(
-          (sum, facet) => sum + facet.summaries,
-          0,
-        ),
-      },
     });
   // Survives reopening the dialog so a retried identical request reuses its
   // requestId and cannot start a second run.
@@ -158,7 +116,7 @@ export function useRegenerateTopics({
   }
   return {
     timeRange,
-    facets: regenerateFacets,
+    facets: candidates,
     disabledReason,
     prerequisiteReason,
     isSubmitting: trigger.isPending,
@@ -182,14 +140,12 @@ function regenerateDisabledReason({
   runInProgress,
   hasTimeRange,
   facetCount,
-  summaries,
 }: {
   canWrite: boolean;
   settings: "loading" | { configured: boolean; pausedMessage: string | null };
   runInProgress: boolean;
   hasTimeRange: boolean;
   facetCount: number;
-  summaries: { isPending: boolean; error: string | null; total: number };
 }): string | null {
   if (!canWrite)
     return "You need permission to manage Topics in this project to regenerate topics.";
@@ -205,10 +161,5 @@ function regenerateDisabledReason({
   if (!hasTimeRange) return "Choose a valid summary time range.";
   if (facetCount === 0)
     return "Turn on at least one facet in Configure Topics.";
-  if (summaries.isPending) return "Counting stored summaries…";
-  if (summaries.error !== null)
-    return `Could not count stored summaries: ${summaries.error}`;
-  if (summaries.total === 0)
-    return "No trace summaries in the selected time range yet. Summarize traces first, then regenerate.";
   return null;
 }

@@ -631,6 +631,28 @@ it("requires an eligible selected facet and applies the small-sample threshold b
   );
 });
 
+it("counts summaries only while the open manual dialog is generating topics", async () => {
+  withSummaries();
+  render(<TopicsPage />);
+  const countRequests = () =>
+    state.summaryCountInput.mock.calls.filter(
+      ([input]) => typeof input !== "symbol",
+    );
+  expect(countRequests()).toHaveLength(0);
+  fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
+  expect(countRequests()).toHaveLength(0);
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
+    button: 0,
+    ctrlKey: false,
+  });
+  expect(countRequests().length).toBeGreaterThan(0);
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  const completedRequests = countRequests().length;
+  fireEvent.click(screen.getByRole("button", { name: "Manual processing" }));
+  expect(countRequests()).toHaveLength(completedRequests);
+});
+
 it("regenerates the rule's facets that have summaries, at their latest version, over its default seven-day range, then opens the run", async () => {
   withSummaries();
   state.executions = [execution("completed", "update")];

@@ -1,4 +1,6 @@
 import { useForm } from "react-hook-form";
+import { skipToken } from "@tanstack/react-query";
+import { api } from "@/src/utils/api";
 import { type TopicProcessInput } from "./TopicPipelineForm";
 import { type TopicOperation } from "@langfuse/shared/topics";
 import { type TimeRange } from "@/src/utils/date-range-utils";
@@ -38,13 +40,29 @@ export function ManualTopicsFormContent({
     enabled: operation === "process",
     filterOptionsEnabled: operation === "process",
   });
-  const facets = regenerate.facets.map(({ facet, version, summaries }) => ({
+  const summaryCounts = api.topics.summaryCounts.useQuery(
+    operation === "update" && !regenerate.disabledReason && regenerate.timeRange
+      ? {
+          projectId,
+          facets: regenerate.facets.map(({ facet, version }) => ({
+            facetId: facet.id,
+            version: version.version,
+          })),
+          timeRange: regenerate.timeRange,
+        }
+      : skipToken,
+  );
+  const facets = regenerate.facets.map(({ facet, version }) => ({
     id: facet.id,
     name: facet.name,
     kind: facet.isBuiltIn ? "Built-in" : "Custom",
     version: version.version,
     description: facet.description || version.prompt,
-    summaries,
+    summaries:
+      summaryCounts.data?.find(
+        (count) =>
+          count.facetId === facet.id && count.facetVersion === version.version,
+      )?.count ?? 0,
   }));
   const selectedFacetIds = facets
     .filter(
@@ -82,6 +100,13 @@ export function ManualTopicsFormContent({
     if (running) return "A Topics run is in progress. Wait for it to finish.";
     if (operation === "update" && regenerate.disabledReason)
       return regenerate.disabledReason;
+    if (operation === "update") {
+      if (summaryCounts.isPending) return "Counting stored summaries…";
+      if (summaryCounts.error)
+        return `Could not count stored summaries: ${summaryCounts.error.message}`;
+      if (!facets.some((facet) => facet.summaries > 0))
+        return "No trace summaries in the selected time range yet. Summarize traces first, then regenerate.";
+    }
     return selectionStatus.disabledReason;
   })();
   const isSubmitting = processPending || regenerate.isSubmitting;
