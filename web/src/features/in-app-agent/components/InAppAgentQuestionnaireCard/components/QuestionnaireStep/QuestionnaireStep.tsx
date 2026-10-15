@@ -8,7 +8,6 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
-import type { CheckedState } from "@radix-ui/react-checkbox";
 import { ArrowRight, ArrowUp, PencilLine } from "lucide-react";
 import { useController, type Control } from "react-hook-form";
 import {
@@ -17,7 +16,10 @@ import {
 } from "@langfuse/shared/in-app-agent";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import {
+  Checkbox,
+  type CheckedState,
+} from "@/src/components/design-system/Checkbox/Checkbox";
 import type { QuestionnaireFormValues } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/createQuestionnaireFormValues";
 import { updateQuestionnaireAnswer } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/updateQuestionnaireAnswer";
 import { cn } from "@/src/utils/tailwind";
