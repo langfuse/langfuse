@@ -103,6 +103,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
   chatMLParserResult?: ChatMLParserResult;
+  observationType?: ObservationType;
   isLoading?: boolean;
   isParsing?: boolean;
   hideIfNull?: boolean;
@@ -141,6 +142,7 @@ export function IOPreviewPretty({
   parsedOutput: preParsedOutput,
   parsedMetadata: preParsedMetadata,
   chatMLParserResult,
+  observationType,
   isLoading = false,
   isParsing = false,
   hideIfNull = false,
@@ -185,6 +187,7 @@ export function IOPreviewPretty({
     parsedOutput,
     parsedMetadata,
     chatMLParserResult,
+    observationType,
   );
 
   const {
