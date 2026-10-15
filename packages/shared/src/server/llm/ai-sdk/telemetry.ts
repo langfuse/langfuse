@@ -14,6 +14,7 @@ import {
 } from "@opentelemetry/api";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
+  AlwaysOnSampler,
   BasicTracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
@@ -129,6 +130,10 @@ export function createAiSdkTelemetryCapture(params: {
 
   const exporter = new InMemorySpanExporter();
   const tracerProvider = new BasicTracerProvider({
+    // Always record: this provider captures Langfuse's own product traces, so
+    // it must not inherit OTEL_TRACES_SAMPLER / OTEL_TRACES_SAMPLER_ARG, which
+    // hosts set to sample their own APM telemetry.
+    sampler: new AlwaysOnSampler(),
     // The environment must reach every captured span (not just the root), or
     // the resulting observations fall back to the "default" environment and
     // leak into user-facing views.
