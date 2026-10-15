@@ -219,6 +219,73 @@ describe("default OpenAI cache-write prices", () => {
       expect(match?.pricingTierName).toBe("Large Context (>272K)");
     },
   );
+
+  it.each([
+    {
+      modelParameters: { operation: "decide" },
+      input: 1_000,
+      tier: "Decisions",
+      cost: 1_500 * 0.1e-6,
+    },
+    {
+      modelParameters: { operation: "decide", service_tier: "priority" },
+      input: 1_000,
+      tier: "Decisions",
+      cost: 1_500 * 0.1e-6,
+    },
+    {
+      modelParameters: { operation: "decide" },
+      input: 300_000,
+      tier: "Decisions · Large context (>272K)",
+      cost: 300_500 * 0.2e-6,
+    },
+    {
+      modelParameters: { operation: "chat" },
+      input: 1_000,
+      tier: "Standard",
+      cost: 1_000 * 0.1e-6 + 500 * 0.01e-6 + 40 * 0.5e-6,
+    },
+  ])(
+    "prices gpt-6-luna $modelParameters with $input input tokens on the $tier tier",
+    ({ modelParameters, input, tier, cost }) => {
+      const model = defaultModelPrices.find(
+        ({ modelName }) => modelName === "gpt-6-luna",
+      );
+      expect(model).toBeDefined();
+      if (!model) return;
+
+      const usageDetails = {
+        input,
+        input_cached_tokens: 500,
+        output: 40,
+        output_reasoning_tokens: 30,
+      };
+      const match = matchPricingTier(
+        model.pricingTiers.map((tier) => ({
+          ...tier,
+          conditions:
+            tier.conditions as DefaultModelPrice["pricingTiers"][number]["conditions"],
+          prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+            usageType,
+            price: new Decimal(price),
+          })),
+        })),
+        usageDetails,
+        { modelParameters },
+      );
+
+      expect(match?.pricingTierName).toBe(tier);
+      const billed = (["input", "input_cached_tokens", "output"] as const)
+        .map((usageType) =>
+          match!.prices[usageType].mul(usageDetails[usageType]).toNumber(),
+        )
+        .reduce((sum, value) => sum + value, 0);
+      expect(billed).toBeCloseTo(cost, 12);
+      expect(match?.prices.output_reasoning_tokens?.isZero()).toBe(
+        tier.startsWith("Decisions"),
+      );
+    },
+  );
 });
 
 describe("default Gemini Pro pricing tiers", () => {

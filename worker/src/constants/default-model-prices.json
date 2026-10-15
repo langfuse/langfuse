@@ -7739,7 +7739,7 @@
     "modelName": "gpt-6-luna",
     "matchPattern": "(?i)^(openai/)?(gpt-6-luna)$",
     "createdAt": "2026-09-22T00:00:00.000Z",
-    "updatedAt": "2026-09-25T00:00:00.000Z",
+    "updatedAt": "2026-10-15T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -7768,10 +7768,70 @@
         }
       },
       {
+        "id": "7fb5445e-31fc-444f-84d7-cc58474c19d5",
+        "name": "Decisions · Large context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "operation",
+            "operator": "in",
+            "values": ["decide"]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 0.2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "input_cache_creation": 0.2e-6,
+          "cache_write_tokens": 0.2e-6,
+          "input_cache_write_tokens": 0.2e-6,
+          "output": 0,
+          "output_reasoning_tokens": 0,
+          "output_reasoning": 0,
+          "reasoning_tokens": 0
+        }
+      },
+      {
+        "id": "3da5db53-834f-419e-befb-47c50f9c07a7",
+        "name": "Decisions",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "operation",
+            "operator": "in",
+            "values": ["decide"]
+          }
+        ],
+        "prices": {
+          "input": 0.1e-6,
+          "input_cached_tokens": 0.1e-6,
+          "input_cache_read": 0.1e-6,
+          "cache_read_input_tokens": 0.1e-6,
+          "input_cache_creation": 0.1e-6,
+          "cache_write_tokens": 0.1e-6,
+          "input_cache_write_tokens": 0.1e-6,
+          "output": 0,
+          "output_reasoning_tokens": 0,
+          "output_reasoning": 0,
+          "reasoning_tokens": 0
+        }
+      },
+      {
         "id": "b4525852-c687-4d0b-bf4c-f19150fbb3ab",
         "name": "Fast mode · Large context (>272K)",
         "isDefault": false,
-        "priority": 1,
+        "priority": 3,
         "conditions": [
           {
             "source": "model_parameters",
@@ -7804,7 +7864,7 @@
         "id": "6f0606fb-b244-4a63-a0b4-08297b6c52a6",
         "name": "Flex · Large context (>272K)",
         "isDefault": false,
-        "priority": 2,
+        "priority": 4,
         "conditions": [
           {
             "source": "model_parameters",
@@ -7837,7 +7897,7 @@
         "id": "32e5e542-0362-4471-ba8f-f2aa3aeb19dc",
         "name": "Fast mode",
         "isDefault": false,
-        "priority": 3,
+        "priority": 5,
         "conditions": [
           {
             "source": "model_parameters",
@@ -7864,7 +7924,7 @@
         "id": "405cdbb5-b5a1-4645-914d-f9f8bff5c3fd",
         "name": "Flex",
         "isDefault": false,
-        "priority": 4,
+        "priority": 6,
         "conditions": [
           {
             "source": "model_parameters",
@@ -7891,7 +7951,7 @@
         "id": "8678a1a9-f622-4fce-93fe-77e258ca2b0a",
         "name": "Large Context (>272K)",
         "isDefault": false,
-        "priority": 5,
+        "priority": 7,
         "conditions": [
           {
             "usageDetailPattern": "(input|cache_write)",
