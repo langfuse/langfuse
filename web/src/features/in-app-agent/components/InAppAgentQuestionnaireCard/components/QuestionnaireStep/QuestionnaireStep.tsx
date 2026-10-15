@@ -220,12 +220,9 @@ function SingleChoiceRow({
       aria-pressed={isSelected}
       data-dimmed={isDimmed}
       disabled={isDisabled}
-      className="group hover:bg-muted focus-visible:bg-muted aria-pressed:bg-muted flex w-full items-start gap-3 rounded-lg px-2 py-2 text-left text-sm transition-opacity focus-visible:outline-hidden disabled:cursor-not-allowed data-[dimmed=true]:opacity-50"
+      className="group hover:bg-muted focus-visible:bg-muted aria-pressed:bg-muted flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm transition-opacity focus-visible:outline-hidden disabled:cursor-not-allowed data-[dimmed=true]:opacity-50"
       onClick={handleClick}
     >
-      <span className="bg-muted text-muted-foreground group-hover:bg-border group-focus-visible:bg-border group-aria-pressed:bg-border group-aria-pressed:text-foreground flex size-6 shrink-0 items-center justify-center rounded-md text-xs tabular-nums">
-        {optionIndex + 1}
-      </span>
       <OptionText
         label={label}
         description={description}
@@ -233,7 +230,7 @@ function SingleChoiceRow({
       />
       <ArrowRight
         aria-hidden
-        className="text-muted-foreground icon-base invisible mt-1 shrink-0 group-hover:visible group-focus-visible:visible group-aria-pressed:visible"
+        className="text-muted-foreground icon-base invisible shrink-0 group-hover:visible group-focus-visible:visible group-aria-pressed:visible"
       />
     </button>
   );
