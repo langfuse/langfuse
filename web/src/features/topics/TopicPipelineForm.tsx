@@ -30,6 +30,7 @@ export function useTopicPipelineForm({
   onGenerationTimeRangeChange,
   regenerate,
   settings,
+  configurationError,
   running,
   onConfigure,
 }: {
@@ -41,6 +42,7 @@ export function useTopicPipelineForm({
   onGenerationTimeRangeChange: (range: TimeRange) => void;
   regenerate: RegenerateTopics;
   settings: ConfigureTopicsSettingsInput | null;
+  configurationError: string | null;
   running: boolean;
   onConfigure: () => void;
 }) {
@@ -79,6 +81,7 @@ export function useTopicPipelineForm({
         generationTimeRange={generationTimeRange}
         onGenerationTimeRangeChange={onGenerationTimeRangeChange}
         settings={settings}
+        configurationError={configurationError}
         regenerate={regenerate}
         running={running}
         processError={error}

@@ -343,6 +343,7 @@ function TopicsWorkspaceContent({
     onTriggered: openExecution,
     regenerate,
     settings: modelSettings.configure.settings,
+    configurationError: modelSettings.configure.error,
     running,
     onConfigure: openConfigure,
     generationTimeRange: generationRange.selection,
@@ -430,6 +431,8 @@ function TopicsWorkspaceContent({
     >
       {({ openDialog }) => {
         const openManual = () => {
+          if (!("from" in generationRange.selection))
+            changeGenerationRange(generationRange.selection);
           utils.topics.summaryCounts.invalidate({ projectId });
           pipeline.clearError();
           openDialog();
