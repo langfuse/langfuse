@@ -2,10 +2,10 @@ import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { ConnectedGatewayModelsTable } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayModelsTable/ConnectedGatewayModelsTable";
+import { ConnectedGatewayModelsTable } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/ConnectedGatewayModelsTable/ConnectedGatewayModelsTable";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
-import { aggregateModels } from "./aggregateModels";
+import { aggregateModels } from "./fns/aggregateModels";
 
 export function GatewayModelsPage({
   organizationId,

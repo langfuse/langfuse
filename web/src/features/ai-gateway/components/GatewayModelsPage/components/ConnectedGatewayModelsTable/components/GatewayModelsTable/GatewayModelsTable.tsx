@@ -13,11 +13,11 @@ import {
 } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
-import type { ApiFormat } from "@/src/features/ai-gateway/components/GatewayModelsPage/aggregateModels";
+import type { ApiFormat } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/aggregateModels";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import type { GatewayModelRow } from "./fns/filterGatewayModels";
+import type { GatewayModelRow } from "../../fns/filterGatewayModels";
 
 const TABLE_NAME = "gateway-models";
 

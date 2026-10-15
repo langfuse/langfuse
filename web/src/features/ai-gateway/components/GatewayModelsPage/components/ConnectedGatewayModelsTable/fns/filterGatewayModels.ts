@@ -1,4 +1,4 @@
-import type { aggregateModels } from "@/src/features/ai-gateway/components/GatewayModelsPage/aggregateModels";
+import type { aggregateModels } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/aggregateModels";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 export type GatewayModelRow = ReturnType<typeof aggregateModels>[number];

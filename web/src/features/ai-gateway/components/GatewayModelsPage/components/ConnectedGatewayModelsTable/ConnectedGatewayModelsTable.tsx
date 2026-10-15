@@ -11,7 +11,7 @@ import {
   filterGatewayModels,
   type GatewayModelRow,
 } from "./fns/filterGatewayModels";
-import { GatewayModelsTable } from "./GatewayModelsTable";
+import { GatewayModelsTable } from "./components/GatewayModelsTable/GatewayModelsTable";
 
 const ALL_PROVIDERS = "all";
 
