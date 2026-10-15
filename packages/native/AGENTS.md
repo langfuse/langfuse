@@ -33,10 +33,12 @@
 
 - The addon ships inside the worker image, so its crates follow the same
   repository-root `deny.toml` policy as `ai-gateway`: permissive licenses only,
-  crates.io as the only registry. CI checks licenses in `licencecheck.yml`, and
-  bans, sources, and unused dependencies (`cargo machete`) in the pipeline lint
-  job. Run `pnpm --filter @langfuse/native run rust:deny` and `rust:unused-deps`
-  after changing `Cargo.toml` or `Cargo.lock`.
+  crates.io as the only registry. The required pipeline lint job checks bans,
+  licenses, sources, and unused dependencies (`cargo machete`);
+  `licencecheck.yml` repeats the license check. Run
+  `pnpm --filter @langfuse/native run rust:deny` and `rust:unused-deps` after
+  changing `Cargo.toml` or `Cargo.lock`. Install the CI versions of the tools
+  once with `cargo install --locked cargo-deny@0.20.2 cargo-machete@0.9.2`.
 - Dependabot opens weekly grouped Cargo PRs for this crate. It resolves without
   the clickhouse overlay, so drop the `source` and `checksum` lines it adds to
   the `clickhouse` entry in `Cargo.lock` before merging.

@@ -16,10 +16,11 @@
   `cargo deny check`: RustSec advisories, a permissive
   license allow-list, banned crates, and crates.io as the only source. Run it
   with `pnpm run rust:deny` after changing `Cargo.toml` or `Cargo.lock`.
-  In CI, licenses run in `licencecheck.yml` and bans and sources in the
-  `tests-ai-gateway` job. Advisories are not a CI check: Dependabot alerts
-  cover them and the daily `dependabot-security-maintainer` workflow opens
-  the fix PRs.
+  Install the CI versions of the tools once with
+  `cargo install --locked cargo-deny@0.20.2 cargo-machete@0.9.2`.
+  In CI, the required `tests-ai-gateway` job checks bans, licenses, and
+  sources; `licencecheck.yml` repeats the license check next to the pnpm one.
+  Advisories are not a CI check: Dependabot alerts cover them.
 - Fix an advisory by updating the crate (`cargo update -p <crate>`). Add an
   `[advisories].ignore` entry with a `reason` only when it does not apply.
 - The license allow-list follows the repo policy in
