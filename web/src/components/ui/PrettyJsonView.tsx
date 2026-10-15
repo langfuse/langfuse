@@ -15,10 +15,12 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { type MediaReturnType } from "@/src/features/media";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { SystemPromptCollapseButton } from "@/src/components/ui/SystemPromptCollapseButton";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
+import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import {
   ChevronDown,
   ChevronRight,
@@ -1156,6 +1158,8 @@ export function PrettyJsonView(props: {
     [onExternalExpansionChange, actualExpansionState],
   );
 
+  const handleCollapseHeader = () => toggleSystemPromptCollapsed("header");
+
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
     if (event) {
       event.preventDefault();
@@ -1191,6 +1195,16 @@ export function PrettyJsonView(props: {
       : [];
   const shouldRenderStandaloneMedia =
     isMarkdownMode && standaloneMediaReferenceStrings.length > 0;
+
+  /** Collapse state for a nested MarkdownView that owns no header of its own. */
+  const {
+    shouldBeCollapsible: shouldCollapseSystemPrompt,
+    isCollapsed: isSystemPromptCollapsed,
+    toggleCollapsed: toggleSystemPromptCollapsed,
+  } = useCollapsibleSystemPrompt({
+    isSystemPrompt: Boolean(props.isSystemPrompt),
+    content: markdownContent ?? "",
+  });
   const remainingMarkdownMedia = filterAlreadyRenderedMedia(
     props.media,
     getRenderedInlineMediaIds({
@@ -1429,6 +1443,14 @@ export function PrettyJsonView(props: {
           hoverRevealControls
           controlButtons={
             <>
+              {/* Expanded only, and only when the nested MarkdownView that owns
+                  the inline control is the thing being rendered. */}
+              {shouldCollapseSystemPrompt &&
+              !isSystemPromptCollapsed &&
+              isMarkdownMode &&
+              !shouldRenderStandaloneMedia ? (
+                <SystemPromptCollapseButton onCollapse={handleCollapseHeader} />
+              ) : null}
               {expandCollapseButton}
               {props.controlButtons}
             </>

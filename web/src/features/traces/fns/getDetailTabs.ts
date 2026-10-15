@@ -7,7 +7,6 @@ export function getDetailTabs({
   isAnnotationMode,
   hasObservations,
   canViewScores,
-  hasSkills = false,
 }: {
   target: "trace" | "observation";
   isV4: boolean;
@@ -15,13 +14,11 @@ export function getDetailTabs({
   isAnnotationMode: boolean;
   hasObservations: boolean;
   canViewScores: boolean;
-  hasSkills?: boolean;
 }) {
   const visibility: Record<DetailTab, boolean> = {
     preview: true,
     messages: isV4 && internalFeaturesEnabled,
     attributes: true,
-    skills: target === "observation" && internalFeaturesEnabled && hasSkills,
     scores: canViewScores && !isAnnotationMode,
     log: (target === "trace" || isV4) && hasObservations && !isAnnotationMode,
   };

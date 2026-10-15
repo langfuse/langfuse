@@ -285,7 +285,19 @@ function ExistingSkillSession({
           onSelect: async (selectedVersion) => {
             await router.push({
               pathname: router.pathname,
-              query: { projectId, skillName, version: selectedVersion },
+              query: {
+                projectId,
+                skillName,
+                version: selectedVersion,
+                ...(router.query.tab === "linked-traces"
+                  ? {
+                      tab: "linked-traces",
+                      ...(router.query.dateRange
+                        ? { dateRange: router.query.dateRange }
+                        : {}),
+                    }
+                  : {}),
+              },
             });
           },
         }}
