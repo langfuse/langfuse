@@ -16,7 +16,7 @@
 ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
 ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS builder
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS toolchain
 
 ARG TARGETARCH
 
@@ -26,8 +26,11 @@ ARG TARGETARCH
 # the official rust:1.98.0-bookworm image links against Debian's glibc 2.36,
 # so binaries built there refuse to run on UBI9 (glibc 2.34). Building on UBI9
 # keeps the toolchain and the binary on the FIPS-validated platform.
-RUN dnf -y upgrade && \
-    dnf -y install --setopt=install_weak_deps=0 gcc tar gzip && \
+# No `dnf upgrade`: nothing from this stage but the binary reaches the runtime
+# image, whose packages are installed fresh by the rpm-installer stage.
+# Linking against the base image's glibc also keeps it at or below the
+# runtime's version.
+RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip && \
     dnf clean all
 
 # Pinned standalone Rust 1.98.0 installer, the exact channel from
@@ -49,15 +52,31 @@ RUN set -eux; \
     --components=rustc,cargo,rust-std-${triple}; \
     rm -rf /tmp/rust.tar.gz /tmp/rust-1.98.0-${triple}
 
+FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS deps
+
 WORKDIR /app
 
+# Fetch the locked dependency sources against empty targets, so this layer and
+# everything built on it stay cached until Cargo.toml or Cargo.lock change.
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
-COPY src ./src
+RUN mkdir src && echo 'fn main() {}' > src/main.rs && touch src/lib.rs && \
+    cargo fetch --locked
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} deps AS builder
 
 # rust-toolchain.toml is honored by rustup only; the standalone installer's
-# cargo ignores it, so --locked plus the pinned installer above guarantee the
-# 1.98.0 toolchain and the checked-in lockfile.
-RUN cargo build --release --locked
+# cargo ignores it, so --frozen (the checked-in lockfile, sources from the
+# fetch above) plus the pinned installer guarantee the 1.98.0 toolchain.
+# Dependencies compile once against the stub targets; source-only changes
+# rebuild just the crate. `cargo clean -p` drops the stub's own artifacts so
+# the real sources always rebuild regardless of their mtimes.
+RUN cargo build --release --frozen && \
+    cargo clean --release --frozen -p ai-gateway && \
+    rm -rf src
+
+COPY src ./src
+
+RUN cargo build --release --frozen
 
 # Runtime rootfs assembled with dnf --installroot and layered onto ubi9-micro:
 # the final image carries no package manager, python, or curl. It holds only

@@ -200,8 +200,14 @@ jobs:
         run: cargo clippy --locked --all-targets -- -D warnings
       - name: Run Rust tests
         run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" cargo test --locked
+      # Persistent layer cache, so the toolchain and compiled-dependency layers
+      # are reused until the Dockerfile, Cargo.toml or Cargo.lock change.
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@1e75355f81cbb3f93cba1eb5dd5e5b05110ca8f9 # v2.0.1
+        with:
+          cache-key: langfuse/test-ai-gateway
       - name: Build runtime image
-        run: docker build --pull --target runtime -t langfuse-ai-gateway:test .
+        run: docker buildx build --load --pull --target runtime -t langfuse-ai-gateway:test .
       - name: Smoke test runtime image
         run: bash scripts/smoke-image.sh langfuse-ai-gateway:test
 
