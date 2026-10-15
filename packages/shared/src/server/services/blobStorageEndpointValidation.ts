@@ -6,10 +6,6 @@ import {
   parseOutboundUrl,
   validateOutboundUrlHost,
 } from "../outbound-url";
-import {
-  type S3VirtualHostTarget,
-  withS3VirtualHostedBucket,
-} from "./s3VirtualHostedAllowlist";
 
 export const BLOB_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT =
   "Blob storage endpoint";
@@ -18,7 +14,6 @@ const STRICT_BLOB_STORAGE_ENDPOINT_WHITELIST: OutboundUrlValidationWhitelist = {
   hosts: [],
   ips: [],
   ip_ranges: [],
-  allowedHosts: [],
 };
 
 function isLangfuseCloudEndpointValidationEnabled(): boolean {
@@ -37,7 +32,6 @@ export function blobStorageEndpointWhitelistFromEnv(): OutboundUrlValidationWhit
     hosts: env.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST || [],
     ips: env.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS || [],
     ip_ranges: env.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS || [],
-    allowedHosts: env.LANGFUSE_BLOB_STORAGE_ENDPOINT_ALLOWED_HOSTS,
   };
 }
 
@@ -88,7 +82,7 @@ export async function validateBlobStorageEndpoint(
     if (error instanceof OutboundUrlValidationError) {
       throw new OutboundUrlValidationError(
         error.code,
-        `${error.message}${getSelfHostedWhitelistGuidance(error.code)}`,
+        `${error.message}${getSelfHostedWhitelistGuidance()}`,
       );
     }
     throw error;
@@ -135,7 +129,6 @@ export function assertGcsBlobStorageBucketAllowed(bucketName: string): void {
 
 export function blobStorageEndpointConnectionValidationOptions(
   whitelist: OutboundUrlValidationWhitelist = blobStorageEndpointWhitelistFromEnv(),
-  virtualHost?: S3VirtualHostTarget,
 ): OutboundUrlConnectionValidationOptions | undefined {
   const effectiveWhitelist = getEffectiveWhitelist(whitelist);
 
@@ -144,7 +137,7 @@ export function blobStorageEndpointConnectionValidationOptions(
   }
 
   return {
-    whitelist: withS3VirtualHostedBucket(effectiveWhitelist, virtualHost),
+    whitelist: effectiveWhitelist,
     logContext: BLOB_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT,
   };
 }
@@ -170,19 +163,12 @@ function isBlobStorageEndpointValidationEnabled(
   return (
     whitelist.hosts.length > 0 ||
     whitelist.ips.length > 0 ||
-    whitelist.ip_ranges.length > 0 ||
-    (whitelist.allowedHosts?.length ?? 0) > 0
+    whitelist.ip_ranges.length > 0
   );
 }
 
-function getSelfHostedWhitelistGuidance(
-  code: OutboundUrlValidationError["code"],
-): string {
+function getSelfHostedWhitelistGuidance(): string {
   if (isLangfuseCloudEndpointValidationEnabled()) return "";
-
-  if (code === "host-not-allowed") {
-    return " Add the host to LANGFUSE_BLOB_STORAGE_ENDPOINT_ALLOWED_HOSTS.";
-  }
 
   return " For self-hosted deployments with internal blob storage endpoints, configure LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST, LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS, or LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS.";
 }

@@ -81,7 +81,7 @@ Every outbound-URL surface MUST apply **all three** of:
   `web/src/features/blobstorage-integration/blobstorage-integration-router.ts`
   (`validate` mutation calls `validateBlobStorageEndpoint`); connection-time
   enforcement flows through `StorageServiceFactory.getInstance({
-connectionValidation: blobStorageEndpointConnectionValidationOptions() })`.
+  connectionValidation: blobStorageEndpointConnectionValidationOptions() })`.
 
 ## When Adding a New Outbound URL Surface
 
@@ -148,19 +148,19 @@ connectionValidation: blobStorageEndpointConnectionValidationOptions() })`.
   is rejected. Unset and empty leave the default-allow behavior in place.
   `LANGFUSE_WEBHOOK_ALLOWED_HOSTS` applies to webhook saves and delivery
   only. `LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS` applies to every outbound LLM
-  request, including provider default hosts and Langfuse AI. For S3
-  virtual-hosted addressing, connect-time validation also trusts
-  `{bucket}.{allowlisted endpoint host}` for that bucket.
+  request, including provider default hosts and Langfuse AI. Blob storage
+  has no positive host list. For external media S3 virtual-hosted addressing,
+  connect-time validation also trusts `{bucket}.{allowlisted endpoint host}`
+  for that bucket.
 - `LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS` adds CIDR ranges to the built-in
   private-address block for outbound URL checks that already run. Blob
   storage stays opt-in, so these ranges do not by themselves turn blob
   validation on. Per-surface exemptions still win over those ranges.
 - Blob storage endpoint validation is **opt-in** today on self-hosted (the
   helper is a no-op until the operator configures one of the exemption env
-  vars or `LANGFUSE_BLOB_STORAGE_ENDPOINT_ALLOWED_HOSTS`). There is a
-  `TODO(next major)` in `blobStorageEndpointValidation.ts` to flip the
-  default; until then, do not rely on blob storage validation for new
-  surfaces — wire your own wrapper that defaults to strict.
+  vars). There is a `TODO(next major)` in `blobStorageEndpointValidation.ts`
+  to flip the default; until then, do not rely on blob storage validation
+  for new surfaces — wire your own wrapper that defaults to strict.
 
 ## Negative Tests (Required)
 
