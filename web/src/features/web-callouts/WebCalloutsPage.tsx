@@ -21,7 +21,7 @@ export default function WebCalloutsPage() {
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
-        actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
+        actionButtonsLeft: status && <StatusBadge type={status} />,
       }}
     >
       <WebCalloutSettingsPage projectId={projectId} />
