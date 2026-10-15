@@ -236,10 +236,12 @@ const resolveOnboardingRedirectTargetWithFallback = async ({
   getFallbackRedirectTarget(canCreateOrganizations);
 
 /**
- * Off when `LANGFUSE_DISABLE_SIGNUP_ONBOARDING=true`: status reports the step as
+ * Always on for Cloud. Self-hosted turns it off with
+ * `LANGFUSE_DISABLE_SIGNUP_ONBOARDING=true`: status then reports the step as
  * completed and completion writes nothing.
  */
 export const isSignupOnboardingEnabled = () =>
+  Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
   env.LANGFUSE_DISABLE_SIGNUP_ONBOARDING !== "true";
 
 export const getSignupOnboardingStatus = async ({

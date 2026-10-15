@@ -243,8 +243,11 @@ describe("getSignupOnboardingStatus", () => {
     },
   );
 
-  it("reports a disabled step as completed without reading the survey", async () => {
-    Object.assign(env, { LANGFUSE_DISABLE_SIGNUP_ONBOARDING: "true" });
+  it("reports a disabled step as completed on self-hosted without reading the survey", async () => {
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      LANGFUSE_DISABLE_SIGNUP_ONBOARDING: "true",
+    });
     const { tx } = makeCompletionPrisma({
       memberships: [
         makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
@@ -256,6 +259,16 @@ describe("getSignupOnboardingStatus", () => {
       redirectTo: "/project/project-1",
     });
     expect(tx.survey.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("ignores the off switch on Cloud", async () => {
+    Object.assign(env, { LANGFUSE_DISABLE_SIGNUP_ONBOARDING: "true" });
+    const { tx } = makeCompletionPrisma();
+
+    await expect(getStatus(tx as unknown as StatusPrisma)).resolves.toEqual({
+      completed: false,
+      canConfigureAiFeatures: false,
+    });
   });
 });
 
@@ -367,8 +380,11 @@ describe("completeSignupOnboarding", () => {
     );
   });
 
-  it("writes nothing when the step is disabled", async () => {
-    Object.assign(env, { LANGFUSE_DISABLE_SIGNUP_ONBOARDING: "true" });
+  it("writes nothing when the step is disabled on self-hosted", async () => {
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      LANGFUSE_DISABLE_SIGNUP_ONBOARDING: "true",
+    });
     const prisma = {
       $transaction: vi.fn(),
       organizationMembership: { findMany: vi.fn().mockResolvedValue([]) },
@@ -383,6 +399,23 @@ describe("completeSignupOnboarding", () => {
       }),
     ).resolves.toEqual({ redirectTo: "/setup", surveyCreated: false });
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("still stores the survey on Cloud when the off switch is set", async () => {
+    Object.assign(env, { LANGFUSE_DISABLE_SIGNUP_ONBOARDING: "true" });
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await completeSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      canCreateOrganizations: true,
+    });
+
+    expect(tx.survey.create).toHaveBeenCalled();
   });
 
   it("stores an empty response when the survey is skipped", async () => {

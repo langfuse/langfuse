@@ -50,6 +50,7 @@ import {
 const callbackUrlCookieName = getCookieName("next-auth.callback-url");
 const originalNextAuthSecret = process.env.NEXTAUTH_SECRET;
 const originalDisableSignupOnboarding = env.LANGFUSE_DISABLE_SIGNUP_ONBOARDING;
+const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
 const assertSanitizedRequest = (request: {
   cookies?: Partial<Record<string, string>>;
@@ -69,6 +70,7 @@ describe("getServerAuthSession invalid callback URL handling", () => {
 
   afterEach(() => {
     Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
       LANGFUSE_DISABLE_SIGNUP_ONBOARDING: originalDisableSignupOnboarding,
     });
     if (originalNextAuthSecret === undefined) {
@@ -138,12 +140,23 @@ describe("getServerAuthSession invalid callback URL handling", () => {
   });
 
   it.each([
-    { disableSignupOnboarding: undefined, newUser: "/onboarding" },
-    { disableSignupOnboarding: "true", newUser: undefined },
+    {
+      region: "EU",
+      disableSignupOnboarding: undefined,
+      newUser: "/onboarding",
+    },
+    { region: "EU", disableSignupOnboarding: "true", newUser: "/onboarding" },
+    {
+      region: undefined,
+      disableSignupOnboarding: undefined,
+      newUser: "/onboarding",
+    },
+    { region: undefined, disableSignupOnboarding: "true", newUser: undefined },
   ])(
-    "sets pages.newUser to $newUser when LANGFUSE_DISABLE_SIGNUP_ONBOARDING is $disableSignupOnboarding",
-    async ({ disableSignupOnboarding, newUser }) => {
+    "sets pages.newUser to $newUser in region $region when LANGFUSE_DISABLE_SIGNUP_ONBOARDING is $disableSignupOnboarding",
+    async ({ region, disableSignupOnboarding, newUser }) => {
       Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: region,
         LANGFUSE_DISABLE_SIGNUP_ONBOARDING: disableSignupOnboarding,
       });
 
