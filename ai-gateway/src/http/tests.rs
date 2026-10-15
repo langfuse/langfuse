@@ -11,6 +11,7 @@ use std::{
     convert::Infallible,
     io::Write,
     sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
 };
 use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
 use tower::ServiceExt;
@@ -1009,19 +1010,24 @@ async fn a_stalled_request_body_times_out_at_the_read_deadline() {
     let service = inference(&web, &provider);
     // The 32 MiB default keeps the 10 MiB per 30 seconds minimum upload rate.
     assert_eq!(service.request_read_timeout(), Duration::from_secs(97));
-    let mut permit = service.try_reserve_request_body().ok().unwrap();
+    let gateway = Gateway::start(Some(service)).await;
     let stalled = Body::from_stream(stream::pending::<Result<&'static str, Infallible>>());
     let started = tokio::time::Instant::now();
-    let result = read_request_body(
-        stalled,
-        &HeaderMap::new(),
-        service.max_request_bytes(),
-        service.request_read_timeout(),
-        &mut permit,
-    )
-    .await;
-    assert!(matches!(result, Err(InferenceHttpError::RequestTimeout)));
+    let request = gateway.app.clone().oneshot(
+        Request::post("/openai/v1/responses")
+            .header(header::AUTHORIZATION, "Bearer stalled-upload")
+            .body(stalled)
+            .unwrap(),
+    );
+    let response = tokio::time::timeout(Duration::from_secs(120), request)
+        .await
+        .expect("the router must bound the body read")
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
     assert_eq!(started.elapsed(), Duration::from_secs(97));
+    let body = to_bytes(response.into_body(), 4096).await.unwrap();
+    assert!(String::from_utf8_lossy(&body).contains("request_timeout"));
+    assert_eq!(web.calls(), 0);
 }
 
 #[tokio::test]
@@ -1824,7 +1830,6 @@ async fn a_stalled_upload_holds_only_the_bytes_it_sent() {
         streamed_body(vec![&[b'x'; 10]], true),
         &headers,
         64,
-        Duration::from_secs(60),
         &mut stalled,
     );
     assert!(
@@ -1844,7 +1849,6 @@ async fn buffered_bytes_reserve_the_allocation_not_just_the_length() {
         streamed_body(vec![&[b'x'; 32], b"x"], false),
         &HeaderMap::new(),
         64,
-        Duration::from_secs(60),
         &mut held,
     )
     .await

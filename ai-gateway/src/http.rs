@@ -1,4 +1,4 @@
-use std::{ops::Range, sync::Arc, time::Duration};
+use std::{ops::Range, sync::Arc};
 
 use axum::{
     Json, Router,
@@ -11,6 +11,7 @@ use axum::{
 use http_body_util::BodyExt;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
+use tower_http::timeout::{RequestBodyDeadlineLayer, TimeoutError};
 use tracing::Instrument;
 
 use crate::{
@@ -31,7 +32,10 @@ struct InferenceRouteState {
 
 /// Build inference routes. An unconfigured or draining service returns 503.
 pub fn router(inference: Option<InferenceService>, lifecycle: GatewayLifecycleState) -> Router {
-    Router::new()
+    let body_deadline = inference
+        .as_ref()
+        .map(InferenceService::request_read_timeout);
+    let router = Router::new()
         .route("/openai/v1/responses", post(handle_responses))
         .route(
             "/openai/v1/responses/compact",
@@ -48,8 +52,12 @@ pub fn router(inference: Option<InferenceService>, lifecycle: GatewayLifecycleSt
         .with_state(InferenceRouteState {
             inference: inference.map(Arc::new),
             lifecycle,
-        })
-        .layer(axum::middleware::from_fn(assign_request_id))
+        });
+    let router = match body_deadline {
+        Some(deadline) => router.layer(RequestBodyDeadlineLayer::new(deadline)),
+        None => router,
+    };
+    router.layer(axum::middleware::from_fn(assign_request_id))
 }
 
 async fn handle_responses(State(state): State<InferenceRouteState>, request: Request) -> Response {
@@ -193,7 +201,6 @@ async fn relay(
         body,
         &parts.headers,
         inference.max_request_bytes(),
-        inference.request_read_timeout(),
         &mut body_permit,
     )
     .await?;
@@ -311,14 +318,13 @@ fn request_body_and_model(bytes: Bytes) -> Result<InferenceRequestBody, Inferenc
 /// Buffer the client body, reserving its allocation from the shared budget as bytes
 /// arrive. A declared length is checked before reading and caps buffer growth, but is
 /// not reserved up front, so a client that declares a large body and stalls holds only
-/// what it actually sent. The wait is mostly the
-/// caller's upload, so it gets its own span and the measured size lands on the server
+/// what it actually sent. The router's body deadline bounds the read. The wait is mostly
+/// the caller's upload, so it gets its own span and the measured size lands on the server
 /// span for aggregation.
 async fn read_request_body(
     body: Body,
     headers: &HeaderMap,
     max_bytes: usize,
-    read_timeout: Duration,
     permit: &mut RequestBodyPermit,
 ) -> Result<Bytes, InferenceHttpError> {
     let server = tracing::Span::current();
@@ -336,37 +342,29 @@ async fn read_request_body(
             return Err(InferenceHttpError::TooLarge);
         }
         let capacity_limit = declared.unwrap_or(max_bytes);
-        let read = async {
-            let mut body = body;
-            let mut buffer = Vec::new();
-            while let Some(frame) = body.frame().await {
-                let Ok(data) = frame
-                    .map_err(|_| InferenceHttpError::InvalidBody)?
-                    .into_data()
-                else {
-                    continue;
-                };
-                let total = buffer.len() + data.len();
-                if total > max_bytes {
-                    return Err(InferenceHttpError::TooLarge);
-                }
-                if total > buffer.capacity() {
-                    let capacity = buffer
-                        .capacity()
-                        .saturating_mul(2)
-                        .clamp(total, capacity_limit.max(total));
-                    permit
-                        .try_reserve_bytes(capacity)
-                        .map_err(InferenceHttpError::Resolution)?;
-                    buffer.reserve_exact(capacity - buffer.len());
-                }
-                buffer.extend_from_slice(&data);
+        let mut body = body;
+        let mut buffer = Vec::new();
+        while let Some(frame) = body.frame().await {
+            let Ok(data) = frame.map_err(body_error)?.into_data() else {
+                continue;
+            };
+            let total = buffer.len() + data.len();
+            if total > max_bytes {
+                return Err(InferenceHttpError::TooLarge);
             }
-            Ok(Bytes::from(buffer))
-        };
-        let bytes = tokio::time::timeout(read_timeout, read)
-            .await
-            .map_err(|_| InferenceHttpError::RequestTimeout)??;
+            if total > buffer.capacity() {
+                let capacity = buffer
+                    .capacity()
+                    .saturating_mul(2)
+                    .clamp(total, capacity_limit.max(total));
+                permit
+                    .try_reserve_bytes(capacity)
+                    .map_err(InferenceHttpError::Resolution)?;
+                buffer.reserve_exact(capacity - buffer.len());
+            }
+            buffer.extend_from_slice(&data);
+        }
+        let bytes = Bytes::from(buffer);
         tracing::Span::current().record("http.request.body.size", byte_count(bytes.len()));
         Ok::<_, InferenceHttpError>(bytes)
     }
@@ -374,6 +372,15 @@ async fn read_request_body(
     .await?;
     server.record("http.request.body.size", byte_count(bytes.len()));
     Ok(bytes)
+}
+
+/// The router's body deadline surfaces as a body error.
+fn body_error(error: axum::Error) -> InferenceHttpError {
+    if error.into_inner().is::<TimeoutError>() {
+        InferenceHttpError::RequestTimeout
+    } else {
+        InferenceHttpError::InvalidBody
+    }
 }
 
 fn byte_count(len: usize) -> i64 {
