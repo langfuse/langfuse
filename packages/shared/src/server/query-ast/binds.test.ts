@@ -6,11 +6,11 @@ import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { tupleIn, useFinal } from "./extensions";
 
-const ctx = { projectId: "proj-1" };
+const projectId = "proj-1";
 const START = new Date("2026-01-01T00:00:00.000Z");
 
 function compile(builder: Parameters<typeof compileClickhouseQuery>[0]) {
-  return compileClickhouseQuery(builder, ctx);
+  return compileClickhouseQuery(builder, projectId);
 }
 
 describe("typed params from the column registry", () => {
@@ -60,7 +60,6 @@ describe("typed params from the column registry", () => {
   });
 
   it("keeps the column's DateTime precision through toStartOfMinute / toDate", () => {
-    const start = "2026-01-01 00:00:00.000";
     const { sql: minuteSql } = compile(
       getClickhouseKysely()
         .selectFrom("events_core")
@@ -69,7 +68,7 @@ describe("typed params from the column registry", () => {
           eb(
             eb.fn("toStartOfMinute", ["start_time"]),
             "=",
-            eb.fn("toStartOfMinute", [eb.val(start)]),
+            eb.fn("toStartOfMinute", [eb.val(START)]),
           ),
         ),
     );
@@ -85,12 +84,31 @@ describe("typed params from the column registry", () => {
           eb(
             eb.fn("toDate", [eb.ref("t.timestamp")]),
             "=",
-            eb.fn("toDate", [eb.val(start)]),
+            eb.fn("toDate", [eb.val(START)]),
           ),
         ),
     );
     expect(dateSql).toMatch(
       /toDate\(t\.timestamp\) = toDate\(\{p\d+:DateTime64\(3\)\}\)/,
+    );
+  });
+
+  // Rows are written as UTC wall-clock strings that ClickHouse parses in the
+  // server timezone; Date binds must take the same form to match them.
+  it("binds a Date as the UTC wall-clock string ingestion writes", () => {
+    const { sql, params } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where("start_time", ">=", new Date(-1000))
+        .where("start_time", "<=", START),
+    );
+    expect(sql).toMatch(/start_time >= \{p\d+:DateTime64\(6\)\}/);
+    expect(Object.values(params)).toEqual(
+      expect.arrayContaining([
+        "1969-12-31 23:59:59.000",
+        "2026-01-01 00:00:00.000",
+      ]),
     );
   });
 
@@ -320,16 +338,6 @@ describe("typed params from the column registry", () => {
           .where("is_deleted", "=", 0),
       );
       expect(sql).toMatch(/is_deleted = \{p\d+:Int64\}/);
-    });
-
-    it("uses the name-only type for a table-function source", () => {
-      const { sql } = compile(
-        db
-          .selectFrom((eb) => eb.fn("numbers", [eb.lit(10)]).as("n"))
-          .selectAll()
-          .where(db.dynamic.ref("n.is_deleted"), "=", 0),
-      );
-      expect(sql).toMatch(/n\.is_deleted = \{p\d+:UInt8\}/);
     });
 
     it("uses the name-only type for a qualifier declared nowhere", () => {

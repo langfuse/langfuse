@@ -32,7 +32,6 @@ import {
   type TopicFacetVersion,
   type TopicSummary,
   type TopicRun,
-  type TopicAssignment,
   type TopicFacetProgress,
   type TopicDefinition,
   type TopicProcessBatchState,
@@ -55,6 +54,7 @@ import {
   retainPopulatedTopics,
   topicHash,
 } from "./classifier";
+import { topicAssignmentRows } from "./assignments";
 import {
   runTopicClustering,
   topicClusterSettings,
@@ -347,52 +347,15 @@ async function assignSummaries(
   assignedAt = new Date().toISOString(),
 ) {
   return metrics.measure("assignment", async () => {
-    if (
-      run.projectId !== execution.projectId ||
-      run.facetId !== facet.facetId ||
-      run.facetVersion !== facet.version ||
-      run.topics.some(
-        (topic) =>
-          topic.centroid.length !==
-          execution.input.embeddingConfig.embeddingDimensions,
-      ) ||
-      run.config.embeddingModel !==
-        execution.input.embeddingConfig.embeddingModel
-    )
-      throw new Error("Target map is incompatible with this facet version.");
-    const prototypes = run.topics.map((topic) => ({
-      id: topic.topicVersionId,
-      centroid: topic.centroid,
-      radius: topic.radius,
-    }));
-    const rows = summaries.map<TopicAssignment>((summary) => {
-      if (summary.traceId === null)
-        throw new Error("Topics processing requires a trace summary.");
-      const assigned = classifyTopic(summary.embedding, prototypes);
-      const topic = run.topics.find(
-        (candidate) => candidate.topicVersionId === assigned.topicId,
-      );
-      const origin =
-        execution.input.operation === "process" ? "online" : "initial";
-      return {
-        coordinates: coordinates.get(summary.traceId) ?? null,
-        projectId: execution.projectId,
-        facetId: facet.facetId,
-        facetVersion: facet.version,
-        sessionId: summary.sessionId,
-        traceId: summary.traceId,
-        environment: summary.environment,
-        traceName: summary.traceName,
-        unitStartTime: summary.unitStartTime,
-        summaryProcessedAt: summary.processedAt,
-        runId: run.id,
-        topicId: topic?.topicId ?? null,
-        topicVersionId: topic?.topicVersionId ?? null,
-        distance: assigned.distance,
-        runnerUpDistance: assigned.runnerUpDistance,
-        origin,
-        assignedAt,
-      };
+    const rows = topicAssignmentRows({
+      projectId: execution.projectId,
+      facet: { facetId: facet.facetId, version: facet.version },
+      embeddingConfig: execution.input.embeddingConfig,
+      summaries,
+      run,
+      origin: execution.input.operation === "process" ? "online" : "initial",
+      assignedAt,
+      coordinates,
     });
     await metrics.measure(
       "storage",

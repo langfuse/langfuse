@@ -1010,13 +1010,13 @@ describe("EventsQueryBuilder", () => {
       .selectFieldSet("base", "calculated")
       .buildWithParams().query;
 
-    expect(slimQuery).not.toContain('e.tool_definitions as "tool_definitions"');
-    expect(slimQuery).not.toContain('e.tool_calls as "tool_calls"');
-    expect(slimQuery).toContain('e.tool_call_names as "tool_call_names"');
+    expect(slimQuery).not.toContain("e.tool_definitions as tool_definitions");
+    expect(slimQuery).not.toContain("e.tool_calls as tool_calls");
+    expect(slimQuery).toContain("e.tool_call_names as tool_call_names");
 
-    expect(defaultQuery).toContain('e.tool_definitions as "tool_definitions"');
-    expect(defaultQuery).toContain('e.tool_calls as "tool_calls"');
-    expect(defaultQuery).toContain('e.tool_call_names as "tool_call_names"');
+    expect(defaultQuery).toContain("e.tool_definitions as tool_definitions");
+    expect(defaultQuery).toContain("e.tool_calls as tool_calls");
+    expect(defaultQuery).toContain("e.tool_call_names as tool_call_names");
   });
 
   it("should query events_full when forceFullTable is enabled", () => {
@@ -1054,10 +1054,10 @@ describe("EventsQueryBuilder", () => {
     [listQuery, slimListQuery, byIdQuery, usageQuery, exportQuery].forEach(
       (query) => {
         expect(query).toContain(
-          'e.usage_pricing_tier_id as "usage_pricing_tier_id"',
+          "e.usage_pricing_tier_id as usage_pricing_tier_id",
         );
         expect(query).toContain(
-          'e.usage_pricing_tier_name as "usage_pricing_tier_name"',
+          "e.usage_pricing_tier_name as usage_pricing_tier_name",
         );
       },
     );

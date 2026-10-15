@@ -21,7 +21,7 @@ import type { ClickHouseDatabase } from "./schema";
 import { TenancyInjectionPlugin } from "./tenancy";
 import { defineView, fromView } from "./views";
 
-const ctx = { projectId: "proj-1" };
+const projectId = "proj-1";
 
 describe("schema-typed selection (condition 7)", () => {
   it("accepts sum() over a numeric column and emits SQL", () => {
@@ -29,7 +29,7 @@ describe("schema-typed selection (condition 7)", () => {
       .selectFrom("events_core")
       .select((eb) => [eb.fn.sum("total_cost").as("s")]);
 
-    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
     expect(compiled.toLowerCase()).toContain("sum(total_cost)");
     expect(compiled.toLowerCase()).toContain("project_id");
   });
@@ -39,33 +39,33 @@ describe("schema-typed selection (condition 7)", () => {
       .selectFrom("events_core")
       .select((eb) => [eb.fn.sum("environment").as("s")]);
 
-    expect(() => compileClickhouseQuery(qb, ctx)).toThrow(
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
       TypeCompatibilityError,
     );
-    expect(() => compileClickhouseQuery(qb, ctx)).toThrow(/environment/);
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(/environment/);
   });
 });
 
-describe("metadata indexOf access (condition 7b)", () => {
+describe("metadata subscript access (condition 7b)", () => {
   // These tests use a two-layer strategy. This first test inspects the AST
   // itself (serialized to JSON) to prove `metadata[key]` is *lowered* to real
-  // operation nodes — an `ArrayIndexNode` subscript around an `indexOf(...)`
+  // operation nodes — an `ArrayIndexNode` subscript over a `mapFromArrays(...)`
   // `FunctionNode` — and never a `RawNode` (a raw SQL string). The sibling
   // tests below assert the SQL the compiler then emits. Separating them
   // isolates "the builder produced the right tree" (composable, escaped,
   // parameter-bound) from "the compiler rendered that tree correctly".
-  it("lowers metadata[key] to ArrayIndexNode + indexOf FunctionNode, not RawNode", () => {
+  it("lowers metadata[key] to ArrayIndexNode + mapFromArrays FunctionNode, not RawNode", () => {
     const qb = getClickhouseKysely()
       .selectFrom("events_core as e")
       .select((_eb) => [metadataValue("e", "a").as("a")])
-      .where((eb) => eb(metadataValue("e", "a"), ">", 2));
+      .where((eb) => eb(metadataValue("e", "a"), "=", "x"));
 
     const node = qb
-      .withPlugin(new TenancyInjectionPlugin(ctx))
+      .withPlugin(new TenancyInjectionPlugin(projectId))
       .toOperationNode();
     const json = JSON.stringify(node);
     expect(json).toContain('"kind":"ArrayIndexNode"');
-    expect(json).toContain('"func":"indexOf"');
+    expect(json).toContain('"func":"mapFromArrays"');
     expect(json).not.toMatch(/"kind":"RawNode"/);
 
     // `.as("a")` wraps the expression in an AliasNode, so the first selection's
@@ -80,15 +80,17 @@ describe("metadata indexOf access (condition 7b)", () => {
     const qb = getClickhouseKysely()
       .selectFrom("events_core as e")
       .select((_eb) => [metadataValue("e", "a").as("a")])
-      .where((eb) => eb(metadataValue("e", "a"), ">", 2));
+      .where((eb) => eb(metadataValue("e", "a"), "=", "x"));
 
-    const { sql: compiled, params } = compileClickhouseQuery(qb, ctx);
+    const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
     const lower = compiled.toLowerCase();
-    expect(lower).toContain("metadata_values[indexof(e.metadata_names");
+    expect(lower).toContain(
+      "mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[",
+    );
     expect(lower).toContain("as a");
     expect(Object.values(params)).toContain("a");
-    expect(Object.values(params)).toContain(2);
-    expect(compiled).not.toMatch(/metadata_names,\s*'a'/);
+    expect(Object.values(params)).toContain("x");
+    expect(compiled).not.toMatch(/\['a'\]/);
   });
 
   it("emits the same lowering in HAVING", () => {
@@ -96,12 +98,12 @@ describe("metadata indexOf access (condition 7b)", () => {
       .selectFrom("events_core as e")
       .select("environment")
       .groupBy("environment")
-      .having((eb) => eb(metadataValue("e", "a"), ">", 2));
+      .having((eb) => eb(metadataValue("e", "a"), "=", "x"));
 
-    const { sql: compiled, params } = compileClickhouseQuery(qb, ctx);
+    const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
     expect(compiled.toLowerCase()).toContain("having");
     expect(compiled.toLowerCase()).toContain(
-      "metadata_values[indexof(e.metadata_names",
+      "mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[",
     );
     expect(Object.values(params)).toContain("a");
   });
@@ -122,7 +124,7 @@ describe("virtual view (condition 8)", () => {
       .select("environment")
       .where("environment", "=", "production");
 
-    const { sql: compiled, params } = compileClickhouseQuery(qb, ctx);
+    const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
     const lower = compiled.toLowerCase();
     expect(lower).toContain("with environments_view as");
     expect(lower).toContain("from events_core");
@@ -134,7 +136,7 @@ describe("virtual view (condition 8)", () => {
 
   it("injects tenancy on the inner physical table, not the view alias", () => {
     const qb = fromView(environmentsView).select("environment");
-    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
     const lower = compiled.toLowerCase();
     expect(lower).toMatch(
       /with environments_view as \([\s\S]*project_id[\s\S]*\)[\s\S]*from environments_view/,
@@ -166,7 +168,7 @@ describe("leftUTF8", () => {
       .selectFrom("events_core as e")
       .select((eb) => [leftUTF8(eb.ref("e.input"), 100).as("input")]);
 
-    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
     expect(compiled).toContain("leftUTF8(e.input, 100)");
   });
 
@@ -198,7 +200,7 @@ describe("arrayMap", () => {
         ).as("sibling"),
       ]);
 
-    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
     expect(compiled).toContain(
       "arrayMap(v -> arrayMap(v1 -> concat(v, v1), e.tags), e.metadata_names)",
     );

@@ -7,25 +7,30 @@ import {
   eventsTableTraceNameAggregationSql,
   eventsTableTraceNameSelectSql,
 } from "../../../eventsTable";
-import { expressionBuilder } from "kysely";
+import { expressionBuilder, sql, type SelectExpression } from "kysely";
 
 import { renderClickhouseExpression } from "../../query-ast/compile";
 import { metadataMap, traceSessionId } from "../../query-ast/extensions";
 import type { ClickHouseDatabase } from "../../query-ast/schema";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
-import { FilterList, StringFilter } from "./clickhouse-filter";
+import {
+  FilterList,
+  StringFilter,
+  type ClickhouseFilter,
+} from "./clickhouse-filter";
 
 const eventsRef = expressionBuilder<
   { e: ClickHouseDatabase["events_core"] },
   "e"
 >();
 
-export const EVENTS_METADATA_MAP_SQL = renderClickhouseExpression(
-  metadataMap(
-    eventsRef.ref("e.metadata_names"),
-    eventsRef.ref("e.metadata_values"),
-  ),
+const eventsMetadataMap = metadataMap(
+  eventsRef.ref("e.metadata_names"),
+  eventsRef.ref("e.metadata_values"),
 );
+
+export const EVENTS_METADATA_MAP_SQL =
+  renderClickhouseExpression(eventsMetadataMap);
 
 const TRACE_SESSION_ID_SQL = renderClickhouseExpression(traceSessionId());
 
@@ -136,58 +141,57 @@ const EVENTS_FIELDS = {
 
   // Identity & basic fields
   id: "e.span_id as id",
-  traceId: 'e.trace_id as "trace_id"',
-  projectId: 'e.project_id as "project_id"',
-  environment: 'e.environment as "environment"',
+  traceId: "e.trace_id as trace_id",
+  projectId: "e.project_id as project_id",
+  environment: "e.environment as environment",
   type: "e.type as type",
-  parentObservationId: 'e.parent_span_id as "parent_observation_id"',
+  parentObservationId: "e.parent_span_id as parent_observation_id",
   isRootObservation: `toBool(${eventsTableIsRootObservationSql}) as "is_root_observation"`,
-  isAppRoot: 'e.is_app_root as "is_app_root"',
+  isAppRoot: "e.is_app_root as is_app_root",
   name: "e.name as name",
   level: "e.level as level",
-  statusMessage: 'e.status_message as "status_message"',
+  statusMessage: "e.status_message as status_message",
   version: "e.version as version",
   bookmarked: "e.bookmarked as bookmarked",
   public: "e.public as public",
-  userId: 'e.user_id as "user_id"',
-  sessionId: 'e.session_id as "session_id"',
+  userId: "e.user_id as user_id",
+  sessionId: "e.session_id as session_id",
   // String-typed on purpose; see eventsTableTraceNameSelectSql (LFE-14924).
   traceName: `${eventsTableTraceNameSelectSql} as "trace_name"`,
 
   // Time fields
-  startTime: 'e.start_time as "start_time"',
-  endTime: 'e.end_time as "end_time"',
-  completionStartTime: 'e.completion_start_time as "completion_start_time"',
-  createdAt: 'e.created_at as "created_at"',
-  updatedAt: 'e.updated_at as "updated_at"',
+  startTime: "e.start_time as start_time",
+  endTime: "e.end_time as end_time",
+  completionStartTime: "e.completion_start_time as completion_start_time",
+  createdAt: "e.created_at as created_at",
+  updatedAt: "e.updated_at as updated_at",
   eventTs: "e.event_ts",
 
   // Model fields
-  providedModelName: 'e.provided_model_name as "provided_model_name"',
-  internalModelId: 'e.model_id as "internal_model_id"',
-  modelParameters: 'e."model_parameters" as model_parameters',
+  providedModelName: "e.provided_model_name as provided_model_name",
+  internalModelId: "e.model_id as internal_model_id",
+  modelParameters: "e.model_parameters as model_parameters",
 
   // Usage & cost fields
-  providedUsageDetails: 'e.provided_usage_details as "provided_usage_details"',
-  usageDetails: 'e.usage_details as "usage_details"',
-  providedCostDetails: 'e.provided_cost_details as "provided_cost_details"',
-  costDetails: 'e.cost_details as "cost_details"',
-  totalCost: 'e.total_cost as "total_cost"',
+  providedUsageDetails: "e.provided_usage_details as provided_usage_details",
+  usageDetails: "e.usage_details as usage_details",
+  providedCostDetails: "e.provided_cost_details as provided_cost_details",
+  costDetails: "e.cost_details as cost_details",
+  totalCost: "e.total_cost as total_cost",
 
   // Prompt fields
-  promptId: 'e.prompt_id as "prompt_id"',
-  promptName: 'e.prompt_name as "prompt_name"',
-  promptVersion: 'e.prompt_version as "prompt_version"',
+  promptId: "e.prompt_id as prompt_id",
+  promptName: "e.prompt_name as prompt_name",
+  promptVersion: "e.prompt_version as prompt_version",
 
   // Tool fields
-  toolDefinitions: 'e.tool_definitions as "tool_definitions"',
-  toolCalls: 'e.tool_calls as "tool_calls"',
-  toolCallNames: 'e.tool_call_names as "tool_call_names"',
+  toolDefinitions: "e.tool_definitions as tool_definitions",
+  toolCalls: "e.tool_calls as tool_calls",
+  toolCallNames: "e.tool_call_names as tool_call_names",
 
   // Pricing tier
-  usagePricingTierId: 'e.usage_pricing_tier_id as "usage_pricing_tier_id"',
-  usagePricingTierName:
-    'e.usage_pricing_tier_name as "usage_pricing_tier_name"',
+  usagePricingTierId: "e.usage_pricing_tier_id as usage_pricing_tier_id",
+  usagePricingTierName: "e.usage_pricing_tier_name as usage_pricing_tier_name",
 
   // I/O & metadata fields
   input: "e.input",
@@ -198,26 +202,25 @@ const EVENTS_FIELDS = {
   release: "e.release as release",
 
   // Model ID with different alias for exports
-  modelId: 'e.model_id as "model_id"',
+  modelId: "e.model_id as model_id",
 
   // Experiment fields (denormalized on events table)
-  experimentId: 'e.experiment_id as "experiment_id"',
-  experimentName: 'e.experiment_name as "experiment_name"',
-  experimentDescription: 'e.experiment_description as "experiment_description"',
-  experimentDatasetId: 'e.experiment_dataset_id as "experiment_dataset_id"',
+  experimentId: "e.experiment_id as experiment_id",
+  experimentName: "e.experiment_name as experiment_name",
+  experimentDescription: "e.experiment_description as experiment_description",
+  experimentDatasetId: "e.experiment_dataset_id as experiment_dataset_id",
   experimentMetadata:
     "mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values) as experiment_metadata",
 
   // Experiment item fields
-  experimentItemId: 'e.experiment_item_id as "experiment_item_id"',
+  experimentItemId: "e.experiment_item_id as experiment_item_id",
   experimentItemRootSpanId:
-    'e.experiment_item_root_span_id as "experiment_item_root_span_id"',
+    "e.experiment_item_root_span_id as experiment_item_root_span_id",
   experimentItemExpectedOutput:
-    'e.experiment_item_expected_output as "experiment_item_expected_output"',
+    "e.experiment_item_expected_output as experiment_item_expected_output",
   experimentItemMetadata:
     "mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) as experiment_item_metadata",
-  experimentItemVersion:
-    'e.experiment_item_version as "experiment_item_version"',
+  experimentItemVersion: "e.experiment_item_version as experiment_item_version",
 
   // Calculated fields
   latency:
@@ -530,31 +533,87 @@ const FIELD_SETS = {
 
 export type FieldSetName = keyof typeof FIELD_SETS;
 
+type EventsFieldKey = keyof typeof EVENTS_FIELDS;
+
+type EventsSelection = SelectExpression<
+  { e: ClickHouseDatabase["events_core"] },
+  "e"
+>;
+
+/** Fields whose EVENTS_FIELDS entry is a registry column reference. */
+type EventsColumnField = {
+  [K in EventsFieldKey]: (typeof EVENTS_FIELDS)[K] extends EventsSelection
+    ? K
+    : never;
+}[EventsFieldKey];
+
 /**
- * SELECT expressions (`expr as alias`) for the given field sets, in
- * EVENTS_FIELDS declaration order.
+ * Query-AST selections for fields that are not plain column references,
+ * built from the same source as their EVENTS_FIELDS entry.
  */
-export function eventsFieldSetSelectExpressions(
-  ...setNames: FieldSetName[]
-): string[] {
-  return eventsFieldSelectExpressions(setNames.flatMap((s) => FIELD_SETS[s]));
+const EVENTS_FIELD_EXPRESSIONS = {
+  traceName: sql.raw<string>(eventsTableTraceNameSelectSql).as("trace_name"),
+  metadata: eventsMetadataMap.as("metadata"),
+} satisfies Partial<
+  Record<Exclude<EventsFieldKey, EventsColumnField>, EventsSelection>
+>;
+
+type EventsExpressionField = keyof typeof EVENTS_FIELD_EXPRESSIONS;
+
+/** Field sets whose every field has a query-AST selection. */
+type SelectableFieldSetName = {
+  [S in FieldSetName]: (typeof FIELD_SETS)[S][number] extends
+    | EventsColumnField
+    | EventsExpressionField
+    ? S
+    : never;
+}[FieldSetName];
+
+type EventsFieldSelection<K> = K extends EventsExpressionField
+  ? (typeof EVENTS_FIELD_EXPRESSIONS)[K]
+  : K extends EventsColumnField
+    ? (typeof EVENTS_FIELDS)[K]
+    : never;
+
+function isEventsExpressionField(key: string): key is EventsExpressionField {
+  return Object.hasOwn(EVENTS_FIELD_EXPRESSIONS, key);
+}
+
+/**
+ * Query-AST selections for the given field sets, in EVENTS_FIELDS declaration
+ * order. Column fields are the EVENTS_FIELDS strings themselves, so Kysely
+ * checks each against the table registry and infers the selected row.
+ */
+export function eventsFieldSetSelections<S extends SelectableFieldSetName>(
+  ...setNames: S[]
+): Array<EventsFieldSelection<(typeof FIELD_SETS)[S][number]>>;
+export function eventsFieldSetSelections(
+  ...setNames: SelectableFieldSetName[]
+): EventsSelection[] {
+  return orderedFieldKeys(setNames.flatMap((s) => FIELD_SETS[s])).map((key) =>
+    isEventsExpressionField(key)
+      ? EVENTS_FIELD_EXPRESSIONS[key]
+      : EVENTS_FIELDS[key],
+  );
 }
 
 // Canonicalize by EVENTS_FIELDS declaration order so SELECT column order does
 // not follow caller field-set order. Clustered ClickHouse reads align result
 // blocks by position; incompatible Map types (cost_details vs metadata) 500
 // when those columns swap places.
+function orderedFieldKeys<K extends string>(fieldKeys: readonly K[]): K[] {
+  return [...new Set(fieldKeys)].sort(
+    (a, b) =>
+      (EVENTS_FIELD_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
+      (EVENTS_FIELD_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER),
+  );
+}
+
 function eventsFieldSelectExpressions(fieldKeys: readonly string[]): string[] {
-  return [...new Set(fieldKeys)]
-    .sort(
-      (a, b) =>
-        (EVENTS_FIELD_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
-        (EVENTS_FIELD_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER),
-    )
-    .flatMap((fieldKey) => {
-      const fieldExpr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];
-      return fieldExpr ? [fieldExpr] : [];
-    });
+  return orderedFieldKeys(fieldKeys).flatMap((fieldKey) => {
+    const fieldExpr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];
+    return fieldExpr ? [fieldExpr] : [];
+  });
 }
 
 export const OBSERVATION_FIELD_GROUP_FIELD_NAMES = Object.fromEntries(
@@ -1616,8 +1675,23 @@ export const ALL_SESSION_EVENTS_FIELDS =
 export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_SESSION_AGGREGATION_FIELDS
 > {
+  private fullTable = false;
+
   constructor(options: { projectId: string }) {
     super(EVENTS_SESSION_AGGREGATION_FIELDS, options);
+  }
+
+  /**
+   * Read events_full instead of events_core, e.g. when an outer filter is
+   * sensitive to events_core's truncated metadata values.
+   */
+  withFullTable(fullTable: boolean): this {
+    this.fullTable = fullTable;
+    return this;
+  }
+
+  protected override getTableName(): string {
+    return this.fullTable ? "events_full" : "events_core";
   }
 
   /**
@@ -1654,6 +1728,33 @@ export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder
       b.whereRaw(
         `start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
         { startTimeFrom },
+      ),
+    );
+  }
+
+  /**
+   * Restricts the aggregation to sessions with at least one event matching a
+   * row-level metadata condition over alias `m`. Sound for any condition the
+   * caller re-applies to the aggregated metadata: that metadata comes from one
+   * of the session's events in the same range, so a passing session always has
+   * a matching event. Lets the metadata skip indices prune the subquery and the
+   * session_id bloom filter prune the aggregation scan.
+   */
+  withMetadataSessionPrefilter(
+    condition: ClickhouseFilter | null,
+    startTimeFrom?: string | null,
+  ): this {
+    return this.when(Boolean(condition?.query.trim()), (b) =>
+      b.whereRaw(
+        `session_id IN (
+          SELECT m.session_id
+          FROM ${this.getTableName()} m
+          WHERE m.project_id = {projectId: String}
+            ${startTimeFrom ? `AND m.start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+            AND m.session_id != ''
+            AND (${condition!.query})
+        )`,
+        { ...condition!.params, ...(startTimeFrom ? { startTimeFrom } : {}) },
       ),
     );
   }

@@ -390,12 +390,17 @@ function facetDrafts(
   facets: TopicFacet[],
   enabledIds: ReadonlySet<string> | null,
 ) {
-  const byName = new Map(facets.map((facet) => [facet.name, facet]));
+  const builtInsByName = new Map(
+    facets
+      .filter((facet) => facet.isBuiltIn)
+      .map((facet) => [facet.name, facet]),
+  );
   const builtIn = DEFAULT_TOPIC_FACETS.map((preset) => {
-    const existing = byName.get(preset.name);
+    const existing = builtInsByName.get(preset.name);
     return {
       id: existing?.id ?? preset.name,
       name: preset.name,
+      description: existing?.description || preset.description,
       question: existing?.versions[0]?.prompt ?? preset.prompt,
       builtIn: true,
       enabled: enabledIds
@@ -411,6 +416,7 @@ function facetDrafts(
       {
         id: facet.id,
         name: facet.name,
+        description: facet.description,
         question,
         builtIn: false,
         enabled: enabledIds?.has(facet.id) ?? false,
@@ -419,3 +425,5 @@ function facetDrafts(
   });
   return [...builtIn, ...custom];
 }
+
+export const __test = { facetDrafts };

@@ -1,5 +1,16 @@
-import { SkillVersionFileReferenceSchema } from "@langfuse/shared";
+import {
+  SkillVersionFileReferenceSchema,
+  SkillVersionSchema,
+} from "@langfuse/shared";
 import { z } from "zod/v4";
+
+export const GetSkillResponseSchema = SkillVersionSchema.extend({
+  files: z.array(
+    SkillVersionSchema.shape.files.element.extend({
+      content: z.string().optional(),
+    }),
+  ),
+});
 
 export const GetSkillFileContentsInputSchema = z.object({
   sha256Hashes: z

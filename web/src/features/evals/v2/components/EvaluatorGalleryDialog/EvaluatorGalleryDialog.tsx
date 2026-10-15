@@ -15,7 +15,6 @@ import {
   EVALUATOR_GALLERY_ALL_SECTION_KEY,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
 } from "@/src/features/evals/v2/constants/evaluatorGallery";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getEvaluatorCreationAnalyticsProperties } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { getTemplateSelectionAnalyticsProperties } from "@/src/features/evals/v2/fns/templateGallery/getTemplateSelectionAnalyticsProperties";
@@ -45,16 +44,11 @@ export function EvaluatorGalleryDialog({
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(),
   );
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const pendingSearchCapture = useRef<{
     timeout: ReturnType<typeof setTimeout>;
     queryLength: number;
   } | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const [bannerDismissed, setBannerDismissed] = useLocalStorage(
-    "evaluatorGallery:decisionModelBannerDismissed:v1",
-    false,
-  );
   const projectEvaluators = api.evalsV2.listGallery.useInfiniteQuery(
     {
       projectId,
@@ -65,6 +59,14 @@ export function EvaluatorGalleryDialog({
       enabled: open && Boolean(projectId),
       getNextPageParam: (lastPage) => lastPage.nextCursor,
       placeholderData: (previous) => previous,
+    },
+  );
+  // One unfiltered row: whether the project has any saved evaluators at all.
+  const anyProjectEvaluator = api.evalsV2.listGallery.useInfiniteQuery(
+    { projectId, limit: 1 },
+    {
+      enabled: open && Boolean(projectId),
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
     },
   );
   const customTemplates = (
@@ -90,6 +92,8 @@ export function EvaluatorGalleryDialog({
     customTemplates,
     customTemplateCount:
       projectEvaluators.data?.pages[0]?.totalItems ?? customTemplates.length,
+    hasCustomTemplates:
+      (anyProjectEvaluator.data?.pages[0]?.totalItems ?? 0) > 0,
     search,
   });
   const flushSearchCapture = () => {
@@ -188,24 +192,23 @@ export function EvaluatorGalleryDialog({
       <DialogContent
         className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none flex-col gap-0 rounded-lg p-0 sm:h-[80dvh] sm:max-h-[85vh] sm:w-[70vw]"
         closeOnInteractionOutside
-        onOpenAutoFocus={(event) => {
-          event.preventDefault();
-          searchInputRef.current?.focus();
-        }}
+        onOpenAutoFocus={(event) => event.preventDefault()}
       >
         <DialogHeader className="p-3 sm:p-4 [&>div]:items-start [&>div]:text-left [&>div>button]:-mt-1 [&>div>button]:-mr-2 [&>div>button]:flex [&>div>button]:size-8 [&>div>button]:items-center [&>div>button]:justify-center">
-          <DialogTitle className="text-lg sm:text-xl">
-            Add an evaluator
-          </DialogTitle>
-          <DialogDescription>
-            Pick a template to start from or create a new evaluator from
-            scratch.
-          </DialogDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <DialogTitle className="text-lg sm:text-xl">
+                Add an evaluator
+              </DialogTitle>
+              <DialogDescription>
+                Pick a template or start from scratch.
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
         <EvaluatorGalleryView
           search={search}
           onSearchChange={handleSearchChange}
-          searchInputRef={searchInputRef}
           navigationItems={navigationItems}
           activeSection={activeSection}
           onSelectSection={selectSection}
@@ -224,8 +227,6 @@ export function EvaluatorGalleryDialog({
               ? projectEvaluators.error.message
               : undefined
           }
-          decisionModelBannerDismissed={bannerDismissed}
-          onDismissDecisionModelBanner={() => setBannerDismissed(true)}
         />
       </DialogContent>
     </Dialog>

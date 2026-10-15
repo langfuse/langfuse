@@ -5,22 +5,19 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import {
   buildEvalExecutionData,
-  compileLangfuseMediaMessages,
   createDecisionModelClient,
   createW3CTraceId,
   decryptAndParseExtraHeaders,
   DefaultEvalModelService,
-  createLLMOutput,
   executeDecisionModelEvaluator,
   executeLlmEvaluator,
   extractObservationVariables,
   findModel,
-  generateLLMText,
+  generateLlmEvaluatorOutput,
   isAllowedDecisionModel,
   LLMAdapter,
   OPENAI_DECISION_MODEL_IDS,
   LangfuseInternalTraceEnvironment,
-  mapLegacyLLMCompletionParams,
   matchPricingTier,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
@@ -236,29 +233,17 @@ async function testLlmEvaluator(params: {
         interpolatedPrompt: prompt,
       }) => {
         interpolatedPrompt = prompt;
-        const modelParams = {
-          provider: modelConfig.config.provider,
-          model: modelConfig.config.model,
-          adapter: modelConfig.config.apiKey.adapter,
-          ...modelConfig.config.modelParams,
-        };
-        const llmParams = mapLegacyLLMCompletionParams({
+        const result = await generateLlmEvaluatorOutput({
+          projectId: params.projectId,
           connection: modelConfig.config.apiKey,
-          messages,
-          modelParams,
-        });
-        const { providerMessages, traceMessages } =
-          await compileLangfuseMediaMessages({
-            projectId: params.projectId,
-            messages,
+          modelParams: {
+            provider: modelConfig.config.provider,
+            model: modelConfig.config.model,
             adapter: modelConfig.config.apiKey.adapter,
-          });
-        const result = await generateLLMText({
-          ...llmParams,
-          messages: providerMessages,
-          traceInput: traceMessages,
-          output: createLLMOutput(compiledOutputDefinition.outputResultSchema),
-          maxRetries: 1,
+            ...modelConfig.config.modelParams,
+          },
+          messages,
+          outputResultSchema: compiledOutputDefinition.outputResultSchema,
           trace: {
             targetProjectId: params.projectId,
             traceId: executionTraceId,

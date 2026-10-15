@@ -7219,8 +7219,8 @@ paths:
     get:
       description: >-
         Resolve a skill's metadata and file manifest by version or label.
-        Defaults to the production label. Use each file's sha256Hash with
-        getFileContents, individually or in batches across manifests.
+        Defaults to the production label. Set includeContent to return file
+        contents inline, or use each file's sha256Hash with getFileContents.
       operationId: unstable_skills_get
       tags:
         - UnstableSkills
@@ -7241,6 +7241,13 @@ paths:
           required: false
           schema:
             type: string
+            nullable: true
+        - name: includeContent
+          in: query
+          description: Include UTF-8 text content in each file. Defaults to false.
+          required: false
+          schema:
+            type: boolean
             nullable: true
       responses:
         '200':
@@ -14636,6 +14643,12 @@ components:
         contentLength:
           type: integer
           format: int64
+        content:
+          type: string
+          nullable: true
+          description: >-
+            UTF-8 text content, included when fetching a skill with
+            includeContent enabled.
       required:
         - id
         - path

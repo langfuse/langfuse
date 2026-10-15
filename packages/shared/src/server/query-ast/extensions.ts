@@ -6,7 +6,8 @@
  *   - Plugins ({@link ArrayJoinPlugin}, {@link LimitByPlugin}) that attach a
  *     custom operation node (`ArrayJoinNode` / `LimitByNode`) onto the select
  *     node during query transformation; the ClickHouse compiler renders them.
- *   - `$call` helpers ({@link arrayJoin}, {@link limitBy}, {@link useFinal})
+ *   - `$call` helpers ({@link arrayJoin}, {@link limitBy}, {@link useFinal},
+ *     {@link includeDeleted})
  *     that apply those plugins while extending the builder's output row type,
  *     so produced aliases are type-checked and misspelled references are
  *     compile errors.
@@ -290,11 +291,12 @@ function functionCall<T>(
 }
 
 /**
- * ClickHouse `leftUTF8(expression, length)`. The length is inlined as an
- * integer literal; it must be a positive integer.
+ * ClickHouse `leftUTF8(expression, length)`; `expression` is a column name or
+ * a string expression. The length is inlined as an integer literal; it must be
+ * a positive integer.
  */
 export function leftUTF8(
-  expression: Expression<string>,
+  expression: string | Expression<string>,
   length: number,
 ): ChExpression<string> {
   if (!Number.isInteger(length) || length < 1) {
@@ -303,7 +305,7 @@ export function leftUTF8(
     );
   }
   return functionCall("leftUTF8", [
-    expression,
+    typeof expression === "string" ? columnRef(expression) : expression,
     ValueNode.createImmediate(length),
   ]);
 }
@@ -325,6 +327,22 @@ export function toJSONString(
   expression: Expression<unknown>,
 ): ChExpression<string> {
   return functionCall("toJSONString", [expression]);
+}
+
+function dateArg(value: Expression<Date> | Date): OperationNodeSource {
+  return value instanceof Date ? ValueNode.create(value) : value;
+}
+
+/** ClickHouse `toDate(value)`; a JS `Date` is bound. */
+export function toDate(value: Expression<Date> | Date): ChExpression<Date> {
+  return functionCall("toDate", [dateArg(value)]);
+}
+
+/** ClickHouse `toStartOfMinute(value)`; a JS `Date` is bound. */
+export function toStartOfMinute(
+  value: Expression<Date> | Date,
+): ChExpression<Date> {
+  return functionCall("toStartOfMinute", [dateArg(value)]);
 }
 
 /** ClickHouse `arrayReverse(array)`. */
@@ -451,21 +469,21 @@ export function traceSessionId(): ChExpression<string> {
 }
 
 /**
- * Lower `metadata[key]` to a traced array-subscript + `indexOf` node.
- * The key is a bound `ValueNode`, not a SQL literal.
+ * Lower `metadata[key]` to a subscript of {@link metadataMap}, so the last
+ * entry of a duplicated key wins. The key is a bound `ValueNode`, not a SQL
+ * literal.
  */
 export function metadataValue(
   tableAlias: string,
   key: string,
-): ExpressionWrapper<ClickHouseDatabase, "events_core", string | number> {
-  return new ExpressionWrapper(
-    ArrayIndexNode.create(
-      qualifiedColumn(tableAlias, "metadata_values"),
-      FunctionNode.create("indexOf", [
-        qualifiedColumn(tableAlias, "metadata_names"),
-        ValueNode.create(key),
-      ]),
-    ) as unknown as OperationNode,
+): ChExpression<string> {
+  const column = (name: string) =>
+    new ExpressionWrapper<ClickHouseDatabase, "events_core", string[]>(
+      qualifiedColumn(tableAlias, name),
+    );
+  return mapValue<string>(
+    metadataMap(column("metadata_names"), column("metadata_values")),
+    key,
   );
 }
 
@@ -595,4 +613,27 @@ export function useFinal(tables: ReadonlyArray<keyof ClickHouseDatabase>) {
   return <DB, TB extends keyof DB, O>(
     qb: SelectQueryBuilder<DB, TB, O>,
   ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new FinalPlugin(names));
+}
+
+/** Plugin that marks the select so the soft-delete pass leaves it unfiltered. */
+class IncludeDeletedPlugin implements KyselyPlugin {
+  transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
+    if (args.node.kind !== "SelectQueryNode") return args.node;
+    return { ...args.node, includeDeleted: true } as RootOperationNode;
+  }
+
+  async transformResult(args: PluginTransformResultArgs) {
+    return args.result;
+  }
+}
+
+/**
+ * Read soft-deleted rows too: `qb.$call(includeDeleted())`. Applies to this
+ * select's FROM/JOIN relations only; nested selects are still filtered. A
+ * select that reads no soft-delete table fails to compile.
+ */
+export function includeDeleted() {
+  return <DB, TB extends keyof DB, O>(
+    qb: SelectQueryBuilder<DB, TB, O>,
+  ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new IncludeDeletedPlugin());
 }
