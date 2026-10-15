@@ -1325,7 +1325,7 @@ async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
             .status(),
         StatusCode::SERVICE_UNAVAILABLE
     );
-    assert_eq!(web.calls(), 2);
+    assert_eq!(web.calls(), 1);
     assert_eq!(provider.calls(), 1);
     gateway.shutdown.take().unwrap().send(()).unwrap();
     assert!(!gateway.task.is_finished());
@@ -1727,28 +1727,15 @@ async fn anthropic_routes_share_the_request_body_limit() {
 }
 
 #[tokio::test]
-async fn buffered_request_bytes_are_released_once_sent_to_the_provider() {
+async fn buffered_request_bytes_are_released_once_the_response_ends() {
     let (release, released) = tokio::sync::watch::channel(false);
-    let lengths = Arc::new(std::sync::Mutex::new(Vec::new()));
     let web = FakeServer::start(|_| async { resolution_response("provider") }).await;
-    let provider = FakeServer::start({
-        let lengths = lengths.clone();
-        move |request: Request| {
-            let mut released = released.clone();
-            let lengths = lengths.clone();
-            async move {
-                let declared = request
-                    .headers()
-                    .get(header::CONTENT_LENGTH)
-                    .map(|value| value.to_str().unwrap().to_owned());
-                let received = to_bytes(request.into_body(), usize::MAX).await.unwrap();
-                lengths
-                    .lock()
-                    .unwrap()
-                    .push((declared, received.len().to_string()));
-                released.wait_for(|done| *done).await.unwrap();
-                Response::new(Body::empty())
-            }
+    let provider = FakeServer::start(move |request: Request| {
+        let mut released = released.clone();
+        async move {
+            to_bytes(request.into_body(), usize::MAX).await.unwrap();
+            released.wait_for(|done| *done).await.unwrap();
+            Response::new(Body::empty())
         }
     })
     .await;
@@ -1766,39 +1753,31 @@ async fn buffered_request_bytes_are_released_once_sent_to_the_provider() {
         oversized.await.unwrap().status(),
         StatusCode::PAYLOAD_TOO_LARGE
     );
-    // Two non-streamed 60-byte calls exceed the 100-byte budget only if the first
-    // still counts its body while it waits for provider headers.
+    // Two 60-byte calls do not fit the 100-byte budget at once.
     let first = tokio::spawn(gateway.post().bearer_auth("key").body(body(60)).send());
     while provider.calls() == 0 {
         tokio::task::yield_now().await;
     }
-    let chunked = gateway
-        .post()
-        .bearer_auth("key")
-        .body(reqwest::Body::wrap_stream(stream::iter(
-            body(60)
-                .into_bytes()
-                .chunks(20)
-                .map(|chunk| Ok::<_, Infallible>(chunk.to_vec()))
-                .collect::<Vec<_>>(),
-        )))
-        .send();
-    let second = tokio::spawn(chunked);
+    let second = gateway.post().bearer_auth("key").body(body(60)).send();
+    let second = tokio::time::timeout(Duration::from_secs(5), second)
+        .await
+        .expect("the first call still holds its bytes while it waits for headers");
+    assert_eq!(second.unwrap().status(), StatusCode::SERVICE_UNAVAILABLE);
+    release.send(true).unwrap();
+    let first = first.await.unwrap().unwrap();
+    assert_eq!(first.status(), StatusCode::OK);
+    first.bytes().await.unwrap();
     tokio::time::timeout(Duration::from_secs(5), async {
-        while provider.calls() < 2 {
+        loop {
+            let next = gateway.post().bearer_auth("key").body(body(60)).send();
+            if next.await.unwrap().status() == StatusCode::OK {
+                break;
+            }
             tokio::task::yield_now().await;
         }
     })
     .await
-    .expect("the second call reaches the provider while the first waits");
-    release.send(true).unwrap();
-    assert_eq!(first.await.unwrap().unwrap().status(), StatusCode::OK);
-    assert_eq!(second.await.unwrap().unwrap().status(), StatusCode::OK);
-    let lengths = lengths.lock().unwrap();
-    assert_eq!(lengths.len(), 2);
-    for (declared, received) in lengths.iter() {
-        assert_eq!(declared.as_ref(), Some(received));
-    }
+    .expect("the first call's bytes are released once its response ends");
 }
 
 async fn budgeted_service() -> (FakeServer, FakeServer, InferenceService) {

@@ -100,34 +100,11 @@ pub(crate) struct RequestBody {
     pub model_range: Range<usize>,
     /// The caller asked for a streamed response (`"stream": true`).
     pub streaming: bool,
-    /// Capacity held for the body, released when its upstream copy is freed.
+    /// Capacity held for the body, released with the execution once the response ends.
     pub reservation: Option<BodyReservation>,
 }
 
 pub(crate) type BodyReservation = Box<dyn Send + Sync>;
-
-/// Body bytes that keep their reservation until the allocation itself is freed, so the
-/// budget counts them for as long as any queued frame still references them.
-struct ReservedBytes {
-    bytes: Bytes,
-    _reservation: BodyReservation,
-}
-
-impl AsRef<[u8]> for ReservedBytes {
-    fn as_ref(&self) -> &[u8] {
-        &self.bytes
-    }
-}
-
-pub(crate) fn reserved_bytes(bytes: Bytes, reservation: Option<BodyReservation>) -> Bytes {
-    match reservation {
-        Some(reservation) => Bytes::from_owner(ReservedBytes {
-            bytes,
-            _reservation: reservation,
-        }),
-        None => bytes,
-    }
-}
 
 pub struct ProviderTransport {
     client: ClientWithMiddleware,
@@ -192,7 +169,7 @@ impl ProviderTransport {
         Ok(RequestPermit {
             _permit: permit,
             _active: crate::observability::Active::new("execution"),
-            deadline: Instant::now() + self.limits.execution.max_execution,
+            deadline: Instant::now() + self.limits.execution.max_execution_time,
         })
     }
 
@@ -278,12 +255,7 @@ impl ProviderTransport {
             .headers(transport::request_headers(headers, api_format))
             .header(header::ACCEPT_ENCODING, "identity")
             .header(credential_name, credential);
-        // Wrapped so reqwest cannot clone it: its retry and redirect layers keep a copy
-        // of a reusable body until headers, holding the reservation for a whole
-        // non-streamed generation.
-        upstream = upstream.body(reqwest::Body::wrap(http_body_util::Full::new(
-            reserved_bytes(body, reservation),
-        )));
+        upstream = upstream.body(body);
         // A stream, or a call that does not generate, that goes quiet before its
         // headers is stalled. A non-streamed generation sends nothing until the whole
         // response is generated.
@@ -328,7 +300,7 @@ impl ProviderTransport {
             response,
             permit.deadline,
             self.limits.execution.stall_timeout,
-            (permit, context),
+            (permit, context, reservation),
             capture,
         );
         Ok(downstream)

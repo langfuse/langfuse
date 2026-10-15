@@ -441,7 +441,7 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
         upstream.url.clone(),
         ProviderLimits {
             execution: ExecutionLimits {
-                max_execution: Duration::from_millis(100),
+                max_execution_time: Duration::from_millis(100),
                 ..ExecutionLimits::default()
             },
             ..ProviderLimits::default()
@@ -603,7 +603,7 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
             ProviderLimits {
                 active: 1,
                 execution: ExecutionLimits {
-                    max_execution: Duration::from_millis(150),
+                    max_execution_time: Duration::from_millis(150),
                     ..ExecutionLimits::default()
                 },
             },
@@ -1236,19 +1236,4 @@ fn assert_chat_upload(payload: &serde_json::Value, request: &str) {
     ] {
         assert!(!payload.to_string().contains(secret));
     }
-}
-
-#[test]
-fn reserved_bytes_hold_their_reservation_until_the_last_reference_is_freed() {
-    let reservation = Arc::new(());
-    let body = reserved_bytes(
-        Bytes::from_static(b"{}"),
-        Some(Box::new(reservation.clone())),
-    );
-    let queued = body.clone();
-    drop(body);
-    assert_eq!(Arc::strong_count(&reservation), 2);
-    assert_eq!(&queued[..], b"{}");
-    drop(queued);
-    assert_eq!(Arc::strong_count(&reservation), 1);
 }

@@ -34,7 +34,7 @@ pub(crate) enum RequestPreparationError {
 }
 
 /// One request-body slot plus the body bytes reserved so far from the shared budget.
-/// It travels with the upstream body and is released once that body is sent.
+/// It is held with the execution and released once the response ends.
 pub(crate) struct RequestBodyPermit {
     _slot: OwnedSemaphorePermit,
     bytes: OwnedSemaphorePermit,
