@@ -25,10 +25,14 @@ export function AutomaticProcessingControl({
 }: AutomaticProcessingControlProps) {
   const reason = disabledReason(state, canWrite);
   const button = (
-    // Matches the secondary header buttons; the live dot is StatusBadge's.
     <button
       type="button"
-      className="bg-secondary text-secondary-foreground hover:bg-secondary/80 ring-offset-background focus-visible:ring-ring inline-flex h-7 shrink-0 items-center gap-2 rounded-md px-2 text-xs whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
+      className={cn(
+        "ring-offset-background focus-visible:ring-ring inline-flex h-7 shrink-0 items-center gap-2 rounded-md px-2 text-xs whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+        state.status === "off" || state.status === "paused"
+          ? "bg-primary text-primary-foreground hover:bg-primary/90"
+          : "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      )}
       aria-label={`Automatic processing: ${statusLabel(state)}`}
       disabled={reason !== null}
       onClick={onOpen}

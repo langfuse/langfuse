@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Settings } from "lucide-react";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
@@ -13,6 +13,7 @@ import {
   DASHBOARD_AGGREGATION_OPTIONS,
   TABLE_AGGREGATION_OPTIONS,
   TIME_RANGES,
+  type TimeRange,
 } from "@/src/utils/date-range-utils";
 import { ErrorPage } from "@/src/components/error-page";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -37,8 +38,12 @@ import {
   type TopicExecutionStatus,
   type TopicFacetOutcome,
   type TopicOperation,
+  type TopicTimeRange,
 } from "@langfuse/shared/topics";
 import { useTopicPipelineForm } from "./TopicPipelineForm";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
+import { useRegenerateTopics } from "./useRegenerateTopics";
 import { useTopicModelSettings } from "./TopicModelSettings";
 import { AutomaticProcessingControl } from "./AutomaticProcessingControl";
 import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
@@ -183,6 +188,30 @@ function TopicsWorkspaceContent({
   openAutomaticProcessing,
 }: TopicsWorkspaceContentProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [generationRange, setGenerationRange] = useState<{
+    selection: TimeRange;
+    bounds: TopicTimeRange;
+  }>(() => ({
+    selection: { range: "last7Days" },
+    bounds: { from: new Date(Date.now() - 7 * 86_400_000), to: new Date() },
+  }));
+  const changeGenerationRange = (selection: TimeRange) => {
+    const to = "from" in selection ? selection.to : new Date();
+    const minutes =
+      "from" in selection
+        ? null
+        : TIME_RANGES[selection.range as keyof typeof TIME_RANGES]?.minutes;
+    const bounds =
+      "from" in selection
+        ? selection
+        : {
+            from: minutes
+              ? new Date(to.getTime() - minutes * 60_000)
+              : new Date(to.getTime() - 7 * 86_400_000),
+            to,
+          };
+    setGenerationRange({ selection, bounds });
+  };
   const { timeRange, setTimeRange } = useGlobalDateRange({
     allowedRanges: sharedTimeRangePresets,
     fallback: "last7Days",
@@ -299,13 +328,31 @@ function TopicsWorkspaceContent({
   function openHistory() {
     setHistoryOpen(true);
   }
-  const { primaryAction, triggerAction, configuration } = useTopicPipelineForm({
+  const regenerate = useRegenerateTopics({
+    projectId,
+    facets: facets.data ?? [],
+    canWrite,
+    timeRange: generationRange.bounds,
+    executions: executions.data,
+    executionsError: executions.error?.message ?? null,
+  });
+  const pipeline = useTopicPipelineForm({
     projectId,
     facets: facets.data ?? [],
     canWrite,
     onTriggered: openExecution,
-    timeRange: validTimeRange ? currentTimeRange : null,
+    regenerate,
+    settings: modelSettings.configure.settings,
+    running,
+    onConfigure: openConfigure,
+    generationTimeRange: generationRange.selection,
+    onGenerationTimeRangeChange: changeGenerationRange,
   });
+  const configured = Boolean(
+    modelSettings.configure.settings?.stored.summary &&
+    modelSettings.configure.settings.stored.embedding &&
+    modelSettings.configure.settings.stored.clustering,
+  );
   const automaticProcessing = modelSettings.automaticProcessing;
   function openAutomaticProcessingFromHeader() {
     openAutomaticProcessing(automaticProcessing.state.status === "on");
@@ -313,25 +360,45 @@ function TopicsWorkspaceContent({
   function turnAutomaticProcessingBackOn() {
     openAutomaticProcessing(true);
   }
-  const actions = (
+  const actions = (openManual: () => void) => (
     <div className="ph-no-capture flex items-center justify-end gap-1">
       <AutomaticProcessingControl
         state={automaticProcessing.state}
         canWrite={canWrite && !automaticProcessing.saving}
         onOpen={openAutomaticProcessingFromHeader}
       />
-      <Button
-        text="Configure Topics"
-        variant={modelSettings.configure.triggerVariant}
-        size="sm"
-        disabled={!modelSettings.configure.settings}
-        onClick={openConfigure}
-      />
-      {primaryAction}
+      {!configured ? (
+        <Button
+          text="Configure Topics"
+          variant={modelSettings.configure.triggerVariant}
+          size="sm"
+          disabled={!modelSettings.configure.settings}
+          onClick={openConfigure}
+        />
+      ) : null}
+      {pipeline.available ? (
+        <Button
+          text="Manual processing"
+          variant="secondary"
+          size="sm"
+          onClick={openManual}
+        />
+      ) : null}
       <DropdownMenu
         ariaLabel="Topics actions"
         placement="bottom-end"
         items={[
+          ...(configured
+            ? [
+                {
+                  id: "configure",
+                  type: "item" as const,
+                  title: "Configure Topics",
+                  icon: Settings,
+                  onClick: openConfigure,
+                },
+              ]
+            : []),
           {
             id: "history",
             type: "item",
@@ -358,154 +425,192 @@ function TopicsWorkspaceContent({
     </div>
   );
   return (
-    <Page
-      headerProps={{
-        title: "Topics",
-        help: {
-          description:
-            "Explore recurring themes across traces, one facet at a time.",
-        },
-        actionButtonsRight: actions,
-        actionButtonsMenu: ({ closeMenu }) => (
-          <TopicsActionsMenu
-            triggerAction={triggerAction}
-            closeMenu={closeMenu}
-            onOpenHistory={openHistory}
-            onRefresh={refreshResults}
-          />
-        ),
-      }}
+    <DialogController
+      renderDialog={({ closeDialog }) => pipeline.renderDialog(closeDialog)}
     >
-      <PageHeaderControlsPortal>
-        <TimeRangePicker
-          timeRange={effectiveTimeRange}
-          onTimeRangeChange={setTimeRange}
-          timeRangePresets={topicsTimeRangePresets}
-          maxRangeMs={maxTimeRangeMs}
-          className="my-0 max-w-full overflow-x-auto"
-          triggerClassName="px-2"
-        />
-      </PageHeaderControlsPortal>
-      <div className="ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
-        {isTimeRangeCapped && (
-          <p role="status" className="text-muted-foreground shrink-0 text-xs">
-            {"from" in timeRange
-              ? "Showing the final 90 days of your selected range."
-              : "Showing the last 90 days."}{" "}
-            Your selection is preserved on other pages.
-          </p>
-        )}
-        {!validTimeRange && (
-          <ErrorMessage message="Select a time range of at most 90 days." />
-        )}
-        <TopicSetupNotice
-          notice={modelSettings.notice}
-          canWrite={canWrite}
-          canConfigure={modelSettings.configure.settings !== null}
-          onConfigure={openConfigure}
-          onKeepOff={automaticProcessing.clearPause}
-          onTurnBackOn={turnAutomaticProcessingBackOn}
-        />
-        {configuration}
-        <Sheet
-          open={historyOpen || executionId !== null}
-          onOpenChange={showExecutionList}
-        >
-          <SheetContent className="ph-no-capture flex w-full flex-col gap-4 sm:max-w-xl">
-            <SheetHeader>
-              <SheetTitle>
-                {executionId ? "Run status" : "Past executions"}
-              </SheetTitle>
-              <SheetDescription>
-                Review progress, errors, and retry interrupted runs.
-              </SheetDescription>
-            </SheetHeader>
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-              {executionId ? (
-                <>
-                  <div className="self-start">
-                    <Button
-                      text="All runs"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => showExecutionList(true)}
+      {({ openDialog }) => {
+        const openManual = () => {
+          utils.topics.summaryCounts.invalidate({ projectId });
+          pipeline.clearError();
+          openDialog();
+        };
+        return (
+          <Page
+            headerProps={{
+              title: "Topics",
+              help: {
+                description:
+                  "Explore recurring themes across traces, one facet at a time.",
+              },
+              actionButtonsRight: actions(openManual),
+              actionButtonsMenu: ({ closeMenu }) => (
+                <TopicsActionsMenu
+                  triggerAction={
+                    pipeline.available
+                      ? {
+                          label: "Manual processing",
+                          disabled: false,
+                          onSelect: openManual,
+                        }
+                      : null
+                  }
+                  closeMenu={closeMenu}
+                  onOpenHistory={openHistory}
+                  onRefresh={refreshResults}
+                >
+                  {configured ? (
+                    <HeaderActionMenuRow
+                      label="Configure Topics"
+                      icon={
+                        <Settings className="icon-base text-icon-foreground" />
+                      }
+                      onClick={() => {
+                        closeMenu();
+                        openConfigure();
+                      }}
                     />
-                  </div>
-                  <ExecutionPanel
-                    key={executionId}
-                    projectId={projectId}
-                    executionId={executionId}
-                    query={selectedExecution}
-                    facets={facets.data ?? []}
-                    canWrite={canWrite}
-                  />
-                </>
-              ) : (
-                <>
-                  <div className="self-end">
-                    <Button
-                      text="Refresh"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => executions.refetch()}
-                    />
-                  </div>
-                  {executions.error && (
-                    <ErrorMessage message={executions.error.message} />
-                  )}
-                  {!executions.data?.length && (
-                    <p className="text-muted-foreground text-sm">
-                      Your triggered batches will appear here.
-                    </p>
-                  )}
-                  {executions.data?.map((execution) => (
-                    <button
-                      key={execution.id}
-                      onClick={() => openExecution(execution.id)}
-                      className="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left text-sm"
-                    >
-                      <span className="capitalize">
-                        {operationLabels[execution.input.operation]} ·{" "}
-                        {new Date(execution.createdAt).toLocaleString()}
-                      </span>
-                      <span>{execution.facets.length} facets</span>
-                      <Badge text={executionLabels[execution.status]} />
-                    </button>
-                  ))}
-                </>
-              )}
-            </div>
-          </SheetContent>
-        </Sheet>
-        <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden">
-          <TablePeekViewTraceDetail
-            {...peekNavigation}
-            itemType="TRACE"
-            projectId={projectId}
-            defaultWidthTarget={tracePanel}
-            widthStorageKey="topicsPeekViewWidthFraction"
-          />
-          {validTimeRange && (
-            <TopicsFilters
-              facets={results.data ?? []}
-              selectedFacetId={selectedFacetId}
-              onSelectFacet={traceFilters.selectFacet}
-            >
-              <CurrentTopics
-                projectId={projectId}
-                timeRange={currentTimeRange}
-                result={results}
-                selectedFacetId={selectedFacetId}
-                traceFilters={traceFilters}
-                tracePanelRef={setTracePanel}
+                  ) : null}
+                </TopicsActionsMenu>
+              ),
+            }}
+          >
+            <PageHeaderControlsPortal>
+              <TimeRangePicker
+                timeRange={effectiveTimeRange}
+                onTimeRangeChange={setTimeRange}
+                timeRangePresets={topicsTimeRangePresets}
+                maxRangeMs={maxTimeRangeMs}
+                className="my-0 max-w-full overflow-x-auto"
+                triggerClassName="px-2"
               />
-            </TopicsFilters>
-          )}
-          {facets.isLoading && <p>Loading facets…</p>}
-          {facets.error && <ErrorMessage message={facets.error.message} />}
-        </div>
-      </div>
-    </Page>
+            </PageHeaderControlsPortal>
+            <div className="ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
+              {isTimeRangeCapped && (
+                <p
+                  role="status"
+                  className="text-muted-foreground shrink-0 text-xs"
+                >
+                  {"from" in timeRange
+                    ? "Showing the final 90 days of your selected range."
+                    : "Showing the last 90 days."}{" "}
+                  Your selection is preserved on other pages.
+                </p>
+              )}
+              {!validTimeRange && (
+                <ErrorMessage message="Select a time range of at most 90 days." />
+              )}
+              <TopicSetupNotice
+                notice={modelSettings.notice}
+                canWrite={canWrite}
+                canConfigure={modelSettings.configure.settings !== null}
+                onConfigure={openConfigure}
+                onKeepOff={automaticProcessing.clearPause}
+                onTurnBackOn={turnAutomaticProcessingBackOn}
+              />
+              <Sheet
+                open={historyOpen || executionId !== null}
+                onOpenChange={showExecutionList}
+              >
+                <SheetContent className="ph-no-capture flex w-full flex-col gap-4 sm:max-w-xl">
+                  <SheetHeader>
+                    <SheetTitle>
+                      {executionId ? "Run status" : "Past executions"}
+                    </SheetTitle>
+                    <SheetDescription>
+                      Review progress, errors, and retry interrupted runs.
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+                    {executionId ? (
+                      <>
+                        <div className="self-start">
+                          <Button
+                            text="All runs"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => showExecutionList(true)}
+                          />
+                        </div>
+                        <ExecutionPanel
+                          key={executionId}
+                          projectId={projectId}
+                          executionId={executionId}
+                          query={selectedExecution}
+                          facets={facets.data ?? []}
+                          canWrite={canWrite}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <div className="self-end">
+                          <Button
+                            text="Refresh"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => executions.refetch()}
+                          />
+                        </div>
+                        {executions.error && (
+                          <ErrorMessage message={executions.error.message} />
+                        )}
+                        {!executions.data?.length && (
+                          <p className="text-muted-foreground text-sm">
+                            Your triggered batches will appear here.
+                          </p>
+                        )}
+                        {executions.data?.map((execution) => (
+                          <button
+                            key={execution.id}
+                            onClick={() => openExecution(execution.id)}
+                            className="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left text-sm"
+                          >
+                            <span className="capitalize">
+                              {operationLabels[execution.input.operation]} ·{" "}
+                              {new Date(execution.createdAt).toLocaleString()}
+                            </span>
+                            <span>{execution.facets.length} facets</span>
+                            <Badge text={executionLabels[execution.status]} />
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                </SheetContent>
+              </Sheet>
+              <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+                <TablePeekViewTraceDetail
+                  {...peekNavigation}
+                  itemType="TRACE"
+                  projectId={projectId}
+                  defaultWidthTarget={tracePanel}
+                  widthStorageKey="topicsPeekViewWidthFraction"
+                />
+                {validTimeRange && (
+                  <TopicsFilters
+                    facets={results.data ?? []}
+                    selectedFacetId={selectedFacetId}
+                    onSelectFacet={traceFilters.selectFacet}
+                  >
+                    <CurrentTopics
+                      projectId={projectId}
+                      timeRange={currentTimeRange}
+                      result={results}
+                      selectedFacetId={selectedFacetId}
+                      traceFilters={traceFilters}
+                      tracePanelRef={setTracePanel}
+                    />
+                  </TopicsFilters>
+                )}
+                {facets.isLoading && <p>Loading facets…</p>}
+                {facets.error && (
+                  <ErrorMessage message={facets.error.message} />
+                )}
+              </div>
+            </div>
+          </Page>
+        );
+      }}
+    </DialogController>
   );
 }
 
