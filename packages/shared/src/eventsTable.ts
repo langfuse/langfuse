@@ -52,6 +52,13 @@ export const isRootObservation = ({
 // absent (NULL != '' is NULL, i.e. not true), so only real payloads match.
 export const eventsTableHasInputSql = "e.input != ''";
 export const eventsTableHasOutputSql = "e.output != ''";
+export const eventsTableLoadedSkillNamesSql =
+  "e.skills_resource_loaded.skillName";
+export const eventsTableLoadedSkillVersionsSql =
+  "arrayMap(skill -> concat(skill.skillName, '@', toString(skill.skillVersion)), e.skills_resource_loaded)";
+export const eventsTableAvailableSkillNamesSql = "e.skills_available.skillName";
+export const eventsTableAvailableSkillVersionsSql =
+  "arrayMap(skill -> concat(skill.skillName, '@', toString(skill.skillVersion)), e.skills_available)";
 
 const isCachedInputMetric = (key: string): boolean => {
   const normalizedKey = key.toLowerCase();
@@ -489,6 +496,34 @@ const eventsTableColsDefinition = [
     internal: "e.experiment_name",
     options: [], // to be added at runtime
     nullable: true,
+  },
+  {
+    name: "Loaded Skill Names",
+    id: "skillsNamesLoaded",
+    type: "arrayOptions",
+    internal: eventsTableLoadedSkillNamesSql,
+    options: [],
+  },
+  {
+    name: "Loaded Skill Versions",
+    id: "skillsVersionsLoaded",
+    type: "arrayOptions",
+    internal: eventsTableLoadedSkillVersionsSql,
+    options: [],
+  },
+  {
+    name: "Available Skill Names",
+    id: "skillNamesAvailable",
+    type: "arrayOptions",
+    internal: eventsTableAvailableSkillNamesSql,
+    options: [],
+  },
+  {
+    name: "Available Skill Versions",
+    id: "skillVersionsAvailable",
+    type: "arrayOptions",
+    internal: eventsTableAvailableSkillVersionsSql,
+    options: [],
   },
   {
     name: "Available Tool Names",
