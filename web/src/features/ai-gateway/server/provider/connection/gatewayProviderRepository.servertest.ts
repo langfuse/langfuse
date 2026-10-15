@@ -4,7 +4,7 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
 import { GatewayProviderRepository } from "./gatewayProviderRepository";
 
-function connection(id: string, routingPriority: number) {
+function connection(id: string) {
   return {
     id,
     organizationId: "org-1",
@@ -12,8 +12,8 @@ function connection(id: string, routingPriority: number) {
     provider: "OPENAI" as const,
     displaySecret: "sk-...",
     createdById: null,
-    routingPriority,
     status: "ENABLED" as const,
+    allowedModels: null,
     createdAt: new Date(0),
     updatedAt: new Date(0),
   };
@@ -24,9 +24,9 @@ describe("GatewayProviderRepository pagination", () => {
     const connectionFindMany = vi
       .fn()
       .mockResolvedValue([
-        connection("connection-1", 0),
-        connection("connection-2", 1),
-        connection("connection-3", 2),
+        connection("connection-1"),
+        connection("connection-2"),
+        connection("connection-3"),
       ]);
     const repository = new GatewayProviderRepository({
       gatewayAiConnection: { findMany: connectionFindMany },
@@ -43,7 +43,7 @@ describe("GatewayProviderRepository pagination", () => {
     });
     expect(connectionFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        orderBy: [{ routingPriority: "asc" }, { id: "asc" }],
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         take: 3,
       }),
     );
