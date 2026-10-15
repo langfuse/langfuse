@@ -405,6 +405,29 @@ function isSafariAddMoreClickMessage(value: string): boolean {
 }
 
 /**
+ * Chromium `JSON.parse` wording when injected page-world JS parses a
+ * Langfuse media/prompt reference tag (`@@@langfuseMedia:` /
+ * `@@@langfusePrompt:`) as JSON. Those tags are not JSON; first-party
+ * parse paths (`deepParseJson`, `parseIfString`, the I/O worker) already
+ * catch this and keep the string. Observed as an unhandled rejection
+ * with only `<anonymous>` / `JSON.parse` / `Array.forEach` frames on
+ * the prompt page (LANGFUSE-63Z) — `denyUrls` cannot match.
+ *
+ * Chrome quotes the first ~10 characters, so both tag families appear
+ * as `"@@@langfus"...`. Whole-message after {@link coreMessage}: an
+ * app error that quotes the phrase is longer and is KEPT. A first-party
+ * `/_next/` frame is KEPT so a future unguarded `JSON.parse` in our
+ * code still surfaces. Other `Unexpected token` JSON.parse failures
+ * (`'<'` HTML, `'x'`, Firefox wording) are KEPT.
+ */
+const CHROMIUM_LANGFUSE_REF_JSON_PARSE_RE =
+  /^Unexpected token '@', "@@@langfus.* is not valid JSON$/;
+
+function isChromiumLangfuseRefJsonParseMessage(value: string): boolean {
+  return CHROMIUM_LANGFUSE_REF_JSON_PARSE_RE.test(coreMessage(value));
+}
+
+/**
  * True when any stack frame is a first-party Next.js chunk. Used as a
  * negative guard so a future first-party throw that happens to share
  * WebKit's wording still reaches Sentry.
@@ -676,7 +699,13 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // Injected `JSON.parse` of a `@@@langfuse…` media/prompt tag is the
+    // same class: Chromium's exact SyntaxError when a userscript treats
+    // our reference string as JSON. Stack is `<anonymous>` /
+    // `JSON.parse` only — denyUrls cannot match. First-party parse
+    // paths already catch this.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -695,6 +724,13 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       if (
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
+        !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "SyntaxError" &&
+        isChromiumLangfuseRefJsonParseMessage(exceptionValue) &&
         !hasFirstPartyChunkFrame(event)
       ) {
         return true;

@@ -1124,6 +1124,73 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops injected JSON.parse of a Langfuse media/prompt tag", () => {
+    // Real shape: Chrome on a prompt page. Injected page-world JS
+    // (userscript / extension) JSON.parses I/O that starts with
+    // `@@@langfuseMedia:` / `@@@langfusePrompt:`. Stack is only
+    // `<anonymous>` + `JSON.parse` + `Array.forEach` — denyUrls cannot
+    // match. First-party parse paths already catch this.
+    const injectedLangfuseRefJsonParseEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onunhandledrejection",
+      frames?: { filename: string; function?: string }[],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              stacktrace: {
+                frames: (
+                  frames ?? [
+                    { filename: "<anonymous>", function: "?" },
+                    { filename: "<anonymous>", function: "Array.forEach" },
+                    { filename: "<anonymous>", function: "JSON.parse" },
+                  ]
+                ).map((stackFrame) => ({
+                  filename: stackFrame.filename,
+                  function: stackFrame.function ?? "?",
+                })),
+              },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the observed Chrome JSON.parse of a @@@langfuse tag", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedLangfuseRefJsonParseEvent(
+            `Unexpected token '@', "@@@langfus"... is not valid JSON`,
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedLangfuseRefJsonParseEvent(
+            `Unexpected token '@', "@@@langfus"... is not valid JSON.`,
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording via a global onerror handler", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          injectedLangfuseRefJsonParseEvent(
+            `Unexpected token '@', "@@@langfus"... is not valid JSON`,
+            "auto.browser.global_handlers.onerror",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1778,6 +1845,123 @@ describe("isDenylistedNoiseEvent", () => {
                     filename:
                       "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/settings/[page]-abc.js",
                     function: "onClick",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes the Langfuse-tag JSON.parse wording", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: `Prompt preview failed: Unexpected token '@', "@@@langfus"... is not valid JSON`,
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [{ filename: "<anonymous>", function: "?" }],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a Chrome JSON.parse SyntaxError of a different @-prefixed string", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: `Unexpected token '@', "@mention"... is not valid JSON`,
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [{ filename: "<anonymous>", function: "JSON.parse" }],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps Firefox JSON.parse wording for a Langfuse media/prompt tag", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value:
+                "JSON.parse: unexpected character at line 1 column 1 of the JSON data",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [{ filename: "<anonymous>", function: "JSON.parse" }],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured Langfuse-tag JSON.parse SyntaxError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            `Unexpected token '@', "@@@langfus"... is not valid JSON`,
+            "SyntaxError",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: `Unexpected token '@', "@@@langfus"... is not valid JSON`,
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps the Langfuse-tag JSON.parse SyntaxError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: `Unexpected token '@', "@@@langfus"... is not valid JSON`,
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/prompts/[[...folder]]-abc.js",
+                    function: "PromptDetail",
                   },
                 ],
               },
