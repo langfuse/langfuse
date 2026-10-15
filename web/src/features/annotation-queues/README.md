@@ -44,9 +44,11 @@ Background refreshes and project-wide config edits do not reset the draft.
 
 `QueueScoreConfigFields` adapts the existing project-wide create/edit dialogs to
 the controlled `AnnotationQueueScoreConfigEditor`. Creating a config appends its
-ID without saving the queue. Multi-selection appends new IDs; the design-system
+ID without saving the queue. The same searchable dropdown used by tracing’s
+Add score action lists available configs and offers config creation. Choosing a
+config appends its ID; the design-system
 `SortableList` owns pointer/touch/keyboard dragging and reports a single reorder
-on drop. Both row removal and picker deselection confirm for populated queues.
+on drop. Row removal confirms for populated queues.
 `AnnotationQueueFormDialogController` handles queue creation and retains
 creation/assignment retry coordination. The queue list links to each queue's
 inline setup instead of exposing a separate edit action.

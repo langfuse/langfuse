@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { Button as TriggerButton } from "./button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "./sheet";
 
 const meta = preview.meta({ component: SheetContent });
@@ -84,5 +86,94 @@ export const NestedInteractiveOverlays = meta.story({
         .getByRole("dialog", { name: "Setup" })
         .contains(canvasElement.ownerDocument.activeElement),
     ).toBe(true);
+  },
+});
+
+export const EscapeDismissesNestedMenu = meta.story({
+  name: "(Test) Escape Dismisses Menu Before Sheet",
+  args: { onEscapeKeyDown: fn() },
+  render: (args) => (
+    <Sheet defaultOpen>
+      <SheetContent {...args}>
+        <SheetHeader>
+          <SheetTitle>Setup</SheetTitle>
+        </SheetHeader>
+        <Input aria-label="Draft name" defaultValue="Keep this draft" />
+        <DialogController
+          renderDialog={() => (
+            <Dialog title="Create choice" actions={[{ label: "Save" }]}>
+              <Dialog.Body>
+                <Input aria-label="Choice name" />
+              </Dialog.Body>
+            </Dialog>
+          )}
+        >
+          {({ openDialog }) => (
+            <DropdownMenu
+              ariaLabel="Choices"
+              search={{ placeholder: "Search choices" }}
+              items={[
+                {
+                  type: "item",
+                  id: "create",
+                  title: "Create choice",
+                  onClick: openDialog,
+                },
+              ]}
+            >
+              {({ getTriggerProps }) => (
+                <TriggerButton {...getTriggerProps()}>Add choice</TriggerButton>
+              )}
+            </DropdownMenu>
+          )}
+        </DialogController>
+      </SheetContent>
+    </Sheet>
+  ),
+  play: async ({ canvasElement, args }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(body.getByRole("button", { name: "Add choice" }));
+    await userEvent.type(
+      body.getByRole("searchbox", { name: "Search choices" }),
+      "create",
+    );
+    await userEvent.keyboard("{Escape}");
+    await expect(
+      body.queryByRole("menu", { name: "Choices" }),
+    ).not.toBeInTheDocument();
+    await expect(body.getByRole("dialog", { name: "Setup" })).toHaveAttribute(
+      "data-state",
+      "open",
+    );
+    await expect(args.onEscapeKeyDown).toHaveBeenCalled();
+    await userEvent.click(body.getByRole("button", { name: "Add choice" }));
+    await userEvent.click(
+      body.getByRole("menuitem", { name: "Create choice" }),
+    );
+    await expect(
+      body.queryByRole("menu", { name: "Choices" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      body.getByRole("dialog", { name: "Create choice" }),
+    ).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(
+        body.queryByRole("dialog", { name: "Create choice" }),
+      ).not.toBeInTheDocument(),
+    );
+    await expect(body.getByRole("dialog", { name: "Setup" })).toHaveAttribute(
+      "data-state",
+      "open",
+    );
+    await expect(body.getByRole("textbox", { name: "Draft name" })).toHaveValue(
+      "Keep this draft",
+    );
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(
+        body.queryByRole("dialog", { name: "Setup" }),
+      ).not.toBeInTheDocument(),
+    );
   },
 });

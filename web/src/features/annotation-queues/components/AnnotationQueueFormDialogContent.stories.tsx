@@ -4,7 +4,6 @@ import { type ScoreConfigDomain } from "@langfuse/shared";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import { AnnotationQueueScoreConfigEditor } from "./AnnotationQueueScoreConfigEditor";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { type ComponentProps } from "react";
 import { AnnotationQueueFormDialogContent } from "./AnnotationQueueFormDialogContent";
 
@@ -38,7 +37,7 @@ const children: ComponentProps<
   <AnnotationQueueScoreConfigEditor
     {...control}
     scoreConfigs={scoreConfigs}
-    createAction={<Button text="Create score config" onClick={fn()} />}
+    createAction={{ disabled: undefined, onClick: fn() }}
     editAction={{ disabled: undefined, onClick: fn() }}
     warnOnRemoval={false}
     disabled={false}
@@ -85,14 +84,14 @@ export const Create = meta.story({
     const body = within(canvasElement.ownerDocument.body);
 
     await userEvent.click(
-      await body.findByRole("combobox", { name: "Select score configs" }),
+      await body.findByRole("button", { name: "Add score" }),
     );
     await userEvent.type(
-      await body.findByPlaceholderText("Search score configs..."),
+      await body.findByPlaceholderText("Search scores..."),
       "Correctness",
     );
     await userEvent.click(
-      await body.findByRole("option", { name: /Correctness/ }),
+      await body.findByRole("menuitem", { name: /Correctness/ }),
     );
     await expect(
       body.getByRole("list", { name: "Selected score configs" }),
@@ -130,7 +129,7 @@ export const Edit = meta.story({
   play: async ({ canvasElement, args }) => {
     const body = within(canvasElement.ownerDocument.body);
     await expect(
-      body.queryByRole("combobox", { name: "Select score configs" }),
+      body.queryByRole("button", { name: "Add score" }),
     ).not.toBeInTheDocument();
     await userEvent.clear(body.getByRole("textbox", { name: "Name" }));
     await userEvent.type(

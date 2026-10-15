@@ -1,7 +1,6 @@
 import { type ComponentProps } from "react";
 import { expect, fn, mocked, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { AnnotationQueueScoreConfigEditor } from "./AnnotationQueueScoreConfigEditor";
 import { AnnotationQueueSetupForm } from "./AnnotationQueueSetupForm";
 
@@ -44,14 +43,7 @@ const baseArgs: SetupProps = {
       onChange={onChange}
       disabled={disabled}
       warnOnRemoval={false}
-      createAction={
-        <Button
-          text="Create score config"
-          variant="secondary"
-          disabled={disabled}
-          onClick={fn()}
-        />
-      }
+      createAction={{ disabled: undefined, onClick: fn() }}
       editAction={{ disabled: undefined, onClick: fn() }}
     />
   ),

@@ -1,10 +1,10 @@
-import { type ReactNode, useState } from "react";
-import { Pencil, X } from "lucide-react";
+import { Pencil, Plus, X } from "lucide-react";
 import { arrayMove } from "@dnd-kit/sortable";
 import { type ScoreConfigDomain } from "@langfuse/shared";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { Button } from "@/src/components/ui/button";
 import { SortableList } from "@/src/components/design-system/SortableList/SortableList";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { getScoreDataTypeIcon } from "@/src/features/scores";
@@ -18,22 +18,13 @@ export function AnnotationQueueScoreConfigEditor({
   warnOnRemoval,
   disabled,
 }: AnnotationQueueScoreConfigEditorProps) {
-  const [pickerOpen, setPickerOpen] = useState(false);
   const configsById = new Map(
     scoreConfigs.map((config) => [config.id, config]),
   );
   const selectedIds = new Set(value);
-  const activeConfigs = scoreConfigs.filter((config) => !config.isArchived);
-  const options = scoreConfigs
-    .filter((config) => !config.isArchived || selectedIds.has(config.id))
-    .map((config) => ({
-      value: config.id,
-      label: config.name,
-      secondaryLabel: config.isArchived
-        ? "Archived"
-        : getScoreDataTypeIcon(config.dataType),
-      disabled: config.isArchived,
-    }));
+  const availableConfigs = scoreConfigs.filter(
+    (config) => !config.isArchived && !selectedIds.has(config.id),
+  );
 
   return (
     <ConfirmationDialogController<string[]>
@@ -47,7 +38,6 @@ export function AnnotationQueueScoreConfigEditor({
         const changeSelection = (nextValue: string[]) => {
           if (disabled) return;
           if (warnOnRemoval && value.some((id) => !nextValue.includes(id))) {
-            setPickerOpen(false);
             openDialog(nextValue);
           } else {
             onChange(nextValue);
@@ -55,31 +45,52 @@ export function AnnotationQueueScoreConfigEditor({
         };
         return (
           <div className="flex min-h-0 flex-col gap-3">
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
-              <div className="min-w-48 flex-1">
-                <MultiSelectInput
-                  aria-label="Select score configs"
-                  value={value}
-                  placeholder="Select score configs"
-                  selectedLabel={`${value.length} selected`}
-                  searchPlaceholder="Search score configs..."
-                  emptyMessage="No score configs found."
-                  selectAllLabel="Select all score configs"
-                  disabled={disabled || options.length === 0}
-                  options={options}
-                  onValueChange={changeSelection}
-                  openState={{ open: pickerOpen, onOpenChange: setPickerOpen }}
-                />
-              </div>
-              {createAction}
+            <div className="flex shrink-0">
+              <DropdownMenu
+                disabled={disabled}
+                maxHeight="18rem"
+                placement="bottom-start"
+                search={{ placeholder: "Search scores..." }}
+                items={[
+                  ...availableConfigs.map((config) => ({
+                    type: "item" as const,
+                    id: config.id,
+                    title: `${config.name} (${scoreDataTypeLabels[config.dataType]})`,
+                    onClick: () => {
+                      if (!disabled) onChange([...value, config.id]);
+                    },
+                  })),
+                  { type: "separator", id: "score-config-actions" },
+                  {
+                    type: "item",
+                    id: "create-score-config",
+                    title: "Add score config",
+                    icon: Plus,
+                    disabled: createAction.disabled,
+                    searchBehavior: "show-when-no-results",
+                    onClick: createAction.onClick,
+                  },
+                ]}
+              >
+                {({ getTriggerProps }) => (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs"
+                    disabled={disabled}
+                    {...getTriggerProps()}
+                  >
+                    <Plus
+                      className="icon-base text-icon-foreground"
+                      aria-hidden
+                    />
+                    Add score
+                  </Button>
+                )}
+              </DropdownMenu>
             </div>
-            {value.length === 0 ? (
-              <p className="text-muted-foreground py-6 text-center text-sm">
-                {activeConfigs.length === 0
-                  ? "Create a score config to define what annotators score."
-                  : "Select score configs or create a new one."}
-              </p>
-            ) : (
+            {value.length > 0 && (
               <>
                 <p className="text-muted-foreground text-xs">
                   Fields appear in this order.
@@ -162,11 +173,21 @@ type AnnotationQueueScoreConfigEditorProps = {
   >[];
   value: string[];
   onChange: (ids: string[]) => void;
-  createAction: ReactNode;
+  createAction: {
+    disabled: { reason: string } | undefined;
+    onClick: () => void;
+  };
   editAction: {
     disabled: { reason: string } | undefined;
     onClick: (configId: string) => void;
   };
   warnOnRemoval: boolean;
   disabled: boolean;
+};
+
+const scoreDataTypeLabels = {
+  NUMERIC: "Numeric",
+  CATEGORICAL: "Categorical",
+  BOOLEAN: "Boolean",
+  TEXT: "Text",
 };

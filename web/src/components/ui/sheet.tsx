@@ -74,7 +74,7 @@ interface SheetContentProps
 const SheetContent = React.forwardRef<
   React.ComponentRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(({ side = "right", className, children, ...props }, ref) => {
+>(({ side = "right", className, children, onEscapeKeyDown, ...props }, ref) => {
   const [modalContainer, setModalContainer] =
     React.useState<HTMLDivElement | null>(null);
   const [popoverContainer, setPopoverContainer] =
@@ -86,6 +86,18 @@ const SheetContent = React.forwardRef<
         ref={ref}
         className={cn(sheetVariants({ side }), className)}
         {...props}
+        onEscapeKeyDown={(event) => {
+          onEscapeKeyDown?.(event);
+          // Nested menus handle Escape after the Sheet's capture listener.
+          // Let them dismiss without closing the surrounding editing surface.
+          if (
+            popoverContainer?.contains(
+              popoverContainer.ownerDocument.activeElement,
+            )
+          ) {
+            event.preventDefault();
+          }
+        }}
       >
         <LayerContainerProvider name="modal" container={modalContainer}>
           <PopoverLayerProvider container={popoverContainer}>

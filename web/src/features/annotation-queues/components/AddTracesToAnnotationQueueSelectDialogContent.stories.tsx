@@ -69,7 +69,7 @@ export const CreateQueueInStackedDialog = meta.story({
                     isArchived: false,
                   },
                 ]}
-                createAction={null}
+                createAction={{ disabled: undefined, onClick: fn() }}
                 editAction={{ disabled: undefined, onClick: fn() }}
                 warnOnRemoval={false}
                 disabled={false}

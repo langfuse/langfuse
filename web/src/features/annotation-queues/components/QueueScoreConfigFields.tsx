@@ -1,5 +1,4 @@
 import { type ScoreConfigDomain } from "@langfuse/shared";
-import { Button } from "@/src/components/design-system/Button/Button";
 import {
   CreateScoreConfigDialogController,
   EditScoreConfigDialogController,
@@ -35,19 +34,10 @@ export function QueueScoreConfigFields({
               onChange={onChange}
               disabled={disabled}
               warnOnRemoval={warnOnRemoval}
-              createAction={
-                <Button
-                  text="Create score config"
-                  size="sm"
-                  variant={
-                    configs.some((config) => !config.isArchived)
-                      ? "secondary"
-                      : "primary"
-                  }
-                  disabled={disabled || !!create.disabled}
-                  onClick={create.openDialog}
-                />
-              }
+              createAction={{
+                disabled: create.disabled,
+                onClick: create.openDialog,
+              }}
               editAction={{
                 disabled: edit.disabled,
                 onClick: (configId) => {
