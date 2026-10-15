@@ -2,6 +2,7 @@
 
 import { render, screen } from "@testing-library/react";
 import type * as ReactCodeMirror from "@uiw/react-codemirror";
+import { INVALID_PROMPT_VARIABLE_NAME_MESSAGE } from "@langfuse/shared";
 import {
   CodeMirrorEditor,
   getPromptVariableDiagnostics,
@@ -27,6 +28,20 @@ describe("CodeMirrorEditor session recording privacy", () => {
 });
 
 describe("getPromptVariableDiagnostics", () => {
+  it("accepts prompt variables that start with an ASCII digit", () => {
+    expect(
+      getPromptVariableDiagnostics("Use {{1st_question}} and {{team_2}}"),
+    ).toEqual([]);
+  });
+
+  it("uses the shared guidance for invalid variable names", () => {
+    expect(getPromptVariableDiagnostics("Use {{_question}}")).toContainEqual(
+      expect.objectContaining({
+        message: INVALID_PROMPT_VARIABLE_NAME_MESSAGE,
+      }),
+    );
+  });
+
   it("accepts triple-brace prompt variables as an inner variable with literal outer braces", () => {
     expect(getPromptVariableDiagnostics("Use {{{placeholder}}} here")).toEqual(
       [],
