@@ -311,7 +311,7 @@ const MixpanelIntegrationSettingsForm = ({
                       ))}
                       <div className="border-t pt-2">
                         <a
-                          href="https://langfuse.com/docs/integrations/export-sources"
+                          href="https://langfuse.com/integrations/analytics/mixpanel#migrate-export-source"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"

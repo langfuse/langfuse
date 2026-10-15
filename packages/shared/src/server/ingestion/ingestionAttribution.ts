@@ -19,8 +19,8 @@ export const INTERNAL_INGESTION_SDK_NAMES = [
 ] as const;
 
 export const LANGFUSE_SDK_LATEST_MAJOR = {
-  python: 4,
-  javascript: 5,
+  python: 5,
+  javascript: 6,
 } as const;
 
 export type IngestionSdkCanonicalName = keyof typeof LANGFUSE_SDK_LATEST_MAJOR;
