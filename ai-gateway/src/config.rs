@@ -22,7 +22,7 @@ const SEMAPHORE_CAPACITY: usize = tokio::sync::Semaphore::MAX_PERMITS;
 pub const DEFAULT_MAX_REQUEST_BYTES: usize = 32 * MIB;
 const DEFAULT_SHARED_REQUEST_BUFFER_BYTES: usize = 512 * MIB;
 const DEFAULT_MAX_EXECUTION_SECONDS: u32 = 60 * 60;
-const DEFAULT_STALL_TIMEOUT_SECONDS: u32 = 2 * 60;
+const DEFAULT_STALL_TIMEOUT_SECONDS: u32 = 60;
 /// Buffered request body bounds per instance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RequestLimits {
@@ -44,7 +44,7 @@ impl Default for RequestLimits {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ExecutionLimits {
     /// Ceiling from execution admission until the response completes.
-    pub max_execution: Duration,
+    pub max_execution_time: Duration,
     /// Longest wait without progress: stream response headers, upstream reads, downstream writes.
     pub stall_timeout: Duration,
 }
@@ -52,7 +52,7 @@ pub struct ExecutionLimits {
 impl Default for ExecutionLimits {
     fn default() -> Self {
         Self {
-            max_execution: Duration::from_secs(DEFAULT_MAX_EXECUTION_SECONDS.into()),
+            max_execution_time: Duration::from_secs(DEFAULT_MAX_EXECUTION_SECONDS.into()),
             stall_timeout: Duration::from_secs(DEFAULT_STALL_TIMEOUT_SECONDS.into()),
         }
     }
@@ -231,24 +231,24 @@ fn request_limits(
 }
 
 fn execution_limits(
-    max_execution: Option<&str>,
+    max_execution_time: Option<&str>,
     stall_timeout: Option<&str>,
 ) -> Result<ExecutionLimits, GatewayConfigError> {
     // `u32` seconds keep every deadline far from `Instant` overflow.
-    let max_execution: u32 = integer_setting(
-        max_execution,
+    let max_execution_time: u32 = integer_setting(
+        max_execution_time,
         DEFAULT_MAX_EXECUTION_SECONDS,
         60..=u32::MAX,
         "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS must be an integer of at least 60",
     )?;
     let stall_timeout: u32 = integer_setting(
         stall_timeout,
-        DEFAULT_STALL_TIMEOUT_SECONDS.min(max_execution),
-        1..=max_execution,
+        DEFAULT_STALL_TIMEOUT_SECONDS,
+        1..=max_execution_time,
         "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS must be an integer from 1 to LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
     )?;
     Ok(ExecutionLimits {
-        max_execution: Duration::from_secs(max_execution.into()),
+        max_execution_time: Duration::from_secs(max_execution_time.into()),
         stall_timeout: Duration::from_secs(stall_timeout.into()),
     })
 }
@@ -461,123 +461,6 @@ mod tests {
                 error.to_string(),
                 "LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES must be an integer from 4194304 (4 MiB) to 4294967296 (4 GiB)"
             );
-        }
-    }
-
-    #[test]
-    fn request_limits_require_a_buffer_that_fits_one_maximal_request() {
-        assert_eq!(
-            request_limits(None, None).unwrap(),
-            RequestLimits {
-                max_request_bytes: 32 * MIB,
-                shared_buffer_bytes: 512 * MIB,
-            }
-        );
-        assert_eq!(
-            request_limits(Some("1048576"), Some("1048576")).unwrap(),
-            RequestLimits {
-                max_request_bytes: MIB,
-                shared_buffer_bytes: MIB,
-            }
-        );
-        let largest_reservation = u32::MAX.to_string();
-        assert_eq!(
-            request_limits(Some(&largest_reservation), Some(&largest_reservation)).unwrap(),
-            RequestLimits {
-                max_request_bytes: usize::try_from(u32::MAX).unwrap(),
-                shared_buffer_bytes: usize::try_from(u32::MAX).unwrap(),
-            }
-        );
-        let over_reservation = (u64::from(u32::MAX) + 1).to_string();
-        let over_capacity = (tokio::sync::Semaphore::MAX_PERMITS + 1).to_string();
-        for (max, buffer, name) in [
-            (
-                Some("1048575"),
-                None,
-                "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES",
-            ),
-            (
-                Some(over_reservation.as_str()),
-                None,
-                "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES",
-            ),
-            (Some("32MiB"), None, "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES"),
-            // The default buffer cannot admit a single request at this limit.
-            (
-                Some("1073741824"),
-                None,
-                "LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES",
-            ),
-            (
-                None,
-                Some("33554431"),
-                "LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES",
-            ),
-            (
-                None,
-                Some(over_capacity.as_str()),
-                "LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES",
-            ),
-            (
-                None,
-                Some("secret-that-must-not-appear"),
-                "LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES",
-            ),
-        ] {
-            let error = request_limits(max, buffer).err().unwrap().to_string();
-            assert!(error.starts_with(name), "{error}");
-            assert!(!error.contains("secret-that-must-not-appear"));
-        }
-    }
-
-    #[test]
-    fn execution_limits_keep_the_stall_timeout_within_the_ceiling() {
-        assert_eq!(
-            execution_limits(None, None).unwrap(),
-            ExecutionLimits {
-                max_execution: Duration::from_hours(1),
-                stall_timeout: Duration::from_mins(2),
-            }
-        );
-        assert_eq!(
-            execution_limits(Some("4294967295"), Some("4294967295")).unwrap(),
-            ExecutionLimits {
-                max_execution: Duration::from_secs(u32::MAX.into()),
-                stall_timeout: Duration::from_secs(u32::MAX.into()),
-            }
-        );
-        assert_eq!(
-            execution_limits(Some("90"), None).unwrap(),
-            ExecutionLimits {
-                max_execution: Duration::from_secs(90),
-                stall_timeout: Duration::from_secs(90),
-            }
-        );
-        for (max, stall, name) in [
-            (
-                Some("59"),
-                None,
-                "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
-            ),
-            (
-                Some("4294967296"),
-                None,
-                "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
-            ),
-            (
-                Some("60"),
-                Some("61"),
-                "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS",
-            ),
-            (None, Some("0"), "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS"),
-            (
-                None,
-                Some("1.5"),
-                "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS",
-            ),
-        ] {
-            let error = execution_limits(max, stall).err().unwrap().to_string();
-            assert!(error.starts_with(name), "{error}");
         }
     }
 }

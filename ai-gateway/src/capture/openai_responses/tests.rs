@@ -572,7 +572,7 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
             ProviderLimits {
                 active: 1,
                 execution: ExecutionLimits {
-                    max_execution: Duration::from_secs(1),
+                    max_execution_time: Duration::from_secs(1),
                     ..ExecutionLimits::default()
                 },
             },
