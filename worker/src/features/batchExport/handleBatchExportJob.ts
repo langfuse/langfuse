@@ -46,6 +46,7 @@ const BATCH_EXPORT_CLICKHOUSE_SERVICE: PreferredClickhouseService = "ReadOnly";
 const isCausedBy = (error: unknown, target: unknown): boolean =>
   findInCauseChain(error, (link) => link === target) !== undefined;
 
+/** Thrown when the user already runs an export in the project, to defer the job. */
 export class BatchExportUserBusyError extends Error {
   constructor(batchExportId: string) {
     super(
@@ -54,40 +55,6 @@ export class BatchExportUserBusyError extends Error {
     this.name = "BatchExportUserBusyError";
   }
 }
-
-// Marks the export PROCESSING unless the same user already runs another export
-// in the project. The advisory lock serializes claims across workers.
-export const claimExportSlot = async ({
-  projectId,
-  userId,
-  batchExportId,
-}: {
-  projectId: string;
-  userId: string;
-  batchExportId: string;
-}): Promise<boolean> =>
-  prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`batch-export:${projectId}:${userId}`}, 0))`;
-
-    const running = await tx.batchExport.count({
-      where: {
-        projectId,
-        userId,
-        id: { not: batchExportId },
-        status: BatchExportStatus.PROCESSING,
-        updatedAt: {
-          gte: new Date(Date.now() - BATCH_EXPORT_ABANDONED_AFTER_MS),
-        },
-      },
-    });
-    if (running > 0) return false;
-
-    await tx.batchExport.update({
-      where: { id: batchExportId, projectId },
-      data: { status: BatchExportStatus.PROCESSING },
-    });
-    return true;
-  });
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
@@ -412,3 +379,36 @@ export const handleBatchExportJob = async (
     );
   }
 };
+
+/** Claims the user's per-project export slot, serialized across workers by an advisory lock. */
+export const claimExportSlot = async ({
+  projectId,
+  userId,
+  batchExportId,
+}: {
+  projectId: string;
+  userId: string;
+  batchExportId: string;
+}): Promise<boolean> =>
+  prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`batch-export:${projectId}:${userId}`}, 0))`;
+
+    const running = await tx.batchExport.count({
+      where: {
+        projectId,
+        userId,
+        id: { not: batchExportId },
+        status: BatchExportStatus.PROCESSING,
+        updatedAt: {
+          gte: new Date(Date.now() - BATCH_EXPORT_ABANDONED_AFTER_MS),
+        },
+      },
+    });
+    if (running > 0) return false;
+
+    await tx.batchExport.update({
+      where: { id: batchExportId, projectId },
+      data: { status: BatchExportStatus.PROCESSING },
+    });
+    return true;
+  });

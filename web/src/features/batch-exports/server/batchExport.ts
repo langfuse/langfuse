@@ -71,7 +71,7 @@ const assertCanReadAuditLogs = (session: AuthedSession, projectId: string) => {
   });
 };
 
-// Server-rendered into an error message, so the timezone is stated explicitly.
+/** Formats a timestamp as "YYYY-MM-DD HH:mm UTC" for server-rendered messages. */
 const formatUtc = (date: Date) =>
   `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
 
