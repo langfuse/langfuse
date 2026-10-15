@@ -314,11 +314,22 @@ Every denied call still costs a full model turn, so follow these exactly.
    by crate name and crate directory (`ai-gateway` or `packages/native`); a
    crate with the same name as an npm package is a separate group. One group
    is one branch and one PR, however many alerts it covers.
-3. For each package candidate, use `search_pull_requests` scoped to
-   `langfuse/langfuse` with `is:open in:title "chore(deps): bump <package> to"`.
-   For a Rust group, search for the full Rust title described in
-   "Rust upgrade loop".
-   Do not list every open PR. Inspect only title, URL, head branch, and diff.
+3. For each candidate, use `search_pull_requests` scoped to
+   `langfuse/langfuse`. Do not list every open PR. Inspect only title, URL,
+   head branch, and diff.
+   - npm package: search `is:open in:title "chore(deps): bump <package> to"`.
+     Ignore hits whose head branch starts with `deps/security-rust-` or whose
+     title ends in ` in ai-gateway` or ` in packages/native`: those bump a
+     crate of the same name.
+   - Rust crate: run two searches. First,
+     `is:open in:title "chore(deps): bump <crate> to"`, keeping hits whose
+     title ends in ` in <crate-dir>`, whatever their version. Second,
+     `is:open author:app/dependabot in:title "in /<crate-dir>"`, which finds
+     Dependabot's own Cargo PRs, including grouped ones such as
+     `bump the rust-dependencies group in /ai-gateway with 3 updates`. Their
+     titles may not name the crate, so read each hit's `<crate-dir>/Cargo.lock`
+     diff. Either kind of hit covers the crate when it moves the crate to the
+     target version or higher.
 4. Walk the packages in input order: npm Dependabot alerts, then Rust
    Dependabot alerts, then code-scanning alerts. Select the first package that is not already upgraded by an open PR
    and has not been attempted in this run.
