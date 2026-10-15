@@ -23,9 +23,7 @@ const state = vi.hoisted(() => ({
   setQueryParams: vi.fn(),
   currentTopics: vi.fn(),
   showGenerateCTA: false,
-  results: [{ hasStoredSummaries: true }] as Array<{
-    hasStoredSummaries: boolean;
-  }>,
+  hasStoredSummaries: true,
   picker: vi.fn(),
   push: vi.fn(),
   openConfigure: vi.fn(),
@@ -152,7 +150,11 @@ vi.mock("./CurrentTopics", () => ({
     timeRange: { from: Date; to: Date };
   }) => {
     state.currentTopics(input);
-    return { ...input, data: state.results, isLoading: false };
+    return {
+      ...input,
+      data: { hasStoredSummaries: state.hasStoredSummaries, facets: [] },
+      isLoading: false,
+    };
   },
   CurrentTopics: ({
     result,
@@ -312,7 +314,7 @@ beforeEach(() => {
     },
   );
   state.showGenerateCTA = false;
-  state.results = [{ hasStoredSummaries: true }];
+  state.hasStoredSummaries = true;
   state.status = "failed";
   state.executionUpdatedAt = 110;
   state.updatedAt = "2026-09-23T12:00:00Z";
@@ -1022,7 +1024,7 @@ it.each([
 );
 
 it("guides a configured project through processing until its first stored summary exists", () => {
-  state.results = [{ hasStoredSummaries: false }];
+  state.hasStoredSummaries = false;
   const view = render(<TopicsPage />);
   expect(
     screen.getByRole("button", { name: "Summarize traces & embed" }),
@@ -1035,7 +1037,7 @@ it("guides a configured project through processing until its first stored summar
     screen.getByRole("dialog", { name: "Manual processing" }),
   ).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-  state.results = [{ hasStoredSummaries: true }];
+  state.hasStoredSummaries = true;
   view.rerender(<TopicsPage />);
   expect(screen.getByTestId("current-topics")).toBeVisible();
   expect(

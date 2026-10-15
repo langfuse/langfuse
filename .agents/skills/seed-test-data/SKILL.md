@@ -67,6 +67,16 @@ comparison row. Set `NEXTAUTH_URL` to your local app URL when using a port
 other than 3000.
 
 For Topics discovery and later assignment, run `pnpm run seed -- topics`.
+For Topics metadata query benchmarks:
+
+| Need                                     | Command                                                                                          |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Millions of summaries for metadata scans | `pnpm run seed -- topics-summaries --project <dedicated-project-id> --count 10000000 --days 180` |
+
+Use a separate existing local project; the scenario refuses the default llm-app project.
+It creates four mixed-state facets and one all-not-applicable facet, with empty
+embeddings and no model calls. Add `--complete-percent 0` for a project with no
+successful summaries. This measures metadata scans, not vector storage or IO.
 For the 100-trace Intent/Issues evaluation, run
 `pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42`.
 Read the [Topics fixture walkthrough](../../../packages/shared/scripts/seeder/README.md#topics)

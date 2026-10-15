@@ -405,7 +405,7 @@ type CurrentTopicsViewProps = {
   peekView: DataTablePeekViewProps;
 };
 
-type Facet = RouterOutputs["topics"]["currentResults"][number];
+type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
 type SummarySource = Pick<
   Facet["rows"][number],
   "traceId" | "facetVersion" | "unitStartTime"

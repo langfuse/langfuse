@@ -294,7 +294,10 @@ function TopicsWorkspaceContent({
     refreshAfter: completedAt,
     timeRange: currentTimeRange,
   });
-  const traceFilters = useTopicTraceFilters(projectId, results.data ?? []);
+  const traceFilters = useTopicTraceFilters(
+    projectId,
+    results.data?.facets ?? [],
+  );
   const { selectedFacetId } = traceFilters;
   const refreshResults = () => {
     setRefreshedAt(Date.now());
@@ -375,9 +378,7 @@ function TopicsWorkspaceContent({
           pipeline.clearError();
           openDialog(operation);
         };
-        const hasStoredSummaries = Boolean(
-          results.data?.some((facet) => facet.hasStoredSummaries),
-        );
+        const hasStoredSummaries = Boolean(results.data?.hasStoredSummaries);
         const showOnboarding =
           !results.isLoading && !results.error && !hasStoredSummaries;
         return (
@@ -564,7 +565,7 @@ function TopicsWorkspaceContent({
                 />
                 {validTimeRange && !showOnboarding && (
                   <TopicsFilters
-                    facets={results.data ?? []}
+                    facets={results.data?.facets ?? []}
                     selectedFacetId={selectedFacetId}
                     onSelectFacet={traceFilters.selectFacet}
                   >

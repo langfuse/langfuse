@@ -33,7 +33,6 @@ const facet = {
   map: { runId: "run", topics: [topic] },
   awaitingCount: 0,
   usableCount: rows.length,
-  hasStoredSummaries: true,
 };
 const mapData = {
   status: "ready" as const,

@@ -14,6 +14,9 @@ import type {
 } from "../../topics";
 import { topicSourceSchema, topicTimeRangeSchema } from "../../topics";
 import { prisma } from "../../db";
+import { logger } from "../logger";
+import { traceException } from "../instrumentation";
+import { redis } from "../redis/redis";
 import { chunk } from "lodash";
 import { Readable } from "node:stream";
 import { finished } from "node:stream/promises";
@@ -470,27 +473,53 @@ export async function hasTopicEmbeddings(projectId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-/** Whether this facet has collected trace summaries, independently of the viewed time range. */
+/** Project onboarding readiness, cached for 30 minutes when ready and 30 seconds when empty. */
 export async function hasStoredTopicSummaries(
   projectId: string,
-  facetId: string,
 ): Promise<boolean> {
+  const cacheKey = `langfuse:topics:has-summaries:${projectId}`;
+  try {
+    const cached = await redis?.get(cacheKey);
+    if (cached === "1") return true;
+    if (cached === "0") return false;
+  } catch (error) {
+    traceException(error);
+    logger.warn("Failed to read cached Topics summary readiness", {
+      projectId,
+      error,
+    });
+  }
   const rows = await queryClickhouse<{ found: number }>({
     query: `SELECT 1 AS found FROM topic_facet_summaries
-      WHERE project_id = {projectId:String} AND facet_id = {facetId:String}
+      WHERE project_id = {projectId:String}
         AND trace_id != '' AND processing_state = 'complete'
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
         AND environment != {publicLlmJudgeEnvironment:String}
       LIMIT 1`,
     params: {
       projectId,
-      facetId,
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
       publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
     },
     tags: { route: "topics-has-summaries", projectId },
+    clickhouseSettings: { max_threads: 1 },
   });
-  return rows.length > 0;
+  const hasSummaries = rows.length > 0;
+  try {
+    await redis?.set(
+      cacheKey,
+      hasSummaries ? "1" : "0",
+      "EX",
+      hasSummaries ? 1800 : 30,
+    );
+  } catch (error) {
+    traceException(error);
+    logger.warn("Failed to cache Topics summary readiness", {
+      projectId,
+      error,
+    });
+  }
+  return hasSummaries;
 }
 
 /** Count current compatible summaries without loading summary text or vectors. */

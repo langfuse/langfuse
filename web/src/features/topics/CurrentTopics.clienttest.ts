@@ -45,7 +45,9 @@ describe("current Topics query", () => {
       awaitingCount: 0,
       usableCount: 0,
     };
-    fetchResults.mockReset().mockResolvedValue([facet]);
+    fetchResults
+      .mockReset()
+      .mockResolvedValue({ hasStoredSummaries: false, facets: [facet] });
     const props = {
       projectId: "project",
       running: true,
@@ -59,9 +61,17 @@ describe("current Topics query", () => {
     });
     await act(() => vi.advanceTimersByTimeAsync(0));
     expect(fetchResults).toHaveBeenCalledOnce();
-    expect(view.result.current.data).toEqual([facet]);
+    expect(view.result.current.data).toEqual({
+      hasStoredSummaries: false,
+      facets: [facet],
+    });
 
-    let finishOldPoll: ((rows: (typeof facet)[]) => void) | undefined;
+    let finishOldPoll:
+      | ((rows: {
+          hasStoredSummaries: boolean;
+          facets: (typeof facet)[];
+        }) => void)
+      | undefined;
     fetchResults.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -87,15 +97,21 @@ describe("current Topics query", () => {
         ],
       },
     ];
-    fetchResults.mockResolvedValue(completed);
+    fetchResults.mockResolvedValue({
+      hasStoredSummaries: true,
+      facets: completed,
+    });
     vi.setSystemTime(Date.now() + 1000);
     view.rerender({ ...props, running: false, refreshAfter: Date.now() });
     await act(async () => {
-      finishOldPoll?.([facet]);
+      finishOldPoll?.({ hasStoredSummaries: false, facets: [facet] });
     });
     await act(() => vi.advanceTimersByTimeAsync(3001));
     expect(fetchResults).toHaveBeenCalledTimes(3);
-    expect(view.result.current.data).toEqual(completed);
+    expect(view.result.current.data).toEqual({
+      hasStoredSummaries: true,
+      facets: completed,
+    });
 
     await act(() => vi.advanceTimersByTimeAsync(9000));
     expect(fetchResults).toHaveBeenCalledTimes(3);

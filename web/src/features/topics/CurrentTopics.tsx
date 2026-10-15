@@ -23,10 +23,11 @@ export function CurrentTopics({
   onGenerateTopics,
   canGenerateTopics,
 }: CurrentTopicsProps) {
-  const selectedFacet = result.data?.find(
+  const selectedFacet = result.data?.facets.find(
     (facet) => facet.facetId === selectedFacetId,
   );
-  const empty = !result.isLoading && !result.error && result.data?.length === 0;
+  const empty =
+    !result.isLoading && !result.error && result.data?.facets.length === 0;
   return (
     <section
       className={cn(
@@ -141,9 +142,7 @@ export function useCurrentTopics({
       client.topics.currentResults.query({ projectId, timeRange }, { signal }),
     placeholderData: keepPreviousData,
     refetchInterval: (query) =>
-      running ||
-      (pollForSummaries &&
-        !query.state.data?.some((facet) => facet.hasStoredSummaries))
+      running || (pollForSummaries && !query.state.data?.hasStoredSummaries)
         ? 3000
         : false,
     enabled: isValidTopicTimeRange(timeRange),
@@ -186,7 +185,7 @@ type CurrentFacetProps = {
   canGenerateTopics: boolean;
 };
 
-type Facet = RouterOutputs["topics"]["currentResults"][number];
+type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
 type SummarySource = Pick<
   Facet["rows"][number],
   "traceId" | "facetVersion" | "unitStartTime"

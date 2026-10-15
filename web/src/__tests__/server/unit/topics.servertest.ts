@@ -1032,29 +1032,55 @@ describe("Topics local execution access and publication", () => {
 });
 
 describe("Topics current results", () => {
-  it("keeps a facet ready when its stored summaries are outside the selected range", async () => {
+  beforeEach(() => mocks.hasStoredTopicSummaries.mockResolvedValue(true));
+
+  it("skips per-facet result reads while the project has no stored summaries", async () => {
     mocks.listTopicFacets.mockResolvedValue([
       { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+      {
+        id: "other-facet",
+        name: "Outcome",
+        versions: [{ version: facetVersion }],
+      },
+    ]);
+    mocks.hasStoredTopicSummaries.mockResolvedValue(false);
+    expect(
+      await caller("VIEWER").currentResults({ projectId, timeRange }),
+    ).toEqual({ hasStoredSummaries: false, facets: [] });
+    expect(mocks.hasStoredTopicSummaries).toHaveBeenCalledExactlyOnceWith(
+      projectId,
+    );
+    expect(mocks.getLatestFacetSummaries).not.toHaveBeenCalled();
+    expect(mocks.readLatestTopicAssignments).not.toHaveBeenCalled();
+    expect(mocks.getPublishedTopicRun).not.toHaveBeenCalled();
+  });
+  it("checks project readiness once across facets even when summaries are outside the selected range", async () => {
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+      {
+        id: "other-facet",
+        name: "Outcome",
+        versions: [{ version: facetVersion }],
+      },
     ]);
     mocks.getLatestFacetSummaries.mockResolvedValue([]);
     mocks.readLatestTopicAssignments.mockResolvedValue([]);
     mocks.getPublishedTopicRun.mockResolvedValue(null);
     mocks.hasStoredTopicSummaries.mockResolvedValue(true);
 
-    const [result] = await caller("VIEWER").currentResults({
+    const result = await caller("VIEWER").currentResults({
       projectId,
       timeRange,
     });
-
-    expect(result).toMatchObject({
-      hasStoredSummaries: true,
+    expect(result.hasStoredSummaries).toBe(true);
+    expect(result.facets).toHaveLength(2);
+    expect(result.facets[0]).toMatchObject({
       rows: [],
       usableCount: 0,
       map: null,
     });
     expect(mocks.hasStoredTopicSummaries).toHaveBeenCalledExactlyOnceWith(
       projectId,
-      facetId,
     );
   });
 
@@ -1079,7 +1105,9 @@ describe("Topics current results", () => {
       },
     ]);
 
-    const [result] = await caller("VIEWER").currentResults({
+    const {
+      facets: [result],
+    } = await caller("VIEWER").currentResults({
       projectId,
       timeRange,
     });
@@ -1160,7 +1188,9 @@ describe("Topics current results", () => {
         ],
       })),
     );
-    const [result] = await caller("VIEWER").currentResults({
+    const {
+      facets: [result],
+    } = await caller("VIEWER").currentResults({
       projectId,
       timeRange,
     });
@@ -1295,7 +1325,7 @@ describe("Topics current results", () => {
           ],
         },
       ]);
-      const result = await caller("VIEWER").currentResults({
+      const { facets: result } = await caller("VIEWER").currentResults({
         projectId,
         timeRange,
       });
