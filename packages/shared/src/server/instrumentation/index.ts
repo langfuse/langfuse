@@ -25,23 +25,6 @@ export type SpanCtx = {
 
 type AsyncCallbackFn<T> = (span: opentelemetry.Span) => Promise<T>;
 
-/**
- * Copies the Langfuse-owned baggage entries (`langfuse.*` and `user.id`) of the
- * active context onto the span. Inbound requests carry other baggage too, such
- * as the browser Sentry SDK's `sentry-*` entries, which stays off spans.
- */
-const copyLangfuseBaggageToSpan = (span: opentelemetry.Span) => {
-  const baggage = opentelemetry.propagation.getBaggage(
-    opentelemetry.context.active(),
-  );
-  if (!baggage) return;
-  for (const [key, entry] of baggage.getAllEntries()) {
-    if (key.startsWith("langfuse.") || key === "user.id") {
-      span.setAttribute(key, entry.value);
-    }
-  }
-};
-
 /** instrumentAsync runs an async callback inside a fresh OTel span. */
 export async function instrumentAsync<T>(
   ctx: SpanCtx,
@@ -64,7 +47,14 @@ export async function instrumentAsync<T>(
     },
     activeContext,
     async (span) => {
-      copyLangfuseBaggageToSpan(span);
+      const baggage = opentelemetry.propagation.getBaggage(
+        opentelemetry.context.active(),
+      );
+      if (baggage) {
+        baggage
+          .getAllEntries()
+          .forEach(([k, v]) => span.setAttribute(k, v.value));
+      }
       try {
         const result = await callback(span);
         span.end();
@@ -119,7 +109,14 @@ export function instrumentSync<T>(
     },
     activeContext,
     (span) => {
-      copyLangfuseBaggageToSpan(span);
+      const baggage = opentelemetry.propagation.getBaggage(
+        opentelemetry.context.active(),
+      );
+      if (baggage) {
+        baggage
+          .getAllEntries()
+          .forEach(([k, v]) => span.setAttribute(k, v.value));
+      }
       try {
         const result = callback(span);
         span.end();

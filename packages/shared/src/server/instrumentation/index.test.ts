@@ -2,15 +2,9 @@ import {
   context,
   propagation,
   ROOT_CONTEXT,
-  trace,
   type Span,
 } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
-import {
-  BasicTracerProvider,
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS,
@@ -30,42 +24,6 @@ describe("instrumentation baggage propagation", () => {
 
   afterAll(() => {
     context.disable();
-  });
-
-  it("copies only Langfuse baggage entries onto span attributes", async () => {
-    const exporter = new InMemorySpanExporter();
-    trace.setGlobalTracerProvider(
-      new BasicTracerProvider({
-        spanProcessors: [new SimpleSpanProcessor(exporter)],
-      }),
-    );
-    const inboundBaggage = propagation.createBaggage({
-      "langfuse.project.id": { value: "project-1" },
-      "user.id": { value: "user-1" },
-      "sentry-environment": { value: "eu-prod" },
-      "caller.key": { value: "caller-value" },
-    });
-
-    try {
-      await context.with(
-        propagation.setBaggage(ROOT_CONTEXT, inboundBaggage),
-        () => instrumentAsync({ name: "load data" }, async () => undefined),
-      );
-      context.with(propagation.setBaggage(ROOT_CONTEXT, inboundBaggage), () =>
-        instrumentSync({ name: "load data sync" }, () => undefined),
-      );
-
-      const spans = exporter.getFinishedSpans();
-      expect(spans).toHaveLength(2);
-      for (const span of spans) {
-        expect(span.attributes).toEqual({
-          "langfuse.project.id": "project-1",
-          "user.id": "user-1",
-        });
-      }
-    } finally {
-      trace.disable();
-    }
   });
 
   it("instrumentAsync keeps worker surface/route across startNewTrace", async () => {

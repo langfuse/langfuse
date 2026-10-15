@@ -26,7 +26,6 @@ import {
 import { RESOURCE_LIMIT_ERROR_MESSAGE } from "../../errors/errorMessages";
 import {
   buildClickHouseLogComment,
-  CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS,
   normalizeClickHouseQueryTags,
   type ClickHouseQueryTags,
   type NormalizedClickHouseQueryTags,
@@ -482,7 +481,9 @@ export async function queryClickhouseExecRaw(
         },
       }),
     );
-    setQueryTagAttributes(span, normalizedTags);
+    for (const [key, value] of Object.entries(normalizedTags)) {
+      span.setAttribute(`ch.tag.${key}`, value);
+    }
     recordSummaryOnSpan(span, res.response_headers);
 
     if (env.NODE_ENV === "development") {
@@ -630,26 +631,8 @@ function recordSummaryOnSpan(
   }
 }
 
-/**
- * Records the query's log_comment tags on its span. Tags that are also
- * propagated as baggage use the baggage attribute name, so the normalized value
- * replaces the copied baggage entry instead of appearing twice.
- */
-function setQueryTagAttributes(
-  span: Span,
-  tags: NormalizedClickHouseQueryTags,
-): void {
-  for (const [key, value] of Object.entries(tags)) {
-    const attribute = Object.hasOwn(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS, key)
-      ? CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS[
-          key as keyof typeof CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS
-        ]
-      : `ch.tag.${key}`;
-    span.setAttribute(attribute, value);
-  }
-}
-
 function setSpanQueryAttributes(span: Span, query: string): void {
+  span.setAttribute("ch.query.text", query);
   span.setAttribute("ch.query.shape", clickHouseQueryShape(query));
   span.setAttribute("db.system", "clickhouse");
   span.setAttribute("db.query.text", query);
@@ -689,7 +672,9 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
   }
 
   opts.span.setAttribute("ch.queryId", res.query_id);
-  setQueryTagAttributes(opts.span, normalizedTags);
+  for (const [key, value] of Object.entries(normalizedTags)) {
+    opts.span.setAttribute(`ch.tag.${key}`, value);
+  }
   recordSummaryOnSpan(opts.span, res.response_headers);
 
   return res;
@@ -890,6 +875,7 @@ export async function commandClickhouse(opts: {
     { name: "clickhouse-command", spanKind: SpanKind.CLIENT },
     async (span) => {
       // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
+      span.setAttribute("ch.query.text", opts.query);
       span.setAttribute("db.system", "clickhouse");
       span.setAttribute("db.query.text", opts.query);
       span.setAttribute("db.operation.name", "COMMAND");
@@ -912,7 +898,9 @@ export async function commandClickhouse(opts: {
       }
 
       span.setAttribute("ch.queryId", res.query_id);
-      setQueryTagAttributes(span, normalizedTags);
+      for (const [key, value] of Object.entries(normalizedTags)) {
+        span.setAttribute(`ch.tag.${key}`, value);
+      }
 
       // add summary headers to the span. Helps to tune performance
       const summaryHeader = res.response_headers["x-clickhouse-summary"];
