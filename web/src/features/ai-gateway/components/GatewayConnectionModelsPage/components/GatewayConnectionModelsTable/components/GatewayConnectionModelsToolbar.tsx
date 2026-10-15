@@ -4,7 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import type { TableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import type { GatewayConnectionModelRow } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayConnectionModelRow";
+import type { GatewayConnectionModelRow } from "../types/gatewayConnectionModelRow";
 
 export type GatewayConnectionModelsToolbarProps = {
   columns: LangfuseColumnDef<GatewayConnectionModelRow>[];

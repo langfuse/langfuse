@@ -7,12 +7,12 @@ import type { CustomHeights } from "@/src/components/table/data-table-row-height
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { TableSelectionManager } from "@/src/features/table";
-import type { GatewayConnectionModelRow } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayConnectionModelRow";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
-import { GatewayConnectionModelsSelectionBar } from "./GatewayConnectionModelsSelectionBar";
-import { GatewayConnectionModelsToolbar } from "./GatewayConnectionModelsToolbar";
-import { ModelEnabledSwitch } from "./ModelEnabledSwitch";
+import { GatewayConnectionModelsSelectionBar } from "./components/GatewayConnectionModelsSelectionBar";
+import { GatewayConnectionModelsToolbar } from "./components/GatewayConnectionModelsToolbar";
+import { ModelEnabledSwitch } from "./components/ModelEnabledSwitch";
+import type { GatewayConnectionModelRow } from "./types/gatewayConnectionModelRow";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 const DEFAULT_PAGE_SIZE = 50;
