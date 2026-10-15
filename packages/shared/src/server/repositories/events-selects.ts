@@ -29,12 +29,16 @@ import {
   nullIf,
   sumMap,
   sumMapValuesWhereKeyContains,
+  toBool,
   traceSessionId,
   uniq,
   uniqIf,
 } from "../query-ast/extensions";
 import type { ClickHouseDatabase } from "../query-ast/schema";
-import type { SessionEventsField } from "../queries/clickhouse-sql/event-query-builder";
+import type {
+  FieldSetFieldKey,
+  SessionEventsField,
+} from "../queries/clickhouse-sql/event-query-builder";
 
 type EventsDb = { e: ClickHouseDatabase["events_core"] };
 type EventsRow = ClickHouseDatabase["events_core"];
@@ -68,6 +72,9 @@ export const eventsTraceName = eb.fn.coalesce(
     literal(null),
   ),
 );
+
+// String-typed on purpose: '' when the event has no trace name.
+const traceNameSelect = ifNull(eventsTraceName, literal("")).as("trace_name");
 
 /** The latest non-empty value of `column` across a trace's events. */
 const latestNonEmpty = (column: StringColumn) =>
@@ -254,8 +261,7 @@ export const OBSERVATION_BY_ID_SELECTS = [
   "e.public as public",
   "e.user_id as user_id",
   "e.session_id as session_id",
-  // String-typed on purpose: '' when the event has no trace name.
-  ifNull(eventsTraceName, literal("")).as("trace_name"),
+  traceNameSelect,
   "e.start_time as start_time",
   "e.end_time as end_time",
   "e.completion_start_time as completion_start_time",
@@ -285,4 +291,95 @@ export const OBSERVATION_BY_ID_SELECTS = [
   eventsMetadataMap.as("metadata"),
   "e.tags as tags",
   "e.release as release",
+] satisfies EventsSelection[];
+
+/** Milliseconds from an event's start to `end`, NULL while `end` is unset. */
+const millisecondsSinceStart = (
+  end: "e.end_time" | "e.completion_start_time",
+) =>
+  ifElse(
+    isNull(eb.ref(end)),
+    literal(null),
+    dateDiff("millisecond", eb.ref("e.start_time"), eb.ref(end)),
+  );
+
+/** {@link millisecondsSinceStart} in seconds. */
+const secondsSinceStart = (end: "e.end_time" | "e.completion_start_time") =>
+  ifElse(
+    isNull(eb.ref(end)),
+    literal(null),
+    eb(
+      dateDiff("millisecond", eb.ref("e.start_time"), eb.ref(end)),
+      "/",
+      literal(1000),
+    ),
+  );
+
+type RowFieldSet =
+  | "core"
+  | "basic"
+  | "time"
+  | "metadata"
+  | "model_export"
+  | "usage"
+  | "prompt"
+  | "metrics"
+  | "trace_context"
+  | "tools"
+  | "export";
+
+/**
+ * Row-level event fields, keyed like the legacy builder's field sets. Select
+ * them in `eventsFieldSetKeys` order: clustered reads align result blocks by
+ * column position.
+ */
+export const EVENTS_ROW_FIELD_SELECTS = {
+  id: "e.span_id as id",
+  traceId: "e.trace_id as trace_id",
+  projectId: "e.project_id as project_id",
+  environment: "e.environment as environment",
+  type: "e.type as type",
+  parentObservationId: "e.parent_span_id as parent_observation_id",
+  isRootObservation: toBool(isRootObservation).as("is_root_observation"),
+  name: "e.name as name",
+  level: "e.level as level",
+  statusMessage: "e.status_message as status_message",
+  version: "e.version as version",
+  bookmarked: "e.bookmarked as bookmarked",
+  public: "e.public as public",
+  userId: "e.user_id as user_id",
+  sessionId: "e.session_id as session_id",
+  traceName: traceNameSelect,
+  startTime: "e.start_time as start_time",
+  endTime: "e.end_time as end_time",
+  completionStartTime: "e.completion_start_time as completion_start_time",
+  createdAt: "e.created_at as created_at",
+  updatedAt: "e.updated_at as updated_at",
+  providedModelName: "e.provided_model_name as provided_model_name",
+  modelParameters: "e.model_parameters as model_parameters",
+  usageDetails: "e.usage_details as usage_details",
+  costDetails: "e.cost_details as cost_details",
+  totalCost: "e.total_cost as total_cost",
+  promptId: "e.prompt_id as prompt_id",
+  promptName: "e.prompt_name as prompt_name",
+  promptVersion: "e.prompt_version as prompt_version",
+  toolDefinitions: "e.tool_definitions as tool_definitions",
+  toolCalls: "e.tool_calls as tool_calls",
+  toolCallNames: "e.tool_call_names as tool_call_names",
+  usagePricingTierId: "e.usage_pricing_tier_id as usage_pricing_tier_id",
+  usagePricingTierName: "e.usage_pricing_tier_name as usage_pricing_tier_name",
+  metadata: eventsMetadataMap.as("metadata"),
+  tags: "e.tags as tags",
+  release: "e.release as release",
+  modelId: "e.model_id as model_id",
+  latency: millisecondsSinceStart("e.end_time").as("latency"),
+  timeToFirstToken: millisecondsSinceStart("e.completion_start_time").as(
+    "time_to_first_token",
+  ),
+} satisfies Record<FieldSetFieldKey<RowFieldSet>, EventsSelection>;
+
+/** The `metrics` field set with latencies in seconds instead of milliseconds. */
+export const EVENTS_METRICS_SECONDS_SELECTS = [
+  secondsSinceStart("e.end_time").as("latency"),
+  secondsSinceStart("e.completion_start_time").as("time_to_first_token"),
 ] satisfies EventsSelection[];

@@ -37,7 +37,17 @@ const capturedQuery = (): string => {
   return call[0].query;
 };
 
-const builders = [
+const namedParamBounds = {
+  lower: ">= {minTimestamp",
+  upper: "< {maxTimestamp",
+  inclusiveUpper: "<= {maxTimestamp",
+};
+
+const builders: Array<{
+  name: string;
+  run: () => Promise<void>;
+  bounds?: typeof namedParamBounds;
+}> = [
   {
     name: "getTracesForBlobStorageExport",
     run: async () => {
@@ -62,6 +72,12 @@ const builders = [
     run: async () => {
       getEventsForBlobStorageExport(PROJECT, MIN, MAX);
     },
+    // Query-AST binds are named positionally.
+    bounds: {
+      lower: "e.start_time >= {",
+      upper: "e.start_time < {",
+      inclusiveUpper: "e.start_time <= {",
+    },
   },
 ];
 
@@ -72,13 +88,13 @@ describe("blob-storage export window is half-open", () => {
 
   it.each(builders)(
     "$name uses an exclusive upper bound and inclusive lower bound",
-    async ({ run }) => {
+    async ({ run, bounds = namedParamBounds }) => {
       await run();
       const query = capturedQuery();
 
-      expect(query).toContain(">= {minTimestamp");
-      expect(query).toContain("< {maxTimestamp");
-      expect(query).not.toContain("<= {maxTimestamp");
+      expect(query).toContain(bounds.lower);
+      expect(query).toContain(bounds.upper);
+      expect(query).not.toContain(bounds.inclusiveUpper);
     },
   );
 

@@ -29,8 +29,7 @@ const eventsMetadataMap = metadataMap(
   eventsRef.ref("e.metadata_values"),
 );
 
-export const EVENTS_METADATA_MAP_SQL =
-  renderClickhouseExpression(eventsMetadataMap);
+const EVENTS_METADATA_MAP_SQL = renderClickhouseExpression(eventsMetadataMap);
 
 const TRACE_SESSION_ID_SQL = renderClickhouseExpression(traceSessionId());
 
@@ -505,6 +504,16 @@ function orderedFieldKeys<K extends string>(fieldKeys: readonly K[]): K[] {
       (EVENTS_FIELD_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
       (EVENTS_FIELD_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER),
   );
+}
+
+export type FieldSetFieldKey<S extends FieldSetName> =
+  (typeof FIELD_SETS)[S][number];
+
+/** The fields of `sets`, deduplicated, in the canonical SELECT order. */
+export function eventsFieldSetKeys<S extends FieldSetName>(
+  ...sets: S[]
+): FieldSetFieldKey<S>[] {
+  return orderedFieldKeys(sets.flatMap((s) => FIELD_SETS[s]));
 }
 
 function eventsFieldSelectExpressions(fieldKeys: readonly string[]): string[] {

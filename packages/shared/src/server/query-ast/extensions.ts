@@ -349,6 +349,11 @@ export function ifNull<T>(
   return functionCall("ifNull", [value, fallback]);
 }
 
+/** ClickHouse `toBool(value)`. */
+export function toBool(value: Expression<SqlBool>): ChExpression<boolean> {
+  return functionCall("toBool", [value]);
+}
+
 /** ClickHouse `isNull(value)`. */
 export function isNull(value: Expression<unknown>): ChExpression<SqlBool> {
   return functionCall("isNull", [value]);
