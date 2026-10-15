@@ -966,50 +966,6 @@ function InAppAgentRateLimitError({
   );
 }
 
-type PendingToolCallCardProps = {
-  tool: InAppAgentToolCallContent;
-  isCompact: boolean;
-  isDisabled: boolean;
-} & Pick<
-  InAppAgentWindowProps,
-  | "onApproveToolCall"
-  | "onAlwaysAllowToolCall"
-  | "onAnswerQuestionnaire"
-  | "onRejectToolCall"
->;
-
-function PendingToolCallCard({
-  tool,
-  isCompact,
-  isDisabled,
-  onApproveToolCall,
-  onAlwaysAllowToolCall,
-  onAnswerQuestionnaire,
-  onRejectToolCall,
-}: PendingToolCallCardProps) {
-  if (tool.name === IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME) {
-    return (
-      <InAppAgentQuestionnaireCard
-        tool={tool}
-        isDisabled={isDisabled}
-        onAnswerQuestionnaire={onAnswerQuestionnaire}
-        onRejectToolCall={onRejectToolCall}
-      />
-    );
-  }
-
-  return (
-    <InAppAgentToolCallCard
-      tool={tool}
-      isCompact={isCompact}
-      isDisabled={isDisabled}
-      onApproveToolCall={onApproveToolCall}
-      onAlwaysAllowToolCall={onAlwaysAllowToolCall}
-      onRejectToolCall={onRejectToolCall}
-    />
-  );
-}
-
 function InAppAgentIssueNotice({ isExpanded }: { isExpanded: boolean }) {
   return (
     <InAppAgentNotice
@@ -1725,5 +1681,49 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         </div>
       </div>
     </section>
+  );
+}
+
+type PendingToolCallCardProps = {
+  tool: InAppAgentToolCallContent;
+  isCompact: boolean;
+  isDisabled: boolean;
+} & Pick<
+  InAppAgentWindowProps,
+  | "onApproveToolCall"
+  | "onAlwaysAllowToolCall"
+  | "onAnswerQuestionnaire"
+  | "onRejectToolCall"
+>;
+
+function PendingToolCallCard({
+  tool,
+  isCompact,
+  isDisabled,
+  onApproveToolCall,
+  onAlwaysAllowToolCall,
+  onAnswerQuestionnaire,
+  onRejectToolCall,
+}: PendingToolCallCardProps) {
+  if (tool.name === IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME) {
+    return (
+      <InAppAgentQuestionnaireCard
+        tool={tool}
+        isDisabled={isDisabled}
+        onAnswerQuestionnaire={onAnswerQuestionnaire}
+        onRejectToolCall={onRejectToolCall}
+      />
+    );
+  }
+
+  return (
+    <InAppAgentToolCallCard
+      tool={tool}
+      isCompact={isCompact}
+      isDisabled={isDisabled}
+      onApproveToolCall={onApproveToolCall}
+      onAlwaysAllowToolCall={onAlwaysAllowToolCall}
+      onRejectToolCall={onRejectToolCall}
+    />
   );
 }
