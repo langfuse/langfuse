@@ -123,6 +123,19 @@ describe("logical events routing", () => {
     ).toEqual(["events_full"]);
   });
 
+  it.each([
+    ["*", sql<string>`*`],
+    ["e.*", sql.raw<string>("e.*")],
+    ["tuple(*)", sql<string>`tuple(*)`],
+    ["COLUMNS(...)", sql<string>`COLUMNS('^inp')`],
+  ])("routes a raw %s to events_full", (_, expression) => {
+    expect(
+      routedTables(
+        compile(db.selectFrom("events as e").select(expression.as("x"))),
+      ),
+    ).toEqual(["events_full"]);
+  });
+
   it("keeps an unaliased logical read addressable by its name", () => {
     expect(
       compile(

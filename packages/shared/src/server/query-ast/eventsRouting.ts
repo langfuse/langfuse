@@ -57,8 +57,11 @@ const LOGICAL_EVENTS = "events";
 
 type PhysicalEventsTable = "events_core" | "events_full";
 
+// A truncated column by name, or any `*` / `COLUMNS(...)` that can expand to
+// one. Arithmetic `a * b` over-routes, which is safe.
 const TRUNCATED_COLUMN_IN_RAW = new RegExp(
-  `\\b(${[...EVENTS_CORE_TRUNCATED_COLUMNS].join("|")})\\b`,
+  `\\b(${[...EVENTS_CORE_TRUNCATED_COLUMNS].join("|")})\\b|\\*|\\bcolumns\\s*\\(`,
+  "i",
 );
 
 export class EventsTableRoutingPlugin implements KyselyPlugin {
