@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeParams } from "./goldenHarness";
+import { normalizeParams, splitConditions } from "./goldenHarness";
 
 // Pure logic — no `clickhouse` binary required, so this always runs.
 describe("normalizeParams", () => {
@@ -30,5 +30,35 @@ describe("normalizeParams", () => {
       unused: "z",
     });
     expect(params).toEqual({ param1: "y" });
+  });
+});
+
+describe("splitConditions", () => {
+  it("puts each top-level AND condition on its own line", () => {
+    expect(
+      splitConditions(
+        [
+          "SELECT x AND y",
+          "FROM t",
+          "    WHERE (a = 1) AND (if(b AND c, 1, 0) = 1) AND (s = 'p AND q')",
+          "HAVING n > 1",
+        ].join("\n"),
+      ),
+    ).toBe(
+      [
+        "SELECT x AND y",
+        "FROM t",
+        "    WHERE (a = 1)",
+        "        AND (if(b AND c, 1, 0) = 1)",
+        "        AND (s = 'p AND q')",
+        "HAVING n > 1",
+      ].join("\n"),
+    );
+  });
+
+  it("keeps an OR-rooted clause on one line", () => {
+    expect(splitConditions("WHERE (a AND b) OR c")).toBe(
+      "WHERE (a AND b) OR c",
+    );
   });
 });

@@ -20,7 +20,13 @@ exports[`golden: events IO payload reads family > getObservationFullIOForSession
     e.output AS output,
     mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.session_id = {param2:String}) AND (xxHash32(e.trace_id) = xxHash32({param3:String})) AND (e.trace_id = {param3:String}) AND (e.span_id = {param4:String}) AND (e.start_time >= {param5:DateTime64(6)}) AND (e.start_time <= {param6:DateTime64(6)})
+WHERE (e.project_id = {param1:String})
+    AND (e.session_id = {param2:String})
+    AND (xxHash32(e.trace_id) = xxHash32({param3:String}))
+    AND (e.trace_id = {param3:String})
+    AND (e.span_id = {param4:String})
+    AND (e.start_time >= {param5:DateTime64(6)})
+    AND (e.start_time <= {param6:DateTime64(6)})
 ORDER BY e.event_ts DESC
 LIMIT {param7:Int64}",
   },
@@ -42,7 +48,11 @@ exports[`golden: events IO payload reads family > getObservationIOFieldByteLengt
     "route": "observation-io-stream-length",
     "sql": "SELECT length(e.input) AS len
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
+WHERE (e.project_id = {param1:String})
+    AND (e.trace_id = {param2:String})
+    AND (e.span_id = {param3:String})
+    AND (e.start_time >= {param4:DateTime64(6)})
+    AND (e.start_time <= {param5:DateTime64(6)})
 ORDER BY e.event_ts DESC
 LIMIT {param6:Int64}",
   },
@@ -64,7 +74,11 @@ exports[`golden: events IO payload reads family > getObservationIOFieldByteLengt
     "route": "observation-io-stream-length",
     "sql": "SELECT length(toJSONString(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)))) AS len
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
+WHERE (e.project_id = {param1:String})
+    AND (e.trace_id = {param2:String})
+    AND (e.span_id = {param3:String})
+    AND (e.start_time >= {param4:DateTime64(6)})
+    AND (e.start_time <= {param5:DateTime64(6)})
 ORDER BY e.event_ts DESC
 LIMIT {param6:Int64}",
   },
@@ -86,7 +100,11 @@ exports[`golden: events IO payload reads family > getObservationIOFieldByteLengt
     "route": "observation-io-stream-length",
     "sql": "SELECT length(e.output) AS len
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
+WHERE (e.project_id = {param1:String})
+    AND (e.trace_id = {param2:String})
+    AND (e.span_id = {param3:String})
+    AND (e.start_time >= {param4:DateTime64(6)})
+    AND (e.start_time <= {param5:DateTime64(6)})
 ORDER BY e.event_ts DESC
 LIMIT {param6:Int64}",
   },
@@ -139,7 +157,12 @@ exports[`golden: events IO payload reads family > getObservationsBatchIOFromEven
     e.output AS output,
     mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(6)}) AND (e.start_time <= {param6:DateTime64(6)})",
+WHERE (e.project_id = {param1:String})
+    AND (e.span_id IN ({param2:Array(String)}))
+    AND (e.trace_id IN ({param3:Array(String)}))
+    AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))}))
+    AND (e.start_time >= {param5:DateTime64(6)})
+    AND (e.start_time <= {param6:DateTime64(6)})",
   },
 ]
 `;
@@ -195,7 +218,12 @@ exports[`golden: events IO payload reads family > getObservationsBatchIOFromEven
     ) AS experiment_item_metadata,
     mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(6)}) AND (e.start_time <= {param6:DateTime64(6)})",
+WHERE (e.project_id = {param1:String})
+    AND (e.span_id IN ({param2:Array(String)}))
+    AND (e.trace_id IN ({param3:Array(String)}))
+    AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))}))
+    AND (e.start_time >= {param5:DateTime64(6)})
+    AND (e.start_time <= {param6:DateTime64(6)})",
   },
 ]
 `;
@@ -258,7 +286,12 @@ exports[`golden: events IO payload reads family > getObservationsBatchIOFromEven
         arrayReverse(arrayMap(v -> leftUTF8(v, 5000), e.metadata_values))
     ) AS metadata
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(6)}) AND (e.start_time <= {param6:DateTime64(6)})",
+WHERE (e.project_id = {param1:String})
+    AND (e.span_id IN ({param2:Array(String)}))
+    AND (e.trace_id IN ({param3:Array(String)}))
+    AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))}))
+    AND (e.start_time >= {param5:DateTime64(6)})
+    AND (e.start_time <= {param6:DateTime64(6)})",
   },
 ]
 `;
@@ -309,7 +342,12 @@ exports[`golden: events IO payload reads family > getObservationsBatchIOFromEven
     leftUTF8(e.output, 1000) AS output,
     mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(6)}) AND (e.start_time <= {param6:DateTime64(6)})",
+WHERE (e.project_id = {param1:String})
+    AND (e.span_id IN ({param2:Array(String)}))
+    AND (e.trace_id IN ({param3:Array(String)}))
+    AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))}))
+    AND (e.start_time >= {param5:DateTime64(6)})
+    AND (e.start_time <= {param6:DateTime64(6)})",
   },
 ]
 `;
@@ -365,7 +403,12 @@ exports[`golden: events IO payload reads family > getObservationsBatchIOFromEven
     ) AS experiment_item_metadata,
     mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.start_time >= {param5:DateTime64(6)}) AND (e.start_time <= {param6:DateTime64(6)})",
+WHERE (e.project_id = {param1:String})
+    AND (e.span_id IN ({param2:Array(String)}))
+    AND (e.trace_id IN ({param3:Array(String)}))
+    AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))}))
+    AND (e.start_time >= {param5:DateTime64(6)})
+    AND (e.start_time <= {param6:DateTime64(6)})",
   },
 ]
 `;
@@ -417,10 +460,15 @@ exports[`golden: events IO payload reads family > getObservationsBatchIOFromEven
     leftUTF8(e.output, 1000) AS output,
     mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)})) AND (e.trace_id IN ({param3:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))})) AND (e.trace_id IN (
+WHERE (e.project_id = {param1:String})
+    AND (e.span_id IN ({param2:Array(String)}))
+    AND (e.trace_id IN ({param3:Array(String)}))
+    AND ((e.trace_id, e.span_id) IN ({param4:Array(Tuple(String, String))}))
+    AND (e.trace_id IN (
     SELECT trace_id
     FROM events_core
-    WHERE (project_id = {param1:String}) AND (trace_id IN ({param3:Array(String)}))
+    WHERE (project_id = {param1:String})
+        AND (trace_id IN ({param3:Array(String)}))
     GROUP BY trace_id
     HAVING argMaxIf(session_id, event_ts, session_id != '') = {param5:String}
 )) AND (e.start_time >= {param6:DateTime64(6)}) AND (e.start_time <= {param7:DateTime64(6)})",
@@ -443,7 +491,11 @@ exports[`golden: events IO payload reads family > streamObservationIOFieldFromEv
     "route": "observation-io-stream",
     "sql": "SELECT e.input AS field
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
+WHERE (e.project_id = {param1:String})
+    AND (e.trace_id = {param2:String})
+    AND (e.span_id = {param3:String})
+    AND (e.start_time >= {param4:DateTime64(6)})
+    AND (e.start_time <= {param5:DateTime64(6)})
 ORDER BY e.event_ts DESC
 LIMIT {param6:Int64}
 FORMAT RawBLOB",
@@ -466,7 +518,11 @@ exports[`golden: events IO payload reads family > streamObservationIOFieldFromEv
     "route": "observation-io-stream",
     "sql": "SELECT toJSONString(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))) AS field
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
+WHERE (e.project_id = {param1:String})
+    AND (e.trace_id = {param2:String})
+    AND (e.span_id = {param3:String})
+    AND (e.start_time >= {param4:DateTime64(6)})
+    AND (e.start_time <= {param5:DateTime64(6)})
 ORDER BY e.event_ts DESC
 LIMIT {param6:Int64}
 FORMAT RawBLOB",
@@ -489,7 +545,11 @@ exports[`golden: events IO payload reads family > streamObservationIOFieldFromEv
     "route": "observation-io-stream",
     "sql": "SELECT e.output AS field
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
+WHERE (e.project_id = {param1:String})
+    AND (e.trace_id = {param2:String})
+    AND (e.span_id = {param3:String})
+    AND (e.start_time >= {param4:DateTime64(6)})
+    AND (e.start_time <= {param5:DateTime64(6)})
 ORDER BY e.event_ts DESC
 LIMIT {param6:Int64}
 FORMAT RawBLOB",
@@ -568,7 +628,10 @@ exports[`golden: events metadata map and session resolution > getEventsForAnalyt
         arrayReverse(e.metadata_values)
     )['$mixpanel_session_id'] AS mixpanel_session_id
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (e.start_time >= {param2:DateTime64(3)}) AND (e.start_time < {param3:DateTime64(3)}) AND (e.is_deleted = 0)
+WHERE (e.project_id = {param1:String})
+    AND (e.start_time >= {param2:DateTime64(3)})
+    AND (e.start_time < {param3:DateTime64(3)})
+    AND (e.is_deleted = 0)
 LIMIT 1 BY
     e.span_id,
     e.project_id",
@@ -614,7 +677,8 @@ exports[`golden: events metadata map and session resolution > getObservationsV2F
             e.start_time AS _io_start_time,
             mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
         FROM events_full AS e
-        WHERE (e.project_id = {param1:String}) AND (e.start_time >= (((
+        WHERE (e.project_id = {param1:String})
+            AND (e.start_time >= (((
             SELECT (min(start_time), max(start_time))
             FROM base
         )).1)) AND (e.start_time <= (((
@@ -703,7 +767,10 @@ exports[`golden: events metadata map and session resolution > getTraceBatchEvent
     e.level,
     e.status_message
 FROM events_full AS e
-WHERE (e.project_id IN ({param1:Array(String)})) AND (e.trace_id IN ({param2:Array(String)})) AND ((e.project_id, e.trace_id) IN ({param3:Array(Tuple(String, String))})) AND (xxHash32(e.trace_id) IN (
+WHERE (e.project_id IN ({param1:Array(String)}))
+    AND (e.trace_id IN ({param2:Array(String)}))
+    AND ((e.project_id, e.trace_id) IN ({param3:Array(Tuple(String, String))}))
+    AND (xxHash32(e.trace_id) IN (
     SELECT arrayJoin(arrayMap(id -> xxHash32(id), {param2:Array(String)}))
 )) AND (
     e.start_time >= fromUnixTimestamp64Milli({param4:Int64})
@@ -738,7 +805,10 @@ exports[`golden: events point-reads & existence family > getAgentGraphDataFromEv
     mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{param1:String}] AS node,
     mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{param2:String}] AS step
 FROM events_core AS e
-WHERE (e.project_id = {param3:String}) AND (e.trace_id = {param4:String}) AND (e.start_time >= {param5:DateTime64(6)}) AND (e.start_time <= {param6:DateTime64(6)})",
+WHERE (e.project_id = {param3:String})
+    AND (e.trace_id = {param4:String})
+    AND (e.start_time >= {param5:DateTime64(6)})
+    AND (e.start_time <= {param6:DateTime64(6)})",
   },
 ]
 `;
@@ -760,7 +830,9 @@ exports[`golden: events point-reads & existence family > getLastTraceTimestampsB
     project_id,
     max(start_time) AS last_trace_at
 FROM events_core
-WHERE (project_id IN ({param1:Array(String)})) AND (start_time >= (now() - toIntervalDay(30))) AND (is_deleted = 0)
+WHERE (project_id IN ({param1:Array(String)}))
+    AND (start_time >= (now() - toIntervalDay(30)))
+    AND (is_deleted = 0)
 GROUP BY project_id",
   },
 ]
@@ -780,7 +852,9 @@ exports[`golden: events point-reads & existence family > getLastTraceTimestampsB
     project_id,
     max(start_time) AS last_trace_at
 FROM events_core
-WHERE (project_id IN ({param1:Array(String)})) AND (start_time >= (now() - toIntervalDay(30))) AND (is_deleted = 0)
+WHERE (project_id IN ({param1:Array(String)}))
+    AND (start_time >= (now() - toIntervalDay(30)))
+    AND (is_deleted = 0)
 GROUP BY project_id",
   },
 ]
@@ -846,7 +920,8 @@ exports[`golden: events point-reads & existence family > getObservationByIdFromE
     e.tags AS tags,
     e.release AS release
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (span_id = {param2:String})
+WHERE (e.project_id = {param1:String})
+    AND (span_id = {param2:String})
 ORDER BY
     start_time DESC,
     event_ts DESC
@@ -917,7 +992,8 @@ exports[`golden: events point-reads & existence family > getObservationByIdFromE
     input,
     output
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (span_id = {param2:String})
+WHERE (e.project_id = {param1:String})
+    AND (span_id = {param2:String})
 ORDER BY
     start_time DESC,
     event_ts DESC
@@ -988,7 +1064,8 @@ exports[`golden: events point-reads & existence family > getObservationByIdFromE
     leftUTF8(input, 1000) AS input,
     leftUTF8(output, 1000) AS output
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (span_id = {param2:String})
+WHERE (e.project_id = {param1:String})
+    AND (span_id = {param2:String})
 ORDER BY
     start_time DESC,
     event_ts DESC
@@ -1061,7 +1138,12 @@ exports[`golden: events point-reads & existence family > getObservationByIdFromE
     e.tags AS tags,
     e.release AS release
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (span_id = {param2:String}) AND (toStartOfMinute(start_time) = toStartOfMinute({param3:DateTime64(6)})) AND (start_time >= {param4:DateTime64(6)}) AND (type = {param5:String}) AND (trace_id = {param6:String})
+WHERE (e.project_id = {param1:String})
+    AND (span_id = {param2:String})
+    AND (toStartOfMinute(start_time) = toStartOfMinute({param3:DateTime64(6)}))
+    AND (start_time >= {param4:DateTime64(6)})
+    AND (type = {param5:String})
+    AND (trace_id = {param6:String})
 ORDER BY
     start_time DESC,
     event_ts DESC
@@ -1086,7 +1168,8 @@ exports[`golden: events point-reads & existence family > getObservationsTraceIds
     e.trace_id AS trace_id,
     e.span_id AS span_id
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)}))",
+WHERE (e.project_id = {param1:String})
+    AND (e.span_id IN ({param2:Array(String)}))",
   },
 ]
 `;
@@ -1163,7 +1246,8 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
             any(experiment_id) AS experiment_id
         FROM events_full AS e
-        WHERE (e.project_id = {param1:String}) AND (trace_id IN ({param2:Array(String)}))
+        WHERE (e.project_id = {param1:String})
+            AND (trace_id IN ({param2:Array(String)}))
         GROUP BY
             trace_id,
             project_id
@@ -1267,7 +1351,8 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
             any(experiment_id) AS experiment_id
         FROM events_full AS e
-        WHERE (e.project_id = {param1:String}) AND (trace_id IN ({param2:Array(String)}))
+        WHERE (e.project_id = {param1:String})
+            AND (trace_id IN ({param2:Array(String)}))
         GROUP BY
             trace_id,
             project_id
@@ -1373,7 +1458,9 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
             any(experiment_id) AS experiment_id
         FROM events_full AS e
-        WHERE (e.project_id = {param1:String}) AND (trace_id IN ({param2:Array(String)})) AND (start_time >= {param3:DateTime64(6)})
+        WHERE (e.project_id = {param1:String})
+            AND (trace_id IN ({param2:Array(String)}))
+            AND (start_time >= {param3:DateTime64(6)})
         GROUP BY
             trace_id,
             project_id
@@ -1478,7 +1565,8 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
             any(experiment_id) AS experiment_id
         FROM events_core AS e
-        WHERE (e.project_id = {param1:String}) AND (trace_id IN ({param2:Array(String)}))
+        WHERE (e.project_id = {param1:String})
+            AND (trace_id IN ({param2:Array(String)}))
         GROUP BY
             trace_id,
             project_id
@@ -1534,7 +1622,10 @@ exports[`golden: events point-reads & existence family > getTraceMetadataByIdsFr
     e.user_id AS user_id,
     e.tags AS tags
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (coalesce(nullIf(e.trace_name, ''), if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)) IS NOT NULL) AND (e.trace_id IN ({param3:Array(String)}))
+WHERE (e.project_id = {param1:String})
+    AND (e.is_deleted = {param2:UInt8})
+    AND (coalesce(nullIf(e.trace_name, ''), if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)) IS NOT NULL)
+    AND (e.trace_id IN ({param3:Array(String)}))
 LIMIT 1 BY e.trace_id",
   },
 ]
@@ -1553,7 +1644,10 @@ exports[`golden: events point-reads & existence family > hasAnySessionFromEvents
     "route": "unknown",
     "sql": "SELECT 1 AS one
 FROM events_core
-WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8}) AND (session_id IS NOT NULL) AND (session_id != {param3:String})
+WHERE (project_id = {param1:String})
+    AND (events_core.is_deleted = {param2:UInt8})
+    AND (session_id IS NOT NULL)
+    AND (session_id != {param3:String})
 LIMIT {param4:Int64}",
   },
 ]
@@ -1571,7 +1665,8 @@ exports[`golden: events point-reads & existence family > hasAnyTraceFromEventsTa
     "route": "unknown",
     "sql": "SELECT 1 AS one
 FROM events_core
-WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8})
+WHERE (project_id = {param1:String})
+    AND (events_core.is_deleted = {param2:UInt8})
 LIMIT {param3:Int64}",
   },
 ]
@@ -1590,7 +1685,10 @@ exports[`golden: events point-reads & existence family > hasAnyUserFromEventsTab
     "route": "unknown",
     "sql": "SELECT 1 AS one
 FROM events_core
-WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8}) AND (user_id IS NOT NULL) AND (user_id != {param3:String})
+WHERE (project_id = {param1:String})
+    AND (events_core.is_deleted = {param2:UInt8})
+    AND (user_id IS NOT NULL)
+    AND (user_id != {param3:String})
 LIMIT {param4:Int64}",
   },
 ]
@@ -1620,7 +1718,12 @@ exports[`golden: events simple aggregates family > getLatestSdkVersionInfoFromEv
     max(e.start_time) AS last_seen,
     count() AS event_count
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (toDate(e.start_time) >= toDate({param3:DateTime64(6)})) AND startsWith(e.source, {param4:String}) AND (e.ingestion_sdk_name NOT IN ({param5:Array(String)}))
+WHERE (e.project_id = {param1:String})
+    AND (e.is_deleted = {param2:UInt8})
+    AND (e.start_time >= {param3:DateTime64(6)})
+    AND (toDate(e.start_time) >= toDate({param3:DateTime64(6)}))
+    AND startsWith(e.source, {param4:String})
+    AND (e.ingestion_sdk_name NOT IN ({param5:Array(String)}))
 GROUP BY
     e.ingestion_sdk_name,
     e.ingestion_sdk_version,
@@ -1658,7 +1761,9 @@ exports[`golden: events simple aggregates family > getObservationMetricsForPromp
             e.cost_details AS cost_details,
             e.is_deleted AS is_deleted
         FROM events_core AS e
-        WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)}))
+        WHERE (e.project_id = {param1:String})
+            AND (e.type = {param2:String})
+            AND (e.prompt_id IN ({param3:Array(String)}))
         ORDER BY e.event_ts DESC
         LIMIT 1 BY
             e.span_id,
@@ -1720,7 +1825,10 @@ exports[`golden: events simple aggregates family > getObservationMetricsForPromp
             e.cost_details AS cost_details,
             e.is_deleted AS is_deleted
         FROM events_core AS e
-        WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)})) AND (e.start_time >= {param4:DateTime64(6)})
+        WHERE (e.project_id = {param1:String})
+            AND (e.type = {param2:String})
+            AND (e.prompt_id IN ({param3:Array(String)}))
+            AND (e.start_time >= {param4:DateTime64(6)})
         ORDER BY e.event_ts DESC
         LIMIT 1 BY
             e.span_id,
@@ -1783,7 +1891,11 @@ exports[`golden: events simple aggregates family > getObservationMetricsForPromp
             e.cost_details AS cost_details,
             e.is_deleted AS is_deleted
         FROM events_core AS e
-        WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)})) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
+        WHERE (e.project_id = {param1:String})
+            AND (e.type = {param2:String})
+            AND (e.prompt_id IN ({param3:Array(String)}))
+            AND (e.start_time >= {param4:DateTime64(6)})
+            AND (e.start_time <= {param5:DateTime64(6)})
         ORDER BY e.event_ts DESC
         LIMIT 1 BY
             e.span_id,
@@ -1845,7 +1957,10 @@ exports[`golden: events simple aggregates family > getObservationMetricsForPromp
             e.cost_details AS cost_details,
             e.is_deleted AS is_deleted
         FROM events_core AS e
-        WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)})) AND (e.start_time <= {param4:DateTime64(6)})
+        WHERE (e.project_id = {param1:String})
+            AND (e.type = {param2:String})
+            AND (e.prompt_id IN ({param3:Array(String)}))
+            AND (e.start_time <= {param4:DateTime64(6)})
         ORDER BY e.event_ts DESC
         LIMIT 1 BY
             e.span_id,
@@ -1906,7 +2021,9 @@ exports[`golden: events simple aggregates family > getObservationMetricsForPromp
             e.cost_details AS cost_details,
             e.is_deleted AS is_deleted
         FROM events_core AS e
-        WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)}))
+        WHERE (e.project_id = {param1:String})
+            AND (e.type = {param2:String})
+            AND (e.prompt_id IN ({param3:Array(String)}))
         ORDER BY e.event_ts DESC
         LIMIT 1 BY
             e.span_id,
@@ -1951,7 +2068,10 @@ exports[`golden: events simple aggregates family > getObservationsWithPromptName
     uniq(span_id) AS count,
     prompt_name
 FROM events_core
-WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8}) AND (prompt_name IN ({param3:Array(String)})) AND (prompt_name != {param4:String})
+WHERE (project_id = {param1:String})
+    AND (events_core.is_deleted = {param2:UInt8})
+    AND (prompt_name IN ({param3:Array(String)}))
+    AND (prompt_name != {param4:String})
 GROUP BY prompt_name",
   },
 ]
@@ -1976,7 +2096,11 @@ exports[`golden: events simple aggregates family > getObservationsWithPromptName
     uniq(span_id) AS count,
     prompt_name
 FROM events_core
-WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8}) AND (prompt_name IN ({param3:Array(String)})) AND (prompt_name != {param4:String}) AND (start_time >= {param5:DateTime64(6)})
+WHERE (project_id = {param1:String})
+    AND (events_core.is_deleted = {param2:UInt8})
+    AND (prompt_name IN ({param3:Array(String)}))
+    AND (prompt_name != {param4:String})
+    AND (start_time >= {param5:DateTime64(6)})
 GROUP BY prompt_name",
   },
 ]
@@ -2002,7 +2126,12 @@ exports[`golden: events simple aggregates family > getObservationsWithPromptName
     uniq(span_id) AS count,
     prompt_name
 FROM events_core
-WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8}) AND (prompt_name IN ({param3:Array(String)})) AND (prompt_name != {param4:String}) AND (start_time >= {param5:DateTime64(6)}) AND (start_time <= {param6:DateTime64(6)})
+WHERE (project_id = {param1:String})
+    AND (events_core.is_deleted = {param2:UInt8})
+    AND (prompt_name IN ({param3:Array(String)}))
+    AND (prompt_name != {param4:String})
+    AND (start_time >= {param5:DateTime64(6)})
+    AND (start_time <= {param6:DateTime64(6)})
 GROUP BY prompt_name",
   },
 ]
@@ -2027,7 +2156,11 @@ exports[`golden: events simple aggregates family > getObservationsWithPromptName
     uniq(span_id) AS count,
     prompt_name
 FROM events_core
-WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8}) AND (prompt_name IN ({param3:Array(String)})) AND (prompt_name != {param4:String}) AND (start_time <= {param5:DateTime64(6)})
+WHERE (project_id = {param1:String})
+    AND (events_core.is_deleted = {param2:UInt8})
+    AND (prompt_name IN ({param3:Array(String)}))
+    AND (prompt_name != {param4:String})
+    AND (start_time <= {param5:DateTime64(6)})
 GROUP BY prompt_name",
   },
 ]
@@ -2051,7 +2184,10 @@ exports[`golden: events simple aggregates family > getObservationsWithPromptName
     uniq(span_id) AS count,
     prompt_name
 FROM events_core
-WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8}) AND (prompt_name IN ({param3:Array(String)})) AND (prompt_name != {param4:String})
+WHERE (project_id = {param1:String})
+    AND (events_core.is_deleted = {param2:UInt8})
+    AND (prompt_name IN ({param3:Array(String)}))
+    AND (prompt_name != {param4:String})
 GROUP BY prompt_name",
   },
 ]
@@ -2102,7 +2238,9 @@ exports[`golden: events simple aggregates family > getSessionMetricsFromEvents f
     ) AS session_output_usage,
     sumMap(usage_details)[{param3:String}] AS session_total_usage
 FROM events_core AS e
-WHERE (e.project_id = {param4:String}) AND (session_id IN ({param5:Array(String)})) AND (session_id != {param6:String})
+WHERE (e.project_id = {param4:String})
+    AND (session_id IN ({param5:Array(String)}))
+    AND (session_id != {param6:String})
 GROUP BY session_id
 LIMIT {param7:Int64}",
   },
@@ -2129,7 +2267,9 @@ exports[`golden: events simple aggregates family > getSessionMetricsFromEvents s
     session_id,
     uniq(trace_id) AS trace_count
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (session_id IN ({param2:Array(String)})) AND (session_id != {param3:String})
+WHERE (e.project_id = {param1:String})
+    AND (session_id IN ({param2:Array(String)}))
+    AND (session_id != {param3:String})
 GROUP BY session_id
 LIMIT {param4:Int64}",
   },
@@ -2155,7 +2295,10 @@ exports[`golden: events simple aggregates family > getSessionMetricsFromEvents s
     session_id,
     uniq(trace_id) AS trace_count
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (session_id IN ({param2:Array(String)})) AND (start_time >= {param3:DateTime64(6)}) AND (session_id != {param4:String})
+WHERE (e.project_id = {param1:String})
+    AND (session_id IN ({param2:Array(String)}))
+    AND (start_time >= {param3:DateTime64(6)})
+    AND (session_id != {param4:String})
 GROUP BY session_id
 LIMIT {param5:Int64}",
   },

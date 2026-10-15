@@ -11,7 +11,8 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=events_only 
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM events_core
-WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(6)})",
+WHERE (project_id = {param1:String})
+    AND (start_time >= {param2:DateTime64(6)})",
   },
   {
     "fn": "queryClickhouse",
@@ -28,7 +29,9 @@ WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(6)})"
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
-WHERE (project_id = {param1:String}) AND (data_type IN ({param2:Array(String)})) AND (timestamp >= {param3:DateTime64(3)})",
+WHERE (project_id = {param1:String})
+    AND (data_type IN ({param2:Array(String)}))
+    AND (timestamp >= {param3:DateTime64(3)})",
   },
 ]
 `;
@@ -59,7 +62,8 @@ WHERE project_id = {param1:String}",
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
-WHERE (project_id = {param1:String}) AND (data_type IN ({param2:Array(String)}))",
+WHERE (project_id = {param1:String})
+    AND (data_type IN ({param2:Array(String)}))",
   },
 ]
 `;
@@ -75,11 +79,13 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=legacy fromT
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM traces
-WHERE (project_id = {param1:String}) AND (timestamp >= {param2:DateTime64(3)})
+WHERE (project_id = {param1:String})
+    AND (timestamp >= {param2:DateTime64(3)})
 UNION ALL
 SELECT DISTINCT environment
 FROM observations
-WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(3)})",
+WHERE (project_id = {param1:String})
+    AND (start_time >= {param2:DateTime64(3)})",
   },
   {
     "fn": "queryClickhouse",
@@ -96,7 +102,9 @@ WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(3)})"
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
-WHERE (project_id = {param1:String}) AND (data_type IN ({param2:Array(String)})) AND (timestamp >= {param3:DateTime64(3)})",
+WHERE (project_id = {param1:String})
+    AND (data_type IN ({param2:Array(String)}))
+    AND (timestamp >= {param3:DateTime64(3)})",
   },
 ]
 `;
@@ -131,7 +139,8 @@ WHERE project_id = {param1:String}",
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
-WHERE (project_id = {param1:String}) AND (data_type IN ({param2:Array(String)}))",
+WHERE (project_id = {param1:String})
+    AND (data_type IN ({param2:Array(String)}))",
   },
 ]
 `;
