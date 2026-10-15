@@ -37,6 +37,9 @@
   bans, sources, and unused dependencies (`cargo machete`) in the pipeline lint
   job. Run `pnpm --filter @langfuse/native run rust:deny` and `rust:unused-deps`
   after changing `Cargo.toml` or `Cargo.lock`.
+- Dependabot opens weekly grouped Cargo PRs for this crate. It resolves without
+  the clickhouse overlay, so drop the `source` and `checksum` lines it adds to
+  the `clickhouse` entry in `Cargo.lock` before merging.
 
 ## Verification
 
