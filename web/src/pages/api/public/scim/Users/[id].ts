@@ -5,10 +5,7 @@ import { logger } from "@langfuse/shared/src/server";
 import { isBaseError, LangfuseConflictError } from "@langfuse/shared";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import {
-  assertValidOwnershipChange,
-  lockOrganization,
-} from "@/src/ee/features/admin-api/server/memberships";
+import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
@@ -74,7 +71,6 @@ async function provisionMembership({
     try {
       const result = await prisma.$transaction(
         async (tx) => {
-          await lockOrganization(tx, orgId);
           const current = await tx.organizationMembership.findUnique({
             where: { orgId_userId: { orgId, userId } },
           });
@@ -247,7 +243,6 @@ async function deprovisionOrReject(
   try {
     const outcome = await prisma.$transaction(
       async (tx) => {
-        await lockOrganization(tx, orgId);
         const membership = await tx.organizationMembership.findUnique({
           where: { orgId_userId: { orgId, userId } },
           // Capture the project memberships that Postgres cascade-deletes with
