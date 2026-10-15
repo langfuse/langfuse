@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary */
+import { useRouter } from "next/router";
 import { DataTable } from "@/src/components/table/data-table";
 import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -137,6 +138,7 @@ export default function SessionsTable({
   isV4 = false,
   showControlsInPageHeader = false,
 }: SessionTableProps) {
+  const router = useRouter();
   const capture = usePostHogClientCapture();
   const sessionsFilterConfig = useMemo(
     () => getSessionFilterConfig(omittedFilter, isV4),
@@ -948,6 +950,11 @@ export default function SessionsTable({
             <DataTable
               tableName="sessions"
               columns={columns}
+              onRowClick={(row) => {
+                router.push(
+                  `/project/${projectId}/sessions/${encodeURIComponent(row.id)}`,
+                );
+              }}
               data={
                 sessions.isPending || isViewLoading
                   ? { isLoading: true, isError: false }
